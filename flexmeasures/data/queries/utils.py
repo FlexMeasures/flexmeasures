@@ -217,12 +217,11 @@ def get_belief_timing_criteria(
     return criteria
 
 
+
 def simplify_index(
     bdf: tb.BeliefsDataFrame,
     index_levels_to_columns: list[str] | None = None,
-    keep_duplicate_value: str | None = None,
-    keep_duplicate_column: GenericAsset | GenericAssetType | None = None,
-) -> pd.DataFrame:
+   ) -> pd.DataFrame:
     """Drops indices other than event_start.
     Optionally, salvage index levels as new columns.
 
@@ -233,6 +232,13 @@ def simplify_index(
     * The index levels are dropped (by overwriting the multi-level index with just the “event_start” index level).
       Only for the columns named in index_levels_to_columns, the relevant information is kept around.
     """
+    if bdf.lineage.number_of_beliefs < len(bdf):
+        logging.debug("bdf with duplicates due to probabilistic beliefs:\n %s", bdf)
+    if bdf.lineage.number_of_events < bdf.lineage.number_of_beliefs and bdf.lineage.number_of_sources == 1:
+        logging.debug("bdf with duplicates due to multiple belief times/horizons per event:\n %s", bdf)
+    if bdf.lineage.number_of_events < bdf.lineage.number_of_beliefs and bdf.lineage.number_of_sources > 1:
+        logging.debug("bdf with duplicates maybe due to multiple sources per event:\n %s", bdf)
+
     if index_levels_to_columns is not None:
         for col in index_levels_to_columns:
             try:
@@ -246,11 +252,8 @@ def simplify_index(
                     raise KeyError(f"Level {col} not found")
     bdf.index = bdf.index.get_level_values("event_start")
     if bdf.index.duplicated().any():
-        if keep_duplicate_column is not None and keep_duplicate_column in bdf.columns:
-            bdf = bdf[bdf[keep_duplicate_column] == keep_duplicate_value]
-            logging.debug("bdf without duplicates %s \n ", bdf)
-        else:
-            raise ValueError("Duplicates found in index after processing.")
+       logging.debug(f"bdf with duplicates: {bdf}")
+    #  raise ValueError("Duplicates found in index after processing.")
 
     return bdf
 
