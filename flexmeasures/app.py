@@ -96,6 +96,7 @@ def create(  # noqa C901
         """
     app.redis_connection = redis_conn
     app.queues = dict(
+        email=Queue(connection=redis_conn, name="email"),
         forecasting=Queue(connection=redis_conn, name="forecasting"),
         scheduling=Queue(connection=redis_conn, name="scheduling"),
         # reporting=Queue(connection=redis_conn, name="reporting"),
