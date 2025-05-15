@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from flask_security import current_user
+from flask_security.core import AnonymousUser
 from sqlalchemy import DateTime, Column, Integer, String, ForeignKey
 
 from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
@@ -13,11 +14,7 @@ from flexmeasures.utils.time_utils import server_now
 
 def get_current_user_id_name():
     current_user_id, current_user_name = None, None
-    if (
-        current_user
-        and hasattr(current_user, "is_authenticated")
-        and current_user.is_authenticated
-    ):
+    if current_user and not isinstance(current_user, AnonymousUser):
         current_user_id, current_user_name = current_user.id, current_user.username
     return current_user_id, current_user_name
 
@@ -183,7 +180,7 @@ class AssetAuditLog(db.Model, AuthModelMixin):
             event_datetime=server_now(),
             event=truncate_string(
                 event, 255
-            ),  # we truncate the event string if it exceed 255 characters by adding ellipses in the middle
+            ),  # we truncate the event string if it exceeds 255 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=asset.id,

@@ -329,8 +329,8 @@ p.error {
     text-align: center;
 }
 .dropdown-menu>li>a.active {
-    color: var(--nav-hover-color);
-    background-color: var(--nav-hover-background-color);
+    color: var(--nav-current-color) !important;
+    background-color: var(--nav-current-background-color) !important;
 }
 .dropdown-menu>li>a:focus,
 .dropdown-menu>li>a:hover {

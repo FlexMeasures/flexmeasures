@@ -11,7 +11,7 @@ In particular, the page contains:
 .. contents::
     :local:
     :depth: 1
-
+|
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_dashboard.png
     :align: center

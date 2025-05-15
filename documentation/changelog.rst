@@ -18,14 +18,14 @@ New features
 * Extending sensor CRUD functionality to the UI [see `PR #1394 <https://github.com/FlexMeasures/flexmeasures/pull/1394>`_ and `PR #1413 <https://github.com/FlexMeasures/flexmeasures/pull/1413>`_]
 * Marker clusters on the dashboard map expand in a tree to show the hierarchical relationship of the assets they represent [see `PR #1410 <https://github.com/FlexMeasures/flexmeasures/pull/1410>`_]
 * Load the sensors individually on the Sensors status page. Reload the jobs table using Ajax calls. Improve page performance and avoid timeouts. [see `PR #1425 <https://github.com/FlexMeasures/flexmeasures/pull/1425>`_ and `PR #1466 <https://github.com/FlexMeasures/flexmeasures/pull/1466>`_]
-* New pages for `Properties`, `Graphs`, `Context`, `Status` and `Audit Log`. Simplified the main asset page. [see `PR #1416 <https://github.com/FlexMeasures/flexmeasures/pull/1416>`_, `PR #1387 <https://github.com/FlexMeasures/flexmeasures/pull/1387>`_ and `PR #1442 <https://github.com/FlexMeasures/flexmeasures/pull/1442>`_]
+* New pages for `Properties`, `Graphs`, `Context`, `Status` and `Audit Log`. Simplified the main asset page. [see `PR #1416 <https://github.com/FlexMeasures/flexmeasures/pull/1416>`_, `PR #1387 <https://github.com/FlexMeasures/flexmeasures/pull/1387>`_, `PR #1442 <https://github.com/FlexMeasures/flexmeasures/pull/1442>`_, `PR #1470 <https://github.com/FlexMeasures/flexmeasures/pull/1470>`_, `PR #1473 <https://github.com/FlexMeasures/flexmeasures/pull/1473>`_, `PR #1478 <https://github.com/FlexMeasures/flexmeasures/pull/1478>`_, `PR #1480<https://github.com/FlexMeasures/flexmeasures/pull/1480>`_] and `PR #1482 <https://github.com/FlexMeasures/flexmeasures/pull/1482>`_]
 * Only show important sensors statuses (flex-context and graph sensors) on the status page [see `PR #1439 <https://github.com/FlexMeasures/flexmeasures/pull/1439>`_]
-* Let the user interact with the breadcrumbs on asset graphs page when the graphs are loading [see `PR #1472 <https://github.com/FlexMeasures/flexmeasures/pull/1472>`_]g
+* Let the user interact with the breadcrumbs on asset graphs page when the graphs are loading [see `PR #1472 <https://github.com/FlexMeasures/flexmeasures/pull/1472>`_]
 
 Infrastructure / Support
 ----------------------
 * Move to using a ``pyproject.toml`` [see `PR #1419 <https://www.github.com/FlexMeasures/flexmeasures/pull/1419>`_]
-* Upgraded dependencies [see `PR #1400 <https://www.github.com/FlexMeasures/flexmeasures/pull/1400>`_, `PR #1444 <https://www.github.com/FlexMeasures/flexmeasures/pull/1444>`_ and `PR #1448 <https://www.github.com/FlexMeasures/flexmeasures/pull/1448>`_]
+* Upgraded dependencies [see `PR #1400 <https://www.github.com/FlexMeasures/flexmeasures/pull/1400>`_, `PR #1444 <https://www.github.com/FlexMeasures/flexmeasures/pull/1444>`_, `PR #1448 <https://www.github.com/FlexMeasures/flexmeasures/pull/1448>`_ and `PR #1484 <https://www.github.com/FlexMeasures/flexmeasures/pull/1484>`_]
 * Save last N jobs from any queue and registry to a file, and support filtering by asset ID or sensor ID [see `PR #1411 <https://github.com/FlexMeasures/flexmeasures/pull/1411>`_]
 * Describe four supported user roles explicitly (docs and code) [see `PR #1451 <https://github.com/FlexMeasures/flexmeasures/pull/1451>`_]
 * Updated the directory structure for crud operations for assets, sensors, users and accounts [see `PR #1467 <https://github.com/FlexMeasures/flexmeasures/pull/1467>`_ and `PR #1471 <https://github.com/FlexMeasures/flexmeasures/pull/1471>`_]
@@ -37,6 +37,7 @@ Bugfixes
 * Fix map not loading when editing an asset [see `PR #1414 <https://github.com/FlexMeasures/flexmeasures/pull/1414>`_]
 * Fix ``flexmeasures add schedule for-storage`` after flex-context database migration [see `PR #1417 <https://github.com/FlexMeasures/flexmeasures/pull/1417>`_ and `PR #1449 <https://github.com/FlexMeasures/flexmeasures/pull/1449>`_]
 * Fix overriding of flex-context when asset is edited on the UI [see `PR #1469 <https://github.com/FlexMeasures/flexmeasures/pull/1469>`_]
+* Support entering audit log entries by detached user instances [see `PR #1483 <https://github.com/FlexMeasures/flexmeasures/pull/1483>`_]
 
 v0.25.0 | April 01, 2025
 ============================

@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 from humanize import naturaldelta
 
-from flask import current_app
+from flask import current_app, request
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -31,7 +31,7 @@ from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
-from flexmeasures.ui.utils.view_utils import set_session_variables
+from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -786,4 +786,76 @@ class AssetAPI(FlaskView):
         return {
             "jobs": all_jobs_data,
             "redis_connection_err": redis_connection_err,
+        }, 200
+
+    @route("/default_asset_view", methods=["POST"])
+    @as_json
+    @use_kwargs(
+        {
+            "default_asset_view": fields.Str(
+                required=True,
+                validate=validate.OneOf(
+                    [
+                        "Audit Log",
+                        "Context",
+                        "Graphs",
+                        "Properties",
+                        "Status",
+                    ]
+                ),
+            ),
+            "use_as_default": fields.Bool(required=False, load_default=True),
+        },
+        location="json",
+    )
+    def update_default_asset_view(self, **kwargs):
+        """Update the default asset view for the current user session.
+
+        .. :quickref: Asset; Update the default asset view
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "default_asset_view": "Graphs",
+                "use_as_default": true
+            }
+
+        **Example response**
+
+        .. sourcecode:: json
+            {
+                "message": "Default asset view updated successfully."
+            }
+
+        This endpoint sets the default asset view for the current user session if use_as_default is true.
+        If use_as_default is false, it clears the session variable for the default asset view.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        # Update the request.values
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        use_as_default = kwargs.get("use_as_default", True)
+        if use_as_default:
+            # Set the default asset view for the current user session
+            set_session_variables(
+                "default_asset_view",
+            )
+        else:
+            # Remove the default asset view from the session
+            clear_session(keys_to_clear=["default_asset_view"])
+
+        return {
+            "message": "Default asset view updated successfully.",
         }, 200
