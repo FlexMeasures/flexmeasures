@@ -179,7 +179,7 @@ class AssetAuditLog(db.Model, AuthModelMixin):
             event_datetime=server_now(),
             event=truncate_string(
                 event, 255
-            ),  # we truncate the event string if it exceed 255 characters by adding ellipses in the middle
+            ),  # we truncate the event string if it exceeds 255 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=asset.id,
