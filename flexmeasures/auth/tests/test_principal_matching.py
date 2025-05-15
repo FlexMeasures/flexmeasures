@@ -102,6 +102,16 @@ def test_principals_match(mock_user, principals, should_match):
     [
         (make_mock_user(19, ["admin"], 1, []), [3, 4], True),  # admin mock user
         (make_mock_user(19, ["consultant"], 1, []), [3], False),  # consultant mock user
+        (
+            make_mock_user(19, ["admin-reader"], 1, []),
+            [3],
+            False,
+        ),  # admin-reader mock user
+        (
+            make_mock_user(19, ["account-admin"], 1, []),
+            [4],
+            True,
+        ),  # account-admin mock user
     ],
 )
 def test_can_modify_role(

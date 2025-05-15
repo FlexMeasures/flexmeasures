@@ -60,17 +60,17 @@ def test_user_reset_password(
         )
 
 
+#  This test can also be found in test_api_v3_0_users.py, the difference is
+#  that this makes modifications to the db(and thats best to be in a seperate db session,
+#  in other not to affect other test) while the other doesnt
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code, user_to_update, expected_role",
     [
-        ("test_prosumer_user_2@seita.nl", 403, 8, [3, 4]),  # account-admin user
-        # ("test_admin_reader_user@seita.nl", 403, 8, [3]),  # admin reader user
-        # ("test_consultant@seita.nl", 403, 8, [3]),  # consultant user
         ("test_admin_user@seita.nl", 200, 8, [3, 4]),  # admin user
     ],
     indirect=["requesting_user"],
 )
-def test_user_role_modification_permission(
+def test_auth_user_role_successful_modification_permission(
     client,
     setup_roles_users_fresh_db,
     requesting_user,
