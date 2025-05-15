@@ -299,17 +299,26 @@ class UserAPI(FlaskView):
             if k == "flexmeasures_roles" and v:
                 from flexmeasures.auth.policy import can_modify_role
 
-                can_modify = can_modify_role(current_user, user.roles)
-                if can_modify is False:
-                    raise Forbidden(
-                        "You are not allowed to modify the roles of this user."
-                    )
+                current_roles = set(user.roles)
+                new_roles = set(v)
 
-                can_modify_new_roles = can_modify_role(current_user, v)
-                if can_modify_new_roles is False:
-                    raise Forbidden(
-                        "You are not allowed to assign the new roles to this user."
+                roles_being_removed = current_roles - new_roles
+                if roles_being_removed:
+                    can_modify_removed = can_modify_role(
+                        current_user, roles_being_removed
                     )
+                    if not can_modify_removed:
+                        raise Forbidden(
+                            "You are not allowed to remove these roles from this user."
+                        )
+
+                roles_being_added = new_roles - current_roles
+                if roles_being_added:
+                    can_modify_added = can_modify_role(current_user, roles_being_added)
+                    if not can_modify_added:
+                        raise Forbidden(
+                            "You are not allowed to add these roles to this user."
+                        )
 
             setattr(user, k, v)
             if k == "active" and v is False:
