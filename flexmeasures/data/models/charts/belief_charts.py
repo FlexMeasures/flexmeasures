@@ -793,3 +793,298 @@ def create_rect_layer(
         },
     }
     return rect_layer
+
+
+def create_chargepoint_session_chart(
+    sensors_to_show,
+    event_starts_after=None,
+    event_ends_before=None,
+    combine_legend=True,
+    **override_chart_specs,
+) -> dict:
+
+    all_sensors = []
+    for entry in sensors_to_show:
+        sensors = entry.get("sensors")
+        all_sensors.extend(
+            [
+                s
+                for s in sensors
+                if s.unit == "s"
+                and s.name
+                in [
+                    "arrival",
+                    "departure",
+                    "start charging",
+                    "stop charging",
+                    "plug in",
+                ]
+            ]
+        )
+
+    sensor_ids = [s.id for s in all_sensors]
+
+    chart_spec = {
+        "title": "ChargePoint sessions",
+        "width": "container",
+        "height": 300,
+        "selection": {
+            "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+        },
+        "transform": [
+            {"filter": {"field": "sensor.id", "oneOf": sensor_ids}},
+            {"calculate": "datum.sensor.name", "as": "event_type"},
+            {"calculate": "datum.sensor.asset_id", "as": "asset_id"},
+            {"calculate": "datum.sensor.asset_description", "as": "asset"},
+            {
+                "calculate": "datum.sensor.name + ' (ID: ' + datum.sensor.id + ')'",
+                "as": "sensor_description",
+            },
+            {
+                "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                "as": "session_id",
+            },
+        ],
+        "layer": [
+            # --- Dotted Line: Arrival to Departure ---
+            {
+                "transform": [
+                    {
+                        "filter": "datum.event_type == 'arrival' || datum.event_type == 'departure'"
+                    },
+                    {
+                        "pivot": "event_type",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {"filter": {"selection": "arr_dep"}},
+                ],
+                "selection": {
+                    "scroll": {
+                        "type": "interval",
+                        "bind": "scales",
+                        "encodings": ["x"],
+                    },
+                    "arr_dep": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                    },
+                },
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 1,
+                    "strokeDash": [4, 4],
+                },
+                "encoding": {
+                    "x": {"field": "arrival", "type": "temporal"},
+                    "x2": {"field": "departure", "type": "temporal"},
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "sort": {"field": "asset_id", "order": "descending"},
+                        "title": "EVSE ID",
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "asset_id",
+                            }
+                        },
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 1,
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "arrival",
+                            "type": "temporal",
+                            "title": "Arrival",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                        {
+                            "field": "departure",
+                            "type": "temporal",
+                            "title": "Departure",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                    ],
+                },
+            },
+            # --- Solid Line: Plug-in to Departure ---
+            {
+                "transform": [
+                    {
+                        "filter": "datum.event_type == 'plug in' || datum.event_type == 'departure'"
+                    },
+                    {
+                        "pivot": "event_type",
+                        "value": "event_value",
+                        "groupby": [
+                            "session_id",
+                            "asset",
+                            "asset_id",
+                        ],
+                    },
+                    {"filter": {"selection": "plugin_dep"}},
+                ],
+                "selection": {
+                    "plugin_dep": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                    }
+                },
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 2,
+                },
+                "encoding": {
+                    "x": {
+                        "field": "plug in",
+                        "type": "temporal",
+                        "title": "Sessions",
+                    },
+                    "x2": {
+                        "field": "departure",
+                        "type": "temporal",
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "sort": {"field": "asset_id", "order": "descending"},
+                        "title": "EVSE ID",
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "asset_id",
+                            }
+                        },
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 1,
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": None,
+                    },
+                    "tooltip": [
+                        {
+                            "field": "plug in",
+                            "type": "temporal",
+                            "title": "Plug-in",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                        {
+                            "field": "departure",
+                            "type": "temporal",
+                            "title": "Departure",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                    ],
+                },
+            },
+            # ---  Thick line: Start to Stop Charging ---
+            {
+                "transform": [
+                    {
+                        "filter": "datum.event_type == 'start charging' || datum.event_type == 'stop charging'"
+                    },
+                    {
+                        "pivot": "event_type",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {"filter": {"selection": "start_stop_charging"}},
+                ],
+                "selection": {
+                    "start_stop_charging": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                    }
+                },
+                "mark": {"type": "rule", "strokeWidth": 6},
+                "encoding": {
+                    "x": {"field": "start charging", "type": "temporal"},
+                    "x2": {"field": "stop charging", "type": "temporal"},
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "sort": {"field": "asset_id", "order": "descending"},
+                        "title": "EVSE ID",
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "asset_id",
+                            }
+                        },
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {"field": "asset", "type": "nominal", "legend": None},
+                    "tooltip": [
+                        {
+                            "field": "start charging",
+                            "type": "temporal",
+                            "title": "Start Charging",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                        {
+                            "field": "stop charging",
+                            "type": "temporal",
+                            "title": "Stop Charging",
+                            "format": "%Y-%m-%d %H:%M",
+                        },
+                    ],
+                },
+            },
+        ],
+        "resolve": {"legend": {"opacity": "independent"}},
+    }
+
+    chart_spec["config"] = {
+        "view": {"continuousWidth": 800, "continuousHeight": 150},
+        "autosize": {"type": "fit-x", "contains": "padding"},
+    }
+    if combine_legend is True:
+        chart_spec["resolve"] = {"scale": {"x": "shared"}}
+    chart_spec.update(override_chart_specs)
+    return chart_spec
