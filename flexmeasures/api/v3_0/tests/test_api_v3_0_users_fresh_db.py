@@ -70,7 +70,7 @@ def test_user_reset_password(
     ],
     indirect=["requesting_user"],
 )
-def test_auth_user_role_successful_modification_permission(
+def test_user_role_successful_modification_permission(
     client,
     setup_roles_users_fresh_db,
     requesting_user,
