@@ -295,7 +295,7 @@ def test_logout(client, setup_api_test_data, requesting_user):
 )
 def test_auth_user_role_failed_modification_permission(
     client,
-    setup_api_fresh_test_data,
+    setup_api_test_data,
     requesting_user,
     expected_status_code,
     user_to_update,
