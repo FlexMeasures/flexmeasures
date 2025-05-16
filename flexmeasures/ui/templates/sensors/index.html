@@ -57,10 +57,10 @@
                   </div>
 
                   {% if user_can_update_sensor %}
-                  <div class="sidepanel-container">
+                    <div class="sidepanel-container">
                       <div class="left-sidepanel-label">Edit sensor</div>
-                      <div class="sidepanel left-sidepanel"  style="text-align: left;">
-                              <fieldset>
+                        <div class="sidepanel left-sidepanel" style="text-align: left;">
+                            <fieldset>
                                 <h3>Edit {{ sensor.name }}</h3>
                                 <small>Parent asset: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset.id }} )</small>
                                 <form class="form-horizontal" method="POST">
@@ -75,9 +75,29 @@
                                         Save
                                     </button>
                                 </form>
-                        </fieldset>
-                      </div>
-                  </div>
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <div class="sidepanel-container">
+                        <div class="left-sidepanel-label">Upload data</div>
+                        <div class="sidepanel left-sidepanel" style="text-align: left;">
+                            <fieldset>
+                                <h3>Upload {{ sensor.name }} data</h3>
+                                <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
+                                <form id="uploadForm" enctype="multipart/form-data" method="post" class="form-horizontal">
+                                    <div class="form-group">
+                                        <label class="custom-uploader" for="file">Upload CSV</label>
+                                        <input id="file" accept="text/csv" name="uploaded-files" type="file" multiple="multiple" />
+                                    </div>
+                                    <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
+                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                        Upload file
+                                    </button>
+                                </form>
+                            </fieldset>
+                        </div>
+                    </div>
                   {% endif %}
 
               </div>
