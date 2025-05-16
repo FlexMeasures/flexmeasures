@@ -303,21 +303,17 @@ class UserAPI(FlaskView):
                 new_roles = set(v)
 
                 roles_being_removed = current_roles - new_roles
-                if roles_being_removed:
-                    can_modify_removed = can_modify_role(
-                        current_user, roles_being_removed
-                    )
-                    if not can_modify_removed:
+                for role in roles_being_removed:
+                    if not can_modify_role(current_user, [role]):
                         raise Forbidden(
-                            "You are not allowed to remove these roles from this user."
+                            f"You are not allowed to remove ({role.name}) role from this user."
                         )
 
                 roles_being_added = new_roles - current_roles
-                if roles_being_added:
-                    can_modify_added = can_modify_role(current_user, roles_being_added)
-                    if not can_modify_added:
+                for role in roles_being_added:
+                    if not can_modify_role(current_user, [role]):
                         raise Forbidden(
-                            "You are not allowed to add these roles to this user."
+                            f"You are not allowed to add ({role.name}) role to this user."
                         )
 
             setattr(user, k, v)
