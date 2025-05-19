@@ -87,7 +87,10 @@
                                 <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
                                 <form id="uploadForm" enctype="multipart/form-data" method="post" class="form-horizontal">
                                     <div class="form-group">
-                                        <label class="custom-uploader" for="file">Upload CSV</label>
+                                        <label class="custom-uploader" for="file">
+                                            Choose data file
+                                            <i class="bi bi-info" title="The payload should be a file containing sensor data in CSV format." style="margin-left: 5px; color: aliceblue;"></i>
+                                        </label>
                                         <input id="file" accept="text/csv" name="uploaded-files" type="file" multiple="multiple" />
                                     </div>
                                     <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
