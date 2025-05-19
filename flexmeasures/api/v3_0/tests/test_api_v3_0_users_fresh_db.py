@@ -66,7 +66,8 @@ def test_user_reset_password(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code, user_to_update, expected_role",
     [
-        ("test_admin_user@seita.nl", 200, 8, [3, 4]),  # admin user
+        ("test_admin_user@seita.nl", 200, 4, [3, 4]),  # admin user
+        ("test_dummy_account_admin@seita.nl", 200, 8, [3, 4]),  # account-admin user
     ],
     indirect=["requesting_user"],
 )

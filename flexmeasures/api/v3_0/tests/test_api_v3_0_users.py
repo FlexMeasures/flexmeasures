@@ -287,8 +287,7 @@ def test_logout(client, setup_api_test_data, requesting_user):
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code, user_to_update, expected_role",
     [
-        ("test_prosumer_user_2@seita.nl", 403, 8, [3, 4]),  # account-admin user
-        ("test_admin_reader_user@seita.nl", 403, 8, [3]),  # admin reader user
+        ("test_admin_reader_user@seita.nl", 403, 5, [3]),  # admin reader user
         ("test_consultant@seita.nl", 403, 8, [3]),  # consultant user
     ],
     indirect=["requesting_user"],
