@@ -18,7 +18,7 @@ class MarshmallowClickMixin(click.ParamType):
         super().__init__(*args, **kwargs)
         self.name = self.__class__.__name__
 
-    def get_metavar(self, param):
+    def get_metavar(self, param, **kwargs):
         return self.__class__.__name__
 
     def convert(self, value, param, ctx, **kwargs):
