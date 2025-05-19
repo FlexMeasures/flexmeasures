@@ -8,6 +8,8 @@ FlexMeasures Changelog
 v0.26.0 | May XX, 2025
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 
