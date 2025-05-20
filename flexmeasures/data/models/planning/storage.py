@@ -123,7 +123,7 @@ class MetaStorageScheduler(Scheduler):
             flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
         ]
         prefer_curtailing_later = [
-            flex_model_d.get("prefer_curtailing_sooner") for flex_model_d in flex_model
+            flex_model_d.get("prefer_curtailing_later") for flex_model_d in flex_model
         ]
         soc_gain = [flex_model_d.get("soc_gain") for flex_model_d in flex_model]
         soc_usage = [flex_model_d.get("soc_usage") for flex_model_d in flex_model]
