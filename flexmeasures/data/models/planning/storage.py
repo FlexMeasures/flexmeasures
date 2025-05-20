@@ -461,7 +461,7 @@ class MetaStorageScheduler(Scheduler):
                 tiny_price_slope = (
                     add_tiny_price_slope(up_deviation_prices, "event_value")
                     - up_deviation_prices
-                )
+                )["event_value"]
                 commitment = FlowCommitment(
                     name=f"prefer curtailing device {d} later",
                     # Prefer curtailing consumption later by making later consumption more expensive
