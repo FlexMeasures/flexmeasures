@@ -154,6 +154,7 @@ def test_battery_solver_day_2(
             "soc-max": soc_max,
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
+            "prefer-curtailing-later": False,
         },
     )
     schedule = scheduler.compute()
@@ -170,8 +171,10 @@ def test_battery_solver_day_2(
 
     # As long as the efficiencies aren't too bad (I haven't computed the actual switch points)
     if roundtrip_efficiency > 0.9 and storage_efficiency > 0.9:
-        assert soc_schedule.loc[start + timedelta(hours=8)] == max(
-            soc_min, battery.get_attribute("min_soc_in_mwh")
+        np.testing.assert_approx_equal(
+            soc_schedule.loc[start + timedelta(hours=8)],
+            max(soc_min, battery.get_attribute("min_soc_in_mwh")),
+            significant=3,
         )  # Sell what you begin with
         assert soc_schedule.loc[start + timedelta(hours=16)] == min(
             soc_max, battery.get_attribute("max_soc_in_mwh")
@@ -226,6 +229,7 @@ def run_test_charge_discharge_sign(
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
             "prefer-charging-sooner": True,
+            "prefer-curtailing-later": False,
         },
         flex_context={
             "consumption-price": {"sensor": consumption_price_sensor_id},

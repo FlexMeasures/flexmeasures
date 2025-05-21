@@ -455,18 +455,19 @@ class MetaStorageScheduler(Scheduler):
         # Flow commitments per device
 
         # Add tiny price slope to prefer curtailing later rather than now.
-        # The price slope is ranged to be a smaller fraction of the energy price spread than the slope to prefer charging sooner
+        # The price slope is half of the slope to prefer charging sooner
         for d, prefer_curtailing_later_d in enumerate(prefer_curtailing_later):
             if prefer_curtailing_later_d:
                 tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value", d=10**-7)
+                    add_tiny_price_slope(up_deviation_prices, "event_value")
                     - up_deviation_prices
                 )
+                tiny_price_slope *= 0.5
                 commitment = FlowCommitment(
                     name=f"prefer curtailing device {d} later",
-                    # Prefer curtailing consumption later by making later consumption more expensive
+                    # Prefer curtailing consumption later by penalizing later consumption
                     upwards_deviation_price=tiny_price_slope,
-                    # Prefer curtailing production later by making later production more expensive
+                    # Prefer curtailing production later by penalizing later production
                     downwards_deviation_price=-tiny_price_slope,
                     index=index,
                     device=d,
