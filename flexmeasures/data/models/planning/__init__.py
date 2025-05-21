@@ -238,41 +238,37 @@ class Commitment:
     downwards_deviation_price: pd.Series = 0
 
     def __post_init__(self):
-        # Convert from single-column DataFrame to Series
         series_attributes = [
-            attr for attr, _type in self.__annotations__.items() if _type == "pd.Series"
+            attr
+            for attr, _type in self.__annotations__.items()
+            if _type == "pd.Series" and hasattr(self, attr)
         ]
         for series_attr in series_attributes:
-            if hasattr(self, series_attr) and isinstance(
-                getattr(self, series_attr), pd.DataFrame
-            ):
-                setattr(self, series_attr, getattr(self, series_attr).squeeze())
+            val = getattr(self, series_attr)
 
-        # Try to set the time series index for the commitment
+            # Convert from single-column DataFrame to Series
+            if isinstance(val, pd.DataFrame):
+                val = val.squeeze()
+                setattr(self, series_attr, val)
+
+            # Try to set the time series index for the commitment
+            if (
+                self.index is None
+                and isinstance(getattr(self, series_attr), pd.Series)
+                and isinstance(val.index, pd.DatetimeIndex)
+            ):
+                self.index = val.index
+
         if self.index is None:
-            for series_attr in series_attributes:
-                if (
-                    hasattr(self, series_attr)
-                    and isinstance(getattr(self, series_attr), pd.Series)
-                    and isinstance(getattr(self, series_attr).index, pd.DatetimeIndex)
-                ):
-                    self.index = getattr(self, series_attr).index
-                    break
-            if self.index is None:
-                raise ValueError(
-                    "Commitment must be initialized with a pd.DatetimeIndex. Hint: use the `index` argument."
-                )
+            raise ValueError(
+                "Commitment must be initialized with a pd.DatetimeIndex. Hint: use the `index` argument."
+            )
 
         # Force type conversion of repr fields to pd.Series
         for series_attr in series_attributes:
-            if hasattr(self, series_attr) and not isinstance(
-                getattr(self, series_attr), pd.Series
-            ):
-                setattr(
-                    self,
-                    series_attr,
-                    pd.Series(getattr(self, series_attr), index=self.index),
-                )
+            val = getattr(self, series_attr)
+            if not isinstance(val, pd.Series):
+                setattr(self, series_attr, pd.Series(val, index=self.index))
 
         if self._type == "any":
             # add all time steps to the same group
