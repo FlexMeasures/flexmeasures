@@ -264,20 +264,16 @@ class Commitment:
                 )
 
         # Force type conversion of repr fields to pd.Series
-        if not isinstance(self.device, pd.Series):
-            self.device = pd.Series(self.device, index=self.index)
-        if not isinstance(self.quantity, pd.Series):
-            self.quantity = pd.Series(self.quantity, index=self.index)
-        if not isinstance(self.upwards_deviation_price, pd.Series):
-            self.upwards_deviation_price = pd.Series(
-                self.upwards_deviation_price,
-                index=self.index,
-            )
-        if not isinstance(self.downwards_deviation_price, pd.Series):
-            self.downwards_deviation_price = pd.Series(
-                self.downwards_deviation_price,
-                index=self.index,
-            )
+        for series_attr in series_attributes:
+            if hasattr(self, series_attr) and not isinstance(
+                getattr(self, series_attr), pd.Series
+            ):
+                setattr(
+                    self,
+                    series_attr,
+                    pd.Series(getattr(self, series_attr), index=self.index),
+                )
+
         if self._type == "any":
             # add all time steps to the same group
             self.group = pd.Series(0, index=self.index)
