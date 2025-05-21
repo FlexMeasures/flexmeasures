@@ -36,6 +36,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field [see `PR #1433 <https://github.com/FlexMeasures/flexmeasures/pull/1433>`_]
+* Fix the preference to delay curtailment of any device [see `PR #1498 <https://github.com/FlexMeasures/flexmeasures/pull/1498>`_]
 * The data dashboard now supports overlapping sensors with instantaneous and non-instantaneous resolutions [see `PR #1407 <https://github.com/FlexMeasures/flexmeasures/pull/1407>`_]
 * Fix map not loading when editing an asset [see `PR #1414 <https://github.com/FlexMeasures/flexmeasures/pull/1414>`_]
 * Fix ``flexmeasures add schedule for-storage`` after flex-context database migration [see `PR #1417 <https://github.com/FlexMeasures/flexmeasures/pull/1417>`_ and `PR #1449 <https://github.com/FlexMeasures/flexmeasures/pull/1449>`_]

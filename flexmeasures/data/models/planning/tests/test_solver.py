@@ -766,8 +766,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     soc_schedule_2 = compute_schedule(flex_model)
 
-    # check that, in this case, adding the constraints
-    # alter the SOC profile
+    # check that, in this case, adding the constraints alters the SOC profile
     assert not soc_schedule_2.equals(soc_schedule_1)
 
     # check that global minimum is achieved
@@ -2212,8 +2211,8 @@ def test_battery_storage_different_units(
             "power-capacity",
             [
                 {
-                    "start": "2015-01-02T14:00+01",
-                    "end": "2015-01-02T16:00+01",
+                    "start": "2015-01-02T15:00+01",
+                    "end": "2015-01-02T17:00+01",
                     "value": "850 kW",
                 }
             ],
@@ -2223,7 +2222,7 @@ def test_battery_storage_different_units(
             "power-capacity",
             [
                 {
-                    "start": "2015-01-02T14:00+01",
+                    "start": "2015-01-02T15:00+01",
                     "duration": "PT2H",
                     "value": "850 kW",
                 }
@@ -2234,17 +2233,18 @@ def test_battery_storage_different_units(
             "soc-maxima",
             [
                 {
-                    "datetime": "2015-01-02T15:00+01",
+                    "datetime": "2015-01-02T16:00+01",
                     "value": "950 kWh",
                 }
             ],
         ),
-        # Must end up at a minimum of 200 kWh, for which it is cheapest to charge to 950 and then to discharge to 200
+        # Must end up at a maximum of 200 kWh, for which it is cheapest to charge to 950 and then to discharge to 200
         (
-            "soc-minima",
+            "soc-maxima",
             [
                 {
-                    "datetime": "2015-01-02T16:00+01",
+                    "start": "2015-01-02T16:45+01",
+                    "duration": "PT15M",
                     "value": "200 kWh",
                 }
             ],
@@ -2275,8 +2275,8 @@ def test_battery_storage_with_time_series_in_flex_model(
     tz = pytz.timezone("Europe/Amsterdam")
 
     # transition from cheap to expensive (90 -> 100)
-    start = tz.localize(datetime(2015, 1, 2, 14, 0, 0))
-    end = tz.localize(datetime(2015, 1, 2, 16, 0, 0))
+    start = tz.localize(datetime(2015, 1, 2, 15, 0, 0))
+    end = tz.localize(datetime(2015, 1, 2, 17, 0, 0))
     resolution = timedelta(minutes=15)
 
     flex_model = {
