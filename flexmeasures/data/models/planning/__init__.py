@@ -239,10 +239,14 @@ class Commitment:
 
     def __post_init__(self):
         # Convert from single-column DataFrame to Series
-        if isinstance(self.upwards_deviation_price, pd.DataFrame):
-            self.upwards_deviation_price = self.upwards_deviation_price.squeeze()
-        if isinstance(self.downwards_deviation_price, pd.DataFrame):
-            self.downwards_deviation_price = self.downwards_deviation_price.squeeze()
+        series_attributes = [
+            attr for attr, _type in self.__annotations__.items() if _type == "pd.Series"
+        ]
+        for series_attr in series_attributes:
+            if hasattr(self, series_attr) and isinstance(
+                getattr(self, series_attr), pd.DataFrame
+            ):
+                setattr(self, series_attr, getattr(self, series_attr).squeeze())
 
         # Try to set the time series index for the commitment
         if self.index is None:
