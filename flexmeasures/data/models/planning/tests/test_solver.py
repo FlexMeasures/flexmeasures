@@ -154,6 +154,7 @@ def test_battery_solver_day_2(
             "soc-max": soc_max,
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
+            "prefer-curtailing-later": False,
         },
     )
     schedule = scheduler.compute()
