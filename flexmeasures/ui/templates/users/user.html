@@ -12,11 +12,13 @@
   <div class="row">
     <div class="col-md-2 on-top-md">
       <div class="header-action-button">
-        {% if current_user.has_role('admin') or current_user.has_role('account-admin')  %}
+        {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
         <div class="">
           <form action="/users/toggle_active/{{ user.id }}" method="get">
-            <button class="btn btn-sm btn-responsive {% if user.active %} btn-warning  {% else %} btn-success {% endif %} delete-button mb-3" type="submit" title="Toggle activation status of this user.">
-                {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
+            <button
+              class="btn btn-sm btn-responsive {% if user.active %} btn-warning  {% else %} btn-success {% endif %} delete-button mb-3"
+              type="submit" title="Toggle activation status of this user.">
+              {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
             </button>
           </form>
         </div>
@@ -34,90 +36,244 @@
         <h2>User overview</h2>
         <small>User: {{ user.username }}</small>
         <div class="table-responsive">
-            <table class="table table-striped">
-              <tbody>
-                <tr>
-                  <td>
-                    Email address
-                  </td>
-                  <td>
-                    <a href="mailto:{{ user.email }}">{{ user.email }}</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Account
-                  </td>
-                  <td>
-                    <a href="/accounts/{{ user.account.id }}">{{ user.account.name }}</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Assets in account
-                  </td>
-                  <td>
-                    <a href="/assets/owned_by/{{ user.account.id }}">{{ asset_count }}</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Time Zone
-                  </td>
-                  <td>
-                    {{ user.timezone }}
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Last login was
-                  </td>
-                  <td title="{{  user.last_login_at | localized_datetime }}">
-                    {{  user.last_login_at | naturalized_datetime }}
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Last seen
-                  </td>
-                  <td title="{{  user.last_seen_at | localized_datetime }}">
-                    {{  user.last_seen_at | naturalized_datetime }}
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Roles
-                  </td>
-                  <td>
-                    {% for role in user.flexmeasures_roles %}
-                    {{ role.name }}{{ "," if not loop.last }}
-                    {% endfor %}
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Active
-                  </td>
-                  <td>
-                    {{ user.active }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <table class="table table-striped">
+            <tbody>
+              <tr>
+                <td>
+                  Email address
+                </td>
+                <td>
+                  <a href="mailto:{{ user.email }}">{{ user.email }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Account
+                </td>
+                <td>
+                  <a href="/accounts/{{ user.account.id }}">{{ user.account.name }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Assets in account
+                </td>
+                <td>
+                  <a href="/assets/owned_by/{{ user.account.id }}">{{ asset_count }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Time Zone
+                </td>
+                <td>
+                  {{ user.timezone }}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Last login was
+                </td>
+                <td title="{{  user.last_login_at | localized_datetime }}">
+                  {{  user.last_login_at | naturalized_datetime }}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Last seen
+                </td>
+                <td title="{{  user.last_seen_at | localized_datetime }}">
+                  {{  user.last_seen_at | naturalized_datetime }}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Roles
+                </td>
+                <td>
+                  {% for role in user.flexmeasures_roles %}
+                  {{ role.name }}{{ "," if not loop.last }}
+                  {% endfor %}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Active
+                </td>
+                <td>
+                  {{ user.active }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
     <div class="col-md-2">
       {% if can_view_user_auditlog %}
       <form action="/users/auditlog/{{ user.id }}" method="get" class="mb-md-0 mb-3 mt-3">
-          <button class="btn btn-sm btn-responsive btn-info" type="submit"
-          title="View history of user actions.">User audit log</button>
+        <button class="btn btn-sm btn-responsive btn-info" type="submit" title="View history of user actions.">User
+          audit log</button>
       </form>
       {% endif %}
+      <button class="btn btn-sm btn-responsive btn-info" type="submit" title="Edit user details" data-bs-toggle="modal"
+        data-bs-target="#editUserModal">Edit
+      </button>
     </div>
   </div>
 </div>
 
+<!-- Edit User Modal -->
+<div class="modal fade modal-xl" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel"
+  aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title pe-2">Edit {{ user.username }}'s details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="editUserForm">
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" name="username" value="{{ user.username }}" required>
+          </div>
+          <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
+          </div>
+          <div class="mb-3">
+            <label for="timezone" class="form-label">Timezone</label>
+            <input type="text" class="form-control" id="timezone" name="timezone" value="{{ user.timezone }}" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="tagsInput" class="form-label">Roles</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="tagsInput" placeholder="Add a role name">
+              <button class="btn btn-outline-secondary" type="button" id="addTagBtn">Add</button>
+            </div>
+            <div id="tagsContainer" class="mt-2 d-flex flex-wrap gap-2">
+            </div>
+            <input type="hidden" name="roles" id="rolesHiddenInput">
+          </div>
+
+          <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="active" name="active" {% if user.active %} checked {%
+              endif %}>
+            <label class="form-check-label" for="active">Active</label>
+          </div>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 {% endif %}
 
+<script>
+  const editUserModal = document.getElementById('editUserModal');
+  const editUserForm = document.getElementById('editUserForm');
+  const userRoles = JSON.parse('{{ user_roles | tojson }}');
+  console.log('User roles:', userRoles, typeof userRoles);
+
+  console.log('Form details:', {
+    username: editUserForm.username.value,
+    email: editUserForm.email.value,
+    timezone: editUserForm.timezone.value,
+    active: editUserForm.active.checked
+  });
+  // Handle form submission
+  editUserForm.addEventListener('submit', function (event) {
+    event.preventDefault(); // Prevent the default form submission
+
+    const formData = new FormData(editUserForm);
+    const data = Object.fromEntries(formData.entries());
+
+    console.log('Form data:', data);
+
+    // Send the data to the server using fetch
+    // fetch('/users/edit/{{ user.id }}', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify(data)
+    // })
+    //   .then(response => response.json())
+    //   .then(data => {
+    //     if (data.success) {
+    //       alert('User details updated successfully!');
+    //       location.reload(); // Reload the page to see the changes
+    //     } else {
+    //       alert('Error updating user details: ' + data.message);
+    //     }
+    //   })
+    //   .catch(error => console.error('Error:', error));
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const tagsInput = document.getElementById('tagsInput');
+    const addTagBtn = document.getElementById('addTagBtn');
+    const tagsContainer = document.getElementById('tagsContainer');
+    const rolesHiddenInput = document.getElementById('rolesHiddenInput');
+
+    // Assume user.roles is available from your backend template
+    // For demonstration, let's use a dummy array:
+    const initialRoles = userRoles || []; // Replace with actual roles from the backend
+    let currentRoles = new Set(); // Use a Set to store unique roles easily
+
+    function renderTags() {
+      tagsContainer.innerHTML = ''; // Clear existing tags
+      rolesHiddenInput.value = Array.from(currentRoles).join(','); // Update hidden input
+
+      currentRoles.forEach(role => {
+        const tagSpan = document.createElement('span');
+        tagSpan.className = 'badge bg-primary-custom text-white d-flex align-items-center me-1'; // Bootstrap badge classes
+        tagSpan.style.padding = '0.5em 0.75em'; // Adjust padding
+        tagSpan.style.borderRadius = '0.25rem'; // Bootstrap default border-radius
+
+        const tagName = document.createElement('span');
+        tagName.textContent = role;
+        tagSpan.appendChild(tagName);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn-close btn-close-white ms-2'; // Bootstrap close button
+        removeBtn.setAttribute('aria-label', `Remove ${role}`);
+        removeBtn.onclick = () => {
+          currentRoles.delete(role);
+          renderTags(); // Re-render to update the display
+        };
+        tagSpan.appendChild(removeBtn);
+        tagsContainer.appendChild(tagSpan);
+      });
+    }
+
+    function addTag() {
+      const tagValue = tagsInput.value.trim();
+      if (tagValue && !currentRoles.has(tagValue)) { // Check if not empty and not already added
+        currentRoles.add(tagValue);
+        tagsInput.value = ''; // Clear input field
+        renderTags();
+      }
+    }
+
+    // Add tag on button click
+    addTagBtn.addEventListener('click', addTag);
+
+    // Add tag on Enter key press in the input field
+    tagsInput.addEventListener('keypress', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent form submission
+        addTag();
+      }
+    });
+
+    // Initialize with existing roles
+    initialRoles.forEach(role => currentRoles.add(role));
+    renderTags();
+  });
+</script>
 {% endblock %}

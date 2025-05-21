@@ -34,10 +34,15 @@ def render_user(user: User | None, msg: str | None = None):
     except (Forbidden, Unauthorized):
         user_view_user_auditlog = False
 
+    user_roles = []
+    if user is not None:
+        user_roles = [role.name for role in user.flexmeasures_roles]
+
     return render_flexmeasures_template(
         "users/user.html",
         can_view_user_auditlog=user_view_user_auditlog,
         user=user,
+        user_roles=user_roles,
         asset_count=user.account.number_of_assets,
         msg=msg,
     )
