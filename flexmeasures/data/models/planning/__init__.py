@@ -250,19 +250,15 @@ class Commitment:
 
         # Try to set the time series index for the commitment
         if self.index is None:
-            if isinstance(self.quantity, pd.Series) and isinstance(
-                self.quantity.index, pd.DatetimeIndex
-            ):
-                self.index = self.quantity.index
-            elif isinstance(self.upwards_deviation_price, pd.Series) and isinstance(
-                self.upwards_deviation_price.index, pd.DatetimeIndex
-            ):
-                self.index = self.upwards_deviation_price.index
-            elif isinstance(self.downwards_deviation_price, pd.Series) and isinstance(
-                self.downwards_deviation_price.index, pd.DatetimeIndex
-            ):
-                self.index = self.downwards_deviation_price.index
-            else:
+            for series_attr in series_attributes:
+                if (
+                    hasattr(self, series_attr)
+                    and isinstance(getattr(self, series_attr), pd.Series)
+                    and isinstance(getattr(self, series_attr).index, pd.DatetimeIndex)
+                ):
+                    self.index = getattr(self, series_attr).index
+                    break
+            if self.index is None:
                 raise ValueError(
                     "Commitment must be initialized with a pd.DatetimeIndex. Hint: use the `index` argument."
                 )
