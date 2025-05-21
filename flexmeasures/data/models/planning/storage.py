@@ -459,7 +459,7 @@ class MetaStorageScheduler(Scheduler):
         for d, prefer_curtailing_later_d in enumerate(prefer_curtailing_later):
             if prefer_curtailing_later_d:
                 tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value", d=10**-7)
+                    add_tiny_price_slope(up_deviation_prices, "event_value", d=10**-4)
                     - up_deviation_prices
                 )
                 commitment = FlowCommitment(
