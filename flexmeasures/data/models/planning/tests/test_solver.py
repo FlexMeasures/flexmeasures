@@ -229,6 +229,7 @@ def run_test_charge_discharge_sign(
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
             "prefer-charging-sooner": True,
+            "prefer-curtailing-later": False,
         },
         flex_context={
             "consumption-price": {"sensor": consumption_price_sensor_id},
