@@ -766,8 +766,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     soc_schedule_2 = compute_schedule(flex_model)
 
-    # check that, in this case, adding the constraints
-    # alter the SOC profile
+    # check that, in this case, adding the constraints alters the SOC profile
     assert not soc_schedule_2.equals(soc_schedule_1)
 
     # check that global minimum is achieved
