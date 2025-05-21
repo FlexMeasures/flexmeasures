@@ -464,9 +464,9 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitment = FlowCommitment(
                     name=f"prefer curtailing device {d} later",
-                    # Prefer curtailing consumption later by making later consumption more expensive
+                    # Prefer curtailing consumption later by penalizing later consumption
                     upwards_deviation_price=tiny_price_slope,
-                    # Prefer curtailing production later by making later production more expensive
+                    # Prefer curtailing production later by penalizing later production
                     downwards_deviation_price=-tiny_price_slope,
                     index=index,
                     device=d,
