@@ -238,40 +238,38 @@ class Commitment:
     downwards_deviation_price: pd.Series = 0
 
     def __post_init__(self):
-        # Try to set the time series index for the commitment
+        series_attributes = [
+            attr
+            for attr, _type in self.__annotations__.items()
+            if _type == "pd.Series" and hasattr(self, attr)
+        ]
+        for series_attr in series_attributes:
+            val = getattr(self, series_attr)
+
+            # Convert from single-column DataFrame to Series
+            if isinstance(val, pd.DataFrame):
+                val = val.squeeze()
+                setattr(self, series_attr, val)
+
+            # Try to set the time series index for the commitment
+            if (
+                self.index is None
+                and isinstance(getattr(self, series_attr), pd.Series)
+                and isinstance(val.index, pd.DatetimeIndex)
+            ):
+                self.index = val.index
+
         if self.index is None:
-            if isinstance(self.quantity, pd.Series) and isinstance(
-                self.quantity.index, pd.DatetimeIndex
-            ):
-                self.index = self.quantity.index
-            elif isinstance(self.upwards_deviation_price, pd.Series) and isinstance(
-                self.upwards_deviation_price.index, pd.DatetimeIndex
-            ):
-                self.index = self.upwards_deviation_price.index
-            elif isinstance(self.downwards_deviation_price, pd.Series) and isinstance(
-                self.downwards_deviation_price.index, pd.DatetimeIndex
-            ):
-                self.index = self.downwards_deviation_price.index
-            else:
-                raise ValueError(
-                    "Commitment must be initialized with a pd.DatetimeIndex. Hint: use the `index` argument."
-                )
+            raise ValueError(
+                "Commitment must be initialized with a pd.DatetimeIndex. Hint: use the `index` argument."
+            )
 
         # Force type conversion of repr fields to pd.Series
-        if not isinstance(self.device, pd.Series):
-            self.device = pd.Series(self.device, index=self.index)
-        if not isinstance(self.quantity, pd.Series):
-            self.quantity = pd.Series(self.quantity, index=self.index)
-        if not isinstance(self.upwards_deviation_price, pd.Series):
-            self.upwards_deviation_price = pd.Series(
-                self.upwards_deviation_price,
-                index=self.index,
-            )
-        if not isinstance(self.downwards_deviation_price, pd.Series):
-            self.downwards_deviation_price = pd.Series(
-                self.downwards_deviation_price,
-                index=self.index,
-            )
+        for series_attr in series_attributes:
+            val = getattr(self, series_attr)
+            if not isinstance(val, pd.Series):
+                setattr(self, series_attr, pd.Series(val, index=self.index))
+
         if self._type == "any":
             # add all time steps to the same group
             self.group = pd.Series(0, index=self.index)

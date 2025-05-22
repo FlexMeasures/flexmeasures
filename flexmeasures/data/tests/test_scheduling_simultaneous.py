@@ -1,5 +1,6 @@
 import pytest
 
+import numpy as np
 import pandas as pd
 from flexmeasures.data.services.scheduling import create_simultaneous_scheduling_job
 from flexmeasures.data.tests.utils import work_on_rq
@@ -74,10 +75,20 @@ def test_create_simultaneous_jobs(
     end_charging = start + pd.Timedelta(hours=10) - sensors["Test EV"].event_resolution
 
     # Check schedules
-    assert (ev_power.loc[start_charging:end_charging] != -0.005).values.any()  # 5 kW
     assert (
-        battery_power.loc[start_charging:end_charging] != 0.005
-    ).values.any()  # 5 kW
+        ev_power.loc[start_charging:end_charging] != -0.005
+    ).values.any(), "no charging at full device power capacity (5 kW) expected"
+    for target_no in (1, 2, 3):
+        non_zero_target = flex_description_sequential["flex_model"][0][
+            "sensor_flex_model"
+        ]["soc-targets"][target_no]
+        # NB: assumes perfect conversion and storage efficiencies
+        np.testing.assert_approx_equal(
+            # head(-1) because ev_power is indexed by event start and target datetime corresponds to event end
+            # minus ev_power because ev_power uses negative values for consumption
+            -ev_power[: non_zero_target["datetime"]].head(-1).sum()[0] / 4,
+            non_zero_target["value"],
+        )
 
     # Get price data
     price_sensor_id = flex_description_sequential["flex_context"]["consumption-price"][
@@ -96,8 +107,8 @@ def test_create_simultaneous_jobs(
     total_cost = ev_costs + battery_costs
 
     # Define expected costs based on resolution
-    expected_ev_costs = 2.3125
-    expected_battery_costs = -5.59
+    expected_ev_costs = 2.2375
+    expected_battery_costs = -5.515
     expected_total_cost = -3.2775
 
     # Check costs

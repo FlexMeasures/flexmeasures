@@ -707,7 +707,6 @@ def add_beliefs(
 
     # Set up optional parameters for read_csv
     if file.split(".")[-1].lower() == "csv":
-        kwargs["infer_datetime_format"] = True
         kwargs["delimiter"] = delimiter
         kwargs["decimal"] = decimal
         kwargs["thousands"] = thousands

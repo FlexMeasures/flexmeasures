@@ -17,9 +17,9 @@ from flexmeasures.data.models.generic_assets import (
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
-from flexmeasures.ui.crud.api_wrapper import InternalApi
-from flexmeasures.ui.crud.assets.forms import NewAssetForm, AssetForm
-from flexmeasures.ui.crud.assets.utils import (
+from flexmeasures.ui.views.api_wrapper import InternalApi
+from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
+from flexmeasures.ui.views.assets.utils import (
     process_internal_api_response,
     user_can_create_assets,
     user_can_delete,
@@ -60,7 +60,7 @@ class AssetCrudUI(FlaskView):
         """
 
         return render_flexmeasures_template(
-            "crud/assets.html",
+            "assets/assets.html",
             asset_icon_map=ICON_MAPPING,
             message=msg,
             account=None,
@@ -86,7 +86,7 @@ class AssetCrudUI(FlaskView):
             ]
         db.session.flush()
         return render_flexmeasures_template(
-            "crud/assets.html",
+            "assets/assets.html",
             account=db.session.get(Account, account_id),
             assets=assets,
             msg=msg,
@@ -94,9 +94,25 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
-    # @route("/<id>/context")
     def get(self, id: str, **kwargs):
         """/assets/<id>"""
+        """
+        This is a kind of utility view that redirects to the default asset view, either Context or the one saved in the user session.
+        """
+        default_asset_view = session.get("default_asset_view", "Context")
+        return redirect(
+            url_for(
+                "AssetCrudUI:{}".format(default_asset_view.replace(" ", "").lower()),
+                id=id,
+                **kwargs,
+            )
+        )
+
+    @login_required
+    @route("/<id>/context")
+    def context(self, id: str, **kwargs):
+        """/assets/<id>/context"""
+        # Get default asset view
         parent_asset_id = request.args.get("parent_asset_id", "")
         if id == "new":
             if not user_can_create_assets():
@@ -115,7 +131,7 @@ class AssetCrudUI(FlaskView):
                     parent_asset_name = parent_asset.name
                     account = parent_asset.account_id
             return render_flexmeasures_template(
-                "crud/asset_new.html",
+                "assets/asset_new.html",
                 asset_form=asset_form,
                 msg="",
                 map_center=get_center_location_of_assets(user=current_user),
@@ -142,7 +158,7 @@ class AssetCrudUI(FlaskView):
         assets = add_child_asset(asset, assets)
 
         return render_flexmeasures_template(
-            "crud/asset_context.html",
+            "assets/asset_context.html",
             assets=assets,
             asset=asset,
             current_asset_sensors=current_asset_sensors,
@@ -161,7 +177,7 @@ class AssetCrudUI(FlaskView):
         check_access(asset, "create-children")
 
         return render_flexmeasures_template(
-            "crud/sensor_new.html",
+            "assets/sensor_new.html",
             asset=asset,
             available_units=available_units(),
         )
@@ -179,9 +195,10 @@ class AssetCrudUI(FlaskView):
         status_data = get_asset_sensors_metadata(asset)
 
         return render_flexmeasures_template(
-            "views/status.html",
+            "sensors/status.html",
             asset=asset,
             sensors=status_data,
+            current_page="Status",
         )
 
     @login_required
@@ -239,7 +256,7 @@ class AssetCrudUI(FlaskView):
             if asset is None:
                 msg = "Cannot create asset. " + error_msg
                 return render_flexmeasures_template(
-                    "crud/asset_new.html",
+                    "assets/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
                     map_center=get_center_location_of_assets(user=current_user),
@@ -303,7 +320,7 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
 
         return render_flexmeasures_template(
-            "crud/asset_audit_log.html",
+            "assets/asset_audit_log.html",
             asset=asset,
             current_page="Audit Log",
         )
@@ -325,9 +342,9 @@ class AssetCrudUI(FlaskView):
         asset_form.process(data=process_internal_api_response(asset_dict))
 
         return render_flexmeasures_template(
-            "crud/asset_graph.html",
+            "assets/asset_graph.html",
             asset=asset,
-            current_page="Graph",
+            current_page="Graphs",
         )
 
     @login_required
@@ -362,7 +379,7 @@ class AssetCrudUI(FlaskView):
         }
 
         return render_flexmeasures_template(
-            "crud/asset_properties.html",
+            "assets/asset_properties.html",
             asset=asset,
             asset_summary=asset_summary,
             asset_form=asset_form,
