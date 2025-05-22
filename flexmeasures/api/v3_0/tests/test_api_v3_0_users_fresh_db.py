@@ -62,7 +62,7 @@ def test_user_reset_password(
 
 #  This test can also be found in test_api_v3_0_users.py, the difference is
 #  that this makes modifications to the db(and thats best to be in a seperate db session,
-#  in other not to affect other test) while the other doesnt
+#  in order not to affect other tests) while the other doesn't
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code, user_to_update, expected_role",
     [
