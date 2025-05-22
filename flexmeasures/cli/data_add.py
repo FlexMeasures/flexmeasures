@@ -2093,6 +2093,8 @@ def add_toy_account(kind: str, name: str):
         asset_kwargs = dict()
         if parent_asset_id is not None:
             asset_kwargs["parent_asset_id"] = parent_asset_id
+        if flex_context is None:
+            flex_context = {}
 
         asset = get_or_create_model(
             GenericAsset,
