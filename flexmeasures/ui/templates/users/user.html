@@ -176,37 +176,72 @@
   const editUserModal = document.getElementById('editUserModal');
   const editUserForm = document.getElementById('editUserForm');
   const userRoles = JSON.parse('{{ user_roles | tojson }}');
+  const allRoles = JSON.parse('{{ roles | tojson }}');
   let currentRoles = new Set(); // Use a Set to store unique roles easily
+  const user = {
+    id: '{{ user.id }}',
+    username: '{{ user.username }}',
+    email: '{{ user.email }}',
+    timezone: '{{ user.timezone }}',
+    active: '{{ user.active | tojson }}',
+    flexmeasures_roles: userRoles.map(role => allRoles[role]),
+  };
 
+  console.log('User data:', user);
 
   // Handle form submission
-  editUserForm.addEventListener('submit', function (event) {
+  editUserForm.addEventListener('submit', async function (event) {
     event.preventDefault(); // Prevent the default form submission
 
-    const formData = new FormData(editUserForm);
-    const data = Object.fromEntries(formData.entries());
-    data.flexmeasures_roles = Array.from(currentRoles); // Convert Set to array for submission
+    const data = Object.fromEntries(new FormData(editUserForm).entries());
+    delete data.roles;
+    data.flexmeasures_roles = Array.from(currentRoles).map(role => allRoles[role]);
+    data.active = `${data.active === 'on'}`;
 
-    console.log('Form data:', data);
+    // remove unmodified fields
+    const modifiedFields = Object.keys(data).reduce((acc, key) => {
+      if (data[key] !== user[key]) {
+        if (Array.isArray(data[key])) {
+          // check if the arrays are equal
+          if (JSON.stringify(data[key]) !== JSON.stringify(user[key])) {
+            acc[key] = data[key];
+          }
+        } else {
+          acc[key] = data[key];
+        }
 
-    fetch('/api/v3_0/users/{{ user.id }}', {
+      }
+      return acc;
+    }, {});
+
+    console.log('Modified fields:', modifiedFields);
+    console.log('Data:', JSON.stringify(data));
+
+    // Check if there are any modified fields
+    if (Object.keys(modifiedFields).length === 0) {
+      showToast('No changes made to the user details.', 'info');
+      return;
+    }
+
+    const response = await fetch('/api/v3_0/users/{{ user.id }}', {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(data)
-    })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showToast('User details updated successfully!', 'success');
-          location.reload(); // Reload the page to see the changes
-        } else {
-          showToast('Error updating user details: ' + data.message, 'danger');
-        }
-      })
-      .catch(error => console.error('Error:', error));
-      // .catch(error => showAlert('Error: ' + error.message, 'danger'));
+      body: JSON.stringify(modifiedFields)
+    });
+
+    if (response.ok) {
+      showToast('User details updated successfully!', 'success');
+      // Delay for 1 second and reload the page
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      const errorData = await response.json();
+      showToast('Error: ' + errorData.message, 'error');
+    }
+
   });
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -215,9 +250,7 @@
     const tagsContainer = document.getElementById('tagsContainer');
     const rolesHiddenInput = document.getElementById('rolesHiddenInput');
 
-    // Assume user.roles is available from your backend template
-    // For demonstration, let's use a dummy array:
-    const initialRoles = userRoles || []; // Replace with actual roles from the backend
+    const initialRoles = userRoles || [];
 
     function renderTags() {
       tagsContainer.innerHTML = ''; // Clear existing tags
@@ -225,9 +258,9 @@
 
       currentRoles.forEach(role => {
         const tagSpan = document.createElement('span');
-        tagSpan.className = 'badge bg-primary-custom text-white d-flex align-items-center me-1'; // Bootstrap badge classes
-        tagSpan.style.padding = '0.5em 0.75em'; // Adjust padding
-        tagSpan.style.borderRadius = '0.25rem'; // Bootstrap default border-radius
+        tagSpan.className = 'badge bg-primary-custom text-white d-flex align-items-center me-1';
+        tagSpan.style.padding = '0.5em 0.75em'; 
+        tagSpan.style.borderRadius = '0.25rem';
 
         const tagName = document.createElement('span');
         tagName.textContent = role;
@@ -235,7 +268,7 @@
 
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.className = 'btn-close btn-close-white ms-2'; // Bootstrap close button
+        removeBtn.className = 'btn-close btn-close-white ms-2';
         removeBtn.setAttribute('aria-label', `Remove ${role}`);
         removeBtn.onclick = () => {
           currentRoles.delete(role);
@@ -244,13 +277,21 @@
         tagSpan.appendChild(removeBtn);
         tagsContainer.appendChild(tagSpan);
       });
+
     }
 
     function addTag() {
       const tagValue = tagsInput.value.trim();
       if (tagValue && !currentRoles.has(tagValue)) { // Check if not empty and not already added
+        const isValidTag = true ? allRoles[tagValue] : false
+        if (!isValidTag) {
+          showToast('Invalid role name. Please choose a valid role.', 'error');
+          tagsInput.value = ''; 
+          return;
+        }
+
         currentRoles.add(tagValue);
-        tagsInput.value = ''; // Clear input field
+        tagsInput.value = ''; 
         renderTags();
       }
     }
