@@ -89,9 +89,10 @@
                                     <div class="form-group">
                                         <label class="custom-uploader" for="file">
                                             Choose data file
-                                            <i class="bi bi-info" title="The payload should be a file containing sensor data in CSV format." style="margin-left: 5px; color: aliceblue;"></i>
+                                            <i class="bi bi-info-circle" title="The payload should be a file containing sensor data in CSV format." style="margin-left: 5px; color: white;"></i>
                                         </label>
-                                        <input id="file" accept="text/csv" name="uploaded-files" type="file" multiple="multiple" />
+                                        <!-- Accept on CSV and Excel files -->
+                                        <input id="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" name="uploaded-files" type="file" multiple="multiple" />
                                     </div>
                                     <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
                                         style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">

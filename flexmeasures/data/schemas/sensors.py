@@ -448,7 +448,13 @@ class SensorDataFileSchema(Schema):
     )
     sensor = SensorIdField(data_key="id")
 
-    _valid_content_types = {"text/csv", "text/plain", "text/x-csv"}
+    _valid_content_types = {
+        "text/csv",
+        "text/plain",
+        "text/x-csv",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
 
     @validates("uploaded_files")
     def validate_uploaded_files(self, files: list[FileStorage]):
@@ -462,9 +468,18 @@ class SensorDataFileSchema(Schema):
                 ]
             if file.filename == "":
                 file_errors += ["Filename is missing."]
-            elif file.filename[-4:].lower() != ".csv":
+            elif file.filename.split(".")[-1] not in (
+                "csv",
+                "CSV",
+                "xlsx",
+                "XLSX",
+                "xls",
+                "XLS",
+                "xlsm",
+                "XLSM",
+            ):
                 file_errors += [
-                    f"Invalid filename: {file.filename}. File extension should be '.csv'."
+                    f"Invalid filename: {file.filename}. Only CSV or Excel files are accepted."
                 ]
             if file.content_type not in self._valid_content_types:
                 file_errors += [
@@ -492,6 +507,7 @@ class SensorDataFileSchema(Schema):
                     source=current_user.data_source[0],
                     belief_time=pd.Timestamp.utcnow(),
                     resample=True,
+                    timezone=sensor.timezone,
                 )
                 assert is_numeric_dtype(
                     df["event_value"]

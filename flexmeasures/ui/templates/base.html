@@ -426,7 +426,7 @@
             method: 'POST',
             body: formData,
         })
-        .then(function(response) {
+        .then(async function(response) {
             if (response.ok) {
                 showToast("Sensor data uploaded successfuly!", "success");
                 // Update date range
@@ -438,7 +438,10 @@
                 window.location.reload();
                 // Optionally: startReplay();
             } else if (response.status == 422) {
-                showToast("Upload failed: Invalid file format.", "error");
+                const data = await response.json();
+                for (const [key, value] of Object.entries(data.message.path_and_files)) {
+                    showToast(value, "error");
+                }
             }
         })
         .catch(function(error) {
