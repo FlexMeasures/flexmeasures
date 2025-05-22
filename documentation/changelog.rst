@@ -28,7 +28,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Move to using a ``pyproject.toml`` [see `PR #1419 <https://www.github.com/FlexMeasures/flexmeasures/pull/1419>`_]
-* Upgraded dependencies [see `PR #1400 <https://www.github.com/FlexMeasures/flexmeasures/pull/1400>`_, `PR #1444 <https://www.github.com/FlexMeasures/flexmeasures/pull/1444>`_, `PR #1448 <https://www.github.com/FlexMeasures/flexmeasures/pull/1448>`_, `PR #1484 <https://www.github.com/FlexMeasures/flexmeasures/pull/1484>`_ and `PR #1490 <https://www.github.com/FlexMeasures/flexmeasures/pull/1490>`_]
+* Upgraded dependencies [see `PR #1400 <https://www.github.com/FlexMeasures/flexmeasures/pull/1400>`_, `PR #1444 <https://www.github.com/FlexMeasures/flexmeasures/pull/1444>`_, `PR #1448 <https://www.github.com/FlexMeasures/flexmeasures/pull/1448>`_, `PR #1484 <https://www.github.com/FlexMeasures/flexmeasures/pull/1484>`_, `PR #1490 <https://www.github.com/FlexMeasures/flexmeasures/pull/1490>`_ and `PR #1497 <https://www.github.com/FlexMeasures/flexmeasures/pull/1497>`_]
 * Save last N jobs from any queue and registry to a file, and support filtering by asset ID or sensor ID [see `PR #1411 <https://github.com/FlexMeasures/flexmeasures/pull/1411>`_]
 * Describe four supported user roles explicitly (docs and code) [see `PR #1451 <https://github.com/FlexMeasures/flexmeasures/pull/1451>`_]
 * Updated the directory structure for crud operations for assets, sensors, users and accounts [see `PR #1467 <https://github.com/FlexMeasures/flexmeasures/pull/1467>`_ and `PR #1471 <https://github.com/FlexMeasures/flexmeasures/pull/1471>`_]
@@ -36,6 +36,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field [see `PR #1433 <https://github.com/FlexMeasures/flexmeasures/pull/1433>`_]
+* Fix the preference to delay curtailment of any device [see `PR #1498 <https://github.com/FlexMeasures/flexmeasures/pull/1498>`_ and `PR #1499 <https://github.com/FlexMeasures/flexmeasures/pull/1499>`_]
 * The data dashboard now supports overlapping sensors with instantaneous and non-instantaneous resolutions [see `PR #1407 <https://github.com/FlexMeasures/flexmeasures/pull/1407>`_]
 * Fix map not loading when editing an asset [see `PR #1414 <https://github.com/FlexMeasures/flexmeasures/pull/1414>`_]
 * Fix ``flexmeasures add schedule for-storage`` after flex-context database migration [see `PR #1417 <https://github.com/FlexMeasures/flexmeasures/pull/1417>`_ and `PR #1449 <https://github.com/FlexMeasures/flexmeasures/pull/1449>`_]
