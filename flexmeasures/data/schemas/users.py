@@ -1,17 +1,24 @@
 from marshmallow import validates, ValidationError, validate
 from pytz import all_timezones
 
-from flexmeasures.data import ma
+from flexmeasures.data import db, ma
 from flexmeasures.data.models.user import User as UserModel
 from flexmeasures.data.schemas.times import AwareDateTimeField
 
 
-class UserSchema(ma.SQLAlchemySchema):
+class SQLAlchemySchema(ma.SQLAlchemySchema):
+    """Workaround from https://github.com/marshmallow-code/flask-marshmallow/issues/44#issuecomment-1002740778"""
+
+    class Meta(ma.SQLAlchemySchema.Meta):
+        sqla_session = db.session
+
+
+class UserSchema(SQLAlchemySchema):
     """
     This schema lists fields we support through this API (e.g. no password).
     """
 
-    class Meta:
+    class Meta(SQLAlchemySchema.Meta):
         model = UserModel
 
     @validates("timezone")
