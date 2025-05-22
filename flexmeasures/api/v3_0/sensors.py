@@ -272,6 +272,12 @@ class SensorAPI(FlaskView):
 
     @route("<id>/data/upload", methods=["POST"])
     @path_and_files(SensorDataFileSchema)
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="data",
+        ctx_loader=lambda data: data[0].sensor if data else None,
+        pass_ctx_to_loader=True,
+    )
     def upload_data(self, data: list[tb.BeliefsDataFrame], **kwargs):
         """
         Post sensor data to FlexMeasures by file upload.
