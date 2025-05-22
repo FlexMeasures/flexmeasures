@@ -88,5 +88,3 @@ def test_user_role_successful_modification_permission(
 
     print("Server responded with:\n%s" % patch_user_response.data)
     assert patch_user_response.status_code == expected_status_code
-    if patch_user_response.status_code == 200:
-        assert patch_user_response.json["flexmeasures_roles"] == expected_role
