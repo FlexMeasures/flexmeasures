@@ -289,7 +289,7 @@ def test_logout(client, setup_api_test_data, requesting_user):
     [
         # Admin-reader tries to update user 5 (initially an account admin) to become admin-reader
         ("test_admin_reader_user@seita.nl", 403, 5, [3]),  # admin reader user
-        # Consulant tries to updates user 8 (initially consultant) to become admin-reader
+        # Consultant tries to updates user 8 (initially consultant) to become admin-reader
         ("test_consultant@seita.nl", 403, 8, [3]),  # consultant user
     ],
     indirect=["requesting_user"],
