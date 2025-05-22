@@ -42,6 +42,7 @@ Bugfixes
 * Fix ``flexmeasures add schedule for-storage`` after flex-context database migration [see `PR #1417 <https://github.com/FlexMeasures/flexmeasures/pull/1417>`_ and `PR #1449 <https://github.com/FlexMeasures/flexmeasures/pull/1449>`_]
 * Fix overriding of flex-context when asset is edited on the UI [see `PR #1469 <https://github.com/FlexMeasures/flexmeasures/pull/1469>`_]
 * Support entering audit log entries by detached user instances [see `PR #1483 <https://github.com/FlexMeasures/flexmeasures/pull/1483>`_]
+* Make flex context usage safer against this field being `None` [see `PR #1503 <https://github.com/FlexMeasures/flexmeasures/pull/1503>`_]
 
 v0.25.0 | April 01, 2025
 ============================
