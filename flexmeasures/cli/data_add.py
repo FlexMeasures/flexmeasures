@@ -2152,12 +2152,12 @@ def add_toy_account(kind: str, name: str):
         # add day-ahead price sensor and PV production sensor to show on the battery's asset page
         db.session.flush()
         battery = discharging_sensor.generic_asset
-        battery.attributes["sensors_to_show"] = [
-            day_ahead_sensor.id,
-            [
-                production_sensor.id,
-                discharging_sensor.id,
-            ],
+        battery.sensors_to_show = [
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {
+                "title": "Power flows",
+                "sensors": [production_sensor.id, discharging_sensor.id],
+            },
         ]
 
         db.session.commit()
