@@ -176,41 +176,37 @@
   const editUserModal = document.getElementById('editUserModal');
   const editUserForm = document.getElementById('editUserForm');
   const userRoles = JSON.parse('{{ user_roles | tojson }}');
-  console.log('User roles:', userRoles, typeof userRoles);
+  let currentRoles = new Set(); // Use a Set to store unique roles easily
 
-  console.log('Form details:', {
-    username: editUserForm.username.value,
-    email: editUserForm.email.value,
-    timezone: editUserForm.timezone.value,
-    active: editUserForm.active.checked
-  });
+
   // Handle form submission
   editUserForm.addEventListener('submit', function (event) {
     event.preventDefault(); // Prevent the default form submission
 
     const formData = new FormData(editUserForm);
     const data = Object.fromEntries(formData.entries());
+    data.flexmeasures_roles = Array.from(currentRoles); // Convert Set to array for submission
 
     console.log('Form data:', data);
 
-    // Send the data to the server using fetch
-    // fetch('/users/edit/{{ user.id }}', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify(data)
-    // })
-    //   .then(response => response.json())
-    //   .then(data => {
-    //     if (data.success) {
-    //       alert('User details updated successfully!');
-    //       location.reload(); // Reload the page to see the changes
-    //     } else {
-    //       alert('Error updating user details: ' + data.message);
-    //     }
-    //   })
-    //   .catch(error => console.error('Error:', error));
+    fetch('/api/v3_0/users/{{ user.id }}', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showToast('User details updated successfully!', 'success');
+          location.reload(); // Reload the page to see the changes
+        } else {
+          showToast('Error updating user details: ' + data.message, 'danger');
+        }
+      })
+      .catch(error => console.error('Error:', error));
+      // .catch(error => showAlert('Error: ' + error.message, 'danger'));
   });
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -222,7 +218,6 @@
     // Assume user.roles is available from your backend template
     // For demonstration, let's use a dummy array:
     const initialRoles = userRoles || []; // Replace with actual roles from the backend
-    let currentRoles = new Set(); // Use a Set to store unique roles easily
 
     function renderTags() {
       tagsContainer.innerHTML = ''; // Clear existing tags
