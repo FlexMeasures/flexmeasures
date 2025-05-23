@@ -818,6 +818,7 @@ def create_chargepoint_session_chart(
                     "start charging",
                     "stop charging",
                     "plug in",
+                    "plug out",
                 ]
             ]
         )
@@ -825,7 +826,7 @@ def create_chargepoint_session_chart(
     sensor_ids = [s.id for s in all_sensors]
 
     chart_spec = {
-        "title": "ChargePoint sessions",
+        "title": "Charge Point sessions",
         "width": "container",
         "height": 300,
         "selection": {
@@ -924,16 +925,22 @@ def create_chargepoint_session_chart(
                         },
                     },
                     "tooltip": [
-                        {"field": "arrival", "type": "temporal", "title": "Arrival"},
+                        {
+                            "field": "arrival",
+                            "type": "temporal",
+                            "title": "Arrival",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
                         {
                             "field": "departure",
                             "type": "temporal",
                             "title": "Departure",
+                            "format": "%Y-%m-%d %H:%M:%S",
                         },
                     ],
                 },
             },
-            # --- Solid Line: Plug-in to Departure ---
+            # --- Solid Line: Plug-in to Plug-out ---
             {
                 "transform": [
                     {
@@ -941,7 +948,7 @@ def create_chargepoint_session_chart(
                         "as": "session_id",
                     },
                     {
-                        "filter": "datum.event_type == 'plug in' || datum.event_type == 'departure'"
+                        "filter": "datum.event_type == 'plug in' || datum.event_type == 'plug out'"
                     },
                     {
                         "pivot": "event_type",
@@ -952,10 +959,10 @@ def create_chargepoint_session_chart(
                             "asset_id",
                         ],
                     },
-                    {"filter": {"selection": "plugin_dep"}},
+                    {"filter": {"selection": "plugin_plugout"}},
                 ],
                 "selection": {
-                    "plugin_dep": {
+                    "plugin_plugout": {
                         "type": "multi",
                         "encodings": ["color"],
                         "fields": ["asset"],
@@ -979,7 +986,7 @@ def create_chargepoint_session_chart(
                         },
                     },
                     "x2": {
-                        "field": "departure",
+                        "field": "plug out",
                         "type": "temporal",
                         "scale": {
                             "domain": [
@@ -993,7 +1000,10 @@ def create_chargepoint_session_chart(
                         "type": "nominal",
                         "title": "EVSE ID",
                         "scale": {
-                            "domain": {"selection": "plugin_dep", "field": "asset_id"}
+                            "domain": {
+                                "selection": "plugin_plugout",
+                                "field": "asset_id",
+                            }
                         },
                     },
                     "yOffset": {
@@ -1001,7 +1011,10 @@ def create_chargepoint_session_chart(
                         "type": "nominal",
                         "bandPosition": 0.5,
                         "scale": {
-                            "domain": {"selection": "plugin_dep", "field": "session_id"}
+                            "domain": {
+                                "selection": "plugin_plugout",
+                                "field": "session_id",
+                            }
                         },
                     },
                     "color": {
@@ -1014,11 +1027,17 @@ def create_chargepoint_session_chart(
                         },
                     },
                     "tooltip": [
-                        {"field": "plug in", "type": "temporal", "title": "Plug-in"},
                         {
-                            "field": "departure",
+                            "field": "plug in",
                             "type": "temporal",
-                            "title": "Departure",
+                            "title": "Plug-in",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "plug out",
+                            "type": "temporal",
+                            "title": "Plug-Out",
+                            "format": "%Y-%m-%d %H:%M:%S",
                         },
                     ],
                 },
@@ -1105,11 +1124,13 @@ def create_chargepoint_session_chart(
                             "field": "start charging",
                             "type": "temporal",
                             "title": "Start Charging",
+                            "format": "%Y-%m-%d %H:%M:%S",
                         },
                         {
                             "field": "stop charging",
                             "type": "temporal",
                             "title": "Stop Charging",
+                            "format": "%Y-%m-%d %H:%M:%S",
                         },
                     ],
                 },
