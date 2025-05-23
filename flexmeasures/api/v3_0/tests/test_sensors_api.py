@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import pytest
 import math
+import io
 
 from flask import url_for
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
+from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -292,6 +294,60 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
             active_user_name=requesting_user.username,
         )
     ).scalar_one_or_none()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file(client, requesting_user):
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    csv_content = """event_start,event_value
+2022-12-16T05:11:00Z,4
+2022-12-16T06:11:00Z,2
+2022-12-16T07:11:00Z,6
+2022-12-16T08:11:00Z,3
+2022-12-16T09:11:00Z,8
+2022-12-16T10:11:00Z,4
+"""
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    # Match what the schema expects
+    data = {"uploaded-files": file}
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=1),
+        data=data,
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+    assert response.status_code == 200 or response.status_code == 400
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_excel_file(client, requesting_user):
+    import openpyxl
+
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["event_start", "event_value"])
+    ws.append(["2022-12-16T05:11:00Z", 4])
+    ws.append(["2022-12-16T06:11:00Z", 2])
+    ws.append(["2022-12-16T07:11:00Z", 6])
+    ws.append(["2022-12-16T08:11:00Z", 3])
+    ws.append(["2022-12-16T09:11:00Z", 8])
+    ws.append(["2022-12-16T10:11:00Z", 4])
+    file_stream = io.BytesIO()
+    wb.save(file_stream)
+    file_stream.seek(0)
+
+    data = {"uploaded-files": (file_stream, "test.xlsx")}
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=1),
+        data=data,
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+    assert response.status_code == 200 or response.status_code == 400
 
 
 @pytest.mark.parametrize(
