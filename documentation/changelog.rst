@@ -24,6 +24,7 @@ New features
 * Only show important sensors statuses (flex-context and graph sensors) on the status page [see `PR #1439 <https://github.com/FlexMeasures/flexmeasures/pull/1439>`_]
 * Let the user interact with the breadcrumbs on asset graphs page when the graphs are loading [see `PR #1472 <https://github.com/FlexMeasures/flexmeasures/pull/1472>`_]
 * Added DB migrations to apply server defaults to ``generic_asset`` and ``data_sources`` tables [see `PR #1488 <https://github.com/FlexMeasures/flexmeasures/pull/1488>`_]
+* Add resolution back to the CLI belief plotting [see `PR #1500 <https://github.com/FlexMeasures/flexmeasures/pull/1500>`_]
 
 Infrastructure / Support
 ----------------------

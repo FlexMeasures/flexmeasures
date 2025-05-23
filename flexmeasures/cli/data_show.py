@@ -664,7 +664,8 @@ def plot_beliefs(
         title = f"Beliefs for Sensor '{sensors[0].name}' (ID {sensors[0].id}).\n"
     else:
         title = f"Beliefs for Sensors {join_words_into_a_list([s.name + ' (ID ' + str(s.id) + ')' for s in sensors])}.\n"
-    title += f"Data spans {naturaldelta(duration)} and starts at {start}."
+    title += f"Data spans {naturaldelta(duration)} and starts at {start}.\n"
+    title += f"The time resolution (x-axis) is {naturaldelta(resolution)}.\n"
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
