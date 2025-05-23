@@ -871,6 +871,7 @@ def create_chargepoint_session_chart(
                         "encodings": ["color"],
                         "fields": ["asset"],
                         "bind": "legend",
+                        "toggle": "event.ctrlKey",
                     },
                 },
                 "mark": {
@@ -967,6 +968,7 @@ def create_chargepoint_session_chart(
                         "encodings": ["color"],
                         "fields": ["asset"],
                         "bind": "legend",
+                        "toggle": "event.ctrlKey",
                     }
                 },
                 "mark": {
@@ -1065,6 +1067,7 @@ def create_chargepoint_session_chart(
                         "encodings": ["color"],
                         "fields": ["asset"],
                         "bind": "legend",
+                        "toggle": "event.ctrlKey",
                     }
                 },
                 "mark": {"type": "rule", "strokeWidth": 6},
