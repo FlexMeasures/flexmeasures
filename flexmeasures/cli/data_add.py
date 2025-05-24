@@ -2195,11 +2195,11 @@ def add_toy_account(kind: str, name: str):
         db.session.flush()
 
         process = shiftable_power.generic_asset
-        process.attributes["sensors_to_show"] = [
-            day_ahead_sensor.id,
-            inflexible_power.id,
-            breakable_power.id,
-            shiftable_power.id,
+        process.sensors_to_show = [
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {"title": "Inflexible", "sensor": inflexible_power.id},
+            {"title": "Breakable", "sensor": breakable_power.id},
+            {"title": "Shiftable", "sensor": shiftable_power.id},
         ]
 
         db.session.commit()
