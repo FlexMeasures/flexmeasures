@@ -24,7 +24,10 @@ from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetIdField,
+    SensorsToShowSchema,
+)
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -202,16 +205,34 @@ def show_generic_asset(asset):
         )
     click.echo(f"======{len(asset.name) * '='}{separator_num * '='}\n")
 
+    standardized_sensors_to_show = SensorsToShowSchema().deserialize(
+        asset.sensors_to_show
+    )
     asset_data = [
         (
             asset.generic_asset_type.name,
             asset.location,
-            "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
             "".join([f"{k}: {v}\n" for k, v in asset.flex_context.items()]),
+            "".join(
+                [
+                    f"{graph['title']}: {graph['sensors']} \n"
+                    for graph in standardized_sensors_to_show
+                ]
+            ),
+            "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
         )
     ]
     click.echo(
-        tabulate(asset_data, headers=["Type", "Location", "Attributes", "Flex-Context"])
+        tabulate(
+            asset_data,
+            headers=[
+                "Type",
+                "Location",
+                "Flex-Context",
+                "Sensors to show",
+                "Attributes",
+            ],
+        )
     )
 
     child_asset_data = [

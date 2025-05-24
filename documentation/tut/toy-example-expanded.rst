@@ -91,11 +91,11 @@ We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000
     :align: center
 |
 
-The `asset page for the battery <http://localhost:5000/assets/3>`_ now shows the solar data, too:
+The `graphs page for the battery <http://localhost:5000/assets/3/graphs>`_ now shows the solar data, too:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-solar.png
     :align: center
-
+|
 
 Though this schedule is quite similar, we can see that it has changed from `the one we computed earlier <https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png>`_ (when we did not take solar into account).
 

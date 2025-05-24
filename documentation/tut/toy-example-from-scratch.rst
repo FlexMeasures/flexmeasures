@@ -69,7 +69,7 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
-The `asset page for the battery <http://localhost:5000/assets/3>`_ shows both prices and the schedule.
+The `battery's graph dashboard <http://localhost:5000/assets/3/graphs>`_ shows both prices and the schedule.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-without-solar.png
     :align: center
