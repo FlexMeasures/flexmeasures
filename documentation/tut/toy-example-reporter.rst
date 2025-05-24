@@ -3,9 +3,6 @@
 Toy example IV: Computing reports
 =====================================
 
-.. warning::
-    The reporting functionality is still in an early development stage. Beware that major changes might be introduced.
-    
 So far, we have worked on scheduling batteries and processes. Now, we are moving to one of the other three pillars of FlexMeasures: reporting. 
 
 In essence, reporters apply arbitrary transformations to data coming from some sensors (multiple inputs) and save the results to other sensors (multiple outputs). In practice, this allows to compute KPIs (such as profit and total daily energy production), to apply operations to beliefs (e.g. changing the sign of a power sensor for some time period), among other things.
