@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type
+from typing import Type, Dict, Any
 import isodate
 import json
 import yaml
@@ -2090,11 +2090,11 @@ def add_toy_account(kind: str, name: str):
         flex_context: dict | None = None,
         **asset_attributes,
     ):
-        asset_kwargs = dict()
+        asset_kwargs: Dict[str, Any] = {}
         if parent_asset_id is not None:
             asset_kwargs["parent_asset_id"] = parent_asset_id
-        if flex_context is None:
-            flex_context = {}
+        if flex_context is not None:
+            asset_kwargs["flex_context"] = flex_context
 
         asset = get_or_create_model(
             GenericAsset,
@@ -2103,9 +2103,10 @@ def add_toy_account(kind: str, name: str):
             owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
-            flex_context=flex_context,
             **asset_kwargs,
         )
+        if asset.flex_context is None:
+            asset.flex_context = {}
         if len(asset_attributes) > 0:
             asset.attributes = asset_attributes
 
