@@ -21,3 +21,5 @@ docker exec -it flexmeasures-server-1 flexmeasures add schedule for-process --se
   --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
   --process-power 0.2MW --process-type SHIFTABLE \
   --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
+
+echo "Now visit http://localhost:5000/assets/5/graphs to see all three schedules."
