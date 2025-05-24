@@ -18,7 +18,9 @@ In essence, reporters apply arbitrary transformations to data coming from some s
 
     Moreover, it's possible to implement your custom reporters in plugins. Instructions for this to come.
 
-Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitOrLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitOrLossReporter` to compute the costs of operating the process of Tut. Part III in the different policies.
+Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitOrLossReporter`.
+In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time.
+In the second part, we'll use the `ProfitOrLossReporter` to compute the costs of operating the process of Tut. Part III in the different policies.
 
 Before getting to the meat of the tutorial, we need to set up up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor``), we have prepared a command that does that automatically.
 
@@ -32,14 +34,16 @@ Just as in previous sections, we need to run the command ``flexmeasures add toy-
     $ flexmeasures add toy-account --kind reporter
 
 Under the hood, this command is adding the following entities:
-    - A yearly sensor that stores the capacity of the grid connection.
+    - A sensor that stores the capacity of the grid connection (with a resolution of one year, so storing just one value:) ).
     - A power sensor, `headroom`, to store the remaining capacity for the battery. This is where we'll store the report.
     - A `ProfitOrLossReporter` configured to use the prices that we set up in Tut. Part II.
     - Three sensors to register the profits/losses from running the three different processes of Tut. Part III.
 
+.. note:: The above command should also print out the IDs of these sensors. We will use these IDs verbatim in this tutorial.
+
 Let's check it out! 
 
-Run the command below to show the values for the `grid connection capacity`:
+Run the command below to show the values for our newly-created `grid connection capacity`:
 
 .. code-block:: bash
 
@@ -80,21 +84,26 @@ That's because reporters belong to a bigger category of classes that also contai
 
     $ flexmeasures show data-sources --show-attributes --id 6
 
-         ID  Name          Type      User ID    Model           Version    Attributes                                  
-       ----  ------------  --------  ---------  --------------  ---------  -----------------------------------------   
-          6  FlexMeasures  reporter             ProfitOrLossReporter           {                                            
-                                                                               "data_generator": {                      
-                                                                                   "config": {                          
-                                                                                       "consumption_price_sensor": 1     
-                                                                                   }                                     
-                                                                               }                                          
-                                                                           }                                             
+        type: reporter
+        ========
+
+         ID  Name          User ID    Model                 Version    Attributes
+       ----  ------------  ---------  --------------------  ---------  ------------------------------------------
+          6  FlexMeasures             ProfitOrLossReporter             {
+                                                                       "data_generator": {
+                                                                           "config": {
+                                                                               "consumption_price_sensor": 1,
+                                                                               "loss_is_positive": true
+                                                                           }
+                                                                       }
+                                                                   }
 
 
 Compute headroom
 -------------------
 
-In this case, the discharge headroom is nothing but the difference between the grid connection capacity and the PV power. To compute that quantity, we can use the `AggregatorReporter` using the weights to make the PV to subtract the grid connection capacity.
+In this case, the discharge headroom is nothing but the difference between the grid connection capacity and the PV power.
+To compute that quantity, we can use the `AggregatorReporter` using the weights to make the PV to subtract the grid connection capacity.
 
 In practice, we need to create the `config` and `parameters`:
 
@@ -118,8 +127,9 @@ In practice, we need to create the `config` and `parameters`:
     $     'output' : [{'sensor' : 8}]
     $ }" > headroom-parameters.json
 
+The output sensor (ID: 8) is actually the one created just to store that information - the headroom our battery has when considering solar production.
 
-Finally, we can create the reporter with the following command:
+Finally, we can create the report with the following command:
 
 .. code-block:: bash
 
@@ -128,7 +138,7 @@ Finally, we can create the reporter with the following command:
        --start-offset DB,1D --end-offset DB,2D \
        --resolution PT15M
 
-Now we can visualize the headroom in the following `link <http://localhost:5000/sensors/8>`_, which should resemble the following image.
+Now we can visualize the diminished headroom in the following `link <http://localhost:5000/sensors/8/graphs>`_, which should resemble the following image:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom.png
     :align: center
