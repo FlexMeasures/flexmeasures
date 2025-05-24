@@ -226,8 +226,8 @@ If you want, you can inspect what you created:
     Type     Location           Flex-Context                      Sensors to show      Attributes
     -------  -----------------  --------------------------------  -------------------  -----------------------
     battery  (52.374, 4.88969)  consumption-price: {'sensor': 1}  Prices: [1]          capacity_in_mw: 500 kVA
-                                                              Power flows: [3, 2]  min_soc_in_mwh: 0.05
-                                                                                   max_soc_in_mwh: 0.45
+                                                                  Power flows: [3, 2]  min_soc_in_mwh: 0.05
+                                                                                       max_soc_in_mwh: 0.45
 
     ====================================
     Child assets of toy-battery (ID: 3)

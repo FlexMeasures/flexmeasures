@@ -90,13 +90,13 @@ That's because reporters belong to a bigger category of classes that also contai
          ID  Name          User ID    Model                 Version    Attributes
        ----  ------------  ---------  --------------------  ---------  ------------------------------------------
           6  FlexMeasures             ProfitOrLossReporter             {
-                                                                       "data_generator": {
-                                                                           "config": {
-                                                                               "consumption_price_sensor": 1,
-                                                                               "loss_is_positive": true
+                                                                           "data_generator": {
+                                                                               "config": {
+                                                                                   "consumption_price_sensor": 1,
+                                                                                   "loss_is_positive": true
+                                                                               }
                                                                            }
                                                                        }
-                                                                   }
 
 
 Compute headroom
