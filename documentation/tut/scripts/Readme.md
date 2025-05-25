@@ -4,7 +4,7 @@ The tutorials in the docs are for you to run step by step, command by command,
 so that every step clarifies more of what FlexMeasures is for, and what it can do for you.
 
 However, sometimes one might want to run through them all.
-We sripted the tutorials, so they can be automated. They don't come with a guarantee.
+We scripted the tutorials, so they can be automated. They don't come with a guarantee.
 
 For us, they are actually a step in [our release checklist](https://github.com/FlexMeasures/tsc/blob/main/RELEASE.md) before we upload a new version to Pypi.
 
