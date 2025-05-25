@@ -33,6 +33,7 @@ Infrastructure / Support
 * Save last N jobs from any queue and registry to a file, and support filtering by asset ID or sensor ID [see `PR #1411 <https://github.com/FlexMeasures/flexmeasures/pull/1411>`_]
 * Describe four supported user roles explicitly (docs and code) [see `PR #1451 <https://github.com/FlexMeasures/flexmeasures/pull/1451>`_]
 * Updated the directory structure for crud operations for assets, sensors, users and accounts [see `PR #1467 <https://github.com/FlexMeasures/flexmeasures/pull/1467>`_ and `PR #1471 <https://github.com/FlexMeasures/flexmeasures/pull/1471>`_]
+* Docs: fix graphs page for assets in toy tutorial, display plotted sensors when CLI shows asset info [see `PR #1501 <https://github.com/FlexMeasures/flexmeasures/pull/1501>`_
 
 Bugfixes
 -----------
