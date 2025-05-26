@@ -838,10 +838,6 @@ def create_chargepoint_session_chart(
             {"calculate": "datum.sensor.name", "as": "sensor_name"},
             {"calculate": "datum.sensor.asset_id", "as": "asset_id"},
             {"calculate": "datum.sensor.asset_description", "as": "asset"},
-            {
-                "calculate": "datum.sensor.name + ' (ID: ' + datum.sensor.id + ')'",
-                "as": "sensor_description",
-            },
         ],
         "layer": [
             # --- Dotted Line: Arrival to Departure ---
