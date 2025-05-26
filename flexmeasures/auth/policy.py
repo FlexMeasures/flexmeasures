@@ -214,33 +214,25 @@ def can_modify_role(user, roles_to_modify) -> bool:
 
     """
 
-    statuses = []
-
     for role in roles_to_modify:
-
         if isinstance(role, int):
             from flexmeasures.data.models.user import Role
 
             role = current_app.db.session.get(Role, role)
 
         if not role:
-            statuses.append(False)
-            continue
+            return False
         if role.name == ADMIN_ROLE:
-            statuses.append(False)
-            continue
+            return False
         if role.name == ADMIN_READER_ROLE and not user.has_role(ADMIN_ROLE):
-            statuses.append(False)
-            continue
+            return False
         if role.name == ACCOUNT_ADMIN_ROLE and not (
             user.has_role(ADMIN_ROLE) or user.has_role(CONSULTANT_ROLE)
         ):
-            statuses.append(False)
-            continue
+            return False
         if role.name == CONSULTANT_ROLE and not (
             user.has_role(ADMIN_ROLE) or user.has_role(ACCOUNT_ADMIN_ROLE)
         ):
-            statuses.append(False)
-            continue
+            return False
 
-    return all(statuses)
+    return True
