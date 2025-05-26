@@ -908,6 +908,7 @@ def create_chargepoint_session_chart(
                         "scale": {
                             "domain": {"selection": "arr_dep", "field": "asset_id"}
                         },
+                        "axis": None,
                     },
                     "yOffset": {
                         "field": "session_id",
@@ -1008,6 +1009,7 @@ def create_chargepoint_session_chart(
                                 "field": "asset_id",
                             }
                         },
+                        "axis": None,
                     },
                     "yOffset": {
                         "field": "session_id",
@@ -1102,6 +1104,7 @@ def create_chargepoint_session_chart(
                                 "field": "asset_id",
                             }
                         },
+                        "axis": None,
                     },
                     "yOffset": {
                         "field": "session_id",
