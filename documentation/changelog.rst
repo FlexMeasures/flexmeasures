@@ -25,6 +25,7 @@ New features
 * Let the user interact with the breadcrumbs on asset graphs page when the graphs are loading [see `PR #1472 <https://github.com/FlexMeasures/flexmeasures/pull/1472>`_]
 * Added DB migrations to apply server defaults to ``generic_asset`` and ``data_sources`` tables [see `PR #1488 <https://github.com/FlexMeasures/flexmeasures/pull/1488>`_]
 * Show visually distinct siblings and children in the assets dropdown [see `PR #1504 <https://github.com/FlexMeasures/flexmeasures/pull/1504>`_]
+* Add resolution back to the CLI belief plotting [see `PR #1500 <https://github.com/FlexMeasures/flexmeasures/pull/1500>`_]
 
 Infrastructure / Support
 ----------------------
@@ -33,6 +34,8 @@ Infrastructure / Support
 * Save last N jobs from any queue and registry to a file, and support filtering by asset ID or sensor ID [see `PR #1411 <https://github.com/FlexMeasures/flexmeasures/pull/1411>`_]
 * Describe four supported user roles explicitly (docs and code) [see `PR #1451 <https://github.com/FlexMeasures/flexmeasures/pull/1451>`_]
 * Updated the directory structure for crud operations for assets, sensors, users and accounts [see `PR #1467 <https://github.com/FlexMeasures/flexmeasures/pull/1467>`_ and `PR #1471 <https://github.com/FlexMeasures/flexmeasures/pull/1471>`_]
+* Docs: Add tutorial scripts [see `PR #1505 <https://github.com/FlexMeasures/flexmeasures/pull/1505>`_]
+* Docs: fix graphs page for assets in toy tutorial, display plotted sensors when CLI shows asset info [see `PR #1501 <https://github.com/FlexMeasures/flexmeasures/pull/1501>`_
 
 Bugfixes
 -----------
