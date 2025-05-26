@@ -835,7 +835,7 @@ def create_chargepoint_session_chart(
         },
         "transform": [
             {"filter": {"field": "sensor.id", "oneOf": sensor_ids}},
-            {"calculate": "datum.sensor.name", "as": "event_type"},
+            {"calculate": "datum.sensor.name", "as": "sensor_name"},
             {"calculate": "datum.sensor.asset_id", "as": "asset_id"},
             {"calculate": "datum.sensor.asset_description", "as": "asset"},
             {
@@ -852,10 +852,10 @@ def create_chargepoint_session_chart(
                         "as": "session_id",
                     },
                     {
-                        "filter": "datum.event_type == 'arrival' || datum.event_type == 'departure'"
+                        "filter": "datum.sensor_name == 'arrival' || datum.sensor_name == 'departure'"
                     },
                     {
-                        "pivot": "event_type",
+                        "pivot": "sensor_name",
                         "value": "event_value",
                         "groupby": ["session_id", "asset", "asset_id"],
                     },
@@ -951,10 +951,10 @@ def create_chargepoint_session_chart(
                         "as": "session_id",
                     },
                     {
-                        "filter": "datum.event_type == 'plug in' || datum.event_type == 'plug out'"
+                        "filter": "datum.sensor_name == 'plug in' || datum.sensor_name == 'plug out'"
                     },
                     {
-                        "pivot": "event_type",
+                        "pivot": "sensor_name",
                         "value": "event_value",
                         "groupby": [
                             "session_id",
@@ -1055,10 +1055,10 @@ def create_chargepoint_session_chart(
                         "as": "session_id",
                     },
                     {
-                        "filter": "datum.event_type == 'start charging' || datum.event_type == 'stop charging'"
+                        "filter": "datum.sensor_name == 'start charging' || datum.sensor_name == 'stop charging'"
                     },
                     {
-                        "pivot": "event_type",
+                        "pivot": "sensor_name",
                         "value": "event_value",
                         "groupby": ["session_id", "asset", "asset_id"],
                     },
