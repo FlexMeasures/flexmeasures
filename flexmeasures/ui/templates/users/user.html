@@ -11,25 +11,30 @@
 <div class="container-fluid">
   <div class="row">
     <div class="col-md-2 on-top-md">
-      <div class="header-action-button">
-        {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
-        <div class="">
-          <form action="/users/toggle_active/{{ user.id }}" method="get">
-            <button
-              class="btn btn-sm btn-responsive {% if user.active %} btn-warning  {% else %} btn-success {% endif %} delete-button mb-3"
-              type="submit" title="Toggle activation status of this user.">
-              {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
-            </button>
-          </form>
-        </div>
-        <div>
-          <form action="/users/reset_password_for/{{ user.id }}" method="get">
-            <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit"
-              title="Reset the password and send instructions how to choose a new one.">Reset password</button>
-          </form>
-        </div>
-        {% endif %}
-      </div>
+
+    <div class="d-grid gap-2 col-8 mt-3">
+      <button class="btn p-2 border-0 btn-info" type="button" title="Edit user details" data-bs-toggle="modal"
+        data-bs-target="#editUserModal">Edit</button>
+
+      {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
+        <button
+          class="btn p-2 border-0 {% if user.active %} btn-warning {% else %} btn-success {% endif %}"
+          type="button"
+          title="Toggle activation status of this user."
+          onclick="window.location.href='/users/toggle_active/{{ user.id }}'">
+          {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
+        </button>
+
+        <button
+          class="btn p-2 border-0 btn-info"
+          type="button"
+          title="Reset the password and send instructions how to choose a new one."
+          onclick="window.location.href='/users/reset_password_for/{{ user.id }}'">
+          Reset password
+        </button>
+      {% endif %}
+    </div>
+
     </div>
     <div class="col-md-8">
       <div class="user-data-table card">
@@ -111,14 +116,10 @@
     </div>
     <div class="col-md-2">
       {% if can_view_user_auditlog %}
-      <form action="/users/auditlog/{{ user.id }}" method="get" class="mb-md-0 mb-3 mt-3">
-        <button class="btn btn-sm btn-responsive btn-info" type="submit" title="View history of user actions.">User
-          audit log</button>
-      </form>
+      <button class="btn p-3 btn-info border-0 mb-3 mt-3" type="button"
+        onclick="window.location.href='/users/auditlog/{{ user.id }}'" title="View history of user actions.">User audit
+        log</button>
       {% endif %}
-      <button class="btn btn-sm btn-responsive btn-info" type="submit" title="Edit user details" data-bs-toggle="modal"
-        data-bs-target="#editUserModal">Edit
-      </button>
     </div>
   </div>
 </div>
