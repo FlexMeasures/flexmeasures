@@ -989,6 +989,30 @@ class SensorAPI(FlaskView):
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
 
+    @route("/<id>/data", methods=["DELETE"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @as_json
+    def delete_data(self, id: int, sensor: Sensor):
+        """Delete all data for a sensor.
+
+        .. :quickref: Sensor; Delete sensor data
+
+        This endpoint deletes all data for a sensor.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 204: DELETED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+        db.session.commit()
+        return {}, 204
+
     @route("/<id>/stats", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(

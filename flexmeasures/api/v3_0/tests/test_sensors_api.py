@@ -350,6 +350,18 @@ def test_upload_excel_file(client, requesting_user):
     assert response.status_code == 200 or response.status_code == 400
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_verify_data_exists_for_sensor(
+    client, setup_api_test_data, requesting_user, db
+):
+    sensors = (
+        db.session.execute(select(TimedBelief).filter_by(sensor_id=1)).scalars().all()
+    )
+    assert (
+        len(sensors) > 36
+    )  # Setting to 36 because we are inserting 6 values (Each value is inserted 6 times for each hour)
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )

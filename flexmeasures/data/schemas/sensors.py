@@ -452,7 +452,6 @@ class SensorDataFileSchema(Schema):
         "text/csv",
         "text/plain",
         "text/x-csv",
-        "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }
 

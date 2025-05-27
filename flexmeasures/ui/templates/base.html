@@ -434,13 +434,31 @@
                     storeStartDate,
                     subtract(storeEndDate, 1),
                 );
-                // Reload the page
+                // Wait for 2 seconds and then reload the page
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 window.location.reload();
                 // Optionally: startReplay();
             } else if (response.status == 422) {
                 const data = await response.json();
                 for (const [key, value] of Object.entries(data.message.path_and_files)) {
-                    showToast(value, "error");
+                    if (typeof value === 'string') {
+                        showToast(value, "error");
+                    } else if (Array.isArray(value)) {
+                        value.forEach(element => {
+                            showToast(element, "error");
+                        });
+                    } else if (typeof value === 'object' && value !== null) {
+                        Object.values(value).forEach(element => {
+                            if (Array.isArray(element)) {
+                                element.forEach(item => showToast(item, "error"));
+                            } else {
+                                showToast(element, "error");
+                            }
+                        });
+                    } else {
+                        // fallback for unexpected types
+                        showToast(String(value), "error");
+                    }
                 }
             }
         })
