@@ -13,8 +13,10 @@
     <div class="col-md-2 on-top-md">
 
     <div class="d-grid gap-2 col-8 mt-3">
+      {% if can_edit_user_details %}
       <button class="btn p-2 border-0 btn-info" type="button" title="Edit user details" data-bs-toggle="modal"
         data-bs-target="#editUserModal">Edit</button>
+      {% endif %}
 
       {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
         <button
