@@ -303,9 +303,6 @@ def test_upload_csv_file(client, requesting_user):
 2022-12-16T05:11:00Z,4
 2022-12-16T06:11:00Z,2
 2022-12-16T07:11:00Z,6
-2022-12-16T08:11:00Z,3
-2022-12-16T09:11:00Z,8
-2022-12-16T10:11:00Z,4
 """
     file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
 
@@ -329,9 +326,6 @@ def test_upload_excel_file(client, requesting_user):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.append(["event_start", "event_value"])
-    ws.append(["2022-12-16T05:11:00Z", 4])
-    ws.append(["2022-12-16T06:11:00Z", 2])
-    ws.append(["2022-12-16T07:11:00Z", 6])
     ws.append(["2022-12-16T08:11:00Z", 3])
     ws.append(["2022-12-16T09:11:00Z", 8])
     ws.append(["2022-12-16T10:11:00Z", 4])
