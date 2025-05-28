@@ -505,7 +505,7 @@ class SensorDataFileSchema(Schema):
                     file,
                     sensor,
                     source=current_user.data_source[0],
-                    belief_time=pd.Timestamp.utcnow(),
+                    belief_horizon=pd.Timedelta(days=0),
                     resample=True,
                     timezone=sensor.timezone,
                 )
