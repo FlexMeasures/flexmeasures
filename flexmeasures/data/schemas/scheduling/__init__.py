@@ -68,6 +68,9 @@ class FlexContextSchema(Schema):
     relax_capacity_constraints = fields.Bool(
         data_key="relax-capacity-constraints", load_default=False
     )
+    relax_site_capacity_constraints = fields.Bool(
+        data_key="relax-site-capacity-constraints", load_default=False
+    )
 
     # Energy commitments
     ems_power_capacity_in_mw = VariableQuantityField(
@@ -239,6 +242,14 @@ class FlexContextSchema(Schema):
                 data,
                 fields=["consumption_breach_price", "production_breach_price"],
                 price=ur.Quantity("100 EUR/kW"),
+            )
+
+        # Fill in default site capacity breach prices when asked to relax site capacity constraints.
+        if data["relax_site_capacity_constraints"]:
+            self.set_default_breach_prices(
+                data,
+                fields=["ems_consumption_breach_price", "ems_production_breach_price"],
+                price=ur.Quantity("10000 EUR/kW"),
             )
 
         return data
