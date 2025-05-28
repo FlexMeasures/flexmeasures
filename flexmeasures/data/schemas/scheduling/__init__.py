@@ -210,6 +210,7 @@ class FlexContextSchema(Schema):
                 "site-peak-production-price",
                 "relax-soc-constraints",
                 "relax-capacity-constraints",
+                "relax-site-capacity-constraints",
                 "consumption-breach-price",
                 "production-breach-price",
             )
