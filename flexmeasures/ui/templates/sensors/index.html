@@ -98,6 +98,13 @@ The event_value should be a numeric value."
                                                 style="margin-left: 5px; color: white;"
                                             >
                                             </i>
+                                            <a href="{{ url_for('flexmeasures_ui.static', filename='examples/sensors-data.xlsx') }}" download>
+                                                <i class="fa fa-download"
+                                                    style="margin-left: 5px; color: white;"
+                                                    title="Download example file"
+                                                    >
+                                                </i>
+                                            </a>
                                         </label>
                                         <!-- Accept on CSV and Excel files -->
                                         <input id="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" name="uploaded-files" type="file" multiple="multiple" />
