@@ -109,6 +109,19 @@ The event_value should be a numeric value."
                                         <!-- Accept on CSV and Excel files -->
                                         <input id="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" name="uploaded-files" type="file" multiple="multiple" />
                                     </div>
+                                    <!-- Checkbox for setting the record as measured instantly -->
+                                    <div class="form-group mt-3">
+                                        <input type="checkbox" id="belief-time-measured-instantly" name="belief-time-measured-instantly" checked>
+                                        <label for="belief-time-measured-instantly">
+                                            Measured instantly
+                                            <i
+                                                class="fa fa-info-circle"
+                                                title="If unchecked the belief time will be set to the time of upload.."
+                                                style="margin-left: 5px; color: white;"
+                                            >
+                                            </i>
+                                        </label>
+                                    </div>
                                     <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
                                         style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
                                         Upload file

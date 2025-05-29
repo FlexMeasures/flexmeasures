@@ -446,6 +446,14 @@ class SensorDataFileSchema(Schema):
         fields.Field(metadata={"type": "string", "format": "byte"}),
         data_key="uploaded-files",
     )
+    belief_time_measured_instantly = fields.Boolean(
+        metadata={"type": "boolean", "default": False},
+        required=False,
+        allow_none=True,
+        truthy={"on", "true", "True", "1"},
+        falsy={"off", "false", "False", "0", None},
+        data_key="belief-time-measured-instantly",
+    )
     sensor = SensorIdField(data_key="id")
 
     _valid_content_types = {
@@ -498,6 +506,7 @@ class SensorDataFileSchema(Schema):
         sensor = fields.pop("sensor")
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
+        belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
         errors = {}
         for i, file in enumerate(files):
             try:
@@ -505,7 +514,14 @@ class SensorDataFileSchema(Schema):
                     file,
                     sensor,
                     source=current_user.data_source[0],
-                    belief_horizon=pd.Timedelta(days=0),
+                    belief_time=(
+                        pd.Timestamp.utcnow()
+                        if not belief_time_measured_instantly
+                        else None
+                    ),
+                    belief_horizon=(
+                        pd.Timedelta(days=0) if belief_time_measured_instantly else None
+                    ),
                     resample=True,
                     timezone=sensor.timezone,
                 )

@@ -104,6 +104,8 @@ def load_data_from_path_and_files(request: Request, schema):
     """
     data = MultiDict(request.view_args)
     data.update(request.files)
+    belief_time = request.form.get("belief-time-measured-instantly")
+    data.update({"belief-time-measured-instantly": belief_time})
     return MultiDictProxy(data, schema)
 
 
