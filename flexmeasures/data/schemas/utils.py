@@ -1,6 +1,12 @@
+import functools
+
 import click
 import marshmallow as ma
+from webargs.flaskparser import parser, use_kwargs
+from webargs.multidictproxy import MultiDictProxy
+from werkzeug.datastructures import MultiDict
 from click import get_current_context
+from flask import Request
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
@@ -73,3 +79,36 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         raise FMValidationError(
             f"Cannot convert value '{value}' to a valid quantity. {e}"
         )
+
+
+@parser.location_loader("path_and_files")
+def load_data_from_path_and_files(request: Request, schema):
+    """
+    Custom webargs location loader to extract data from both path parameters and uploaded files.
+
+    This loader combines variables from the request URL path (`request.view_args`) and
+    uploaded file data (`request.files`) into a single MultiDict, which is then passed to
+    webargs for validation and deserialization.
+
+    Note:
+        If any keys are present in both `request.view_args` and `request.files`,
+        the file data will overwrite the path data for those keys.
+
+    Parameters:
+        request (Request): The incoming Flask request object.
+        schema: The webargs schema used to validate and deserialize the extracted data.
+
+    Returns:
+        MultiDictProxy: A proxy object wrapping the merged data from path parameters
+                        and uploaded files.
+    """
+    data = MultiDict(request.view_args)
+    data.update(request.files)
+    belief_time = request.form.get("belief-time-measured-instantly")
+    data.update({"belief-time-measured-instantly": belief_time})
+    return MultiDictProxy(data, schema)
+
+
+query = functools.partial(use_kwargs, location="query")
+body = functools.partial(use_kwargs, location="json")
+path_and_files = functools.partial(use_kwargs, location="path_and_files")
