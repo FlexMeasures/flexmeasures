@@ -297,7 +297,7 @@ class UserAPI(FlaskView):
                     "Users who edit themselves cannot edit security-sensitive fields."
                 )
             # if flexmeasures_roles is not empty, check if the user can modify the role
-            if k == "flexmeasures_roles" and v:
+            if k == "flexmeasures_roles" and (v or len(v) == 0):
                 from flexmeasures.auth.policy import can_modify_role
 
                 current_roles = set(user.roles)
@@ -305,14 +305,14 @@ class UserAPI(FlaskView):
 
                 roles_being_removed = current_roles - new_roles
                 for role in roles_being_removed:
-                    if not can_modify_role(current_user, [role]):
+                    if not can_modify_role(current_user, [role], user):
                         raise Forbidden(
                             f"You are not allowed to remove ({role.name}) role from this user."
                         )
 
                 roles_being_added = new_roles - current_roles
                 for role in roles_being_added:
-                    if not can_modify_role(current_user, [role]):
+                    if not can_modify_role(current_user, [role], user):
                         raise Forbidden(
                             f"You are not allowed to add ({role.name}) role to this user."
                         )

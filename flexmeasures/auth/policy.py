@@ -199,11 +199,12 @@ def check_account_role(user, principal: str) -> bool:
     return False
 
 
-def can_modify_role(user, roles_to_modify) -> bool:
+def can_modify_role(user, roles_to_modify, modified_user) -> bool:
     """For a set of supported roles, check if the current user can modify the roles.
 
     :param user: The current user.
     :param roles_to_modify: A list of roles to modify.
+    :param modified_user: The user whose roles are being modified.
     :return: True if the user can modify the roles, False otherwise.
 
     The roles are:
@@ -226,13 +227,21 @@ def can_modify_role(user, roles_to_modify) -> bool:
             return False
         if role.name == ADMIN_READER_ROLE and not user.has_role(ADMIN_ROLE):
             return False
-        if role.name == ACCOUNT_ADMIN_ROLE and not (
-            user.has_role(ADMIN_ROLE) or user.has_role(CONSULTANT_ROLE)
-        ):
-            return False
-        if role.name == CONSULTANT_ROLE and not (
-            user.has_role(ADMIN_ROLE) or user.has_role(ACCOUNT_ADMIN_ROLE)
-        ):
-            return False
+        if role.name == ACCOUNT_ADMIN_ROLE:
+            if user.has_role(ADMIN_ROLE):
+                return True
+
+            if not user.has_role(CONSULTANT_ROLE) and (
+                user.account != modified_user.account.consultancy_account
+            ):
+                return False
+        if role.name == CONSULTANT_ROLE:
+            if user.has_role(ADMIN_ROLE):
+                return True
+
+            if user.has_role(ACCOUNT_ADMIN_ROLE) and (
+                user.account != modified_user.account
+            ):
+                return False
 
     return True
