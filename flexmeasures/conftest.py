@@ -86,7 +86,7 @@ def fresh_db(app):
 @contextmanager
 def create_test_db(app):
     """
-    Provide a db object with the structure freshly created. This assumes a clean database.
+    Provide a db object with the structure freshly created.
     It does clean up after itself when it's done (drops everything).
     """
     print("DB FIXTURE")
@@ -95,6 +95,7 @@ def create_test_db(app):
 
     _db.app = app
     with app.app_context():
+        _db.drop_all()
         _db.create_all()
 
     yield _db
