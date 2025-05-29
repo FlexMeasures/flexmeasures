@@ -87,7 +87,7 @@ def fresh_db(app):
 def create_test_db(app):
     """
     Provide a db object with the structure freshly created.
-    It does clean up after itself when it's done (drops everything).
+    It cleans up before it starts and after it's done (drops everything).
     """
     print("DB FIXTURE")
     # app is an instance of a flask app, _db a SQLAlchemy DB
