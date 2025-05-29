@@ -8,7 +8,7 @@ from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify
+from flask import request, jsonify, Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -84,13 +84,13 @@ def fresh_db(app):
 
 
 @contextmanager
-def create_test_db(app):
+def create_test_db(app: Flask):
     """
     Provide a db object with the structure freshly created.
     It cleans up before it starts and after it's done (drops everything).
     """
     print("DB FIXTURE")
-    # app is an instance of a flask app, _db a SQLAlchemy DB
+    # _db is a SQLAlchemy DB instance
     from flexmeasures.data import db as _db
 
     _db.app = app
