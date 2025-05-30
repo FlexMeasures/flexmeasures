@@ -507,111 +507,112 @@ def chart_for_multiple_sensors(
     sensors_specs = []
     for entry in sensors_to_show:
         title = entry.get("title")
-        sensors = entry.get("sensors")
-        # List the sensors that go into one row
-        row_sensors: list["Sensor"] = sensors  # noqa F821
+        if title != "Charge Point sessions":
+            sensors = entry.get("sensors")
+            # List the sensors that go into one row
+            row_sensors: list["Sensor"] = sensors  # noqa F821
 
-        # Set up field definition for sensor descriptions
-        sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
-        sensor_field_definition["scale"] = dict(
-            domain=[sensor.to_dict()["description"] for sensor in row_sensors]
-        )
-
-        # Derive the unit that should be shown
-        unit = determine_shared_unit(row_sensors)
-        sensor_type = determine_shared_sensor_type(row_sensors)
-
-        # Set up field definition for event values
-        event_value_field_definition = dict(
-            title=f"{capitalize(sensor_type)} ({unit})",
-            format=[".3~r", unit],
-            formatType="quantityWithUnitFormat",
-            stack=None,
-            **FIELD_DEFINITIONS["event_value"],
-        )
-        if unit == "%":
-            event_value_field_definition["scale"] = dict(
-                domain={"unionWith": [0, 105]}, nice=False
+            # Set up field definition for sensor descriptions
+            sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+            sensor_field_definition["scale"] = dict(
+                domain=[sensor.to_dict()["description"] for sensor in row_sensors]
             )
 
-        # Set up shared tooltip
-        shared_tooltip = [
-            dict(
-                field="sensor.description",
-                type="nominal",
-                title="Sensor",
-            ),
-            {
-                **event_value_field_definition,
-                **dict(title=f"{capitalize(sensor_type)}"),
-            },
-            FIELD_DEFINITIONS["full_date"],
-            dict(
-                field="belief_horizon",
-                type="quantitative",
-                title="Horizon",
-                format=["d", 4],
-                formatType="timedeltaFormat",
-            ),
-            {
-                **event_value_field_definition,
-                **dict(title=f"{capitalize(sensor_type)}"),
-            },
-            FIELD_DEFINITIONS["source_name_and_id"],
-            FIELD_DEFINITIONS["source_type"],
-            FIELD_DEFINITIONS["source_model"],
-        ]
+            # Derive the unit that should be shown
+            unit = determine_shared_unit(row_sensors)
+            sensor_type = determine_shared_sensor_type(row_sensors)
 
-        # Draw a line for each sensor (and each source)
-        layers = [
-            create_line_layer(
-                row_sensors,
-                event_start_field_definition,
-                event_value_field_definition,
-                sensor_field_definition,
-                combine_legend=combine_legend,
+            # Set up field definition for event values
+            event_value_field_definition = dict(
+                title=f"{capitalize(sensor_type)} ({unit})",
+                format=[".3~r", unit],
+                formatType="quantityWithUnitFormat",
+                stack=None,
+                **FIELD_DEFINITIONS["event_value"],
             )
-        ]
+            if unit == "%":
+                event_value_field_definition["scale"] = dict(
+                    domain={"unionWith": [0, 105]}, nice=False
+                )
 
-        # Optionally, draw transparent full-height rectangles that activate the tooltip anywhere in the graph
-        # (to be precise, only at points on the x-axis where there is data)
-        if len(row_sensors) == 1:
-            # With multiple sensors, we cannot do this, because it is ambiguous which tooltip to activate (instead, we use a different brush in the circle layer)
-            layers.append(
-                create_rect_layer(
+            # Set up shared tooltip
+            shared_tooltip = [
+                dict(
+                    field="sensor.description",
+                    type="nominal",
+                    title="Sensor",
+                ),
+                {
+                    **event_value_field_definition,
+                    **dict(title=f"{capitalize(sensor_type)}"),
+                },
+                FIELD_DEFINITIONS["full_date"],
+                dict(
+                    field="belief_horizon",
+                    type="quantitative",
+                    title="Horizon",
+                    format=["d", 4],
+                    formatType="timedeltaFormat",
+                ),
+                {
+                    **event_value_field_definition,
+                    **dict(title=f"{capitalize(sensor_type)}"),
+                },
+                FIELD_DEFINITIONS["source_name_and_id"],
+                FIELD_DEFINITIONS["source_type"],
+                FIELD_DEFINITIONS["source_model"],
+            ]
+
+            # Draw a line for each sensor (and each source)
+            layers = [
+                create_line_layer(
+                    row_sensors,
                     event_start_field_definition,
                     event_value_field_definition,
+                    sensor_field_definition,
+                    combine_legend=combine_legend,
+                )
+            ]
+
+            # Optionally, draw transparent full-height rectangles that activate the tooltip anywhere in the graph
+            # (to be precise, only at points on the x-axis where there is data)
+            if len(row_sensors) == 1:
+                # With multiple sensors, we cannot do this, because it is ambiguous which tooltip to activate (instead, we use a different brush in the circle layer)
+                layers.append(
+                    create_rect_layer(
+                        event_start_field_definition,
+                        event_value_field_definition,
+                        shared_tooltip,
+                    )
+                )
+
+            # Draw circle markers that are shown on hover
+            layers.append(
+                create_circle_layer(
+                    row_sensors,
+                    event_start_field_definition,
+                    event_value_field_definition,
+                    sensor_field_definition,
                     shared_tooltip,
                 )
             )
+            layers.append(REPLAY_RULER)
 
-        # Draw circle markers that are shown on hover
-        layers.append(
-            create_circle_layer(
-                row_sensors,
-                event_start_field_definition,
-                event_value_field_definition,
-                sensor_field_definition,
-                shared_tooltip,
-            )
-        )
-        layers.append(REPLAY_RULER)
-
-        # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
-        sensor_specs = {
-            "title": f"{capitalize(title)}" if title else None,
-            "transform": [
-                {
-                    "filter": {
-                        "field": "sensor.id",
-                        "oneOf": [sensor.id for sensor in row_sensors],
+            # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
+            sensor_specs = {
+                "title": f"{capitalize(title)}" if title else None,
+                "transform": [
+                    {
+                        "filter": {
+                            "field": "sensor.id",
+                            "oneOf": [sensor.id for sensor in row_sensors],
+                        }
                     }
-                }
-            ],
-            "layer": layers,
-            "width": "container",
-        }
-        sensors_specs.append(sensor_specs)
+                ],
+                "layer": layers,
+                "width": "container",
+            }
+            sensors_specs.append(sensor_specs)
 
     # Vertically concatenate the rows
     chart_specs = dict(
@@ -793,3 +794,373 @@ def create_rect_layer(
         },
     }
     return rect_layer
+
+
+def create_chargepoint_session_chart(
+    sensors_to_show,
+    event_starts_after=None,
+    event_ends_before=None,
+    combine_legend=True,
+    **override_chart_specs,
+) -> dict:
+
+    all_sensors = []
+    for entry in sensors_to_show:
+        sensors = entry.get("sensors")
+        all_sensors.extend(
+            [
+                s
+                for s in sensors
+                if s.unit == "s"
+                and s.name
+                in [
+                    "arrival",
+                    "departure",
+                    "start charging",
+                    "stop charging",
+                    "plug in",
+                    "plug out",
+                ]
+            ]
+        )
+
+    sensor_ids = [s.id for s in all_sensors]
+
+    chart_spec = {
+        "title": "Charge Point sessions",
+        "width": "container",
+        "height": 300,
+        "selection": {
+            "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+        },
+        "transform": [
+            {"filter": {"field": "sensor.id", "oneOf": sensor_ids}},
+            {"calculate": "datum.sensor.name", "as": "sensor_name"},
+            {"calculate": "datum.sensor.asset_id", "as": "asset_id"},
+            {"calculate": "datum.sensor.asset_description", "as": "asset"},
+        ],
+        "layer": [
+            # --- Dotted Line: Arrival to Departure ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'arrival' || datum.sensor_name == 'departure'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {"filter": {"selection": "arr_dep"}},
+                ],
+                "selection": {
+                    "scroll": {
+                        "type": "interval",
+                        "bind": "scales",
+                        "encodings": ["x"],
+                    },
+                    "arr_dep": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    },
+                },
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 1,
+                    "strokeDash": [4, 4],
+                },
+                "encoding": {
+                    "x": {
+                        "field": "arrival",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "departure",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "title": "EVSE ID",
+                        "scale": {
+                            "domain": {"selection": "arr_dep", "field": "asset_id"}
+                        },
+                        "axis": None,
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {"selection": "arr_dep", "field": "session_id"}
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "arrival",
+                            "type": "temporal",
+                            "title": "Arrival",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "departure",
+                            "type": "temporal",
+                            "title": "Departure",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+            # --- Solid Line: Plug-in to Plug-out ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'plug in' || datum.sensor_name == 'plug out'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": [
+                            "session_id",
+                            "asset",
+                            "asset_id",
+                        ],
+                    },
+                    {"filter": {"selection": "plugin_plugout"}},
+                ],
+                "selection": {
+                    "plugin_plugout": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    }
+                },
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 2,
+                },
+                "encoding": {
+                    "x": {
+                        "field": "plug in",
+                        "type": "temporal",
+                        "title": "Sessions",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "plug out",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "title": "EVSE ID",
+                        "scale": {
+                            "domain": {
+                                "selection": "plugin_plugout",
+                                "field": "asset_id",
+                            }
+                        },
+                        "axis": None,
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {
+                                "selection": "plugin_plugout",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "plug in",
+                            "type": "temporal",
+                            "title": "Plug-in",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "plug out",
+                            "type": "temporal",
+                            "title": "Plug-Out",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+            # ---  Thick line: Start to Stop Charging ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'start charging' || datum.sensor_name == 'stop charging'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {"filter": {"selection": "start_stop_charging"}},
+                ],
+                "selection": {
+                    "start_stop_charging": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    }
+                },
+                "mark": {"type": "rule", "strokeWidth": 6},
+                "encoding": {
+                    "x": {
+                        "field": "start charging",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "stop charging",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "asset_id",
+                            }
+                        },
+                        "axis": None,
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "start charging",
+                            "type": "temporal",
+                            "title": "Start Charging",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "stop charging",
+                            "type": "temporal",
+                            "title": "Stop Charging",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+
+    chart_spec["config"] = {
+        "view": {"continuousWidth": 800, "continuousHeight": 150},
+        "autosize": {"type": "fit-x", "contains": "padding"},
+    }
+    if combine_legend is True:
+        chart_spec["resolve"] = {"scale": {"x": "shared"}}
+    chart_spec.update(override_chart_specs)
+    return chart_spec
