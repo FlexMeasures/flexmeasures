@@ -3,6 +3,10 @@ from __future__ import annotations
 import isodate
 from datetime import datetime, timedelta
 
+from flexmeasures.data.services.sensors import (
+    serialize_sensor_status_data,
+)
+
 from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
@@ -938,9 +942,13 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/stats", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"sort_keys": fields.Boolean(data_key="sort", load_default=True)},
+        location="query",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
-    def get_stats(self, id, sensor):
+    def get_stats(self, id, sensor: Sensor, sort_keys: bool):
         """Fetch stats for a given sensor.
 
         .. :quickref: Sensor; Get sensor stats
@@ -953,13 +961,14 @@ class SensorAPI(FlaskView):
 
             {
                 "some data source": {
-                    "min_event_start": "2015-06-02T10:00:00+00:00",
-                    "max_event_start": "2015-10-02T10:00:00+00:00",
-                    "min_value": 0.0,
-                    "max_value": 100.0,
-                    "mean_value": 50.0,
-                    "sum_values": 500.0,
-                    "count_values": 10
+                    "First event start": "2015-06-02T10:00:00+00:00",
+                    "Last event end": "2015-10-02T10:00:00+00:00",
+                    "Last recorded": "2015-10-02T10:01:12+00:00",
+                    "Min value": 0.0,
+                    "Max value": 100.0,
+                    "Mean value": 50.0,
+                    "Sum over values": 500.0,
+                    "Number of values": 10
                 }
             }
 
@@ -973,4 +982,51 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        return get_sensor_stats(sensor), 200
+        return get_sensor_stats(sensor, sort_keys), 200
+
+    @route("/<id>/status", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    @as_json
+    def get_status(self, id, sensor):
+        """
+        Fetch the current status for a given sensor.
+
+        .. :quickref: Sensor; Get sensor status
+
+        This endpoint fetches the current status data for the specified sensor.
+        The status includes information about the sensor's status, staleness and resolution.
+
+        Example response:
+
+        .. sourcecode:: json
+
+            [
+                {
+                    'staleness': None,
+                    'stale': True,
+                    'staleness_since': None,
+                    'reason': 'no data recorded',
+                    'source_type': None,
+                    'id': 64906,
+                    'name': 'power',
+                    'resolution': '15 minutes',
+                    'asset_name': 'Location 1',
+                    'relation': 'sensor belongs to this asset'
+                }
+            ]
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 404: ASSET_NOT_FOUND
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        status_data = serialize_sensor_status_data(sensor=sensor)
+
+        return {"sensors_data": status_data}, 200

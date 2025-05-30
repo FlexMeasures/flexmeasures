@@ -22,7 +22,11 @@ from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.data.services.timerange import get_timerange
-from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
+from flexmeasures.auth.policy import (
+    AuthModelMixin,
+    EVERY_LOGGED_IN_USER,
+    ACCOUNT_ADMIN_ROLE,
+)
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
@@ -114,7 +118,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 else EVERY_LOGGED_IN_USER
             ),
             "update": f"account:{self.account_id}",
-            "delete": (f"account:{self.account_id}", "role:account-admin"),
+            "delete": (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
         }
 
     def __repr__(self):
@@ -126,6 +130,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def validate_sensors_to_show(
         self,
+        suggest_default_sensors: bool = True,
     ) -> list[dict[str, str | None | "Sensor" | list["Sensor"]]]:  # noqa: F821
         """
         Validate and transform the 'sensors_to_show' attribute into the latest format for use in graph-making code.
@@ -155,6 +160,10 @@ class GenericAsset(db.Model, AuthModelMixin):
                 [43, 44], 45, 46
             ]
 
+        Parameters:
+        - suggest_default_sensors: If True, the function will suggest default sensors if 'sensors_to_show' is not set.
+        - If False, the function will return an empty list if 'sensors_to_show' is not set.
+
         Returned structure:
         - The function returns a list of dictionaries, with each dictionary containing either a 'sensor' (for individual sensors) or 'sensors' (for groups of sensors), and an optional 'title'.
         - Example output:
@@ -167,11 +176,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             ]
 
         If the 'sensors_to_show' attribute is missing, the function defaults to showing two of the asset's sensors, grouped together if they share the same unit, or separately if not.
+        If the suggest_default_sensors flag is set to False, the function will not suggest default sensors and will return an empty list if 'sensors_to_show' is not set.
 
+        Note:
         Unauthorized sensors are filtered out, and a warning is logged. Only sensors the user has permission to access are included in the final result.
         """
         # If not set, use defaults (show first 2 sensors)
-        if not self.sensors_to_show:
+        if not self.sensors_to_show and suggest_default_sensors:
             sensors_to_show = self.sensors[:2]
             if (
                 len(sensors_to_show) == 2
@@ -328,7 +339,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
-        if attribute in self.flex_context:
+        if self.flex_context and attribute in self.flex_context:
             return self.flex_context[attribute]
         return default
 
@@ -348,7 +359,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 
         flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
-        flex_context = self.flex_context.copy()
+        if self.flex_context:
+            flex_context = self.flex_context.copy()
+        else:
+            flex_context = {}
         parent_asset = self.parent_asset
         while set(flex_context.keys()) != flex_context_field_names and parent_asset:
             flex_context = {**parent_asset.flex_context, **flex_context}
@@ -360,10 +374,11 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
-        sensor_id = self.flex_context.get("consumption-price-sensor")
+        flex_context = self.get_flex_context()
+        sensor_id = flex_context.get("consumption-price-sensor")
 
         if sensor_id is None:
-            consumption_price_data = self.flex_context.get("consumption-price")
+            consumption_price_data = flex_context.get("consumption-price")
             if consumption_price_data:
                 sensor_id = consumption_price_data.get("sensor")
         if sensor_id:
@@ -378,10 +393,11 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
-        sensor_id = self.flex_context.get("production-price-sensor")
+        flex_context = self.get_flex_context()
+        sensor_id = flex_context.get("production-price-sensor")
 
         if sensor_id is None:
-            production_price_data = self.flex_context.get("production-price")
+            production_price_data = flex_context.get("production-price")
             if production_price_data:
                 sensor_id = production_price_data.get("sensor")
         if sensor_id:
@@ -398,10 +414,11 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
+        flex_context = self.get_flex_context()
         # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
-        if self.flex_context.get("inflexible-device-sensors"):
+        if flex_context.get("inflexible-device-sensors"):
             sensors = Sensor.query.filter(
-                Sensor.id.in_(self.flex_context["inflexible-device-sensors"])
+                Sensor.id.in_(flex_context["inflexible-device-sensors"])
             ).all()
             return sensors or []
         if self.parent_asset:

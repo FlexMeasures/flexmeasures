@@ -18,6 +18,26 @@
           </div>
           <div class="row on-top-md">
               <div class="col-md-2">
+                <div class="header-action-button">
+                    {% if user_can_delete_sensor %}
+                    <div>
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" onclick="deleteSensor()">
+                            Delete this sensor
+                        </button>
+                        <script>
+                            $("#delete-asset-button").click(function () {
+                                if (confirm("Are you sure you want to delete this sensor and all time series data associated with it?")) {
+                                    return true;
+                                }
+                                else {
+                                    return false;
+                                }
+                            });
+                        </script>
+                    </div>
+                    {% endif %}
+                </div>
+
                   <div class="sidepanel-container">
                       <div class="left-sidepanel-label">Select dates</div>
                       <div class="sidepanel left-sidepanel">
@@ -35,6 +55,31 @@
                           <li><a class="dropdown-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
                       </ul>
                   </div>
+
+                  {% if user_can_update_sensor %}
+                  <div class="sidepanel-container">
+                      <div class="left-sidepanel-label">Edit sensor</div>
+                      <div class="sidepanel left-sidepanel"  style="text-align: left;">
+                              <fieldset>
+                                <h3>Edit {{ sensor.name }}</h3>
+                                <small>Parent asset: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset.id }} )</small>
+                                <form class="form-horizontal" method="POST">
+                                
+                                    <div class="form-group">
+                                        <label for="name" class="form-label">Name</label>
+                                        <input type="text" class="form-control" id="name" name="name" placeholder="e.g power" value="{{sensor.name}}" required />
+                                    </div>
+                                
+                                    <button class="btn btn-sm btn-responsive btn-success create-button" type="submit" onclick="updateSensor(event)"
+                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                        Save
+                                    </button>
+                                </form>
+                        </fieldset>
+                      </div>
+                  </div>
+                  {% endif %}
+
               </div>
               <div class="col-sm-8">
                   <div id="sensorchart" class="card" style="width: 100%;"></div>
@@ -109,11 +154,12 @@
 
                                 // Show the spinner
                                 spinner.classList.remove('d-none');
-                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
+                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats?sort=false')
                                     .then(response => response.json())
                                     .then(data => {
                                         // Remove 'status' sourceKey
                                         delete data['status'];
+                                        data = unpackData(data);
 
                                         if (Object.keys(data).length > 0) {
                                             // Show the header and dropdown container
@@ -140,7 +186,7 @@
                                             });
 
                                             // Update the table with the first sourceKey's data by default
-                                            const firstSourceKey = Object.keys(data)[0];
+                                            const firstSourceKey = getLatestBeliefName(data);
                                             dropdownButton.textContent = firstSourceKey;
                                             updateTable(data[firstSourceKey]);
                                         } else {
@@ -178,6 +224,26 @@
                                         row.appendChild(valueCell);
                                         tableBody.appendChild(row);
                                     });
+                                }
+
+                                function getLatestBeliefName(data) {
+                                    return Object.keys(data).reduce((latest, name) => {
+                                        const currentBeliefTime = new Date(data[name]["Last recorded"]);
+                                        const latestBeliefTime = latest ? new Date(data[latest]["Last recorded"]) : new Date(0);
+                                        return currentBeliefTime > latestBeliefTime ? name : latest;
+                                    }, null);
+                                }
+
+                                function unpackData(data) {
+                                    return Object.fromEntries(
+                                        Object.entries(data).map(([key, value]) => {
+                                            if (Array.isArray(value) && value.every(item => Array.isArray(item) && item.length === 2)) {
+                                                return [key, Object.fromEntries(value)];
+                                            }
+                                            console.error(`Invalid entry for key: ${key}`, value);
+                                            return [key, value];
+                                        })
+                                    );
                                 }
                             });
                         </script>
@@ -272,6 +338,86 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+
+<script>
+    const apiBasePath = window.location.origin;
+    const parentAssetId = "{{sensor.generic_asset.id}}"
+
+    async function updateSensor(event) {
+        event.preventDefault();
+
+        const name = document.getElementById("name").value;
+
+        if (!name) {
+            showToast("Please fill in all fields.", "error");
+            return;
+        }
+
+        const data = { name: name }
+
+        const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}", {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+            const responseData = await response.json();
+            const sensorId = responseData.id;
+            document.getElementById("name").value = "";
+            showToast("Sensor updated successfully.", "success");
+            await new Promise(resolve => setTimeout(resolve, 500));
+            showToast("Reloading page...", "info");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            window.location.reload();
+        } else {
+            const errorData = await response.json();
+            let errorMessage = response.statusText; // Default to statusText
+
+            const messageUnitError = errorData?.message?.json?.unit?.[0];
+            if (messageUnitError) {
+                errorMessage = messageUnitError;
+            } else if (errorData?.message) {
+                errorMessage = errorData.message;
+            } else if (errorData?.error) {
+                errorMessage = errorData.error;
+            }
+            showToast("Error: " + errorMessage, "error");
+        }
+    }
+
+    async function deleteSensor() {
+        const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}", {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+
+        if (response.status === 204) {
+            showToast("Sensor deleted successfully.", "success");
+            // delay for one second to show toast message
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            window.location.href = apiBasePath + "/assets/" + parentAssetId;
+        } else {
+            const errorData = await response.json();
+            let errorMessage = response.statusText; // Default to statusText
+
+            const messageUnitError = errorData?.message?.json?.unit?.[0];
+            if (messageUnitError) {
+                errorMessage = messageUnitError;
+            } else if (errorData?.message) {
+                errorMessage = errorData.message;
+            } else if (errorData?.error) {
+                errorMessage = errorData.error;
+            }
+            showToast("Error: " + errorMessage, "error");
+        }
+    }
+</script>
 
     {% block leftsidepanel %} {{ super() }} {% endblock %}
     {% block sensorChartSetup %} {{ super() }} {% endblock %}

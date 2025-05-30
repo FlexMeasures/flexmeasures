@@ -219,17 +219,15 @@ If you want, you can inspect what you created:
 
     $ flexmeasures show asset --id 3
 
-    ==================================
+    ===================================
     Asset toy-battery (ID: 3)
     Child of asset toy-building (ID: 2)
-    ==================================
-
-    Type     Location           Attributes
-    -------  -----------------  ----------------------------
-    battery  (52.374, 4.88969)  capacity_in_mw: 0.5
-                                min_soc_in_mwh: 0.05
-                                max_soc_in_mwh: 0.45
-                                sensors_to_show: [1, [3, 2]]
+    ===================================
+    Type     Location           Flex-Context                      Sensors to show      Attributes
+    -------  -----------------  --------------------------------  -------------------  -----------------------
+    battery  (52.374, 4.88969)  consumption-price: {'sensor': 1}  Prices: [1]          capacity_in_mw: 500 kVA
+                                                                  Power flows: [3, 2]  min_soc_in_mwh: 0.05
+                                                                                       max_soc_in_mwh: 0.45
 
     ====================================
     Child assets of toy-battery (ID: 3)
@@ -242,9 +240,10 @@ If you want, you can inspect what you created:
     ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
     2  discharging  MW      15 minutes    Europe/Amsterdam
+    
 
-
-Yes, that is quite a large battery :)
+Yes, that is quite a large battery :) 
+You can also see that the asset has some meta information about its scheduling. Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 

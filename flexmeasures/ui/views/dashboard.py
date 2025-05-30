@@ -57,7 +57,7 @@ def dashboard_view():
     ]
 
     return render_flexmeasures_template(
-        "views/new_dashboard.html",
+        "dashboard.html",
         message=msg,
         mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
         map_center=get_center_location_of_assets(user=current_user),

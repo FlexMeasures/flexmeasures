@@ -106,6 +106,7 @@ def apply_stock_changes_and_losses(
 def integrate_time_series(
     series: pd.Series,
     initial_stock: float,
+    stock_delta: float | pd.Series = 0,
     up_efficiency: float | pd.Series = 1,
     down_efficiency: float | pd.Series = 1,
     storage_efficiency: float | pd.Series = 1,
@@ -162,6 +163,7 @@ def integrate_time_series(
         )
         * (resolution / timedelta(hours=1))
     )
+    stock_change += stock_delta
 
     stocks = apply_stock_changes_and_losses(
         initial_stock, stock_change.tolist(), storage_efficiency.tolist()
@@ -174,4 +176,5 @@ def integrate_time_series(
     )
     if decimal_precision is not None:
         stocks = stocks.round(decimal_precision)
+        stocks = stocks.mask(stocks == -0.0, 0.0)
     return stocks

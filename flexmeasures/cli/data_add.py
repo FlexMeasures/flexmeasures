@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type
+from typing import Type, Dict, Any
 import isodate
 import json
 import yaml
@@ -707,7 +707,6 @@ def add_beliefs(
 
     # Set up optional parameters for read_csv
     if file.split(".")[-1].lower() == "csv":
-        kwargs["infer_datetime_format"] = True
         kwargs["delimiter"] = delimiter
         kwargs["decimal"] = decimal
         kwargs["thousands"] = thousands
@@ -1389,6 +1388,7 @@ def add_schedule_for_storage(  # noqa C901
         optimization_context_sensor,
         "consumption-price-sensor",
         consumption_price_sensor,
+        required_argument=False,
     )
 
     # Parse input and required sensor attributes
@@ -1398,7 +1398,7 @@ def add_schedule_for_storage(  # noqa C901
             **MsgStyle.ERROR,
         )
         raise click.Abort()
-    if production_price_sensor is None:
+    if production_price_sensor is None and consumption_price_sensor is not None:
         production_price_sensor = consumption_price_sensor
     end = start + duration
 
@@ -1446,11 +1446,24 @@ def add_schedule_for_storage(  # noqa C901
             "roundtrip-efficiency": roundtrip_efficiency,
         },
         flex_context={
-            "consumption-price-sensor": consumption_price_sensor.id,
-            "production-price-sensor": production_price_sensor.id,
+            "consumption-price": (
+                {"sensor": consumption_price_sensor.id}
+                if consumption_price_sensor
+                else None
+            ),
+            "production-price": (
+                {"sensor": production_price_sensor.id}
+                if production_price_sensor
+                else None
+            ),
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
+
+    # remove None value from flex_context
+    scheduling_kwargs["flex_context"] = {
+        k: v for k, v in scheduling_kwargs["flex_context"].items() if v is not None
+    }
 
     if state_of_charge is not None:
         scheduling_kwargs["flex_model"]["state-of-charge"] = {
@@ -1622,7 +1635,7 @@ def add_schedule_process(
 
     if consumption_price_sensor is not None:
         scheduling_kwargs["flex_context"] = {
-            "consumption-price-sensor": consumption_price_sensor.id,
+            "consumption-price": {"sensor": consumption_price_sensor.id},
         }
 
     if as_job:
@@ -2077,9 +2090,11 @@ def add_toy_account(kind: str, name: str):
         flex_context: dict | None = None,
         **asset_attributes,
     ):
-        asset_kwargs = dict()
+        asset_kwargs: Dict[str, Any] = {}
         if parent_asset_id is not None:
             asset_kwargs["parent_asset_id"] = parent_asset_id
+        if flex_context is not None:
+            asset_kwargs["flex_context"] = flex_context
 
         asset = get_or_create_model(
             GenericAsset,
@@ -2088,9 +2103,10 @@ def add_toy_account(kind: str, name: str):
             owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
-            flex_context=flex_context,
             **asset_kwargs,
         )
+        if asset.flex_context is None:
+            asset.flex_context = {}
         if len(asset_attributes) > 0:
             asset.attributes = asset_attributes
 
@@ -2125,9 +2141,8 @@ def add_toy_account(kind: str, name: str):
             "battery",
             "discharging",
             parent_asset_id=building_asset.id,
-            flex_context={
-                "site-power-capacity": "500 kVA",
-            },
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
+            capacity_in_mw="500 kVA",
             min_soc_in_mwh=0.05,
             max_soc_in_mwh=0.45,
         )
@@ -2140,12 +2155,12 @@ def add_toy_account(kind: str, name: str):
         # add day-ahead price sensor and PV production sensor to show on the battery's asset page
         db.session.flush()
         battery = discharging_sensor.generic_asset
-        battery.attributes["sensors_to_show"] = [
-            day_ahead_sensor.id,
-            [
-                production_sensor.id,
-                discharging_sensor.id,
-            ],
+        battery.sensors_to_show = [
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {
+                "title": "Power flows",
+                "sensors": [production_sensor.id, discharging_sensor.id],
+            },
         ]
 
         db.session.commit()
@@ -2180,11 +2195,11 @@ def add_toy_account(kind: str, name: str):
         db.session.flush()
 
         process = shiftable_power.generic_asset
-        process.attributes["sensors_to_show"] = [
-            day_ahead_sensor.id,
-            inflexible_power.id,
-            breakable_power.id,
-            shiftable_power.id,
+        process.sensors_to_show = [
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {"title": "Inflexible", "sensor": inflexible_power.id},
+            {"title": "Breakable", "sensor": breakable_power.id},
+            {"title": "Shiftable", "sensor": shiftable_power.id},
         ]
 
         db.session.commit()

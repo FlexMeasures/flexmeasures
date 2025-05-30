@@ -5,13 +5,27 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-23 | 2025-04-08
+""""""""""""""""""""
+
+- Introduce new price fields in the ``flex-context`` in order to relax device-level power constraints in the ``device-model``:
+
+  - ``consumption-breach-price``: if set, the ``consumption-capacity`` is used as a soft constraint.
+  - ``production-breach-price``: if set, the ``production-capacity`` is used as a soft constraint.
+  - In both cases, the price is applied both to (the height of) the highest breach in the planning window (as a per-kW price) and to (the area of) each breach that occurs (as a per-kW price per hour).
+    That means both high breaches and long breaches are penalized.
+
 v3.0-22 | 2025-03-17
 """"""""""""""""""""
 
 - Introduce new price fields in the ``flex-context`` in order to relax SoC constraints in the ``device-model``:
 
-  - ``soc-minima-breach-price``: if set, the ``soc-minima`` are used as a soft constraint, and not meeting the minima is penalized according to this per-kWh price. The price is applied to each breach that occurs given the resolution of the scheduled power sensor.
-  - ``soc-maxima-breach-price``: if set, the ``soc-maxima`` are used as a soft constraint, and not meeting the maxima is penalized according to this per-kWh price. The price is applied to each breach that occurs given the resolution of the scheduled power sensor.
+  - ``soc-minima-breach-price``: if set, the ``soc-minima`` are used as a soft constraint.
+  - ``soc-maxima-breach-price``: if set, the ``soc-maxima`` are used as a soft constraint.
+  - In both cases, the price is applied both to (the height of) the highest breach in the planning window (as a per-kWh price) and to (the area of) each breach that occurs (as a per-kWh price per hour).
+    That means both high breaches and long breaches are penalized.
+
+- Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field.
 
 v3.0-22 | 2024-12-27
 """"""""""""""""""""
@@ -23,8 +37,12 @@ v3.0-21 | 2024-12-16
 
 - Introduce new fields for defining capacity contracts and peak contracts in the ``flex-context``, used for scheduling against multiple contractual commitments simultaneously:
 
-  - ``site-consumption-breach-price``: if set, the ``site-consumption-capacity`` is used as a soft constraint, and breaching it is penalized according to this per-kW price. The price is applied both to the largest breach in the planning window and to each breach that occurs.
-  - ``site-production-breach-price``: if set, the ``site-production-capacity`` is used as a soft constraint, and breaching it is penalized according to this per-kW price. The price is applied both to the largest breach in the planning window and to each breach that occurs.
+  - ``site-consumption-breach-price``: if set, the ``site-consumption-capacity`` is used as a soft constraint.
+    The price is applied both to (the height of) the highest breach in the planning window (as a per-kW price) and to (the area of) each breach that occurs (as a per-kW price per hour).
+    That means both high breaches and long breaches are penalized.
+  - ``site-production-breach-price``: if set, the ``site-production-capacity`` is used as a soft constraint.
+    The price is applied both to (the height of) the highest breach in the planning window (as a per-kW price) and to (the area of) each breach that occurs (as a per-kW price per hour).
+    That means both high breaches and long breaches are penalized.
   - ``site-peak-consumption-price``: consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price.
   - ``site-peak-production-price``: production peaks above the ``site-peak-production`` are penalized against this per-kW price.
   - ``site-peak-consumption``: current peak consumption; costs from peaks below it are considered sunk costs.

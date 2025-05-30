@@ -15,6 +15,10 @@ from flexmeasures import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.utils.chart_defaults import chart_options
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
+from flexmeasures.ui.views.assets.utils import (
+    user_can_delete,
+    user_can_update,
+)
 
 
 class SensorUI(FlaskView):
@@ -78,8 +82,10 @@ class SensorUI(FlaskView):
         """
         sensor = db.session.get(Sensor, id)
         return render_flexmeasures_template(
-            "views/sensors.html",
+            "sensors/index.html",
             sensor=sensor,
+            user_can_update_sensor=user_can_update(sensor),
+            user_can_delete_sensor=user_can_delete(sensor),
             msg="",
             breadcrumb_info=get_breadcrumb_info(sensor),
             event_starts_after=request.args.get("start_time"),
