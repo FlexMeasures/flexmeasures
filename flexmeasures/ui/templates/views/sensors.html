@@ -42,7 +42,6 @@
                       <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                       <span class="sr-only">Loading...</span>
                   </div>
-                  {% if sensor.id %}
                   <div class="row">
                       <div class="card col-lg-5">
 
@@ -110,57 +109,55 @@
 
                                 // Show the spinner
                                 spinner.classList.remove('d-none');
-                                {% if sensor.id %}                     
-                                    fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
-                                        .then(response => response.json())
-                                        .then(data => {
-                                            // Remove 'status' sourceKey
-                                            delete data['status'];
+                                fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats')
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        // Remove 'status' sourceKey
+                                        delete data['status'];
 
-                                            if (Object.keys(data).length > 0) {
-                                                // Show the header and dropdown container
-                                                dropdownContainer.classList.remove('d-none');
+                                        if (Object.keys(data).length > 0) {
+                                            // Show the header and dropdown container
+                                            dropdownContainer.classList.remove('d-none');
 
-                                                // Populate the dropdown menu with sourceKeys
-                                                Object.keys(data).forEach(sourceKey => {
-                                                    const dropdownItem = document.createElement('li');
-                                                    const dropdownLink = document.createElement('a');
-                                                    dropdownLink.className = 'dropdown-item';
-                                                    dropdownLink.href = '#';
-                                                    dropdownLink.textContent = sourceKey;
-                                                    dropdownLink.dataset.sourceKey = sourceKey;
+                                            // Populate the dropdown menu with sourceKeys
+                                            Object.keys(data).forEach(sourceKey => {
+                                                const dropdownItem = document.createElement('li');
+                                                const dropdownLink = document.createElement('a');
+                                                dropdownLink.className = 'dropdown-item';
+                                                dropdownLink.href = '#';
+                                                dropdownLink.textContent = sourceKey;
+                                                dropdownLink.dataset.sourceKey = sourceKey;
 
-                                                    dropdownLink.addEventListener('click', function(event) {
-                                                        event.preventDefault();
-                                                        const selectedSourceKey = event.target.dataset.sourceKey;
-                                                        dropdownButton.textContent = selectedSourceKey;
-                                                        updateTable(data[selectedSourceKey]);
-                                                    });
-
-                                                    dropdownItem.appendChild(dropdownLink);
-                                                    dropdownMenu.appendChild(dropdownItem);
+                                                dropdownLink.addEventListener('click', function(event) {
+                                                    event.preventDefault();
+                                                    const selectedSourceKey = event.target.dataset.sourceKey;
+                                                    dropdownButton.textContent = selectedSourceKey;
+                                                    updateTable(data[selectedSourceKey]);
                                                 });
 
-                                                // Update the table with the first sourceKey's data by default
-                                                const firstSourceKey = Object.keys(data)[0];
-                                                dropdownButton.textContent = firstSourceKey;
-                                                updateTable(data[firstSourceKey]);
-                                            } else {
-                                                // If the stats table is empty, make the properties table full width
-                                                noDataWarning.classList.remove('d-none');
-                                            }
-                                        })
-                                        .catch(error => {
-                                            console.error('Error:', error);
-                                            dropdownContainer.classList.add('d-none');
-                                            fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
-                                            fetchError.classList.remove('d-none');
-                                        })
-                                        .finally(() => {
-                                            // Hide the spinner
-                                            spinner.classList.add('d-none');
-                                        });
-                                {% endif %}
+                                                dropdownItem.appendChild(dropdownLink);
+                                                dropdownMenu.appendChild(dropdownItem);
+                                            });
+
+                                            // Update the table with the first sourceKey's data by default
+                                            const firstSourceKey = Object.keys(data)[0];
+                                            dropdownButton.textContent = firstSourceKey;
+                                            updateTable(data[firstSourceKey]);
+                                        } else {
+                                            // If the stats table is empty, make the properties table full width
+                                            noDataWarning.classList.remove('d-none');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Error:', error);
+                                        dropdownContainer.classList.add('d-none');
+                                        fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
+                                        fetchError.classList.remove('d-none');
+                                    })
+                                    .finally(() => {
+                                        // Hide the spinner
+                                        spinner.classList.add('d-none');
+                                    });
                                 function updateTable(stats) {
                                     tableBody.innerHTML = ''; // Clear the table body
 
@@ -265,7 +262,6 @@
                         <i class="fa fa-link"></i>
                     </a>
                     <div id="message" style="display: none; text-align: center;">The URL to the time range currently shown has been copied to your clipboard.</div>
-                    {% endif %}
                 </div>
             </div>
           </div>
