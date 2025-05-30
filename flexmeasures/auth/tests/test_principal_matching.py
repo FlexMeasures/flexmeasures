@@ -138,14 +138,14 @@ def test_principals_match(mock_user, principals, should_match):
         ),
         # Account-admin user should be able to modify (consultant) role
         (
-            make_mock_user(19, ["account-admin"], 1, []),
-            make_mock_user(24, ["consultant"], 1, []),
+            make_mock_user(18, ["account-admin"], 4, []),
+            make_mock_user(24, ["consultant"], 4, []),
             [4],
             True,
         ),
         # Account-admin user should not be able to modify (consultant) role of another account
         (
-            make_mock_user(19, ["account-admin"], 1, []),
+            make_mock_user(17, ["account-admin"], 1, []),
             make_mock_user(25, ["consultant"], 2, []),
             [4],
             False,
@@ -162,8 +162,6 @@ def test_principals_match(mock_user, principals, should_match):
 def test_can_modify_role(
     db, setup_roles_users, mock_user, roles_to_modify, can_modify_roles, modified_user
 ):
-    print(f"Mock user Account ID: {mock_user.account.id}")
-    print(f"Modified user Account ID: {modified_user.account.id}")
     assert (
         can_modify_role(mock_user, roles_to_modify, modified_user) == can_modify_roles
     )

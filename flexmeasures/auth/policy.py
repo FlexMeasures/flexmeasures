@@ -240,7 +240,7 @@ def can_modify_role(user, roles_to_modify, modified_user) -> bool:
                 return True
 
             if user.has_role(ACCOUNT_ADMIN_ROLE) and (
-                user.account != modified_user.account
+                user.account.id != modified_user.account.id
             ):
                 return False
 
