@@ -339,7 +339,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
-        if attribute in self.flex_context:
+        if self.flex_context and attribute in self.flex_context:
             return self.flex_context[attribute]
         return default
 
@@ -359,7 +359,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 
         flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
-        flex_context = self.flex_context.copy()
+        if self.flex_context:
+            flex_context = self.flex_context.copy()
+        else:
+            flex_context = {}
         parent_asset = self.parent_asset
         while set(flex_context.keys()) != flex_context_field_names and parent_asset:
             flex_context = {**parent_asset.flex_context, **flex_context}
@@ -371,10 +374,11 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
-        sensor_id = self.flex_context.get("consumption-price-sensor")
+        flex_context = self.get_flex_context()
+        sensor_id = flex_context.get("consumption-price-sensor")
 
         if sensor_id is None:
-            consumption_price_data = self.flex_context.get("consumption-price")
+            consumption_price_data = flex_context.get("consumption-price")
             if consumption_price_data:
                 sensor_id = consumption_price_data.get("sensor")
         if sensor_id:
@@ -389,10 +393,11 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
-        sensor_id = self.flex_context.get("production-price-sensor")
+        flex_context = self.get_flex_context()
+        sensor_id = flex_context.get("production-price-sensor")
 
         if sensor_id is None:
-            production_price_data = self.flex_context.get("production-price")
+            production_price_data = flex_context.get("production-price")
             if production_price_data:
                 sensor_id = production_price_data.get("sensor")
         if sensor_id:
@@ -409,10 +414,11 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
+        flex_context = self.get_flex_context()
         # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
-        if self.flex_context.get("inflexible-device-sensors"):
+        if flex_context.get("inflexible-device-sensors"):
             sensors = Sensor.query.filter(
-                Sensor.id.in_(self.flex_context["inflexible-device-sensors"])
+                Sensor.id.in_(flex_context["inflexible-device-sensors"])
             ).all()
             return sensors or []
         if self.parent_asset:

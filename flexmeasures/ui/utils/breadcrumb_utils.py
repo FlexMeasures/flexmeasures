@@ -141,11 +141,18 @@ def get_siblings(entity: Sensor | Asset | Account | None) -> list[dict]:
         if entity.parent_asset is not None:
             sibling_assets = entity.parent_asset.child_assets
         elif entity.owner is not None:
-            sibling_assets = entity.owner.generic_assets
+            session = current_app.db.session
+            sibling_assets = session.scalars(
+                select(Asset).filter(
+                    Asset.parent_asset_id.is_(None), Asset.owner == entity.owner
+                )
+            ).all()
         else:
             session = current_app.db.session
             sibling_assets = session.scalars(
-                select(Asset).filter(Asset.account_id.is_(None))
+                select(Asset).filter(
+                    Asset.account_id.is_(None), Asset.parent_asset_id.is_(None)
+                )
             ).all()
 
         siblings = [
