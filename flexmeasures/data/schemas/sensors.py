@@ -216,7 +216,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
 
-        if not isinstance(value, int):
+        if not isinstance(value, int) and not isinstance(value, str):
             raise FMValidationError(
                 f"Sensor ID has the wrong type. Got `{type(value).__name__}` but `int` was expected."
             )
