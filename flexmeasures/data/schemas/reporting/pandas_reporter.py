@@ -184,7 +184,7 @@ class PandasReporterParametersSchema(ReporterParametersSchema):
     # for the single sensors in `input_variables`
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
-    use_latest_version_only = fields.Bool(required=False, load_default=False)
+    use_latest_version_only = fields.Bool(required=False)
 
     @validates_schema
     def validate_time_parameters(self, data, **kwargs):

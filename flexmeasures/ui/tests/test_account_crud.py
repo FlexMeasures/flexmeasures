@@ -1,5 +1,5 @@
 from flask_login import current_user
-from flexmeasures.ui.crud.accounts import get_accounts, get_account
+from flexmeasures.ui.views.accounts import get_accounts, get_account
 from flexmeasures.ui.tests.utils import mock_account_response
 
 
