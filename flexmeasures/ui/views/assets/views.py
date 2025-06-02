@@ -34,19 +34,14 @@ from flexmeasures.ui.utils.view_utils import available_units
 
 """
 Asset crud view.
-
-Note: This uses the internal dev API version
-      ― if those endpoints get moved or updated to a higher version,
-      we probably should change the version used here, as well.
 """
 
 
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
-    The main focus on logic is the API, so these views simply call the API functions,
-    and deal with the response.
-    Some new functionality, like fetching accounts and asset types, is added here.
+    If endpoints create/change data, we aim to use the logic and authorization in the actual API,
+    so these views simply call the API functions,and deal with the response.
     """
 
     route_base = "/assets"
@@ -113,8 +108,8 @@ class AssetCrudUI(FlaskView):
     def context(self, id: str, **kwargs):
         """/assets/<id>/context"""
         # Get default asset view
-        parent_asset_id = request.args.get("parent_asset_id", "")
-        if id == "new":
+        if id == "new":  # show empty asset creation form
+            parent_asset_id = request.args.get("parent_asset_id", "")
             if not user_can_create_assets():
                 return unauthorized_handler(None, [])
 
@@ -141,9 +136,10 @@ class AssetCrudUI(FlaskView):
                 account=account,
             )
 
+        # show existing asset
         asset = db.session.query(GenericAsset).filter_by(id=id).first()
         if asset is None:
-            assets = []
+            raise NotFound
         else:
             assets = get_list_assets_chart(asset, base_asset=asset)
 
@@ -186,7 +182,6 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/status")
     def status(self, id: str):
         """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
-
         asset = GenericAsset.query.get(id)
         if asset is None:
             raise NotFound
@@ -265,6 +260,9 @@ class AssetCrudUI(FlaskView):
 
         else:
             asset = db.session.get(GenericAsset, id)
+            if asset is None:
+                raise NotFound
+            check_access(asset, "update")
             asset_form = AssetForm()
             asset_form.with_options()
             if not asset_form.validate_on_submit():
@@ -315,9 +313,10 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/auditlog")
     def auditlog(self, id: str):
         """/assets/<id>/auditlog"""
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        asset = GenericAsset.query.get(id)
+        if asset is None:
+            raise NotFound
+        check_access(asset, "read")
 
         return render_flexmeasures_template(
             "assets/asset_audit_log.html",
@@ -330,16 +329,14 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/graphs")
     def graphs(self, id: str, start_time=None, end_time=None):
         """/assets/<id>/graphs"""
-
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
-
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        asset = GenericAsset.query.get(id)
+        if asset is None:
+            raise NotFound
+        check_access(asset, "read")
 
         asset_form = AssetForm()
         asset_form.with_options()
-
-        asset_form.process(data=process_internal_api_response(asset_dict))
+        asset_form.process(obj=asset)
 
         return render_flexmeasures_template(
             "assets/asset_graph.html",
@@ -359,12 +356,12 @@ class AssetCrudUI(FlaskView):
             msg = ""
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
-
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+
+        check_access(asset, "read")
 
         asset_form = AssetForm()
         asset_form.with_options()
-
         asset_form.process(data=process_internal_api_response(asset_dict))
 
         asset_summary = {
