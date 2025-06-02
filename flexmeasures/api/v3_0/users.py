@@ -242,9 +242,10 @@ class UserAPI(FlaskView):
         .. :quickref: User; Patch data for an existing user
 
         This endpoint sets data for an existing user.
-        It has to be used by the user themselves, admins or account-admins (of the same account).
+        It has to be used by the user themselves, admins, consultant or account-admins (of the same account).
         Any subset of user fields can be sent.
         If the user is not an (account-)admin, they can only edit a few of their own fields.
+        User roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.
 
         The following fields are not allowed to be updated at all:
          - id
@@ -295,6 +296,27 @@ class UserAPI(FlaskView):
                 raise Forbidden(
                     "Users who edit themselves cannot edit security-sensitive fields."
                 )
+            # if flexmeasures_roles is not empty, check if the user can modify the role
+            if k == "flexmeasures_roles" and v:
+                from flexmeasures.auth.policy import can_modify_role
+
+                current_roles = set(user.roles)
+                new_roles = set(v)
+
+                roles_being_removed = current_roles - new_roles
+                for role in roles_being_removed:
+                    if not can_modify_role(current_user, [role]):
+                        raise Forbidden(
+                            f"You are not allowed to remove ({role.name}) role from this user."
+                        )
+
+                roles_being_added = new_roles - current_roles
+                for role in roles_being_added:
+                    if not can_modify_role(current_user, [role]):
+                        raise Forbidden(
+                            f"You are not allowed to add ({role.name}) role to this user."
+                        )
+
             setattr(user, k, v)
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
