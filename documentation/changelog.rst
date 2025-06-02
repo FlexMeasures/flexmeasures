@@ -5,7 +5,7 @@ FlexMeasures Changelog
 * Statistics shown in the UI default to that of the freshest source [see `PR #1399 <https://github.com/FlexMeasures/flexmeasures/pull/1399/>`_]
 
 
-v0.26.0 | May XX, 2025
+v0.26.0 | June XX, 2025
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
