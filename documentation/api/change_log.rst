@@ -8,6 +8,7 @@ API change log
 v3.0-23 | 2025-04-08
 """"""""""""""""""""
 
+- Support saving the scheduled :abbr:`SoC (state of charge)` by referencing an appropriate sensor in the ``flex-model`` field ``state-of-charge``.
 - Introduce new price fields in the ``flex-context`` in order to relax device-level power constraints in the ``device-model``:
 
   - ``consumption-breach-price``: if set, the ``consumption-capacity`` is used as a soft constraint.
