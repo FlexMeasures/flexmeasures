@@ -512,6 +512,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             asset_id=self.generic_asset.id,
             id=self.id,
             name=self.name,
+            sensor_unit=self.unit,
             description=f"{self.name} ({self.generic_asset.name})",
             asset_description=f"{self.generic_asset.name} ({parent_asset.name})",
         )
