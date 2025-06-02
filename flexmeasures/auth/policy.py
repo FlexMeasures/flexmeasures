@@ -228,13 +228,27 @@ def can_modify_role(user, roles_to_modify, modified_user) -> bool:
         if role.name == ADMIN_READER_ROLE and not user.has_role(ADMIN_ROLE):
             return False
         if role.name == ACCOUNT_ADMIN_ROLE:
-            if not user.has_role(CONSULTANT_ROLE) and (
-                user.account.id != modified_user.account.consultancy_account.id
+            if (
+                not user.has_role(ADMIN_ROLE)
+                and not user.has_role(CONSULTANT_ROLE)
+                and (
+                    not user.account
+                    or not modified_user.account
+                    or not modified_user.account.consultancy_account
+                    or user.account.id != modified_user.account.consultancy_account.id
+                )
             ):
                 return False
+
         if role.name == CONSULTANT_ROLE:
-            if user.has_role(ACCOUNT_ADMIN_ROLE) and (
-                user.account.id != modified_user.account.id
+            if (
+                not user.has_role(ADMIN_ROLE)
+                and user.has_role(ACCOUNT_ADMIN_ROLE)
+                and (
+                    not user.account
+                    or not modified_user.account
+                    or user.account.id != modified_user.account.id
+                )
             ):
                 return False
 
