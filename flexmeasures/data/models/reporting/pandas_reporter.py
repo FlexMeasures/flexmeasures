@@ -135,7 +135,7 @@ class PandasReporter(Reporter):
         belief_time: datetime | None = kwargs.get("belief_time", None)
         belief_horizon: timedelta | None = kwargs.get("belief_horizon", None)
         output: list[dict[str, Any]] = kwargs.get("output")
-        use_latest_version_only: bool = kwargs.get("use_latest_version_only", False)
+        use_latest_version_only: bool = kwargs.get("use_latest_version_only", None)
 
         # by default, use the minimum resolution among the input sensors
         if resolution is None:

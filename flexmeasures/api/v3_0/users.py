@@ -245,6 +245,7 @@ class UserAPI(FlaskView):
         It has to be used by the user themselves, admins, consultant or account-admins (of the same account).
         Any subset of user fields can be sent.
         If the user is not an (account-)admin, they can only edit a few of their own fields.
+        User roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.
 
         The following fields are not allowed to be updated at all:
          - id

@@ -100,18 +100,28 @@ def test_principals_match(mock_user, principals, should_match):
 @pytest.mark.parametrize(
     "mock_user, roles_to_modify, can_modify_roles",
     [
-        (make_mock_user(19, ["admin"], 1, []), [3, 4], True),  # admin mock user
-        (make_mock_user(19, ["consultant"], 1, []), [3], False),  # consultant mock user
+        # Admin user should be able to modify (admin-reader & consultant) roles
+        (make_mock_user(19, ["admin"], 1, []), [3, 4], True),
+        # Consultant user should not be able to modify (admin-reader) role
+        (make_mock_user(19, ["consultant"], 1, []), [3], False),
+        # Admin-reader user should not be able to modify (admin-reader) role
         (
             make_mock_user(19, ["admin-reader"], 1, []),
             [3],
             False,
-        ),  # admin-reader mock user
+        ),
+        # Account-admin user should not be able to modify (admin-reader) role
+        (
+            make_mock_user(19, ["account-admin"], 1, []),
+            [3],
+            False,
+        ),
+        # Account-admin user should be able to modify (consultant) role
         (
             make_mock_user(19, ["account-admin"], 1, []),
             [4],
             True,
-        ),  # account-admin mock user
+        ),
     ],
 )
 def test_can_modify_role(
