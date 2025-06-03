@@ -3,7 +3,6 @@ from __future__ import annotations
 from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
-from werkzeug.exceptions import NotFound
 from webargs.flaskparser import use_kwargs
 from flexmeasures.auth.error_handling import unauthorized_handler
 
@@ -20,6 +19,7 @@ from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.api_wrapper import InternalApi
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
 from flexmeasures.ui.views.assets.utils import (
+    get_asset_by_id_or_raise_notfound,
     process_internal_api_response,
     user_can_create_assets,
     user_can_delete,
@@ -137,12 +137,10 @@ class AssetCrudUI(FlaskView):
             )
 
         # show existing asset
-        asset = db.session.query(GenericAsset).filter_by(id=id).first()
-        if asset is None:
-            raise NotFound
-        else:
-            assets = get_list_assets_chart(asset, base_asset=asset)
-
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
+        assets = get_list_assets_chart(asset, base_asset=asset)
+        assets = add_child_asset(asset, assets)
         current_asset_sensors = [
             {
                 "name": sensor.name,
@@ -151,7 +149,6 @@ class AssetCrudUI(FlaskView):
             }
             for sensor in asset.sensors
         ]
-        assets = add_child_asset(asset, assets)
 
         return render_flexmeasures_template(
             "assets/asset_context.html",
@@ -167,9 +164,7 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/sensor/new")
     def create_sensor(self, id: str):
         """GET to /assets/<id>/sensor/new"""
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "create-children")
 
         return render_flexmeasures_template(
@@ -182,9 +177,7 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/status")
     def status(self, id: str):
         """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
 
         status_data = get_asset_sensors_metadata(asset)
@@ -259,9 +252,7 @@ class AssetCrudUI(FlaskView):
                 )
 
         else:
-            asset = db.session.get(GenericAsset, id)
-            if asset is None:
-                raise NotFound
+            asset = get_asset_by_id_or_raise_notfound(id)
             check_access(asset, "update")
             asset_form = AssetForm()
             asset_form.with_options()
@@ -313,9 +304,7 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/auditlog")
     def auditlog(self, id: str):
         """/assets/<id>/auditlog"""
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
 
         return render_flexmeasures_template(
@@ -329,9 +318,7 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/graphs")
     def graphs(self, id: str, start_time=None, end_time=None):
         """/assets/<id>/graphs"""
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
 
         asset_form = AssetForm()
