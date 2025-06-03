@@ -826,7 +826,7 @@ def create_chargepoint_session_chart(
 
     sensor_ids = [s.id for s in all_sensors]
 
-    chart_spec = {
+    cp_chart = {
         "title": "Charge Point sessions",
         "width": "container",
         "height": 300,
@@ -1156,11 +1156,15 @@ def create_chargepoint_session_chart(
         ],
     }
 
-    chart_spec["config"] = {
-        "view": {"continuousWidth": 800, "continuousHeight": 150},
-        "autosize": {"type": "fit-x", "contains": "padding"},
-    }
-    if combine_legend is True:
-        chart_spec["resolve"] = {"scale": {"x": "shared"}}
-    chart_spec.update(override_chart_specs)
-    return chart_spec
+    chart_specs = chart_for_multiple_sensors(
+        sensors_to_show,
+        event_starts_after,
+        event_ends_before,
+        combine_legend,
+        **override_chart_specs,
+    )
+    chart_specs["vconcat"] = [
+        chart for chart in chart_specs["vconcat"] if chart["title"] == "Prices"
+    ]
+    chart_specs["vconcat"].append(cp_chart)
+    return chart_specs
