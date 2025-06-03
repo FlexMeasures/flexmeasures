@@ -6,6 +6,8 @@
 #
 black==24.8.0
     # via -r requirements/dev.in
+build==1.2.2.post1
+    # via -r requirements/dev.in
 cfgv==3.4.0
     # via pre-commit
 click==8.1.8
@@ -39,7 +41,9 @@ packaging==24.2
     # via
     #   -c requirements/3.12/app.txt
     #   -c requirements/3.12/test.txt
+    #   -r requirements/dev.in
     #   black
+    #   build
     #   setuptools-scm
 pathspec==0.12.1
     # via black
@@ -54,20 +58,23 @@ pycodestyle==2.12.1
     # via flake8
 pyflakes==3.2.0
     # via flake8
-pyinstrument
+pyinstrument==5.0.2
     # via -r requirements/dev.in
+pyproject-hooks==1.2.0
+    # via build
 pytest-runner==6.0.1
     # via -r requirements/dev.in
 pyyaml==6.0.2
     # via
     #   -c requirements/3.12/app.txt
     #   pre-commit
-setuptools-scm==8.2.0
+setuptools-scm==8.0.4
     # via -r requirements/dev.in
 typing-extensions==4.13.0
     # via
     #   -c requirements/3.12/app.txt
     #   mypy
+    #   setuptools-scm
 virtualenv==20.30.0
     # via pre-commit
 watchdog==6.0.0
