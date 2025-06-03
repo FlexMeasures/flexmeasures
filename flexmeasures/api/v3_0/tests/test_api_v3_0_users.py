@@ -51,7 +51,7 @@ def test_get_users_bad_auth(requesting_user, client, setup_api_test_data):
     ],
     indirect=["requesting_user"],
 )
-def test_get_users_inatest_get_users_inactivective(
+def test_get_users_inactive(
     requesting_user,
     client,
     setup_api_test_data,
@@ -282,3 +282,32 @@ def test_logout(client, setup_api_test_data, requesting_user):
     assert logout_response.status_code == 302
 
     assert current_user.is_anonymous
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code, user_to_update, expected_role",
+    [
+        # Admin-reader tries to update user 5 (initially an account admin) to become admin-reader
+        ("test_admin_reader_user@seita.nl", 403, 5, [3]),
+        # Consultant tries to updates user 8 (initially consultant) to become admin-reader
+        ("test_consultant@seita.nl", 403, 8, [3]),
+        # Admin-reader tries to remove all roles of user 5 (initially an account admin)
+        ("test_admin_reader_user@seita.nl", 403, 5, []),
+    ],
+    indirect=["requesting_user"],
+)
+def test_user_role_failed_modification_permission(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    expected_status_code,
+    user_to_update,
+    expected_role,
+):
+    patch_user_response = client.patch(
+        url_for("UserAPI:patch", id=user_to_update),
+        json={"flexmeasures_roles": expected_role},
+    )
+
+    print("Server responded with:\n%s" % patch_user_response.data)
+    assert patch_user_response.status_code == expected_status_code
