@@ -301,7 +301,7 @@ class UserAPI(FlaskView):
             if k == "flexmeasures_roles" and v:
                 from flexmeasures.auth.policy import can_modify_role
 
-                current_roles = set(user.roles)
+                current_roles = set(user.flexmeasures_roles)
                 new_roles = set(v)
 
                 roles_being_removed = current_roles - new_roles
