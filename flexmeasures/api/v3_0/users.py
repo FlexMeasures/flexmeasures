@@ -326,7 +326,7 @@ class UserAPI(FlaskView):
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
             if k == "active":
-                audit_event += f"Active status set to '{v}'."
+                audit_event += f"Active status set to '{v}' for user {user.username}"
         if audit_event:
             user_audit_log = create_user_audit_log(audit_event, user)
             db.session.add(user_audit_log)
