@@ -2,7 +2,20 @@
 **********************
 FlexMeasures Changelog
 **********************
-* Statistics shown in the UI default to that of the freshest source [see `PR #1399 <https://github.com/FlexMeasures/flexmeasures/pull/1399/>`_]
+
+
+
+v0.27.0 | August XX, 2025
+============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
 
 
 v0.26.0 | June 03, 2025
@@ -30,6 +43,7 @@ New features
 * Show visually distinct siblings and children in the assets dropdown [see `PR #1504 <https://github.com/FlexMeasures/flexmeasures/pull/1504>`_]
 * Add resolution back to the CLI belief plotting [see `PR #1500 <https://github.com/FlexMeasures/flexmeasures/pull/1500>`_]
 * Improved permission validation for user role updates. [see `PR #1465 <https://github.com/FlexMeasures/flexmeasures/pull/1465>`_]
+* Statistics shown in the UI default to that of the freshest source [see `PR #1399 <https://github.com/FlexMeasures/flexmeasures/pull/1399/>`_]
 
 Infrastructure / Support
 ----------------------
@@ -52,6 +66,7 @@ Bugfixes
 * Fix overriding of flex-context when asset is edited on the UI [see `PR #1469 <https://github.com/FlexMeasures/flexmeasures/pull/1469>`_]
 * Support entering audit log entries by detached user instances [see `PR #1483 <https://github.com/FlexMeasures/flexmeasures/pull/1483>`_]
 * Make flex context usage safer against this field being `None` [see `PR #1503 <https://github.com/FlexMeasures/flexmeasures/pull/1503>`_]
+
 
 v0.25.0 | April 01, 2025
 ============================
