@@ -4,6 +4,7 @@ from altair.utils.html import spec_to_html
 from flask import current_app, request
 from flask_classful import FlaskView, route
 from flask_security import auth_required, login_required
+from werkzeug.exceptions import NotFound
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
@@ -81,6 +82,8 @@ class SensorUI(FlaskView):
          - end_time: maximum time of the events to be shown
         """
         sensor = db.session.get(Sensor, id)
+        if sensor is None:
+            raise NotFound
         return render_flexmeasures_template(
             "sensors/index.html",
             sensor=sensor,
