@@ -385,7 +385,7 @@ def handle_worker_exception(job, exc_type, exc_value, traceback):
     """
     queue_name = job.origin
     click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
-    job.meta["exception"] = exc_value
+    job.meta["exception"] = str(exc_value)  # meta must contain JSON serializable data
     job.save_meta()
 
 
