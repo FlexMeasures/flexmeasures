@@ -189,6 +189,16 @@ def test_get_one_user_audit_log_consultant(
             "test_admin_user@seita.nl",
             403,
         ),  # admin can edit themselves but not sensitive fields
+        (
+            "test_consultant@seita.nl",
+            "test_consultant_client@seita.nl",
+            200,
+        ),  # consultant can edit their client user
+        (
+            "test_consultancy_user_without_consultant_access@seita.nl",
+            "test_consultant_client@seita.nl",
+            403,
+        ),  # user from consultancy account without consultant role cannot edit their client
     ],
     indirect=["requesting_user"],
 )
