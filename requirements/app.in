@@ -18,7 +18,7 @@ bcrypt<=4.0.1
 argon2_cffi
 pytz
 isodate
-click
+click<8.2.0
 click-default-group
 email_validator
 rq
