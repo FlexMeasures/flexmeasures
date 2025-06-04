@@ -206,7 +206,6 @@ The event_value should be a numeric value."
 
                                 // Show the spinner
                                 spinner.classList.remove('d-none');
-
                                 fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/stats?sort=false')
                                     .then(response => response.json())
                                     .then(data => {
@@ -257,7 +256,6 @@ The event_value should be a numeric value."
                                         // Hide the spinner
                                         spinner.classList.add('d-none');
                                     });
-
                                 function updateTable(stats) {
                                     tableBody.innerHTML = ''; // Clear the table body
 
