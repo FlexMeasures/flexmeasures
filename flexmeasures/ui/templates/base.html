@@ -429,7 +429,8 @@
             })
             .then(async function(response) {
                 if (response.ok) {
-                    showToast("Sensor data uploaded successfuly!", "success");
+                    const data = await response.json();
+                    showToast(data.message, "success");
                     // Update date range
                     picker.setDateRange(
                         storeStartDate,
