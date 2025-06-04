@@ -7,6 +7,8 @@ from __future__ import annotations
 import os
 import random
 import string
+from types import TracebackType
+from typing import Type
 
 import click
 from flask import current_app as app
@@ -379,7 +381,12 @@ def wrap_up_message(count_after: int):
         click.echo("No jobs left.")
 
 
-def handle_worker_exception(job, exc_type, exc_value, traceback):
+def handle_worker_exception(
+    job: Job,
+    exc_type: Type[Exception],
+    exc_value: Exception,
+    traceback: TracebackType,
+) -> None:
     """
     Just a fallback, usually we would use the per-queue handler.
     """
