@@ -298,7 +298,7 @@ class UserAPI(FlaskView):
                     "Users who edit themselves cannot edit security-sensitive fields."
                 )
             # if flexmeasures_roles is not empty, check if the user can modify the role
-            if k == "flexmeasures_roles":
+            if k == "flexmeasures_roles" and (v or len(v) == 0):
                 from flexmeasures.auth.policy import can_modify_role
 
                 current_roles = set(user.flexmeasures_roles)
