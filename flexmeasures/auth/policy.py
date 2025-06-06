@@ -221,35 +221,19 @@ def can_modify_role(user, roles_to_modify, modified_user) -> bool:
 
             role = current_app.db.session.get(Role, role)
 
-        if not role:
-            return False
-        if role.name == ADMIN_ROLE:
-            return False
-        if role.name == ADMIN_READER_ROLE and not user.has_role(ADMIN_ROLE):
-            return False
-        if role.name == ACCOUNT_ADMIN_ROLE:
-            if (
-                not user.has_role(ADMIN_ROLE)
-                and not user.has_role(CONSULTANT_ROLE)
-                and (
-                    not user.account
-                    or not modified_user.account
-                    or not modified_user.account.consultancy_account
-                    or user.account.id != modified_user.account.consultancy_account.id
-                )
-            ):
-                return False
+    if role is not None:
+        if user.has_role(ADMIN_ROLE) and (role.name != ADMIN_ROLE):
+            return True
+        if role.name == ADMIN_READER_ROLE and user.has_role(ADMIN_ROLE):
+            return True
+        if role.name == ACCOUNT_ADMIN_ROLE and user.has_role(CONSULTANT_ROLE):
+            if user.account.id and modified_user.account.consultancy_account.id:
+                if user.account.id == modified_user.account.consultancy_account.id:
+                    return True
 
-        if role.name == CONSULTANT_ROLE:
-            if (
-                not user.has_role(ADMIN_ROLE)
-                and user.has_role(ACCOUNT_ADMIN_ROLE)
-                and (
-                    not user.account
-                    or not modified_user.account
-                    or user.account.id != modified_user.account.id
-                )
-            ):
-                return False
+        if role.name == CONSULTANT_ROLE and user.has_role(ACCOUNT_ADMIN_ROLE):
+            if user.account.id and modified_user.account.id:
+                if user.account.id == modified_user.account.id:
+                    return True
 
-    return True
+    return False
