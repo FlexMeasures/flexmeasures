@@ -18,6 +18,14 @@ Bugfixes
 -----------
 
 
+v0.26.1 | June 09, 2025
+============================
+
+Bugfixes
+-----------
+* Fixed backwards compatibility for users still using deprecated flex-context fields [see `PR #1528 <https://github.com/FlexMeasures/flexmeasures/pull/1528>`_]
+
+
 v0.26.0 | June 03, 2025
 ============================
 
