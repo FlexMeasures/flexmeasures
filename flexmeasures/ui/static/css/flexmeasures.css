@@ -167,7 +167,7 @@ p.error {
     font-weight: 700;
 }
 
-#tzwarn,#sourcewarn {
+#tzwarn {
     margin-top: 20px;
     margin-bottom: 20px;
     color: var(--secondary-color);
