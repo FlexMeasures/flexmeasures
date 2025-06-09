@@ -12,6 +12,7 @@ New features
 -------------
 
 * Allow editing users in the UI [see `PR #1502 <https://github.com/FlexMeasures/flexmeasures/pull/1502>`_]
+* Smarter date range navigation [see `PR #1531 <https://github.com/FlexMeasures/flexmeasures/pull/1531>`_]
 
 Infrastructure / Support
 ----------------------
