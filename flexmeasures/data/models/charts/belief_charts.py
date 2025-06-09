@@ -918,7 +918,7 @@ def create_chargepoint_session_chart(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "right",
+                            "orient": "bottom",
                             "columns": 1,
                             "direction": "vertical",
                         },
@@ -1027,7 +1027,7 @@ def create_chargepoint_session_chart(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "right",
+                            "orient": "bottom",
                             "columns": 1,
                             "direction": "vertical",
                         },
@@ -1127,7 +1127,7 @@ def create_chargepoint_session_chart(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "right",
+                            "orient": "bottom",
                             "columns": 1,
                             "direction": "vertical",
                         },
@@ -1155,7 +1155,14 @@ def create_chargepoint_session_chart(
             },
         ],
     }
-
+    for idx, entry in enumerate(sensors_to_show):
+        title = entry.get("title")
+        if title == "Power flow by type":
+            sensors_to_show[idx]["sensors"] = [
+                sensor
+                for sensor in entry["sensors"]
+                if sensor.name == "charge points power"
+            ]
     chart_specs = chart_for_multiple_sensors(
         sensors_to_show,
         event_starts_after,
@@ -1164,7 +1171,9 @@ def create_chargepoint_session_chart(
         **override_chart_specs,
     )
     chart_specs["vconcat"] = [
-        chart for chart in chart_specs["vconcat"] if chart["title"] == "Prices"
+        chart
+        for chart in chart_specs["vconcat"]
+        if chart["title"] in ["Prices", "Power flow by type"]
     ]
     chart_specs["vconcat"].append(cp_chart)
     return chart_specs
