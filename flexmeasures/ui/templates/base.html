@@ -828,6 +828,13 @@
             initiateToastCloseBtn(closeToastBtn);
         });
 
+        function maybeHideCloseToastBtn() {
+            const remainingToasts = toastStack.querySelectorAll(".toast");
+            if (remainingToasts.length === 0) {
+                closeToastBtn.style.display = "none";
+            }
+        }
+
         function initiateToastCloseBtn(closeToastBtn){
             // hide button
             closeToastBtn.style.display = "none";
@@ -905,6 +912,7 @@
                 const toastInstance = new bootstrap.Toast(toast);
                 toastInstance.dispose();
                 toast.remove();
+                maybeHideCloseToastBtn();
             });            
           }
     </script>
