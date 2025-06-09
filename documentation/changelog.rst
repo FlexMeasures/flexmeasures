@@ -15,6 +15,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Tests: guarantee a clean db upon creating the test db [see `PR #1518 <https://github.com/FlexMeasures/flexmeasures/pull/1518>`_]
 
 Bugfixes
 -----------
