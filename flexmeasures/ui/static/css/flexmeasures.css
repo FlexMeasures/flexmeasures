@@ -1996,3 +1996,7 @@ body.touched [title]:hover:after {
     color: inherit !important;
     background-color: transparent !important;
 }
+
+.bg-primary-custom {
+    background-color: var(--primary-color) !important;
+}

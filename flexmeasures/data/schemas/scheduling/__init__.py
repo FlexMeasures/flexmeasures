@@ -197,7 +197,7 @@ class FlexContextSchema(Schema):
             for field_var, field in self.declared_fields.items()
         }
         if any(
-            field_map[field] in data
+            field_map[field] in data and data[field_map[field]]
             for field in (
                 "soc-minima-breach-price",
                 "soc-maxima-breach-price",
