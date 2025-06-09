@@ -105,9 +105,6 @@ Infrastructure / Support
 * Add utils doctests to our CI pipeline [see `PR #1347 <https://github.com/FlexMeasures/flexmeasures/pull/1347>`_]
 * Clarify default limitations to concurrent connections [see `PR #1391 <https://github.com/FlexMeasures/flexmeasures/pull/1391>`_]
 
-Bugfixes
------------
-
 
 v0.24.1 | February 27, 2025
 ============================
