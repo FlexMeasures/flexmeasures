@@ -20,6 +20,14 @@ Bugfixes
 -----------
 
 
+v0.26.1 | June 09, 2025
+============================
+
+Bugfixes
+-----------
+* Fixed backwards compatibility for users still using deprecated flex-context fields [see `PR #1528 <https://github.com/FlexMeasures/flexmeasures/pull/1528>`_]
+
+
 v0.26.0 | June 03, 2025
 ============================
 
@@ -98,9 +106,6 @@ Infrastructure / Support
 * Test utility function for device scheduling in a multi-asset setting (sequential and simultaneous) [see `PR #1341 <https://github.com/FlexMeasures/flexmeasures/pull/1341>`_]
 * Add utils doctests to our CI pipeline [see `PR #1347 <https://github.com/FlexMeasures/flexmeasures/pull/1347>`_]
 * Clarify default limitations to concurrent connections [see `PR #1391 <https://github.com/FlexMeasures/flexmeasures/pull/1391>`_]
-
-Bugfixes
------------
 
 
 v0.24.1 | February 27, 2025
