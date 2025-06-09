@@ -911,6 +911,16 @@
         
             showAllToasts();
 
+            // Dispose and remove toast when it's autohidden
+            toast.addEventListener("hidden.bs.toast", function () {
+                const instance = bootstrap.Toast.getInstance(toast);
+                if (instance) {
+                    instance.dispose();
+                }
+                toast.remove();
+                maybeHideCloseToastBtn();
+            });
+
             // destroy only this toast if the close(X) button is clicked
             toast.querySelector(".btn-close").addEventListener("click", function () {
                 const toastInstance = new bootstrap.Toast(toast);
