@@ -862,7 +862,7 @@
             });
         }
 
-        function showToast(message, type) {
+        function showToast(message, type, { highlightDuplicates = true, showDuplicateCount = true } = {}) {
             let colorClass;
             let colorStyle = "";
             let title;
@@ -882,6 +882,36 @@
                 "background-color: {{ primary_color }};";
               title = "Info";
             }
+
+            // Search for an existing toast with the same message
+            const existingToasts = toastStack.querySelectorAll(".toast");
+            for (const t of existingToasts) {
+                const body = t.querySelector(".toast-body");
+                if (body && body.dataset.originalMessage === message) {
+                    // It's a duplicate
+                    if (showDuplicateCount) {
+                        let count = parseInt(body.dataset.count || "1") + 1;
+                        body.dataset.count = count;
+                        body.innerHTML = `${message} <span class="text-muted ms-2">(x${count})</span>`;
+                    }
+
+                    if (highlightDuplicates) {
+                        t.classList.remove("highlight");
+                        void t.offsetWidth; // Trigger reflow for CSS animation restart
+                        t.classList.add("highlight");
+                    }
+
+                    // Reinitialize and show the toast again
+                    const oldInstance = bootstrap.Toast.getInstance(t);
+                    if (oldInstance) {
+                        oldInstance.dispose();
+                    }
+                    const newInstance = new bootstrap.Toast(t);
+                    newInstance.show();
+
+                    return; // Don't create a new toast
+                }
+            }
         
             // Create the toast HTML
             const toast = document.createElement("div");
@@ -898,7 +928,7 @@
                 <strong class="me-auto">${title}</strong>
                 <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
               </div>
-              <div class="toast-body">
+            <div class="toast-body" data-original-message="${message}" data-count="1">
                 ${message}
               </div>
             `;
