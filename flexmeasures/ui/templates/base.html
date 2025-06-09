@@ -361,16 +361,9 @@
     }
 
     function checkSourceMasking(data) {
-        var sourceWarn = document.getElementById("sourcewarn");
-        if (sourceWarn == null)
-            return
         var uniqueSourceIds = getUniqueValues(data, 'source.id');
         if (chartType == 'daily_heatmap' && uniqueSourceIds.length > 1) {
-            sourceWarn.style.display = 'block';
-            sourceWarn.innerHTML = 'Please note that only data from the most prevalent source is shown.';
-        }
-        else {
-            sourceWarn.style.display = 'none';
+            showToast('Please note that only data from the most prevalent source is shown.');
         }
     }
 
