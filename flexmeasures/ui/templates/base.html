@@ -869,12 +869,15 @@
         
             // Determine the type of toast
             if (type == "error") {
+              delay = 10000;
               colorClass = "bg-danger";
               title = "Error";
             } else if (type == "success") {
+              delay = 2000;
               colorClass = "bg-success";
               title = "Success";
             } else {
+              delay = 5000;
               colorStyle =
                 "background-color: {{ primary_color }};";
               title = "Info";
@@ -884,6 +887,7 @@
             const toast = document.createElement("div");
             toast.classList.add("toast", "mb-1");
             toast.setAttribute("data-bs-autohide", "true");
+            toast.setAttribute("data-bs-delay", delay);
             toast.setAttribute("role", "alert");
             toast.setAttribute("aria-live", "assertive");
             toast.setAttribute("aria-atomic", "true");
