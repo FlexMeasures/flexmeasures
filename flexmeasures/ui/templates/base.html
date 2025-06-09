@@ -353,16 +353,10 @@
 
     function checkDSTTransitions(startDate, endDate) {
         var numDSTTransitions = countDSTTransitions(startDate, endDate, 90)
-        if (numDSTTransitions != 0) {
-            document.getElementById('dstwarn').style.display = 'block';
-            if (numDSTTransitions == 1) {
-                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.';
-            } else {
-                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.';
-            }
-        }
-        else {
-            document.getElementById('dstwarn').style.display = 'none';
+        if (numDSTTransitions == 1) {
+            showToast('Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.');
+        } else if (numDSTTransitions > 1) {
+            showToast('Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.');
         }
     }
 
