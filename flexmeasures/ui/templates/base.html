@@ -604,7 +604,7 @@
                     // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
                     var end_time = '{{event_ends_before}}';
                     var new_end_date = new Date(end_time);
-                    // Adjusting the date by deducting one day to account for timezone discrepancies.
+                    // Adjusting the date by subtracting one day to account for timezone discrepancies.
                     new_end_date.setDate(new_end_date.getDate() - 1);
                     var start_time = '{{event_starts_after}}';
                     var new_start_date = new Date(start_time);
