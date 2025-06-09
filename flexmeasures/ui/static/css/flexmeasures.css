@@ -1080,7 +1080,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .container__predefined-ranges {
     padding: 0px;
-    margin-top: 15px;
+    margin-bottom: 15px;
     justify-content: space-around;
     box-shadow: 0 0 10px rgba(0,0,0,.1) !important;
     border-radius: 6px !important;
