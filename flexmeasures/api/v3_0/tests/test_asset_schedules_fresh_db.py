@@ -148,9 +148,7 @@ def test_asset_trigger_and_get_schedule(
 
         sensor_id = flex_model["sensor"]
         get_schedule_response = client.get(
-            url_for(
-                "SensorAPI:get_schedule", id=sensor_id, uuid=scheduling_job.id
-            ),  # todo: use (last?) job_id from trigger response
+            url_for("SensorAPI:get_schedule", id=sensor_id, uuid=scheduling_job.id),
             query_string={"duration": "PT48H"},
         )
         print("Server responded with:\n%s" % get_schedule_response.json)
