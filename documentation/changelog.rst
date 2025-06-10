@@ -11,6 +11,8 @@ v0.27.0 | August XX, 2025
 New features
 -------------
 
+* Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_]
+
 Infrastructure / Support
 ----------------------
 
