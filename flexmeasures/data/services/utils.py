@@ -38,7 +38,11 @@ def get_scheduler_instance(
 
 
 def get_asset_or_sensor_ref(asset_or_sensor: Asset | Sensor) -> dict:
-    return {"id": asset_or_sensor.id, "class": asset_or_sensor.__class__.__name__}
+    class_name = asset_or_sensor.__class__.__name__
+    # todo: remove these two lines after renaming the GenericAsset class to Asset
+    if class_name == "GenericAsset":
+        class_name = "Asset"
+    return {"id": asset_or_sensor.id, "class": class_name}
 
 
 def get_asset_or_sensor_from_ref(asset_or_sensor: dict):
