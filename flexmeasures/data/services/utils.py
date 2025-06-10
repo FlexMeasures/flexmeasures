@@ -10,6 +10,7 @@ import inspect
 import click
 from sqlalchemy import JSON, String, cast, literal
 from flask import current_app
+from rq import Queue
 from rq.job import Job
 from sqlalchemy import select
 
@@ -248,3 +249,13 @@ def job_cache(queue: str):
         return wrapper
 
     return decorator
+
+
+def sort_jobs(queue: Queue, jobs: list[str | Job]) -> list[Job]:
+    """Sort jobs in chronological order of creation, and return Job objects."""
+    jobs = [queue.fetch_job(job) if isinstance(job, str) else job for job in jobs]
+    jobs = [
+        job for job in jobs if job is not None
+    ]  # Remove any None entries (in case some jobs don’t exist)
+    sorted_jobs = sorted(jobs, key=lambda job: job.created_at)
+    return sorted_jobs
