@@ -34,7 +34,7 @@ flask==3.1.1
     # via
     #   -c requirements/3.10/app.txt
     #   pytest-flask
-highspy==1.10.0
+highspy==1.11.0
     # via -r requirements/test.in
 idna==3.10
     # via
@@ -90,7 +90,7 @@ redis==6.2.0
     # via
     #   -c requirements/3.10/app.txt
     #   fakeredis
-requests==2.32.3
+requests==2.32.4
     # via
     #   -c requirements/3.10/app.txt
     #   -r requirements/test.in
