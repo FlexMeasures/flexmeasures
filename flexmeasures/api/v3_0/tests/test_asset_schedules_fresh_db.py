@@ -52,6 +52,8 @@ def test_asset_trigger_and_get_schedule(
         .one_or_none()
     )
     message["flex-model"]["sensor"] = sensor.id
+
+    # Convert the flex-model to a multi-asset flex-model
     message["flex-model"] = [
         message["flex-model"],
     ]
