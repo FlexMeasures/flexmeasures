@@ -1057,7 +1057,7 @@ class AssetAPI(FlaskView):
             flex_context=flex_context,
         )
         try:
-            jobs = create_sequential_scheduling_job(
+            job = create_sequential_scheduling_job(
                 asset=asset, enqueue=True, **scheduler_kwargs
             )
         except ValidationError as err:
@@ -1065,7 +1065,6 @@ class AssetAPI(FlaskView):
         except ValueError as err:
             return invalid_flex_config(str(err))
 
-        # todo: make a 'done job' and pass that job's ID here
-        response = dict(schedule=jobs[-1].id)
+        response = dict(schedule=job.id)
         d, s = request_processed()
         return dict(**response, **d), s
