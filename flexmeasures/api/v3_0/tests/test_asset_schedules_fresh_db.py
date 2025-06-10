@@ -2,22 +2,26 @@ from flask import url_for
 import pytest
 from isodate import parse_datetime, parse_duration
 
+import pandas as pd
 from rq.job import Job
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
-from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
     handle_scheduling_exception,
     get_data_source_for_job,
 )
+from flexmeasures.data.services.utils import sort_jobs
 
 
 @pytest.mark.parametrize(
-    "message, asset_name",
+    "message, charge_point_message, asset_name",
     [
-        (message_for_trigger_schedule(), "Test battery"),
+        (
+            message_for_trigger_schedule(),
+            message_for_trigger_schedule(with_targets=True),
+            "Test battery",
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -26,11 +30,11 @@ from flexmeasures.data.services.scheduling import (
 def test_asset_trigger_and_get_schedule(
     app,
     add_market_prices_fresh_db,
-    add_battery_assets_fresh_db,
-    battery_soc_sensor_fresh_db,
+    setup_roles_users_fresh_db,
     add_charging_station_assets_fresh_db,
     keep_scheduling_queue_empty,
     message,
+    charge_point_message,
     asset_name,
     requesting_user,
 ):  # noqa: C901
@@ -42,27 +46,37 @@ def test_asset_trigger_and_get_schedule(
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
 
-    # trigger a schedule through the /assets/<id>/schedules/trigger [POST] api endpoint
-    assert len(app.queues["scheduling"]) == 0
+    # Set up flex-model for CP 1
+    CP_1_flex_model = message["flex-model"]
+    bidirectional_charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    sensor_1 = bidirectional_charging_station.sensors[0]
+    assert sensor_1.name == "power", "expecting to schedule a power sensor"
 
-    sensor = (
-        Sensor.query.filter(Sensor.name == "power")
-        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
-        .filter(GenericAsset.name == asset_name)
-        .one_or_none()
-    )
-    message["flex-model"]["sensor"] = sensor.id
+    # Set up flex-model for CP 2
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"]
+    CP_2_flex_model = charge_point_message["flex-model"]
+    sensor_2 = charging_station.sensors[0]
+    assert sensor_2.name == "power", "expecting to schedule a power sensor"
 
-    # Convert the flex-model to a multi-asset flex-model
+    # Convert the two flex-models to a single multi-asset flex-model
+    CP_1_flex_model["sensor"] = sensor_1.id
+    CP_2_flex_model["sensor"] = sensor_2.id
     message["flex-model"] = [
-        message["flex-model"],
+        CP_1_flex_model,
+        CP_2_flex_model,
     ]
 
+    # trigger a schedule through the /assets/<id>/schedules/trigger [POST] api endpoint
+    assert len(app.queues["scheduling"]) == 0
     with app.test_client() as client:
         print(message)
         print(message["flex-model"])
         trigger_schedule_response = client.post(
-            url_for("AssetAPI:trigger_schedule", id=sensor.generic_asset.id),
+            url_for(
+                "AssetAPI:trigger_schedule", id=sensor_1.generic_asset.parent_asset.id
+            ),
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
@@ -72,16 +86,16 @@ def test_asset_trigger_and_get_schedule(
     # look for scheduling jobs in queue
     scheduled_jobs = app.queues["scheduling"].jobs
     deferred_job_ids = app.queues["scheduling"].deferred_job_registry.get_job_ids()
-    assert len(scheduled_jobs) == len(
+    deferred_jobs = sort_jobs(app.queues["scheduling"], deferred_job_ids)
+
+    assert len(scheduled_jobs) == 1, "one scheduling job should be queued"
+    assert len(deferred_jobs) == len(
         message["flex-model"]
-    ), "a scheduling job should be made for each sensor flex model"
-    assert (
-        len(deferred_job_ids) == 1
-    ), "only 1 job should be triggered when the last scheduling job is done"
+    ), "a scheduling job should be made for each sensor flex model (1 was already queued, but there is also 1 wrap-up job that should be triggered when the last scheduling job is done"
     scheduling_job = scheduled_jobs[0]
-    done_job_id = deferred_job_ids[0]
+    done_job_id = deferred_jobs[-1].id
     print(scheduling_job.kwargs)
-    assert scheduling_job.kwargs["asset_or_sensor"]["id"] == sensor.id
+    assert scheduling_job.kwargs["asset_or_sensor"]["id"] == sensor_1.id
     assert scheduling_job.kwargs["start"] == parse_datetime(message["start"])
     assert done_job_id == job_id
 
@@ -93,7 +107,7 @@ def test_asset_trigger_and_get_schedule(
     )
 
     # Derive some expectations from the POSTed message
-    resolution = sensor.event_resolution
+    resolution = sensor_1.event_resolution
     expected_length_of_schedule = parse_duration(message["duration"]) / resolution
 
     # check results are in the database
@@ -105,6 +119,14 @@ def test_asset_trigger_and_get_schedule(
 
     # try to retrieve the schedule for each sensor through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
     for flex_model in message["flex-model"]:
+
+        # We expect a longer schedule if the targets exceeds the original duration in the trigger
+        if "soc-targets" in flex_model:
+            for t in flex_model["soc-targets"]:
+                duration = pd.Timestamp(t["datetime"]) - pd.Timestamp(message["start"])
+                if duration > pd.Timedelta(message["duration"]):
+                    expected_length_of_schedule = duration / resolution
+
         sensor_id = flex_model["sensor"]
         get_schedule_response = client.get(
             url_for(
