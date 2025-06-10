@@ -15,7 +15,7 @@ from flexmeasures.data.services.utils import sort_jobs
 
 
 @pytest.mark.parametrize(
-    "message, charge_point_message, asset_name",
+    "message_without_targets, message_with_targets, asset_name",
     [
         (
             message_for_trigger_schedule(),
@@ -24,6 +24,7 @@ from flexmeasures.data.services.utils import sort_jobs
         ),
     ],
 )
+@pytest.mark.parametrize("sequential", [True, False])
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
@@ -33,21 +34,22 @@ def test_asset_trigger_and_get_schedule(
     setup_roles_users_fresh_db,
     add_charging_station_assets_fresh_db,
     keep_scheduling_queue_empty,
-    message,
-    charge_point_message,
+    message_without_targets,
+    message_with_targets,
     asset_name,
+    sequential,
     requesting_user,
 ):  # noqa: C901
     # Include the price sensor and site-power-capacity in the flex-context explicitly, to test deserialization
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
-    message["flex-context"] = {
+    message_without_targets["flex-context"] = {
         "consumption-price": {"sensor": price_sensor_id},
         "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
 
     # Set up flex-model for CP 1
-    CP_1_flex_model = message["flex-model"]
+    CP_1_flex_model = message_without_targets["flex-model"].copy()
     bidirectional_charging_station = add_charging_station_assets_fresh_db[
         "Test charging station (bidirectional)"
     ]
@@ -56,17 +58,19 @@ def test_asset_trigger_and_get_schedule(
 
     # Set up flex-model for CP 2
     charging_station = add_charging_station_assets_fresh_db["Test charging station"]
-    CP_2_flex_model = charge_point_message["flex-model"]
+    CP_2_flex_model = message_with_targets["flex-model"].copy()
     sensor_2 = charging_station.sensors[0]
     assert sensor_2.name == "power", "expecting to schedule a power sensor"
 
     # Convert the two flex-models to a single multi-asset flex-model
     CP_1_flex_model["sensor"] = sensor_1.id
     CP_2_flex_model["sensor"] = sensor_2.id
+    message = message_without_targets.copy()
     message["flex-model"] = [
         CP_1_flex_model,
         CP_2_flex_model,
     ]
+    message["sequential"] = sequential
 
     # trigger a schedule through the /assets/<id>/schedules/trigger [POST] api endpoint
     assert len(app.queues["scheduling"]) == 0
@@ -89,13 +93,28 @@ def test_asset_trigger_and_get_schedule(
     deferred_jobs = sort_jobs(app.queues["scheduling"], deferred_job_ids)
 
     assert len(scheduled_jobs) == 1, "one scheduling job should be queued"
-    assert len(deferred_jobs) == len(
-        message["flex-model"]
-    ), "a scheduling job should be made for each sensor flex model (1 was already queued, but there is also 1 wrap-up job that should be triggered when the last scheduling job is done"
+    if sequential:
+        assert len(deferred_jobs) == len(
+            message["flex-model"]
+        ), "a scheduling job should be made for each sensor flex model (1 was already queued, but there is also 1 wrap-up job that should be triggered when the last scheduling job is done"
+        done_job_id = deferred_jobs[-1].id
+    else:
+        assert (
+            len(deferred_jobs) == 0
+        ), "the whole scheduling job is handled as a single job (simultaneous scheduling)"
+        done_job_id = scheduled_jobs[0].id
     scheduling_job = scheduled_jobs[0]
-    done_job_id = deferred_jobs[-1].id
+
     print(scheduling_job.kwargs)
-    assert scheduling_job.kwargs["asset_or_sensor"]["id"] == sensor_1.id
+    if sequential:
+        assert (
+            scheduling_job.kwargs["asset_or_sensor"]["id"] == sensor_1.id
+        ), "first queued job is for scheduling the first sensor"
+    else:
+        assert (
+            scheduling_job.kwargs["asset_or_sensor"]["id"]
+            == sensor_1.generic_asset.parent_asset.id
+        ), "first queued job is the one for the top-level asset"
     assert scheduling_job.kwargs["start"] == parse_datetime(message["start"])
     assert done_job_id == job_id
 
@@ -121,7 +140,7 @@ def test_asset_trigger_and_get_schedule(
     for flex_model in message["flex-model"]:
 
         # We expect a longer schedule if the targets exceeds the original duration in the trigger
-        if "soc-targets" in flex_model:
+        if sequential and "soc-targets" in flex_model:
             for t in flex_model["soc-targets"]:
                 duration = pd.Timestamp(t["datetime"]) - pd.Timestamp(message["start"])
                 if duration > pd.Timedelta(message["duration"]):
