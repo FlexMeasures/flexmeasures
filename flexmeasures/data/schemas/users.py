@@ -27,7 +27,7 @@ class UserSchema(SQLAlchemySchema):
             raise ValidationError(f"Timezone {timezone} doesn't exist.")
 
     id = ma.auto_field(dump_only=True)
-    email = ma.auto_field(required=True, validate=validate.Email)
+    email = ma.auto_field(required=True, validate=validate.Email())
     username = ma.auto_field(required=True)
     account_id = ma.auto_field(dump_only=True)
     active = ma.auto_field()
