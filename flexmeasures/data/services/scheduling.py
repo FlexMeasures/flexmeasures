@@ -339,7 +339,7 @@ def create_sequential_scheduling_job(
             previous_sensors
         )
         current_scheduler_kwargs["resolution"] = sensor.event_resolution
-        current_scheduler_kwargs["sensor"] = sensor
+        current_scheduler_kwargs["asset_or_sensor"] = sensor
 
         job = create_scheduling_job(
             **current_scheduler_kwargs,
