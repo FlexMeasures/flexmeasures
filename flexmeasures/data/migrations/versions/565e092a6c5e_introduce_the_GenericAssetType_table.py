@@ -5,6 +5,7 @@ Revises: 04f0e2d2924a
 Create Date: 2021-07-20 16:16:50.872449
 
 """
+
 import json
 
 from alembic import context, op

@@ -12,6 +12,7 @@ Furthermore, we discuss several guidelines and best practices.
     :local:
     :depth: 1
 
+|
 .. note:: Are you implementing code based on FlexMeasures, you're probably interested in :ref:`datamodel`.
 
 
@@ -149,6 +150,8 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 (The `account` you need in the 2nd command is printed by the 1st)
 
 
+.. include:: ../notes/macOS-port-note.rst
+
 .. note::
 
     If you are on Windows, then running & developing FlexMeasures will not work 100%. For instance, the queueing only works if you install rq-win (https://github.com/michaelbrooks/rq-win) manually and the make tooling is difficult to get to work as well.
@@ -165,6 +168,18 @@ A rolling log file handler is used, so if ``flexmeasures.log`` gets to a few meg
 
 The default logging level is ``WARNING``. To see more, you can update this with the config setting ``LOGGING_LEVEL``, e.g. to ``INFO`` or ``DEBUG``
 
+
+Mocking an Email Server for Development
+--------------------------------
+
+To handle emails locally during development, you can use MailHog. Follow these steps to set it up:
+
+.. code-block:: bash
+
+   $ docker run -p 8025:8025 -p 1025:1025 --name mailhog mailhog/mailhog
+   $ export MAIL_PORT=1025  # You can also add this to your local flexmeasures.cfg
+
+Now, emails (e.g., password-reset) are being sent via this local server. Go to http://localhost:8025 to see all sent emails in a web UI.
 
 Tests
 -----
@@ -304,3 +319,4 @@ I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and h
 
 
 .. note:: All paths depend on your local environment, of course.
+

@@ -29,6 +29,8 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     SQLALCHEMY_ENGINE_OPTIONS: dict = {
         "pool_recycle": 299,  # https://www.pythonanywhere.com/forums/topic/2599/
+        "pool_size": 5,  # 5 is SQLAlchemy's default for the maximum number of permanent connections to keep
+        "max_overflow": 10,  # 10 is SQLAlchemy's default for temporarily exceeding the pool_size if no connections are available
         # "pool_timeout": 20,
         "pool_pre_ping": True,  # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
         "connect_args": {
@@ -71,8 +73,6 @@ class Config(object):
 
     MAPBOX_ACCESS_TOKEN: str | None = None
 
-    JSONIFY_PRETTYPRINT_REGULAR: bool = False
-
     RQ_DASHBOARD_POLL_INTERVAL: int = (
         3000  # Web interface poll period for updates in ms
     )
@@ -112,12 +112,16 @@ class Config(object):
     FLEXMEASURES_LP_SOLVER: str = "appsi_highs"
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(days=2)
-    FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | int | None = 2520  # smallest number divisible by 1-10, which yields pleasant-looking durations for common sensor resolutions
+    FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | int | None = (
+        2520  # smallest number divisible by 1-10, which yields pleasant-looking durations for common sensor resolutions
+    )
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
     FLEXMEASURES_DEFAULT_DATASOURCE: str = "FlexMeasures"
-    FLEXMEASURES_JOB_CACHE_TTL: int = 3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
+    FLEXMEASURES_JOB_CACHE_TTL: int = (
+        3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
+    )
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str | None = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379
@@ -128,15 +132,24 @@ class Config(object):
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
         currencysymbolmap="5.1.0",
+        leaflet="1.9.4",
+        leafletmarkercluster="1.5.3",
+        leafletmarkerclusterlayersupport="2.0.1",
         # todo: expand with other js versions used in FlexMeasures
     )
+    FLEXMEASURES_JSON_COMPACT = False
+    JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
 
     # Custom sunset switches
-    FLEXMEASURES_API_SUNSET_ACTIVE: bool = False  # if True, sunset endpoints return 410 (Gone) responses; if False, they return 404 (Not Found) responses or will work as before, depending on whether the current FlexMeasures version still contains the endpoint logic
+    FLEXMEASURES_API_SUNSET_ACTIVE: bool = (
+        False  # if True, sunset endpoints return 410 (Gone) responses; if False, they return 404 (Not Found) responses or will work as before, depending on whether the current FlexMeasures version still contains the endpoint logic
+    )
     FLEXMEASURES_API_SUNSET_DATE: str | None = None  # e.g. 2023-05-01
-    FLEXMEASURES_API_SUNSET_LINK: str | None = None  # e.g. https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
+    FLEXMEASURES_API_SUNSET_LINK: str | None = (
+        None  # e.g. https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
+    )
 
     # if True, all requests are forced to be via HTTPS.
     FLEXMEASURES_FORCE_HTTPS: bool = False
@@ -182,7 +195,6 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_ECHO: bool = False
     PROPAGATE_EXCEPTIONS: bool = True
     # PRESERVE_CONTEXT_ON_EXCEPTION: bool = False  # might need this to make our transaction handling work in debug mode
-    JSONIFY_PRETTYPRINT_REGULAR: bool = True
     FLEXMEASURES_MODE: str = "development"
     FLEXMEASURES_PROFILE_REQUESTS: bool = True
 

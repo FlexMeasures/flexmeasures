@@ -29,10 +29,10 @@ def humanize(word):
 
 
 def parameterize(word):
-    """Parameterize the word, so it can be used as a python or javascript variable name.
+    """Parameterize the word, so it can be used as a Python or JavaScript variable name.
     For example:
-    >>> word = "Acme® EV-Charger™"
-    "acme_ev_chargertm"
+    >>> parameterize("Acme® EV-Charger™")
+    'acme_ev_chargertm'
     """
     return inflection.parameterize(word).replace("-", "_")
 
@@ -51,9 +51,9 @@ def titleize(word):
     because it has less unintended side effects. For example:
      >>> word = "two PV panels"
      >>> titleize(word)
-     "Two Pv Panels"
+     'Two Pv Panels'
      >>> capitalize(word)
-     "Two PV panels"
+     'Two PV panels'
     """
     word = inflection.titleize(word)
     for ac in ACRONYMS:
@@ -107,7 +107,7 @@ def human_sorted(alist: list, attr: Any | None = None, reverse: bool = False):
             # List of objects, to be sorted by attribute
             sorted_list = sorted(
                 alist,
-                key=lambda k: natural_keys(str(getattr(k, attr))),
+                key=lambda k: natural_keys(str(getattr(k, str(attr)))),
                 reverse=reverse,
             )
     return sorted_list

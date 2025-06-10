@@ -16,7 +16,10 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
-from flexmeasures.cli.tests.utils import get_click_commands
+from flexmeasures.cli.tests.utils import (
+    check_command_ran_without_error,
+    get_click_commands,
+)
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
@@ -100,7 +103,7 @@ def test_cli_help(app):
     runner = app.test_cli_runner()
     for cmd in get_click_commands(data_add):
         result = runner.invoke(cmd, ["--help"])
-        assert result.exit_code == 0
+        check_command_ran_without_error(result)
         assert "Usage" in result.output
 
 
@@ -176,10 +179,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
 
         # call command
         result = runner.invoke(add_report, cli_input)
-
-        print(result)
-
-        assert result.exit_code == 0  # run command without errors
+        check_command_ran_without_error(result)
 
         report_sensor = fresh_db.session.get(
             Sensor, report_sensor_id
@@ -229,10 +229,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
 
         # call command
         result = runner.invoke(add_report, cli_input)
-
-        print(result)
-
-        assert result.exit_code == 0  # run command without errors
+        check_command_ran_without_error(result)
 
         # Check if the report is saved to the database
         report_sensor = fresh_db.session.get(
@@ -320,13 +317,10 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
 
         # call command
         result = runner.invoke(add_report, cli_input)
+        check_command_ran_without_error(result)
 
         assert os.path.exists("test-df_agg.csv")
         assert os.path.exists("test-df_sub.csv")
-
-        print(result)
-
-        assert result.exit_code == 0  # run command without errors
 
         report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
         report_sensor_2 = fresh_db.session.get(Sensor, report_sensor_2_id)
@@ -379,15 +373,12 @@ def test_add_process(
 
     # call command
     result = runner.invoke(add_schedule_process, cli_input)
-
-    print(result)
-
-    assert result.exit_code == 0  # run command without errors
+    check_command_ran_without_error(result)
 
     process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
     schedule = process_power_sensor.search_beliefs()
     # check if the schedule is not empty more detailed testing can be found
-    # in data/models/planning/tests/test_processs.py.
+    # in data/models/planning/tests/test_process.py.
     assert (schedule == -0.4).event_value.sum() == 4
 
 
@@ -416,7 +407,7 @@ def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success)
         select(Sensor).filter_by(name=name)
     ).scalar_one_or_none()
     if success:
-        assert result.exit_code == 0
+        check_command_ran_without_error(result)
         sensor.unit == "kWh"
     else:
         assert result.exit_code == 1
@@ -514,12 +505,12 @@ def test_add_storage_schedule(
 
     if storage_power_capacity is not None:
         if storage_power_capacity == "sensor":
-            cli_input_params[
-                "storage-consumption-capacity"
-            ] = f"sensor:{power_capacity_sensor}"
-            cli_input_params[
-                "storage-production-capacity"
-            ] = f"sensor:{power_capacity_sensor}"
+            cli_input_params["storage-consumption-capacity"] = (
+                f"sensor:{power_capacity_sensor}"
+            )
+            cli_input_params["storage-production-capacity"] = (
+                f"sensor:{power_capacity_sensor}"
+            )
         else:
 
             cli_input_params["storage-consumption-capacity"] = "700kW"
@@ -527,9 +518,9 @@ def test_add_storage_schedule(
 
     if storage_efficiency is not None:
         if storage_efficiency == "sensor":
-            cli_input_params[
-                "storage-efficiency"
-            ] = f"sensor:{storage_efficiency_sensor}"
+            cli_input_params["storage-efficiency"] = (
+                f"sensor:{storage_efficiency_sensor}"
+            )
         else:
 
             cli_input_params["storage-efficiency"] = "90%"
@@ -538,5 +529,5 @@ def test_add_storage_schedule(
 
     result = runner.invoke(add_schedule_for_storage, cli_input)
 
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
     assert len(power_sensor.search_beliefs()) == 48

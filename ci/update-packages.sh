@@ -12,7 +12,7 @@
 set -e
 set -x
 
-PYTHON_VERSIONS=(3.8 3.9 3.10 3.11)
+PYTHON_VERSIONS=(3.8 3.9 3.10 3.11 3.12)
 
 # check if we will upgrade or just freeze
 UPDATE_CMD=freeze-deps

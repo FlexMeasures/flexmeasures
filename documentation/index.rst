@@ -196,6 +196,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
     views/dashboard
     views/asset-data
+    views/sensors
     views/account
     views/admin
 

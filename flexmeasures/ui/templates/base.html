@@ -18,12 +18,52 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     {% block styles %}
+    <style>
+        :root {
+            --primary-color: {{ primary_color }};
+            --primary-border-color: {{ primary_border_color }};
+            --primary-hover-color: {{ primary_hover_color}};
+            --primary-transparent: {{ primary_transparent }};
+            --secondary-color: {{ secondary_color }};
+            --secondary-hover-color: {{ secondary_hover_color }};
+            --secondary-transparent: {{ secondary_transparent }};
+            --white: #FFF;
+            --black: #000;
+            --light-gray: #eeeeee;
+            --gray: #bbb;
+            --red: #c21431;
+            --green: #14c231;
+
+            /* colors by function */
+            --nav-default-color: var(--white);
+            --nav-default-background-color: var(--primary-color);
+            --nav-hover-color: var(--secondary-hover-color);
+            --nav-hover-background-color: var(--primary-hover-color);
+            --nav-open-color: var(--secondary-color);
+            --nav-open-background-color: var(--primary-color);
+            --nav-current-color: var(--black);
+            --nav-current-background-color: var(--secondary-color);
+            --nav-current-hover-color: var(--black);
+            --nav-current-hover-background-color: var(--secondary-hover-color);
+            --create-color: var(--green);
+            --delete-color: var(--red);
+        }
+        #asset_audit_log.nav-on-click tr {
+            cursor: default;
+        }
+        #account_audit_log.nav-on-click tr {
+            cursor: default; 
+        }
+        #user_audit_log.nav-on-click tr {
+            cursor: default; 
+        }
+    </style>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" rel="stylesheet" />
-    <!-- Bootstrap -->
-    <link href="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Latest Bootstrap link-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <!-- Fonts -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
         rel="stylesheet" />
@@ -39,6 +79,7 @@
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}" rel="stylesheet" />
     {% elif active_page in ("assets", "users", "accounts") %}
     <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
+    <link href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.bootstrap5.min.css" rel="stylesheet"/>
     {% endif %}
     {% if extra_css %}
     <link href="{{ extra_css }}" rel="stylesheet" />
@@ -46,84 +87,102 @@
     {% endblock %}
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
 
     {% block body %}
 
     {% block nav %}
-
-    <nav class="navbar navbar-default navbar-fixed-top" id="topnavbar">
-        <div id="navbar-container" class="container-fluid">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
-                    data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-                <span class="navbar-brand">
-                    <a href="/">
-                        <span class="navbar-tool-name">
-                        {% if menu_logo %}
-                            <img id="navbar-logo" src="{{menu_logo}}"/>
-                        {% else %}
-                            <img id="navbar-logo" src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="FlexMeasures"/>
-                        {% endif %}
-                        </span>
-                    </a>
+    <nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2 navbar-fixed-top " id="topnavbar">
+        <div class="container-fluid" id="navbar-container">
+        
+                     
+            <div class="navbar-brand">
+              <a href="/">
+                <span class="navbar-tool-name">
+                  {% if menu_logo %}
+                    <img id="navbar-logo" src="{{menu_logo}}"/>
+                  {% else %}
+                    <img id="navbar-logo" src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="FlexMeasures"/>
+                  {% endif %}
                 </span>
+              </a>
             </div>
-            <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
-                <ul class="nav navbar-nav">
-                    {% for href, id, caption, tooltip, icon in navigation_bar %}
-                    {% if id == "tasks" %}
-                    <li {% if id == active_page %} class="active" {% endif %} class="dropdown">
-                        <a class="dropdown-toggle" data-toggle="dropdown" href="#"><span class="fa fa-tasks"
-                                aria-hidden="true"></span>
-                            Tasks
-                            <span class="caret"></span></a>
-                        <ul class="dropdown-menu">
-                            {% for queue in queue_names %}
-                                <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/0/view/jobs/{{ queue }}/started/10/1"
-                                    {% endif %}>{{ queue | capitalize }}</a></li>
-                            {% endfor %}
-                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
-                                    {% if not current_user.has_role('anonymous') %}href="/tasks/"
-                                    {% endif %}>Overview</a></li>
-                        </ul>
-                    </li>
-                    {% else %}
-                    <li {% if id == active_page %} class="active" {% endif %} data-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
-                        {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
-                        class="disabled" {% endif %}>
-                        <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %}href="/{{ href|e }}"
-                            {% endif %}{% if id == 'docs' %} target="_blank" {% endif %}>
-                            <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
-                            {{ caption|e }}
-
-                            {# use tooltip as caption for small screens #}
-                            {% if not caption %}
-                            <span class="visible-xs-inline">{{ tooltip }}</span>
-                            {% endif %}
-
+            <div
+                class="navbar-toggler border-0"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent"
+                aria-controls="navbarSupportedContent"
+                aria-expanded="false"
+                aria-label="Toggle navigation"
+            >
+                <i class="fa fa-bars"></i>
+            </div>
+         
+          <div class="collapse navbar-collapse justify-content-end flex-row" id="navbarSupportedContent">
+            <ul class="nav navbar-nav d-flex">
+              {% for href, id, caption, tooltip, icon in navigation_bar %}
+                {% if id == "tasks" %}
+                <li {% if id == active_page %} class="nav-item dropdown active" {% else %} class="nav-item dropdown" {% endif %}>
+                    <a class="nav-link dropdown-toggle" href="#" id="tasksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="fa fa-tasks" aria-hidden="true"></span>
+                        Tasks
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="tasksDropdown">
+                    {% for queue in queue_names %}
+                        <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
+                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/0/view/jobs/{{ queue }}/started/10/asc/1" {% endif %}>
+                            {{ queue | capitalize }}
+                        </a>
+                        </li>
+                    {% endfor %}
+                    <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
+                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/" {% endif %}>
+                            Overview
                         </a>
                     </li>
-                    {% endif %}
-                    {% endfor %}
-                </ul>
-            </div>
+                    </ul>
+                </li>
+                {% else %}
+                <li {% if id == active_page %} class="nav-item active" {% else %} class="nav-item" {% endif %}
+                    data-bs-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
+                    {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
+                    class="disabled" {% endif %}>
+                    <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
+                    {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
+                        <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                        {{ caption|e }}
+
+                        {# use tooltip as caption for small screens showing a collapsed menu #}
+                        {% if not caption %}
+                            <span class="d-inline d-lg-none">{{ tooltip }}</span>
+                        {% endif %}
+                    </a>
+                </li>
+                {% endif %}
+                {% endfor %}
+            </ul>
+          </div>
         </div>
     </nav>
-
     {% endblock nav %}
 
+    <div
+        class="position-fixed bottom-0 end-0 p-3"
+        id="toast-container"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        style="z-index: 1000000"
+    >
+        <button id="close-all-toasts" class="btn">Close All</button>
+    </div>
+
     {% if message and message != "" %}
-    <div class="col-sm-12 alert alert-info">{{ message}} </div>
+    <div class="col-md-12 alert alert-info">{{ message}} </div>
     {% endif %}
     {% if (msg is defined) and msg %}
-    <div class="col-sm-12 alert alert-info">{{ msg }}</div>
+    <div class="col-md-12 alert alert-info">{{ msg }}</div>
     {% endif %}
 
     <!-- loading this earlier so templates can use it -->
@@ -133,13 +192,58 @@
     {# Div blocks that child pages can reference #}
     {% block divs %}
 
+    {% block breadcrumbs %}
+    {% if breadcrumb_info is defined %}
+    <nav aria-label="breadcrumb ">
+        <ol class="breadcrumb p-2">
+            {% for breadcrumb in breadcrumb_info["ancestors"] %}
+            <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+              {% if breadcrumb["url"] is not none and not loop.last %}
+                <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+              {% elif breadcrumb["url"] is none %}
+                {{ breadcrumb['name'] }}
+              {% else %}
+                {% if breadcrumb_info["siblings"]|length > 0 %}
+                <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
+                <ul class="dropdown-menu">
+                    {% for sibling in breadcrumb_info["siblings"] %}
+                    <li><a class="p-3 dropdown-item {% if sibling['name'] == breadcrumb['name'] %}active{% endif %}" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <a href="{{ breadcrumb['url'] }}" role="button">{{ breadcrumb['name'] }}</a>
+                {% endif %}
+              {% endif %}
+            </li>
+            {% endfor %}
+            {% if breadcrumb_info["views"]|length > 0 %}
+            <li class="breadcrumb-item dropdown active">
+                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["current_asset_view"] }}</a>
+                <ul class="dropdown-menu">
+                    {% for view in breadcrumb_info["views"] %}
+                    <li><a class="p-3 dropdown-item {% if view['name'] == breadcrumb_info['current_asset_view'] %}active{% endif %}" href="{{ view['url'] }}">{{ view["name"] }}</a></li>
+                    {% endfor %}
+                </ul>
+            </li>
+            <div class="form-check form-switch" style="margin-left: auto;">
+                <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
+                <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+            </div>
+            {% endif %}
+        </ol>
+    </nav>
+    {% endif %}
+    {% endblock %}
+
+
+
     {% block forecastpicker %}
 
     <div class="form-group row">
-        <div class="col-sm-2">
-            <div class="col-sm-1"><i class="icon-binoculars center-icon"></i></div>
+        <div class="col-md-2">
+            <div class="col-md-1"><i class="icon-binoculars center-icon"></i></div>
         </div>
-        <div class="col-sm-10">
+        <div class="col-md-10">
             <label class="control-label">Forecast (rolling)</label>
             <!--<div class="btn-group btn-group-justified" role="group" aria-label="...">-->
             <!--<a role="button" href="#" class="btn btn-default forecast-toggle active" forecast-type="rolling">Rolling</a>-->
@@ -216,9 +320,9 @@
     let replaySpeed = 100
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
 
-    // Update chart type
+    // Update chart type picker: active state, reload data event
     document.addEventListener('DOMContentLoaded', function() {
-        var dropdownItems = document.querySelectorAll('.dropdown-item');
+        var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
         for (var i = 0; i < dropdownItems.length; i++) {
 
             // Set initial chart type
@@ -278,7 +382,7 @@
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
@@ -315,14 +419,24 @@
         });
     }
 
+    // event listener to refresh graph
+    document.addEventListener('sensorsToShowUpdated', async function() {
+        await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
+    })
+
+    var combineLegend = 'true';
     {% if active_page == "assets" %}
         var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
+        {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
+        {% if total_sensors > 7 %}
+            combineLegend = 'false';
+        {% endif %}
     {% elif active_page == "sensors" %}
-        var dataPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var datasetName = 'sensor_' + {{ sensor_id }};
+        var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var datasetName = 'sensor_' + {{ sensor.id }};
     {% endif %}
     var elementId = 'sensorchart';
     var chartSpecsPath = dataPath + '/chart?';
@@ -477,8 +591,8 @@
                             nearEnd,
                             end,
                         );
-                    }
-
+                    } 
+                    
                     // No use looking for data in years outside timerange of sensor data
                     picker.setOptions({
                         dropdowns: {
@@ -486,6 +600,15 @@
                             maxYear: end.getFullYear(),
                         },
                     });
+                    
+                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                    var end_time = '{{event_ends_before}}';
+                    var new_end_date = new Date(end_time);
+                    // Adjusting the date by deducting one day to account for timezone discrepancies.
+                    new_end_date.setDate(new_end_date.getDate() - 1);
+                    var start_time = '{{event_starts_after}}';
+                    var new_start_date = new Date(start_time);
+                    picker.setDateRange(decodeURIComponent(toIsoString(new_start_date)), decodeURIComponent(toIsoString(new_end_date)));
                 };
             });
         }
@@ -649,9 +772,142 @@
 
 
     {#- Scripts used by all views (e.g. by navigation menu) -#}
-    <script src="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
+
+    <!-- Add the class touched to body when the user uses any touch event. -->
+    <script>
+        document.body.addEventListener('touchstart', function() {
+          document.body.classList.add('touched');
+        });
+    </script>
 
     {% block scripts %}
+    <!-- JS to enable tooltips -->
+    <script type='text/javascript'>
+        $(document).ready(function () {
+            if ($("[rel=tooltip]").length) {
+                $("[rel=tooltip]").tooltip();
+            }
+        });
+    </script>
+
+    <script>
+        // Set default asset view
+        function setDefaultAssetView(checkbox, view_name) {
+            // Get the checked status of the checkbox
+            const isChecked = checkbox.checked;
+
+            const apiBasePath = window.location.origin;
+            fetch(apiBasePath + '/api/v3_0/assets/default_asset_view', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({
+                    default_asset_view: view_name,
+                    use_as_default: isChecked
+                })
+            })
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error during API call:', error);
+            });
+        }
+    </script>
+
+    <!-- JS to enable toast -->
+    <script defer>
+        const toastStack = document.getElementById("toast-container");
+        const closeToastBtn = document.getElementById("close-all-toasts");
+        
+        // written like this since this script(order) is ontop of the main script
+        document.addEventListener("DOMContentLoaded", function () {
+            initiateToastCloseBtn(closeToastBtn);
+        });
+
+        function initiateToastCloseBtn(closeToastBtn){
+            // hide button
+            closeToastBtn.style.display = "none";
+
+            closeToastBtn.addEventListener("click", function () {
+                const toastElements = document.querySelectorAll(".toast");
+                toastElements.forEach((toast) => {
+                const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
+                if (toastInstance) {
+                    // destroy the toast
+                    toastInstance.dispose();
+                    toast.remove();
+                }
+                });
+                // Hide the close button
+                closeToastBtn.style.display = "none";
+            });
+        }
+
+        function showAllToasts() {
+            const toastElements = document.querySelectorAll(".toast");
+            toastElements.forEach((toast) => {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.show();
+            });
+        }
+
+        function showToast(message, type) {
+            let colorClass;
+            let colorStyle = "";
+            let title;
+        
+            // Determine the type of toast
+            if (type == "error") {
+              colorClass = "bg-danger";
+              title = "Error";
+            } else if (type == "success") {
+              colorClass = "bg-success";
+              title = "Success";
+            } else {
+              colorStyle =
+                "background-color: {{ primary_color }};";
+              title = "Info";
+            }
+        
+            // Create the toast HTML
+            const toast = document.createElement("div");
+            toast.classList.add("toast", "mb-1");
+            toast.setAttribute("data-bs-autohide", "true");
+            toast.setAttribute("role", "alert");
+            toast.setAttribute("aria-live", "assertive");
+            toast.setAttribute("aria-atomic", "true");
+        
+            toast.innerHTML = `
+              <div class="toast-header">
+                <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+              </div>
+              <div class="toast-body">
+                ${message}
+              </div>
+            `;
+        
+            // Append toast to the toast stack
+            toastStack.insertAdjacentElement("afterbegin", toast);
+        
+            // Show the close all button
+            closeToastBtn.style.display = "block";
+        
+            showAllToasts();
+
+            // destroy only this toast if the close(X) button is clicked
+            toast.querySelector(".btn-close").addEventListener("click", function () {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.dispose();
+                toast.remove();
+            });            
+          }
+    </script>
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
@@ -672,13 +928,15 @@
 
     {% endblock scripts %}
 
+
+
     {% block paginate_tables_script %}
     <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
     <script
         src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
-    <footer class="page-footer font-small pt-4 mt-4">
+    <footer class="page-footer font-small pt-4 mt-auto">
         <div class="footer text-center">
             <div class="container-fluid">
                 {% block copyright_notice %}
@@ -689,17 +947,15 @@
                 {% endblock copyright_notice %}
 
                 {% block about %}
-                <a href="#" data-toggle="modal" data-target="#About">About FlexMeasures</a>.
+                <a href="#" data-bs-toggle="modal" data-bs-target="#About">About FlexMeasures</a>.
                 <!-- The modal -->
                 <div class="modal fade" id="About" tabindex="-1" role="dialog" aria-labelledby="modalLabelLarge" aria-hidden="true">
                 <div class="modal-dialog modal-lg">
                 <div class="modal-content">
 
                 <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                    </button>
                     <h4 class="modal-title" id="modalLabelLarge">About FlexMeasures</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
@@ -758,7 +1014,7 @@
                 {% endblock about %}
 
                 {% block credits %}
-                <a href="#" data-toggle="modal" data-target="#Credits">Credits</a>.
+                <a href="#" data-bs-toggle="modal" data-bs-target="#Credits">Credits</a>.
 
                 <!-- The modal -->
                 <div class="modal fade" id="Credits" tabindex="-1" role="dialog" aria-labelledby="modalLabelLarge" aria-hidden="true">
@@ -766,22 +1022,20 @@
                 <div class="modal-content">
 
                 <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                    </button>
                     <h4 class="modal-title" id="modalLabelLarge">Credits</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-sm-6">
+                        <div class="col-md-6">
                             <h3>Images from <a href="https://seita.nl">Seita</a></h3>
                             <div>FlexMeasures on laptop - image by <a href="https://drakemultimedia.nl/" title="Bobby Drake">Bobby Drake</a></div>
                             <h3>Images from <a href="https://unsplash.com/" title="Unsplash">Unsplash</a></h3>
                             <div>Tesla charging station - image by <a href="https://www.chasealewis.com/" title="Chase Lewis">Chase Lewis</a></div>
                             <div>Wind turbines on top of mountain - image by <a href="https://www.tbk-f.com/" title="TJ K.">TJ K.</a></div>
                         </div>
-                        <div class="col-sm-6">
+                        <div class="col-md-6">
                             <h3>Icons from <a href="https://www.flaticon.com/" title="Flaticon">Flaticon</a></h3>
                             <div><a href="https://www.flaticon.com/free-icon/wind-power_1085695">Wind turbine</a> - icon by <a href="https://www.flaticon.com/authors/good-ware" title="Good Ware">Good Ware</a> (made to spin by Seita)</div>
                             <div><a href="https://www.flaticon.com/search?word=currency&author_id=258">Coins</a> - icons by <a href="https://www.flaticon.com/authors/pixelmeetup" title="Pixelmeetup">Pixelmeetup</a></div>

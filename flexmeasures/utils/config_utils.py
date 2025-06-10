@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
 
@@ -133,7 +133,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     app.logger.setLevel(app.config.get("LOGGING_LEVEL", "INFO"))
     # print("Logging level is %s" % logging.getLevelName(app.logger.level))
 
-    app.config["START_TIME"] = datetime.utcnow()
+    app.config["START_TIME"] = datetime.now(timezone.utc)
 
 
 def read_custom_config(
@@ -176,11 +176,18 @@ def read_env_vars(app: Flask):
     - Logging settings
     - access tokens
     - plugins (handled in plugin utils)
+    - json compactness
     """
     for var in (
         required
         + list(warnable.keys())
-        + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN", "FLEXMEASURES_PLUGINS"]
+        + [
+            "LOGGING_LEVEL",
+            "MAPBOX_ACCESS_TOKEN",
+            "SENTRY_SDN",
+            "FLEXMEASURES_PLUGINS",
+            "FLEXMEASURES_JSON_COMPACT",
+        ]
     ):
         app.config[var] = os.getenv(var, app.config.get(var, None))
     # DEBUG in env can come in as a string ("True") so make sure we don't trip here

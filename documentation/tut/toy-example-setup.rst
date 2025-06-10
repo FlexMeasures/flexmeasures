@@ -17,7 +17,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 
 .. code-block:: bash
 
-    # setup an account with a user and an energy market (ID 1)
+    # setup an account with a user, assets for battery & solar and an energy market (ID 1)
     $ flexmeasures add toy-account
     # load prices to optimise the schedule against
     $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
@@ -45,6 +45,9 @@ Install Flexmeasures and the database
             $ docker pull postgres
             $ docker network create flexmeasures_network
 
+        .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it.
+                  ``alias docker='sudo docker'`` enables you to still run this tutorial.
+
         After running these commands, we can start the Postgres database and the FlexMeasures app with the following commands:
 
         .. code-block:: bash
@@ -52,13 +55,15 @@ Install Flexmeasures and the database
             $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=fm-db-passwd -e POSTGRES_DB=flexmeasures-db -d --network=flexmeasures_network postgres:latest
             $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@flexmeasures-tutorial-db:5432/flexmeasures-db --env SECRET_KEY=notsecret --env FLEXMEASURES_ENV=development --env LOGGING_LEVEL=INFO -d --network=flexmeasures_network -p 5000:5000 lfenergy/flexmeasures
 
+        When the app has started, the FlexMeasures UI should be available at http://localhost:5000 in your browser.
+
+        .. include:: ../notes/macOS-docker-port-note.rst
+
         To establish the FlexMeasures database structure, execute:
 
         .. code-block:: bash
 
             $ docker exec flexmeasures-tutorial-fm bash -c "flexmeasures db upgrade"
-
-        .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
 
         Now - what's *very important* to remember is this: The rest of this tutorial will happen *inside* the ``flexmeasures-tutorial-fm`` container! This is how you hop inside the container and run a terminal there:
 
@@ -82,8 +87,6 @@ Install Flexmeasures and the database
             $ docker start flexmeasures-tutorial-db
             $ docker start flexmeasures-tutorial-fm
 
-        .. note:: For newer versions of MacOS, port 5000 is in use by default by Control Center. You can turn this off by going to System Preferences > Sharing and untick the "Airplay Receiver" box. If you don't want to do this for some reason, you can change the host port in the ``docker run`` command to some other port, for example 5001. To do this, change ``-p 5000:5000`` in the command to ``-p 5001:5000``. If you do this, remember that you will have to go to ``localhost:5001`` in your browser when you want to inspect the FlexMeasures UI.
-
         .. note:: Got docker-compose? You could run this tutorial with 5 containers :) ― Go to :ref:`docker-compose-tutorial`.
 
   .. tab:: On your PC
@@ -104,6 +107,7 @@ Install Flexmeasures and the database
         .. code-block:: bash
 
             $ pip install flexmeasures
+            $ pip install highspy
             $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
             $ export FLEXMEASURES_ENV="development"
             $ flexmeasures db upgrade
@@ -115,6 +119,17 @@ Install Flexmeasures and the database
         .. code-block:: bash
 
             $ make clean-db db_name=flexmeasures-db [db_user=flexmeasures]
+
+        To start the web application, you can run:
+
+        .. code-block:: bash
+
+            $ flexmeasures run
+
+        When started, the FlexMeasures UI should be available at http://localhost:5000 in your browser.
+
+        .. include:: ../notes/macOS-port-note.rst
+
 
 Add some structural data
 ---------------------------------------
@@ -204,17 +219,15 @@ If you want, you can inspect what you created:
 
     $ flexmeasures show asset --id 3
 
-    ==================================
+    ===================================
     Asset toy-battery (ID: 3)
     Child of asset toy-building (ID: 2)
-    ==================================
-
-    Type     Location           Attributes
-    -------  -----------------  ----------------------------
-    battery  (52.374, 4.88969)  capacity_in_mw: 0.5
-                                min_soc_in_mwh: 0.05
-                                max_soc_in_mwh: 0.45
-                                sensors_to_show: [1, [3, 2]]
+    ===================================
+    Type     Location           Flex-Context                      Sensors to show      Attributes
+    -------  -----------------  --------------------------------  -------------------  -----------------------
+    battery  (52.374, 4.88969)  consumption-price: {'sensor': 1}  Prices: [1]          capacity_in_mw: 500 kVA
+                                                                  Power flows: [3, 2]  min_soc_in_mwh: 0.05
+                                                                                       max_soc_in_mwh: 0.45
 
     ====================================
     Child assets of toy-battery (ID: 3)
@@ -227,9 +240,10 @@ If you want, you can inspect what you created:
     ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
     2  discharging  MW      15 minutes    Europe/Amsterdam
+    
 
-
-Yes, that is quite a large battery :)
+Yes, that is quite a large battery :) 
+You can also see that the asset has some meta information about its scheduling. Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
@@ -323,7 +337,7 @@ Let's look at the price data we just loaded:
 
 
 
-Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/1/>`_:
+Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/1>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center

@@ -1,0 +1,187 @@
+{% extends "base.html" %} 
+{% set active_page = "users" %} 
+{% block title %} User listing {% endblock %} 
+{% block divs %}
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-1"></div>
+    <div class="col-md-9">
+      <div class="card">
+        <h3 id="usersTableTitle">All users</h3>
+
+        <div class="form-check form-check-inline">
+          <label class="form-check-label">
+            <input
+              id="inactiveUsersCheckbox"
+              name="include_inactive"
+              type="checkbox"
+            />
+            Include inactive
+          </label>
+        </div>
+        <div class="table-responsive">
+          <table
+            class="table table-striped paginate nav-on-click"
+            title="View this asset"
+            id="usersTable"
+          ></table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+   function User(
+      id,
+      username,
+      email,
+      roles,
+      account,
+      timezone,
+      lastLogin,
+      lastSeen,
+      active
+   ) {
+      this.id = id;
+      this.username = `<span>${username}</span>`;
+      this.email = `<a href="mailto:${email}" title="Mail this user">${email}</a>`;
+      this.roles = roles.map((role) => role).join(", ");
+      this.url = `/users/${id}`;
+
+      if (account == null) this.account = "PUBLIC";
+      else
+         this.account = `
+                <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+              `;
+      this.timezone = timezone;
+      this.lastLogin = lastLogin;
+      this.lastSeen = lastSeen;
+      this.active = active;
+   }
+
+  $(document).ready(function () {
+    let includeInactive = false;
+    const tableTitle = $("#usersTableTitle");
+    // Initialize the DataTable
+    const table = $("#usersTable").dataTable({
+        order: [
+          [0, "asc"]
+        ],
+        serverSide: true,
+        // make the table row vertically aligned with header
+        columns: [{
+              data: "username",
+              title: "Username",
+              orderable: true
+          },
+          {
+              data: "email",
+              title: "Email",
+              orderable: true
+          },
+          {
+              data: "roles",
+              title: "Roles",
+              orderable: false
+          },
+          {
+              data: "account",
+              title: "Account",
+              orderable: false
+          },
+          {
+              data: "timezone",
+              title: "Timezone",
+              orderable: false
+          },
+          {
+              data: "lastLogin",
+              title: "Last login",
+              orderable: true
+          },
+          {
+              data: "lastSeen",
+              title: "Last seen",
+              orderable: true
+          },
+          {
+              data: "active",
+              title: "Active",
+              orderable: false
+          },
+          {
+              data: "url",
+              title: "URL",
+              className: "d-none"
+          },
+        ],
+
+        ajax: function (data, callback, settings) {
+
+          const basePath = window.location.origin;
+          let filter = data["search"]["value"];
+          let orderColumnIndex = data["order"][0]["column"]
+          let orderDirection = data["order"][0]["dir"];
+          let orderColumnName = data["columns"][orderColumnIndex]["data"];
+
+          let url = `${basePath}/api/v3_0/users?page=${data["start"] / data["length"] + 1}&per_page=${data["length"]}&include_inactive=${includeInactive}`;
+
+          if (filter.length > 0) {
+              url = `${url}&filter=${filter}`;
+          }
+
+          if (orderColumnName) {
+              url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+          }
+
+          $.ajax({
+              type: "get",
+              url: url,
+              success: function (response, text) {
+                let clean_response = [];
+                response["data"].forEach((element) =>
+                    clean_response.push(
+                      new User(
+                          element["id"],
+                          element["username"],
+                          element["email"],
+                          element["flexmeasures_roles"],
+                          element["account"],
+                          element["timezone"],
+                          element["last_login_at"],
+                          element["last_seen_at"],
+                          element["active"]
+                      )
+                    )
+                );
+
+                callback({
+                    data: clean_response,
+                    recordsTotal: response["num-records"],
+                    recordsFiltered: response["filtered-records"],
+                });
+              },
+              error: function (request, status, error) {
+                console.log("Error: ", error);
+              },
+          });
+        },
+    });
+
+
+    // Event listener for the checkbox to toggle includeInactive state
+    $("#inactiveUsersCheckbox").change(function () {
+        includeInactive = this.checked;
+        table.api().ajax.reload();
+        if (!includeInactive) {
+          tableTitle.text("All users");
+        } else {
+          tableTitle.text("All active users");
+        }
+    });
+  }); 
+</script>
+{% block paginate_tables_script %} {{ super() }} {% endblock %} {% endblock%}

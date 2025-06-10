@@ -10,7 +10,7 @@ So far we haven't taken into account any other devices that consume or produce e
 
 What if other devices will be using some of that capacity? Our schedules need to reflect that, so we stay within given limits.
 
-.. note:: The capacity is given by ``capacity_in_mw``, an attribute we placed on the battery asset earlier (see :ref:`tut_toy_schedule`). We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``) for this capacity limit.
+.. note:: The capacity is given by ``site-power-capacity``, an attribute we placed on the battery asset earlier (see :ref:`tut_toy_schedule`). We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``) for this capacity limit.
 
 We'll now add solar production forecast data and then ask for a new schedule, to see the effect of solar on the available headroom for the battery.
 
@@ -63,7 +63,7 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
     $ flexmeasures add beliefs --sensor 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
-The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3/>`_ :
+The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_ :
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
     :align: center
@@ -75,7 +75,7 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 Trigger an updated schedule
 ----------------------------
 
-Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery, given the ``capacity_in_mw`` limit discussed earlier.
+Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
 
 .. code-block:: bash
 
@@ -85,21 +85,21 @@ Now, we'll reschedule the battery while taking into account the solar production
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
 
-We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2/>`_ :
+We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ :
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging-with-solar.png
     :align: center
 |
 
-The `asset page for the battery <http://localhost:5000/assets/1/>`_ now shows the solar data, too:
+The `graphs page for the battery <http://localhost:5000/assets/3/graphs>`_ now shows the solar data, too:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-solar.png
     :align: center
-
+|
 
 Though this schedule is quite similar, we can see that it has changed from `the one we computed earlier <https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png>`_ (when we did not take solar into account).
 
-First, during the sunny hours of the day, when solar power is being send to the grid, the battery's output (at around 9am and 11am) is now lower, as the battery shares ``capacity_in_mw`` with the solar production. In the evening (around 7pm), when solar power is basically not present anymore, battery discharging to the grid is still at its previous levels.
+First, during the sunny hours of the day, when solar power is being send to the grid, the battery's output (at around 9am and 11am) is now lower, as the battery shares the ``site-power-capacity`` with the solar production. In the evening (around 7pm), when solar power is basically not present anymore, battery discharging to the grid is still at its previous levels.
 
 Second, charging of the battery is also changed a bit (around 10am), as less can be discharged later.
 
@@ -115,9 +115,9 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
     :align: center
 |
 
-.. note:: You can add arbitrary sensors to a chart using the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
+.. note:: You can add arbitrary sensors to a chart using the asset UI or the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
-A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/1/status>`_ :
+A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_ :
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center

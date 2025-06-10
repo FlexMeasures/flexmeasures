@@ -35,43 +35,6 @@ def get_user(id: str) -> User:
     return user
 
 
-def get_users(
-    account_name: str | None = None,
-    role_name: str | None = None,
-    account_role_name: str | None = None,
-    only_active: bool = True,
-) -> list[User]:
-    """Return a list of User objects.
-    The role_name parameter allows to filter by role.
-    Set only_active to False if you also want non-active users.
-    """
-    user_query = select(User)
-
-    if account_name is not None:
-        account = db.session.execute(
-            select(Account).filter_by(name=account_name)
-        ).scalar_one_or_none()
-        if not account:
-            raise NotFound(f"There is no account named {account_name}!")
-        user_query = user_query.filter_by(account=account)
-
-    if only_active:
-        user_query = user_query.filter(User.active.is_(True))
-
-    if role_name is not None:
-        role = db.session.execute(
-            select(Role).filter_by(name=role_name)
-        ).scalar_one_or_none()
-        if role:
-            user_query = user_query.filter(User.flexmeasures_roles.contains(role))
-
-    users = db.session.scalars(user_query).all()
-    if account_role_name is not None:
-        users = [u for u in users if u.account.has_role(account_role_name)]
-
-    return users
-
-
 def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     user = user_datastore.find_user(email=user_email)
@@ -272,13 +235,3 @@ def delete_user(user: User):
         affected_account_id=user.account_id,
     )
     db.session.add(user_audit_log)
-
-
-def get_audit_log_records(user: User):
-    """
-    Get history of user actions
-    """
-    audit_log_records = (
-        db.session.query(AuditLog).filter_by(affected_user_id=user.id).all()
-    )
-    return audit_log_records

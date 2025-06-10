@@ -108,18 +108,17 @@ Here, we extend that (storage) example with an additional target value, represen
     {
         "start": "2015-06-02T10:00:00+00:00",
         "flex-model": {
-            "soc-at-start": 12.1,
-            "soc-unit": "kWh"
+            "soc-at-start": "12.1 kWh",
             "soc-targets": [
                 {
-                    "value": 25,
+                    "value": "25 kWh",
                     "datetime": "2015-06-02T16:00:00+00:00"
                 }
         }
     }
 
 
-We now have described the state of charge at 10am to be ``12.1``. In addition, we requested that it should be ``25`` at 4pm.
+We now have described the state of charge at 10am to be ``"12.1 kWh"``. In addition, we requested that it should be ``"25 kWh"`` at 4pm.
 For instance, this could mean that a car should be charged at 90% at that time.
 
 If FlexMeasures receives this message, a scheduling job will be made and put into the queue. In turn, the scheduling job creates a proposed schedule. We'll look a bit deeper into those further down in :ref:`getting_schedules`.
@@ -149,7 +148,7 @@ Prognoses (the USEF term used for power forecasts) are used by FlexMeasures to d
 
 You can access forecasts via the FlexMeasures API at `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_.
 Getting them might be useful if you want to use prognoses in your own system, or to check their accuracy against meter data, i.e. the realised power measurements.
-The FlexMeasures UI also lists forecast accuracy, and visualises prognoses and meter data next to each other.
+The FlexMeasures UI also visualizes prognoses and meter data next to each other.
 
 A prognosis can be requested at a URL looking like this:
 

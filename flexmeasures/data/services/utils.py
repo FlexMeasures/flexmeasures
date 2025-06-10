@@ -79,10 +79,10 @@ def get_or_create_model(
 
     For example:
     >>> weather_station_type = get_or_create_model(
-    >>>     GenericAssetType,
-    >>>     name="weather station",
-    >>>     description="A weather station with various sensors.",
-    >>> )
+    ...     GenericAssetType,
+    ...     name="weather station",
+    ...     description="A weather station with various sensors.",
+    ... )
     """
 
     # unpack custom initialization parameters that map to multiple database columns
@@ -123,8 +123,9 @@ def get_or_create_model(
     # Create the model and add it to the database if it didn't already exist
     if model is None:
         model = model_class(**init_kwargs)
-        click.echo(f"Created {model}")
         db.session.add(model)
+        db.session.flush()  # assign ID
+        click.echo(f"Created {repr(model)}")
     return model
 
 
@@ -198,15 +199,16 @@ def job_cache(queue: str):
             # Get the redis connection
             connection = current_app.redis_connection
 
-            requeue = kwargs.pop("requeue", False)
+            kwargs_for_hash = kwargs.copy()
+            requeue = kwargs_for_hash.pop("requeue", False)
 
             # checking if force is an input argument of `func`
-            force_new_job_creation = kwargs.pop("force_new_job_creation", False)
-
-            # creating a hash from args and kwargs
-            args_hash = (
-                f"{queue}:{func.__name__}:{hash_function_arguments(args, kwargs)}"
+            force_new_job_creation = kwargs_for_hash.pop(
+                "force_new_job_creation", False
             )
+
+            # creating a hash from args and kwargs_for_hash
+            args_hash = f"{queue}:{func.__name__}:{hash_function_arguments(args, kwargs_for_hash)}"
 
             # check the redis connection for whether the key hash exists
             if connection.exists(args_hash) and not force_new_job_creation:

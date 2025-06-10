@@ -92,14 +92,27 @@ def load(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool =
 @fm_db_ops.command()
 @with_appcontext
 def dump():
-    """Create a dump of all current data (using `pg_dump`)."""
+    """
+    Create a dump of all current data (using `pg_dump`).
+
+    If you have a version mismatch between server and client, here is an alternative:
+
+
+    $ docker run --pull=always -it postgres:15.7 bash  # use server version here
+
+    $ docker exec -it <container> <the pg_dump command (see code)>
+
+    $ docker cp <container>:<your-dump-filename> .
+
+    $ docker stop <container>; docker rm <container>
+    """
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Backing up {db_host_and_db_name} database")
     db_name = db_host_and_db_name.split("/")[-1]
     time_of_saving = datetime.now().strftime("%F-%H%M")
     dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
-    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
+    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} '{db_uri}'"
     try:
         subprocess.check_output(command_for_dumping, shell=True)
         click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)

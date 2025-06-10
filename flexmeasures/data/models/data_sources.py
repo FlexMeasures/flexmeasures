@@ -4,6 +4,7 @@ import json
 from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
 
+import pandas as pd
 import timely_beliefs as tb
 
 from packaging.version import Version
@@ -319,17 +320,23 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @property
     def description(self):
-        """Extended description
+        """Extended description.
 
         For example:
 
             >>> DataSource("Seita", type="forecaster", model="naive", version="1.2").description
-            <<< "Seita's naive model v1.2.0"
+            "Seita's naive forecaster v1.2"
+            >>> DataSource("Seita", type="scheduler", model="StorageScheduler", version="2").description
+            "Seita's StorageScheduler model v2"
 
         """
         descr = self.name
         if self.model:
-            descr += f"'s {self.model} model"
+            descr += f"'s {self.model} "
+            # Mention the data source type unless the model name already mentions it
+            descr += (
+                self.type if self.type.lower() not in self.model.lower() else "model"
+            )
             if self.version:
                 descr += f" v{self.version}"
         return descr
@@ -344,11 +351,17 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         model_incl_version = self.model if self.model else ""
         if self.model and self.version:
             model_incl_version += f" (v{self.version})"
+        if "forecast" in self.type.lower():
+            _type = "forecaster"  # e.g. 'forecaster' or 'forecasting script'
+        elif "schedul" in self.type.lower():  # e.g. 'scheduler' or 'scheduling script'
+            _type = "scheduler"
+        else:
+            _type = "other"
         return dict(
             id=self.id,
             name=self.name,
             model=model_incl_version,
-            type=self.type if self.type in ("forecaster", "scheduler") else "other",
+            type=_type,
             description=self.description,
         )
 
@@ -367,25 +380,79 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         self.attributes[attribute] = value
 
 
-def keep_latest_version(data_sources: list[DataSource]) -> list[DataSource]:
+def keep_latest_version(
+    bdf: tb.BeliefsDataFrame,
+    one_deterministic_belief_per_event: bool = False,
+) -> tb.BeliefsDataFrame:
+    """Filters the BeliefsDataFrame to keep the latest version of each source, for each event.
+
+    The function performs the following steps:
+    1. Resets the index to flatten the DataFrame.
+    2. Adds columns for the source's name, type, model, and version.
+    3. Sorts the rows by event_start and source.version in descending order.
+    4. Removes duplicates based on event_start, source.name, source.type, and source.model, keeping the latest version.
+    5. Drops the temporary columns added for source attributes.
+    6. Restores the original index.
+
+    Parameters:
+    -----------
+    bdf : tb.BeliefsDataFrame
+        The input BeliefsDataFrame containing event_start and source information.
+
+    Returns:
+    --------
+    tb.BeliefsDataFrame
+        A new BeliefsDataFrame containing only the latest version of each source
+        for each event_start, with the original index restored.
     """
-    Filters the given list of data sources to only include the latest version
-    of each unique combination of (name, type, and model).
-    """
-    sources = dict()
+    if bdf.empty:
+        return bdf
 
-    for source in data_sources:
-        key = (source.name, source.type, source.model)
-        if key not in sources:
-            sources[key] = source
-        else:
-            sources[key] = max(
-                [source, sources[key]],
-                key=lambda x: Version(x.version if x.version else "0.0.0"),
-            )
+    # Remember the original index, then reset it
+    index_levels = bdf.index.names
+    bdf = bdf.reset_index()
+    belief_column = "belief_time"
+    if belief_column not in index_levels:
+        belief_column = "belief_horizon"
+    event_column = "event_start"
+    if event_column not in index_levels:
+        event_column = "event_end"
 
-    last_version_sources = []
-    for source in sources.values():
-        last_version_sources.append(source)
+    # Add source-related columns using vectorized operations for clarity
+    bdf[["source.name", "source.type", "source.model", "source.version"]] = bdf[
+        "source"
+    ].apply(
+        lambda s: pd.Series(
+            {
+                "source.name": s.name,
+                "source.type": s.type,
+                "source.model": s.model,
+                "source.version": Version(
+                    s.version if s.version is not None else "0.0.0"
+                ),
+            }
+        )
+    )
 
-    return last_version_sources
+    # Sort by event_start and version, keeping only the latest version
+    bdf = bdf.sort_values(by=[event_column, "source.version"], ascending=[True, False])
+
+    # Drop duplicates based on event_start and source identifiers, keeping the latest version
+    unique_columns = [
+        event_column,
+        "cumulative_probability",
+        "source.name",
+        "source.type",
+        "source.model",
+    ]
+    if not one_deterministic_belief_per_event:
+        unique_columns += [belief_column]
+    bdf = bdf.drop_duplicates(unique_columns)
+
+    # Remove temporary columns and restore the original index
+    bdf = bdf.drop(
+        columns=["source.name", "source.type", "source.model", "source.version"]
+    )
+    bdf = bdf.set_index(index_levels)
+
+    return bdf

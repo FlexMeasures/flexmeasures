@@ -1,4 +1,9 @@
 from __future__ import annotations
+
+import numbers
+from pytz.exceptions import UnknownTimeZoneError
+
+from flask import current_app
 from marshmallow import (
     Schema,
     fields,
@@ -8,7 +13,6 @@ from marshmallow import (
     validates_schema,
 )
 from marshmallow.validate import Validator
-from pint import DimensionalityError
 
 import json
 import re
@@ -22,9 +26,15 @@ from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
+    convert_to_quantity,
 )
-from flexmeasures.utils.unit_utils import is_valid_unit, ur, units_are_convertible
+from flexmeasures.utils.unit_utils import (
+    is_valid_unit,
+    ur,
+    units_are_convertible,
+)
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
+from flexmeasures.data.schemas.units import QuantityField
 
 
 class JSON(fields.Field):
@@ -39,7 +49,12 @@ class JSON(fields.Field):
 
 
 class TimedEventSchema(Schema):
-    value = fields.Float(required=True)
+    value = QuantityField(
+        required=True,
+        to_unit="dimensionless",  # placeholder, overridden in __init__
+        default_src_unit="dimensionless",  # placeholder, overridden in __init__
+        return_magnitude=True,  # placeholder, overridden in __init__
+    )
     datetime = AwareDateTimeField(required=False)
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
@@ -49,6 +64,9 @@ class TimedEventSchema(Schema):
         self,
         timezone: str | None = None,
         value_validator: Validator | None = None,
+        to_unit: str | None = None,
+        default_src_unit: str | None = None,
+        return_magnitude: bool = True,
         *args,
         **kwargs,
     ):
@@ -59,6 +77,16 @@ class TimedEventSchema(Schema):
         self.timezone = timezone
         self.value_validator = value_validator
         super().__init__(*args, **kwargs)
+        if to_unit is not None:
+            if to_unit.startswith("/"):
+                if len(to_unit) < 2:
+                    raise ValueError(
+                        f"Variable `to_unit='{to_unit}'` must define a denominator."
+                    )
+            setattr(self.fields["value"], "to_unit", to_unit)
+        if default_src_unit is not None:
+            setattr(self.fields["value"], "default_src_unit", default_src_unit)
+        setattr(self.fields["value"], "return_magnitude", return_magnitude)
 
     @validates("value")
     def validate_value(self, _value):
@@ -95,15 +123,21 @@ class TimedEventSchema(Schema):
                     "If using the 'duration' field, either 'start' or 'end' is expected."
                 )
             if start is not None:
-                grounded = DurationField.ground_from(
-                    duration, pd.Timestamp(start).tz_convert(self.timezone)
-                )
+                try:
+                    grounded = DurationField.ground_from(
+                        duration, pd.Timestamp(start).tz_convert(self.timezone)
+                    )
+                except UnknownTimeZoneError:
+                    grounded = DurationField.ground_from(duration, pd.Timestamp(start))
                 data["start"] = start
                 data["end"] = start + grounded
             else:
-                grounded = DurationField.ground_from(
-                    -duration, pd.Timestamp(end).tz_convert(self.timezone)
-                )
+                try:
+                    grounded = DurationField.ground_from(
+                        -duration, pd.Timestamp(end).tz_convert(self.timezone)
+                    )
+                except UnknownTimeZoneError:
+                    grounded = DurationField.ground_from(-duration, pd.Timestamp(end))
                 data["start"] = end + grounded
                 data["end"] = end
         else:
@@ -158,6 +192,8 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
             raise ValidationError(
                 f"Generic asset with id {generic_asset_id} doesn't exist."
             )
+        # Add it to context to use it for AssetAuditLog record
+        self.context["generic_asset"] = generic_asset
 
     class Meta:
         model = Sensor
@@ -187,7 +223,14 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
     @with_appcontext_if_needed()
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
+
+        if not isinstance(value, int) and not isinstance(value, str):
+            raise FMValidationError(
+                f"Sensor ID has the wrong type. Got `{type(value).__name__}` but `int` was expected."
+            )
+
         sensor = db.session.get(Sensor, value)
+
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
 
@@ -220,71 +263,134 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return sensor.id
 
 
-class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
+class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     def __init__(
-        self, to_unit: str, default_src_unit: str | None = None, *args, **kwargs
+        self,
+        to_unit,
+        *args,
+        default_src_unit: str | None = None,
+        return_magnitude: bool = False,
+        timezone: str | None = None,
+        value_validator: Validator | None = None,
+        **kwargs,
     ):
-        """Field for validating, serializing and deserializing a Quantity or a Sensor.
+        """Field for validating, serializing and deserializing a variable quantity.
 
-        NB any validators passed are only applied to Quantities.
-        For example, validate=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
+        A variable quantity can be represented by a sensor, time series or fixed quantity.
+
+        # todo: Sensor should perhaps deserialize already to sensor data
+
+        NB any value validators passed are only applied to Quantities.
+        For example, value_validator=validate.Range(min=0) will raise a ValidationError in case of negative quantities,
         but will let pass any sensor that has recorded negative values.
 
-        :param to_unit: unit in which the sensor or quantity should be convertible to
-        :param default_src_unit: what unit to use in case of getting a numeric value
+        :param to_unit:             Unit to which the sensor, time series or quantity should be convertible.
+                                    - Sensors are checked for convertibility, but the original sensor is returned,
+                                      so its values are not yet converted.
+                                    - Time series and quantities are already converted to the given unit.
+                                    - Units starting with '/' (e.g. '/MWh') lead to accepting any value, which will be
+                                      converted to the given unit. For example,
+                                      a quantity of 1 EUR/kWh with to_unit='/MWh' is deserialized to 1000 EUR/MWh.
+        :param default_src_unit:    What unit to use in case of getting a numeric value.
+                                    Does not apply to time series or sensors.
+                                    In case to_unit is dimensionless, default_src_unit defaults to dimensionless;
+                                    as a result, numeric values are accepted.
+        :param return_magnitude:    In case of getting a time series, whether the result should include
+                                    the magnitude of each quantity, or each Quantity object itself.
+        :param timezone:            Only used in case a time series is specified and one of the *timed events*
+                                    in the time series uses a nominal duration, such as "P1D".
         """
-
-        _validate = kwargs.pop("validate", None)
         super().__init__(*args, **kwargs)
-        if _validate is not None:
+        if value_validator is not None:
             # Insert validation into self.validators so that multiple errors can be stored.
-            validator = RepurposeValidatorToIgnoreSensors(_validate)
-            self.validators.insert(0, validator)
-        self.to_unit = ur.Quantity(to_unit)
+            value_validator = RepurposeValidatorToIgnoreSensorsAndLists(value_validator)
+            self.validators.insert(0, value_validator)
+        self.timezone = timezone
+        self.value_validator = value_validator
+        if to_unit.startswith("/") and len(to_unit) < 2:
+            raise ValueError(
+                f"Variable `to_unit='{to_unit}'` must define a denominator."
+            )
+        self.to_unit = to_unit
+        if default_src_unit is None and units_are_convertible(
+            self.to_unit, "dimensionless"
+        ):
+            default_src_unit = "dimensionless"
         self.default_src_unit = default_src_unit
+        self.return_magnitude = return_magnitude
 
     @with_appcontext_if_needed()
     def _deserialize(
-        self, value: str | dict[str, int], attr, obj, **kwargs
-    ) -> ur.Quantity | Sensor:
+        self, value: dict[str, int] | list[dict] | str, attr, obj, **kwargs
+    ) -> Sensor | list[dict] | ur.Quantity:
+
         if isinstance(value, dict):
-            if "sensor" not in value:
-                raise FMValidationError(
-                    "Dictionary provided but `sensor` key not found."
-                )
-            sensor = SensorIdField(unit=self.to_unit)._deserialize(
-                value["sensor"], None, None
-            )
-
-            return sensor
-
+            return self._deserialize_dict(value)
+        elif isinstance(value, list):
+            return self._deserialize_list(value)
         elif isinstance(value, str):
-            try:
-                return ur.Quantity(value).to(self.to_unit)
-            except DimensionalityError as e:
-                raise FMValidationError(
-                    f"Cannot convert value `{value}` to '{self.to_unit}'"
-                ) from e
+            return self._deserialize_str(value)
+        elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
+            return self._deserialize_numeric(value, attr, obj, **kwargs)
         else:
-            if self.default_src_unit is not None:
-                return self._deserialize(
-                    f"{value} {self.default_src_unit}", attr, obj, **kwargs
-                )
-
             raise FMValidationError(
-                f"Unsupported value type. `{type(value)}` was provided but only dict and str are supported."
+                f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
             )
+
+    def _deserialize_dict(self, value: dict[str, int]) -> Sensor:
+        """Deserialize a sensor reference to a Sensor."""
+        if "sensor" not in value:
+            raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        sensor = SensorIdField(
+            unit=self.to_unit if not self.to_unit.startswith("/") else None
+        ).deserialize(value["sensor"], None, None)
+        return sensor
+
+    def _deserialize_list(self, value: list[dict]) -> list[dict]:
+        """Deserialize a time series to a list of timed events."""
+        if self.return_magnitude is True:
+            current_app.logger.warning(
+                "Deserialized time series will include Quantity objects in the future. Set `return_magnitude=False` to trigger the new behaviour."
+            )
+        field = fields.List(
+            fields.Nested(
+                TimedEventSchema(
+                    timezone=self.timezone,
+                    value_validator=self.value_validator,
+                    to_unit=self.to_unit,
+                    default_src_unit=self.default_src_unit,
+                    return_magnitude=self.return_magnitude,
+                )
+            )
+        )
+        return field._deserialize(value, None, None)
+
+    def _deserialize_str(self, value: str) -> ur.Quantity:
+        """Deserialize a string to a Quantity."""
+        return convert_to_quantity(value=value, to_unit=self.to_unit)
+
+    def _deserialize_numeric(
+        self, value: numbers.Real, attr, obj, **kwargs
+    ) -> ur.Quantity:
+        """Try to deserialize a numeric value to a Quantity, using the default_src_unit."""
+        return self._deserialize(
+            f"{value} {self.default_src_unit}", attr, obj, **kwargs
+        )
 
     def _serialize(
-        self, value: ur.Quantity | dict[str, Sensor], attr, data, **kwargs
+        self, value: Sensor | pd.Series | ur.Quantity, attr, data, **kwargs
     ) -> str | dict[str, int]:
-        if isinstance(value, ur.Quantity):
-            return str(value.to(self.to_unit))
-        elif isinstance(value, Sensor):
+        if isinstance(value, Sensor):
             return dict(sensor=value.id)
+        elif isinstance(value, pd.Series):
+            raise NotImplementedError(
+                "Serialization of a time series from a Pandas Series is not implemented yet."
+            )
+        elif isinstance(value, ur.Quantity):
+            return str(value.to(self.to_unit))
         else:
             raise FMValidationError(
-                "Serialized Quantity Or Sensor needs to be of type int, float or Sensor"
+                "Serialized quantity, sensor or time series needs to be of type int, float, Sensor or pandas.Series."
             )
 
     def convert(self, value, param, ctx, **kwargs):
@@ -301,66 +407,55 @@ class QuantityOrSensor(MarshmallowClickMixin, fields.Field):
 
         return super().convert(_value, param, ctx, **kwargs)
 
-
-class TimeSeriesOrSensor(MarshmallowClickMixin, fields.Field):
-    def __init__(
-        self,
-        unit,
-        *args,
-        timezone: str | None = None,
-        value_validator: Validator | None = None,
-        **kwargs,
-    ):
-        """
-        The timezone is only used in case a time series is specified and one
-        of the *timed events* in the time series uses a nominal duration, such as "P1D".
-        """
-        super().__init__(*args, **kwargs)
-        self.timezone = timezone
-        self.value_validator = value_validator
-        self.unit = ur.Quantity(unit)
-
-    @with_appcontext_if_needed()
-    def _deserialize(
-        self, value: str | dict[str, int], attr, obj, **kwargs
-    ) -> list[dict] | Sensor:
-
-        if isinstance(value, dict):
-            if "sensor" not in value:
-                raise FMValidationError(
-                    "Dictionary provided but `sensor` key not found."
+    def _get_unit(self, variable_quantity: ur.Quantity | list[dict | Sensor]) -> str:
+        """Obtain the unit from the variable quantity."""
+        if isinstance(variable_quantity, ur.Quantity):
+            unit = str(variable_quantity.units)
+        elif isinstance(variable_quantity, list):
+            unit = str(variable_quantity[0]["value"].units)
+            if not all(
+                str(variable_quantity[j]["value"].units) == unit
+                for j in range(len(variable_quantity))
+            ):
+                raise ValidationError(
+                    "Segments of a time series must share the same unit.",
+                    field_name=self.data_key,
                 )
-
-            sensor = SensorIdField(unit=self.unit)._deserialize(
-                value["sensor"], None, None
-            )
-
-            return sensor
-
-        elif isinstance(value, list):
-            field = fields.List(
-                fields.Nested(
-                    TimedEventSchema(
-                        timezone=self.timezone, value_validator=self.value_validator
-                    )
-                )
-            )
-
-            return field._deserialize(value, None, None)
+        elif isinstance(variable_quantity, Sensor):
+            unit = variable_quantity.unit
         else:
-            raise FMValidationError(
-                f"Unsupported value type. `{type(value)}` was provided but only dict and list are supported."
+            raise NotImplementedError(
+                f"Unexpected type '{type(variable_quantity)}' for variable_quantity describing '{self.data_key}': {variable_quantity}."
             )
+        return unit
 
 
-class RepurposeValidatorToIgnoreSensors(validate.Validator):
-    """Validator that executes another validator (the one you initialize it with) only on non-Sensor values."""
+class RepurposeValidatorToIgnoreSensorsAndLists(validate.Validator):
+    """Validator that executes another validator (the one you initialize it with) only on non-Sensor and non-list values."""
 
     def __init__(self, original_validator, *, error: str | None = None):
         self.error = error
         self.original_validator = original_validator
 
     def __call__(self, value):
-        if not isinstance(value, Sensor):
+        if not isinstance(value, (Sensor, list)):
             self.original_validator(value)
         return value
+
+
+class QuantityOrSensor(VariableQuantityField):
+    def __init__(self, *args, **kwargs):
+        """Deprecated class. Use `VariableQuantityField` instead."""
+        current_app.logger.warning(
+            "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
+        )
+        super().__init__(return_magnitude=False, *args, **kwargs)
+
+
+class TimeSeriesOrSensor(VariableQuantityField):
+    def __init__(self, *args, **kwargs):
+        """Deprecated class. Use `VariableQuantityField` instead."""
+        current_app.logger.warning(
+            "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
+        )
+        super().__init__(return_magnitude=True, *args, **kwargs)

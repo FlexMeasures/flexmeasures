@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask_security import UserMixin, RoleMixin
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -18,7 +18,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
@@ -62,6 +62,9 @@ class Account(db.Model, AuthModelMixin):
         secondary="roles_accounts",
         backref=backref("accounts", lazy="dynamic"),
     )
+    primary_color = Column(String(7), default=None)
+    secondary_color = Column(String(7), default=None)
+    logo_url = Column(String(255), default=None)
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
@@ -94,10 +97,10 @@ class Account(db.Model, AuthModelMixin):
         read_access = [f"account:{self.id}"]
         if self.consultancy_account_id is not None:
             read_access.append(
-                (f"account:{self.consultancy_account_id}", "role:consultant")
+                (f"account:{self.consultancy_account_id}", f"role:{CONSULTANT_ROLE}")
             )
         return {
-            "create-children": (f"account:{self.id}", "role:account-admin"),
+            "create-children": (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
             "read": read_access,
             "update": f"account:{self.id}",
         }
@@ -120,13 +123,9 @@ class Account(db.Model, AuthModelMixin):
         annotations_after: datetime | None = None,
         annotation_ends_before: datetime | None = None,  # deprecated
         annotations_before: datetime | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         as_frame: bool = False,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this account.
@@ -177,6 +176,20 @@ class Account(db.Model, AuthModelMixin):
         annotations = db.session.scalars(query).all()
 
         return to_annotation_frame(annotations) if as_frame else annotations
+
+    @property
+    def number_of_assets(self):
+        from flexmeasures.data.models.generic_assets import GenericAsset
+
+        return db.session.execute(
+            select(func.count()).where(GenericAsset.account_id == self.id)
+        ).scalar_one_or_none()
+
+    @property
+    def number_of_users(self):
+        return db.session.execute(
+            select(func.count()).where(User.account_id == self.id)
+        ).scalar_one_or_none()
 
 
 class RolesUsers(db.Model):
@@ -244,14 +257,18 @@ class User(db.Model, UserMixin, AuthModelMixin):
     def __acl__(self):
         """
         Within same account, everyone can read.
-        Only the user themselves or account-admins can edit their user record.
+        Only the user themselves, consultants or account-admins can edit their user record.
         Creation and deletion are left to site admins in CLI.
         """
         return {
             "read": f"account:{self.account_id}",
             "update": [
                 f"user:{self.id}",
-                (f"account:{self.account_id}", "role:account-admin"),
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.account.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
             ],
         }
 
@@ -294,7 +311,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
 
 def remember_login(the_app, user):
     """We do not use the tracking feature of flask_security, but this basic meta data are quite handy to know"""
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = datetime.now(timezone.utc)
     if user.login_count is None:
         user.login_count = 0
     user.login_count = user.login_count + 1
@@ -303,7 +320,7 @@ def remember_login(the_app, user):
 def remember_last_seen(user):
     """Update the last_seen field"""
     if user is not None and user.is_authenticated:
-        user.last_seen_at = datetime.utcnow()
+        user.last_seen_at = datetime.now(timezone.utc)
         db.session.add(user)
         db.session.commit()
 

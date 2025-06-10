@@ -14,7 +14,6 @@ from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterParametersSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -52,17 +51,28 @@ class PandasReporter(Reporter):
         input: dict,
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
-        use_latest_version_only: bool = False,
+        use_latest_version_only: bool | None = None,  # deprecated
     ):
         """
-        Fetches the time_beliefs from the database
+        Fetches the timed_beliefs from the database
         """
+
+        # todo: deprecate the 'use_latest_version_only' argument (announced v0.25.0)
+        if use_latest_version_only is not None:
+            current_app.logger.warning(
+                """The `use_latest_version_only` argument to `PandasReporter.compute()` is deprecated. By default, data is sourced by the latest version of a data generator by default. You can still override this behaviour by calling `PandasReporter().compute(input=[dict(use_latest_version_per_event=False)])` instead."""
+            )
 
         droplevels = self._config.get("droplevels", False)
 
         self.data = {}
         for input_search_parameters in input:
             _input_search_parameters = input_search_parameters.copy()
+
+            if use_latest_version_only is not None:
+                _input_search_parameters["use_latest_version_per_event"] = (
+                    use_latest_version_only
+                )
 
             sensor: Sensor = _input_search_parameters.pop("sensor", None)
 
@@ -78,18 +88,6 @@ class PandasReporter(Reporter):
             source = _input_search_parameters.pop(
                 "source", _input_search_parameters.pop("sources", None)
             )
-
-            if use_latest_version_only and source is None:
-                source = sensor.search_data_sources(
-                    event_starts_after=start,
-                    event_ends_before=end,
-                    source_types=_input_search_parameters.get("source_types"),
-                    exclude_source_types=_input_search_parameters.get(
-                        "exclude_source_types"
-                    ),
-                )
-                if len(source) > 0:
-                    source = keep_latest_version(source)
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
@@ -113,7 +111,7 @@ class PandasReporter(Reporter):
                     event_resolution=sensor.event_resolution,
                 )
             if droplevels:
-                # dropping belief_time, source and cummulative_probability columns
+                # dropping belief_time, source and cumulative_probability columns
                 bdf = bdf.droplevel([1, 2, 3])
                 assert (
                     bdf.index.is_unique
@@ -137,7 +135,7 @@ class PandasReporter(Reporter):
         belief_time: datetime | None = kwargs.get("belief_time", None)
         belief_horizon: timedelta | None = kwargs.get("belief_horizon", None)
         output: list[dict[str, Any]] = kwargs.get("output")
-        use_latest_version_only: bool = kwargs.get("use_latest_version_only", False)
+        use_latest_version_only: bool = kwargs.get("use_latest_version_only", None)
 
         # by default, use the minimum resolution among the input sensors
         if resolution is None:
@@ -181,8 +179,8 @@ class PandasReporter(Reporter):
                 output_data *= convert_units(
                     1,
                     from_unit=output_unit,
-                    to_unit=output_data.sensor.unit,
-                    event_resolution=output_data.sensor.event_resolution,
+                    to_unit=output_description["sensor"].unit,
+                    event_resolution=output_description["sensor"].event_resolution,
                 )
 
             result["data"] = output_data

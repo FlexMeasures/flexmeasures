@@ -4,10 +4,12 @@ from flask import url_for
 import pytest
 from sqlalchemy import select, func
 
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 @pytest.mark.parametrize(
@@ -67,11 +69,30 @@ def test_get_asset_nonaccount_access(
 
 
 @pytest.mark.parametrize(
-    "requesting_user, account_name, num_assets",
+    "requesting_user, account_name, num_assets, use_pagination, sort_by, sort_dir, expected_name_of_first_asset",
     [
-        ("test_admin_user@seita.nl", "Prosumer", 1),
-        ("test_admin_user@seita.nl", "Supplier", 2),
-        ("test_consultant@seita.nl", "ConsultancyClient", 1),
+        ("test_admin_user@seita.nl", "Prosumer", 1, False, None, None, None),
+        ("test_admin_user@seita.nl", "Supplier", 2, False, None, None, None),
+        (
+            "test_admin_user@seita.nl",
+            "Supplier",
+            2,
+            False,
+            "name",
+            "asc",
+            "incineration line",
+        ),
+        (
+            "test_admin_user@seita.nl",
+            "Supplier",
+            2,
+            False,
+            "name",
+            "desc",
+            "Test wind turbine",
+        ),
+        ("test_consultant@seita.nl", "ConsultancyClient", 1, False, None, None, None),
+        ("test_admin_user@seita.nl", "Prosumer", 1, True, None, None, None),
     ],
     indirect=["requesting_user"],
 )
@@ -81,13 +102,26 @@ def test_get_assets(
     setup_accounts,
     account_name,
     num_assets,
+    use_pagination,
+    sort_by,
+    sort_dir,
+    expected_name_of_first_asset,
     requesting_user,
 ):
     """
     Get assets per account.
     Our user here is admin, so is allowed to see all assets.
+    Pagination is tested only in passing, we should test filtering and page > 1
     """
     query = {"account_id": setup_accounts[account_name].id}
+    if use_pagination:
+        query["page"] = 1
+
+    if sort_by:
+        query["sort_by"] = sort_by
+
+    if sort_dir:
+        query["sort_dir"] = sort_dir
 
     get_assets_response = client.get(
         url_for("AssetAPI:index"),
@@ -95,15 +129,77 @@ def test_get_assets(
     )
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
-    assert len(get_assets_response.json) == num_assets
+
+    if use_pagination:
+        assets = get_assets_response.json["data"]
+        assert get_assets_response.json["num-records"] == num_assets
+        assert get_assets_response.json["filtered-records"] == num_assets
+    else:
+        assets = get_assets_response.json
+
+        if sort_by:
+            assert assets[0]["name"] == expected_name_of_first_asset
+
+    assert len(assets) == num_assets
 
     if account_name == "Supplier":  # one deep dive
         turbine = {}
-        for asset in get_assets_response.json:
+        for asset in assets:
             if asset["name"] == "Test wind turbine":
                 turbine = asset
         assert turbine
         assert turbine["account_id"] == setup_accounts["Supplier"].id
+
+
+@pytest.mark.parametrize(
+    "requesting_user, sort_by, sort_dir, expected_name_of_first_sensor",
+    [
+        ("test_admin_user@seita.nl", None, None, None),
+        ("test_admin_user@seita.nl", "name", "asc", "empty temperature sensor"),
+        ("test_admin_user@seita.nl", "name", "desc", "some temperature sensor"),
+    ],
+    indirect=["requesting_user"],
+)
+def test_fetch_asset_sensors(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    sort_by,
+    sort_dir,
+    expected_name_of_first_sensor,
+):
+    """
+    Retrieve all sensors associated with a specific asset.
+
+    This test checks for these metadata fields and the number of sensors returned, as well as
+    confirming that the response is a list of dictionaries, each containing a valid unit.
+    """
+
+    query = {}
+
+    if sort_by:
+        query["sort_by"] = sort_by
+
+    if sort_dir:
+        query["sort_dir"] = sort_dir
+
+    asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
+    response = client.get(
+        url_for("AssetAPI:asset_sensors", id=asset_id), query_string=query
+    )
+
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == 200
+    assert response.json["status"] == 200
+    assert isinstance(response.json["data"], list)
+    assert isinstance(response.json["data"][0], dict)
+    assert is_valid_unit(response.json["data"][0]["unit"])
+    assert response.json["num-records"] == 3
+    assert response.json["filtered-records"] == 3
+
+    if sort_by:
+        assert response.json["data"][0]["name"] == expected_name_of_first_sensor
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -149,7 +245,9 @@ def test_get_public_assets(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_alter_an_asset(client, setup_api_test_data, setup_accounts, requesting_user):
+def test_alter_an_asset(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
     # without being an account-admin, no asset can be created ...
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_asset = prosumer.generic_assets[0]
@@ -167,14 +265,47 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts, requesting_
     print(f"Deletion Response: {asset_delete_response.json}")
     assert asset_delete_response.status_code == 403
     # ... but editing is allowed.
+    latitude, name = prosumer_asset.latitude, prosumer_asset.name
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
         json={
-            "latitude": prosumer_asset.latitude,
-        },  # we're not changing values to keep other tests clean here
+            "latitude": 11.1,
+            "name": "other",
+        },
     )
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
+
+    # Resetting changes to keep other tests clean here
+    asset_edit_response = client.patch(
+        url_for("AssetAPI:patch", id=prosumer_asset.id),
+        json={
+            "latitude": latitude,
+            "name": name,
+        },
+    )
+    print(f"Editing Response: {asset_edit_response.json}")
+    assert asset_edit_response.status_code == 200
+
+    audit_log_event = f"Updated Field: name, From: {name}, To: other"
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=audit_log_event,
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+            affected_asset_id=prosumer_asset.id,
+        )
+    ).scalar_one_or_none()
+
+    audit_log_event = f"Updated Field: latitude, From: {latitude}, To: 11.1"
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=audit_log_event,
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+            affected_asset_id=prosumer_asset.id,
+        )
+    ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize(
@@ -187,11 +318,11 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts, requesting_
         ('{"sensors_to_show": [1, [0, 2]]}', "No sensor found"),  # no sensor with ID 0
         (
             '{"sensors_to_show": [1, [2, [3, 4]]]}',
-            "should only contain",
+            "All elements in a list within 'sensors_to_show' must be integers.",
         ),  # nesting level max 1
         (
             '{"sensors_to_show": [1, "2"]}',
-            "should only contain",
+            "Invalid item type in 'sensors_to_show'. Expected int, list, or dict.",
         ),  # non-integer sensor ID
     ],
 )
@@ -355,10 +486,20 @@ def test_post_an_asset(client, setup_api_test_data, requesting_user, db):
     assert asset is not None
     assert asset.latitude == 30.1
 
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            affected_asset_id=asset.id,
+            event=f"Created asset '{asset.name}': {asset.id}",
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+        )
+    ).scalar_one_or_none()
+
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_delete_an_asset(client, setup_api_test_data, requesting_user, db):
-    existing_asset_id = setup_api_test_data["some gas sensor"].generic_asset.id
+    existing_asset = setup_api_test_data["some gas sensor"].generic_asset
+    existing_asset_id, existing_asset_name = existing_asset.id, existing_asset.name
 
     delete_asset_response = client.delete(
         url_for("AssetAPI:delete", id=existing_asset_id),
@@ -368,6 +509,15 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user, db):
         select(GenericAsset).filter_by(id=existing_asset_id)
     ).scalar_one_or_none()
     assert deleted_asset is None
+
+    audit_log = db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=f"Deleted asset '{existing_asset_name}': {existing_asset_id}",
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+        )
+    ).scalar_one_or_none()
+    assert audit_log.affected_asset_id is None
 
 
 @pytest.mark.parametrize(

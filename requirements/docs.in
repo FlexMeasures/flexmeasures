@@ -1,4 +1,4 @@
-sphinx
+sphinx!=7.4.*
 sphinx-rtd-theme >= 1.2
 sphinxcontrib.httpdomain
 sphinx_fontawesome

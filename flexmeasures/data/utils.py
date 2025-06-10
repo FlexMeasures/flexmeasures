@@ -58,7 +58,7 @@ def get_data_source(
 
 def save_to_db(
     data: BeliefsDataFrame | BeliefsSeries | list[BeliefsDataFrame | BeliefsSeries],
-    bulk_save_objects: bool = False,
+    bulk_save_objects: bool = True,
     save_changed_beliefs_only: bool = True,
 ) -> str:
     """Save the timed beliefs to the database.

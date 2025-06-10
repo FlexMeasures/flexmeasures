@@ -7,7 +7,6 @@ import inflect
 from flask import current_app
 import pandas as pd
 import timely_beliefs as tb
-from timely_beliefs.beliefs import utils as belief_utils
 
 from flexmeasures.data.queries.utils import simplify_index
 
@@ -69,7 +68,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
     if not ex_ante_bdf.empty and not ex_post_bdf.empty:
-        # We treat each part separately to avoid the ex-post knowledge would be lost
+        # We treat each part separately to avoid that ex-post knowledge would be lost
         ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf)
         ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf)
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
@@ -111,17 +110,13 @@ def _drop_unchanged_beliefs_compared_to_db(
     else:
         # Look up only ex-post beliefs (horizon <= 0)
         kwargs = dict(horizons_at_most=timedelta(0))
-    previous_beliefs_in_db = bdf.sensor.search_beliefs(
+    previous_most_recent_beliefs_in_db = bdf.sensor.search_beliefs(
         event_starts_after=bdf.event_starts[0],
         event_ends_before=bdf.event_ends[-1],
         beliefs_before=bdf.lineage.belief_times[0],  # unique belief time
         source=bdf.lineage.sources[0],  # unique source
-        most_recent_beliefs_only=False,
+        most_recent_beliefs_only=True,
         **kwargs,
-    )
-    # todo: delete next line and set most_recent_beliefs_only=True when this is resolved: https://github.com/SeitaBV/timely-beliefs/pull/117
-    previous_most_recent_beliefs_in_db = belief_utils.select_most_recent_belief(
-        previous_beliefs_in_db
     )
 
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
