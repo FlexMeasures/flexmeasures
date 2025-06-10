@@ -35,6 +35,7 @@ from flexmeasures.data.schemas.generic_assets import (
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
+    create_simultaneous_scheduling_job,
 )
 from flexmeasures.api.common.responses import (
     invalid_flex_config,
@@ -913,6 +914,7 @@ class AssetAPI(FlaskView):
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
+        sequential: bool = False,
         **kwargs,
     ):
         """
@@ -1056,10 +1058,12 @@ class AssetAPI(FlaskView):
             flex_model=flex_model,
             flex_context=flex_context,
         )
+        if sequential:
+            f = create_sequential_scheduling_job
+        else:
+            f = create_simultaneous_scheduling_job
         try:
-            job = create_sequential_scheduling_job(
-                asset=asset, enqueue=True, **scheduler_kwargs
-            )
+            job = f(asset=asset, enqueue=True, **scheduler_kwargs)
         except ValidationError as err:
             return invalid_flex_config(err.messages)
         except ValueError as err:
