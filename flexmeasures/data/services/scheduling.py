@@ -625,19 +625,10 @@ def find_scheduler_class(asset_or_sensor: Asset | Sensor) -> type:
     else:
         asset = asset_or_sensor
 
-    if asset.generic_asset_type.name in (
-        "battery",
-        "one-way_evse",
-        "two-way_evse",
-    ):
-        scheduler_class = StorageScheduler
-    elif asset.generic_asset_type.name in ("process", "load"):
+    if asset.generic_asset_type.name in ("process", "load"):
         scheduler_class = ProcessScheduler
     else:
-        raise ValueError(
-            "Scheduling is not (yet) supported for asset type %s."
-            % asset.generic_asset_type
-        )
+        scheduler_class = StorageScheduler
 
     return scheduler_class
 
