@@ -210,7 +210,7 @@ If you want, you can inspect what you created:
     Child assets of toy-building (ID: 2)
     ====================================
 
-    Id       Name               Type
+    ID       Name               Type
     -------  -----------------  ----------------------------
     3        toy-battery        battery
     4        toy-solar          solar
