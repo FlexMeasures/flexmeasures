@@ -923,7 +923,8 @@ class AssetAPI(FlaskView):
         .. :quickref: Schedule; Trigger scheduling job for multiple devices
 
         Trigger FlexMeasures to create a schedule for this asset.
-        The assumption is that this is a flexible asset containing multiple power sensors.
+        The power sensors of flexible devices that are referenced in the flex-model must belong the given asset,
+        either directly or indirectly, by being assigned to one of the asset's (grand)children.
 
         In this request, you can describe:
 
