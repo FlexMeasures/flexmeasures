@@ -63,7 +63,7 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
     $ flexmeasures add beliefs --sensor 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
-The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_ :
+The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
     :align: center
@@ -110,7 +110,7 @@ Now, we'll reschedule the battery while taking into account the solar production
 
     .. tab:: flexmeasures-client
 
-        Using the `flexmeasures-client <https://pypi.org/project/flexmeasures-client/`_:
+        Using the `flexmeasures-client <https://pypi.org/project/flexmeasures-client/>`_:
 
         .. code-block:: bash
 
@@ -149,7 +149,7 @@ Now, we'll reschedule the battery while taking into account the solar production
             asyncio.run(client_script())
 
 
-We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ :
+We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging-with-solar.png
     :align: center
@@ -181,7 +181,7 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
 
 .. note:: You can add arbitrary sensors to a chart using the asset UI or the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
-A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_ :
+A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center
