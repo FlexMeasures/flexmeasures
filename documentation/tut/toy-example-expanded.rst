@@ -77,13 +77,75 @@ Trigger an updated schedule
 
 Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
 
-.. code-block:: bash
+.. tabs::
 
-    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
-        --inflexible-device-sensor 3 \
-        --start ${TOMORROW}T07:00+02:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90%
-    New schedule is stored.
+    .. tab:: CLI
+
+        .. code-block:: bash
+
+            $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
+                --inflexible-device-sensor 3 \
+                --start ${TOMORROW}T07:00+02:00 --duration PT12H \
+                --soc-at-start 50% --roundtrip-efficiency 90%
+            New schedule is stored.
+
+    .. tab:: API
+
+        Example POST call to http://localhost:5000/api/assets/2/schedules/trigger (replace the start date):
+
+        .. code-block:: json
+
+            {
+                "start": "2025-06-11T07:00+02:00",
+                "duration": "PT12H",
+                "flex-model": [
+                    "soc-at-start": "50%",
+                    "roundtrip-efficiency": "90%"
+                ],
+                "flex-context": {
+                    "inflexible-device-sensors": [3]
+                }
+            }
+
+    .. tab:: flexmeasures-client
+
+        Using the flexmeasures-client:
+
+        .. code-block:: bash
+
+            pip install flexmeasures-client
+
+        .. code-block:: python
+
+            import asyncio
+            from datetime import date
+            from flexmeasures_client import FlexMeasuresClient as Client
+
+            async def client_script():
+                client = Client(
+                    email="toy-user@flexmeasures.io",
+                    password="toy-password",
+                    host="localhost:5000",
+                )
+                schedule = await client.trigger_and_get_schedule(
+                    asset_id=2,  # Toy building (asset)
+                    start=f"{date.today().isoformat()}T07:00+02:00",
+                    duration="PT12H",
+                    flex_model=[
+                        {
+                            "soc-at-start": "50%",
+                            "roundtrip-efficiency": "90%",
+                        },
+                    ],
+                    flex_context={
+                        "inflexible-device-sensors": [3],  # solar production (sensor)
+                    },
+                )
+                print(schedule)
+                await client.close()
+
+            asyncio.run(client_script())
+
 
 We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ :
 
