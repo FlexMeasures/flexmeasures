@@ -45,7 +45,7 @@ pygments==2.19.1
     # via
     #   sphinx
     #   sphinx-tabs
-requests==2.32.3
+requests==2.32.4
     # via
     #   -c requirements/3.10/app.txt
     #   sphinx
