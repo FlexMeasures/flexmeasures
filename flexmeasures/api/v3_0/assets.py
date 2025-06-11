@@ -934,9 +934,9 @@ class AssetAPI(FlaskView):
         For details on flexibility model and context, see :ref:`describing_flexibility`.
         Below, we'll also list some examples.
 
-        .. note:: This endpoint support scheduling an EMS with multiple flexible devices at once.
-                  Internally, it can do so or jointly (the default) or sequentially
-                  (considering already scheduled sensors as inflexible).
+        .. note:: This endpoint supports scheduling an EMS with multiple flexible devices at once.
+                  It can do so jointly (the default) or sequentially
+                  (considering previously scheduled sensors as inflexible).
                   To use sequential scheduling, use ``sequential=true`` in the JSON body.
 
         The length of the schedule can be set explicitly through the 'duration' field.
