@@ -85,7 +85,7 @@ Now, we'll reschedule the battery while taking into account the solar production
 
             $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
                 --inflexible-device-sensor 3 \
-                --start ${TOMORROW}T07:00+02:00 --duration PT12H \
+                --start ${TOMORROW}T07:00+01:00 --duration PT12H \
                 --soc-at-start 50% --roundtrip-efficiency 90%
             New schedule is stored.
 
@@ -96,7 +96,7 @@ Now, we'll reschedule the battery while taking into account the solar production
         .. code-block:: json
 
             {
-                "start": "2025-06-11T07:00+02:00",
+                "start": "2025-06-11T07:00+01:00",
                 "duration": "PT12H",
                 "flex-model": [
                     "sensor": 2,
@@ -130,7 +130,7 @@ Now, we'll reschedule the battery while taking into account the solar production
                 )
                 schedule = await client.trigger_and_get_schedule(
                     asset_id=2,  # Toy building (asset)
-                    start=f"{date.today().isoformat()}T07:00+02:00",
+                    start=f"{date.today().isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model=[
                         {
