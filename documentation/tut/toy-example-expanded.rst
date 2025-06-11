@@ -99,6 +99,7 @@ Now, we'll reschedule the battery while taking into account the solar production
                 "start": "2025-06-11T07:00+02:00",
                 "duration": "PT12H",
                 "flex-model": [
+                    "sensor": 2,
                     "soc-at-start": "50%",
                     "roundtrip-efficiency": "90%"
                 ],
@@ -133,6 +134,7 @@ Now, we'll reschedule the battery while taking into account the solar production
                     duration="PT12H",
                     flex_model=[
                         {
+                            "sensor": 2,
                             "soc-at-start": "50%",
                             "roundtrip-efficiency": "90%",
                         },
