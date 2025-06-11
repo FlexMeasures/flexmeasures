@@ -5,6 +5,7 @@ Logic around scheduling (jobs)
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import json
 import os
 import sys
 import importlib.util
@@ -40,6 +41,7 @@ from flexmeasures.data.services.utils import (
     get_asset_or_sensor_ref,
     get_asset_or_sensor_from_ref,
     get_scheduler_instance,
+    json_isoformat,
 )
 
 
@@ -247,7 +249,9 @@ def create_scheduling_job(
     )
 
     job.meta["asset_or_sensor"] = asset_or_sensor
-    job.meta["scheduler_kwargs"] = scheduler_kwargs
+    job.meta["scheduler_kwargs"] = json.loads(
+        json.dumps(scheduler_kwargs, default=json_isoformat)
+    )
     job.save_meta()
 
     # in case the function enqueues it
