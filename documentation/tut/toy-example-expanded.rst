@@ -110,6 +110,28 @@ Now, we'll reschedule the battery while taking into account the solar production
                 }
             }
 
+        Alternatively, if the solar production is curtailable, move the solar production to the flex-model:
+
+        .. code-block:: json
+
+            {
+                "start": "2025-06-11T07:00+01:00",
+                "duration": "PT12H",
+                "flex-model": [
+                    {
+                        "sensor": 2,
+                        "soc-at-start": "50%",
+                        "roundtrip-efficiency": "90%"
+                    },
+                    {
+                        "sensor": 3,
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {"sensor": 3},
+                    }
+                ],
+                "flex-context": {}
+            }
+
     .. tab:: flexmeasures-client
 
         Using the `flexmeasures-client <https://pypi.org/project/flexmeasures-client/>`_:
@@ -131,12 +153,12 @@ Now, we'll reschedule the battery while taking into account the solar production
                     host="localhost:5000",
                 )
                 schedule = await client.trigger_and_get_schedule(
-                    asset_id=2,  # Toy building (asset)
+                    asset_id=2,  # Toy building (asset ID)
                     start=f"{date.today().isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model=[
                         {
-                            "sensor": 2,
+                            "sensor": 2,  # battery power (sensor ID)
                             "soc-at-start": "50%",
                             "roundtrip-efficiency": "90%",
                         },
@@ -149,6 +171,30 @@ Now, we'll reschedule the battery while taking into account the solar production
                 await client.close()
 
             asyncio.run(client_script())
+
+        Alternatively, if the solar production is curtailable, move the solar production to the flex-model:
+
+        .. code-block:: python
+
+            schedule = await client.trigger_and_get_schedule(
+                asset_id=2,  # Toy building (asset ID)
+                start=f"{date.today().isoformat()}T07:00+01:00",
+                duration="PT12H",
+                flex_model=[
+                    {
+                        "sensor": 2,  # battery power (sensor ID)
+                        "soc-at-start": "50%",
+                        "roundtrip-efficiency": "90%",
+                    },
+                    {
+                        "sensor": 3,  # solar production (sensor ID)
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {"sensor": 3},
+                    },
+                ],
+                flex_context={},
+            )
+
 
 
 We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_:
