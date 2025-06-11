@@ -109,7 +109,7 @@ Now, we'll reschedule the battery while taking into account the solar production
 
     .. tab:: flexmeasures-client
 
-        Using the flexmeasures-client:
+        Using the `flexmeasures-client <https://pypi.org/project/flexmeasures-client/`_:
 
         .. code-block:: bash
 
