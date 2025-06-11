@@ -395,7 +395,7 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
-        Trigger FlexMeasures to create a schedule for a single flexible device.
+        Trigger FlexMeasures to create a schedule for a single flexible device, possibly taking into account inflexible devices.
 
         .. :quickref: Schedule; Trigger scheduling job for one device
 
