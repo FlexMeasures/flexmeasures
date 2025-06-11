@@ -1029,7 +1029,7 @@ class AssetAPI(FlaskView):
         This message indicates that the scheduling request has been processed without any error.
         A scheduling job has been created with some Universally Unique Identifier (UUID),
         which will be picked up by a worker.
-        The given UUID may be used to obtain the resulting schedule: see /assets/<id>/schedules/<uuid>.
+        The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
 
         .. sourcecode:: json
 
