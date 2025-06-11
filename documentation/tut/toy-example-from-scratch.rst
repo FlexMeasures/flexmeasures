@@ -22,11 +22,69 @@ After going through the setup, we can finally create the schedule, which is the 
 We'll ask FlexMeasures for a schedule for our (dis)charging sensor (ID 2). We also need to specify what to optimize against. Here we pass the ID of our market price sensor (ID 1).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
-.. code-block:: bash
+.. tabs::
 
-    $ flexmeasures add schedule for-storage --sensor 2 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90%
-    New schedule is stored.
+    .. tab:: CLI
+
+        .. code-block:: bash
+
+            $ flexmeasures add schedule for-storage --sensor 2 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
+                --soc-at-start 50% --roundtrip-efficiency 90%
+            New schedule is stored.
+
+    .. tab:: API
+
+        Example POST call to http://localhost:5000/api/assets/2/schedules/trigger (replace the start date):
+
+        .. code-block:: json
+
+            {
+                "start": "2025-06-11T07:00+01:00",
+                "duration": "PT12H",
+                "flex-model": [
+                    "sensor": 2,
+                    "soc-at-start": "50%",
+                    "roundtrip-efficiency": "90%"
+                ]
+            }
+
+    .. tab:: flexmeasures-client
+
+        Using the `flexmeasures-client <https://pypi.org/project/flexmeasures-client/>`_:
+
+        .. code-block:: bash
+
+            pip install flexmeasures-client
+
+        .. code-block:: python
+
+            import asyncio
+            from datetime import date
+            from flexmeasures_client import FlexMeasuresClient as Client
+
+            async def client_script():
+                client = Client(
+                    email="toy-user@flexmeasures.io",
+                    password="toy-password",
+                    host="localhost:5000",
+                )
+                schedule = await client.trigger_and_get_schedule(
+                    asset_id=2,  # Toy building (asset)
+                    start=f"{date.today().isoformat()}T07:00+01:00",
+                    duration="PT12H",
+                    flex_model=[
+                        {
+                            "sensor": 2,
+                            "soc-at-start": "50%",
+                            "roundtrip-efficiency": "90%",
+                        },
+                    ],
+                )
+                print(schedule)
+                await client.close()
+
+            asyncio.run(client_script())
+
 
 Great. Let's see what we made:
 
