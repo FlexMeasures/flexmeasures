@@ -272,7 +272,7 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
         self.status_if_not_found = status_if_not_found
         super().__init__(*args, **kwargs)
 
-    def _deserialize(self, value: int, attr, obj, **kwargs) -> GenericAsset:
+    def _deserialize(self, value: int | str, attr, obj, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
         generic_asset: GenericAsset = db.session.execute(
             select(GenericAsset).filter_by(id=int(value))
