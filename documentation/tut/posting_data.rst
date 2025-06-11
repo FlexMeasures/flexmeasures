@@ -271,14 +271,18 @@ There is one more crucial kind of data that FlexMeasures needs to know about: Wh
 For example, a battery has a certain state of charge, which is relevant to describe the flexibility that the battery currently has.
 In our terminology, this is called the "flex model" and you can read more at :ref:`describing_flexibility`.
 
-Owners of such devices can post the flex model along with triggering the creation of a new schedule, to `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
+Owners of such devices can post the flex model along with triggering the creation of a new schedule, to one of two endpoints:
+
+1. `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ - for scheduling multiple devices
+2. `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ - for scheduling a single device (which can also be done with the first endpoint)
+
 The URL might look like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/sensors/10/schedules/trigger
+    https://company.flexmeasures.io/api/<version>/assets/10/schedules/trigger
 
-The following example triggers a schedule for a power sensor (with ID 10) of a battery asset, asking to take into account the battery's current state of charge.
+The following example triggers a schedule for a power sensor (with ID 15) of a battery asset (with ID 10), asking to take into account the battery's current state of charge.
 From this, FlexMeasures derives the energy flexibility this battery has in the next 48 hours and computes an optimal charging schedule.
 The endpoint also allows to limit the flexibility range and also to set target values.
 
@@ -286,9 +290,12 @@ The endpoint also allows to limit the flexibility range and also to set target v
 
         {
             "start": "2015-06-02T10:00:00+00:00",
-            "flex-model": {
-                "soc-at-start": "12.1 kWh"
-            }
+            "flex-model": [
+                {
+                    "sensor": 15,
+                    "soc-at-start": "12.1 kWh"
+                }
+            ]
         }
 
 .. note:: More details on supported flex models can be found in :ref:`flex_models_and_schedulers`.
