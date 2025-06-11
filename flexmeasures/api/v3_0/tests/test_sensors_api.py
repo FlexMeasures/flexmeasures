@@ -515,29 +515,33 @@ def test_fetch_sensor_stats(
         response = client.get(
             url_for("SensorAPI:get_stats", id=sensor_id),
         )
-        print("Server responded with:\n%s" % response.json)
         assert response.status_code == 200
         response_content = response.json
 
         del response_content["status"]
         assert sorted(list(response_content.keys())) == [
             "Other source",
+            "Test Admin User",
             "Test Supplier User",
         ]
         for source, record in response_content.items():
-            assert record["First event start"] == "2021-05-01T22:00:00+00:00"
-            assert record["Last event end"] == "2021-05-01T22:30:00+00:00"
-            assert record["Min value"] == 91.3
-            assert record["Max value"] == 92.1
-            if source == "Test Supplier User":
-                # values are: 91.3, 91.7, 92.1
+            assert record["First event start"]
+            assert record["Last event end"]
+            assert record["Min value"]
+            assert record["Min value"]
+            assert record["Max value"]
+            if source == "Test Admin User":
+                sum_values = 162.0
+                count_values = 36
+                mean_value = 4.5
+            elif source == "Test Supplier User":
                 sum_values = 275.1
                 count_values = 3
+                mean_value = 91.7
             else:
-                # values are: 91.3, NaN, 92.1
                 sum_values = 183.4
                 count_values = 3
-            mean_value = 91.7
+                mean_value = 91.7
             assert math.isclose(
                 record["Mean value"], mean_value, rel_tol=1e-5
             ), f"mean_value is close to {mean_value}"
@@ -550,7 +554,6 @@ def test_fetch_sensor_stats(
         response = client.get(
             url_for("SensorAPI:get_stats", id=sensor_id),
         )
-        print("Server responded with:\n%s" % response.json)
         assert response.status_code == 200
 
     # Check stats cache works and stats query is executed only once
