@@ -934,9 +934,10 @@ class AssetAPI(FlaskView):
         For details on flexibility model and context, see :ref:`describing_flexibility`.
         Below, we'll also list some examples.
 
-        .. note:: This endpoint support scheduling an EMS with multiple flexible sensors at once,
-                  but internally, it does so sequentially
+        .. note:: This endpoint support scheduling an EMS with multiple flexible devices at once.
+                  Internally, it can do so or jointly (the default) or sequentially
                   (considering already scheduled sensors as inflexible).
+                  To use sequential scheduling, use ``sequential=true`` in the JSON body.
 
         The length of the schedule can be set explicitly through the 'duration' field.
         Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
@@ -949,70 +950,37 @@ class AssetAPI(FlaskView):
 
         If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
 
-        **Example request A**
+        **Example request**
 
-        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
+        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh,
+        together with a curtailable production asset, whose production forecasts are recorded under sensor 760.
 
-        .. code-block:: json
-
-            {
-                "start": "2015-06-02T10:00:00+00:00",
-                "flex-model": [
-                    {
-                        "sensor": 931,
-                        "soc-at-start": 12.1,
-                        "soc-unit": "kWh"
-                    }
-                ]
-            }
-
-        **Example request B**
-
-        This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
-        at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
-
-        The charging efficiency is constant (120%) and the discharging efficiency is determined by the contents of sensor
-        with id 98. If just the ``roundtrip-efficiency`` is known, it can be described with its own field.
-        The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
-        To guarantee a minimum SOC in the period prior, the sensor with ID 300 contains beliefs at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
-        Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
         where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
-        (plus the flexible sensor being optimized, of course).
-
+        (plus the two sensors for the flexible devices being optimized, of course).
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
         Finally, the site consumption capacity is limited by sensor 32.
 
-        Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
-
         .. code-block:: json
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
-                "duration": "PT24H",
                 "flex-model": [
                     {
                         "sensor": 931,
                         "soc-at-start": 12.1,
                         "soc-unit": "kWh",
-                        "soc-targets": [
-                            {
-                                "value": 25,
-                                "datetime": "2015-06-02T16:00:00+00:00"
-                            },
-                        ],
-                        "soc-minima": {"sensor" : 300},
-                        "soc-min": 10,
-                        "soc-max": 25,
-                        "charging-efficiency": "120%",
-                        "discharging-efficiency": {"sensor": 98},
-                        "storage-efficiency": 0.9999,
                         "power-capacity": "25kW",
                         "consumption-capacity" : {"sensor": 42},
                         "production-capacity" : "30 kW"
                     },
+                    {
+                        "sensor": 760,
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {"sensor": 760},
+                    }
                 ],
                 "flex-context": {
                     "consumption-price-sensor": 9,
@@ -1029,7 +997,7 @@ class AssetAPI(FlaskView):
         This message indicates that the scheduling request has been processed without any error.
         A scheduling job has been created with some Universally Unique Identifier (UUID),
         which will be picked up by a worker.
-        The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
+        The given UUID may be used to obtain the resulting schedule for each flexible device: see /sensors/<id>/schedules/<uuid>.
 
         .. sourcecode:: json
 
