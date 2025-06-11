@@ -577,7 +577,7 @@ class SensorAPI(FlaskView):
     ):
         """Get a schedule from FlexMeasures.
 
-        .. :quickref: Schedule; Download schedule from the platform
+        .. :quickref: Schedule; Download schedule for one device
 
         **Optional fields**
 
