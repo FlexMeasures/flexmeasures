@@ -300,6 +300,9 @@ The endpoint also allows to limit the flexibility range and also to set target v
 
 .. note:: More details on supported flex models can be found in :ref:`flex_models_and_schedulers`.
 
-.. note:: Flexibility states are persisted on sensor attributes. To record a more complete history of the state of charge, set up a separate sensor and post data to it using `[POST] /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
+.. note::
+    Flexibility states posted in trigger messages are only stored temporarily to describe the scheduling job.
+    To record a more complete history of the state of charge, set up a separate sensor and post data to it using `[POST] /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
+    Then reference that sensor in your flex model.
 
 In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasures is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.
