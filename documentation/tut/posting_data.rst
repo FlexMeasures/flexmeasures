@@ -273,8 +273,8 @@ In our terminology, this is called the "flex model" and you can read more at :re
 
 Owners of such devices can post the flex model along with triggering the creation of a new schedule, to one of two endpoints:
 
-1. `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ - for scheduling multiple devices
-2. `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ - for scheduling a single device (which can also be done with the first endpoint)
+1. `[POST] /assets/<id>/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ - for scheduling multiple devices
+2. `[POST] /sensors/<id>/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ - for scheduling a single device (which can also be done with the first endpoint)
 
 The URL might look like this:
 
