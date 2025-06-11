@@ -96,7 +96,7 @@ virtualenv==20.31.2
     # via pre-commit
 watchdog==6.0.0
     # via -r requirements/dev.in
-zipp==3.22.0
+zipp==3.23.0
     # via
     #   -c requirements/3.9/app.txt
     #   -c requirements/3.9/test.txt
