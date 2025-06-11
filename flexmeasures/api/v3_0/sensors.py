@@ -411,9 +411,8 @@ class SensorAPI(FlaskView):
         For details on flexibility model and context, see :ref:`describing_flexibility`.
         Below, we'll also list some examples.
 
-        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
-                  See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
-                  (considering already scheduled sensors as inflexible).
+        .. note:: To schedule an EMS with multiple flexible sensors at once,
+                  use `this endpoint <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ instead.
 
         The length of the schedule can be set explicitly through the 'duration' field.
         Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
