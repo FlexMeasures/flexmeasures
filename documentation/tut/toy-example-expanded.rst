@@ -91,7 +91,7 @@ Now, we'll reschedule the battery while taking into account the solar production
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ (replace the start date):
+        Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
 
