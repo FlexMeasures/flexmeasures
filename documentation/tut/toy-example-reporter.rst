@@ -22,7 +22,7 @@ In the second part, we'll use the `ProfitOrLossReporter` to compute the costs of
 Before getting to the meat of the tutorial, we need to set up up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor``), we have prepared a command that does that automatically.
 
 Setup
-.....
+-----
 
 Just as in previous sections, we need to run the command ``flexmeasures add toy-account``, but this time with a different value for *kind*:
 

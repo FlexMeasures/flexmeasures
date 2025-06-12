@@ -27,7 +27,7 @@ Moreover, we'll touch upon the use of time restrictions to avoid scheduling a pr
 
 
 Setup
-.....
+-----
 
 
 Before moving forward, we'll add the `process` asset and three sensors to store the schedules resulting from following three different policies.
