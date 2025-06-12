@@ -163,10 +163,20 @@ def show_account(account):
     else:
         click.echo("All assets:\n ")
         asset_data = [
-            (asset.id, asset.name, asset.generic_asset_type.name, asset.location)
+            (
+                asset.id,
+                asset.name,
+                asset.generic_asset_type.name,
+                asset.parent_asset_id,
+                asset.location,
+            )
             for asset in assets
         ]
-        click.echo(tabulate(asset_data, headers=["ID", "Name", "Type", "Location"]))
+        click.echo(
+            tabulate(
+                asset_data, headers=["ID", "Name", "Type", "Parent ID", "Location"]
+            )
+        )
 
 
 @fm_show_data.command("asset-types")
