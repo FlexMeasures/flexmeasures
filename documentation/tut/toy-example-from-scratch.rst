@@ -34,7 +34,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
     .. tab:: API
 
-        Example POST call to http://localhost:5000/api/assets/2/schedules/trigger (replace the start date):
+        Example POST call to http://localhost:5000/api/v3_0/assets/2/schedules/trigger (replace the start date):
 
         .. code-block:: json
 
