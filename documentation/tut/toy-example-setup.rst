@@ -131,6 +131,8 @@ Install Flexmeasures and the database
         .. include:: ../notes/macOS-port-note.rst
 
 
+.. _tut_load_data:
+
 Add some structural data
 ---------------------------------------
 

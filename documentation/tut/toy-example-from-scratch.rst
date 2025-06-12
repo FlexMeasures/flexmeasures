@@ -89,6 +89,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
             asyncio.run(client_script())
 
+.. note:: We already specified what to optimize against by having set the consumption price sensor in the flex-context of the battery (see :ref:`tut_load_data`).
 
 Great. Let's see what we made:
 
