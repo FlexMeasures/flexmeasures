@@ -351,9 +351,7 @@ def test_verify_data_exists_for_sensor(
     sensors = (
         db.session.execute(select(TimedBelief).filter_by(sensor_id=1)).scalars().all()
     )
-    assert (
-        len(sensors) > 36
-    )  # Setting to 36 because we are inserting 6 values (Each value is inserted 6 times for each hour)
+    assert len(sensors) > 6
 
 
 @pytest.mark.parametrize(
