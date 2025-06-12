@@ -197,6 +197,7 @@ If you want, you can inspect what you created:
     4  toy-solar      solar     (52.374, 4.88969)
 
 .. code-block:: bash
+    :emphasize-lines: 30
 
     $ flexmeasures show asset --id 2
 
