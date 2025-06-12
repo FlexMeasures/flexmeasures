@@ -36,15 +36,15 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 
     $ flexmeasures add toy-account --kind process
     
-        User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
-        The sensor recording day-ahead prices is day-ahead prices (ID: 1).
-        Created <GenericAsset 5: 'toy-process' (process)>
-        Created <Sensor 4: Power (Inflexible), unit: MW res.: 0:15:00>
-        Created <Sensor 5: Power (Breakable), unit: MW res.: 0:15:00>
-        Created <Sensor 6: Power (Shiftable), unit: MW res.: 0:15:00>
-        The sensor recording the power of the inflexible load is Power (Inflexible) (ID: 4).
-        The sensor recording the power of the breakable load is Power (Breakable) (ID: 5).
-        The sensor recording the power of the shiftable load is Power (Shiftable) (ID: 6).
+    User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
+    The sensor recording day-ahead prices is day-ahead prices (ID: 1).
+    Created <GenericAsset 5: 'toy-process' (process)>
+    Created <Sensor 4: Power (Inflexible), unit: MW res.: 0:15:00>
+    Created <Sensor 5: Power (Breakable), unit: MW res.: 0:15:00>
+    Created <Sensor 6: Power (Shiftable), unit: MW res.: 0:15:00>
+    The sensor recording the power of the inflexible load is Power (Inflexible) (ID: 4).
+    The sensor recording the power of the breakable load is Power (Breakable) (ID: 5).
+    The sensor recording the power of the shiftable load is Power (Shiftable) (ID: 6).
 
 
 Trigger an updated schedule
