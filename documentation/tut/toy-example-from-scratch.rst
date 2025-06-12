@@ -69,12 +69,12 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
                     host="localhost:5000",
                 )
                 schedule = await client.trigger_and_get_schedule(
-                    asset_id=2,  # Toy building (asset)
+                    asset_id=2,  # Toy building (asset ID)
                     start=f"{date.today().isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model=[
                         {
-                            "sensor": 2,
+                            "sensor": 2,  # battery power (sensor ID)
                             "soc-at-start": "50%",
                             "roundtrip-efficiency": "90%",
                         },

@@ -164,7 +164,7 @@ Now, we'll reschedule the battery while taking into account the solar production
                         },
                     ],
                     flex_context={
-                        "inflexible-device-sensors": [3],  # solar production (sensor)
+                        "inflexible-device-sensors": [3],  # solar production (sensor ID)
                     },
                 )
                 print(schedule)
