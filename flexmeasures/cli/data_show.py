@@ -260,7 +260,7 @@ def show_generic_asset(asset):
     if child_asset_data:
         click.echo(tabulate(child_asset_data, headers=["Id", "Name", "Type"]))
     else:
-        click.secho("No children assets ...", **MsgStyle.WARN)
+        click.secho("No child assets ...", **MsgStyle.WARN)
 
     click.echo()
     sensors = db.session.scalars(

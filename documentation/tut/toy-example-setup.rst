@@ -233,7 +233,7 @@ If you want, you can inspect what you created:
     Child assets of toy-battery (ID: 3)
     ====================================
 
-    No children assets ...
+    No child assets ...
 
     All sensors in asset:
     
