@@ -82,6 +82,7 @@ Now, we'll reschedule the battery while taking into account the solar production
     .. tab:: CLI
 
         .. code-block:: bash
+            :emphasize-lines: 2
 
             $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
                 --inflexible-device-sensor 3 \
@@ -94,6 +95,7 @@ Now, we'll reschedule the battery while taking into account the solar production
         Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
+            :emphasize-lines: 11-13
 
             {
                 "start": "2025-06-11T07:00+01:00",
@@ -113,6 +115,7 @@ Now, we'll reschedule the battery while taking into account the solar production
         Alternatively, if the solar production is curtailable, move the solar production to the flex-model:
 
         .. code-block:: json
+            :emphasize-lines: 10-14,16
 
             {
                 "start": "2025-06-11T07:00+01:00",
@@ -141,6 +144,7 @@ Now, we'll reschedule the battery while taking into account the solar production
             pip install flexmeasures-client
 
         .. code-block:: python
+            :emphasize-lines: 22-24
 
             import asyncio
             from datetime import date
@@ -175,6 +179,7 @@ Now, we'll reschedule the battery while taking into account the solar production
         Alternatively, if the solar production is curtailable, move the solar production to the flex-model:
 
         .. code-block:: python
+            :emphasize-lines: 11-15,17
 
             schedule = await client.trigger_and_get_schedule(
                 asset_id=2,  # Toy building (asset ID)
