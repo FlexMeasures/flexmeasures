@@ -259,23 +259,3 @@ def sort_jobs(queue: Queue, jobs: list[str | Job]) -> list[Job]:
     ]  # Remove any None entries (in case some jobs don’t exist)
     sorted_jobs = sorted(jobs, key=lambda job: job.created_at)
     return sorted_jobs
-
-
-def json_isoformat(obj):
-    """JSON serializer that attempts to isoformat objects that aren't serializable by default.
-
-    Especially suitable for timedelta and datetime objects.
-
-    Usage:
-
-        json.dumps(dict_with_various_objects, default=json_isoformat)
-
-    """
-
-    try:
-        if hasattr(obj, "isoformat"):
-            return obj.isoformat()
-        else:
-            return str(obj)
-    except Exception:
-        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")

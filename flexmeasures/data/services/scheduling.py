@@ -5,7 +5,6 @@ Logic around scheduling (jobs)
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-import json
 import os
 import sys
 import importlib.util
@@ -41,7 +40,6 @@ from flexmeasures.data.services.utils import (
     get_asset_or_sensor_ref,
     get_asset_or_sensor_from_ref,
     get_scheduler_instance,
-    json_isoformat,
 )
 
 
@@ -125,6 +123,17 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 
         scheduler_kwargs = job.meta["scheduler_kwargs"]
 
+        # Deserialize start and end
+        timezone = "UTC"
+        if hasattr(asset_or_sensor, "timezone"):
+            timezone = asset_or_sensor.timezone
+        scheduler_kwargs["start"] = pd.Timestamp(scheduler_kwargs["start"]).tz_convert(
+            timezone
+        )
+        scheduler_kwargs["end"] = pd.Timestamp(scheduler_kwargs["end"]).tz_convert(
+            timezone
+        )
+
         if ("scheduler_specs" in job.kwargs) and (
             job.kwargs["scheduler_specs"] is not None
         ):
@@ -203,7 +212,7 @@ def create_scheduling_job(
     """
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
-    # Note: We are putting still serialized scheduler_kwargs into the job!
+    # Note: We should put only serializable scheduler_kwargs into the job!
 
     if sensor is not None:
         current_app.logger.warning(
@@ -249,9 +258,16 @@ def create_scheduling_job(
     )
 
     job.meta["asset_or_sensor"] = asset_or_sensor
-    job.meta["scheduler_kwargs"] = json.loads(
-        json.dumps(scheduler_kwargs, default=json_isoformat)
-    )
+    job.meta["scheduler_kwargs"] = scheduler_kwargs
+
+    # Serialize start and end
+    job.meta["scheduler_kwargs"]["start"] = job.meta["scheduler_kwargs"][
+        "start"
+    ].isoformat()
+    job.meta["scheduler_kwargs"]["end"] = job.meta["scheduler_kwargs"][
+        "end"
+    ].isoformat()
+
     job.save_meta()
 
     # in case the function enqueues it
