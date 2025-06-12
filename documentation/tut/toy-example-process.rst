@@ -59,7 +59,7 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 4 --consumption-price-sensor 1\
+    flexmeasures add schedule for-process --sensor 4 \
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type INFLEXIBLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
@@ -70,7 +70,7 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKA
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 5 --consumption-price-sensor 1\
+    flexmeasures add schedule for-process --sensor 5 \
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type BREAKABLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
@@ -81,7 +81,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 6 --consumption-price-sensor 1\
+    flexmeasures add schedule for-process --sensor 6 \
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type SHIFTABLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
