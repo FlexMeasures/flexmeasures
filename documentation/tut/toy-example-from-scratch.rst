@@ -28,8 +28,12 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
         .. code-block:: bash
 
-            $ flexmeasures add schedule for-storage --sensor 2 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-                --soc-at-start 50% --roundtrip-efficiency 90%
+            $ flexmeasures add schedule for-storage \
+                --sensor 2 \
+                --start ${TOMORROW}T07:00+01:00 \
+                --duration PT12H \
+                --soc-at-start 50% \
+                --roundtrip-efficiency 90%
             New schedule is stored.
 
     .. tab:: API
