@@ -923,7 +923,7 @@ class AssetAPI(FlaskView):
         .. :quickref: Schedule; Trigger scheduling job for multiple devices
 
         Trigger FlexMeasures to create a schedule for this asset.
-        The power sensors of flexible devices that are referenced in the flex-model must belong the given asset,
+        The flex-model references the power sensors of flexible devices, which must belong to the given asset,
         either directly or indirectly, by being assigned to one of the asset's (grand)children.
 
         In this request, you can describe:
@@ -953,13 +953,15 @@ class AssetAPI(FlaskView):
 
         **Example request**
 
-        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh,
-        together with a curtailable production asset, whose production forecasts are recorded under sensor 760.
+        This message triggers a schedule for a storage asset (with power sensor 931),
+        starting at 10.00am, when the state of charge (soc) should be assumed to be 12.1 kWh,
+        and also schedules a curtailable production asset (with power sensor 932),
+        whose production forecasts are recorded under sensor 760.
 
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
-        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
-        (plus the two sensors for the flexible devices being optimized, of course).
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+        and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
         Finally, the site consumption capacity is limited by sensor 32.
@@ -978,7 +980,7 @@ class AssetAPI(FlaskView):
                         "production-capacity" : "30 kW"
                     },
                     {
-                        "sensor": 760,
+                        "sensor": 932,
                         "consumption-capacity": "0 kW",
                         "production-capacity": {"sensor": 760},
                     }

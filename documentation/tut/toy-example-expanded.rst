@@ -75,7 +75,7 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 Trigger an updated schedule
 ----------------------------
 
-Now, we'll reschedule the battery while taking into account the solar production as an inflexible device.
+Now, we'll reschedule the battery while taking into account the solar production (forecast) as an inflexible device.
 This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
 
 .. tabs::

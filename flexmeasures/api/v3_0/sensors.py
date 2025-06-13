@@ -450,8 +450,8 @@ class SensorAPI(FlaskView):
         Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
-        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
-        (plus the flexible sensor being optimized, of course).
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+        and the power sensor of the flexible device being optimized (referenced in the endpoint URL).
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
