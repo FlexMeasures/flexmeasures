@@ -116,7 +116,8 @@ This will have an effect on the available headroom for the battery, given the ``
                 }
             }
 
-        Alternatively, if the solar production is curtailable, move the solar production to the flex-model:
+        Alternatively, if the solar production is curtailable, move the solar production to the flex-model.
+        There, we tell the scheduler to pick any production value between 0 and the production forecast recorded on sensor 3, and to store the resulting schedule on sensor 3 as well (the FlexMeasures UI will still be able to distinguish forecasts from schedules):
 
         .. code-block:: json
             :emphasize-lines: 10-14,16
