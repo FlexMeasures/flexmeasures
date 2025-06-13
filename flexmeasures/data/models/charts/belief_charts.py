@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from flexmeasures.utils.unit_utils import ur
 
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
@@ -8,6 +9,21 @@ from flexmeasures.utils.flexmeasures_inflection import (
 )
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import get_unit_dimension
+from pint import DimensionalityError, UndefinedUnitError
+
+
+base_units = {
+    "power": "kW",
+    "energy": "kWh",
+    "energy price": "EUR/KWh",
+    "price": "EUR/kW",  # e.g. a capacity price or a peak price
+    "currency": "AUD",
+    "percentage": "%",
+    "temperature": "°C",
+    "length": "m",
+    "time": "h",
+    "speed": "m/s",
+}
 
 
 def create_bar_chart_or_histogram_specs(
@@ -641,10 +657,32 @@ def determine_shared_unit(sensors: list["Sensor"]) -> str:  # noqa F821
     units = list(set([sensor.unit for sensor in sensors if sensor.unit]))
 
     # Replace with 'a.u.' in case of mixing units
-    shared_unit = units[0] if len(units) == 1 else "a.u."
+    shared_unit = (
+        units[0]
+        if len(units) == 1
+        else base_units.get(get_unit_dimension(units[0]), "a.u.")
+    )
+    if len(units) > 1:
+        dimension = get_unit_dimension(units[0])
+        for unit in units[1:]:
+            if get_unit_dimension(unit) != dimension:
+                shared_unit = "a.u."
+                break
 
     # Replace with 'dimensionless' in case of empty unit
     return shared_unit if shared_unit else "dimensionless"
+
+
+def get_scale_factor(sensor_unit: str) -> float:
+    dimension = get_unit_dimension(sensor_unit)
+    scaling_unit = base_units.get(dimension)
+    if sensor_unit == scaling_unit:
+        return 1.0
+    try:
+        q = ur.Quantity(1, sensor_unit).to(scaling_unit)
+    except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
+        return 1.0
+    return q.magnitude
 
 
 def determine_shared_sensor_type(sensors: list["Sensor"]) -> str:  # noqa F821
@@ -666,11 +704,21 @@ def create_line_layer(
     sensor_field_definition: dict,
     combine_legend: bool,
 ):
+    scale_values = False
+    if len(sensors) > 1:
+        shared_unit = determine_shared_unit(sensors)
+        if shared_unit != "a.u.":
+            scale_values = True
+
     # Use linear interpolation if any of the sensors shown within one row is instantaneous; otherwise, use step-after
     if any(sensor.event_resolution == timedelta(0) for sensor in sensors):
         interpolate = "linear"
     else:
         interpolate = "step-after"
+
+    scaled_event_value_field_definition = event_value_field_definition.copy()
+    scaled_event_value_field_definition["field"] = "scaled_event_value"
+
     line_layer = {
         "mark": {
             "type": "line",
@@ -679,7 +727,7 @@ def create_line_layer(
         },
         "encoding": {
             "x": event_start_field_definition,
-            "y": event_value_field_definition,
+            "y": scaled_event_value_field_definition,
             "color": (
                 sensor_field_definition
                 if combine_legend
@@ -709,6 +757,16 @@ def create_line_layer(
         "selection": {
             "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
         },
+        "transform": [
+            {
+                "calculate": (
+                    "datum.event_value"
+                    if not scale_values
+                    else "datum.event_value * datum.scale_factor"
+                ),
+                "as": "scaled_event_value",
+            }
+        ],
     }
     return line_layer
 
@@ -720,6 +778,14 @@ def create_circle_layer(
     sensor_field_definition: dict,
     shared_tooltip: list,
 ):
+    scale_values = False
+    if len(sensors) > 1:
+        shared_unit = determine_shared_unit(sensors)
+        if shared_unit != "a.u.":
+            scale_values = True
+
+    scaled_event_value_field_definition = event_value_field_definition.copy()
+    scaled_event_value_field_definition["field"] = "scaled_event_value"
     params = [
         {
             "name": "hover_x_brush",
@@ -756,7 +822,7 @@ def create_circle_layer(
         },
         "encoding": {
             "x": event_start_field_definition,
-            "y": event_value_field_definition,
+            "y": scaled_event_value_field_definition,
             "color": sensor_field_definition,
             "size": {
                 "condition": {"value": "200", "test": {"or": or_conditions}},
@@ -765,6 +831,16 @@ def create_circle_layer(
             "tooltip": shared_tooltip,
         },
         "params": params,
+        "transform": [
+            {
+                "calculate": (
+                    "datum.event_value"
+                    if not scale_values
+                    else "datum.event_value * datum.scale_factor"
+                ),
+                "as": "scaled_event_value",
+            }
+        ],
     }
     return circle_layer
 
