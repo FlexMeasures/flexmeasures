@@ -141,7 +141,7 @@ def test_asset_trigger_and_get_schedule(
     for flex_model in message["flex-model"]:
 
         # We expect a longer schedule if the targets exceeds the original duration in the trigger
-        if sequential and "soc-targets" in flex_model:
+        if "soc-targets" in flex_model:
             for t in flex_model["soc-targets"]:
                 duration = pd.Timestamp(t["datetime"]) - pd.Timestamp(message["start"])
                 if duration > pd.Timedelta(message["duration"]):
