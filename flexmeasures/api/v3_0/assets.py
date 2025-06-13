@@ -920,7 +920,7 @@ class AssetAPI(FlaskView):
         """
         Trigger FlexMeasures to create a schedule for a collection of flexible and inflexible devices.
 
-        .. :quickref: Schedule; Trigger scheduling job for multiple devices
+        .. :quickref: Schedule; Trigger scheduling job for any number of devices
 
         Trigger FlexMeasures to create a schedule for this asset.
         The flex-model references the power sensors of flexible devices, which must belong to the given asset,
