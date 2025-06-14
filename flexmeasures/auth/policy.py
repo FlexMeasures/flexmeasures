@@ -222,7 +222,7 @@ def can_modify_role(user, roles_to_modify, modified_user) -> bool:
             role = current_app.db.session.get(Role, role)
 
     if role is not None:
-        if (role.name != ADMIN_ROLE) and user.has_role(ADMIN_ROLE):
+        if role.name != ADMIN_ROLE and user.has_role(ADMIN_ROLE):
             return True
         if role.name == ADMIN_READER_ROLE and user.has_role(ADMIN_ROLE):
             return True
