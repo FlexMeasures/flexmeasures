@@ -15,7 +15,7 @@ from pint import DimensionalityError, UndefinedUnitError
 base_units = {
     "power": "kW",
     "energy": "kWh",
-    "energy price": "EUR/KWh",
+    "energy price": "EUR/kWh",
     "price": "EUR/kW",  # e.g. a capacity price or a peak price
     "currency": "AUD",
     "percentage": "%",
