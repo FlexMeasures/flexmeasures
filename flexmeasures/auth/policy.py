@@ -214,8 +214,8 @@ def can_modify_role(
     The roles are:
     - admin: can only be changed in CLI / directly in the DB, so not here
     - admin-reader: can be added and removed by admins
-    - account-admin: can be added and removed by admins and consultants
-    - consultant: can be added and removed by admins and account-admins
+    - account-admin: can be added and removed by admins and consultants (in consultancy account)
+    - consultant: can be added and removed by admins and account-admins (in same account)
 
     """
 
@@ -226,8 +226,8 @@ def can_modify_role(
             role = current_app.db.session.get(Role, role)
 
     if role is not None:
-        if role.name == ADMIN_READER_ROLE and user.has_role(ADMIN_ROLE):
-            return True
+        if role.name != ADMIN_ROLE and user.has_role(ADMIN_ROLE):
+            return True  # admin can do all changes, aside from admin status
         if role.name == ACCOUNT_ADMIN_ROLE and user.has_role(CONSULTANT_ROLE):
             if modified_user.account.consultancy_account is not None:
                 if user.account.id == modified_user.account.consultancy_account.id:
