@@ -503,6 +503,10 @@
         var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
         var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
+        {% if active_page == "sensors" %}
+            loadSensorStats({{ sensor.id }}, queryStartDate, queryEndDate);
+        {% endif %}
+
         stopReplay()
 
         $("#spinner").show();

@@ -448,23 +448,39 @@ def build_asset_jobs_data(
 
 
 @lru_cache()
-def _get_sensor_stats(sensor: Sensor, sort_keys: bool, ttl_hash=None) -> dict:
+def _get_sensor_stats(
+    sensor: Sensor,
+    event_end_time: str,
+    event_start_time: str,
+    sort_keys: bool,
+    ttl_hash=None,
+) -> dict:
+    # parse incoming datetimes (or leave None)
+    start_dt = pd.to_datetime(event_start_time) if event_start_time else None
+    end_dt = pd.to_datetime(event_end_time) if event_end_time else None
+
     # Subquery for filtered aggregates
-    subquery_for_filtered_aggregates = (
-        sa.select(
-            TimedBelief.source_id,
-            sa.func.max(TimedBelief.event_value).label("max_event_value"),
-            sa.func.avg(TimedBelief.event_value).label("avg_event_value"),
-            sa.func.sum(TimedBelief.event_value).label("sum_event_value"),
-            sa.func.min(TimedBelief.event_value).label("min_event_value"),
-        )
-        .filter(TimedBelief.event_value != float("NaN"))
-        .filter(TimedBelief.sensor_id == sensor.id)
-        .group_by(TimedBelief.source_id)
-        .subquery()
+    subq = sa.select(
+        TimedBelief.source_id,
+        sa.func.max(TimedBelief.event_value).label("max_event_value"),
+        sa.func.avg(TimedBelief.event_value).label("avg_event_value"),
+        sa.func.sum(TimedBelief.event_value).label("sum_event_value"),
+        sa.func.min(TimedBelief.event_value).label("min_event_value"),
+    ).filter(
+        TimedBelief.event_value != float("NaN"),
+        TimedBelief.sensor_id == sensor.id,
     )
 
-    raw_stats = db.session.execute(
+    # apply start/end filters if provided
+    if start_dt:
+        subq = subq.filter(TimedBelief.event_start >= start_dt)
+    if end_dt:
+        subq = subq.filter(TimedBelief.event_start <= end_dt)
+
+    subquery_for_filtered_aggregates = subq.group_by(TimedBelief.source_id).subquery()
+
+    # build main query
+    q = (
         sa.select(
             DataSource.name,
             sa.func.min(TimedBelief.event_start).label("min_event_start"),
@@ -487,7 +503,16 @@ def _get_sensor_stats(sensor: Sensor, sort_keys: bool, ttl_hash=None) -> dict:
             subquery_for_filtered_aggregates.c.source_id == TimedBelief.source_id,
         )
         .filter(TimedBelief.sensor_id == sensor.id)
-        .group_by(
+    )
+
+    # apply the same start/end filters to the main query
+    if start_dt:
+        q = q.filter(TimedBelief.event_start >= start_dt)
+    if end_dt:
+        q = q.filter(TimedBelief.event_start <= end_dt)
+
+    raw_stats = db.session.execute(
+        q.group_by(
             DataSource.name,
             subquery_for_filtered_aggregates.c.min_event_value,
             subquery_for_filtered_aggregates.c.max_event_value,
@@ -544,6 +569,10 @@ def _get_ttl_hash(seconds=120) -> int:
     return round(time.time() / seconds)
 
 
-def get_sensor_stats(sensor: Sensor, sort_keys: bool = True) -> dict:
+def get_sensor_stats(
+    sensor: Sensor, event_start_time: str, event_end_time: str, sort_keys: bool = True
+) -> dict:
     """Get stats for a sensor"""
-    return _get_sensor_stats(sensor, sort_keys, ttl_hash=_get_ttl_hash())
+    return _get_sensor_stats(
+        sensor, event_end_time, event_start_time, sort_keys, ttl_hash=_get_ttl_hash()
+    )
