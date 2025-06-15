@@ -686,6 +686,9 @@ class MetaStorageScheduler(Scheduler):
                     soc_max[d],
                     soc_min[d],
                 )
+            else:
+                # No need to validate non-existing storage constraints
+                skip_validation = True
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
@@ -1055,8 +1058,8 @@ class MetaStorageScheduler(Scheduler):
 
                 # Extend schedule period in case a target exceeds its end
                 self.possibly_extend_end(
-                    soc_targets=sensor_flex_model.get("soc_targets"),
-                    sensor=sensor_flex_model["sensor"],
+                    soc_targets=self.flex_model[d].get("soc_targets"),
+                    sensor=self.flex_model[d]["sensor"],
                 )
 
         else:

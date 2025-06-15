@@ -22,7 +22,7 @@ In the second part, we'll use the `ProfitOrLossReporter` to compute the costs of
 Before getting to the meat of the tutorial, we need to set up up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor``), we have prepared a command that does that automatically.
 
 Setup
-.....
+-----
 
 Just as in previous sections, we need to run the command ``flexmeasures add toy-account``, but this time with a different value for *kind*:
 
@@ -48,29 +48,29 @@ Run the command below to show the values for our newly-created `grid connection 
     $ flexmeasures show beliefs --sensor 7 --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
       
       Beliefs for Sensor 'grid connection capacity' (ID 7).
-        Data spans a day and starts at 2023-08-14 00:00:00+02:00.
-        The time resolution (x-axis) is an hour.
-        ┌────────────────────────────────────────────────────────────┐
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 1.0MW
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│ 0.5MW
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ 0.0MW
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ -0.5MW
-        └────────────────────────────────────────────────────────────┘
-                5            10            15           20
-                        ██ grid connection capacity
+      Data spans a day and starts at 2025-06-13 00:00:00+02:00.
+      The time resolution (x-axis) is an hour.
+    ┌────────────────────────────────────────────────────────────┐
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │                                                            │ 1.0MW
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│ 0.5MW
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ 0.0MW
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │                                                            │ -0.5MW
+    └────────────────────────────────────────────────────────────┘
+                       06:00           12:00           18:00
+              ██ grid connection capacity (toy-building)
 
 
 Moreover, we can check the freshly created source `<Source id=6>`, which defines the `ProfitOrLossReporter` with the required configuration.
@@ -81,19 +81,19 @@ That's because reporters belong to a bigger category of classes that also contai
 
     $ flexmeasures show data-sources --show-attributes --id 6
 
-        type: reporter
-        ========
+    type: reporter
+    ========
 
-         ID  Name          User ID    Model                 Version    Attributes
-       ----  ------------  ---------  --------------------  ---------  ------------------------------------------
-          6  FlexMeasures             ProfitOrLossReporter             {
-                                                                           "data_generator": {
-                                                                               "config": {
-                                                                                   "consumption_price_sensor": 1,
-                                                                                   "loss_is_positive": true
-                                                                               }
+     ID  Name          User ID    Model                 Version    Attributes
+   ----  ------------  ---------  --------------------  ---------  ------------------------------------------
+      6  FlexMeasures             ProfitOrLossReporter             {
+                                                                       "data_generator": {
+                                                                           "config": {
+                                                                               "consumption_price_sensor": 1,
+                                                                               "loss_is_positive": true
                                                                            }
                                                                        }
+                                                                   }
 
 
 Compute headroom

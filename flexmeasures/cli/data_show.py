@@ -248,7 +248,7 @@ def show_generic_asset(asset):
     click.echo(f"Child assets of {asset.name} (ID: {asset.id})")
     click.echo(f"======{len(asset.name) * '='}===================\n")
     if child_asset_data:
-        click.echo(tabulate(child_asset_data, headers=["Id", "Name", "Type"]))
+        click.echo(tabulate(child_asset_data, headers=["ID", "Name", "Type"]))
     else:
         click.secho("No children assets ...", **MsgStyle.WARN)
 
