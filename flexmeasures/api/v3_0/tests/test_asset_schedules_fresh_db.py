@@ -256,12 +256,11 @@ def test_asset_trigger_and_get_schedule(
             ), "we should end empty"
         else:
             # We expect no cycling for the uni-directional Charge Point
-            soc_as_percentage_of_previous_soc = (
-                1 - (-pd.Series(soc_schedule).diff() / pd.Series(soc_schedule))
-            ) * 100
+            s = pd.Series(soc_schedule)
+            soc_as_percentage_of_previous_soc = 1 + s.diff() / s
             assert (
                 soc_as_percentage_of_previous_soc.min()
-                <= ur.Quantity(flex_model["storage-efficiency"]).to("%").magnitude
+                <= ur.Quantity(flex_model["storage-efficiency"]).to("").magnitude
             ), "all downwards SoC should be attributable to storage losses"
             assert (
                 soc_schedule[-1] * 1000 == flex_model["soc-targets"][0]["value"]
