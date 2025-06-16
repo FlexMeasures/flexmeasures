@@ -197,6 +197,7 @@ def test_asset_trigger_and_get_schedule(
             event_ends_before=pd.Timestamp(message["start"])
             + pd.Timedelta(message["duration"]),
         )
+        cheapest_hour = prices.values.argmin()
         if sequential:
             if sensor_id == sensor_1.id:
                 assert_equal(
@@ -218,9 +219,7 @@ def test_asset_trigger_and_get_schedule(
                 assert (
                     sum(
                         get_schedule_response.json["values"][
-                            prices.values.argmin()
-                            * 4 : (prices.values.argmin() + 1)
-                            * 4
+                            cheapest_hour * 4 : (cheapest_hour + 1) * 4
                         ]
                     )
                     > 0
@@ -271,9 +270,7 @@ def test_asset_trigger_and_get_schedule(
                 assert (
                     sum(
                         get_schedule_response.json["values"][
-                            prices.values.argmin()
-                            * 4 : (prices.values.argmin() + 1)
-                            * 4
+                            cheapest_hour * 4 : (cheapest_hour + 1) * 4
                         ]
                     )
                     > 0
