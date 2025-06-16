@@ -35,7 +35,10 @@ from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.cli.utils import MsgStyle, validate_unique
-from flexmeasures.utils.coding_utils import delete_key_recursive
+from flexmeasures.utils.coding_utils import (
+    delete_key_recursive,
+    tabulate_account_assets,
+)
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
@@ -167,6 +170,38 @@ def show_account(account):
             for asset in assets
         ]
         click.echo(tabulate(asset_data, headers=["ID", "Name", "Type", "Location"]))
+
+
+@fm_show_data.command("assets")
+@with_appcontext
+@click.option("--account", "account", type=AccountIdField(), required=False)
+def show_account_assets(account: Account | None = None):
+    """
+    Show all the assets for a given account if account id is provided
+    Show only public assets if account id is not provided
+    """
+
+    if account:
+        click.echo(f"========{len(account.name) * '='}========")
+        click.echo(f"Account {account.name} (ID: {account.id})")
+        click.echo(f"========{len(account.name) * '='}========\n")
+        assets = db.session.scalars(
+            select(GenericAsset)
+            .filter_by(account_id=account.id)
+            .order_by(GenericAsset.name)
+        ).all()
+    else:
+        click.echo(f"========{18 * '='}========")
+        click.echo("Public Assets")
+        click.echo(f"========{18 * '='}========\n")
+        assets = db.session.scalars(
+            select(GenericAsset).filter_by(account_id=None).order_by(GenericAsset.name)
+        ).all()
+    if not assets:
+        click.secho("No assets in account ...", **MsgStyle.WARN)
+    else:
+        click.echo("All assets:\n ")
+        tabulate_account_assets(assets)
 
 
 @fm_show_data.command("asset-types")
