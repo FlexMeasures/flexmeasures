@@ -277,7 +277,6 @@ def test_asset_trigger_and_get_schedule(
             assert (
                 sum(power_schedule[cheapest_hour * 4 : (cheapest_hour + 1) * 4]) > 0
             ), "we expect to charge in the cheapest hour"
-            print(power_schedule)
             assert_equal(
                 power_schedule,
                 # fmt: off
