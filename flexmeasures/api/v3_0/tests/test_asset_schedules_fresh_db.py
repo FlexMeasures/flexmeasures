@@ -190,17 +190,16 @@ def test_asset_trigger_and_get_schedule(
             get_schedule_response.json["unit"] == "MW"
         ), "by default, the schedules are expected in the sensor unit"
         # assert get_schedule_response.json["type"] == "GetDeviceMessageResponse"
-        assert (
-            len(get_schedule_response.json["values"]) == expected_length_of_schedule[d]
-        )
+        power_schedule = get_schedule_response.json["values"]
+        assert len(power_schedule) == expected_length_of_schedule[d]
 
         check_constraints(
             sensor=sensor,
             schedule=pd.Series(
-                data=get_schedule_response.json["values"],
+                data=power_schedule,
                 index=pd.date_range(
                     start=get_schedule_response.json["start"],
-                    periods=len(get_schedule_response.json["values"]),
+                    periods=len(power_schedule),
                     freq=sensor.event_resolution,
                 ),
             ),
@@ -223,16 +222,11 @@ def test_asset_trigger_and_get_schedule(
         cheapest_hour = prices.values.argmin()
         if sequential and sensor_id == sensor_2.id:
             assert (
-                sum(
-                    get_schedule_response.json["values"][
-                        cheapest_hour * 4 : (cheapest_hour + 1) * 4
-                    ]
-                )
-                > 0
+                sum(power_schedule[cheapest_hour * 4 : (cheapest_hour + 1) * 4]) > 0
             ), "we expect to charge in the cheapest hour"
-            print(get_schedule_response.json["values"])
+            print(power_schedule)
             assert_equal(
-                get_schedule_response.json["values"],
+                power_schedule,
                 # fmt: off
                 [
                     -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0,  # noqa: E128
@@ -252,15 +246,10 @@ def test_asset_trigger_and_get_schedule(
             )
         elif not sequential and sensor_id == sensor_2.id:
             assert (
-                sum(
-                    get_schedule_response.json["values"][
-                        cheapest_hour * 4 : (cheapest_hour + 1) * 4
-                    ]
-                )
-                > 0
+                sum(power_schedule[cheapest_hour * 4 : (cheapest_hour + 1) * 4]) > 0
             ), "we expect to charge in the cheapest hour"
             assert_equal(
-                get_schedule_response.json["values"],
+                power_schedule,
                 # fmt: off
                 [
                     -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0,  # noqa: E128
