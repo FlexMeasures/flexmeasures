@@ -111,7 +111,7 @@ The event_value should be a numeric value."
                                     </div>
                                     <!-- Checkbox for setting the record as measured instantly -->
                                     <div class="form-group mt-3">
-                                        <input type="checkbox" id="belief-time-measured-instantly" name="belief-time-measured-instantly" checked>
+                                        <input type="checkbox" id="belief-time-measured-instantly" name="belief-time-measured-instantly" {% if FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% else %} unchecked {% endif %}>
                                         <label for="belief-time-measured-instantly">
                                             Measured instantly
                                             <i
