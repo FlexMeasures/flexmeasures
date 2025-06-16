@@ -540,9 +540,13 @@ class SensorDataFileSchema(Schema):
                 ), "event values should be numeric"
                 dfs.append(df)
             except Exception as e:
-                errors[i] = (
+                error_message = (
                     f"Invalid content in file: {file.filename}. Failed with: {str(e)}"
                 )
+                current_app.logger.info(
+                    f"Upload failed for sensor {sensor.id}. {error_message}"
+                )
+                errors[i] = error_message
         if errors:
             raise ValidationError(errors)
         fields["data"] = dfs
