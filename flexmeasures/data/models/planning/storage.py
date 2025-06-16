@@ -1117,15 +1117,14 @@ class MetaStorageScheduler(Scheduler):
         return min_target, max_target
 
     def get_min_max_soc_on_sensor(
-        self, adjust_unit: bool = False, deserialized_names: bool = True
+        self, adjust_unit: bool = False
     ) -> tuple[float | None, float | None]:
         soc_min_sensor: float | None = self.sensor.get_attribute("min_soc_in_mwh")
         soc_max_sensor: float | None = self.sensor.get_attribute("max_soc_in_mwh")
-        soc_unit_label = "soc_unit" if deserialized_names else "soc-unit"
         if adjust_unit:
-            if soc_min_sensor and self.flex_model.get(soc_unit_label) == "kWh":
+            if soc_min_sensor and self.flex_model.get("soc_unit") == "kWh":
                 soc_min_sensor *= 1000  # later steps assume soc data is kWh
-            if soc_max_sensor and self.flex_model.get(soc_unit_label) == "kWh":
+            if soc_max_sensor and self.flex_model.get("soc_unit") == "kWh":
                 soc_max_sensor *= 1000
         return soc_min_sensor, soc_max_sensor
 
@@ -1134,9 +1133,9 @@ class MetaStorageScheduler(Scheduler):
         Make sure we have min and max SOC.
         If not passed directly, then get default from sensor or targets.
         """
-        _, max_target = self.get_min_max_targets(deserialized_names=False)
+        _, max_target = self.get_min_max_targets()
         soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor(
-            adjust_unit=True, deserialized_names=False
+            adjust_unit=True
         )
         if "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
             # Default is 0 - can't drain the storage by more than it contains
