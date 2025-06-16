@@ -1011,6 +1011,12 @@ class SensorAPI(FlaskView):
         """
         db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
         db.session.commit()
+
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Deleted data for sensor '{sensor.name}': {sensor.id}",
+        )
+
         return {}, 204
 
     @route("/<id>/stats", methods=["GET"])

@@ -465,15 +465,59 @@ def test_patch_sensor_non_admin(client, setup_api_test_data, requesting_user, db
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
+def test_delete_a_sensor_data(client, setup_api_test_data, requesting_user, db):
     existing_sensor = setup_api_test_data["some temperature sensor"]
     existing_sensor_id = existing_sensor.id
     sensor_data = db.session.scalars(
         select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
     ).all()
-    sensor_count = db.session.scalar(select(func.count()).select_from(Sensor))
 
+    # Check if sensor data has event value as float
     assert isinstance(sensor_data[0].event_value, float)
+
+    # Check if sensor data exists before deletion
+    assert (
+        db.session.scalars(
+            select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
+        ).all()
+        != []
+    )
+
+    # Delete sensor data
+    delete_data_response = client.delete(
+        url_for("SensorAPI:delete_data", id=existing_sensor_id),
+    )
+    assert delete_data_response.status_code == 204
+
+    deleted_sensor = db.session.get(Sensor, existing_sensor_id)
+
+    # Make sure sensor is not deleted
+    assert deleted_sensor is not None
+
+    # Make sure sensor data is deleted
+    assert (
+        db.session.scalars(
+            select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
+        ).all()
+        == []
+    )
+
+    # Make sure audit log is created
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            affected_asset_id=existing_sensor.generic_asset_id,
+            event=f"Deleted data for sensor '{existing_sensor.name}': {existing_sensor.id}",
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+        )
+    ).scalar_one_or_none()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
+    existing_sensor = setup_api_test_data["some temperature sensor"]
+    existing_sensor_id = existing_sensor.id
+    sensor_count = db.session.scalar(select(func.count()).select_from(Sensor))
 
     delete_sensor_response = client.delete(
         url_for("SensorAPI:delete", id=existing_sensor_id),
@@ -513,6 +557,7 @@ def test_fetch_sensor_stats(
         response = client.get(
             url_for("SensorAPI:get_stats", id=sensor_id),
         )
+        print("Server responded with:\n%s" % response.json)
         assert response.status_code == 200
         response_content = response.json
 
