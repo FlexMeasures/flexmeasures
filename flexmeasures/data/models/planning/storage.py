@@ -1093,26 +1093,20 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     self.end = max_target_datetime
 
-    def get_min_max_targets(
-        self, deserialized_names: bool = True
-    ) -> tuple[float | None, float | None]:
+    def get_min_max_targets(self) -> tuple[float | None, float | None]:
         min_target = None
         max_target = None
-        soc_targets_label = "soc_targets" if deserialized_names else "soc-targets"
 
         # if the SOC targets are defined as a Sensor, we don't get min max values
-        if isinstance(self.flex_model.get(soc_targets_label), dict):
+        if isinstance(self.flex_model.get("soc-targets"), dict):
             return None, None
 
-        if (
-            soc_targets_label in self.flex_model
-            and len(self.flex_model[soc_targets_label]) > 0
-        ):
+        if "soc-targets" in self.flex_model and len(self.flex_model["soc-targets"]) > 0:
             min_target = min(
-                [target["value"] for target in self.flex_model[soc_targets_label]]
+                [target["value"] for target in self.flex_model["soc-targets"]]
             )
             max_target = max(
-                [target["value"] for target in self.flex_model[soc_targets_label]]
+                [target["value"] for target in self.flex_model["soc-targets"]]
             )
         return min_target, max_target
 
@@ -1122,9 +1116,9 @@ class MetaStorageScheduler(Scheduler):
         soc_min_sensor: float | None = self.sensor.get_attribute("min_soc_in_mwh")
         soc_max_sensor: float | None = self.sensor.get_attribute("max_soc_in_mwh")
         if adjust_unit:
-            if soc_min_sensor and self.flex_model.get("soc_unit") == "kWh":
+            if soc_min_sensor and self.flex_model.get("soc-unit") == "kWh":
                 soc_min_sensor *= 1000  # later steps assume soc data is kWh
-            if soc_max_sensor and self.flex_model.get("soc_unit") == "kWh":
+            if soc_max_sensor and self.flex_model.get("soc-unit") == "kWh":
                 soc_max_sensor *= 1000
         return soc_min_sensor, soc_max_sensor
 
