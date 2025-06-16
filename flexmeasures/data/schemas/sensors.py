@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 import numbers
 from pytz.exceptions import UnknownTimeZoneError
 
@@ -529,7 +530,9 @@ class SensorDataFileSchema(Schema):
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
-                    resample=True,
+                    resample=(
+                        True if sensor.event_resolution is not timedelta(0) else False
+                    ),
                     timezone=sensor.timezone,
                 )
                 assert is_numeric_dtype(
