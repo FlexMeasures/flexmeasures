@@ -1052,7 +1052,11 @@ class MetaStorageScheduler(Scheduler):
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
                 self.flex_model[d] = StorageFlexModelSchema(
-                    start=self.start, sensor=sensor_flex_model["sensor"]
+                    start=self.start,
+                    sensor=sensor_flex_model["sensor"],
+                    default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
+                        "soc-unit"
+                    ),
                 ).load(sensor_flex_model["sensor_flex_model"])
                 self.flex_model[d]["sensor"] = sensor_flex_model["sensor"]
 
