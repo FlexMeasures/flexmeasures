@@ -200,12 +200,14 @@
             <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
               {% if breadcrumb["url"] is not none and not loop.last %}
                 <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+              {% elif breadcrumb["url"] is none %}
+                {{ breadcrumb['name'] }}
               {% else %}
                 {% if breadcrumb_info["siblings"]|length > 0 %}
                 <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
                 <ul class="dropdown-menu">
                     {% for sibling in breadcrumb_info["siblings"] %}
-                    <li><a  class="p-3 dropdown-item" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    <li><a class="p-3 dropdown-item {% if sibling['name'] == breadcrumb['name'] %}active{% endif %}" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
                     {% endfor %}
                 </ul>
                 {% else %}
@@ -216,13 +218,17 @@
             {% endfor %}
             {% if breadcrumb_info["views"]|length > 0 %}
             <li class="breadcrumb-item dropdown active">
-                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["views"][0]["name"] }}</a>
+                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["current_asset_view"] }}</a>
                 <ul class="dropdown-menu">
                     {% for view in breadcrumb_info["views"] %}
-                    <li><a  class="p-3 dropdown-item" href="{{ view['url'] }}">{{ view["name"] }}</a></li>
+                    <li><a class="p-3 dropdown-item {% if view['name'] == breadcrumb_info['current_asset_view'] %}active{% endif %}" href="{{ view['url'] }}">{{ view["name"] }}</a></li>
                     {% endfor %}
                 </ul>
             </li>
+            <div class="form-check form-switch" style="margin-left: auto;">
+                <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
+                <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+            </div>
             {% endif %}
         </ol>
     </nav>
@@ -412,7 +418,72 @@
             }
         });
     }
+    
+    {% if active_page == "sensors" %}
+        let upload = document.querySelector('#submitUpload');
+        let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
+        upload.addEventListener('click', function(e) {
+            upload.classList.add('d-none');
+            uploadSpinner.classList.remove('d-none');
+            var formData = new FormData(document.getElementById('uploadForm'));
+            fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(async function(response) {
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast(data.message, "success");
+                    // Update date range
+                    picker.setDateRange(
+                        storeStartDate,
+                        subtract(storeEndDate, 1),
+                    );
+                    // Wait for 2 seconds and then reload the page
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    window.location.reload();
+                } else {
+                    const data = await response.json();
+                    if (data.message.path_and_files === undefined) {
+                        showToast(data.message, "error");
+                    }
+                    else {
+                        for (const [key, value] of Object.entries(data.message.path_and_files)) {
+                            if (typeof value === 'string') {
+                                showToast(value, "error");
+                            } else if (Array.isArray(value)) {
+                                value.forEach(element => {
+                                    showToast(element, "error");
+                                });
+                            } else if (typeof value === 'object' && value !== null) {
+                                Object.values(value).forEach(element => {
+                                    if (Array.isArray(element)) {
+                                        element.forEach(item => showToast(item, "error"));
+                                    } else {
+                                        showToast(element, "error");
+                                    }
+                                });
+                            } else {
+                                // fallback for unexpected types
+                                showToast(String(value), "error");
+                            }
+                        }
+                    }
+                    uploadSpinner.classList.add('d-none');
+                    upload.classList.remove('d-none');
+                }
+            })
+            .catch(function(error) {
+                // Network or unexpected error
+                console.error("Upload error:", error);
+                showToast("An error occurred: " + error.message, "error");
+                uploadSpinner.classList.add('d-none');
+                upload.classList.remove('d-none');
+            });
+        });
+    {% endif %}
 
+    
     // event listener to refresh graph
     document.addEventListener('sensorsToShowUpdated', async function() {
         await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
@@ -785,6 +856,31 @@
                 $("[rel=tooltip]").tooltip();
             }
         });
+    </script>
+
+    <script>
+        // Set default asset view
+        function setDefaultAssetView(checkbox, view_name) {
+            // Get the checked status of the checkbox
+            const isChecked = checkbox.checked;
+
+            const apiBasePath = window.location.origin;
+            fetch(apiBasePath + '/api/v3_0/assets/default_asset_view', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({
+                    default_asset_view: view_name,
+                    use_as_default: isChecked
+                })
+            })
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error during API call:', error);
+            });
+        }
     </script>
 
     <!-- JS to enable toast -->

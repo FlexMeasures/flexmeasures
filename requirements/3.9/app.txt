@@ -4,11 +4,13 @@
 #
 #    pip-compile --output-file=requirements/3.9/app.txt requirements/app.in
 #
-alembic==1.15.2
+alembic==1.16.1
     # via flask-migrate
 altair==5.5.0
     # via -r requirements/app.in
-argon2-cffi==23.1.0
+annotated-types==0.7.0
+    # via pydantic
+argon2-cffi==25.1.0
     # via -r requirements/app.in
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
@@ -30,13 +32,13 @@ blinker==1.9.0
     #   flask-mail
     #   flask-principal
     #   sentry-sdk
-certifi==2025.1.31
+certifi==2025.4.26
     # via
     #   requests
     #   sentry-sdk
 cffi==1.17.1
     # via argon2-cffi-bindings
-charset-normalizer==3.4.1
+charset-normalizer==3.4.2
     # via requests
 click==8.1.8
     # via
@@ -52,7 +54,7 @@ convertdate==2.4.0
     # via workalendar
 cycler==0.12.1
     # via matplotlib
-dill==0.3.9
+dill==0.4.0
     # via openturns
 dnspython==2.7.0
     # via email-validator
@@ -62,7 +64,7 @@ email-validator==2.2.0
     #   flask-security-too
 filelock==3.18.0
     # via tldextract
-flask==3.1.0
+flask==3.1.1
     # via
     #   -r requirements/app.in
     #   flask-classful
@@ -81,7 +83,7 @@ flask==3.1.0
     #   sentry-sdk
 flask-classful==0.16.0
     # via -r requirements/app.in
-flask-cors==5.0.1
+flask-cors==6.0.0
     # via -r requirements/app.in
 flask-json==0.4.0
     # via -r requirements/app.in
@@ -97,7 +99,7 @@ flask-migrate==4.1.0
     # via -r requirements/app.in
 flask-principal==0.4.0
     # via flask-security-too
-flask-security-too==5.6.1
+flask-security-too==5.6.2
     # via -r requirements/app.in
 flask-sqlalchemy==3.1.1
     # via
@@ -113,27 +115,28 @@ flexcache==0.3
     # via pint
 flexparser==0.4
     # via pint
-fonttools==4.56.0
+fonttools==4.58.2
     # via matplotlib
-greenlet==3.1.1
+greenlet==3.2.3
     # via sqlalchemy
-humanize==4.12.2
+humanize==4.12.3
     # via -r requirements/app.in
 idna==3.10
     # via
     #   email-validator
     #   requests
     #   tldextract
-importlib-metadata==8.6.1
+importlib-metadata==8.7.0
     # via
     #   -r requirements/app.in
     #   flask
     #   timely-beliefs
+    #   typeguard
 importlib-resources==6.5.2
     # via
     #   flask-security-too
     #   matplotlib
-inflect==6.0.2
+inflect==7.5.0
     # via -r requirements/app.in
 inflection==0.5.1
     # via -r requirements/app.in
@@ -155,18 +158,19 @@ joblib==1.4.2
     # via
     #   scikit-learn
     #   sktime
-jsonschema==4.23.0
+jsonschema==4.24.0
     # via altair
-jsonschema-specifications==2024.10.1
+jsonschema-specifications==2025.4.1
     # via jsonschema
 kiwisolver==1.4.7
     # via matplotlib
 lunardate==0.2.2
     # via workalendar
-mako==1.3.9
+mako==1.3.10
     # via alembic
 markupsafe==3.0.2
     # via
+    #   flask
     #   flask-security-too
     #   jinja2
     #   mako
@@ -182,11 +186,13 @@ marshmallow==3.26.1
     #   webargs
 marshmallow-polyfield==5.11
     # via -r requirements/app.in
-marshmallow-sqlalchemy==1.4.1
+marshmallow-sqlalchemy==1.4.2
     # via -r requirements/app.in
 matplotlib==3.9.4
     # via timetomodel
-narwhals==1.33.0
+more-itertools==10.7.0
+    # via inflect
+narwhals==1.42.0
     # via altair
 numpy==1.26.4
     # via
@@ -204,7 +210,7 @@ numpy==1.26.4
     #   uniplot
 openturns==1.24
     # via timely-beliefs
-packaging==24.2
+packaging==25.0
     # via
     #   altair
     #   marshmallow
@@ -229,7 +235,7 @@ pillow==11.2.1
     #   matplotlib
 pint==0.24.4
     # via -r requirements/app.in
-platformdirs==4.3.7
+platformdirs==4.3.8
     # via pint
 ply==3.11
     # via pyomo
@@ -245,10 +251,10 @@ py-moneyed==3.0
     # via -r requirements/app.in
 pycparser==2.22
     # via cffi
-pydantic==1.10.21
-    # via
-    #   -r requirements/app.in
-    #   inflect
+pydantic==2.11.5
+    # via -r requirements/app.in
+pydantic-core==2.33.2
+    # via pydantic
 pyluach==2.2.0
     # via workalendar
 pymeeus==0.5.12
@@ -274,7 +280,9 @@ pytz==2025.2
     #   timetomodel
 pyyaml==6.0.2
     # via -r requirements/app.in
-redis==5.2.1
+readchar==4.2.1
+    # via uniplot
+redis==6.2.0
     # via
     #   -r requirements/app.in
     #   redis-sentinel-url
@@ -286,23 +294,23 @@ referencing==0.36.2
     # via
     #   jsonschema
     #   jsonschema-specifications
-requests==2.32.3
+requests==2.32.4
     # via
     #   requests-file
     #   tldextract
 requests-file==2.1.0
     # via tldextract
-rpds-py==0.24.0
+rpds-py==0.25.1
     # via
     #   jsonschema
     #   referencing
-rq==2.2.0
+rq==2.3.3
     # via
     #   -r requirements/app.in
     #   rq-dashboard
-rq-dashboard==0.8.2.2
+rq-dashboard==0.8.3.2
     # via -r requirements/app.in
-scikit-base==0.12.0
+scikit-base==0.12.3
     # via sktime
 scikit-learn==1.6.1
     # via
@@ -316,13 +324,13 @@ scipy==1.13.1
     #   statsmodels
     #   timely-beliefs
     #   timetomodel
-sentry-sdk[flask]==2.25.0
+sentry-sdk[flask]==2.29.1
     # via -r requirements/app.in
 six==1.17.0
     # via python-dateutil
-sktime==0.36.0
+sktime==0.37.0
     # via timely-beliefs
-sqlalchemy==2.0.40
+sqlalchemy==2.0.41
     # via
     #   -r requirements/app.in
     #   alembic
@@ -336,15 +344,19 @@ tabulate==0.9.0
     # via -r requirements/app.in
 threadpoolctl==3.6.0
     # via scikit-learn
-timely-beliefs[forecast]==3.1.0
+timely-beliefs[forecast]==3.2.0
     # via -r requirements/app.in
 timetomodel==0.7.3
     # via -r requirements/app.in
-tldextract==5.1.3
+tldextract==5.3.0
     # via -r requirements/app.in
-types-python-dateutil==2.9.0.20241206
+tomli==2.2.1
+    # via alembic
+typeguard==4.4.3
+    # via inflect
+types-python-dateutil==2.9.0.20250516
     # via arrow
-typing-extensions==4.13.0
+typing-extensions==4.14.0
     # via
     #   alembic
     #   altair
@@ -354,19 +366,24 @@ typing-extensions==4.13.0
     #   pint
     #   py-moneyed
     #   pydantic
+    #   pydantic-core
     #   referencing
     #   sqlalchemy
+    #   typeguard
+    #   typing-inspection
+typing-inspection==0.4.1
+    # via pydantic
 tzdata==2025.2
     # via pandas
-uniplot==0.17.1
+uniplot==0.21.2
     # via -r requirements/app.in
-urllib3==2.3.0
+urllib3==2.4.0
     # via
     #   requests
     #   sentry-sdk
-vl-convert-python==1.7.0
+vl-convert-python==1.8.0
     # via -r requirements/app.in
-webargs==8.6.0
+webargs==8.7.0
     # via -r requirements/app.in
 werkzeug==3.1.3
     # via
@@ -382,7 +399,10 @@ wtforms==3.2.1
     #   flask-wtf
 xlrd==2.0.1
     # via -r requirements/app.in
-zipp==3.21.0
+zipp==3.23.0
     # via
     #   importlib-metadata
     #   importlib-resources
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

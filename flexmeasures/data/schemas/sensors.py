@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+from datetime import timedelta
 import numbers
 from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
+from flask_security import current_user
 from marshmallow import (
     Schema,
-    fields,
-    validate,
-    validates,
     ValidationError,
+    fields,
+    post_load,
+    validates,
     validates_schema,
 )
+import marshmallow.validate as validate
+from pandas.api.types import is_numeric_dtype
+import timely_beliefs as tb
+from werkzeug.datastructures import FileStorage
 from marshmallow.validate import Validator
 
 import json
@@ -215,7 +221,14 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
     @with_appcontext_if_needed()
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
+
+        if not isinstance(value, int) and not isinstance(value, str):
+            raise FMValidationError(
+                f"Sensor ID has the wrong type. Got `{type(value).__name__}` but `int` was expected."
+            )
+
         sensor = db.session.get(Sensor, value)
+
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
 
@@ -434,3 +447,107 @@ class TimeSeriesOrSensor(VariableQuantityField):
             "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
         super().__init__(return_magnitude=True, *args, **kwargs)
+
+
+class SensorDataFileSchema(Schema):
+    uploaded_files = fields.List(
+        fields.Field(metadata={"type": "string", "format": "byte"}),
+        data_key="uploaded-files",
+    )
+    belief_time_measured_instantly = fields.Boolean(
+        metadata={"type": "boolean", "default": False},
+        required=False,
+        allow_none=True,
+        truthy={"on", "true", "True", "1"},
+        falsy={"off", "false", "False", "0", None},
+        data_key="belief-time-measured-instantly",
+    )
+    sensor = SensorIdField(data_key="id")
+
+    _valid_content_types = {
+        "text/csv",
+        "text/plain",
+        "text/x-csv",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
+
+    @validates("uploaded_files")
+    def validate_uploaded_files(self, files: list[FileStorage]):
+        """Validate the deserialized fields."""
+        errors = {}
+        for i, file in enumerate(files):
+            file_errors = []
+            if not isinstance(file, FileStorage):
+                file_errors += [
+                    f"Invalid content: {file}. Only CSV files are accepted."
+                ]
+            if file.filename == "":
+                file_errors += ["Filename is missing."]
+            elif file.filename.split(".")[-1] not in (
+                "csv",
+                "CSV",
+                "xlsx",
+                "XLSX",
+                "xls",
+                "XLS",
+                "xlsm",
+                "XLSM",
+            ):
+                file_errors += [
+                    f"Invalid filename: {file.filename}. Only CSV or Excel files are accepted."
+                ]
+            if file.content_type not in self._valid_content_types:
+                file_errors += [
+                    f"Invalid content type: {file.content_type}. Only the following content types are accepted: {self._valid_content_types}."
+                ]
+            if file_errors:
+                errors[i] = file_errors
+        if errors:
+            raise ValidationError(errors)
+
+    @post_load
+    def post_load(self, fields, **kwargs):
+        """Process the deserialized and validated fields.
+        Remove the 'sensor' and 'files' fields, and add the 'data' field containing a list of BeliefsDataFrames.
+        """
+        sensor = fields.pop("sensor")
+        dfs = []
+        files: list[FileStorage] = fields.pop("uploaded_files")
+        belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+        errors = {}
+        for i, file in enumerate(files):
+            try:
+                df = tb.read_csv(
+                    file,
+                    sensor,
+                    source=current_user.data_source[0],
+                    belief_time=(
+                        pd.Timestamp.utcnow()
+                        if not belief_time_measured_instantly
+                        else None
+                    ),
+                    belief_horizon=(
+                        pd.Timedelta(days=0) if belief_time_measured_instantly else None
+                    ),
+                    resample=(
+                        True if sensor.event_resolution is not timedelta(0) else False
+                    ),
+                    timezone=sensor.timezone,
+                )
+                assert is_numeric_dtype(
+                    df["event_value"]
+                ), "event values should be numeric"
+                dfs.append(df)
+            except Exception as e:
+                error_message = (
+                    f"Invalid content in file: {file.filename}. Failed with: {str(e)}"
+                )
+                current_app.logger.info(
+                    f"Upload failed for sensor {sensor.id}. {error_message}"
+                )
+                errors[i] = error_message
+        if errors:
+            raise ValidationError(errors)
+        fields["data"] = dfs
+        return fields

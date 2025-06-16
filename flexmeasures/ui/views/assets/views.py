@@ -3,7 +3,6 @@ from __future__ import annotations
 from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
-from werkzeug.exceptions import NotFound
 from webargs.flaskparser import use_kwargs
 from flexmeasures.auth.error_handling import unauthorized_handler
 
@@ -17,9 +16,10 @@ from flexmeasures.data.models.generic_assets import (
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
-from flexmeasures.ui.crud.api_wrapper import InternalApi
-from flexmeasures.ui.crud.assets.forms import NewAssetForm, AssetForm
-from flexmeasures.ui.crud.assets.utils import (
+from flexmeasures.ui.views.api_wrapper import InternalApi
+from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
+from flexmeasures.ui.views.assets.utils import (
+    get_asset_by_id_or_raise_notfound,
     process_internal_api_response,
     user_can_create_assets,
     user_can_delete,
@@ -34,19 +34,14 @@ from flexmeasures.ui.utils.view_utils import available_units
 
 """
 Asset crud view.
-
-Note: This uses the internal dev API version
-      ― if those endpoints get moved or updated to a higher version,
-      we probably should change the version used here, as well.
 """
 
 
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
-    The main focus on logic is the API, so these views simply call the API functions,
-    and deal with the response.
-    Some new functionality, like fetching accounts and asset types, is added here.
+    If endpoints create/change data, we aim to use the logic and authorization in the actual API,
+    so these views simply call the API functions,and deal with the response.
     """
 
     route_base = "/assets"
@@ -60,7 +55,7 @@ class AssetCrudUI(FlaskView):
         """
 
         return render_flexmeasures_template(
-            "crud/assets.html",
+            "assets/assets.html",
             asset_icon_map=ICON_MAPPING,
             message=msg,
             account=None,
@@ -86,7 +81,7 @@ class AssetCrudUI(FlaskView):
             ]
         db.session.flush()
         return render_flexmeasures_template(
-            "crud/assets.html",
+            "assets/assets.html",
             account=db.session.get(Account, account_id),
             assets=assets,
             msg=msg,
@@ -94,11 +89,27 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
-    # @route("/<id>/context")
     def get(self, id: str, **kwargs):
         """/assets/<id>"""
-        parent_asset_id = request.args.get("parent_asset_id", "")
-        if id == "new":
+        """
+        This is a kind of utility view that redirects to the default asset view, either Context or the one saved in the user session.
+        """
+        default_asset_view = session.get("default_asset_view", "Context")
+        return redirect(
+            url_for(
+                "AssetCrudUI:{}".format(default_asset_view.replace(" ", "").lower()),
+                id=id,
+                **kwargs,
+            )
+        )
+
+    @login_required
+    @route("/<id>/context")
+    def context(self, id: str, **kwargs):
+        """/assets/<id>/context"""
+        # Get default asset view
+        if id == "new":  # show empty asset creation form
+            parent_asset_id = request.args.get("parent_asset_id", "")
             if not user_can_create_assets():
                 return unauthorized_handler(None, [])
 
@@ -115,7 +126,7 @@ class AssetCrudUI(FlaskView):
                     parent_asset_name = parent_asset.name
                     account = parent_asset.account_id
             return render_flexmeasures_template(
-                "crud/asset_new.html",
+                "assets/asset_new.html",
                 asset_form=asset_form,
                 msg="",
                 map_center=get_center_location_of_assets(user=current_user),
@@ -125,12 +136,11 @@ class AssetCrudUI(FlaskView):
                 account=account,
             )
 
-        asset = db.session.query(GenericAsset).filter_by(id=id).first()
-        if asset is None:
-            assets = []
-        else:
-            assets = get_list_assets_chart(asset, base_asset=asset)
-
+        # show existing asset
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
+        assets = get_list_assets_chart(asset, base_asset=asset)
+        assets = add_child_asset(asset, assets)
         current_asset_sensors = [
             {
                 "name": sensor.name,
@@ -139,10 +149,9 @@ class AssetCrudUI(FlaskView):
             }
             for sensor in asset.sensors
         ]
-        assets = add_child_asset(asset, assets)
 
         return render_flexmeasures_template(
-            "crud/asset_context.html",
+            "assets/asset_context.html",
             assets=assets,
             asset=asset,
             current_asset_sensors=current_asset_sensors,
@@ -155,13 +164,11 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/sensor/new")
     def create_sensor(self, id: str):
         """GET to /assets/<id>/sensor/new"""
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "create-children")
 
         return render_flexmeasures_template(
-            "crud/sensor_new.html",
+            "sensors/sensor_new.html",
             asset=asset,
             available_units=available_units(),
         )
@@ -170,18 +177,16 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/status")
     def status(self, id: str):
         """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
-
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
 
         status_data = get_asset_sensors_metadata(asset)
 
         return render_flexmeasures_template(
-            "views/status.html",
+            "sensors/status.html",
             asset=asset,
             sensors=status_data,
+            current_page="Status",
         )
 
     @login_required
@@ -239,7 +244,7 @@ class AssetCrudUI(FlaskView):
             if asset is None:
                 msg = "Cannot create asset. " + error_msg
                 return render_flexmeasures_template(
-                    "crud/asset_new.html",
+                    "assets/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
                     map_center=get_center_location_of_assets(user=current_user),
@@ -247,7 +252,8 @@ class AssetCrudUI(FlaskView):
                 )
 
         else:
-            asset = db.session.get(GenericAsset, id)
+            asset = get_asset_by_id_or_raise_notfound(id)
+            check_access(asset, "update")
             asset_form = AssetForm()
             asset_form.with_options()
             if not asset_form.validate_on_submit():
@@ -298,12 +304,11 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/auditlog")
     def auditlog(self, id: str):
         """/assets/<id>/auditlog"""
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
 
         return render_flexmeasures_template(
-            "crud/asset_audit_log.html",
+            "assets/asset_audit_log.html",
             asset=asset,
             current_page="Audit Log",
         )
@@ -313,21 +318,17 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/graphs")
     def graphs(self, id: str, start_time=None, end_time=None):
         """/assets/<id>/graphs"""
-
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
-
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
 
         asset_form = AssetForm()
         asset_form.with_options()
-
-        asset_form.process(data=process_internal_api_response(asset_dict))
+        asset_form.process(obj=asset)
 
         return render_flexmeasures_template(
-            "crud/asset_graph.html",
+            "assets/asset_graph.html",
             asset=asset,
-            current_page="Graph",
+            current_page="Graphs",
         )
 
     @login_required
@@ -342,12 +343,12 @@ class AssetCrudUI(FlaskView):
             msg = ""
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
-
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+
+        check_access(asset, "read")
 
         asset_form = AssetForm()
         asset_form.with_options()
-
         asset_form.process(data=process_internal_api_response(asset_dict))
 
         asset_summary = {
@@ -362,7 +363,7 @@ class AssetCrudUI(FlaskView):
         }
 
         return render_flexmeasures_template(
-            "crud/asset_properties.html",
+            "assets/asset_properties.html",
             asset=asset,
             asset_summary=asset_summary,
             asset_form=asset_form,

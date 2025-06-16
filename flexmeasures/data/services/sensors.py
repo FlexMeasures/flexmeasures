@@ -290,25 +290,34 @@ def get_asset_sensors_metadata(
         if isinstance(asset.flex_context[field], dict)
         and field != "inflexible-device-sensors"
     }
-    for asset, is_child_asset in (
-        (asset, False),
-        *[(child_asset, True) for child_asset in asset.child_assets],
-    ):
-        sensors_list = list(asset.sensors)
-        if not is_child_asset:
-            sensors_list += [
-                *inflexible_device_sensors,
-                *context_sensors.values(),
-            ]
-        for sensor in sensors_list:
-            if sensor is None or sensor.id in sensor_ids:
-                continue
-            sensor_status = {}
-            sensor_status["id"] = sensor.id
-            sensor_status["name"] = sensor.name
-            sensor_status["asset_name"] = sensor.generic_asset.name
-            sensor_ids.add(sensor.id)
-            sensors.append(sensor_status)
+
+    # Get sensors to show using the validate_sensors_to_show method
+    sensors_to_show = []
+    validated_asset_sensors = asset.validate_sensors_to_show(
+        suggest_default_sensors=False
+    )
+    sensor_groups = [
+        sensor["sensors"] for sensor in validated_asset_sensors if sensor is not None
+    ]
+    merged_sensor_groups = sum(sensor_groups, [])
+    sensors_to_show.extend(merged_sensor_groups)
+
+    sensors_list = [
+        *inflexible_device_sensors,
+        *context_sensors.values(),
+        *sensors_to_show,
+    ]
+
+    for sensor in sensors_list:
+        if sensor is None or sensor.id in sensor_ids:
+            continue
+        sensor_status = {}
+        sensor_status["id"] = sensor.id
+        sensor_status["name"] = sensor.name
+        sensor_status["asset_name"] = sensor.generic_asset.name
+        sensor_ids.add(sensor.id)
+        sensors.append(sensor_status)
+
     return sensors
 
 

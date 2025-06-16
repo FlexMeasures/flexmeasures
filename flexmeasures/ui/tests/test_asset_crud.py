@@ -4,7 +4,7 @@ import pytest
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import mock_asset_response, mock_api_data_as_form_input
-from flexmeasures.ui.crud.assets import get_assets_by_account
+from flexmeasures.ui.views.assets import get_assets_by_account
 
 """
 Testing if our asset UI proceeds with the expected round trip.

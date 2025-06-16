@@ -128,6 +128,7 @@ button.btn:hover a {
     top: 0;
     left: 0;
     width: 100%;
+    pointer-events: none; /* Prevents the spinner from blocking clicks */
 }
 
 .legend {
@@ -328,8 +329,8 @@ p.error {
     text-align: center;
 }
 .dropdown-menu>li>a.active {
-    color: var(--nav-hover-color);
-    background-color: var(--nav-hover-background-color);
+    color: var(--nav-current-color) !important;
+    background-color: var(--nav-current-background-color) !important;
 }
 .dropdown-menu>li>a:focus,
 .dropdown-menu>li>a:hover {
@@ -1994,4 +1995,8 @@ body.touched [title]:hover:after {
 .no-style-link:hover {
     color: inherit !important;
     background-color: transparent !important;
+}
+
+.bg-primary-custom {
+    background-color: var(--primary-color) !important;
 }

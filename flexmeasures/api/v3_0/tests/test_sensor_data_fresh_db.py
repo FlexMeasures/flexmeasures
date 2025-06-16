@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 from flask import url_for
 from timely_beliefs.tests.utils import equal_lists
@@ -120,3 +121,39 @@ def test_auto_fix_missing_registration_of_user_as_data_source(
         select(Source).filter_by(user=setup_user_without_data_source)
     ).scalar_one_or_none()
     assert data_source is not None
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_instantaneous_data_round(
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+):
+    post_data = make_sensor_data_request_for_gas_sensor(
+        sensor_name="empty temperature sensor",
+        num_values=1,
+        unit="°C",
+        duration="PT0H",
+    )
+    post_data["start"] = (
+        pd.Timestamp(post_data["start"]) + pd.Timedelta(milliseconds=10)
+    ).isoformat()
+    sensor = setup_api_fresh_test_data["empty temperature sensor"]
+    sensor.attributes["frequency"] = "15min"
+
+    rows = len(sensor.search_beliefs())
+    assert rows == 0
+
+    response = client.post(
+        url_for("SensorAPI:post_data"),
+        json=post_data,
+    )
+
+    assert response.status_code == 200
+
+    data = sensor.search_beliefs()
+    assert data.reset_index().event_start[0] == pd.Timestamp(
+        "2021-06-06 22:00:00+0000", tz="UTC"
+    )

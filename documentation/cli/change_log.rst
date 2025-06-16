@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.26.0 | April XX, 2025
+since v0.26.0 | June 03, 2025
 =================================
 * Switch to ``flexmeasures jobs save-last`` CLI command for saving the last n canceled/deferred/failed/finished/scheduled/started jobs (from the scheduling queue, by default).
 

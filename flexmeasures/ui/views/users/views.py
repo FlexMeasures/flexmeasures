@@ -18,7 +18,7 @@ from flexmeasures.data.services.users import (
     get_user,
 )
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
-from flexmeasures.ui.crud.api_wrapper import InternalApi
+from flexmeasures.ui.views.api_wrapper import InternalApi
 
 """
 User Crud views for admins.
@@ -34,10 +34,27 @@ def render_user(user: User | None, msg: str | None = None):
     except (Forbidden, Unauthorized):
         user_view_user_auditlog = False
 
+    can_edit_user_details = True
+    try:
+        check_access(user, "update")
+    except (Forbidden, Unauthorized):
+        can_edit_user_details = False
+
+    roles = {}
+    for role in db.session.scalars(select(Role)).all():
+        roles[role.name] = role.id
+
+    user_roles = []
+    if user is not None:
+        user_roles = [role.name for role in user.flexmeasures_roles]
+
     return render_flexmeasures_template(
-        "crud/user.html",
+        "users/user.html",
         can_view_user_auditlog=user_view_user_auditlog,
+        can_edit_user_details=can_edit_user_details,
         user=user,
+        user_roles=user_roles,
+        roles=roles,
         asset_count=user.account.number_of_assets,
         msg=msg,
     )
@@ -90,7 +107,7 @@ class UserCrudUI(FlaskView):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
         return render_flexmeasures_template(
-            "crud/users.html", include_inactive=include_inactive
+            "users/users.html", include_inactive=include_inactive
         )
 
     @login_required
@@ -143,6 +160,6 @@ class UserCrudUI(FlaskView):
         """
         user: User = get_user(id)
         return render_flexmeasures_template(
-            "crud/user_audit_log.html",
+            "users/user_audit_log.html",
             user=user,
         )

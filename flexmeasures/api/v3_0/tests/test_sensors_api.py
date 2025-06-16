@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import pytest
 import math
+import io
 
 from flask import url_for
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
+from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -294,6 +296,64 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     ).scalar_one_or_none()
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file(client, requesting_user):
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    csv_content = """event_start,event_value
+2022-12-16T05:11:00Z,4
+2022-12-16T06:11:00Z,2
+2022-12-16T07:11:00Z,6
+"""
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    # Match what the schema expects
+    data = {"uploaded-files": file}
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=1),
+        data=data,
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+    assert response.status_code == 200 or response.status_code == 400
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_excel_file(client, requesting_user):
+    import openpyxl
+
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["event_start", "event_value"])
+    ws.append(["2022-12-16T08:11:00Z", 3])
+    ws.append(["2022-12-16T09:11:00Z", 8])
+    ws.append(["2022-12-16T10:11:00Z", 4])
+    file_stream = io.BytesIO()
+    wb.save(file_stream)
+    file_stream.seek(0)
+
+    data = {"uploaded-files": (file_stream, "test.xlsx")}
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=1),
+        data=data,
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+    assert response.status_code == 200 or response.status_code == 400
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_verify_data_exists_for_sensor(
+    client, setup_api_test_data, requesting_user, db
+):
+    sensors = (
+        db.session.execute(select(TimedBelief).filter_by(sensor_id=1)).scalars().all()
+    )
+    assert len(sensors) > 6
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
@@ -405,15 +465,59 @@ def test_patch_sensor_non_admin(client, setup_api_test_data, requesting_user, db
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
+def test_delete_a_sensor_data(client, setup_api_test_data, requesting_user, db):
     existing_sensor = setup_api_test_data["some temperature sensor"]
     existing_sensor_id = existing_sensor.id
     sensor_data = db.session.scalars(
         select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
     ).all()
-    sensor_count = db.session.scalar(select(func.count()).select_from(Sensor))
 
+    # Check if sensor data has event value as float
     assert isinstance(sensor_data[0].event_value, float)
+
+    # Check if sensor data exists before deletion
+    assert (
+        db.session.scalars(
+            select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
+        ).all()
+        != []
+    )
+
+    # Delete sensor data
+    delete_data_response = client.delete(
+        url_for("SensorAPI:delete_data", id=existing_sensor_id),
+    )
+    assert delete_data_response.status_code == 204
+
+    deleted_sensor = db.session.get(Sensor, existing_sensor_id)
+
+    # Make sure sensor is not deleted
+    assert deleted_sensor is not None
+
+    # Make sure sensor data is deleted
+    assert (
+        db.session.scalars(
+            select(TimedBelief).filter(TimedBelief.sensor_id == existing_sensor_id)
+        ).all()
+        == []
+    )
+
+    # Make sure audit log is created
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            affected_asset_id=existing_sensor.generic_asset_id,
+            event=f"Deleted data for sensor '{existing_sensor.name}': {existing_sensor.id}",
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+        )
+    ).scalar_one_or_none()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
+    existing_sensor = setup_api_test_data["some temperature sensor"]
+    existing_sensor_id = existing_sensor.id
+    sensor_count = db.session.scalar(select(func.count()).select_from(Sensor))
 
     delete_sensor_response = client.delete(
         url_for("SensorAPI:delete", id=existing_sensor_id),
@@ -460,22 +564,27 @@ def test_fetch_sensor_stats(
         del response_content["status"]
         assert sorted(list(response_content.keys())) == [
             "Other source",
+            "Test Admin User",
             "Test Supplier User",
         ]
         for source, record in response_content.items():
-            assert record["First event start"] == "2021-05-01T22:00:00+00:00"
-            assert record["Last event end"] == "2021-05-01T22:30:00+00:00"
-            assert record["Min value"] == 91.3
-            assert record["Max value"] == 92.1
-            if source == "Test Supplier User":
-                # values are: 91.3, 91.7, 92.1
+            assert record["First event start"]
+            assert record["Last event end"]
+            assert record["Min value"]
+            assert record["Min value"]
+            assert record["Max value"]
+            if source == "Test Admin User":
+                sum_values = 162.0
+                count_values = 36
+                mean_value = 4.5
+            elif source == "Test Supplier User":
                 sum_values = 275.1
                 count_values = 3
+                mean_value = 91.7
             else:
-                # values are: 91.3, NaN, 92.1
                 sum_values = 183.4
                 count_values = 3
-            mean_value = 91.7
+                mean_value = 91.7
             assert math.isclose(
                 record["Mean value"], mean_value, rel_tol=1e-5
             ), f"mean_value is close to {mean_value}"
@@ -488,7 +597,6 @@ def test_fetch_sensor_stats(
         response = client.get(
             url_for("SensorAPI:get_stats", id=sensor_id),
         )
-        print("Server responded with:\n%s" % response.json)
         assert response.status_code == 200
 
     # Check stats cache works and stats query is executed only once

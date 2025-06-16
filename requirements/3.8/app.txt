@@ -8,7 +8,9 @@ alembic==1.14.1
     # via flask-migrate
 altair==5.4.1
     # via -r requirements/app.in
-argon2-cffi==23.1.0
+annotated-types==0.7.0
+    # via pydantic
+argon2-cffi==25.1.0
     # via -r requirements/app.in
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
@@ -32,13 +34,13 @@ blinker==1.8.2
     #   flask-mail
     #   flask-principal
     #   sentry-sdk
-certifi==2025.1.31
+certifi==2025.4.26
     # via
     #   requests
     #   sentry-sdk
 cffi==1.17.1
     # via argon2-cffi-bindings
-charset-normalizer==3.4.1
+charset-normalizer==3.4.2
     # via requests
 click==8.1.8
     # via
@@ -54,7 +56,7 @@ convertdate==2.4.0
     # via workalendar
 cycler==0.12.1
     # via matplotlib
-dill==0.3.9
+dill==0.4.0
     # via openturns
 dnspython==2.6.1
     # via email-validator
@@ -111,7 +113,7 @@ flask-wtf==1.2.1
     # via
     #   -r requirements/app.in
     #   flask-security-too
-fonttools==4.56.0
+fonttools==4.57.0
     # via matplotlib
 greenlet==3.1.1
     # via sqlalchemy
@@ -128,6 +130,7 @@ importlib-metadata==8.5.0
     #   alembic
     #   flask
     #   timely-beliefs
+    #   typeguard
 importlib-resources==6.4.5
     # via
     #   alembic
@@ -135,7 +138,7 @@ importlib-resources==6.4.5
     #   jsonschema
     #   jsonschema-specifications
     #   matplotlib
-inflect==6.0.2
+inflect==7.4.0
     # via -r requirements/app.in
 inflection==0.5.1
     # via -r requirements/app.in
@@ -163,7 +166,7 @@ kiwisolver==1.4.7
     # via matplotlib
 lunardate==0.2.2
     # via workalendar
-mako==1.3.9
+mako==1.3.10
     # via alembic
 markupsafe==2.1.5
     # via
@@ -186,7 +189,9 @@ marshmallow-sqlalchemy==1.1.1
     # via -r requirements/app.in
 matplotlib==3.7.5
     # via timetomodel
-narwhals==1.33.0
+more-itertools==10.5.0
+    # via inflect
+narwhals==1.42.0
     # via altair
 numpy==1.24.4
     # via
@@ -204,7 +209,7 @@ numpy==1.24.4
     #   uniplot
 openturns==1.23
     # via timely-beliefs
-packaging==24.2
+packaging==25.0
     # via
     #   altair
     #   marshmallow
@@ -245,10 +250,10 @@ py-moneyed==3.0
     # via -r requirements/app.in
 pycparser==2.22
     # via cffi
-pydantic==1.10.21
-    # via
-    #   -r requirements/app.in
-    #   inflect
+pydantic==2.10.6
+    # via -r requirements/app.in
+pydantic-core==2.27.2
+    # via pydantic
 pyluach==2.2.0
     # via workalendar
 pymeeus==0.5.12
@@ -275,7 +280,9 @@ pytz==2025.2
     #   timetomodel
 pyyaml==6.0.2
     # via -r requirements/app.in
-redis==5.2.1
+readchar==4.2.1
+    # via uniplot
+redis==6.1.1
     # via
     #   -r requirements/app.in
     #   redis-sentinel-url
@@ -287,7 +294,7 @@ referencing==0.35.1
     # via
     #   jsonschema
     #   jsonschema-specifications
-requests==2.32.3
+requests==2.32.4
     # via
     #   requests-file
     #   tldextract
@@ -297,11 +304,11 @@ rpds-py==0.20.1
     # via
     #   jsonschema
     #   referencing
-rq==2.2.0
+rq==2.3.3
     # via
     #   -r requirements/app.in
     #   rq-dashboard
-rq-dashboard==0.8.2.2
+rq-dashboard==0.8.3.2
     # via -r requirements/app.in
 scikit-base==0.7.8
     # via sktime
@@ -317,13 +324,13 @@ scipy==1.10.1
     #   statsmodels
     #   timely-beliefs
     #   timetomodel
-sentry-sdk[flask]==2.25.0
+sentry-sdk[flask]==2.29.1
     # via -r requirements/app.in
 six==1.17.0
     # via python-dateutil
 sktime==0.29.1
     # via timely-beliefs
-sqlalchemy==2.0.40
+sqlalchemy==2.0.41
     # via
     #   -r requirements/app.in
     #   alembic
@@ -337,30 +344,36 @@ tabulate==0.9.0
     # via -r requirements/app.in
 threadpoolctl==3.5.0
     # via scikit-learn
-timely-beliefs[forecast]==3.1.0
+timely-beliefs[forecast]==3.2.0
     # via -r requirements/app.in
 timetomodel==0.7.3
     # via -r requirements/app.in
 tldextract==5.1.2
     # via -r requirements/app.in
+typeguard==4.4.0
+    # via inflect
 types-python-dateutil==2.9.0.20241206
     # via arrow
-typing-extensions==4.13.0
+typing-extensions==4.13.2
     # via
     #   alembic
     #   altair
+    #   annotated-types
+    #   inflect
     #   py-moneyed
     #   pydantic
+    #   pydantic-core
     #   sqlalchemy
+    #   typeguard
 tzdata==2025.2
     # via pandas
-uniplot==0.17.1
+uniplot==0.21.2
     # via -r requirements/app.in
 urllib3==2.2.3
     # via
     #   requests
     #   sentry-sdk
-vl-convert-python==1.7.0
+vl-convert-python==1.8.0
     # via -r requirements/app.in
 webargs==8.6.0
     # via -r requirements/app.in
