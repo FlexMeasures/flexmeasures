@@ -108,6 +108,7 @@ Here, we extend that (storage) example with an additional target value, represen
     {
         "start": "2015-06-02T10:00:00+00:00",
         "flex-model": {
+            "sensor": 15,
             "soc-at-start": "12.1 kWh",
             "soc-targets": [
                 {
@@ -130,7 +131,7 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor 1 --consumption-price-sensor 2 \
+    $ flexmeasures add schedule for-storage --sensor 15 --consumption-price-sensor 2 \
         --start 2022-07-05T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90% --as-job
 
