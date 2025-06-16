@@ -236,7 +236,7 @@ class UserAPI(FlaskView):
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
-    def patch(self, id: int, user: UserModel, **user_data):
+    def patch(self, id: int, user: UserModel, **user_data):  # noqa C901
         """API endpoint to patch user data.
 
         .. :quickref: User; Patch data for an existing user
@@ -291,51 +291,45 @@ class UserAPI(FlaskView):
             "timezone",
             "flexmeasures_roles",
         ]
+        audit_event = ""  # we audit-log relevant changes
         for k, v in [(k, v) for k, v in user_data.items() if k in allowed_fields]:
             if current_user.id == user.id and k in ("active", "flexmeasures_roles"):
                 raise Forbidden(
                     "Users who edit themselves cannot edit security-sensitive fields."
                 )
             # if flexmeasures_roles is not empty, check if the user can modify the role
-            if k == "flexmeasures_roles" and v:
+            if k == "flexmeasures_roles" and (v or len(v) == 0):
                 from flexmeasures.auth.policy import can_modify_role
 
-                current_roles = set(user.roles)
+                current_roles = set(user.flexmeasures_roles)
                 new_roles = set(v)
 
                 roles_being_removed = current_roles - new_roles
                 for role in roles_being_removed:
-                    if not can_modify_role(current_user, [role]):
+                    if not can_modify_role(current_user, [role], user):
                         raise Forbidden(
                             f"You are not allowed to remove ({role.name}) role from this user."
                         )
+                if roles_being_removed:
+                    audit_event += f"Removed role(s): [{','.join([r.name for r in roles_being_removed])}]."
 
                 roles_being_added = new_roles - current_roles
                 for role in roles_being_added:
-                    if not can_modify_role(current_user, [role]):
+                    if not can_modify_role(current_user, [role], user):
                         raise Forbidden(
                             f"You are not allowed to add ({role.name}) role to this user."
                         )
+                if roles_being_added:
+                    audit_event += f"Added role(s): [{','.join([r.name for r in roles_being_added])}]."
 
             setattr(user, k, v)
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
             if k == "active":
-                active_user_id, active_user_name = None, None
-                if hasattr(current_user, "id"):
-                    active_user_id, active_user_name = (
-                        current_user.id,
-                        current_user.username,
-                    )
-                user_audit_log = AuditLog(
-                    event_datetime=server_now(),
-                    event=f"Active status set to '{v}' for user {user.username}",
-                    active_user_id=active_user_id,
-                    active_user_name=active_user_name,
-                    affected_user_id=user.id,
-                    affected_account_id=user.account_id,
-                )
-                db.session.add(user_audit_log)
+                audit_event += f"Active status set to '{v}'."
+        if audit_event:
+            user_audit_log = create_user_audit_log(audit_event, user)
+            db.session.add(user_audit_log)
         db.session.add(user)
         try:
             db.session.commit()
@@ -517,3 +511,23 @@ class UserAPI(FlaskView):
             }
 
         return response, 200
+
+
+def create_user_audit_log(audit_event: str, user: UserModel):
+    """
+    Create audit log entry for changes on the user
+    """
+    active_user_id, active_user_name = None, None
+    if hasattr(current_user, "id"):
+        active_user_id, active_user_name = (
+            current_user.id,
+            current_user.username,
+        )
+    return AuditLog(
+        event_datetime=server_now(),
+        event=audit_event,
+        active_user_id=active_user_id,
+        active_user_name=active_user_name,
+        affected_user_id=user.id,
+        affected_account_id=user.account_id,
+    )
