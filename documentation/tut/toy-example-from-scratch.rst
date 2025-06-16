@@ -52,9 +52,9 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
                 ]
             }
 
-    .. tab:: flexmeasures-client
+    .. tab:: FlexMeasures Client
 
-        Using the `flexmeasures-client <https://pypi.org/project/flexmeasures-client/>`_:
+        Using the `FlexMeasures Client <https://pypi.org/project/flexmeasures-client/>`_:
 
         .. code-block:: bash
 

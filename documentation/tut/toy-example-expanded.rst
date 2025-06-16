@@ -140,9 +140,9 @@ This will have an effect on the available headroom for the battery, given the ``
                 "flex-context": {}
             }
 
-    .. tab:: flexmeasures-client
+    .. tab:: FlexMeasures Client
 
-        Using the `flexmeasures-client <https://pypi.org/project/flexmeasures-client/>`_:
+        Using the `FlexMeasures Client <https://pypi.org/project/flexmeasures-client/>`_:
 
         .. code-block:: bash
 
