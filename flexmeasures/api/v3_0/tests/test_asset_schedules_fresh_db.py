@@ -10,12 +10,14 @@ from rq.job import Job
 
 from flexmeasures import Sensor
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.data.models.planning.tests.utils import check_constraints
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
     handle_scheduling_exception,
     get_data_source_for_job,
 )
 from flexmeasures.data.services.utils import sort_jobs
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.mark.parametrize(
@@ -176,7 +178,7 @@ def test_asset_trigger_and_get_schedule(
     expected_length_of_schedule = compute_expected_length(message, sensors, sequential)
 
     # try to retrieve the schedule for each sensor through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
-    for d, flex_model in enumerate(message["flex-model"]):
+    for d, (sensor, flex_model) in enumerate(zip(sensors, message["flex-model"])):
         sensor_id = flex_model["sensor"]
         get_schedule_response = client.get(
             url_for("SensorAPI:get_schedule", id=sensor_id, uuid=scheduling_job.id),
@@ -190,6 +192,27 @@ def test_asset_trigger_and_get_schedule(
         # assert get_schedule_response.json["type"] == "GetDeviceMessageResponse"
         assert (
             len(get_schedule_response.json["values"]) == expected_length_of_schedule[d]
+        )
+
+        check_constraints(
+            sensor=sensor,
+            schedule=pd.Series(
+                data=get_schedule_response.json["values"],
+                index=pd.date_range(
+                    start=get_schedule_response.json["start"],
+                    periods=len(get_schedule_response.json["values"]),
+                    freq=sensor.event_resolution,
+                ),
+            ),
+            soc_at_start=flex_model["soc-at-start"],
+            soc_min=flex_model["soc-min"],
+            soc_max=flex_model["soc-max"],
+            roundtrip_efficiency=ur.Quantity(flex_model["roundtrip-efficiency"])
+            .to("dimensionless")
+            .magnitude,
+            storage_efficiency=ur.Quantity(flex_model["storage-efficiency"])
+            .to("dimensionless")
+            .magnitude,
         )
 
         prices = add_market_prices_fresh_db["epex_da"].search_beliefs(
