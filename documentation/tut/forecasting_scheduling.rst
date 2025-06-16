@@ -155,7 +155,7 @@ A prognosis can be requested at a URL looking like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/sensors/data
+    https://company.flexmeasures.io/api/v3_0/sensors/data
 
 This example requests a prognosis for 24 hours, with a rolling horizon of 6 hours before realisation.
 
@@ -181,7 +181,7 @@ We saw above how FlexMeasures can create optimised schedules with control signal
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/sensors/<id>/schedules/<uuid>
+    https://company.flexmeasures.io/api/v3_0/sensors/<id>/schedules/<uuid>
 
 Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ response.
 Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).

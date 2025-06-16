@@ -46,7 +46,7 @@ The exact URL will depend on your domain name, and will look approximately like 
 
 .. code-block:: html
 
-    [POST] https://company.flexmeasures.io/api/<version>/sensors/data
+    [POST] https://company.flexmeasures.io/api/v3_0/sensors/data
 
 This example "PostSensorDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction, registered under sensor 16.
@@ -280,7 +280,7 @@ The URL might look like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/assets/10/schedules/trigger
+    https://company.flexmeasures.io/api/v3_0/assets/10/schedules/trigger
 
 The following example triggers a schedule for a power sensor (with ID 15) of a battery asset (with ID 10), asking to take into account the battery's current state of charge.
 From this, FlexMeasures derives the energy flexibility this battery has in the next 48 hours and computes an optimal charging schedule.
