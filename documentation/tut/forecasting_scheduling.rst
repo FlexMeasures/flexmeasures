@@ -212,3 +212,8 @@ However, because the targets values represent averages over 15-minute time inter
 For example, the battery might start to consume with 2.1 MW at 10.00am and increase its consumption to 2.25 at 10.10am,
 increase its consumption to 5 MW at 10.15am and decrease its consumption to 2 MW at 10.20am.
 That should result in the same average values for each quarter-hour.
+
+Likewise, the control signals can be used to schedule devices that only run at specific power levels.
+For example, let's assume the battery only supports running at an integer number of MW.
+In that case, the battery could start to consume with 2 MW at 10.00am, increase its consumption to 3 MW at (15 seconds before) 10.12am, and decrease its consumption to 2 MW at 10.30am.
+Again, this results in the same average values for each quarter-hour.
