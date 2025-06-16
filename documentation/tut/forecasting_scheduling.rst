@@ -187,6 +187,17 @@ Here, the schedule's Universally Unique Identifier (UUID) should be filled in th
 Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).
 Afterwards, the exact schedule can still be retrieved through the `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
 
+.. note:: Besides the UUID, the endpoint for retrieving schedules takes a sensor ID, which is the sensor ID of one of the power sensors that was referenced in the flex-model.
+          If a ``state-of-charge`` sensor was also referenced in the flex-model, the scheduled state of charge can also be retrieved using the same endpoint and UUID.
+          Simply replace the power sensor ID with the state-of-charge sensor ID.
+
+          .. code-block:: json
+
+              "flex-model": {
+                  "sensor": 15,
+                  "state-of-charge": {"sensor": 16}
+              }
+
 The following example response indicates that FlexMeasures planned ahead 45 minutes for the requested battery power sensor.
 The list of consecutive power values represents the target consumption of the battery (negative values for production).
 Each value represents the average power over a 15 minute time interval.
