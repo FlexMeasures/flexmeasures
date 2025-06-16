@@ -68,6 +68,11 @@ def test_asset_trigger_and_get_schedule(
     sensor_2 = charging_station.sensors[0]
     assert sensor_2.name == "power", "expecting to schedule a power sensor"
 
+    uni_soc_sensor = add_charging_station_assets_fresh_db["uni-soc"]
+    bi_soc_sensor = add_charging_station_assets_fresh_db["bi-soc"]
+    CP_1_flex_model["state-of-charge"] = {"sensor": bi_soc_sensor.id}
+    CP_2_flex_model["state-of-charge"] = {"sensor": uni_soc_sensor.id}
+
     # Convert the two flex-models to a single multi-asset flex-model
     CP_1_flex_model["sensor"] = sensor_1.id
     CP_2_flex_model["sensor"] = sensor_2.id
@@ -175,10 +180,15 @@ def test_asset_trigger_and_get_schedule(
         return expected_lengths
 
     sensors = [sensor_1, sensor_2]
+    soc_sensors = [bi_soc_sensor, uni_soc_sensor]
     expected_length_of_schedule = compute_expected_length(message, sensors, sequential)
 
     # try to retrieve the schedule for each sensor through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
-    for d, (sensor, flex_model) in enumerate(zip(sensors, message["flex-model"])):
+    for d, (sensor, soc_sensor, flex_model) in enumerate(
+        zip(sensors, soc_sensors, message["flex-model"])
+    ):
+
+        # Fetch power schedule
         sensor_id = flex_model["sensor"]
         get_schedule_response = client.get(
             url_for("SensorAPI:get_schedule", id=sensor_id, uuid=scheduling_job.id),
@@ -213,6 +223,47 @@ def test_asset_trigger_and_get_schedule(
             .to("dimensionless")
             .magnitude,
         )
+
+        # Fetch SoC schedule
+        get_schedule_response = client.get(
+            url_for("SensorAPI:get_schedule", id=soc_sensor.id, uuid=scheduling_job.id),
+            query_string={"duration": "PT48H"},
+        )
+        print("Server responded with:\n%s" % get_schedule_response.json)
+        assert get_schedule_response.status_code == 200
+        assert (
+            get_schedule_response.json["unit"] == "MWh"
+        ), "by default, the schedules are expected in the sensor unit"
+        soc_schedule = get_schedule_response.json["values"]
+        assert (
+            len(soc_schedule)
+            == expected_length_of_schedule[d]
+            + 1  # +1 because the SoC schedule is end-inclusive
+        )
+        assert soc_schedule[0] * 1000 == flex_model["soc-at-start"]
+
+        # Check for cycling and final state
+        if sensor_id == sensor_1.id:
+            # We expect cycling for the bi-directional Charge Point
+            assert any(
+                [s == flex_model["soc-min"] / 1000 for s in soc_schedule]
+            ), "we should stay above soc-min"
+            assert any(
+                [s == flex_model["soc-max"] / 1000 for s in soc_schedule]
+            ), "we should stay below soc-max"
+            assert (
+                soc_schedule[-1] * 1000 == flex_model["soc-min"]
+            ), "we should end empty"
+        else:
+            # We expect no cycling for the uni-directional Charge Point
+            assert (
+                1 - (-pd.Series(soc_schedule).diff() / pd.Series(soc_schedule)).max()
+            ) * 100 <= ur.Quantity(flex_model["storage-efficiency"]).to(
+                "%"
+            ).magnitude, "all downwards SoC should be attributable to storage losses"
+            assert (
+                soc_schedule[-1] * 1000 == flex_model["soc-targets"][0]["value"]
+            ), "we should end on target"
 
         prices = add_market_prices_fresh_db["epex_da"].search_beliefs(
             event_starts_after=message["start"],

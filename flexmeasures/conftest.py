@@ -1081,9 +1081,27 @@ def create_charging_station_assets(
         ),
     )
     db.session.add(bidirectional_charging_station_power_sensor)
+    bi_soc = Sensor(
+        name="bi-soc",
+        generic_asset=bidirectional_charging_station,
+        unit="MWh",
+        event_resolution=timedelta(minutes=0),
+        attributes={"consumption_is_positive": True},
+    )
+    uni_soc = Sensor(
+        name="uni-soc",
+        generic_asset=charging_station,
+        unit="MWh",
+        event_resolution=timedelta(minutes=0),
+        attributes={"consumption_is_positive": True},
+    )
+    db.session.add(bi_soc)
+    db.session.add(uni_soc)
     return {
         "Test charging station": charging_station,
         "Test charging station (bidirectional)": bidirectional_charging_station,
+        "bi-soc": bi_soc,
+        "uni-soc": uni_soc,
     }
 
 
