@@ -475,7 +475,7 @@ def _get_sensor_stats(
     if start_dt:
         subq = subq.filter(TimedBelief.event_start >= start_dt)
     if end_dt:
-        subq = subq.filter(TimedBelief.event_start <= end_dt)
+        subq = subq.filter(TimedBelief.event_start < end_dt)
 
     subquery_for_filtered_aggregates = subq.group_by(TimedBelief.source_id).subquery()
 
