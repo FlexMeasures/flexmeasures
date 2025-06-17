@@ -55,10 +55,10 @@
                   </div>
 
                   {% if user_can_update_sensor %}
-                  <div class="sidepanel-container">
+                    <div class="sidepanel-container">
                       <div class="left-sidepanel-label">Edit sensor</div>
-                      <div class="sidepanel left-sidepanel"  style="text-align: left;">
-                              <fieldset>
+                        <div class="sidepanel left-sidepanel" style="text-align: left;">
+                            <fieldset>
                                 <h3>Edit {{ sensor.name }}</h3>
                                 <small>Parent asset: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset.id }} )</small>
                                 <form class="form-horizontal" method="POST">
@@ -73,9 +73,65 @@
                                         Save
                                     </button>
                                 </form>
-                        </fieldset>
-                      </div>
-                  </div>
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <div class="sidepanel-container">
+                        <div class="left-sidepanel-label">Upload data</div>
+                        <div class="sidepanel left-sidepanel" style="text-align: left;">
+                            <fieldset>
+                                <h3>Upload {{ sensor.name }} data</h3>
+                                <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
+                                <form id="uploadForm" enctype="multipart/form-data" method="post" class="form-horizontal">
+                                    <div class="form-group">
+                                        <label class="custom-uploader" for="file">
+                                            Choose data file
+                                            <i
+                                                class="fa fa-info-circle"
+                                                title="Formats accepted: csv and xlsx.
+The file should have columns for a timestamp (event_start) and a value (event_value).
+The timestamp should be in ISO 8601 format. If the timezone offset is not provided the sensor timezone will be used.
+The event_value should be a numeric value."
+                                                style="margin-left: 5px; color: white;"
+                                            >
+                                            </i>
+                                            <a href="{{ url_for('flexmeasures_ui.static', filename='examples/sensors-data.xlsx') }}" download>
+                                                <i class="fa fa-download"
+                                                    style="margin-left: 5px; color: white;"
+                                                    title="Download example file"
+                                                    >
+                                                </i>
+                                            </a>
+                                        </label>
+                                        <!-- Accept on CSV and Excel files -->
+                                        <input id="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" name="uploaded-files" type="file" multiple="multiple" />
+                                    </div>
+                                    <!-- Checkbox for setting the record as measured instantly -->
+                                    <div class="form-group mt-3">
+                                        <input type="checkbox" id="belief-time-measured-instantly" name="belief-time-measured-instantly" {% if FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% else %} unchecked {% endif %}>
+                                        <label for="belief-time-measured-instantly">
+                                            Measured instantly
+                                            <i
+                                                class="fa fa-info-circle"
+                                                title="If checked, each data point will be recorded as if it had been measured immediately after the event. Otherwise, FlexMeasures will assume the data was not known prior to the time of upload."
+                                                style="margin-left: 5px; color: white;"
+                                            >
+                                            </i>
+                                        </label>
+                                    </div>
+                                    <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
+                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                        Upload file
+                                    </button>
+                                    <div id="spinner-upload-sensor-data" class="d-none">
+                                        <i class="fa fa-spinner fa-pulse fa-3x fa-fw" style="float: right;"></i>
+                                        <span class="sr-only">Loading...</span>
+                                    </div>
+                                </form>
+                            </fieldset>
+                        </div>
+                    </div>
                   {% endif %}
 
               </div>
