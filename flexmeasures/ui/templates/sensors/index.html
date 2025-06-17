@@ -113,7 +113,7 @@
                               </tr>
                           </table>
                       </div>
-                      <div class="card col-lg-5" id="statsContainer">
+                      <div class="card col-lg-5" id="statsContainer" style="align-items: center;">
                         <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
                         <h5 id="statsHeader">Statistics</h5>
                         <table id="statsTable" class="table table-striped">
@@ -128,6 +128,13 @@
                             </button>
                             <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
                             </ul>
+                        </div>
+                        <!-- Checkbox to show stats for all time or selected time range -->
+                        <div class="form-check form-switch d-none" id="toggleStatsCheckboxContainer">
+                            <label for="toggleStatsCheckbox" class="form-check-label d-flex">
+                                <small class="text-muted">Show stats for selected duration</small>
+                                <input class="form-check-input me-2" style="margin-left: 5px;" type="checkbox" id="toggleStatsCheckbox">
+                            </label>
                         </div>
                         <!-- Alert for no data -->
                         <div class="alert alert-warning d-none" id="noDataWarning">

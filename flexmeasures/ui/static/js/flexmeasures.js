@@ -541,16 +541,21 @@ function updateStatsTable(stats) {
 }
 
 function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
-    console.log("Loading sensor stats for sensor " + sensor_id);
     const spinner = document.getElementById('spinner-run-simulation');
     const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
+    const toggleStatsCheckboxContainer = document.getElementById('toggleStatsCheckboxContainer');
+    const toggleStatsCheckbox = document.getElementById('toggleStatsCheckbox');
     const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
     const dropdownButton = document.getElementById('sourceKeyDropdown');
     const noDataWarning = document.getElementById('noDataWarning');
     const fetchError = document.getElementById('fetchError');
+    let queryParams = '?sort=false';
     // Show the spinner
     spinner.classList.remove('d-none');
-    fetch('/api/v3_0/sensors/' + sensor_id + '/stats?sort=false&event_start_time=' + event_start_time + '&event_end_time=' + event_end_time)
+    if (toggleStatsCheckbox.checked) {
+        queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
+    }
+    fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)
     .then(response => response.json())
     .then(data => {
         // Remove 'status' sourceKey
@@ -560,6 +565,7 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
         if (Object.keys(data).length > 0) {
             // Show the header and dropdown container
             dropdownContainer.classList.remove('d-none');
+            toggleStatsCheckboxContainer.classList.remove('d-none');
 
             // Populate the dropdown menu with sourceKeys
             Object.keys(data).forEach(sourceKey => {
@@ -593,6 +599,7 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     .catch(error => {
         console.error('Error:', error);
         dropdownContainer.classList.add('d-none');
+        toggleStatsCheckboxContainer.classList.add('d-none');
         fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
         fetchError.classList.remove('d-none');
     })
