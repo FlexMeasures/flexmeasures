@@ -509,7 +509,7 @@ def _get_sensor_stats(
     if start_dt:
         q = q.filter(TimedBelief.event_start >= start_dt)
     if end_dt:
-        q = q.filter(TimedBelief.event_start <= end_dt)
+        q = q.filter(TimedBelief.event_start < end_dt)
 
     raw_stats = db.session.execute(
         q.group_by(
