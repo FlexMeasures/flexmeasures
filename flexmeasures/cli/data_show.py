@@ -34,11 +34,12 @@ from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.cli.utils import MsgStyle, validate_unique
-from flexmeasures.utils.coding_utils import (
-    delete_key_recursive,
+from flexmeasures.cli.utils import (
+    MsgStyle,
+    validate_unique,
     tabulate_account_assets,
 )
+from flexmeasures.utils.coding_utils import delete_key_recursive
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
@@ -165,11 +166,7 @@ def show_account(account):
         click.secho("No assets in account ...", **MsgStyle.WARN)
     else:
         click.echo("All assets:\n ")
-        asset_data = [
-            (asset.id, asset.name, asset.generic_asset_type.name, asset.location)
-            for asset in assets
-        ]
-        click.echo(tabulate(asset_data, headers=["ID", "Name", "Type", "Location"]))
+        tabulate_account_assets(assets)
 
 
 @fm_show_data.command("assets")

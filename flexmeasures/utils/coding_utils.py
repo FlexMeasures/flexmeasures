@@ -7,8 +7,6 @@ import time
 import inspect
 import importlib
 import pkgutil
-from tabulate import tabulate
-import click
 
 from flask import current_app
 
@@ -179,18 +177,3 @@ def find_classes_modules(module, superclass, skiptest=True):
 
 def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
-
-
-def tabulate_account_assets(assets):
-    """
-    Print a tabulated representation of the given assets.
-
-    Args:
-        assets: an iterable of GenericAsset objects
-
-    """
-    asset_data = [
-        (asset.id, asset.name, asset.generic_asset_type.name, asset.location)
-        for asset in assets
-    ]
-    click.echo(tabulate(asset_data, headers=["ID", "Name", "Type", "Location"]))
