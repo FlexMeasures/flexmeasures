@@ -11,6 +11,7 @@ v0.27.0 | August XX, 2025
 New features
 -------------
 
+* Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_]
 * Allow editing users in the UI [see `PR #1502 <https://github.com/FlexMeasures/flexmeasures/pull/1502>`_]
 * Document how to set a parent asset when creating an asset through the API, and show parent assets in ``flexmeasures show account`` [see `PR #1533 <https://github.com/FlexMeasures/flexmeasures/pull/1533>`_]
 
