@@ -183,7 +183,7 @@ def test_get_one_user_audit_log_consultant(
 def test_consultant_cannot_update_account_consultant(
     db,
     client,
-    setup_roles_users_fresh_db,
+    setup_api_test_data,
     requesting_user,
     expected_status_code,
 ):
