@@ -653,10 +653,13 @@ class AssetAPI(FlaskView):
     ):
         """API endpoint to get history of asset related actions.
 
+        .. :quickref: Asset; Get audit log
+
         The endpoint is paginated and supports search filters.
 
             - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
             - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
               The response schema for pagination is inspired by https://datatables.net/manual/server-side
 
@@ -743,10 +746,15 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def get_jobs(self, id: int, asset: GenericAsset):
-        """API endpoint to get the jobs of an asset.
-        This endpoint returns all jobs of an asset.
+        """API endpoint to get all jobs of an asset.
+
+        .. :quickref: Asset; Get asset jobs
+
         The response will be a list of jobs.
+        Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
+
         **Example response**
+
         .. sourcecode:: json
             {
                 "jobs": [

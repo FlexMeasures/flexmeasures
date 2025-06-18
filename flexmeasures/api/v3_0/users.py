@@ -415,9 +415,12 @@ class UserAPI(FlaskView):
     ):
         """API endpoint to get history of user actions.
 
+        .. :quickref: Asset; Get audit log
+
         The endpoint is paginated and supports search filters.
             - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per_page` (default is 10).
+            - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
             - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
               The response schema for pagination is inspired by https://datatables.net/manual/server-side
 
