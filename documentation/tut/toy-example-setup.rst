@@ -184,17 +184,17 @@ If you want, you can inspect what you created:
 
     All users:
     
-    ID  Name      Email                     Last Login    Last Seen    Roles
+      ID  Name      Email                     Last Login    Last Seen    Roles
     ----  --------  ------------------------  ------------  -----------  -------------
-    1  toy-user  toy-user@flexmeasures.io  None          None         account-admin
+       1  toy-user  toy-user@flexmeasures.io  None          None         account-admin
 
     All assets:
     
-    ID  Name           Type     Location
-    ----  -----------  -------  -----------------
-    2  toy-building   building  (52.374, 4.88969)
-    3  toy-battery    battery   (52.374, 4.88969)
-    4  toy-solar      solar     (52.374, 4.88969)
+      ID  Name          Type        Parent ID  Location
+    ----  ------------  --------  -----------  -----------------
+       2  toy-building  building            2  (52.374, 4.88969)
+       3  toy-battery   battery             2  (52.374, 4.88969)
+       4  toy-solar     solar               2  (52.374, 4.88969)
 
 .. code-block:: bash
     :emphasize-lines: 30
@@ -236,13 +236,13 @@ If you want, you can inspect what you created:
     Child assets of toy-battery (ID: 3)
     ====================================
 
-    No children assets ...
+    No child assets ...
 
     All sensors in asset:
     
-    ID  Name         Unit    Resolution    Timezone          Attributes
+      ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
-    2  discharging  MW      15 minutes    Europe/Amsterdam
+       2  discharging  MW      15 minutes    Europe/Amsterdam
     
 
 Yes, that is quite a large battery :) 
