@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from flask import url_for
-from sqlalchemy import select
 import pytest
 
 from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.data.models.user import Account
 
 
 @pytest.mark.parametrize(
@@ -182,21 +180,20 @@ def test_get_one_user_audit_log_consultant(
     ],
     indirect=["requesting_user"],
 )
-def test_consultant_cannot_udate_account_consultant(
+def test_consultant_cannot_update_account_consultant(
     db,
     client,
     setup_roles_users_fresh_db,
     requesting_user,
     expected_status_code,
 ):
-
-    account = db.session.execute(
-        select(Account).filter_by(name="Test ConsultancyClient Account")
-    ).scalar_one_or_none()
+    test_user_account_id = find_user_by_email(
+        "test_consultant_client@seita.nl"
+    ).account.id
 
     patch_account_response = client.patch(
-        url_for("AccountAPI:patch", id=account.id),
-        json={"consultancy_account_id": 1},
+        url_for("AccountAPI:patch", id=test_user_account_id),
+        json={"consultancy_account_id": 3},
     )
 
     print("Server responded with:\n%s" % patch_account_response.data)
