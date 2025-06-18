@@ -517,8 +517,7 @@ function getLatestBeliefName(data) {
     }, null);
 }
 
-function updateStatsTable(stats) {
-    const tableBody = document.getElementById('statsTableBody');
+function updateStatsTable(stats, tableBody) {
     tableBody.innerHTML = ''; // Clear the table body
 
     Object.entries(stats).forEach(([key, val]) => {
@@ -543,9 +542,12 @@ function updateStatsTable(stats) {
 function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     const spinner = document.getElementById('spinner-run-simulation');
     const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
-    const toggleStatsCheckboxContainer = document.getElementById('toggleStatsCheckboxContainer');
+    const tableBody = document.getElementById('statsTableBody');
     const toggleStatsCheckbox = document.getElementById('toggleStatsCheckbox');
     const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
+    // Clear the dropdown menu since the api call will not reload the page
+    // so we need to have the dropdown menu empty on every api call
+    dropdownMenu.innerHTML = '';
     const dropdownButton = document.getElementById('sourceKeyDropdown');
     const noDataWarning = document.getElementById('noDataWarning');
     const fetchError = document.getElementById('fetchError');
@@ -565,8 +567,6 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
         if (Object.keys(data).length > 0) {
             // Show the header and dropdown container
             dropdownContainer.classList.remove('d-none');
-            toggleStatsCheckboxContainer.classList.remove('d-none');
-
             // Populate the dropdown menu with sourceKeys
             Object.keys(data).forEach(sourceKey => {
                 const dropdownItem = document.createElement('li');
@@ -590,16 +590,20 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
             // Update the table with the first sourceKey's data by default
             const firstSourceKey = getLatestBeliefName(data);
             dropdownButton.textContent = firstSourceKey;
-            updateStatsTable(data[firstSourceKey]);
+            updateStatsTable(data[firstSourceKey], tableBody);
         } else {
             // If the stats table is empty, make the properties table full width
             noDataWarning.classList.remove('d-none');
+            dropdownContainer.classList.add('d-none');
+            tableBody.innerHTML = '';
+            if (toggleStatsCheckbox.checked) {
+                noDataWarning.innerHTML = 'There is no data for the selected date range.'
+            }
         }
     })
     .catch(error => {
         console.error('Error:', error);
         dropdownContainer.classList.add('d-none');
-        toggleStatsCheckboxContainer.classList.add('d-none');
         fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
         fetchError.classList.remove('d-none');
     })
