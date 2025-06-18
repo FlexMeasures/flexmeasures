@@ -58,12 +58,12 @@ def test_consultant_user_update_perm(
 
 
 @pytest.mark.parametrize(
-    "requesting_user, account_name, required_perm, has_perm",
+    "requesting_user, account_name, has_perm",
     [
         # Consultant tries to update client account
-        ("test_consultant@seita.nl", "Test ConsultancyClient Account", "update", True),
+        ("test_consultant@seita.nl", "Test ConsultancyClient Account", True),
         # Consultant tries to update account from another client
-        ("test_consultant@seita.nl", "Test Supplier Account", "update", False),
+        ("test_consultant@seita.nl", "Test Supplier Account", False),
     ],
 )
 def test_consultant_account_update_perm(
@@ -72,7 +72,6 @@ def test_consultant_account_update_perm(
     setup_roles_users,
     requesting_user,
     account_name,
-    required_perm,
     has_perm,
 ):
 
@@ -83,7 +82,7 @@ def test_consultant_account_update_perm(
     ).scalar_one_or_none()
 
     try:
-        result = check_access(account, required_perm)
+        result = check_access(account, "update")
         if result is None:
             has_access = True
     except (Forbidden, Unauthorized):

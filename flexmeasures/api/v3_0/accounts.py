@@ -21,6 +21,7 @@ from flexmeasures.data.services.accounts import get_accounts, get_audit_log_reco
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.api.common.schemas.search import SearchFilterField
+from flexmeasures.auth.policy import CONSULTANT_ROLE
 from flexmeasures.utils.time_utils import server_now
 
 """
@@ -284,6 +285,15 @@ class AccountAPI(FlaskView):
         existing_consultancy_account_id = (
             account.consultancy_account.id if account.consultancy_account else None
         )
+
+        if (
+            current_user.has_role(CONSULTANT_ROLE)
+            and "consultancy_account_id" in account_data
+        ):
+            # If user is a consultant, unauthorize this request
+            return {
+                "errors": ["You are not allowed to update consultancy_account_id"]
+            }, 401
 
         if not user_has_admin_access(current_user, "update"):
             # Remove consultancy_account_id from account_data if no admin access
