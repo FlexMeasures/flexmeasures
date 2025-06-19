@@ -78,15 +78,15 @@ def test_consultant_account_update_perm(
     with monkeypatch.context() as m:
         set_current_user(db, m, requesting_user)
 
-    account = db.session.execute(
-        select(Account).filter_by(name=account_name)
-    ).scalar_one_or_none()
+        account = db.session.execute(
+            select(Account).filter_by(name=account_name)
+        ).scalar_one_or_none()
 
-    try:
-        result = check_access(account, "update")
-        if result is None:
-            has_access = True
-    except (Forbidden, Unauthorized):
-        has_access = False
+        try:
+            result = check_access(account, "update")
+            if result is None:
+                has_access = True
+        except (Forbidden, Unauthorized):
+            has_access = False
 
-    assert has_access == has_perm
+        assert has_access == has_perm
