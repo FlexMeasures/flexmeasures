@@ -48,14 +48,14 @@ def test_consultant_user_update_perm(
     with monkeypatch.context() as m:
         set_current_user(db, m, requesting_user)
 
-    try:
-        result = check_access(requested_user, required_perm)
-        if result is None:
-            has_access = True
-    except (Forbidden, Unauthorized):
-        has_access = False
+        try:
+            result = check_access(requested_user, required_perm)
+            if result is None:
+                has_access = True
+        except (Forbidden, Unauthorized):
+            has_access = False
 
-    assert has_access == has_perm
+        assert has_access == has_perm
 
 
 @pytest.mark.parametrize(
