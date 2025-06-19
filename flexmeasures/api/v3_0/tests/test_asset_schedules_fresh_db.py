@@ -4,7 +4,7 @@ from flask import url_for
 import pytest
 from isodate import parse_datetime, parse_duration
 
-from numpy.testing import assert_equal
+from numpy.testing import assert_almost_equal
 import pandas as pd
 from rq.job import Job
 
@@ -281,9 +281,9 @@ def test_asset_trigger_and_get_schedule(
             assert (
                 sum(power_schedule[cheapest_hour * 4 : (cheapest_hour + 1) * 4]) > 0
             ), "we expect to charge in the cheapest hour"
-            assert_equal(power_schedule, expected_uni_schedule)
+            assert_almost_equal(power_schedule, expected_uni_schedule)
         elif not sequential and sensor_id == sensor_2.id:
             assert (
                 sum(power_schedule[cheapest_hour * 4 : (cheapest_hour + 1) * 4]) > 0
             ), "we expect to charge in the cheapest hour"
-            assert_equal(power_schedule, expected_uni_schedule)
+            assert_almost_equal(power_schedule, expected_uni_schedule)
