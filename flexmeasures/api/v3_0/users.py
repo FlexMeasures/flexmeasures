@@ -415,7 +415,7 @@ class UserAPI(FlaskView):
     ):
         """API endpoint to get history of user actions.
 
-        .. :quickref: Asset; Get audit log
+        .. :quickref: User; Get audit log
 
         The endpoint is paginated and supports search filters.
             - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
