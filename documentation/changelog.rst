@@ -8,6 +8,9 @@ FlexMeasures Changelog
 v0.27.0 | August XX, 2025
 ============================
 
+.. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
+
+
 New features
 -------------
 
@@ -20,6 +23,7 @@ Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_ and `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_]
 * Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
+* Stopped testing Python3.8 in our GitHub Actions CI [see `PR #1541 <https://github.com/FlexMeasures/flexmeasures/pull/1541>`_]
 
 Bugfixes
 -----------
