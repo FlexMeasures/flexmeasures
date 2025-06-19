@@ -45,7 +45,8 @@ def test_consultant_user_update_perm(
         select(User).filter_by(email=requested_user)
     ).scalar_one_or_none()
 
-    set_current_user(db, monkeypatch, requesting_user)
+    with monkeypatch.context() as m:
+        set_current_user(db, m, requesting_user)
 
     try:
         result = check_access(requested_user, required_perm)
@@ -74,8 +75,8 @@ def test_consultant_account_update_perm(
     account_name,
     has_perm,
 ):
-
-    set_current_user(db, monkeypatch, requesting_user)
+    with monkeypatch.context() as m:
+        set_current_user(db, m, requesting_user)
 
     account = db.session.execute(
         select(Account).filter_by(name=account_name)

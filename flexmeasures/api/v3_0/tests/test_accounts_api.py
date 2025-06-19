@@ -187,9 +187,8 @@ def test_consultant_cannot_update_account_consultant(
     requesting_user,
     expected_status_code,
 ):
-    test_user_account_id = find_user_by_email(
-        "test_consultant_client@seita.nl"
-    ).account.id
+    client_accounts = requesting_user.account.consultancy_client_accounts
+    test_user_account_id = client_accounts[0].id if client_accounts else None
 
     patch_account_response = client.patch(
         url_for("AccountAPI:patch", id=test_user_account_id),
@@ -197,4 +196,5 @@ def test_consultant_cannot_update_account_consultant(
     )
 
     print("Server responded with:\n%s" % patch_account_response.data)
+    print("Status code: %s" % patch_account_response.status_code)
     assert patch_account_response.status_code == expected_status_code
