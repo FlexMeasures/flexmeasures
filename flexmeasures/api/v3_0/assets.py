@@ -373,7 +373,7 @@ class AssetAPI(FlaskView):
 
         This endpoint creates a new asset.
 
-        **Example request**
+        **Example request A**
 
         .. sourcecode:: json
 
@@ -387,6 +387,24 @@ class AssetAPI(FlaskView):
 
 
         The newly posted asset is returned in the response.
+
+        **Example request B**
+
+        Alternatively, set the ``parent_asset_id`` to make the new asset a child of another asset.
+        For example, to set asset 10 as its parent:
+
+        .. sourcecode:: json
+            :emphasize-lines: 5
+
+            {
+                "name": "Test battery",
+                "generic_asset_type_id": 2,
+                "account_id": 2,
+                "parent_asset_id": 10,
+                "latitude": 40,
+                "longitude": 170.3,
+            }
+
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
