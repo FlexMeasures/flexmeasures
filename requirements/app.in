@@ -7,9 +7,8 @@ iso8601
 xlrd
 workalendar
 inflection
-# <6.0.2 and pydantic due to https://github.com/jaraco/inflect/issues/187
-inflect<=6.0.2
-pydantic<2
+inflect
+pydantic
 humanize
 psycopg2-binary
 # due to https://github.com/pallets-eco/flask-security/issues/907 (should be re-opened as of Sep 24) -> https://foss.heptapod.net/python-libs/passlib/-/issues/187

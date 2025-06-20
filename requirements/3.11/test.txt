@@ -22,13 +22,15 @@ click==8.1.8
     #   flask
 coverage[toml]==7.8.2
     # via pytest-cov
+et-xmlfile==2.0.0
+    # via openpyxl
 fakeredis==2.29.0
     # via -r requirements/test.in
 flask==3.1.1
     # via
     #   -c requirements/3.11/app.txt
     #   pytest-flask
-highspy==1.10.0
+highspy==1.11.0
     # via -r requirements/test.in
 idna==3.10
     # via
@@ -56,6 +58,8 @@ numpy==1.26.4
     # via
     #   -c requirements/3.11/app.txt
     #   highspy
+openpyxl==3.1.5
+    # via -r requirements/test.in
 packaging==25.0
     # via
     #   -c requirements/3.11/app.txt
@@ -84,7 +88,7 @@ redis==6.2.0
     # via
     #   -c requirements/3.11/app.txt
     #   fakeredis
-requests==2.32.3
+requests==2.32.4
     # via
     #   -c requirements/3.11/app.txt
     #   -r requirements/test.in

@@ -53,7 +53,7 @@ pytz==2025.2
     # via
     #   -c requirements/3.8/app.txt
     #   babel
-requests==2.32.3
+requests==2.32.4
     # via
     #   -c requirements/3.8/app.txt
     #   sphinx
