@@ -353,30 +353,17 @@
 
     function checkDSTTransitions(startDate, endDate) {
         var numDSTTransitions = countDSTTransitions(startDate, endDate, 90)
-        if (numDSTTransitions != 0) {
-            document.getElementById('dstwarn').style.display = 'block';
-            if (numDSTTransitions == 1) {
-                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.';
-            } else {
-                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.';
-            }
-        }
-        else {
-            document.getElementById('dstwarn').style.display = 'none';
+        if (numDSTTransitions == 1) {
+            showToast('Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.');
+        } else if (numDSTTransitions > 1) {
+            showToast('Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.');
         }
     }
 
     function checkSourceMasking(data) {
-        var sourceWarn = document.getElementById("sourcewarn");
-        if (sourceWarn == null)
-            return
         var uniqueSourceIds = getUniqueValues(data, 'source.id');
         if (chartType == 'daily_heatmap' && uniqueSourceIds.length > 1) {
-            sourceWarn.style.display = 'block';
-            sourceWarn.innerHTML = 'Please note that only data from the most prevalent source is shown.';
-        }
-        else {
-            sourceWarn.style.display = 'none';
+            showToast('Please note that only data from the most prevalent source is shown.');
         }
     }
 
@@ -646,9 +633,8 @@
             .then(function(data) {
                 var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
                 if (offsetDifference != 0) {
-                    document.getElementById('tzwarn').style.display = 'block';
                     var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + ' minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
-                    document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.';
+                    showToast('Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.');
                 }
                 {% if active_page == "assets" %}
                     var timerangeVar = 'timerange_of_sensors_to_show';
