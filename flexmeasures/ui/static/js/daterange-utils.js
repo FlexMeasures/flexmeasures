@@ -96,6 +96,12 @@ export function countDSTTransitions(startDate, endDate, increment) {
  * @returns {Object} An object mapping human-readable labels to corresponding [startDate, endDate] ranges.
  */
 export function computeSimulationRanges(startDate, endDate, minRes = "hour") {
+    if (!startDate) {
+      startDate = new Date();
+    }
+    if (!endDate) {
+      endDate = new Date();
+    }
 
     function addDays(date, days) {
         const result = new Date(date);
