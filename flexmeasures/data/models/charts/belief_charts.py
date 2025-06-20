@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timedelta
 
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
@@ -746,6 +747,10 @@ def create_circle_layer(
 
     scaled_event_value_field_definition = event_value_field_definition.copy()
     scaled_event_value_field_definition["field"] = "scaled_event_value"
+    scaled_shared_tooltip: list[dict] = deepcopy(
+        shared_tooltip
+    )  # deepcopy so the next line doesn't update the dicts
+    scaled_shared_tooltip[1]["field"] = "scaled_event_value"
     params = [
         {
             "name": "hover_x_brush",
@@ -788,7 +793,7 @@ def create_circle_layer(
                 "condition": {"value": "200", "test": {"or": or_conditions}},
                 "value": "0",
             },
-            "tooltip": shared_tooltip,
+            "tooltip": scaled_shared_tooltip,
         },
         "params": params,
         "transform": [
