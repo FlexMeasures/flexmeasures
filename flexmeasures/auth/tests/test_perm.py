@@ -95,23 +95,26 @@ def test_consultant_account_update_perm(
 
 
 @pytest.mark.parametrize(
-    "requesting_user, has_perm",
+    "requesting_user, account_name, has_perm",
     [
-        # Consultant tries to create client account
-        ("test_consultant@seita.nl", True),
+        ("test_consultant@seita.nl", "Test ConsultancyClient Account", True),
+        ("test_consultant@seita.nl", "Test Supplier Account", False),
     ],
 )
-def test_consultant_account_create_children_perm(
+def test_consultant_account_resource_perm(
     db,
     monkeypatch,
     setup_roles_users,
     requesting_user,
+    account_name,
     has_perm,
 ):
+    account = db.session.execute(
+        select(Account).filter_by(name=account_name)
+    ).scalar_one_or_none()
+
     with monkeypatch.context() as m:
-        current_user = set_current_user(db, m, requesting_user)
-        client_accounts = current_user.account.consultancy_client_accounts
-        account = client_accounts[0]
+        set_current_user(db, m, requesting_user)
         try:
             result = check_access(account, "create-children")
             if result is None:
