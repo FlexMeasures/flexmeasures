@@ -100,7 +100,13 @@ class Account(db.Model, AuthModelMixin):
                 (f"account:{self.consultancy_account_id}", f"role:{CONSULTANT_ROLE}")
             )
         return {
-            "create-children": (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            "create-children": [
+                (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
             "read": read_access,
             "update": [
                 f"account:{self.id}",

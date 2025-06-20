@@ -16,6 +16,8 @@ def set_current_user(db, monkeypatch, requested_user_email):
 
     monkeypatch.setattr(flask_login.utils, "_get_user", lambda: user)
 
+    return user
+
 
 @pytest.mark.parametrize(
     "requesting_user, requested_user, required_perm, has_perm",
@@ -84,6 +86,34 @@ def test_consultant_account_update_perm(
 
         try:
             result = check_access(account, "update")
+            if result is None:
+                has_access = True
+        except (Forbidden, Unauthorized):
+            has_access = False
+
+        assert has_access == has_perm
+
+
+@pytest.mark.parametrize(
+    "requesting_user, has_perm",
+    [
+        # Consultant tries to create client account
+        ("test_consultant@seita.nl", True),
+    ],
+)
+def test_consultant_account_create_children_perm(
+    db,
+    monkeypatch,
+    setup_roles_users,
+    requesting_user,
+    has_perm,
+):
+    with monkeypatch.context() as m:
+        current_user = set_current_user(db, m, requesting_user)
+        client_accounts = current_user.account.consultancy_client_accounts
+        account = client_accounts[0]
+        try:
+            result = check_access(account, "create-children")
             if result is None:
                 has_access = True
         except (Forbidden, Unauthorized):
