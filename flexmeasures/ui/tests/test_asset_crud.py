@@ -34,7 +34,17 @@ def test_new_asset_page(client, setup_assets, as_admin):
     assert b"Creating a new asset" in asset_page.data
 
 
-def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
+@pytest.mark.parametrize(
+    "view",
+    [
+        "get",  # tests redirect to context
+        "context",
+        "graphs",
+        "properties",
+        "auditlog",
+    ],
+)
+def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1, view):
     user = find_user_by_email("test_prosumer_user@seita.nl")
     asset = user.account.generic_assets[0]
     db.session.expunge(user)
@@ -45,17 +55,19 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     requests_mock.get(f"{api_path_assets}/{asset.id}", status_code=200, json=mock_asset)
     asset_page = client.get(
         url_for(
-            "AssetCrudUI:get",
+            f"AssetCrudUI:{view}",
             id=asset.id,
             start_time="2022-10-01T00:00:00+02:00",
             end_time="2022-10-02T00:00:00+02:00",
         ),
         follow_redirects=True,
     )
-    assert ("Show sensors").encode() in asset_page.data
-    assert ("Edit flex-context").encode() in asset_page.data
-    assert ("Structure").encode() in asset_page.data
-    assert ("Location").encode() in asset_page.data
+    assert asset_page.status_code == 200
+    if view in ("get", "context"):
+        assert "Show sensors".encode() in asset_page.data
+        assert "Edit flex-context".encode() in asset_page.data
+        assert "Structure".encode() in asset_page.data
+        assert "Location".encode() in asset_page.data
 
 
 @pytest.mark.parametrize(
