@@ -98,6 +98,8 @@ def find_smallest_common_unit(units: list[str]) -> tuple[str, dict[str, float]]:
     ('EUR', {'kEUR': 1000.0, 'EUR': 1.0})
     >>> find_smallest_common_unit(["cEUR/kWh", "EUR/MWh"])  # NB: has a floating point error
     ('EUR/MWh', {'cEUR/kWh': 10.000000000000002, 'EUR/MWh': 1.0})
+    >>> find_smallest_common_unit(["%", "dimensionless"])
+    ('%', {'%': 1.0, 'dimensionless': 100.0})
     >>> find_smallest_common_unit(["%", ""])
     ('%', {'%': 1.0, '': 100.0})
     >>> find_smallest_common_unit(["h", "s"])
@@ -124,8 +126,9 @@ def find_smallest_common_unit(units: list[str]) -> tuple[str, dict[str, float]]:
         smallest_unit = units[smallest_idx]
 
         # Compute scaling factors to smallest unit
-        # factors = {u: determine_unit_conversion_multiplier(u, smallest_unit) for u in units}
-        factors = {u: ur.Quantity(1.0, u).to(smallest_unit).magnitude for u in units}
+        factors = {
+            u: determine_unit_conversion_multiplier(u, smallest_unit) for u in units
+        }
 
         return smallest_unit, factors
 
@@ -139,6 +142,10 @@ def determine_unit_conversion_multiplier(
     """Determine the value multiplier for a given unit conversion.
     If needed, requires a duration to convert from units of stock change to units of flow, or vice versa.
     """
+    if from_unit == "":
+        from_unit = "dimensionless"
+    if to_unit == "":
+        to_unit = "dimensionless"
     scalar = ur.Quantity(from_unit) / ur.Quantity(to_unit)
     if scalar.dimensionality == ur.Quantity("h").dimensionality:
         # Convert a stock change to a flow
