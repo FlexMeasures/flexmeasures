@@ -545,9 +545,6 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     const tableBody = document.getElementById('statsTableBody');
     const toggleStatsCheckbox = document.getElementById('toggleStatsCheckbox');
     const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
-    // Clear the dropdown menu since the api call will not reload the page
-    // so we need to have the dropdown menu empty on every api call
-    dropdownMenu.innerHTML = '';
     const dropdownButton = document.getElementById('sourceKeyDropdown');
     const noDataWarning = document.getElementById('noDataWarning');
     const fetchError = document.getElementById('fetchError');
@@ -557,6 +554,13 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     if (toggleStatsCheckbox.checked) {
         queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
     }
+    
+    // Enable all the default behaviors on every API call.
+    dropdownMenu.innerHTML = '';
+    noDataWarning.classList.add('d-none');
+    fetchError.classList.add('d-none');
+    tableBody.innerHTML = '';
+    
     fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)
     .then(response => response.json())
     .then(data => {
