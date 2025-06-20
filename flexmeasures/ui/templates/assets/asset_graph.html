@@ -27,6 +27,15 @@
                     <div id="datepicker"></div>
                 </div>
             </div>
+            <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3">
+                <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Select chart
+                </button>
+                <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default Asset Chart</a></li>
+                    <li><a class="dropdown-item" href="#" data-chart-type="create_chargepoint_session_chart">Charge Points Chart</a></li>
+                </ul>
+            </div>
    
         </div>
         <div class="col-md-8">
@@ -118,6 +127,33 @@
                 <div id="replay-time"></div>
             </div>
         </div>
+
+        <div id="chartInfoNote" class="text-center text-muted fst-italic my-2" style="display: none;">
+          ℹ️ Click legend to filter | Hold <kbd>Ctrl</kbd> + drag to pan
+        </div>
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                const note = document.getElementById("chartInfoNote");
+                const chartTypeDropdown = document.getElementById("chartTypeDropdown");
+
+                // Initial check
+                if (chartTypeDropdown.innerText.includes("ChargePoints Chart")) {
+                    note.style.display = "block";
+                }
+
+                // Show note only if "ChargePoints Chart" is selected
+                document.querySelectorAll("[data-chart-type]").forEach((el) => {
+                    el.addEventListener("click", (e) => {
+                        const chartType = el.getAttribute("data-chart-type");
+                        if (chartType === "create_chargepoint_session_chart") {
+                            note.style.display = "block";
+                        } else {
+                            note.style.display = "none";
+                        }
+                    });
+                });
+            });
+        </script>
     </div>
     <!-- Modal -->
     <div class="modal fade modal-xl" id="sensorsToShowModal" tabindex="-1" aria-labelledby="sensorsToShowModalLabel"
