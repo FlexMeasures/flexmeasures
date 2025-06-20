@@ -2178,18 +2178,21 @@ def add_toy_account(kind: str, name: str):
             "toy-process",
             "process",
             "Power (Inflexible)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         breakable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Breakable)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         shiftable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Shiftable)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         db.session.flush()

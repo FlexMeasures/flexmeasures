@@ -2,18 +2,58 @@
 **********************
 FlexMeasures Changelog
 **********************
-* Statistics shown in the UI default to that of the freshest source [see `PR #1399 <https://github.com/FlexMeasures/flexmeasures/pull/1399/>`_]
 
 
-v0.26.0 | June XX, 2025
+
+v0.27.0 | August XX, 2025
 ============================
+
+.. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
+
+
+New features
+-------------
+
+* New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices [see `PR #1065 <https://github.com/FlexMeasures/flexmeasures/pull/1065/>`_]
+* Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_]
+* Allow editing users in the UI [see `PR #1502 <https://github.com/FlexMeasures/flexmeasures/pull/1502>`_]
+* Smarter toast notifications [see `PR #1530 <https://github.com/FlexMeasures/flexmeasures/pull/1530>`_]
+* Move various warnings to toast notifications [see `PR #1529 <https://github.com/FlexMeasures/flexmeasures/pull/1529>`_]
+* Document how to set a parent asset when creating an asset through the API, and show parent assets in ``flexmeasures show account`` [see `PR #1533 <https://github.com/FlexMeasures/flexmeasures/pull/1533>`_]
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account [see `PR #1536 <https://github.com/FlexMeasures/flexmeasures/pull/1536>`_]
+* Add toggle to show sensors stats based on selected daterange. [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_]
+* Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_]
+
+Infrastructure / Support
+----------------------
+* Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_ and `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_]
+* Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
+* Stopped testing Python3.8 in our GitHub Actions CI [see `PR #1541 <https://github.com/FlexMeasures/flexmeasures/pull/1541>`_]
+
+Bugfixes
+-----------
+
+
+v0.26.1 | June 09, 2025
+============================
+
+Bugfixes
+-----------
+* Fixed backwards compatibility for users still using deprecated flex-context fields [see `PR #1528 <https://github.com/FlexMeasures/flexmeasures/pull/1528>`_]
+* Show job information again on the job page on rq-dashboard [see `PR #1526 <https://github.com/FlexMeasures/flexmeasures/pull/1526>`_]
+
+
+v0.26.0 | June 03, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v026-relaxed-scheduling-cleaner-asset-pages/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -------------
 
-- Support saving the scheduled :abbr:`SoC (state of charge)` by referencing an appropriate sensor in the ``flex-model`` field ``state-of-charge`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_ and `PR #1406 <https://github.com/FlexMeasures/flexmeasures/pull/1406>`_]
+* Support saving the scheduled :abbr:`SoC (state of charge)` by referencing an appropriate sensor in the ``flex-model`` field ``state-of-charge`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_ and `PR #1406 <https://github.com/FlexMeasures/flexmeasures/pull/1406>`_]
 * Allow relaxing :abbr:`SoC (state of charge)` minima and maxima, by setting penalties for not meeting these constraints, using two new ``flex-context`` fields [see `PR #1300 <https://github.com/FlexMeasures/flexmeasures/pull/1300>`_]
 * Allow relaxing device-level power constraints, by setting penalties for not meeting these constraints, using two new ``flex-context`` fields [see `PR #1405 <https://github.com/FlexMeasures/flexmeasures/pull/1405>`_]
 * Add sensor attribute (``frequency``) to align incoming measurements to a specified time interval [see `PR #1461 <https://github.com/FlexMeasures/flexmeasures/pull/1461>`_]
@@ -28,6 +68,7 @@ New features
 * Show visually distinct siblings and children in the assets dropdown [see `PR #1504 <https://github.com/FlexMeasures/flexmeasures/pull/1504>`_]
 * Add resolution back to the CLI belief plotting [see `PR #1500 <https://github.com/FlexMeasures/flexmeasures/pull/1500>`_]
 * Improved permission validation for user role updates. [see `PR #1465 <https://github.com/FlexMeasures/flexmeasures/pull/1465>`_]
+* Statistics shown in the UI default to that of the freshest source [see `PR #1399 <https://github.com/FlexMeasures/flexmeasures/pull/1399/>`_]
 
 Infrastructure / Support
 ----------------------
@@ -50,6 +91,7 @@ Bugfixes
 * Fix overriding of flex-context when asset is edited on the UI [see `PR #1469 <https://github.com/FlexMeasures/flexmeasures/pull/1469>`_]
 * Support entering audit log entries by detached user instances [see `PR #1483 <https://github.com/FlexMeasures/flexmeasures/pull/1483>`_]
 * Make flex context usage safer against this field being `None` [see `PR #1503 <https://github.com/FlexMeasures/flexmeasures/pull/1503>`_]
+
 
 v0.25.0 | April 01, 2025
 ============================
@@ -79,9 +121,6 @@ Infrastructure / Support
 * Test utility function for device scheduling in a multi-asset setting (sequential and simultaneous) [see `PR #1341 <https://github.com/FlexMeasures/flexmeasures/pull/1341>`_]
 * Add utils doctests to our CI pipeline [see `PR #1347 <https://github.com/FlexMeasures/flexmeasures/pull/1347>`_]
 * Clarify default limitations to concurrent connections [see `PR #1391 <https://github.com/FlexMeasures/flexmeasures/pull/1391>`_]
-
-Bugfixes
------------
 
 
 v0.24.1 | February 27, 2025
