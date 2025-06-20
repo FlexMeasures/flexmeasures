@@ -63,7 +63,7 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
     $ flexmeasures add beliefs --sensor 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
-The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_ :
+The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
     :align: center
@@ -75,17 +75,139 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 Trigger an updated schedule
 ----------------------------
 
-Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
+Now, we'll reschedule the battery while taking into account the solar production (forecast) as an inflexible device.
+This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
 
-.. code-block:: bash
+.. tabs::
 
-    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
-        --inflexible-device-sensor 3 \
-        --start ${TOMORROW}T07:00+02:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90%
-    New schedule is stored.
+    .. tab:: CLI
 
-We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ :
+        .. code-block:: bash
+            :emphasize-lines: 3
+
+            $ flexmeasures add schedule for-storage \
+                --sensor 2 \
+                --inflexible-device-sensor 3 \
+                --start ${TOMORROW}T07:00+01:00 \
+                --duration PT12H \
+                --soc-at-start 50% \
+                --roundtrip-efficiency 90%
+            New schedule is stored.
+
+    .. tab:: API
+
+        Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ (update the start date to tomorrow):
+
+        .. code-block:: json
+            :emphasize-lines: 11-13
+
+            {
+                "start": "2025-06-11T07:00+01:00",
+                "duration": "PT12H",
+                "flex-model": [
+                    {
+                        "sensor": 2,
+                        "soc-at-start": "50%",
+                        "roundtrip-efficiency": "90%"
+                    }
+                ],
+                "flex-context": {
+                    "inflexible-device-sensors": [3]
+                }
+            }
+
+        Alternatively, if the solar production is curtailable, move the solar production to the flex-model.
+        There, we tell the scheduler to pick any production value between 0 and the production forecast recorded on sensor 3, and to store the resulting schedule on sensor 3 as well (the FlexMeasures UI will still be able to distinguish forecasts from schedules):
+
+        .. code-block:: json
+            :emphasize-lines: 10-14,16
+
+            {
+                "start": "2025-06-11T07:00+01:00",
+                "duration": "PT12H",
+                "flex-model": [
+                    {
+                        "sensor": 2,
+                        "soc-at-start": "50%",
+                        "roundtrip-efficiency": "90%"
+                    },
+                    {
+                        "sensor": 3,
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {"sensor": 3},
+                    }
+                ],
+                "flex-context": {}
+            }
+
+    .. tab:: FlexMeasures Client
+
+        Using the `FlexMeasures Client <https://pypi.org/project/flexmeasures-client/>`_:
+
+        .. code-block:: bash
+
+            pip install flexmeasures-client
+
+        .. code-block:: python
+            :emphasize-lines: 22-24
+
+            import asyncio
+            from datetime import date
+            from flexmeasures_client import FlexMeasuresClient as Client
+
+            async def client_script():
+                client = Client(
+                    email="toy-user@flexmeasures.io",
+                    password="toy-password",
+                    host="localhost:5000",
+                )
+                schedule = await client.trigger_and_get_schedule(
+                    asset_id=2,  # Toy building (asset ID)
+                    start=f"{date.today().isoformat()}T07:00+01:00",
+                    duration="PT12H",
+                    flex_model=[
+                        {
+                            "sensor": 2,  # battery power (sensor ID)
+                            "soc-at-start": "50%",
+                            "roundtrip-efficiency": "90%",
+                        },
+                    ],
+                    flex_context={
+                        "inflexible-device-sensors": [3],  # solar production (sensor ID)
+                    },
+                )
+                print(schedule)
+                await client.close()
+
+            asyncio.run(client_script())
+
+        Alternatively, if the solar production is curtailable, move the solar production to the flex-model:
+
+        .. code-block:: python
+            :emphasize-lines: 11-15,17
+
+            schedule = await client.trigger_and_get_schedule(
+                asset_id=2,  # Toy building (asset ID)
+                start=f"{date.today().isoformat()}T07:00+01:00",
+                duration="PT12H",
+                flex_model=[
+                    {
+                        "sensor": 2,  # battery power (sensor ID)
+                        "soc-at-start": "50%",
+                        "roundtrip-efficiency": "90%",
+                    },
+                    {
+                        "sensor": 3,  # solar production (sensor ID)
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {"sensor": 3},
+                    },
+                ],
+                flex_context={},
+            )
+
+
+
+We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging-with-solar.png
     :align: center
@@ -117,7 +239,7 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
 
 .. note:: You can add arbitrary sensors to a chart using the asset UI or the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
-A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_ :
+A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center

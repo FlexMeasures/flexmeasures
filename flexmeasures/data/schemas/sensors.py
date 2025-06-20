@@ -208,8 +208,16 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 class SensorIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
-    def __init__(self, *args, unit: str | ur.Quantity | None = None, **kwargs):
+    def __init__(
+        self,
+        asset: GenericAsset | None = None,
+        unit: str | ur.Quantity | None = None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
+
+        self.asset = asset
 
         if isinstance(unit, str):
             self.to_unit = ur.Quantity(unit)
@@ -235,6 +243,16 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
         sensor.generic_asset.generic_asset_type
+
+        # if the asset is defined, check if the sensor belongs to it (or to its offspring)
+        if (
+            self.asset is not None
+            and sensor.generic_asset != self.asset
+            and sensor.generic_asset not in self.asset.offspring
+        ):
+            raise FMValidationError(
+                f"Sensor {value} must be assigned to asset {self.asset} (or to one of its offspring)"
+            )
 
         # if the units are defined, check if the sensor data is convertible to the target units
         if self.to_unit is not None and not units_are_convertible(

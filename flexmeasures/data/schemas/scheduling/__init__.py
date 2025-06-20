@@ -486,6 +486,7 @@ class AssetTriggerSchema(Schema):
         data_key="flex-model",
     )
     flex_context = fields.Dict(required=False, data_key="flex-context")
+    sequential = fields.Bool(load_default=False)
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):

@@ -1992,3 +1992,14 @@ body.touched [title]:hover:after {
 .bg-primary-custom {
     background-color: var(--primary-color) !important;
 }
+
+/* Toast highlighting */
+.toast.highlight {
+  animation: pulse 0.6s;
+}
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0px 0 var(--secondary-color); }
+  50%  { box-shadow: 0 0 10px 4px var(--secondary-color); }
+  100% { box-shadow: 0 0 0px 0 var(--secondary-color); }
+}
