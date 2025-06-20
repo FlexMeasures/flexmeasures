@@ -86,6 +86,53 @@ def is_valid_unit(unit: str) -> bool:
     return True
 
 
+def find_smallest_common_unit(units: list[str]) -> tuple[str, dict[str, float]]:
+    """Select the smallest unit by comparing their magnitude when converted to base units.
+
+    If the units are dimensionally incompatible (e.g. "kg" and "m"), returns "a.u." and default scaling factors of 1.
+
+    For example:
+    >>> find_smallest_common_unit(["MW", "kW", "W"])
+    ('W', {'MW': 1000000.0, 'kW': 1000.0, 'W': 1.0})
+    >>> find_smallest_common_unit(["kEUR", "EUR"])
+    ('EUR', {'kEUR': 1000.0, 'EUR': 1.0})
+    >>> find_smallest_common_unit(["cEUR/kWh", "EUR/MWh"])  # NB: has a floating point error
+    ('EUR/MWh', {'cEUR/kWh': 10.000000000000002, 'EUR/MWh': 1.0})
+    >>> find_smallest_common_unit(["%", ""])
+    ('%', {'%': 1.0, '': 100.0})
+    >>> find_smallest_common_unit(["h", "s"])
+    ('s', {'h': 3600.0, 's': 1.0})
+    >>> find_smallest_common_unit(["kW", "m"])
+    ('a.u.', {'kW': 1.0, 'm': 1.0})
+    >>> find_smallest_common_unit(["EUR", "AUD"])
+    ('a.u.', {'EUR': 1.0, 'AUD': 1.0})
+    """
+    if not units:
+        return "a.u.", {}
+
+    try:
+        # Convert all to quantities and check dimensionality
+        quantities = [1.0 * ur.parse_units(u) for u in units]
+        dim = quantities[0].dimensionality
+
+        if any(q.dimensionality != dim for q in quantities):
+            return "a.u.", {unit: 1.0 for unit in units}
+
+        # Get magnitudes in terms of base units
+        base_mags = [ur.Quantity(1.0, u).to_base_units().magnitude for u in units]
+        smallest_idx = base_mags.index(min(base_mags))
+        smallest_unit = units[smallest_idx]
+
+        # Compute scaling factors to smallest unit
+        # factors = {u: determine_unit_conversion_multiplier(u, smallest_unit) for u in units}
+        factors = {u: ur.Quantity(1.0, u).to(smallest_unit).magnitude for u in units}
+
+        return smallest_unit, factors
+
+    except (pint.DimensionalityError, Exception):
+        return "a.u.", {unit: 1.0 for unit in units}
+
+
 def determine_unit_conversion_multiplier(
     from_unit: str, to_unit: str, duration: timedelta | None = None
 ):

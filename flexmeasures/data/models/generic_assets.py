@@ -30,7 +30,7 @@ from flexmeasures.auth.policy import (
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.data.models.charts.belief_charts import get_scale_factor
+from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
 
 class GenericAssetType(db.Model):
@@ -635,6 +635,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         if sensors is None:
             sensors = self.sensors
 
+        _, factors = find_smallest_common_unit(
+            list(set([sensor.unit for sensor in sensors]))
+        )
+
         for sensor in sensors:
             bdf_dict[sensor] = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
@@ -679,7 +683,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                         append=True,
                     )
                     df["sensor"] = sensor  # or some JSONifiable representation
-                    df["scale_factor"] = get_scale_factor(sensor.unit)
+                    df["scale_factor"] = factors[sensor.unit]
                     df = df.set_index(["sensor"], append=True)
                     df_dict[sensor.id] = df
                 df = pd.concat(df_dict.values())

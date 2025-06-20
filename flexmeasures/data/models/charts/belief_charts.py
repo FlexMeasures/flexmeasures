@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from flexmeasures.utils.unit_utils import ur
 
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
 from flexmeasures.utils.coding_utils import flatten_unique
-from flexmeasures.utils.unit_utils import get_unit_dimension
-from pint import DimensionalityError, UndefinedUnitError
+from flexmeasures.utils.unit_utils import find_smallest_common_unit, get_unit_dimension
 
 
 base_units = {
@@ -655,34 +653,10 @@ def chart_for_multiple_sensors(
 
 def determine_shared_unit(sensors: list["Sensor"]) -> str:  # noqa F821
     units = list(set([sensor.unit for sensor in sensors if sensor.unit]))
-
-    # Replace with 'a.u.' in case of mixing units
-    shared_unit = (
-        units[0]
-        if len(units) == 1
-        else base_units.get(get_unit_dimension(units[0]), "a.u.")
-    )
-    if len(units) > 1:
-        dimension = get_unit_dimension(units[0])
-        for unit in units[1:]:
-            if get_unit_dimension(unit) != dimension:
-                shared_unit = "a.u."
-                break
+    shared_unit, _ = find_smallest_common_unit(units)
 
     # Replace with 'dimensionless' in case of empty unit
     return shared_unit if shared_unit else "dimensionless"
-
-
-def get_scale_factor(sensor_unit: str) -> float:
-    dimension = get_unit_dimension(sensor_unit)
-    scaling_unit = base_units.get(dimension)
-    if sensor_unit == scaling_unit:
-        return 1.0
-    try:
-        q = ur.Quantity(1, sensor_unit).to(scaling_unit)
-    except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-        return 1.0
-    return q.magnitude
 
 
 def determine_shared_sensor_type(sensors: list["Sensor"]) -> str:  # noqa F821
