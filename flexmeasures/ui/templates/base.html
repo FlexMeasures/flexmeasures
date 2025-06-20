@@ -556,7 +556,13 @@
         var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
         {% if active_page == "sensors" %}
-            loadSensorStats({{ sensor.id }});
+            const toggleStats = document.getElementById('toggleStatsCheckbox');
+            if (toggleStats.checked) {
+                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+            }
+            else {
+                loadSensorStats({{ sensor.id }});
+            }
         {% endif %}
 
         stopReplay()
