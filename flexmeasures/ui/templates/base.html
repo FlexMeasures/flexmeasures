@@ -566,6 +566,16 @@
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
+            {% if active_page == "sensors" %}
+                const toggleStats = document.getElementById('toggleStatsCheckbox');
+                if (toggleStats.checked) {
+                    loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+                }
+                else {
+                    loadSensorStats({{ sensor.id }});
+                }
+            {% endif %}
+
             stopReplay()
 
             $("#spinner").show();
@@ -612,6 +622,16 @@
         };
     {% endif %}
     picker = createPicker(sessionStart, sessionEnd, customRanges);
+
+    // Call loadSensorStats if the toggleStatsCheckbox checkbox is checked or unchecked
+    document.getElementById('toggleStatsCheckbox').addEventListener('change', function() {
+        if (this.checked) {
+            loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+        }
+        else {
+            loadSensorStats({{ sensor.id }});
+        }
+    });
 
     /** If the page is done loading, get data (for the time range stored in the session, or the default range),
      * check for time zone differences, and then trigger the time range picker to display the correct range.

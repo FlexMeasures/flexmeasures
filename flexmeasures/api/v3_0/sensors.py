@@ -1022,12 +1022,23 @@ class SensorAPI(FlaskView):
     @route("/<id>/stats", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(
-        {"sort_keys": fields.Boolean(data_key="sort", load_default=True)},
+        {
+            "sort_keys": fields.Boolean(data_key="sort", load_default=True),
+            "event_start_time": fields.Str(load_default=None),
+            "event_end_time": fields.Str(load_default=None),
+        },
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
-    def get_stats(self, id, sensor: Sensor, sort_keys: bool):
+    def get_stats(
+        self,
+        id,
+        sensor: Sensor,
+        event_start_time: str,
+        event_end_time: str,
+        sort_keys: bool,
+    ):
         """Fetch stats for a given sensor.
 
         .. :quickref: Sensor; Get sensor stats
@@ -1061,7 +1072,10 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        return get_sensor_stats(sensor, sort_keys), 200
+        return (
+            get_sensor_stats(sensor, event_start_time, event_end_time, sort_keys),
+            200,
+        )
 
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
