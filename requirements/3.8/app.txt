@@ -8,6 +8,8 @@ alembic==1.14.1
     # via flask-migrate
 altair==5.4.1
     # via -r requirements/app.in
+annotated-types==0.7.0
+    # via pydantic
 argon2-cffi==25.1.0
     # via -r requirements/app.in
 argon2-cffi-bindings==21.2.0
@@ -128,6 +130,7 @@ importlib-metadata==8.5.0
     #   alembic
     #   flask
     #   timely-beliefs
+    #   typeguard
 importlib-resources==6.4.5
     # via
     #   alembic
@@ -135,7 +138,7 @@ importlib-resources==6.4.5
     #   jsonschema
     #   jsonschema-specifications
     #   matplotlib
-inflect==6.0.2
+inflect==7.4.0
     # via -r requirements/app.in
 inflection==0.5.1
     # via -r requirements/app.in
@@ -186,7 +189,9 @@ marshmallow-sqlalchemy==1.1.1
     # via -r requirements/app.in
 matplotlib==3.7.5
     # via timetomodel
-narwhals==1.41.0
+more-itertools==10.5.0
+    # via inflect
+narwhals==1.42.0
     # via altair
 numpy==1.24.4
     # via
@@ -245,10 +250,10 @@ py-moneyed==3.0
     # via -r requirements/app.in
 pycparser==2.22
     # via cffi
-pydantic==1.10.22
-    # via
-    #   -r requirements/app.in
-    #   inflect
+pydantic==2.10.6
+    # via -r requirements/app.in
+pydantic-core==2.27.2
+    # via pydantic
 pyluach==2.2.0
     # via workalendar
 pymeeus==0.5.12
@@ -275,6 +280,8 @@ pytz==2025.2
     #   timetomodel
 pyyaml==6.0.2
     # via -r requirements/app.in
+readchar==4.2.1
+    # via uniplot
 redis==6.1.1
     # via
     #   -r requirements/app.in
@@ -287,7 +294,7 @@ referencing==0.35.1
     # via
     #   jsonschema
     #   jsonschema-specifications
-requests==2.32.3
+requests==2.32.4
     # via
     #   requests-file
     #   tldextract
@@ -343,18 +350,24 @@ timetomodel==0.7.3
     # via -r requirements/app.in
 tldextract==5.1.2
     # via -r requirements/app.in
+typeguard==4.4.0
+    # via inflect
 types-python-dateutil==2.9.0.20241206
     # via arrow
 typing-extensions==4.13.2
     # via
     #   alembic
     #   altair
+    #   annotated-types
+    #   inflect
     #   py-moneyed
     #   pydantic
+    #   pydantic-core
     #   sqlalchemy
+    #   typeguard
 tzdata==2025.2
     # via pandas
-uniplot==0.21.1
+uniplot==0.21.2
     # via -r requirements/app.in
 urllib3==2.2.3
     # via

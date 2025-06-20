@@ -63,7 +63,7 @@ def already_received_and_successfully_processed(message: str) -> ResponseTuple:
 
 
 @BaseMessage(
-    "Some of the data represents a replacement, which is reserved for servers in play mode. Enable play mode or update the prior in your request."
+    "Some of the data represents a replacement, which is reserved for customized servers. If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. Alternatively, update the prior in your request."
 )
 def invalid_replacement(message: str) -> ResponseTuple:
     return (

@@ -15,7 +15,7 @@ from flask_security import auth_required, current_user
 from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
-from timely_beliefs import BeliefsDataFrame
+import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
 
@@ -43,11 +43,16 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
-from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.data.schemas.sensors import (
+    SensorSchema,
+    SensorIdField,
+    SensorDataFileSchema,
+)
+from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.utils import path_and_files
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -265,6 +270,50 @@ class SensorAPI(FlaskView):
             }
             return response, 200
 
+    @route("<id>/data/upload", methods=["POST"])
+    @path_and_files(SensorDataFileSchema)
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="data",
+        ctx_loader=lambda data: data[0].sensor if data else None,
+        pass_ctx_to_loader=True,
+    )
+    def upload_data(self, data: list[tb.BeliefsDataFrame], **kwargs):
+        """
+        Post sensor data to FlexMeasures by file upload.
+
+        .. :quickref: Data; Upload sensor data by file
+
+        ** Example request **
+
+        .. code-block:: json
+
+            {
+                "data": [
+                    {
+                        "uploaded-files": "[\"file1.csv\", \"file2.csv\"]"
+                    }
+                ]
+            }
+
+        The file should have columns for a timestamp (event_start) and a value (event_value).
+        The timestamp should be in ISO 8601 format.
+        The value should be a numeric value.
+
+        The unit has to be convertible to the sensor's unit.
+        The resolution of the data has to match the sensor's required resolution, but
+        FlexMeasures will attempt to upsample lower resolutions.
+        The list of values may include null values.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: multipart/form-data
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        """
+        response, code = save_and_enqueue(data)
+        return response, code
+
     @route("/data", methods=["POST"])
     @use_args(
         post_sensor_schema,
@@ -276,7 +325,7 @@ class SensorAPI(FlaskView):
         ctx_loader=lambda bdf: bdf.sensor,
         pass_ctx_to_loader=True,
     )
-    def post_data(self, bdf: BeliefsDataFrame):
+    def post_data(self, bdf: tb.BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
 
@@ -395,9 +444,9 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
-        Trigger FlexMeasures to create a schedule.
+        Trigger FlexMeasures to create a schedule for a single flexible device, possibly taking into account inflexible devices.
 
-        .. :quickref: Schedule; Trigger scheduling job
+        .. :quickref: Schedule; Trigger scheduling job for one device
 
         Trigger FlexMeasures to create a schedule for this sensor.
         The assumption is that this sensor is the power sensor on a flexible asset.
@@ -411,9 +460,8 @@ class SensorAPI(FlaskView):
         For details on flexibility model and context, see :ref:`describing_flexibility`.
         Below, we'll also list some examples.
 
-        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
-                  See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
-                  (considering already scheduled sensors as inflexible).
+        .. note:: To schedule an EMS with multiple flexible sensors at once,
+                  use `this endpoint <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ instead.
 
         The length of the schedule can be set explicitly through the 'duration' field.
         Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
@@ -451,8 +499,8 @@ class SensorAPI(FlaskView):
         Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
-        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
-        (plus the flexible sensor being optimized, of course).
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+        and the power sensor of the flexible device being optimized (referenced in the endpoint URL).
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
@@ -579,7 +627,7 @@ class SensorAPI(FlaskView):
     ):
         """Get a schedule from FlexMeasures.
 
-        .. :quickref: Schedule; Download schedule from the platform
+        .. :quickref: Schedule; Download schedule for one device
 
         **Optional fields**
 
@@ -639,7 +687,6 @@ class SensorAPI(FlaskView):
                 )
                 return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
-        scheduler_info_msg = ""
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
         scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
 
@@ -712,7 +759,9 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.get_attribute("consumption_is_positive", True):
+        if sensor.measures_power and sensor.get_attribute(
+            "consumption_is_positive", True
+        ):
             sign = -1
 
         # For consumption schedules, positive values denote consumption. For the db, consumption is negative
@@ -938,6 +987,36 @@ class SensorAPI(FlaskView):
         db.session.execute(delete(Sensor).filter_by(id=sensor.id))
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
+        return {}, 204
+
+    @route("/<id>/data", methods=["DELETE"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @as_json
+    def delete_data(self, id: int, sensor: Sensor):
+        """Delete all data for a sensor.
+
+        .. :quickref: Sensor; Delete sensor data
+
+        This endpoint deletes all data for a sensor.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 204: DELETED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+        db.session.commit()
+
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Deleted data for sensor '{sensor.name}': {sensor.id}",
+        )
+
         return {}, 204
 
     @route("/<id>/stats", methods=["GET"])
