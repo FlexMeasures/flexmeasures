@@ -19,7 +19,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 
     # setup an account with a user, assets for battery & solar and an energy market (ID 1)
     $ flexmeasures add toy-account
-    # load prices to optimise the schedule against
+    # load prices to optimize schedules against
     $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
 
 
@@ -131,6 +131,8 @@ Install Flexmeasures and the database
         .. include:: ../notes/macOS-port-note.rst
 
 
+.. _tut_load_data:
+
 Add some structural data
 ---------------------------------------
 
@@ -195,6 +197,7 @@ If you want, you can inspect what you created:
        4  toy-solar     solar               2  (52.374, 4.88969)
 
 .. code-block:: bash
+    :emphasize-lines: 30
 
     $ flexmeasures show asset --id 2
 
@@ -210,7 +213,7 @@ If you want, you can inspect what you created:
     Child assets of toy-building (ID: 2)
     ====================================
 
-    Id       Name               Type
+    ID       Name               Type
     -------  -----------------  ----------------------------
     3        toy-battery        battery
     4        toy-solar          solar
