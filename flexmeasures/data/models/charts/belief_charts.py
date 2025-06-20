@@ -10,20 +10,6 @@ from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import find_smallest_common_unit, get_unit_dimension
 
 
-base_units = {
-    "power": "kW",
-    "energy": "kWh",
-    "energy price": "EUR/kWh",
-    "price": "EUR/kW",  # e.g. a capacity price or a peak price
-    "currency": "AUD",
-    "percentage": "%",
-    "temperature": "°C",
-    "length": "m",
-    "time": "h",
-    "speed": "m/s",
-}
-
-
 def create_bar_chart_or_histogram_specs(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
