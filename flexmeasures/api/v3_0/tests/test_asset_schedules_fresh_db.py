@@ -249,13 +249,13 @@ def test_asset_trigger_and_get_schedule(
 
         # Check for cycling and final state
         if sensor_id == sensor_1.id:
-            # We expect cycling for the bi-directional Charge Point
+            # We expect cycling fully for the bi-directional Charge Point
             assert any(
                 [s == flex_model["soc-min"] / 1000 for s in soc_schedule]
-            ), "we should reach soc-min at least once"
+            ), "we should reach soc-min at least once, because we expect at least one full cycle"
             assert any(
                 [s == flex_model["soc-max"] / 1000 for s in soc_schedule]
-            ), "we should reach soc-max at least once"
+            ), "we should reach soc-max at least once, because we expect at least one full cycle"
             assert (
                 soc_schedule[-1] * 1000 == flex_model["soc-min"]
             ), "we should end empty"
