@@ -171,3 +171,30 @@ def test_get_one_user_audit_log_consultant(
     assert get_account_response.status_code == status_code
     if status_code == 200:
         assert get_account_response.json[0] is not None
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_consultant@seita.nl", 401),
+    ],
+    indirect=["requesting_user"],
+)
+def test_consultant_cannot_update_account_consultant(
+    db,
+    client,
+    setup_api_test_data,
+    requesting_user,
+    expected_status_code,
+):
+    client_accounts = requesting_user.account.consultancy_client_accounts
+    test_user_account_id = client_accounts[0].id if client_accounts else None
+
+    patch_account_response = client.patch(
+        url_for("AccountAPI:patch", id=test_user_account_id),
+        json={"consultancy_account_id": 3},
+    )
+
+    print("Server responded with:\n%s" % patch_account_response.data)
+    print("Status code: %s" % patch_account_response.status_code)
+    assert patch_account_response.status_code == expected_status_code
