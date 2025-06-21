@@ -38,7 +38,7 @@ def test_create_simultaneous_jobs(
     # The EV is scheduled firstly.
     assert job.kwargs["asset_or_sensor"] == {
         "id": assets["Test Site"].id,
-        "class": "GenericAsset",
+        "class": "Asset",
     }
     # It uses the inflexible-device-sensors that are defined in the flex-context, exclusively.
     assert job.kwargs["flex_context"]["inflexible-device-sensors"] == [

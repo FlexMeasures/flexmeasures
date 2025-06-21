@@ -38,10 +38,28 @@ def validation_error_handler(error: FMValidationError):
 @parser.location_loader("args_and_json")
 def load_data(request, schema):
     """
-    We allow parameters to come from either GET args or POST JSON,
-    as validators can be attached to either.
+    We allow parameters to come from URL path, GET args and POST JSON,
+    as validators can be attached to any of them.
     """
+
+    # GET args (i.e. query parameters, such as https://flexmeasures.io/?id=5)
     newdata = request.args.copy()
+
+    # View args (i.e. path parameters, such as the `/assets/<id>` endpoint)
+    path_params = request.view_args
+    # Avoid clashes such as visiting https://flexmeasures.io/assets/4/?id=5 on the /assets/<id> endpoint
+    for key in path_params:
+        if key in newdata:
+            raise FMValidationError(message=f"{key} already set in the URL path")
+    newdata.update(path_params)
+
     if request.mimetype == "application/json" and request.method == "POST":
-        newdata.update(request.get_json())
+        json_params = request.get_json()
+        # Avoid clashes
+        for key in json_params:
+            if key in newdata:
+                raise FMValidationError(
+                    message=f"{key} already set in the URL path or query parameters"
+                )
+        newdata.update(json_params)
     return MultiDictProxy(newdata, schema)

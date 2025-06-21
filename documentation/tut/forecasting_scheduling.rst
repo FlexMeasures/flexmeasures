@@ -99,7 +99,7 @@ It usually involves a linear program that combines a state of energy flexibility
 There are two ways to queue a scheduling job:
 
 First, we can add a scheduling job to the queue via the API.
-We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
+We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
 
 Here, we extend that (storage) example with an additional target value, representing a desired future state of charge.
 
@@ -108,6 +108,7 @@ Here, we extend that (storage) example with an additional target value, represen
     {
         "start": "2015-06-02T10:00:00+00:00",
         "flex-model": {
+            "sensor": 15,
             "soc-at-start": "12.1 kWh",
             "soc-targets": [
                 {
@@ -130,7 +131,7 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor 1 --consumption-price-sensor 2 \
+    $ flexmeasures add schedule for-storage --sensor 15 --consumption-price-sensor 2 \
         --start 2022-07-05T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90% --as-job
 
@@ -154,7 +155,7 @@ A prognosis can be requested at a URL looking like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/sensors/data
+    https://company.flexmeasures.io/api/v3_0/sensors/data
 
 This example requests a prognosis for 24 hours, with a rolling horizon of 6 hours before realisation.
 
@@ -180,11 +181,23 @@ We saw above how FlexMeasures can create optimised schedules with control signal
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/sensors/<id>/schedules/<uuid>
+    https://company.flexmeasures.io/api/v3_0/sensors/<id>/schedules/<uuid>
 
-Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ response.
+Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ response.
 Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).
 Afterwards, the exact schedule can still be retrieved through the `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
+Besides the UUID, the endpoint for retrieving schedules takes a sensor ID, which is the sensor ID of one of the power sensors that was referenced in the flex model.
+
+.. note:: If a ``state-of-charge`` sensor was referenced in the flex model (like in the example below), the scheduled state of charge can be retrieved using the same endpoint and UUID, but then using the state-of-charge sensor ID.
+
+          .. code-block:: json
+
+              "flex-model": {
+                  "sensor": 15,
+                  "state-of-charge": {"sensor": 16}
+              }
+
+          For instance, if the above snippet represents the flex model used by FlexMeasures to compute the schedule, then to fetch the scheduled state of charge you simply replace the power sensor ID in the URL of the `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_ endpoint with the state-of-charge sensor ID.
 
 The following example response indicates that FlexMeasures planned ahead 45 minutes for the requested battery power sensor.
 The list of consecutive power values represents the target consumption of the battery (negative values for production).
@@ -212,3 +225,8 @@ However, because the targets values represent averages over 15-minute time inter
 For example, the battery might start to consume with 2.1 MW at 10.00am and increase its consumption to 2.25 at 10.10am,
 increase its consumption to 5 MW at 10.15am and decrease its consumption to 2 MW at 10.20am.
 That should result in the same average values for each quarter-hour.
+
+Likewise, the control signals can be used to schedule devices that only run at specific power levels.
+For example, let's assume the battery only supports running at an integer number of MW.
+In that case, the battery could start to consume with 2 MW at 10.00am, increase its consumption to 3 MW at (15 seconds before) 10.12am, and decrease its consumption to 2 MW at 10.30am.
+Again, this results in the same average values for each quarter-hour.
