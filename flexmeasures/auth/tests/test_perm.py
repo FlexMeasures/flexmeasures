@@ -101,7 +101,7 @@ def test_consultant_account_update_perm(
         ("test_consultant@seita.nl", "Test Supplier Account", False),
     ],
 )
-def test_consultant_account_resource_perm(
+def test_consultant_create_account_resource_perm(
     db,
     monkeypatch,
     setup_roles_users,
