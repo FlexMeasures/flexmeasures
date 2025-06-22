@@ -296,7 +296,7 @@ Now to add price data. First, we'll create the CSV file with prices (EUR/MWh, se
     $ ${TOMORROW}T22:00:00,10
     $ ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
-This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
+This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `Weather Forecast APIs <https://github.com/flexmeasures/flexmeasures-weather>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
 
 .. code-block:: bash
 
