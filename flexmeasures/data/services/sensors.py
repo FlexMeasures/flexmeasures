@@ -482,7 +482,9 @@ def _get_sensor_stats(
     # build main query
     q = (
         sa.select(
-            DataSource.name,
+            sa.func.concat(
+                DataSource.name, "-", DataSource.model, "-", DataSource.version
+            ).label("combined_name_model_version"),
             sa.func.min(TimedBelief.event_start).label("min_event_start"),
             sa.func.max(TimedBelief.event_start).label("max_event_start"),
             sa.func.max(
@@ -513,7 +515,7 @@ def _get_sensor_stats(
 
     raw_stats = db.session.execute(
         q.group_by(
-            DataSource.name,
+            DataSource.id,
             subquery_for_filtered_aggregates.c.min_event_value,
             subquery_for_filtered_aggregates.c.max_event_value,
             subquery_for_filtered_aggregates.c.avg_event_value,
