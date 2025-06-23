@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import json
 import warnings
+from typing import Any
 
 from flask_classful import FlaskView, route
 from flask_security import current_user
@@ -20,6 +23,10 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.ui.utils.view_utils import set_session_variables
+from flexmeasures.data.models.annotations import (
+    SensorAnnotationRelationship,
+    GenericAssetAnnotationRelationship,
+)
 
 
 class SensorAPI(FlaskView):
@@ -134,20 +141,13 @@ class SensorAPI(FlaskView):
 
         Annotations for use in charts (in case you have the chart specs already).
         """
-        event_starts_after = kwargs.get("event_starts_after", None)
-        event_ends_before = kwargs.get("event_ends_before", None)
-        df = sensor.generic_asset.search_annotations(
-            annotations_after=event_starts_after,
-            annotations_before=event_ends_before,
-            as_frame=True,
+        df = get_annotations_data(
+            sensor_id=id,
+            asset_or_sensor=sensor,
+            relationship_module=SensorAnnotationRelationship,
+            kwargs=kwargs,
         )
 
-        # Wrap and stack annotations
-        df = prepare_annotations_for_chart(df)
-
-        # Return JSON records
-        df = df.reset_index()
-        df["source"] = df["source"].astype(str)
         return df.to_json(orient="records")
 
     @route("/<id>", strict_slashes=False)
@@ -187,6 +187,70 @@ class AssetAPI(FlaskView):
         """
         attributes = ["name", "timezone", "timerange_of_sensors_to_show"]
         return {attr: getattr(asset, attr) for attr in attributes}
+
+    @route("/<id>/chart_annotations", strict_slashes=False)
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "event_starts_after": AwareDateTimeField(format="iso", required=False),
+            "event_ends_before": AwareDateTimeField(format="iso", required=False),
+            "beliefs_after": AwareDateTimeField(format="iso", required=False),
+            "beliefs_before": AwareDateTimeField(format="iso", required=False),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    def get_chart_annotations(self, id: int, asset: GenericAsset, **kwargs):
+        """GET from /asset/<id>/chart_annotations
+
+        .. :quickref: Chart; Download annotations for use in charts
+
+        Annotations for use in charts (in case you have the chart specs already).
+        """
+        df = get_annotations_data(
+            sensor_id=None,
+            asset_or_sensor=asset,
+            relationship_module=GenericAssetAnnotationRelationship,
+            kwargs=kwargs,
+        )
+
+        return df.to_json(orient="records")
+
+
+def get_annotations_data(
+    sensor_id: int | None,
+    asset_or_sensor: GenericAsset | Sensor,
+    relationship_module: Any,
+    kwargs,
+):
+    """
+    This function fetches a sensor or an asset annotations data
+    """
+    event_starts_after = kwargs.get("event_starts_after", None)
+    event_ends_before = kwargs.get("event_ends_before", None)
+    if asset_or_sensor is GenericAsset:
+        asset_or_sensor_class = asset_or_sensor.generic_asset
+    else:
+        asset_or_sensor_class = asset_or_sensor
+
+    df = asset_or_sensor_class.search_annotations(
+        annotations_after=event_starts_after,
+        annotations_before=event_ends_before,
+        as_frame=True,
+        sensor_id=sensor_id,
+        relationship_module=relationship_module,
+    )
+
+    # Wrap and stack annotations
+    df = prepare_annotations_for_chart(df)
+
+    # Return JSON records
+    df = df.reset_index()
+    df["source"] = df["source"].astype(str)
+    return df
 
 
 def get_sensor_or_abort(id: int) -> Sensor:

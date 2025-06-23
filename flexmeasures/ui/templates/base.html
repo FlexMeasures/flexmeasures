@@ -369,7 +369,7 @@
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=true&include_asset_annotations=true&chart_type=' + chartType, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
@@ -578,15 +578,15 @@
             })
             .then(function(response) { return response.json(); }),
 
-            /**
+
             // Fetch annotations
-            fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+            fetch(dataDevPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
                 signal: signal,
             })
             .then(function(response) { return response.json(); }),
-            */
+
 
             // Embed chart
             embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
@@ -595,9 +595,9 @@
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
             previousResult = result[0];
             checkSourceMasking(previousResult);
-            /**
+
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
-            */
+
         }).catch(console.error);
     });
 

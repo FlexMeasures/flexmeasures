@@ -15,7 +15,11 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
-from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
+from flexmeasures.data.models.annotations import (
+    Annotation,
+    to_annotation_frame,
+    GenericAssetAnnotationRelationship,
+)
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
@@ -459,6 +463,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         annotation_type: str = None,
         include_account_annotations: bool = False,
         as_frame: bool = False,
+        sensor_id: int = None,
+        relationship_module: Any = GenericAssetAnnotationRelationship,
     ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
 
@@ -470,11 +476,12 @@ class GenericAsset(db.Model, AuthModelMixin):
         parsed_sources = parse_source_arg(source)
         annotations = db.session.scalars(
             query_asset_annotations(
-                asset_id=self.id,
+                asset_or_sensor_id=self.id if sensor_id is None else sensor_id,
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
                 sources=parsed_sources,
                 annotation_type=annotation_type,
+                relationship_module=relationship_module,
             )
         ).all()
         if include_account_annotations and self.owner is not None:
