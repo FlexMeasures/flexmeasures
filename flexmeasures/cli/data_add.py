@@ -89,6 +89,9 @@ from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from timely_beliefs import BeliefsDataFrame
+from flexmeasures.data.models.forecasting.residential.src.pipelines.train_predict_pipeline import (
+    TrainPredictPipeline,
+)
 
 
 @click.group("add")
@@ -1100,6 +1103,149 @@ def create_forecasts(
             forecast_end=forecast_end,
             event_resolution=event_resolution,
         )
+@fm_add_data.command("train-predict", cls=DeprecatedOptionsCommand)
+@click.option(
+    "--sensors",
+    required=True,
+    help='JSON string of sensor names and IDs, e.g., \'{"Heating_demand": 2092, "Ambient_temp": 2093}\'',
+)
+@click.option(
+    "--regressors",
+    default="autoregressive",
+    help="Comma-separated list of the sensor names to be used as regressors, default is 'autoregressive' to use the AR forecasting",
+)
+@click.option("--target", required=True, help="Name of the target sensor")
+@click.option(
+    "--model-save-dir",
+    default="smart-buildings/flexmeasures_smartbuildings/residential/artifacts/models",
+    help="Directory to save the trained model",
+)
+@click.option(
+    "--output-path",
+    help="Directory to save prediction outputs",
+)
+@click.option(
+    "--start-date",
+    required=True,
+    help="Start date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM)",
+)
+@click.option(
+    "--end-date",
+    required=True,
+    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM)",
+)
+@click.option(
+    "--train-period",
+    required=False,
+    type=click.IntRange(min=2),
+    help="Duration of the initial training period in days (minimum of 2). "
+    "After each forecast period, each next cycle will increase the training period by the forecast period. "
+    "If not set, derives a training period from --start-predict-date instead. "
+    "If that is also not set, defaults to 2 days.",
+)
+@click.option("--predict-period", default=7, help="Prediction period in days")
+@click.option(
+    "--start-predict-date",
+    default=None,
+    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM)",
+)
+@click.option(
+    "--max-forecast-horizon", default=48, help="Maximum forecast horizon in hours"
+)
+@click.option(
+    "--forecast-frequency",
+    type=int,
+    default=1,
+    help="Forecast frequency in hours, i.e. how often to recompute forecasts.",
+)
+@click.option("--probabilistic", default=False, help="Enable probabilistic predictions")
+@click.option(
+    "--sensor-to-save",
+    default=None,
+    type=SensorIdField(),
+    help="Sensor ID to save the predictions into.",
+)
+@with_appcontext
+def train_predict_pipeline(
+    sensors,
+    regressors,
+    target,
+    model_save_dir,
+    output_path,
+    start_date,
+    end_date,
+    train_period,
+    start_predict_date,
+    predict_period,
+    max_forecast_horizon,
+    forecast_frequency,
+    probabilistic,
+    sensor_to_save,
+):
+    """Run the Train-Predict Pipeline."""
+
+    try:
+        # Parse inputs
+        sensors_dict = json.loads(sensors)
+        regressors_list = regressors.split(",")
+        predict_period_in_hours = int(predict_period) * 24
+        train_period_in_hours = int(train_period) * 24 if train_period else None
+        start_date = datetime.fromisoformat(start_date)
+        end_date = datetime.fromisoformat(end_date)
+        predict_start = (
+            datetime.fromisoformat(start_predict_date)
+            if start_predict_date
+            else (start_date + timedelta(hours=train_period_in_hours))
+        )
+        probabilistic = bool(probabilistic)
+
+        # Set predict_start and train_period_in_hours
+        if train_period is None and start_predict_date is not None:
+            # If no explicit training period is defined, use everything before the start_predict_date
+            predict_start = datetime.fromisoformat(start_predict_date)
+            train_period_in_hours = (predict_start - start_date) / pd.Timedelta("1h")
+        elif train_period is not None and start_predict_date is None:
+            # If no start_predict_date is explicitly defined, start right after the training period
+            train_period_in_hours = int(train_period) * 24
+            predict_start = start_date + timedelta(hours=train_period_in_hours)
+        elif train_period is not None and start_predict_date is not None:
+            # If both are explicitly defined, use them (this allows gaps between the training and prediction periods)
+            train_period_in_hours = int(train_period) * 24
+            predict_start = datetime.fromisoformat(start_predict_date)
+        elif train_period is None and start_predict_date is None:
+            # Of neither is defined, set a minimum training period of 2 days, with predictions starting right after
+            train_period_in_hours = 2 * 24
+            predict_start = start_date + timedelta(hours=train_period_in_hours)
+            click.echo(
+                "No --train-period or --start-predict-date set. Defaulting to a training period of 2 days, with predictions starting right after."
+            )
+
+        if "autoregressive" in regressors_list:
+            sensors_dict = {target: sensors_dict[target]}
+        if sensor_to_save is None:
+            sensor_to_save = Sensor.query.get(int(sensors_dict[target]))
+
+        # Create and run the pipeline
+        pipeline = TrainPredictPipeline(
+            sensors=sensors_dict,
+            regressors=regressors_list,
+            target=target,
+            model_save_dir=model_save_dir,
+            output_path=output_path,
+            start_date=start_date,
+            end_date=end_date,
+            train_period_in_hours=train_period_in_hours,
+            sensor_to_save=sensor_to_save,
+            predict_start=predict_start,
+            predict_period_in_hours=predict_period_in_hours,
+            max_forecast_horizon=max_forecast_horizon,
+            forecast_frequency=forecast_frequency,
+            probabilistic=probabilistic,
+        )
+        pipeline.run()
+    except Exception as e:
+        click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
+        raise
 
 
 # todo: repurpose `flexmeasures add schedule` (deprecated since v0.12),
