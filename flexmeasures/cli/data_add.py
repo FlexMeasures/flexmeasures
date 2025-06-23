@@ -1117,7 +1117,7 @@ def create_forecasts(
 @click.option("--target", required=True, help="Name of the target sensor")
 @click.option(
     "--model-save-dir",
-    default="smart-buildings/flexmeasures_smartbuildings/residential/artifacts/models",
+    default="flexmeasures/data/models/forecasting/residential/artifacts/models",
     help="Directory to save the trained model",
 )
 @click.option(
