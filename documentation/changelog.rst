@@ -23,6 +23,7 @@ New features
 * Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account [see `PR #1536 <https://github.com/FlexMeasures/flexmeasures/pull/1536>`_]
 * Add toggle to show sensors stats based on selected daterange. [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_ and `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_]
 * Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_]
+* Modified Account model ACl to give consultant role more permissions as well as testcases to check if these permissions work as expected [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_]
 
 Infrastructure / Support
 ----------------------
