@@ -985,9 +985,7 @@ def add_consultancy_assets(
     """
     Add consultancy assets.
     """
-    return create_test_consultancy_assets(
-        db, setup_accounts, setup_generic_asset_types
-    )
+    return create_test_consultancy_assets(db, setup_accounts, setup_generic_asset_types)
 
 
 def create_test_consultancy_assets(
