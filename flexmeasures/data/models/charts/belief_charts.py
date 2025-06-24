@@ -837,7 +837,7 @@ def create_rect_layer(
     return rect_layer
 
 
-def create_chargepoint_session_chart(
+def chart_for_chargepoint_sessions(
     sensors_to_show,
     event_starts_after=None,
     event_ends_before=None,
