@@ -68,7 +68,7 @@ class Config(object):
     # Two Factor Authentication
     SECURITY_TWO_FACTOR_ENABLED_METHODS = ["email"]  # 'authenticator' can be added
     SECURITY_TWO_FACTOR = True
-    TOTP_SECRETS = {"1": "TjQ9Qa31VOrfEzuPy4VHQWPCTmRzCnFzMKLxXYiZu9B"}
+    TOTP_SECRETS = {"1": "e36a68b22752f8a992512c7221c8db2078895819f954e066"}
     TOTP_ISSUER = "FlexMeasures"
     SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (
         True  # False if you want to skip validation for testing
@@ -233,6 +233,8 @@ class TestingConfig(Config):
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
+
+    SECURITY_TWO_FACTOR = False  # disable 2FA
 
 
 class DocumentationConfig(Config):
