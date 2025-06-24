@@ -841,7 +841,8 @@ def create_chargepoint_session_chart(
 ) -> dict:
 
     all_sensors = []
-    for entry in sensors_to_show:
+    sensors_to_show_copy = sensors_to_show.copy()
+    for entry in sensors_to_show_copy:
         sensors = entry.get("sensors")
         all_sensors.extend(
             [
