@@ -247,12 +247,12 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
     dev/why
     dev/setup-and-guidelines
-    dev/api
+    dev/docker-compose
     dev/ci
     dev/auth
-    dev/docker-compose
     dev/dependency-management
-
+    dev/api
+    dev/automated-deploy-via-GHActions
 
 .. autosummary::
    :caption: Code Documentation
