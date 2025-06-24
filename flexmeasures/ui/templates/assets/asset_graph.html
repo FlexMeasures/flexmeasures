@@ -33,7 +33,25 @@
                 </button>
                 <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
                     <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
-                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_chargepoint_sessions">Charge Points</a></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center" href="#" data-chart-type="chart_for_chargepoint_sessions">
+                        <span>Charge Points</span>
+                        <i class="bi bi-info-circle text-light"
+                           tabindex="0"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="right"
+                           data-bs-html="true"
+                           title="<div>
+                             <span style='color:green;'>Dashed line:</span> Arrival → Departure<br>
+                             <small>Shows the time the vehicle was present at the location.</small><br><br>
+                             <span style='color:orange;'>Simple line:</span> Plug-in → Plug-out<br>
+                             <small>Indicates when the EV was physically plugged in but not necessarily charging.</small><br><br>
+                             <span style='color:blue;'>Bold line:</span> Start → Stop Charging<br>
+                             <small>Marks the actual charging period, when energy is being delivered to the EV.</small>
+                           </div>">
+                        </i>
+                      </a>
+                    </li>
                 </ul>
             </div>
    
@@ -132,6 +150,12 @@
           ℹ️ Click legend to filter | Hold <kbd>Ctrl</kbd> + drag to pan
         </div>
         <script>
+              document.addEventListener('DOMContentLoaded', function () {
+                const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.forEach(function (el) {
+                  new bootstrap.Tooltip(el);
+                });
+              });
             document.addEventListener("DOMContentLoaded", function () {
                 const note = document.getElementById("chartInfoNote");
                 const chartTypeDropdown = document.getElementById("chartTypeDropdown");
