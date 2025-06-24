@@ -990,7 +990,7 @@ def add_consultancy_assets(
     )
 
 
-def create_test_consultantcy_assets(
+def create_test_consultancy_assets(
     db: SQLAlchemy, setup_accounts, generic_asset_types
 ) -> dict[str, GenericAsset]:
     """
