@@ -253,6 +253,7 @@ def get_list_assets_chart(
     """
     Recursively builds a tree of assets from a given asset and its parents, children, and siblings
     up to a certain depth in each direction.
+    Siblings are alphabetically ordered.
 
     Args:
         asset: The asset to start the recursion from
@@ -294,12 +295,12 @@ def get_list_assets_chart(
     # Include current asset
     assets.append(asset_def)
 
-    # Traverse to children
+    # Traverse to children (alphabetically ordered)
     if look_for_child and child_depth < 2:
         child_depth += 1
-        for child in asset.child_assets:
+        for child in sorted(asset.child_assets, key=lambda a: a.name):
             assets += get_list_assets_chart(
-                child,
+                asset=child,
                 base_asset=child,
                 parent_depth=parent_depth,
                 child_depth=child_depth,
@@ -308,12 +309,13 @@ def get_list_assets_chart(
                 visited=visited,
             )
 
-    # Traverse to siblings
+    # Traverse to siblings (alphabetically ordered)
     if asset.parent_asset:
-        for sibling in asset.parent_asset.child_assets:
+        siblings = sorted(asset.parent_asset.child_assets, key=lambda a: a.name)
+        for sibling in siblings:
             if sibling.id != asset.id:
                 assets += get_list_assets_chart(
-                    sibling,
+                    asset=sibling,
                     base_asset=sibling,
                     parent_depth=parent_depth,
                     child_depth=child_depth,
