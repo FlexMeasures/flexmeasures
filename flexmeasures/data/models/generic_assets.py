@@ -26,6 +26,7 @@ from flexmeasures.auth.policy import (
     AuthModelMixin,
     EVERY_LOGGED_IN_USER,
     ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
@@ -119,7 +120,13 @@ class GenericAsset(db.Model, AuthModelMixin):
                 else EVERY_LOGGED_IN_USER
             ),
             "update": f"account:{self.account_id}",
-            "delete": (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            "delete": [
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
         }
 
     def __repr__(self):
