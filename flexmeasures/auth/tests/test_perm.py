@@ -132,8 +132,12 @@ def test_consultant_create_account_resource_perm(
     [
         # Consultant tries to delete a sensor from a client account
         ("test_consultant@seita.nl", "delete", "wind speed tracker", True),
-        # Consultant tries to delete a sensor from a client account
+        # Consultant tries to delete a sensor from a non client account
         ("test_consultant@seita.nl", "delete", "power (kW)", False),
+        # Consultant tries to update a sensor from a client account
+        ("test_consultant@seita.nl", "update", "wind speed tracker", True),
+        # Consultant tries to update a sensor from a non client account
+        ("test_consultant@seita.nl", "update", "power (kW)", False),
     ],
 )
 def test_consultant_can_work_on_clients_sensor(
@@ -168,8 +172,12 @@ def test_consultant_can_work_on_clients_sensor(
     [
         # Consultant tries to delete an asset from a client account
         ("test_consultant@seita.nl", "delete", "Test ConsultancyClient Account", True),
-        # Consultant tries to delete an asset from a client account
+        # Consultant tries to delete an asset from a non client account
         ("test_consultant@seita.nl", "delete", "Test Prosumer Account", False),
+        # Consultant tries to update an asset from a client account
+        ("test_consultant@seita.nl", "update", "Test ConsultancyClient Account", True),
+        # Consultant tries to update an asset from a non client account
+        ("test_consultant@seita.nl", "update", "Test Prosumer Account", False),
     ],
 )
 def test_consultant_can_delete_assets(

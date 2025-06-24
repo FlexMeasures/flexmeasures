@@ -119,7 +119,17 @@ class GenericAsset(db.Model, AuthModelMixin):
                 if self.account_id is not None
                 else EVERY_LOGGED_IN_USER
             ),
-            "update": f"account:{self.account_id}",
+            "update": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
             "delete": [
                 (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
                 (

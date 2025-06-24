@@ -111,10 +111,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         return {
             "create-children": f"account:{self.generic_asset.account_id}",
             "read": self.generic_asset.__acl__()["read"],
-            "update": (
-                f"account:{self.generic_asset.account_id}",
-                f"role:{ACCOUNT_ADMIN_ROLE}",
-            ),
+            "update": [
+                (
+                    f"account:{self.generic_asset.account_id}",
+                    f"role:{ACCOUNT_ADMIN_ROLE}",
+                ),
+                (
+                    f"account:{self.generic_asset.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
             "delete": [
                 (
                     f"account:{self.generic_asset.account_id}",
