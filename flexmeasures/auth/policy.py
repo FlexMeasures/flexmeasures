@@ -197,3 +197,44 @@ def check_account_role(user, principal: str) -> bool:
         if user.account.has_role(account_role):
             return True
     return False
+
+
+def can_modify_role(
+    user,
+    roles_to_modify,
+    modified_user,
+) -> bool:
+    """For a set of supported roles, check if the current user can modify the roles.
+
+    :param user: The current attempting to modify a role.
+    :param roles_to_modify: A list of roles to modify - can be a Role or a role ID.
+    :param modified_user: The user whose roles are being modified.
+    :return: True if the user can modify the roles, False otherwise.
+
+    The roles are:
+    - admin: can only be changed in CLI / directly in the DB, so not here
+    - admin-reader: can be added and removed by admins
+    - account-admin: can be added and removed by admins and consultants (in consultancy account)
+    - consultant: can be added and removed by admins and account-admins (in same account)
+
+    """
+
+    for role in roles_to_modify:
+        if isinstance(role, int):
+            from flexmeasures.data.models.user import Role
+
+            role = current_app.db.session.get(Role, role)
+
+    if role is not None:
+        if role.name != ADMIN_ROLE and user.has_role(ADMIN_ROLE):
+            return True  # admin can do all changes, aside from admin status
+        if role.name == ACCOUNT_ADMIN_ROLE and user.has_role(CONSULTANT_ROLE):
+            if modified_user.account.consultancy_account is not None:
+                if user.account.id == modified_user.account.consultancy_account.id:
+                    return True
+        if role.name == CONSULTANT_ROLE and user.has_role(ACCOUNT_ADMIN_ROLE):
+            if user.account.id and modified_user.account.id:
+                if user.account.id == modified_user.account.id:
+                    return True
+
+    return False

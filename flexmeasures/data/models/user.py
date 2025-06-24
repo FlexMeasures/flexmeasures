@@ -100,9 +100,21 @@ class Account(db.Model, AuthModelMixin):
                 (f"account:{self.consultancy_account_id}", f"role:{CONSULTANT_ROLE}")
             )
         return {
-            "create-children": (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            "create-children": [
+                (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
             "read": read_access,
-            "update": f"account:{self.id}",
+            "update": [
+                f"account:{self.id}",
+                (
+                    f"account:{self.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
         }
 
     def get_path(self, separator: str = ">"):
@@ -257,7 +269,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
     def __acl__(self):
         """
         Within same account, everyone can read.
-        Only the user themselves or account-admins can edit their user record.
+        Only the user themselves, consultants or account-admins can edit their user record.
         Creation and deletion are left to site admins in CLI.
         """
         return {
@@ -265,6 +277,10 @@ class User(db.Model, UserMixin, AuthModelMixin):
             "update": [
                 f"user:{self.id}",
                 (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.account.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
             ],
         }
 

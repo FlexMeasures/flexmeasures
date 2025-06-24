@@ -34,10 +34,27 @@ def render_user(user: User | None, msg: str | None = None):
     except (Forbidden, Unauthorized):
         user_view_user_auditlog = False
 
+    can_edit_user_details = True
+    try:
+        check_access(user, "update")
+    except (Forbidden, Unauthorized):
+        can_edit_user_details = False
+
+    roles = {}
+    for role in db.session.scalars(select(Role)).all():
+        roles[role.name] = role.id
+
+    user_roles = []
+    if user is not None:
+        user_roles = [role.name for role in user.flexmeasures_roles]
+
     return render_flexmeasures_template(
         "users/user.html",
         can_view_user_auditlog=user_view_user_auditlog,
+        can_edit_user_details=can_edit_user_details,
         user=user,
+        user_roles=user_roles,
+        roles=roles,
         asset_count=user.account.number_of_assets,
         msg=msg,
     )

@@ -7,10 +7,10 @@ requests
 # to test responses from our API, as given to our UI code
 requests_mock
 # lets tests run successfully in containers
-# pinned as from 2.28 we saw a test failure. Periodically try again.
-fakeredis <= 2.27
+fakeredis
 # required with fakeredis, maybe because we use rq
 lupa
 # LP solver required to test the function device_scheduler which is used by the StorageScheduler
 highspy
 pytest-mock
+openpyxl

@@ -44,7 +44,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 Where should you set these fields?
 Within requests to the API or by editing the relevant asset in the UI.
-If they are not sent in via the API (the endpoint triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
+If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
 And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
 
 
@@ -156,7 +156,7 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 
 
 We describe the respective flex models below.
-At the moment, they have to be sent through the API (the endpoint to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
+At the moment, they have to be sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
 We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
 
 
@@ -275,7 +275,7 @@ depending on the first target state of charge and the capabilities of the asset.
 
 Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
 
-For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
+For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_.
 
 Finally, are you interested in the linear programming details behind the storage scheduler?
 Then head over to :ref:`storage_device_scheduler`!

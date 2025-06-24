@@ -27,7 +27,7 @@ Moreover, we'll touch upon the use of time restrictions to avoid scheduling a pr
 
 
 Setup
-.....
+-----
 
 
 Before moving forward, we'll add the `process` asset and three sensors to store the schedules resulting from following three different policies.
@@ -36,15 +36,15 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 
     $ flexmeasures add toy-account --kind process
     
-        User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
-        The sensor recording day-ahead prices is day-ahead prices (ID: 1).
-        Created <GenericAsset 5: 'toy-process' (process)>
-        Created <Sensor 4: Power (Inflexible), unit: MW res.: 0:15:00>
-        Created <Sensor 5: Power (Breakable), unit: MW res.: 0:15:00>
-        Created <Sensor 6: Power (Shiftable), unit: MW res.: 0:15:00>
-        The sensor recording the power of the inflexible load is Power (Inflexible) (ID: 4).
-        The sensor recording the power of the breakable load is Power (Breakable) (ID: 5).
-        The sensor recording the power of the shiftable load is Power (Shiftable) (ID: 6).
+    User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
+    The sensor recording day-ahead prices is day-ahead prices (ID: 1).
+    Created <GenericAsset 5: 'toy-process' (process)>
+    Created <Sensor 4: Power (Inflexible), unit: MW res.: 0:15:00>
+    Created <Sensor 5: Power (Breakable), unit: MW res.: 0:15:00>
+    Created <Sensor 6: Power (Shiftable), unit: MW res.: 0:15:00>
+    The sensor recording the power of the inflexible load is Power (Inflexible) (ID: 4).
+    The sensor recording the power of the breakable load is Power (Breakable) (ID: 5).
+    The sensor recording the power of the shiftable load is Power (Shiftable) (ID: 6).
 
 
 Trigger an updated schedule
@@ -59,7 +59,7 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 4 --consumption-price-sensor 1\
+    $ flexmeasures add schedule for-process --sensor 4 \
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type INFLEXIBLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
@@ -70,7 +70,7 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKA
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 5 --consumption-price-sensor 1\
+    $ flexmeasures add schedule for-process --sensor 5 \
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type BREAKABLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
@@ -81,7 +81,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 6 --consumption-price-sensor 1\
+    $ flexmeasures add schedule for-process --sensor 6 \
       --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
       --process-power 0.2MW --process-type SHIFTABLE \ 
       --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
