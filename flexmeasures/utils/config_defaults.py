@@ -65,6 +65,19 @@ class Config(object):
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
 
+    # Two Factor Authentication
+    SECURITY_TWO_FACTOR_ENABLED_METHODS = ["email"]  # 'authenticator' can be added
+    SECURITY_TWO_FACTOR = True
+    TOTP_SECRETS = {"1": "TjQ9Qa31VOrfEzuPy4VHQWPCTmRzCnFzMKLxXYiZu9B"}
+    TOTP_ISSUER = "FlexMeasures"
+    SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (
+        True  # False if you want to skip validation for testing
+    )
+    SECURITY_TWO_FACTOR_LOGIN_VALIDITY = (
+        "1 week"  # Add this setting to validate 2FA for some time.
+    )
+    SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
+
     # Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" here
     CORS_ORIGINS: list[str] | str = []
     # this can be a dict with all possible options as value per regex, see https://flask-cors.readthedocs.io/en/latest/configuration.html
