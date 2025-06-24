@@ -136,7 +136,7 @@ def test_consultant_create_account_resource_perm(
         ("test_consultant@seita.nl", "delete", "power (kW)", False),
     ],
 )
-def test_consultant_can_delete_sensor(
+def test_consultant_can_work_on_clients_sensor(
     db,
     monkeypatch,
     add_battery_assets,
