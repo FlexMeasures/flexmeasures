@@ -253,7 +253,7 @@ def get_list_assets_chart(
     """
     Recursively builds a tree of assets from a given asset and its parents, children, and siblings
     up to a certain depth in each direction.
-    Siblings are alphabetically ordered.
+    Siblings (including the starting asset) are ordered alphabetically.
 
     Args:
         asset: The asset to start the recursion from
@@ -270,59 +270,60 @@ def get_list_assets_chart(
     if visited is None:
         visited = set()
 
-    if asset.id in visited:
-        return []
-
-    visited.add(asset.id)
     assets = []
-    asset_def = serialize_asset(asset, is_head=is_head)
 
-    # Traverse to parent
+    # Traverse to parent first
     if asset.parent_asset and parent_depth < 2 and not look_for_child:
-        parent_depth += 1
         assets += get_list_assets_chart(
             asset=asset.parent_asset,
             base_asset=base_asset,
-            parent_depth=parent_depth,
-            is_head=False if parent_depth < 2 else True,
+            parent_depth=parent_depth + 1,
+            look_for_child=False,
+            is_head=(parent_depth + 1 == 2),
             visited=visited,
         )
+        look_for_child = True
     else:
         look_for_child = True
-        # Auto increase depth if the parents hierarchy is less than two
-        parent_depth = 2
+        parent_depth = 2  # prevent further parent traversal
 
-    # Include current asset
-    assets.append(asset_def)
-
-    # Traverse to children (alphabetically ordered)
-    if look_for_child and child_depth < 2:
-        child_depth += 1
-        for child in sorted(asset.child_assets, key=lambda a: a.name):
-            assets += get_list_assets_chart(
-                asset=child,
-                base_asset=child,
-                parent_depth=parent_depth,
-                child_depth=child_depth,
-                look_for_child=True,
-                is_head=False,
-                visited=visited,
-            )
-
-    # Traverse to siblings (alphabetically ordered)
+    # Handle siblings (alphabetically)
     if asset.parent_asset:
         siblings = sorted(asset.parent_asset.child_assets, key=lambda a: a.name)
         for sibling in siblings:
-            if sibling.id != asset.id:
-                assets += get_list_assets_chart(
-                    asset=sibling,
-                    base_asset=sibling,
-                    parent_depth=parent_depth,
-                    child_depth=child_depth,
-                    look_for_child=True,
-                    is_head=False,
-                    visited=visited,
+            if sibling.id not in visited:
+                visited.add(sibling.id)
+                assets.append(
+                    serialize_asset(
+                        sibling, is_head=(sibling.id == asset.id and is_head)
+                    )
                 )
+                if look_for_child and child_depth < 2:
+                    assets += get_list_assets_chart(
+                        asset=sibling,
+                        base_asset=sibling,
+                        parent_depth=parent_depth,
+                        child_depth=child_depth + 1,
+                        look_for_child=True,
+                        is_head=False,
+                        visited=visited,
+                    )
+    else:
+        # No siblings → process just the asset
+        if asset.id not in visited:
+            visited.add(asset.id)
+            assets.append(serialize_asset(asset, is_head=is_head))
+            if look_for_child and child_depth < 2:
+                for child in sorted(asset.child_assets, key=lambda a: a.name):
+                    assets += get_list_assets_chart(
+                        asset=child,
+                        base_asset=child,
+                        parent_depth=parent_depth,
+                        child_depth=child_depth + 1,
+                        look_for_child=True,
+                        is_head=False,
+                        visited=visited,
+                    )
 
     return assets
 
