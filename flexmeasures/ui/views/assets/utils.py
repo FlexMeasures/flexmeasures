@@ -248,7 +248,7 @@ def get_list_assets_chart(
     child_depth=0,
     look_for_child=False,
     is_head=False,
-    visited: set[int] = None,
+    visited: set[int] | None = None,
 ) -> list[dict]:
     """
     Recursively builds a tree of assets from a given asset and its parents, children, and siblings
