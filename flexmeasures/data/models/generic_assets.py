@@ -123,8 +123,12 @@ class GenericAsset(db.Model, AuthModelMixin):
             "delete": [
                 (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
                 (
-                    f"account:{self.owner.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
                 ),
             ],
         }
