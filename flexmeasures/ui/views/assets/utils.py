@@ -248,25 +248,35 @@ def get_list_assets_chart(
     child_depth=0,
     look_for_child=False,
     is_head=False,
+    visited: set[int] = None,
 ) -> list[dict]:
     """
-    Recursively builds a tree of assets from a given asset and its parents and children up to a certain depth.
+    Recursively builds a tree of assets from a given asset and its parents, children, and siblings
+    up to a certain depth in each direction.
 
     Args:
         asset: The asset to start the recursion from
         base_asset: The asset that is the base of the chart
-        parent_depth: The current depth of the parents hierarchy
+        parent_depth: The current depth of the parent hierarchy
         child_depth: The current depth of the children hierarchy
         look_for_child: If True, start looking for children of the current asset
         is_head: If True, the current asset is the head of the chart
+        visited: Set of visited asset IDs to avoid cycles
 
     Returns:
         A list of dictionaries representing the assets in the tree
     """
-    assets = list()
+    if visited is None:
+        visited = set()
+
+    if asset.id in visited:
+        return []
+
+    visited.add(asset.id)
+    assets = []
     asset_def = serialize_asset(asset, is_head=is_head)
 
-    # Fetch parents if there is parent asset and parent_depth is less than 2
+    # Traverse to parent
     if asset.parent_asset and parent_depth < 2 and not look_for_child:
         parent_depth += 1
         assets += get_list_assets_chart(
@@ -274,24 +284,43 @@ def get_list_assets_chart(
             base_asset=base_asset,
             parent_depth=parent_depth,
             is_head=False if parent_depth < 2 else True,
+            visited=visited,
         )
     else:
         look_for_child = True
-        parent_depth = (
-            2  # Auto increase depth in the parents hierarchy is less than two
-        )
+        # Auto increase depth if the parents hierarchy is less than two
+        parent_depth = 2
 
+    # Include current asset
     assets.append(asset_def)
 
+    # Traverse to children
     if look_for_child and child_depth < 2:
         child_depth += 1
-        for child in base_asset.child_assets:
+        for child in asset.child_assets:
             assets += get_list_assets_chart(
                 child,
+                base_asset=child,
                 parent_depth=parent_depth,
                 child_depth=child_depth,
-                base_asset=child,
+                look_for_child=True,
+                is_head=False,
+                visited=visited,
             )
+
+    # Traverse to siblings
+    if asset.parent_asset:
+        for sibling in asset.parent_asset.child_assets:
+            if sibling.id != asset.id:
+                assets += get_list_assets_chart(
+                    sibling,
+                    base_asset=sibling,
+                    parent_depth=parent_depth,
+                    child_depth=child_depth,
+                    look_for_child=True,
+                    is_head=False,
+                    visited=visited,
+                )
 
     return assets
 
