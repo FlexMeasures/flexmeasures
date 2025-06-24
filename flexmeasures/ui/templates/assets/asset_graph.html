@@ -723,9 +723,26 @@
             renderApiSensors(cachedFilteredSensors, graphIndex);
         }
     }
-
+    async function hideAssetChartSelection(){
+        let asset = await getAsset({{ asset.id }})
+        for (let child of asset.child_assets){
+            if (child['generic_asset_type']['name'] == 'smartbuilding.chargepoint'){
+                return true;
+            };
+        };
+        return false;
+    }
 
     // ============== Page Events ============== //
+    document.addEventListener('DOMContentLoaded', async () => {
+        const shouldHide = await hideAssetChartSelection();
+        const chartTypeDropdown = document.getElementById('chart-type-picker');
+        if (!shouldHide) {
+            console.log("Hide chart selection!");
+            chartTypeDropdown.style.display = 'none';
+        }
+    });
+
     formModal.addEventListener('hidden.bs.modal', function () {
         updateAssetSensorsToShow("sensorToShow");
     });
