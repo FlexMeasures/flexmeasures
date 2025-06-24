@@ -24,6 +24,7 @@ New features
 * Add toggle to show sensors stats based on selected daterange. [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_ and `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_]
 * Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_ and `PR #1544 <https://github.com/FlexMeasures/flexmeasures/pull/1544>`_]
 * Modified ``Account`` model :abbr:`ACL (access control list)` to give consultant role permissions to edit users [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_]
+* Added 2FA support [see `PR #1555 <https://github.com/FlexMeasures/flexmeasures/pull/1555>`_]
 
 Infrastructure / Support
 ----------------------
