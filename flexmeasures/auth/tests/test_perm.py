@@ -105,14 +105,12 @@ def test_consultant_can_work_on_clients_account(
 @pytest.mark.parametrize(
     "requesting_user, required_perm, has_perm",
     [
-        # Consultant tries to delete a sensor from a client account
         ("test_consultant@seita.nl", "delete", True),
-        # Consultant tries to delete a sensor from a non client account
         ("test_consultant@seita.nl", "delete", False),
-        # Consultant tries to update a sensor from a client account
         ("test_consultant@seita.nl", "update", True),
-        # Consultant tries to update a sensor from a non client account
         ("test_consultant@seita.nl", "update", False),
+        ("test_consultant@seita.nl", "create-children", True),
+        ("test_consultant@seita.nl", "create-children", False),
     ],
 )
 def test_consultant_can_work_on_clients_sensor(

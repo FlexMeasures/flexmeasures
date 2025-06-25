@@ -109,7 +109,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         Editing as well as deletion is left to account admins.
         """
         return {
-            "create-children": f"account:{self.generic_asset.account_id}",
+            "create-children": [
+                f"account:{self.generic_asset.account_id}",
+                (
+                    f"account:{self.generic_asset.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
             "read": self.generic_asset.__acl__()["read"],
             "update": [
                 (
