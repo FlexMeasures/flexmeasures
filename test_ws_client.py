@@ -8,7 +8,7 @@ def main():
         "X-Custom-Header": "SomeValue",
         # 'Authorization': 'Bearer YourToken',
     }
-    ws = Client.connect("ws://127.0.0.1:5000/v1", headers=headers)
+    ws = Client.connect("ws://127.0.0.1:5000/ping1", headers=headers)
     try:
         print("Connected to the WebSocket server!")
 

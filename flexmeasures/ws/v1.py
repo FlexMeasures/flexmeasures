@@ -4,7 +4,6 @@ from flask import current_app
 from flexmeasures import Sensor
 from sqlalchemy import select, func
 import json
-
 logger = logging.Logger(__name__)
 
 
@@ -15,7 +14,8 @@ def header_test(ws):
 
     # Get specific header if needed
     custom_header = ws.environ.get("HTTP_X_CUSTOM_HEADER")
-
+    # show the type of ws
+    logger.info(f"Type of ws: {type(ws)}")
     logger.info(f"All headers: {all_headers}")
     logger.info(f"Custom header: {custom_header}")
 

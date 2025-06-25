@@ -43,7 +43,7 @@ def create(  # noqa C901
     from flexmeasures.utils.config_utils import read_config, configure_logging
     from flexmeasures.utils.app_utils import set_secret_key, init_sentry
     from flexmeasures.utils.error_utils import add_basic_error_handlers
-
+    from flexmeasures.ws.s2_ws import S2FlaskWSServer
     # Create app
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
@@ -55,7 +55,8 @@ def create(  # noqa C901
     from flexmeasures.ws import sock
 
     sock.init_app(app)
-
+    s2_ws = S2FlaskWSServer(app=app, sock=sock)
+    
     if env is not None:  # overwrite
         app.config["FLEXMEASURES_ENV"] = env
     if app.config.get("FLEXMEASURES_ENV") == "testing":
