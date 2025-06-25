@@ -41,7 +41,11 @@ def create(  # noqa C901
 
     from flexmeasures.utils import config_defaults
     from flexmeasures.utils.config_utils import read_config, configure_logging
-    from flexmeasures.utils.app_utils import set_secret_key, init_sentry
+    from flexmeasures.utils.app_utils import (
+        set_secret_key,
+        set_totp_secrets,
+        init_sentry,
+    )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
     # Create app
@@ -107,6 +111,7 @@ def create(  # noqa C901
     # Some basic security measures
 
     set_secret_key(app)
+    set_totp_secrets(app)
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
