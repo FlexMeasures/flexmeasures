@@ -41,12 +41,19 @@
                            data-bs-toggle="tooltip"
                            data-bs-placement="right"
                            data-bs-html="true"
-                           title="<div>
-                             <span style='color:green;'>Dashed line:</span> Arrival → Departure<br>
-                             <small>Shows the time the vehicle was present at the location.</small><br><br>
-                             <span style='color:orange;'>Simple line:</span> Plug-in → Plug-out<br>
-                             <small>Indicates when the EV was physically plugged in but not necessarily charging.</small><br><br>
-                             <span style='color:blue;'>Bold line:</span> Start → Stop Charging<br>
+                           title="<div style='max-width: 300px;'>
+                             <strong>This chart shows charge hub patterns.
+                             Especially useful for many chargers. <br>It only shows <em>when</em> charging happened, not <em>how much</em>.</strong>
+                             <hr style='border-top: 1px; margin: 0.75rem 0 0.5rem 0;'>
+                             <strong>
+                             This chart will also show two context graphs if your main dashboard includes them - their titles should be `Power flow by type` and `Prices`.
+                             </strong>
+                             <hr style='border-top: 1px; margin: 0.75rem 0 0.5rem 0;'>
+                             <strong>Dashed line: Arrival → Departure</strong>
+                             <small>Shows the time the vehicle was present at the location.</small>
+                             <strong>Thin line: Plug-in → Plug-out</strong>
+                             <small>Indicates when the EV was physically plugged in but not necessarily charging.</small>
+                             <strong>Bold line: Start → Stop Charging</strong>
                              <small>Marks the actual charging period, when energy is being delivered to the EV.</small>
                            </div>">
                         </i>
