@@ -123,6 +123,11 @@ def make_mock_user(
             "",
             False,
         ),
+        (
+            make_mock_user(19, ["waitress"], 113, ["restaurant"]),
+            [(), "role:waitress"],
+            True,
+        ),
     ],
 )
 def test_principals_match(mock_user, principals, should_match):
