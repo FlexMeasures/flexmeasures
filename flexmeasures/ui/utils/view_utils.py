@@ -43,6 +43,9 @@ def fall_back_to_flask_template(render_function):
 @fall_back_to_flask_template
 def render_flexmeasures_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
+    variables["FLEXMEASURES_ALLOW_DATA_OVERWRITE"] = current_app.config.get(
+        "FLEXMEASURES_ALLOW_DATA_OVERWRITE"
+    )
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
         "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
     )
@@ -120,22 +123,41 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
     if "asset" in variables:
-        variables["breadcrumb_info"] = get_breadcrumb_info(asset)
+        current_page = variables.get("current_page")
+        variables["breadcrumb_info"] = get_breadcrumb_info(
+            asset, current_page=current_page
+        )
     variables.update(get_color_settings(account))  # add color settings to variables
 
     return render_template(html_filename, **variables)
 
 
-def clear_session():
-    for skey in [
-        k
-        for k in session.keys()
-        if k not in ("_fresh", "_id", "_user_id", "csrf_token", "fs_cc", "fs_paa")
-    ]:
-        current_app.logger.info(
-            "Removing %s:%s from session ... " % (skey, session[skey])
-        )
-        del session[skey]
+def clear_session(keys_to_clear: list[str] = None):
+    """
+    Clear out session variables.
+
+    If keys_to_clear is provided, only clear out those specific session variables.
+    Otherwise, clear out all session variables except for some special ones
+    (e.g. Flask-Security's, CSRF token, and our own session variables).
+    """
+    if keys_to_clear:
+        for skey in keys_to_clear:
+            if skey not in session:
+                continue
+            current_app.logger.info(
+                "Removing %s:%s from session ... " % (skey, session[skey])
+            )
+            del session[skey]
+    else:
+        for skey in [
+            k
+            for k in session.keys()
+            if k not in ("_fresh", "_id", "_user_id", "csrf_token", "fs_cc", "fs_paa")
+        ]:
+            current_app.logger.info(
+                "Removing %s:%s from session ... " % (skey, session[skey])
+            )
+            del session[skey]
 
 
 def set_session_variables(*var_names: str):
@@ -209,6 +231,20 @@ ICON_MAPPING = {
     "wind speed": "wi wi-strong-wind",
 }
 
+SVG_ICON_MAPPING = {
+    # site structure
+    "building": "https://api.iconify.design/mdi/home-city.svg",
+    "battery": "https://api.iconify.design/mdi/battery.svg",
+    "simulation": "https://api.iconify.design/mdi/home-city.svg",
+    "site": "https://api.iconify.design/mdi/map-marker-outline.svg",
+    "scenario": "https://api.iconify.design/mdi/binoculars.svg",
+    "pv": "https://api.iconify.design/wi/day-sunny.svg",
+    "solar": "https://api.iconify.design/wi/day-sunny.svg",
+    "chargepoint": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "ev": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "add_asset": "https://api.iconify.design/material-symbols/add-rounded.svg?color=white",  # Plus Icon for Add Asset
+}
+
 
 def asset_icon_name(asset_type_name: str) -> str:
     """Icon name for this asset type.
@@ -224,6 +260,15 @@ def asset_icon_name(asset_type_name: str) -> str:
     if asset_type_name:
         asset_type_name = asset_type_name.lower()
     return ICON_MAPPING.get(asset_type_name, f"icon-{asset_type_name}")
+
+
+def svg_asset_icon_name(asset_type_name: str) -> str:
+
+    if asset_type_name:
+        asset_type_name = asset_type_name.split(".")[-1].lower()
+    return SVG_ICON_MAPPING.get(
+        asset_type_name, "https://api.iconify.design/fa-solid/question-circle.svg"
+    )
 
 
 def username(user_id) -> str:

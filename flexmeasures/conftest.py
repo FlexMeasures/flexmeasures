@@ -1000,11 +1000,21 @@ def create_charging_station_assets(
     """Add uni- and bi-directional charging station assets, set their capacity value and their initial SOC."""
     oneway_evse = GenericAssetType(name="one-way_evse")
     twoway_evse = GenericAssetType(name="two-way_evse")
+    charging_hub = GenericAssetType(name="charging_hub")
+
+    charging_hub = GenericAsset(
+        name="Test charging hub",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=charging_hub,
+        latitude=10,
+        longitude=100,
+    )
 
     charging_station = GenericAsset(
         name="Test charging station",
         owner=setup_accounts["Prosumer"],
         generic_asset_type=oneway_evse,
+        parent_asset=charging_hub,
         latitude=10,
         longitude=100,
         flex_context={
@@ -1040,6 +1050,7 @@ def create_charging_station_assets(
         name="Test charging station (bidirectional)",
         owner=setup_accounts["Prosumer"],
         generic_asset_type=twoway_evse,
+        parent_asset=charging_hub,
         latitude=10,
         longitude=100,
         flex_context={
@@ -1070,9 +1081,25 @@ def create_charging_station_assets(
         ),
     )
     db.session.add(bidirectional_charging_station_power_sensor)
+    bi_soc = Sensor(
+        name="bi-soc",
+        generic_asset=bidirectional_charging_station,
+        unit="MWh",
+        event_resolution=timedelta(minutes=0),
+    )
+    uni_soc = Sensor(
+        name="uni-soc",
+        generic_asset=charging_station,
+        unit="MWh",
+        event_resolution=timedelta(minutes=0),
+    )
+    db.session.add(bi_soc)
+    db.session.add(uni_soc)
     return {
         "Test charging station": charging_station,
         "Test charging station (bidirectional)": bidirectional_charging_station,
+        "bi-soc": bi_soc,
+        "uni-soc": uni_soc,
     }
 
 
@@ -1424,7 +1451,9 @@ def soc_sensors(db, add_battery_assets, setup_sources) -> tuple:
         source=setup_sources["Seita"],
     )
 
-    yield soc_maxima, soc_minima, soc_targets, values
+    soc_schedule = pd.Series(data=values, index=time_slots)
+
+    yield soc_maxima, soc_minima, soc_targets, soc_schedule
 
 
 @pytest.fixture(scope="module")

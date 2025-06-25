@@ -419,7 +419,7 @@ $(document).ready(function () {
   $("#inactiveUsersCheckbox").change(function () {
       includeInactive = this.checked;
       table.api().ajax.reload();
-      if (!includeInactive) {
+      if (includeInactive) {
         tableTitle.text("All users");
       } else {
         tableTitle.text("All active users");

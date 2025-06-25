@@ -12,6 +12,7 @@ from importlib.abc import Loader
 from typing import Callable, Type
 import inspect
 from copy import deepcopy
+from traceback import print_tb
 
 
 from flask import current_app
@@ -122,6 +123,17 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 
         scheduler_kwargs = job.meta["scheduler_kwargs"]
 
+        # Deserialize start and end
+        timezone = "UTC"
+        if hasattr(asset_or_sensor, "timezone"):
+            timezone = asset_or_sensor.timezone
+        scheduler_kwargs["start"] = pd.Timestamp(scheduler_kwargs["start"]).tz_convert(
+            timezone
+        )
+        scheduler_kwargs["end"] = pd.Timestamp(scheduler_kwargs["end"]).tz_convert(
+            timezone
+        )
+
         if ("scheduler_specs" in job.kwargs) and (
             job.kwargs["scheduler_specs"] is not None
         ):
@@ -200,7 +212,7 @@ def create_scheduling_job(
     """
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
-    # Note: We are putting still serialized scheduler_kwargs into the job!
+    # Note: We should put only serializable scheduler_kwargs into the job!
 
     if sensor is not None:
         current_app.logger.warning(
@@ -247,6 +259,15 @@ def create_scheduling_job(
 
     job.meta["asset_or_sensor"] = asset_or_sensor
     job.meta["scheduler_kwargs"] = scheduler_kwargs
+
+    # Serialize start and end
+    job.meta["scheduler_kwargs"]["start"] = job.meta["scheduler_kwargs"][
+        "start"
+    ].isoformat()
+    job.meta["scheduler_kwargs"]["end"] = job.meta["scheduler_kwargs"][
+        "end"
+    ].isoformat()
+
     job.save_meta()
 
     # in case the function enqueues it
@@ -338,7 +359,7 @@ def create_sequential_scheduling_job(
             previous_sensors
         )
         current_scheduler_kwargs["resolution"] = sensor.event_resolution
-        current_scheduler_kwargs["sensor"] = sensor
+        current_scheduler_kwargs["asset_or_sensor"] = sensor
 
         job = create_scheduling_job(
             **current_scheduler_kwargs,
@@ -477,6 +498,7 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
     scheduler_specs: dict | None = None,
+    **scheduler_kwargs: dict,
 ) -> bool:
     """
     This function computes a schedule. It returns True if it ran successfully.
@@ -525,6 +547,7 @@ def make_schedule(
         flex_model=flex_model,
         flex_context=flex_context,
         return_multiple=True,
+        **scheduler_kwargs,
     )
 
     scheduler: Scheduler = get_scheduler_instance(
@@ -622,19 +645,10 @@ def find_scheduler_class(asset_or_sensor: Asset | Sensor) -> type:
     else:
         asset = asset_or_sensor
 
-    if asset.generic_asset_type.name in (
-        "battery",
-        "one-way_evse",
-        "two-way_evse",
-    ):
-        scheduler_class = StorageScheduler
-    elif asset.generic_asset_type.name in ("process", "load"):
+    if asset.generic_asset_type.name in ("process", "load"):
         scheduler_class = ProcessScheduler
     else:
-        raise ValueError(
-            "Scheduling is not (yet) supported for asset type %s."
-            % asset.generic_asset_type
-        )
+        scheduler_class = StorageScheduler
 
     return scheduler_class
 
@@ -646,8 +660,8 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     click.echo(
         "HANDLING RQ SCHEDULING WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value)
     )
-    # from traceback import print_tb
-    # print_tb(traceback)
+
+    print_tb(traceback)
     job.meta["exception"] = exc_value
     job.save_meta()
 

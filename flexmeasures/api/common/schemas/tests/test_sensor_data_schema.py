@@ -18,8 +18,8 @@ from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.sensors import (
     get_stalenesses,
     get_statuses,
-    build_sensor_status_data,
     build_asset_jobs_data,
+    get_asset_sensors_metadata,
 )
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import as_server_time
@@ -361,11 +361,11 @@ def test_get_status_no_status_specs(
             assert expected_stale_reason in sensor_status["reason"]
 
 
-def test_build_asset_status_data(
+def test_asset_sensors_metadata(
     db, mock_get_statuses, add_weather_sensors, add_battery_assets
 ):
     """
-    Test the function to build status data structure, using a weather station asset.
+    Test the function to build status meta data structure, using a weather station asset.
     We include the sensor of a different asset (a battery) via the flex context
     (as production price, does not make too much sense actually).
     One sensor which the asset already includes is also set in the context as inflexible device,
@@ -399,29 +399,37 @@ def test_build_asset_status_data(
         [production_price_res],
     )
 
-    status_data = build_sensor_status_data(asset=asset)
+    status_data = get_asset_sensors_metadata(asset=asset)
 
-    assert status_data == [
+    assert status_data != [
         {
-            **wind_speed_res,
             "name": "wind speed",
             "id": wind_sensor.id,
             "asset_name": asset.name,
-            "relation": "sensor belongs to this asset",
         },
         {
-            **temperature_res,
             "name": "temperature",
             "id": temperature_sensor.id,
             "asset_name": asset.name,
-            "relation": "sensor belongs to this asset;flex context (inflexible device)",
         },
         {
-            **production_price_res,
             "name": "production price",
             "id": production_price_sensor.id,
             "asset_name": battery_asset.name,
-            "relation": "flex context (production-price)",
+        },
+    ]
+
+    # Make sure the Wind speed is not in the sensor data as it is not in sensors_to_show or flex-context
+    assert status_data == [
+        {
+            "name": "temperature",
+            "id": temperature_sensor.id,
+            "asset_name": asset.name,
+        },
+        {
+            "name": "production price",
+            "id": production_price_sensor.id,
+            "asset_name": battery_asset.name,
         },
     ]
 

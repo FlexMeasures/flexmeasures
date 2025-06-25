@@ -7,9 +7,8 @@ iso8601
 xlrd
 workalendar
 inflection
-# <6.0.2 and pydantic due to https://github.com/jaraco/inflect/issues/187
-inflect<=6.0.2
-pydantic<2
+inflect
+pydantic
 humanize
 psycopg2-binary
 # due to https://github.com/pallets-eco/flask-security/issues/907 (should be re-opened as of Sep 24) -> https://foss.heptapod.net/python-libs/passlib/-/issues/187
@@ -18,7 +17,8 @@ bcrypt<=4.0.1
 argon2_cffi
 pytz
 isodate
-click
+# see https://github.com/FlexMeasures/flexmeasures/issues/1485
+click<8.2.0
 click-default-group
 email_validator
 rq
@@ -29,11 +29,12 @@ rq-win; os_name == 'nt' or os_name == 'win'
 # Note: we sometimes limit redis due to our use of fakeredis (check their pyproject.toml)
 redis>4.5
 tldextract
-pyomo>=5.6
+# pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
+pyomo>=5.6,<6.9
 tabulate
 timetomodel>=0.7.3
 # 3.0.2: significantly faster db queries, incl. bulk saving, 3.1: numpy/pandas upgrade
-timely-beliefs[forecast]>=3.1
+timely-beliefs[forecast]>=3.2
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
@@ -52,7 +53,8 @@ Flask-Classful>=0.16
 Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
-marshmallow>=3
+# <4: https://github.com/FlexMeasures/flexmeasures/issues/1447
+marshmallow>=3,<4
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs
