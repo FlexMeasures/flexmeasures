@@ -66,7 +66,7 @@ class Config(object):
     SECURITY_PASSWORD_SALT: str | None = None
 
     # Two Factor Authentication
-    SECURITY_TWO_FACTOR_ENABLED_METHODS = ["email"]  # 'authenticator' can be added
+    SECURITY_TWO_FACTOR_ENABLED_METHODS = ["email"]  # 'authenticator' will be made possible later
     SECURITY_TWO_FACTOR = True
     TOTP_SECRETS = {"1": "e36a68b22752f8a992512c7221c8db2078895819f954e066"}
     TOTP_ISSUER = "FlexMeasures"
