@@ -103,14 +103,19 @@ def test_consultant_can_work_on_clients_account(
 
 
 @pytest.mark.parametrize(
-    "requesting_user, required_perm, has_perm",
+    "requesting_user, required_perm, account_name, has_perm",
     [
-        ("test_consultant@seita.nl", "delete", True),
-        ("test_consultant@seita.nl", "delete", False),
-        ("test_consultant@seita.nl", "update", True),
-        ("test_consultant@seita.nl", "update", False),
-        ("test_consultant@seita.nl", "create-children", True),
-        ("test_consultant@seita.nl", "create-children", False),
+        ("test_consultant@seita.nl", "delete", "Test ConsultancyClient Account", True),
+        ("test_consultant@seita.nl", "delete", "Test Prosumer Account", False),
+        ("test_consultant@seita.nl", "update", "Test ConsultancyClient Account", True),
+        ("test_consultant@seita.nl", "update", "Test Prosumer Account", False),
+        (
+            "test_consultant@seita.nl",
+            "create-children",
+            "Test ConsultancyClient Account",
+            True,
+        ),
+        ("test_consultant@seita.nl", "create-children", "Test Prosumer Account", False),
     ],
 )
 def test_consultant_can_work_on_clients_sensor(
@@ -121,41 +126,25 @@ def test_consultant_can_work_on_clients_sensor(
     add_consultancy_assets,
     requesting_user,
     required_perm,
+    account_name,
     has_perm,
 ):
-    non_client_account = db.session.execute(
-        select(Account).filter_by(name="Test Prosumer Account")
+    account = db.session.execute(
+        select(Account).filter_by(name=account_name)
     ).scalar_one_or_none()
 
-    non_client_sensor = (
+    sensor = (
         db.session.execute(
             select(Sensor)
             .join(GenericAsset)
-            .where(GenericAsset.account_id == non_client_account.id)
+            .where(GenericAsset.account_id == account.id)
         )
         .scalars()
         .first()
     )
-
-    client_account = (
-        db.session.execute(
-            select(Account).filter_by(name="Test ConsultancyClient Account")
-        )
-        .scalars()
-        .first()
-    )
-
-    client_sensor = db.session.execute(
-        select(Sensor)
-        .join(GenericAsset)
-        .where(GenericAsset.account_id == client_account.id)
-    ).scalar_one_or_none()
-
-    print(f"Client sensor: {client_sensor}, Non-client sensor: {non_client_sensor}")
 
     with monkeypatch.context() as m:
         set_current_user(db, m, requesting_user)
-        sensor = client_sensor if has_perm else non_client_sensor
 
         try:
             result = check_access(sensor, required_perm)

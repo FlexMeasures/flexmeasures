@@ -112,8 +112,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "create-children": [
                 f"account:{self.generic_asset.account_id}",
                 (
-                    f"account:{self.generic_asset.owner.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
+                    (
+                        f"account:{self.generic_asset.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.generic_asset.owner is not None
+                    else ()
                 ),
             ],
             "read": self.generic_asset.__acl__()["read"],
@@ -123,8 +127,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                     f"role:{ACCOUNT_ADMIN_ROLE}",
                 ),
                 (
-                    f"account:{self.generic_asset.owner.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
+                    (
+                        f"account:{self.generic_asset.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.generic_asset.owner is not None
+                    else ()
                 ),
             ],
             "delete": [
@@ -133,8 +141,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                     f"role:{ACCOUNT_ADMIN_ROLE}",
                 ),
                 (
-                    f"account:{self.generic_asset.owner.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
+                    (
+                        f"account:{self.generic_asset.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.generic_asset.owner is not None
+                    else ()
                 ),
             ],
         }
