@@ -868,7 +868,7 @@ def chart_for_chargepoint_sessions(
 
     sensor_ids = [s.id for s in all_sensors]
 
-    chart_spec = {
+    cp_chart = {
         "title": "Charge Point sessions",
         "width": "container",
         "height": 300,
@@ -960,7 +960,7 @@ def chart_for_chargepoint_sessions(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "right",
+                            "orient": "bottom",
                             "columns": 1,
                             "direction": "vertical",
                         },
@@ -1069,7 +1069,7 @@ def chart_for_chargepoint_sessions(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "right",
+                            "orient": "bottom",
                             "columns": 1,
                             "direction": "vertical",
                         },
@@ -1169,7 +1169,7 @@ def chart_for_chargepoint_sessions(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "right",
+                            "orient": "bottom",
                             "columns": 1,
                             "direction": "vertical",
                         },
@@ -1197,12 +1197,25 @@ def chart_for_chargepoint_sessions(
             },
         ],
     }
-
-    chart_spec["config"] = {
-        "view": {"continuousWidth": 800, "continuousHeight": 150},
-        "autosize": {"type": "fit-x", "contains": "padding"},
-    }
-    if combine_legend is True:
-        chart_spec["resolve"] = {"scale": {"x": "shared"}}
-    chart_spec.update(override_chart_specs)
-    return chart_spec
+    for idx, entry in enumerate(sensors_to_show_copy):
+        title = entry.get("title")
+        if title == "Power flow by type":
+            sensors_to_show_copy[idx]["sensors"] = [
+                sensor
+                for sensor in entry["sensors"]
+                if sensor.name == "charge points power"
+            ]
+    chart_specs = chart_for_multiple_sensors(
+        sensors_to_show_copy,
+        event_starts_after,
+        event_ends_before,
+        combine_legend,
+        **override_chart_specs,
+    )
+    chart_specs["vconcat"] = [
+        chart
+        for chart in chart_specs["vconcat"]
+        if chart["title"] in ["Prices", "Power flow by type"]
+    ]
+    chart_specs["vconcat"].append(cp_chart)
+    return chart_specs
