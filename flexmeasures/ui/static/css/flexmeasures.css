@@ -128,6 +128,7 @@ button.btn:hover a {
     top: 0;
     left: 0;
     width: 100%;
+    pointer-events: none; /* Prevents the spinner from blocking clicks */
 }
 
 .legend {
@@ -164,14 +165,6 @@ p.error {
     margin-top: 20px;
     text-transform: uppercase;
     font-weight: 700;
-}
-
-#tzwarn,#dstwarn,#sourcewarn {
-    margin-top: 20px;
-    margin-bottom: 20px;
-    color: var(--secondary-color);
-    background: var(--primary-color);
-    border: none;
 }
 
 /* ---- End errors, alerts and flashes ---- */
@@ -328,8 +321,8 @@ p.error {
     text-align: center;
 }
 .dropdown-menu>li>a.active {
-    color: var(--nav-hover-color);
-    background-color: var(--nav-hover-background-color);
+    color: var(--nav-current-color) !important;
+    background-color: var(--nav-current-background-color) !important;
 }
 .dropdown-menu>li>a:focus,
 .dropdown-menu>li>a:hover {
@@ -1970,3 +1963,43 @@ body.touched [title]:hover:after {
     color: #000;
 }
 /* FlexContext Modal Dialogue - End*/
+
+.jobs-time-ago, .time-ago {
+    color: var(--gray);
+}
+
+/* Custom CSS for SVG */
+.mark-image image {
+  transform: translate(1px, 10px) !important;
+  width: 34px !important;
+  height: 20px !important;
+  vertical-align: middle;
+}
+
+/* Custom CSS for No Style Link */
+.no-style-link {
+    text-decoration: none !important;
+    color: inherit !important;
+    cursor: pointer !important;
+    background-color: transparent !important;
+    padding: 0 !important;
+}
+.no-style-link:hover {
+    color: inherit !important;
+    background-color: transparent !important;
+}
+
+.bg-primary-custom {
+    background-color: var(--primary-color) !important;
+}
+
+/* Toast highlighting */
+.toast.highlight {
+  animation: pulse 0.6s;
+}
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0px 0 var(--secondary-color); }
+  50%  { box-shadow: 0 0 10px 4px var(--secondary-color); }
+  100% { box-shadow: 0 0 0px 0 var(--secondary-color); }
+}

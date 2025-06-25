@@ -132,6 +132,9 @@ class Config(object):
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
         currencysymbolmap="5.1.0",
+        leaflet="1.9.4",
+        leafletmarkercluster="1.5.3",
+        leafletmarkerclusterlayersupport="2.0.1",
         # todo: expand with other js versions used in FlexMeasures
     )
     FLEXMEASURES_JSON_COMPACT = False

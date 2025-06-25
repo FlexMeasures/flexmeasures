@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+from datetime import timedelta
 import numbers
+from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
+from flask_security import current_user
 from marshmallow import (
     Schema,
-    fields,
-    validate,
-    validates,
     ValidationError,
+    fields,
+    post_load,
+    validates,
     validates_schema,
 )
+import marshmallow.validate as validate
+from pandas.api.types import is_numeric_dtype
+import timely_beliefs as tb
+from werkzeug.datastructures import FileStorage
 from marshmallow.validate import Validator
 
 import json
@@ -122,15 +129,21 @@ class TimedEventSchema(Schema):
                     "If using the 'duration' field, either 'start' or 'end' is expected."
                 )
             if start is not None:
-                grounded = DurationField.ground_from(
-                    duration, pd.Timestamp(start).tz_convert(self.timezone)
-                )
+                try:
+                    grounded = DurationField.ground_from(
+                        duration, pd.Timestamp(start).tz_convert(self.timezone)
+                    )
+                except UnknownTimeZoneError:
+                    grounded = DurationField.ground_from(duration, pd.Timestamp(start))
                 data["start"] = start
                 data["end"] = start + grounded
             else:
-                grounded = DurationField.ground_from(
-                    -duration, pd.Timestamp(end).tz_convert(self.timezone)
-                )
+                try:
+                    grounded = DurationField.ground_from(
+                        -duration, pd.Timestamp(end).tz_convert(self.timezone)
+                    )
+                except UnknownTimeZoneError:
+                    grounded = DurationField.ground_from(-duration, pd.Timestamp(end))
                 data["start"] = end + grounded
                 data["end"] = end
         else:
@@ -195,8 +208,16 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 class SensorIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
-    def __init__(self, *args, unit: str | ur.Quantity | None = None, **kwargs):
+    def __init__(
+        self,
+        asset: GenericAsset | None = None,
+        unit: str | ur.Quantity | None = None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
+
+        self.asset = asset
 
         if isinstance(unit, str):
             self.to_unit = ur.Quantity(unit)
@@ -208,13 +229,30 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
     @with_appcontext_if_needed()
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
+
+        if not isinstance(value, int) and not isinstance(value, str):
+            raise FMValidationError(
+                f"Sensor ID has the wrong type. Got `{type(value).__name__}` but `int` was expected."
+            )
+
         sensor = db.session.get(Sensor, value)
+
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
 
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
         sensor.generic_asset.generic_asset_type
+
+        # if the asset is defined, check if the sensor belongs to it (or to its offspring)
+        if (
+            self.asset is not None
+            and sensor.generic_asset != self.asset
+            and sensor.generic_asset not in self.asset.offspring
+        ):
+            raise FMValidationError(
+                f"Sensor {value} must be assigned to asset {self.asset} (or to one of its offspring)"
+            )
 
         # if the units are defined, check if the sensor data is convertible to the target units
         if self.to_unit is not None and not units_are_convertible(
@@ -375,6 +413,28 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         return super().convert(_value, param, ctx, **kwargs)
 
+    def _get_unit(self, variable_quantity: ur.Quantity | list[dict | Sensor]) -> str:
+        """Obtain the unit from the variable quantity."""
+        if isinstance(variable_quantity, ur.Quantity):
+            unit = str(variable_quantity.units)
+        elif isinstance(variable_quantity, list):
+            unit = str(variable_quantity[0]["value"].units)
+            if not all(
+                str(variable_quantity[j]["value"].units) == unit
+                for j in range(len(variable_quantity))
+            ):
+                raise ValidationError(
+                    "Segments of a time series must share the same unit.",
+                    field_name=self.data_key,
+                )
+        elif isinstance(variable_quantity, Sensor):
+            unit = variable_quantity.unit
+        else:
+            raise NotImplementedError(
+                f"Unexpected type '{type(variable_quantity)}' for variable_quantity describing '{self.data_key}': {variable_quantity}."
+            )
+        return unit
+
 
 class RepurposeValidatorToIgnoreSensorsAndLists(validate.Validator):
     """Validator that executes another validator (the one you initialize it with) only on non-Sensor and non-list values."""
@@ -405,3 +465,107 @@ class TimeSeriesOrSensor(VariableQuantityField):
             "Class `TimeSeriesOrSensor` is deprecated. Use `VariableQuantityField` instead."
         )
         super().__init__(return_magnitude=True, *args, **kwargs)
+
+
+class SensorDataFileSchema(Schema):
+    uploaded_files = fields.List(
+        fields.Field(metadata={"type": "string", "format": "byte"}),
+        data_key="uploaded-files",
+    )
+    belief_time_measured_instantly = fields.Boolean(
+        metadata={"type": "boolean", "default": False},
+        required=False,
+        allow_none=True,
+        truthy={"on", "true", "True", "1"},
+        falsy={"off", "false", "False", "0", None},
+        data_key="belief-time-measured-instantly",
+    )
+    sensor = SensorIdField(data_key="id")
+
+    _valid_content_types = {
+        "text/csv",
+        "text/plain",
+        "text/x-csv",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
+
+    @validates("uploaded_files")
+    def validate_uploaded_files(self, files: list[FileStorage]):
+        """Validate the deserialized fields."""
+        errors = {}
+        for i, file in enumerate(files):
+            file_errors = []
+            if not isinstance(file, FileStorage):
+                file_errors += [
+                    f"Invalid content: {file}. Only CSV files are accepted."
+                ]
+            if file.filename == "":
+                file_errors += ["Filename is missing."]
+            elif file.filename.split(".")[-1] not in (
+                "csv",
+                "CSV",
+                "xlsx",
+                "XLSX",
+                "xls",
+                "XLS",
+                "xlsm",
+                "XLSM",
+            ):
+                file_errors += [
+                    f"Invalid filename: {file.filename}. Only CSV or Excel files are accepted."
+                ]
+            if file.content_type not in self._valid_content_types:
+                file_errors += [
+                    f"Invalid content type: {file.content_type}. Only the following content types are accepted: {self._valid_content_types}."
+                ]
+            if file_errors:
+                errors[i] = file_errors
+        if errors:
+            raise ValidationError(errors)
+
+    @post_load
+    def post_load(self, fields, **kwargs):
+        """Process the deserialized and validated fields.
+        Remove the 'sensor' and 'files' fields, and add the 'data' field containing a list of BeliefsDataFrames.
+        """
+        sensor = fields.pop("sensor")
+        dfs = []
+        files: list[FileStorage] = fields.pop("uploaded_files")
+        belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+        errors = {}
+        for i, file in enumerate(files):
+            try:
+                df = tb.read_csv(
+                    file,
+                    sensor,
+                    source=current_user.data_source[0],
+                    belief_time=(
+                        pd.Timestamp.utcnow()
+                        if not belief_time_measured_instantly
+                        else None
+                    ),
+                    belief_horizon=(
+                        pd.Timedelta(days=0) if belief_time_measured_instantly else None
+                    ),
+                    resample=(
+                        True if sensor.event_resolution is not timedelta(0) else False
+                    ),
+                    timezone=sensor.timezone,
+                )
+                assert is_numeric_dtype(
+                    df["event_value"]
+                ), "event values should be numeric"
+                dfs.append(df)
+            except Exception as e:
+                error_message = (
+                    f"Invalid content in file: {file.filename}. Failed with: {str(e)}"
+                )
+                current_app.logger.info(
+                    f"Upload failed for sensor {sensor.id}. {error_message}"
+                )
+                errors[i] = error_message
+        if errors:
+            raise ValidationError(errors)
+        fields["data"] = dfs
+        return fields

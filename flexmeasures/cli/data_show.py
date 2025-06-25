@@ -24,14 +24,21 @@ from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetIdField,
+    SensorsToShowSchema,
+)
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.cli.utils import MsgStyle, validate_unique
+from flexmeasures.cli.utils import (
+    MsgStyle,
+    validate_unique,
+    tabulate_account_assets,
+)
 from flexmeasures.utils.coding_utils import delete_key_recursive
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.cli.utils import (
@@ -159,11 +166,39 @@ def show_account(account):
         click.secho("No assets in account ...", **MsgStyle.WARN)
     else:
         click.echo("All assets:\n ")
-        asset_data = [
-            (asset.id, asset.name, asset.generic_asset_type.name, asset.location)
-            for asset in assets
-        ]
-        click.echo(tabulate(asset_data, headers=["ID", "Name", "Type", "Location"]))
+        tabulate_account_assets(assets)
+
+
+@fm_show_data.command("assets")
+@with_appcontext
+@click.option("--account", "account", type=AccountIdField(), required=False)
+def show_account_assets(account: Account | None = None):
+    """
+    Show all the assets for a given account if account id is provided
+    Show only public assets if account id is not provided
+    """
+
+    if account:
+        click.echo(f"========{len(account.name) * '='}========")
+        click.echo(f"Account {account.name} (ID: {account.id})")
+        click.echo(f"========{len(account.name) * '='}========\n")
+        assets = db.session.scalars(
+            select(GenericAsset)
+            .filter_by(account_id=account.id)
+            .order_by(GenericAsset.name)
+        ).all()
+    else:
+        click.echo(f"========{18 * '='}========")
+        click.echo("Public Assets")
+        click.echo(f"========{18 * '='}========\n")
+        assets = db.session.scalars(
+            select(GenericAsset).filter_by(account_id=None).order_by(GenericAsset.name)
+        ).all()
+    if not assets:
+        click.secho("No assets in account ...", **MsgStyle.WARN)
+    else:
+        click.echo("All assets:\n ")
+        tabulate_account_assets(assets)
 
 
 @fm_show_data.command("asset-types")
@@ -202,14 +237,35 @@ def show_generic_asset(asset):
         )
     click.echo(f"======{len(asset.name) * '='}{separator_num * '='}\n")
 
+    standardized_sensors_to_show = SensorsToShowSchema().deserialize(
+        asset.sensors_to_show
+    )
     asset_data = [
         (
             asset.generic_asset_type.name,
             asset.location,
+            "".join([f"{k}: {v}\n" for k, v in asset.flex_context.items()]),
+            "".join(
+                [
+                    f"{graph['title']}: {graph['sensors']} \n"
+                    for graph in standardized_sensors_to_show
+                ]
+            ),
             "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
         )
     ]
-    click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
+    click.echo(
+        tabulate(
+            asset_data,
+            headers=[
+                "Type",
+                "Location",
+                "Flex-Context",
+                "Sensors to show",
+                "Attributes",
+            ],
+        )
+    )
 
     child_asset_data = [
         (
@@ -224,9 +280,9 @@ def show_generic_asset(asset):
     click.echo(f"Child assets of {asset.name} (ID: {asset.id})")
     click.echo(f"======{len(asset.name) * '='}===================\n")
     if child_asset_data:
-        click.echo(tabulate(child_asset_data, headers=["Id", "Name", "Type"]))
+        click.echo(tabulate(child_asset_data, headers=["ID", "Name", "Type"]))
     else:
-        click.secho("No children assets ...", **MsgStyle.WARN)
+        click.secho("No child assets ...", **MsgStyle.WARN)
 
     click.echo()
     sensors = db.session.scalars(
@@ -661,7 +717,8 @@ def plot_beliefs(
         title = f"Beliefs for Sensor '{sensors[0].name}' (ID {sensors[0].id}).\n"
     else:
         title = f"Beliefs for Sensors {join_words_into_a_list([s.name + ' (ID ' + str(s.id) + ')' for s in sensors])}.\n"
-    title += f"Data spans {naturaldelta(duration)} and starts at {start}."
+    title += f"Data spans {naturaldelta(duration)} and starts at {start}.\n"
+    title += f"The time resolution (x-axis) is {naturaldelta(resolution)}.\n"
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:

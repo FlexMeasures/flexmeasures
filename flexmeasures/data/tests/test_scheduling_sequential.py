@@ -16,7 +16,8 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     We verify that the pipeline creates the right number of jobs (two), corresponding to the inflexible devices,
     and an extra one which corresponds to the success callback job.
     """
-    assets, sensors = smart_building
+    assets, sensors, soc_sensors = smart_building
+
     queue = app.queues["scheduling"]
     start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
     end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
@@ -84,7 +85,7 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
 
     # Work on jobs
     queued_jobs[0].perform()
-    work_on_rq(queue)
+    work_on_rq(queue, handle_scheduling_exception)
 
     # Check that the jobs completed successfully
     assert queued_jobs[0].get_status() == "finished"
@@ -144,7 +145,7 @@ def test_create_sequential_jobs_fallback(
     Checks execution of a sequential scheduling job, where 1 of the subjobs is set up to fail and trigger its fallback.
     The deferred subjobs should still succeed after the fallback succeeds, even though the first subjob fails.
     """
-    assets, sensors = smart_building
+    assets, sensors, _ = smart_building
     queue = app.queues["scheduling"]
 
     start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")

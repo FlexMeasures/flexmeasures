@@ -229,13 +229,14 @@ def test_reporter(app, db, add_nearby_weather_sensors):
     return ds
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
     site = AssetType(name="site")
     building = AssetType(name="building")
     ev = AssetType(name="ev")
+    heat_buffer = AssetType(name="heat buffer")
 
-    fresh_db.session.add_all([site, building, ev])
+    fresh_db.session.add_all([site, building, ev, heat_buffer])
     fresh_db.session.flush()
 
     return (
@@ -244,33 +245,34 @@ def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
         building,
         setup_generic_asset_types_fresh_db["battery"],
         ev,
+        heat_buffer,
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def smart_building(app, fresh_db, smart_building_types):
     """
     Topology of the sytstem:
 
-                             +----------+
-                             |          |
-            +----------------+   Site   +---------------+
-            |                |          |               |
-            |                +--+----+--+               |
-            |                   |    |                  |
-            |                   |    |                  |
-            |              +-----    ----+              |
-            |              |             |              |
-       +----+----+  +------+-----+   +---+---+   +------+------+
-       |         |  |            |   |       |   |             |
-       |  Solar  |  |  Building  |   |  EV   |   |   Battery   |
-       |         |  |            |   |       |   |             |
-       +---------+  +------------+   +-------+   +-------------+
+                           +---------+
+                           |         |
+         +------------------  Site   +--------------+------------------+
+         |                 |         |              |                  |
+         |                 +-+----+--+              |                  |
+         |                   |    |                 |                  |
+         |                   |    |                 |                  |
+         |              +----+    +--+              |                  |
+         |              |            |              |                  |
+    +----+----+  +------+-----+   +--+---+   +------+------+    +------+------+
+    |         |  |            |   |      |   |             |    |             |
+    |  Solar  |  |  Building  |   |  EV  |   |   Battery   |    | Heat Buffer |
+    |         |  |            |   |      |   |             |    |             |
+    +---------+  +------------+   +------+   +-------------+    +-------------+
 
     Diagram created with: https://textik.com/#924f8a2112551f92
 
     """
-    site, solar, building, battery, ev = smart_building_types
+    site, solar, building, battery, ev, heat_buffer = smart_building_types
     coordinates = {"latitude": 0, "longitude": 0}
 
     test_site = Asset(name="Test Site", generic_asset_type_id=site.id, **coordinates)
@@ -308,6 +310,13 @@ def smart_building(app, fresh_db, smart_building_types):
         **coordinates,
     )
 
+    test_heat_buffer = Asset(
+        name="Test Heat Buffer",
+        generic_asset_type_id=heat_buffer.id,
+        parent_asset_id=test_site.id,
+        **coordinates,
+    )
+
     assets = (
         test_site,
         test_building,
@@ -315,15 +324,17 @@ def smart_building(app, fresh_db, smart_building_types):
         test_battery,
         test_ev,
         test_battery_1h,
+        test_heat_buffer,
     )
 
     fresh_db.session.add_all(assets)
     fresh_db.session.flush()
 
-    sensors = []
+    power_sensors = []
+    soc_sensors = []
 
-    # Add power sensor
     for asset in assets:
+        # Add power sensor
         sensor = Sensor(
             name="power",
             unit="MW",
@@ -335,15 +346,30 @@ def smart_building(app, fresh_db, smart_building_types):
             generic_asset=asset,
             timezone="Europe/Amsterdam",
         )
-        sensors.append(sensor)
+        power_sensors.append(sensor)
 
-    fresh_db.session.add_all(sensors)
+        # Add SOC sensors
+        sensor = Sensor(
+            "state of charge",
+            unit="MWh",
+            event_resolution=timedelta(hours=0),
+            generic_asset=asset,
+            timezone="Europe/Amsterdam",
+        )
+        soc_sensors.append(sensor)
+
+    fresh_db.session.add_all(power_sensors)
+    fresh_db.session.add_all(soc_sensors)
     fresh_db.session.flush()
     asset_names = [asset.name for asset in assets]
-    return dict(zip(asset_names, assets)), dict(zip(asset_names, sensors))
+    return (
+        dict(zip(asset_names, assets)),
+        dict(zip(asset_names, power_sensors)),
+        dict(zip(asset_names, soc_sensors)),
+    )
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def flex_description_sequential(
     smart_building, setup_markets_fresh_db, add_market_prices_fresh_db
 ):
@@ -351,7 +377,7 @@ def flex_description_sequential(
 
     Specifically, the main flex model is deserialized, while the sensors' individual flex models are still serialized.
     """
-    assets, sensors = smart_building
+    assets, sensors, soc_sensors = smart_building
 
     flex_model = [
         {

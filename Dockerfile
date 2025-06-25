@@ -18,7 +18,7 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip && python3 --version && 
     pip3 install --no-cache-dir -r requirements/$PYV/app.txt -r requirements/$PYV/dev.txt -r requirements/$PYV/test.txt
 
 # Copy code and meta/config data
-COPY setup.* .flaskenv wsgi.py /app/
+COPY setup.* pyproject.toml .flaskenv wsgi.py /app/
 COPY flexmeasures/ /app/flexmeasures
 RUN find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
 COPY .git/ /app/.git

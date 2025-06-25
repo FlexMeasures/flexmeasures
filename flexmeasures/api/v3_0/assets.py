@@ -1,20 +1,26 @@
 from __future__ import annotations
 import json
+from datetime import datetime, timedelta
+from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import current_app
+from flask import current_app, request
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields
+from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, delete, func, or_
 
+from flexmeasures.data.services.sensors import (
+    build_asset_jobs_data,
+)
+from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
@@ -22,12 +28,23 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
 from flexmeasures.data.schemas import AwareDateTimeField
-from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
-from flexmeasures.api.common.schemas.generic_assets import AssetIdField
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetSchema as AssetSchema,
+    GenericAssetIdField as AssetIdField,
+)
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+from flexmeasures.data.services.scheduling import (
+    create_sequential_scheduling_job,
+    create_simultaneous_scheduling_job,
+)
+from flexmeasures.api.common.responses import (
+    invalid_flex_config,
+    request_processed,
+)
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import flatten_unique
-from flexmeasures.ui.utils.view_utils import set_session_variables
+from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -369,7 +386,7 @@ class AssetAPI(FlaskView):
 
         This endpoint creates a new asset.
 
-        **Example request**
+        **Example request A**
 
         .. sourcecode:: json
 
@@ -383,6 +400,24 @@ class AssetAPI(FlaskView):
 
 
         The newly posted asset is returned in the response.
+
+        **Example request B**
+
+        Alternatively, set the ``parent_asset_id`` to make the new asset a child of another asset.
+        For example, to set asset 10 as its parent:
+
+        .. sourcecode:: json
+            :emphasize-lines: 5
+
+            {
+                "name": "Test battery",
+                "generic_asset_type_id": 2,
+                "account_id": 2,
+                "parent_asset_id": 10,
+                "latitude": 40,
+                "longitude": 170.3,
+            }
+
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -405,7 +440,14 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 201
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def fetch_one(self, id, asset):
@@ -441,7 +483,14 @@ class AssetAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_asset_schema)
-    @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "db_asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
     def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
@@ -524,7 +573,14 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
-    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
     @permission_required_for_context("delete", ctx_arg_name="asset")
     @as_json
     def delete(self, id: int, asset: GenericAsset):
@@ -553,7 +609,11 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/chart", strict_slashes=False)  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
         location="path",
     )
     @use_kwargs(
@@ -584,7 +644,11 @@ class AssetAPI(FlaskView):
         "/<id>/chart_data", strict_slashes=False
     )  # strict on next version? see #1014
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id")},
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
         location="path",
     )
     @use_kwargs(
@@ -649,10 +713,13 @@ class AssetAPI(FlaskView):
     ):
         """API endpoint to get history of asset related actions.
 
+        .. :quickref: Asset; Get audit log
+
         The endpoint is paginated and supports search filters.
 
             - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
             - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
               The response schema for pagination is inspired by https://datatables.net/manual/server-side
 
@@ -730,3 +797,275 @@ class AssetAPI(FlaskView):
         }
 
         return response, 200
+
+    @route("/<id>/jobs", methods=["GET"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_jobs(self, id: int, asset: GenericAsset):
+        """API endpoint to get all jobs of an asset.
+
+        .. :quickref: Asset; Get asset jobs
+
+        The response will be a list of jobs.
+        Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
+
+        **Example response**
+
+        .. sourcecode:: json
+            {
+                "jobs": [
+                    {
+                        "job_id": 1,
+                        "queue": "scheduling",
+                        "asset_or_sensor_type": "asset",
+                        "asset_id": 1,
+                        "status": "finished",
+                        "err": None,
+                        "enqueued_at": "2023-10-01T00:00:00",
+                        "metadata_hash": "abc123",
+                    }
+                ],
+                "redis_connection_err": null
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        redis_connection_err = None
+        all_jobs_data = list()
+        try:
+            jobs_data = build_asset_jobs_data(asset)
+        except NoRedisConfigured as e:
+            redis_connection_err = e.args[0]
+        else:
+            all_jobs_data = jobs_data
+
+        return {
+            "jobs": all_jobs_data,
+            "redis_connection_err": redis_connection_err,
+        }, 200
+
+    @route("/default_asset_view", methods=["POST"])
+    @as_json
+    @use_kwargs(
+        {
+            "default_asset_view": fields.Str(
+                required=True,
+                validate=validate.OneOf(
+                    [
+                        "Audit Log",
+                        "Context",
+                        "Graphs",
+                        "Properties",
+                        "Status",
+                    ]
+                ),
+            ),
+            "use_as_default": fields.Bool(required=False, load_default=True),
+        },
+        location="json",
+    )
+    def update_default_asset_view(self, **kwargs):
+        """Update the default asset view for the current user session.
+
+        .. :quickref: Asset; Update the default asset view
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "default_asset_view": "Graphs",
+                "use_as_default": true
+            }
+
+        **Example response**
+
+        .. sourcecode:: json
+            {
+                "message": "Default asset view updated successfully."
+            }
+
+        This endpoint sets the default asset view for the current user session if use_as_default is true.
+        If use_as_default is false, it clears the session variable for the default asset view.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        # Update the request.values
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        use_as_default = kwargs.get("use_as_default", True)
+        if use_as_default:
+            # Set the default asset view for the current user session
+            set_session_variables(
+                "default_asset_view",
+            )
+        else:
+            # Remove the default asset view from the session
+            clear_session(keys_to_clear=["default_asset_view"])
+
+        return {
+            "message": "Default asset view updated successfully.",
+        }, 200
+
+    @route("/<id>/schedules/trigger", methods=["POST"])
+    @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
+    # Simplification of checking for create-children access on each of the flexible sensors,
+    # which assumes each of the flexible sensors belongs to the given asset.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    def trigger_schedule(
+        self,
+        asset: GenericAsset,
+        start_of_schedule: datetime,
+        duration: timedelta,
+        belief_time: datetime | None = None,
+        flex_model: dict | None = None,
+        flex_context: dict | None = None,
+        sequential: bool = False,
+        **kwargs,
+    ):
+        """
+        Trigger FlexMeasures to create a schedule for a collection of flexible and inflexible devices.
+
+        .. :quickref: Schedule; Trigger scheduling job for any number of devices
+
+        Trigger FlexMeasures to create a schedule for this asset.
+        The flex-model references the power sensors of flexible devices, which must belong to the given asset,
+        either directly or indirectly, by being assigned to one of the asset's (grand)children.
+
+        In this request, you can describe:
+
+        - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
+        - the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
+        - the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)
+
+        For details on flexibility model and context, see :ref:`describing_flexibility`.
+        Below, we'll also list some examples.
+
+        .. note:: This endpoint supports scheduling an EMS with multiple flexible devices at once.
+                  It can do so jointly (the default) or sequentially
+                  (considering previously scheduled sensors as inflexible).
+                  To use sequential scheduling, use ``sequential=true`` in the JSON body.
+
+        The length of the schedule can be set explicitly through the 'duration' field.
+        Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
+        If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of each sensor's resolution.
+        Targets that exceed the max planning horizon are not accepted.
+
+        The appropriate algorithm is chosen by FlexMeasures (based on asset type).
+        It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
+
+        If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
+
+        **Example request**
+
+        This message triggers a schedule for a storage asset (with power sensor 931),
+        starting at 10.00am, when the state of charge (soc) should be assumed to be 12.1 kWh,
+        and also schedules a curtailable production asset (with power sensor 932),
+        whose production forecasts are recorded under sensor 760.
+
+        Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+        and aggregate production should be priced by sensor 10,
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+        and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
+
+        The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+        Finally, the site consumption capacity is limited by sensor 32.
+
+        .. code-block:: json
+
+            {
+                "start": "2015-06-02T10:00:00+00:00",
+                "flex-model": [
+                    {
+                        "sensor": 931,
+                        "soc-at-start": 12.1,
+                        "soc-unit": "kWh",
+                        "power-capacity": "25kW",
+                        "consumption-capacity" : {"sensor": 42},
+                        "production-capacity" : "30 kW"
+                    },
+                    {
+                        "sensor": 932,
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {"sensor": 760},
+                    }
+                ],
+                "flex-context": {
+                    "consumption-price-sensor": 9,
+                    "production-price-sensor": 10,
+                    "inflexible-device-sensors": [13, 14, 15],
+                    "site-power-capacity": "100kW",
+                    "site-production-capacity": "80kW",
+                    "site-consumption-capacity": {"sensor": 32}
+                }
+            }
+
+        **Example response**
+
+        This message indicates that the scheduling request has been processed without any error.
+        A scheduling job has been created with some Universally Unique Identifier (UUID),
+        which will be picked up by a worker.
+        The given UUID may be used to obtain the resulting schedule for each flexible device: see /sensors/<id>/schedules/<uuid>.
+
+        .. sourcecode:: json
+
+            {
+                "status": "PROCESSED",
+                "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                "message": "Request has been processed."
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_DATA
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 405: INVALID_METHOD
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        end_of_schedule = start_of_schedule + duration
+
+        scheduler_kwargs = dict(
+            start=start_of_schedule,
+            end=end_of_schedule,
+            belief_time=belief_time,  # server time if no prior time was sent
+            flex_model=flex_model,
+            flex_context=flex_context,
+        )
+        if sequential:
+            f = create_sequential_scheduling_job
+        else:
+            f = create_simultaneous_scheduling_job
+        try:
+            job = f(asset=asset, enqueue=True, **scheduler_kwargs)
+        except ValidationError as err:
+            return invalid_flex_config(err.messages)
+        except ValueError as err:
+            return invalid_flex_config(str(err))
+
+        response = dict(schedule=job.id)
+        d, s = request_processed()
+        return dict(**response, **d), s

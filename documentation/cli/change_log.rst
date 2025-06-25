@@ -4,13 +4,22 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.25.0 | February XX, 2024
+since v0.27.0 | August XX, 2025
+=================================
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account.
+
+since v0.26.0 | June 03, 2025
+=================================
+* Switch to ``flexmeasures jobs save-last`` CLI command for saving the last n canceled/deferred/failed/finished/scheduled/started jobs (from the scheduling queue, by default).
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account.
+
+since v0.25.0 | April 01, 2025
 =================================
 * Report parameters set using ``flexmeasures add report --parameters`` can use any argument supported by ``Sensor.search_beliefs`` to allow more control over input for the report.
-* Add ``flexmeasures jobs save-last-failed`` CLI command for saving the last n failed jobs (from the scheduling queue, by default).
+* Add ``flexmeasures jobs save-last-failed`` (since v0.26: ``flexmeasures jobs save-last``) CLI command for saving the last n failed jobs (from the scheduling queue, by default).
 * Add ``flexmeasures jobs delete-queue`` CLI command for deleting an obsolete queue.
 
-since v0.24.0 | January 6, 2024
+since v0.24.0 | January 6, 2025
 =================================
 
 * ``flexmeasures show beliefs`` shows datetime values on x-axis labels.

@@ -44,8 +44,6 @@ def upgrade():
                 ).scalar_one_or_none()
                 if result:
                     tables_with_data.append(table)
-            else:
-                print(f"Table {table} not found, continuing...")
         except ProgrammingError as exception:
             print(exception)
     db.session.close()  # https://stackoverflow.com/a/26346280/13775459

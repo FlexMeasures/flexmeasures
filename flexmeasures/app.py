@@ -224,7 +224,7 @@ def create(  # noqa C901
                 if not hasattr(g, "profiler"):
                     return app
                 g.profiler.stop()
-                output_html = g.profiler.output_html(timeline=True)
+                output_html = g.profiler.output_html()
                 endpoint = request.endpoint
                 if endpoint is None:
                     endpoint = "unknown"
