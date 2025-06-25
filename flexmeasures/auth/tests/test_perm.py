@@ -63,19 +63,25 @@ def test_consultant_user_update_perm(
 
 
 @pytest.mark.parametrize(
-    "requesting_user, account_name, has_perm",
+    "requesting_user, required_perm, account_name, has_perm",
     [
-        # Consultant tries to update client account
-        ("test_consultant@seita.nl", "Test ConsultancyClient Account", True),
-        # Consultant tries to update account from another client
-        ("test_consultant@seita.nl", "Test Supplier Account", False),
+        ("test_consultant@seita.nl", "update", "Test ConsultancyClient Account", True),
+        ("test_consultant@seita.nl", "update", "Test Supplier Account", False),
+        (
+            "test_consultant@seita.nl",
+            "create-children",
+            "Test ConsultancyClient Account",
+            True,
+        ),
+        ("test_consultant@seita.nl", "create-children", "Test Supplier Account", False),
     ],
 )
-def test_consultant_account_update_perm(
+def test_consultant_can_work_on_clients_account(
     db,
     monkeypatch,
     setup_roles_users,
     requesting_user,
+    required_perm,
     account_name,
     has_perm,
 ):
@@ -87,38 +93,7 @@ def test_consultant_account_update_perm(
         ).scalar_one_or_none()
 
         try:
-            result = check_access(account, "update")
-            if result is None:
-                has_access = True
-        except (Forbidden, Unauthorized):
-            has_access = False
-
-        assert has_access == has_perm
-
-
-@pytest.mark.parametrize(
-    "requesting_user, account_name, has_perm",
-    [
-        ("test_consultant@seita.nl", "Test ConsultancyClient Account", True),
-        ("test_consultant@seita.nl", "Test Supplier Account", False),
-    ],
-)
-def test_consultant_create_account_resource_perm(
-    db,
-    monkeypatch,
-    setup_roles_users,
-    requesting_user,
-    account_name,
-    has_perm,
-):
-    account = db.session.execute(
-        select(Account).filter_by(name=account_name)
-    ).scalar_one_or_none()
-
-    with monkeypatch.context() as m:
-        set_current_user(db, m, requesting_user)
-        try:
-            result = check_access(account, "create-children")
+            result = check_access(account, required_perm)
             if result is None:
                 has_access = True
         except (Forbidden, Unauthorized):
