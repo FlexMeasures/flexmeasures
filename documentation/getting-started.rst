@@ -23,7 +23,7 @@ Your journey, from dipping your toes in the water towards being a productive ene
 1. Quickstart ― Find an optimized schedule for your flexible asset, like a battery, with standard FlexMeasures tooling. This is basically what we show in :ref:`tut_toy_schedule`. All you need are 10 minutes and a CSV file with prices to optimize against.
 2. Automate ― get the prices from an open API, for instance `ENTSO-E <https://transparency.entsoe.eu/>`_ (using a plugin like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_), and run the scheduler regularly in a cron job.
 3. Integrate ― Load the schedules via FlexMeasures' API, so you can directly control your assets and/or show them within your own frontend.
-4. Customize ― Load other data (e.g. other prices or  weather forecasts via `flexmeasures-weather <https://github.com/flexmeasures/flexmeasure-weather/>`_, which can help you better forecast local production or consumption). Adapt the algorithms, e.g. do your own forecasting or tweak the standard scheduling algorithm so it optimizes what you care about. Or write a plugin for accessing a new kind of market. The opportunities are endless!
+4. Customize ― Load other data (e.g. add weather forecasts via `flexmeasures-weather <https://github.com/flexmeasures/flexmeasure-weather/>`_, which can help you better forecast local production or consumption). Adapt the data dashboards to your liking. Play with flex-context and flex-model settings. In your own plugin, add your custom pages or endpoints or even adapt the algorithms. For example, do your own forecasting or tweak the standard scheduling algorithm so it optimizes what you care about. Or write a plugin for accessing a new kind of market. The opportunities are endless!
 
 
 
