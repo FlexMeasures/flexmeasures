@@ -1197,16 +1197,16 @@ def chart_for_chargepoint_sessions(
             },
         ],
     }
-    for idx, entry in enumerate(sensors_to_show):
+    for idx, entry in enumerate(sensors_to_show_copy):
         title = entry.get("title")
         if title == "Power flow by type":
-            sensors_to_show[idx]["sensors"] = [
+            sensors_to_show_copy[idx]["sensors"] = [
                 sensor
                 for sensor in entry["sensors"]
                 if sensor.name == "charge points power"
             ]
     chart_specs = chart_for_multiple_sensors(
-        sensors_to_show,
+        sensors_to_show_copy,
         event_starts_after,
         event_ends_before,
         combine_legend,
