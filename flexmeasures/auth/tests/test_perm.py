@@ -172,17 +172,20 @@ def test_consultant_can_work_on_clients_sensor(
 @pytest.mark.parametrize(
     "requesting_user, required_perm, account_name, has_perm",
     [
-        # Consultant tries to delete an asset from a client account
         ("test_consultant@seita.nl", "delete", "Test ConsultancyClient Account", True),
-        # Consultant tries to delete an asset from a non client account
         ("test_consultant@seita.nl", "delete", "Test Prosumer Account", False),
-        # Consultant tries to update an asset from a client account
         ("test_consultant@seita.nl", "update", "Test ConsultancyClient Account", True),
-        # Consultant tries to update an asset from a non client account
         ("test_consultant@seita.nl", "update", "Test Prosumer Account", False),
+        (
+            "test_consultant@seita.nl",
+            "create-children",
+            "Test ConsultancyClient Account",
+            True,
+        ),
+        ("test_consultant@seita.nl", "create-children", "Test Prosumer Account", False),
     ],
 )
-def test_consultant_can_delete_assets(
+def test_consultant_can_work_on_clients_asset(
     db,
     monkeypatch,
     setup_accounts,

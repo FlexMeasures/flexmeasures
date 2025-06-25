@@ -113,7 +113,17 @@ class GenericAsset(db.Model, AuthModelMixin):
         Deletion is left to account admins.
         """
         return {
-            "create-children": f"account:{self.account_id}",
+            "create-children": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
             "read": (
                 self.owner.__acl__()["read"]
                 if self.account_id is not None
