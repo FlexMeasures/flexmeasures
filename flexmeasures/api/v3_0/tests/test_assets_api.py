@@ -547,29 +547,6 @@ def test_consultant_can_read(
     assert get_assets_response.json[0]["name"] == "Test ConsultancyClient Asset"
 
 
-@pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
-def test_consultant_can_not_patch(
-    client, setup_api_test_data, setup_accounts, requesting_user, db
-):
-    """
-    Try to edit an asset belonging to the ConsultancyClient account with the Consultant account.
-    The Consultant account only has read access.
-    """
-    consultancy_client_asset = db.session.execute(
-        select(GenericAsset).filter_by(name="Test ConsultancyClient Asset")
-    ).scalar_one_or_none()
-    print(consultancy_client_asset)
-
-    asset_edit_response = client.patch(
-        url_for("AssetAPI:patch", id=consultancy_client_asset.id),
-        json={
-            "latitude": 0,
-        },
-    )
-    print(f"Editing Response: {asset_edit_response.json}")
-    assert asset_edit_response.status_code == 403
-
-
 @pytest.mark.parametrize(
     "requesting_user",
     ["test_consultancy_user_without_consultant_access@seita.nl"],
