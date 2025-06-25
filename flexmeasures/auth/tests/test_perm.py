@@ -128,34 +128,61 @@ def test_consultant_create_account_resource_perm(
 
 
 @pytest.mark.parametrize(
-    "requesting_user, required_perm, sensor_name, has_perm",
+    "requesting_user, required_perm, has_perm",
     [
         # Consultant tries to delete a sensor from a client account
-        ("test_consultant@seita.nl", "delete", "wind speed tracker", True),
+        ("test_consultant@seita.nl", "delete", True),
         # Consultant tries to delete a sensor from a non client account
-        ("test_consultant@seita.nl", "delete", "power (kW)", False),
+        ("test_consultant@seita.nl", "delete", False),
         # Consultant tries to update a sensor from a client account
-        ("test_consultant@seita.nl", "update", "wind speed tracker", True),
+        ("test_consultant@seita.nl", "update", True),
         # Consultant tries to update a sensor from a non client account
-        ("test_consultant@seita.nl", "update", "power (kW)", False),
+        ("test_consultant@seita.nl", "update", False),
     ],
 )
 def test_consultant_can_work_on_clients_sensor(
     db,
     monkeypatch,
+    setup_accounts,
     add_battery_assets,
     add_consultancy_assets,
     requesting_user,
     required_perm,
-    sensor_name,
     has_perm,
 ):
+    non_client_account = db.session.execute(
+        select(Account).filter_by(name="Test Prosumer Account")
+    ).scalar_one_or_none()
+
+    non_client_sensor = (
+        db.session.execute(
+            select(Sensor)
+            .join(GenericAsset)
+            .where(GenericAsset.account_id == non_client_account.id)
+        )
+        .scalars()
+        .first()
+    )
+
+    client_account = (
+        db.session.execute(
+            select(Account).filter_by(name="Test ConsultancyClient Account")
+        )
+        .scalars()
+        .first()
+    )
+
+    client_sensor = db.session.execute(
+        select(Sensor)
+        .join(GenericAsset)
+        .where(GenericAsset.account_id == client_account.id)
+    ).scalar_one_or_none()
+
+    print(f"Client sensor: {client_sensor}, Non-client sensor: {non_client_sensor}")
+
     with monkeypatch.context() as m:
         set_current_user(db, m, requesting_user)
-
-        sensor = db.session.execute(
-            select(Sensor).filter_by(name=sensor_name)
-        ).scalar_one_or_none()
+        sensor = client_sensor if has_perm else non_client_sensor
 
         try:
             result = check_access(sensor, required_perm)
