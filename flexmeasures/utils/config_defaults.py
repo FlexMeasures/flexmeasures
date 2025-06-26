@@ -70,7 +70,7 @@ class Config(object):
         "email"
     ]  # 'authenticator' will be made possible later
     SECURITY_TWO_FACTOR = True
-    SECURITY_TOTP_SECRETS: str | None = None
+    SECURITY_TOTP_SECRETS: dict | None = None
     SECURITY_TOTP_ISSUER = "FlexMeasures"
     SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (
         True  # False if you want to skip validation for testing
@@ -236,11 +236,11 @@ class TestingConfig(Config):
     )  # if more than 2 days, consider setting up more days of price data for tests
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
-    SECURITY_TOTP_SECRETS = '{"1": "00000000000000000000000000000000"}'
+    SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
     SECURITY_TOTP_ISSUER = "flexmeasures"
 
 
 class DocumentationConfig(Config):
     SECRET_KEY: str = "dummy-key-for-documentation"
     SQLALCHEMY_DATABASE_URI: str = "postgresql://dummy:uri@for/documentation"
-    SECRURITY_TOTP_SECRETS = '{"1": "00000000000000000000000000000000"}'
+    SECRURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}

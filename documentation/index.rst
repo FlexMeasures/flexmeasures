@@ -51,7 +51,7 @@ The main purpose of FlexMeasures is to create optimized schedules. Let's have a 
 
             $ pip install flexmeasures  # FlexMeasures can also be run via Docker
             $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
-            $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret && export SECURITY_TOTP_SECRETS = "{"1":"something-secret"}"
+            $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret && export SECURITY_TOTP_SECRETS={"1":"something-secret"}
             $ flexmeasures db upgrade  # create tables
             $ flexmeasures add toy-account --kind battery  # setup account incl. a user, battery (ID 2) and market (ID 1)
             $ flexmeasures add beliefs --sensor 2 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API

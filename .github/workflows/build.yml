@@ -34,7 +34,7 @@ jobs:
         run: echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
           >> .env
       - name: Generate random totp secret
-        run: echo "SECURITY_TOTP_SECRETS=\"{\"1\":\"$(python3 -c 'import secrets; print(secrets.token_hex(24))')\"}\"" >> .env
+        run: echo "SECURITY_TOTP_SECRETS={\"1\":\"$(python3 -c 'import secrets; print(secrets.token_hex(24))')\"}" >> .env
       - name: Export SQLALCHEMY_DATABASE_URI
         run: echo "SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test"
           >> .env

@@ -136,11 +136,11 @@ def set_totp_secrets(app, filename="totp_secrets"):
 
         You can add the SECURITY_TOTP_SECRETS setting to your conf file (this example works only on Unix):
 
-        echo "SECURITY_TOTP_SECRETS="{"1": `python3 -c 'import secrets; print(secrets.token_hex(24))'`\"}" >> ~/.flexmeasures.cfg
+        echo "SECURITY_TOTP_SECRETS={\"1\": \"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"}" >> ~/.flexmeasures.cfg
 
         OR you can add an env var:
 
-        export SECURITY_TOTP_SECRETS="{"1": "xxxxxxxxxxxxxxx"}"
+        export SECURITY_TOTP_SECRETS={"1": "xxxxxxxxxxxxxxx"}
         (on windows, use "set" instead of "export")
 
         OR you can create a secret key file (this example works only on Unix):
