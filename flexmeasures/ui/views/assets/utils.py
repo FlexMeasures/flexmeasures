@@ -248,50 +248,82 @@ def get_list_assets_chart(
     child_depth=0,
     look_for_child=False,
     is_head=False,
+    visited: set[int] | None = None,
 ) -> list[dict]:
     """
-    Recursively builds a tree of assets from a given asset and its parents and children up to a certain depth.
+    Recursively builds a tree of assets from a given asset and its parents, children, and siblings
+    up to a certain depth in each direction.
+    Siblings (including the starting asset) are ordered alphabetically.
 
     Args:
         asset: The asset to start the recursion from
         base_asset: The asset that is the base of the chart
-        parent_depth: The current depth of the parents hierarchy
+        parent_depth: The current depth of the parent hierarchy
         child_depth: The current depth of the children hierarchy
         look_for_child: If True, start looking for children of the current asset
         is_head: If True, the current asset is the head of the chart
+        visited: Set of visited asset IDs to avoid cycles
 
     Returns:
         A list of dictionaries representing the assets in the tree
     """
-    assets = list()
-    asset_def = serialize_asset(asset, is_head=is_head)
+    if visited is None:
+        visited = set()
 
-    # Fetch parents if there is parent asset and parent_depth is less than 2
+    assets = []
+
+    # Traverse to parent first
     if asset.parent_asset and parent_depth < 2 and not look_for_child:
-        parent_depth += 1
         assets += get_list_assets_chart(
             asset=asset.parent_asset,
             base_asset=base_asset,
-            parent_depth=parent_depth,
-            is_head=False if parent_depth < 2 else True,
+            parent_depth=parent_depth + 1,
+            look_for_child=False,
+            is_head=(parent_depth + 1 == 2),
+            visited=visited,
         )
+        look_for_child = True
     else:
         look_for_child = True
-        parent_depth = (
-            2  # Auto increase depth in the parents hierarchy is less than two
-        )
+        parent_depth = 2  # prevent further parent traversal
 
-    assets.append(asset_def)
-
-    if look_for_child and child_depth < 2:
-        child_depth += 1
-        for child in base_asset.child_assets:
-            assets += get_list_assets_chart(
-                child,
-                parent_depth=parent_depth,
-                child_depth=child_depth,
-                base_asset=child,
-            )
+    # Handle siblings (alphabetically)
+    if asset.parent_asset:
+        siblings = sorted(asset.parent_asset.child_assets, key=lambda a: a.name)
+        for sibling in siblings:
+            if sibling.id not in visited:
+                visited.add(sibling.id)
+                assets.append(
+                    serialize_asset(
+                        sibling, is_head=(sibling.id == asset.id and is_head)
+                    )
+                )
+                if look_for_child and child_depth < 2:
+                    assets += get_list_assets_chart(
+                        asset=sibling,
+                        base_asset=sibling,
+                        parent_depth=parent_depth,
+                        child_depth=child_depth + 1,
+                        look_for_child=True,
+                        is_head=False,
+                        visited=visited,
+                    )
+    else:
+        # No siblings → process just the asset
+        if asset.id not in visited:
+            visited.add(asset.id)
+            assets.append(serialize_asset(asset, is_head=is_head))
+            if look_for_child and child_depth < 2:
+                for child in sorted(asset.child_assets, key=lambda a: a.name):
+                    assets += get_list_assets_chart(
+                        asset=child,
+                        base_asset=child,
+                        parent_depth=parent_depth,
+                        child_depth=child_depth + 1,
+                        look_for_child=True,
+                        is_head=False,
+                        visited=visited,
+                    )
 
     return assets
 
