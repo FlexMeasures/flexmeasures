@@ -78,6 +78,37 @@ This suffices for a quick start. For an actually secure secret, here is a Python
    $ python -c "import secrets; print(secrets.token_urlsafe())"
 
 
+Make totp secrets for two-factor authentication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures supports two-factor authentication via Time-based One-time Passwords (TOTP).
+For this, we need a secret key for each user.
+This can be done in a similar way as above:
+
+.. tabs::
+
+    .. tab:: via `pip`
+
+        .. code-block:: bash
+
+            $ export SECURITY_TOTP_SECRETS="{\"1\":\"something-secret\"}"
+
+        (on Windows, use ``set`` instead of ``export``\ )
+
+    .. tab:: via `docker`
+
+        Add the `SECURITY_TOTP_SECRETS` as an environment variable:
+
+        .. code-block:: bash
+        
+            $ docker run -d --env SECURITY_TOTP_SECRETS="{\"1\":\"something-secret\"}" lfenergy/flexmeasures
+
+This suffices for a quick start. For an actually secure secret, here is a Pythonic way to generate a good secret key:
+
+.. code-block:: bash
+
+   $ python -c "import secrets; print(f'{{\"1\": \"{secrets.token_urlsafe()}\"}}')"
+
 
 Choose the environment
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -284,7 +315,7 @@ It's finally time to start running FlexMeasures. This here is the direct form yo
         .. code-block:: bash
 
            # or everything on the terminal 
-           $ docker run -d --env FLEXMEASURES_ENV=development --env SECRET_KEY=something-secret --env SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host-address>:<port>/<db-name> lfenergy/flexmeasures 
+           $ docker run -d --env FLEXMEASURES_ENV=development --env SECRET_KEY=something-secret --env SECURITY_TOTP_SECRETS="{'1': 'something-secret'}" --env SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host-address>:<port>/<db-name> lfenergy/flexmeasures 
 
 
 This might print some warnings, see the next section where we go into more detail. For instance, when you see the dashboard, the map will not work. For that, you'll need to get your :ref:`mapbox_access_token` and add it to your config file.

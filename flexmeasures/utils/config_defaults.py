@@ -172,6 +172,7 @@ class Config(object):
 
 #  names of settings which cannot be None
 #  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.
+#  SECURITY_TOTP_SECRETS is also required but utils.app_utils.set_totp_secrets takes care of this better.
 required: list[str] = ["SQLALCHEMY_DATABASE_URI"]
 
 #  settings whose absence should trigger a warning
@@ -242,3 +243,4 @@ class TestingConfig(Config):
 class DocumentationConfig(Config):
     SECRET_KEY: str = "dummy-key-for-documentation"
     SQLALCHEMY_DATABASE_URI: str = "postgresql://dummy:uri@for/documentation"
+    SECRURITY_TOTP_SECRETS = '{"1": "00000000000000000000000000000000"}'
