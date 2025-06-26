@@ -60,7 +60,7 @@ services:
     environment:
       SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
       SECRET_KEY: notsecret
-      SECURITY_TOTP_SECRETS: {"1": "something-secret"}
+      SECURITY_TOTP_SECRETS: '{"1": "something-secret"}'
       FLEXMEASURES_ENV: development
       FLEXMEASURES_REDIS_URL: queue-db
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
@@ -93,7 +93,7 @@ services:
       FLEXMEASURES_REDIS_URL: queue-db
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
       SECRET_KEY: notsecret
-      SECURITY_TOTP_SECRETS: {"1": "something-secret"}
+      SECURITY_TOTP_SECRETS: '{"1": "something-secret"}'
       FLEXMEASURES_ENV: development
       MAIL_SERVER: mailhog   # MailHog mail server
       MAIL_PORT: 1025        # MailHog mail port
