@@ -19,7 +19,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 
     # setup an account with a user, assets for battery & solar and an energy market (ID 1)
     $ flexmeasures add toy-account
-    # load prices to optimise the schedule against
+    # load prices to optimize schedules against
     $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
 
 
@@ -131,6 +131,8 @@ Install Flexmeasures and the database
         .. include:: ../notes/macOS-port-note.rst
 
 
+.. _tut_load_data:
+
 Add some structural data
 ---------------------------------------
 
@@ -182,19 +184,20 @@ If you want, you can inspect what you created:
 
     All users:
     
-    ID  Name      Email                     Last Login    Last Seen    Roles
+      ID  Name      Email                     Last Login    Last Seen    Roles
     ----  --------  ------------------------  ------------  -----------  -------------
-    1  toy-user  toy-user@flexmeasures.io  None          None         account-admin
+       1  toy-user  toy-user@flexmeasures.io  None          None         account-admin
 
     All assets:
     
-    ID  Name           Type     Location
-    ----  -----------  -------  -----------------
-    2  toy-building   building  (52.374, 4.88969)
-    3  toy-battery    battery   (52.374, 4.88969)
-    4  toy-solar      solar     (52.374, 4.88969)
+      ID  Name          Type        Parent ID  Location
+    ----  ------------  --------  -----------  -----------------
+       2  toy-building  building            2  (52.374, 4.88969)
+       3  toy-battery   battery             2  (52.374, 4.88969)
+       4  toy-solar     solar               2  (52.374, 4.88969)
 
 .. code-block:: bash
+    :emphasize-lines: 30
 
     $ flexmeasures show asset --id 2
 
@@ -210,7 +213,7 @@ If you want, you can inspect what you created:
     Child assets of toy-building (ID: 2)
     ====================================
 
-    Id       Name               Type
+    ID       Name               Type
     -------  -----------------  ----------------------------
     3        toy-battery        battery
     4        toy-solar          solar
@@ -233,13 +236,13 @@ If you want, you can inspect what you created:
     Child assets of toy-battery (ID: 3)
     ====================================
 
-    No children assets ...
+    No child assets ...
 
     All sensors in asset:
     
-    ID  Name         Unit    Resolution    Timezone          Attributes
+      ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
-    2  discharging  MW      15 minutes    Europe/Amsterdam
+       2  discharging  MW      15 minutes    Europe/Amsterdam
     
 
 Yes, that is quite a large battery :) 
@@ -293,7 +296,7 @@ Now to add price data. First, we'll create the CSV file with prices (EUR/MWh, se
     $ ${TOMORROW}T22:00:00,10
     $ ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
-This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
+This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `Weather Forecast APIs <https://github.com/flexmeasures/flexmeasures-weather>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
 
 .. code-block:: bash
 

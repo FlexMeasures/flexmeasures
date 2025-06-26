@@ -444,9 +444,9 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
-        Trigger FlexMeasures to create a schedule.
+        Trigger FlexMeasures to create a schedule for a single flexible device, possibly taking into account inflexible devices.
 
-        .. :quickref: Schedule; Trigger scheduling job
+        .. :quickref: Schedule; Trigger scheduling job for one device
 
         Trigger FlexMeasures to create a schedule for this sensor.
         The assumption is that this sensor is the power sensor on a flexible asset.
@@ -460,9 +460,8 @@ class SensorAPI(FlaskView):
         For details on flexibility model and context, see :ref:`describing_flexibility`.
         Below, we'll also list some examples.
 
-        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
-                  See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
-                  (considering already scheduled sensors as inflexible).
+        .. note:: To schedule an EMS with multiple flexible sensors at once,
+                  use `this endpoint <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ instead.
 
         The length of the schedule can be set explicitly through the 'duration' field.
         Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
@@ -500,8 +499,8 @@ class SensorAPI(FlaskView):
         Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
-        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
-        (plus the flexible sensor being optimized, of course).
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+        and the power sensor of the flexible device being optimized (referenced in the endpoint URL).
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
@@ -628,7 +627,7 @@ class SensorAPI(FlaskView):
     ):
         """Get a schedule from FlexMeasures.
 
-        .. :quickref: Schedule; Download schedule from the platform
+        .. :quickref: Schedule; Download schedule for one device
 
         **Optional fields**
 
@@ -688,7 +687,6 @@ class SensorAPI(FlaskView):
                 )
                 return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
-        scheduler_info_msg = ""
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
         scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
 
@@ -761,7 +759,9 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.get_attribute("consumption_is_positive", True):
+        if sensor.measures_power and sensor.get_attribute(
+            "consumption_is_positive", True
+        ):
             sign = -1
 
         # For consumption schedules, positive values denote consumption. For the db, consumption is negative
@@ -1022,12 +1022,23 @@ class SensorAPI(FlaskView):
     @route("/<id>/stats", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(
-        {"sort_keys": fields.Boolean(data_key="sort", load_default=True)},
+        {
+            "sort_keys": fields.Boolean(data_key="sort", load_default=True),
+            "event_start_time": fields.Str(load_default=None),
+            "event_end_time": fields.Str(load_default=None),
+        },
         location="query",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
-    def get_stats(self, id, sensor: Sensor, sort_keys: bool):
+    def get_stats(
+        self,
+        id,
+        sensor: Sensor,
+        event_start_time: str,
+        event_end_time: str,
+        sort_keys: bool,
+    ):
         """Fetch stats for a given sensor.
 
         .. :quickref: Sensor; Get sensor stats
@@ -1061,7 +1072,10 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        return get_sensor_stats(sensor, sort_keys), 200
+        return (
+            get_sensor_stats(sensor, event_start_time, event_end_time, sort_keys),
+            200,
+        )
 
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")

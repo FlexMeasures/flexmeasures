@@ -353,30 +353,17 @@
 
     function checkDSTTransitions(startDate, endDate) {
         var numDSTTransitions = countDSTTransitions(startDate, endDate, 90)
-        if (numDSTTransitions != 0) {
-            document.getElementById('dstwarn').style.display = 'block';
-            if (numDSTTransitions == 1) {
-                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.';
-            } else {
-                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.';
-            }
-        }
-        else {
-            document.getElementById('dstwarn').style.display = 'none';
+        if (numDSTTransitions == 1) {
+            showToast('Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.');
+        } else if (numDSTTransitions > 1) {
+            showToast('Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.');
         }
     }
 
     function checkSourceMasking(data) {
-        var sourceWarn = document.getElementById("sourcewarn");
-        if (sourceWarn == null)
-            return
         var uniqueSourceIds = getUniqueValues(data, 'source.id');
         if (chartType == 'daily_heatmap' && uniqueSourceIds.length > 1) {
-            sourceWarn.style.display = 'block';
-            sourceWarn.innerHTML = 'Please note that only data from the most prevalent source is shown.';
-        }
-        else {
-            sourceWarn.style.display = 'none';
+            showToast('Please note that only data from the most prevalent source is shown.');
         }
     }
 
@@ -568,6 +555,16 @@
         var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
         var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
+        {% if active_page == "sensors" %}
+            const toggleStats = document.getElementById('toggleStatsCheckbox');
+            if (toggleStats.checked) {
+                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+            }
+            else {
+                loadSensorStats({{ sensor.id }});
+            }
+        {% endif %}
+
         stopReplay()
 
         $("#spinner").show();
@@ -604,6 +601,19 @@
         }).catch(console.error);
     });
 
+    {% if active_page == "sensors" %}
+        // Call loadSensorStats if the toggleStatsCheckbox checkbox is checked or unchecked
+        document.getElementById('toggleStatsCheckbox').addEventListener('change', function() {
+            if (this.checked) {
+                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+            }
+            else {
+                loadSensorStats({{ sensor.id }});
+            }
+        });
+    {% endif %}
+
+
     /** If the page is done loading, get data (for the time range stored in the session, or the default range),
      * check for time zone differences, and then trigger the time range picker to display the correct range.
      */
@@ -632,9 +642,8 @@
             .then(function(data) {
                 var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
                 if (offsetDifference != 0) {
-                    document.getElementById('tzwarn').style.display = 'block';
                     var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + ' minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
-                    document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.';
+                    showToast('Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.');
                 }
                 {% if active_page == "assets" %}
                     var timerangeVar = 'timerange_of_sensors_to_show';
@@ -893,6 +902,13 @@
             initiateToastCloseBtn(closeToastBtn);
         });
 
+        function maybeHideCloseToastBtn() {
+            const remainingToasts = toastStack.querySelectorAll(".toast");
+            if (remainingToasts.length === 0) {
+                closeToastBtn.style.display = "none";
+            }
+        }
+
         function initiateToastCloseBtn(closeToastBtn){
             // hide button
             closeToastBtn.style.display = "none";
@@ -920,28 +936,62 @@
             });
         }
 
-        function showToast(message, type) {
+        function showToast(message, type, { highlightDuplicates = true, showDuplicateCount = true } = {}) {
             let colorClass;
             let colorStyle = "";
             let title;
         
             // Determine the type of toast
             if (type == "error") {
+              delay = 10000;
               colorClass = "bg-danger";
               title = "Error";
             } else if (type == "success") {
+              delay = 2000;
               colorClass = "bg-success";
               title = "Success";
             } else {
+              delay = 5000;
               colorStyle =
                 "background-color: {{ primary_color }};";
               title = "Info";
+            }
+
+            // Search for an existing toast with the same message
+            const existingToasts = toastStack.querySelectorAll(".toast");
+            for (const t of existingToasts) {
+                const body = t.querySelector(".toast-body");
+                if (body && body.dataset.originalMessage === message) {
+                    // It's a duplicate
+                    if (showDuplicateCount) {
+                        let count = parseInt(body.dataset.count || "1") + 1;
+                        body.dataset.count = count;
+                        body.innerHTML = `${message} <span class="text-muted ms-2">(x${count})</span>`;
+                    }
+
+                    if (highlightDuplicates) {
+                        t.classList.remove("highlight");
+                        void t.offsetWidth; // Trigger reflow for CSS animation restart
+                        t.classList.add("highlight");
+                    }
+
+                    // Reinitialize and show the toast again
+                    const oldInstance = bootstrap.Toast.getInstance(t);
+                    if (oldInstance) {
+                        oldInstance.dispose();
+                    }
+                    const newInstance = new bootstrap.Toast(t);
+                    newInstance.show();
+
+                    return; // Don't create a new toast
+                }
             }
         
             // Create the toast HTML
             const toast = document.createElement("div");
             toast.classList.add("toast", "mb-1");
             toast.setAttribute("data-bs-autohide", "true");
+            toast.setAttribute("data-bs-delay", delay);
             toast.setAttribute("role", "alert");
             toast.setAttribute("aria-live", "assertive");
             toast.setAttribute("aria-atomic", "true");
@@ -952,7 +1002,7 @@
                 <strong class="me-auto">${title}</strong>
                 <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
               </div>
-              <div class="toast-body">
+            <div class="toast-body" data-original-message="${message}" data-count="1">
                 ${message}
               </div>
             `;
@@ -965,11 +1015,22 @@
         
             showAllToasts();
 
+            // Dispose and remove toast when it's autohidden
+            toast.addEventListener("hidden.bs.toast", function () {
+                const instance = bootstrap.Toast.getInstance(toast);
+                if (instance) {
+                    instance.dispose();
+                }
+                toast.remove();
+                maybeHideCloseToastBtn();
+            });
+
             // destroy only this toast if the close(X) button is clicked
             toast.querySelector(".btn-close").addEventListener("click", function () {
                 const toastInstance = new bootstrap.Toast(toast);
                 toastInstance.dispose();
                 toast.remove();
+                maybeHideCloseToastBtn();
             });            
           }
     </script>
