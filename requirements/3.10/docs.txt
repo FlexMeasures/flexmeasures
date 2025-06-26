@@ -18,6 +18,8 @@ charset-normalizer==3.4.2
     # via
     #   -c requirements/3.10/app.txt
     #   requests
+cryptography==45.0.4
+    # via -r requirements/app.in
 docutils==0.21.2
     # via
     #   sphinx

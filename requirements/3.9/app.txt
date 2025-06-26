@@ -54,6 +54,8 @@ convertdate==2.4.0
     # via workalendar
 cycler==0.12.1
     # via matplotlib
+cryptography==45.0.4
+    # via -r requirements/app.in
 dill==0.4.0
     # via openturns
 dnspython==2.7.0

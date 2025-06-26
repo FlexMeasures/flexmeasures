@@ -22,6 +22,8 @@ click==8.1.8
     #   flask
 coverage[toml]==7.8.2
     # via pytest-cov
+cryptography==45.0.4
+    # via -r requirements/app.in
 et-xmlfile==2.0.0
     # via openpyxl
 fakeredis==2.29.0

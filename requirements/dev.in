@@ -12,3 +12,4 @@ pyinstrument
 # below: for releasing
 build
 packaging>=24.2
+cryptography
