@@ -979,6 +979,50 @@ def create_test_battery_assets(
 
 
 @pytest.fixture(scope="module")
+def add_consultancy_assets(
+    db: SQLAlchemy, setup_accounts, setup_generic_asset_types
+) -> dict[str, GenericAsset]:
+    """
+    Add consultancy assets.
+    """
+    return create_test_consultancy_assets(db, setup_accounts, setup_generic_asset_types)
+
+
+def create_test_consultancy_assets(
+    db: SQLAlchemy, setup_accounts, generic_asset_types
+) -> dict[str, GenericAsset]:
+    """
+    Add consultancy assets.
+    """
+    wind_type = generic_asset_types["wind"]
+
+    test_wind_turbine = GenericAsset(
+        name="Test wind turbine",
+        owner=setup_accounts["ConsultancyClient"],
+        generic_asset_type=wind_type,
+        latitude=10,
+        longitude=100,
+    )
+    db.session.add(test_wind_turbine)
+    db.session.flush()
+
+    test_wind_sensor = Sensor(
+        name="wind speed tracker",
+        generic_asset=test_wind_turbine,
+        event_resolution=timedelta(minutes=15),
+        unit="m/s",
+    )
+
+    db.session.add(test_wind_sensor)
+    db.session.flush()
+
+    return {
+        "Test wind turbine": test_wind_turbine,
+        "wind speed tracker": test_wind_sensor,
+    }
+
+
+@pytest.fixture(scope="module")
 def add_charging_station_assets(
     db: SQLAlchemy, setup_accounts, setup_markets
 ) -> dict[str, GenericAsset]:

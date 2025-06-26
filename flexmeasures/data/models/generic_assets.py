@@ -26,6 +26,7 @@ from flexmeasures.auth.policy import (
     AuthModelMixin,
     EVERY_LOGGED_IN_USER,
     ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
@@ -112,14 +113,44 @@ class GenericAsset(db.Model, AuthModelMixin):
         Deletion is left to account admins.
         """
         return {
-            "create-children": f"account:{self.account_id}",
+            "create-children": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
             "read": (
                 self.owner.__acl__()["read"]
                 if self.account_id is not None
                 else EVERY_LOGGED_IN_USER
             ),
-            "update": f"account:{self.account_id}",
-            "delete": (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            "update": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
+            "delete": [
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
         }
 
     def __repr__(self):
