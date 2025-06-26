@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 
 import click
 from flask import Flask, current_app, redirect
@@ -123,8 +124,15 @@ def set_totp_secrets(app, filename="totp_secrets"):
         return
     totp_secrets = os.environ.get("SECURITY_TOTP_SECRETS", None)
     if totp_secrets is not None:
-        app.config["SECURITY_TOTP_SECRETS"] = totp_secrets
-        return
+        try:
+            # Try to parse the string from the environment variable into a dictionary
+            app.config["SECURITY_TOTP_SECRETS"] = json.loads(totp_secrets)
+            return
+        except json.JSONDecodeError:
+            app.logger.error(
+                "Error: The environment variable SECURITY_TOTP_SECRETS is not valid JSON."
+            )
+            sys.exit(2)
 
     filename = os.path.join(app.instance_path, filename)
     try:
