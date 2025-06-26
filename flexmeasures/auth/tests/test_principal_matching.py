@@ -52,9 +52,11 @@ def make_mock_user(
 @pytest.mark.parametrize(
     "mock_user,principals,should_match",
     [
+        # atomic principals (one item needs to match)
         (make_mock_user(19, [], 1, []), "user:19", True),
         (make_mock_user(19, [], 1, []), "user:28", False),
         (make_mock_user(19, ["gardener"], 1, []), "role:gardener", True),
+        # principals with >1 items (as a tuple)
         (
             make_mock_user(19, ["gardener"], 1, ["castle"]),
             ("role:gardener", "account-role:castle"),
@@ -89,6 +91,7 @@ def make_mock_user(
             ),
             True,
         ),
+        # more than one principal (as a list)
         (
             make_mock_user(19, ["waitress"], 113, ["hotel"]),
             ["user:13", ("account:113", "role:waitress", "role:chef")],
@@ -98,6 +101,32 @@ def make_mock_user(
             make_mock_user(19, ["waitress"], 113, ["hotel"]),
             ["user:13", ("account:113", "role:waitress"), "role:chef"],
             True,  # not user 13; well a waitress of hotel 113 -
+        ),
+        # finally, testing that empty principals are not accepted
+        (
+            make_mock_user(19, ["waitress"], 113, ["restaurant"]),
+            (),
+            False,
+        ),
+        (
+            make_mock_user(19, ["waitress"], 113, ["restaurant"]),
+            [],
+            False,
+        ),
+        (
+            make_mock_user(19, ["waitress"], 113, ["restaurant"]),
+            None,
+            False,
+        ),
+        (
+            make_mock_user(19, ["waitress"], 113, ["restaurant"]),
+            "",
+            False,
+        ),
+        (
+            make_mock_user(19, ["waitress"], 113, ["restaurant"]),
+            [(), "role:waitress"],
+            True,
         ),
     ],
 )
