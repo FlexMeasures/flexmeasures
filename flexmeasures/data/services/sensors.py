@@ -482,7 +482,7 @@ def _get_sensor_stats(
     # build main query
     q = (
         sa.select(
-            DataSource.name,
+            DataSource,
             sa.func.min(TimedBelief.event_start).label("min_event_start"),
             sa.func.max(TimedBelief.event_start).label("max_event_start"),
             sa.func.max(
@@ -513,7 +513,7 @@ def _get_sensor_stats(
 
     raw_stats = db.session.execute(
         q.group_by(
-            DataSource.name,
+            DataSource.id,
             subquery_for_filtered_aggregates.c.min_event_value,
             subquery_for_filtered_aggregates.c.max_event_value,
             subquery_for_filtered_aggregates.c.avg_event_value,
@@ -524,7 +524,7 @@ def _get_sensor_stats(
     stats = dict()
     for row in raw_stats:
         (
-            data_source,
+            data_source_obj,
             min_event_start,
             max_event_start,
             max_belief_time,
@@ -545,6 +545,7 @@ def _get_sensor_stats(
         last_belief_time = (
             pd.Timestamp(max_belief_time).tz_convert(sensor.timezone).isoformat()
         )
+        data_source = f"{data_source_obj.description} (ID: {data_source_obj.id})"
         stats[data_source] = {
             "First event start": first_event_start,
             "Last event end": last_event_end,

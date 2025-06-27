@@ -251,6 +251,9 @@ class User(db.Model, UserMixin, AuthModelMixin):
     # How often have they logged in?
     login_count = Column(Integer)
     active = Column(Boolean())
+
+    tf_totp_secret = db.Column(db.String(255), nullable=True)
+    tf_primary_method = db.Column(db.String(255), nullable=True, default="email")
     # Faster token checking
     fs_uniquifier = Column(String(64), unique=True, nullable=False)
     timezone = Column(String(255), default="Europe/Amsterdam")

@@ -563,9 +563,9 @@ def test_fetch_sensor_stats(
 
         del response_content["status"]
         assert sorted(list(response_content.keys())) == [
-            "Other source",
-            "Test Admin User",
-            "Test Supplier User",
+            "Other source (ID: 12)",
+            "Test Admin User (ID: 7)",
+            "Test Supplier User (ID: 6)",
         ]
         for source, record in response_content.items():
             assert record["First event start"]
@@ -573,11 +573,11 @@ def test_fetch_sensor_stats(
             assert record["Min value"]
             assert record["Min value"]
             assert record["Max value"]
-            if source == "Test Admin User":
+            if source == "Test Admin User (ID: 7)":
                 sum_values = 162.0
                 count_values = 36
                 mean_value = 4.5
-            elif source == "Test Supplier User":
+            elif source == "Test Supplier User (ID: 6)":
                 sum_values = 275.1
                 count_values = 3
                 mean_value = 91.7
