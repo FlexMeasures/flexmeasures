@@ -80,7 +80,7 @@ What FlexMeasures does
     - Reporting
         FlexMeasures needs to give users an idea of its effects and outcomes. For instance, computing the energy costs are an important use case. But also creating intermediate data for your scheduler can be a crucial feature (e.g. the allowed headroom for a battery is the difference between the grid connection capacity and the PV power). Read more at :ref:`reporting` and :ref:`tut_toy_schedule_reporter`.
     - Forecasting
-        Optimizing the future (by scheduling) requires some predictions. Several predictions can be gotten from third parties (e.g. weather conditions, for which we wrote `a plugin <https://github.com/SeitaBV/flexmeasures-openweathermap>`_), others need to be done manually. FlexMeasures provides some support for this (read more at :ref:`forecasting` and :ref:`tut_forecasting_scheduling`), but you can also create predictions with one of the many excellent tools out there and feed them into FlexMeasures.
+        Optimizing the future (by scheduling) requires some predictions. Several predictions can be gotten from third parties (e.g. weather conditions, for which we wrote `a plugin <https://github.com/flexmeasures/flexmeasures-weather>`_), others need to be done manually. FlexMeasures provides some support for this (read more at :ref:`forecasting` and :ref:`tut_forecasting_scheduling`), but you can also create predictions with one of the many excellent tools out there and feed them into FlexMeasures.
     - Monitoring
         As FlexMeasures is a real-time platform, processing data and computing new schedules continuously, hosting it requires to be notified when things go wrong. There is in-built :ref:`host_error_monitoring` for tracking connection problems and tasks that did not finish correctly. Also, you can connect to Sentry. We have `further plans to monitor data quality <https://github.com/FlexMeasures/flexmeasures/projects/12>`_.
 
@@ -247,12 +247,12 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
     dev/why
     dev/setup-and-guidelines
-    dev/api
+    dev/docker-compose
     dev/ci
     dev/auth
-    dev/docker-compose
     dev/dependency-management
-
+    dev/api
+    dev/automated-deploy-via-GHActions
 
 .. autosummary::
    :caption: Code Documentation
