@@ -116,6 +116,8 @@ def set_totp_secrets(app, filename="totp_secrets"):
 
     Then we look for it in environment var SECURITY_TOTP_SECRETS.
 
+    Finally, we look for `filename` in the app's instance directory.
+
     If nothing is found, we print instructions
     to create the secret and then exit.
     """
@@ -140,11 +142,11 @@ def set_totp_secrets(app, filename="totp_secrets"):
     except IOError:
         app.logger.error(
             """
-        Error:  No SECURITY_TOTP_SECRETS set.
+        Error:  No SECURITY_TOTP_SECRETS set (required for two-factor authentication).
 
         You can add the SECURITY_TOTP_SECRETS setting to your conf file (this example works only on Unix):
 
-        echo "SECURITY_TOTP_SECRETS={\"1\": \"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"}" >> ~/.flexmeasures.cfg
+        echo "SECURITY_TOTP_SECRETS={\\"1\\": \\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\\"}" >> ~/.flexmeasures.cfg
 
         OR you can add an env var:
 
