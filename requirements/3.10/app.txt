@@ -111,9 +111,7 @@ flask-migrate==4.1.0
 flask-principal==0.4.0
     # via flask-security-too
 flask-security-too[fsqla,mfa]==5.6.2
-    # via
-    #   -r requirements/app.in
-    #   flask-security-too
+    # via -r requirements/app.in
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
