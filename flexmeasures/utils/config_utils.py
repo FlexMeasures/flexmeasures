@@ -71,7 +71,7 @@ def check_app_env(env: str | None):
 
 def get_flexmeasures_env(app) -> str:
     """
-    Determine what flexmeasures_env is, trying various ways in decreasing importance.
+    Determine which flexmeasures_env should be used, trying various ways in decreasing importance.
     """
     flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
     if app.testing:
