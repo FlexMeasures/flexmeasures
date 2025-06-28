@@ -47,7 +47,7 @@ Flask-Migrate
 Flask-WTF
 Flask-Mail
 # <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
-Flask-Security-Too>=5.0
+Flask-Security-Too[fsqla,mfa]>=5.0
 Flask-Login
 Flask-Classful>=0.16
 Flask-Marshmallow
@@ -67,4 +67,3 @@ flask>=1.0
 werkzeug
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
-cryptography
