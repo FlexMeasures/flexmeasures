@@ -25,7 +25,7 @@ update-docs:
 	@echo "Creating docs environment ..."
 	make install-docs-dependencies
 	@echo "Creating documentation ..."
-	export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
+	expert FLEXMEASURES_ENV=documentation; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
 
 update-docs-pdf:
 	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
