@@ -245,6 +245,11 @@ def setup(sphinx_app):
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
     sphinx_app.add_config_value(
+        "FLEXMEASURES_ENV",
+        "documentation",
+        "env",
+    )
+    sphinx_app.add_config_value(
         "FLEXMEASURES_MODE",
         "live",
         "env",  # hard-coded, documentation is not server-specific for the time being
