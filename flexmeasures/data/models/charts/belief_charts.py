@@ -508,112 +508,113 @@ def chart_for_multiple_sensors(
     sensors_specs = []
     for entry in sensors_to_show:
         title = entry.get("title")
-        if title != "Charge Point sessions":
-            sensors = entry.get("sensors")
-            # List the sensors that go into one row
-            row_sensors: list["Sensor"] = sensors  # noqa F821
+        if title == "Charge Point sessions":
+            continue
+        sensors = entry.get("sensors")
+        # List the sensors that go into one row
+        row_sensors: list["Sensor"] = sensors  # noqa F821
 
-            # Set up field definition for sensor descriptions
-            sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
-            sensor_field_definition["scale"] = dict(
-                domain=[sensor.to_dict()["description"] for sensor in row_sensors]
+        # Set up field definition for sensor descriptions
+        sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+        sensor_field_definition["scale"] = dict(
+            domain=[sensor.to_dict()["description"] for sensor in row_sensors]
+        )
+
+        # Derive the unit that should be shown
+        unit = determine_shared_unit(row_sensors)
+        sensor_type = determine_shared_sensor_type(row_sensors)
+
+        # Set up field definition for event values
+        event_value_field_definition = dict(
+            title=f"{capitalize(sensor_type)} ({unit})",
+            format=[".3~r", unit],
+            formatType="quantityWithUnitFormat",
+            stack=None,
+            **FIELD_DEFINITIONS["event_value"],
+        )
+        if unit == "%":
+            event_value_field_definition["scale"] = dict(
+                domain={"unionWith": [0, 105]}, nice=False
             )
 
-            # Derive the unit that should be shown
-            unit = determine_shared_unit(row_sensors)
-            sensor_type = determine_shared_sensor_type(row_sensors)
+        # Set up shared tooltip
+        shared_tooltip = [
+            dict(
+                field="sensor.description",
+                type="nominal",
+                title="Sensor",
+            ),
+            {
+                **event_value_field_definition,
+                **dict(title=f"{capitalize(sensor_type)}"),
+            },
+            FIELD_DEFINITIONS["full_date"],
+            dict(
+                field="belief_horizon",
+                type="quantitative",
+                title="Horizon",
+                format=["d", 4],
+                formatType="timedeltaFormat",
+            ),
+            {
+                **event_value_field_definition,
+                **dict(title=f"{capitalize(sensor_type)}"),
+            },
+            FIELD_DEFINITIONS["source_name_and_id"],
+            FIELD_DEFINITIONS["source_type"],
+            FIELD_DEFINITIONS["source_model"],
+        ]
 
-            # Set up field definition for event values
-            event_value_field_definition = dict(
-                title=f"{capitalize(sensor_type)} ({unit})",
-                format=[".3~r", unit],
-                formatType="quantityWithUnitFormat",
-                stack=None,
-                **FIELD_DEFINITIONS["event_value"],
+        # Draw a line for each sensor (and each source)
+        layers = [
+            create_line_layer(
+                row_sensors,
+                event_start_field_definition,
+                event_value_field_definition,
+                sensor_field_definition,
+                combine_legend=combine_legend,
             )
-            if unit == "%":
-                event_value_field_definition["scale"] = dict(
-                    domain={"unionWith": [0, 105]}, nice=False
-                )
+        ]
 
-            # Set up shared tooltip
-            shared_tooltip = [
-                dict(
-                    field="sensor.description",
-                    type="nominal",
-                    title="Sensor",
-                ),
-                {
-                    **event_value_field_definition,
-                    **dict(title=f"{capitalize(sensor_type)}"),
-                },
-                FIELD_DEFINITIONS["full_date"],
-                dict(
-                    field="belief_horizon",
-                    type="quantitative",
-                    title="Horizon",
-                    format=["d", 4],
-                    formatType="timedeltaFormat",
-                ),
-                {
-                    **event_value_field_definition,
-                    **dict(title=f"{capitalize(sensor_type)}"),
-                },
-                FIELD_DEFINITIONS["source_name_and_id"],
-                FIELD_DEFINITIONS["source_type"],
-                FIELD_DEFINITIONS["source_model"],
-            ]
-
-            # Draw a line for each sensor (and each source)
-            layers = [
-                create_line_layer(
-                    row_sensors,
-                    event_start_field_definition,
-                    event_value_field_definition,
-                    sensor_field_definition,
-                    combine_legend=combine_legend,
-                )
-            ]
-
-            # Optionally, draw transparent full-height rectangles that activate the tooltip anywhere in the graph
-            # (to be precise, only at points on the x-axis where there is data)
-            if len(row_sensors) == 1:
-                # With multiple sensors, we cannot do this, because it is ambiguous which tooltip to activate (instead, we use a different brush in the circle layer)
-                layers.append(
-                    create_rect_layer(
-                        event_start_field_definition,
-                        event_value_field_definition,
-                        shared_tooltip,
-                    )
-                )
-
-            # Draw circle markers that are shown on hover
+        # Optionally, draw transparent full-height rectangles that activate the tooltip anywhere in the graph
+        # (to be precise, only at points on the x-axis where there is data)
+        if len(row_sensors) == 1:
+            # With multiple sensors, we cannot do this, because it is ambiguous which tooltip to activate (instead, we use a different brush in the circle layer)
             layers.append(
-                create_circle_layer(
-                    row_sensors,
+                create_rect_layer(
                     event_start_field_definition,
                     event_value_field_definition,
-                    sensor_field_definition,
                     shared_tooltip,
                 )
             )
-            layers.append(REPLAY_RULER)
 
-            # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
-            sensor_specs = {
-                "title": f"{capitalize(title)}" if title else None,
-                "transform": [
-                    {
-                        "filter": {
-                            "field": "sensor.id",
-                            "oneOf": [sensor.id for sensor in row_sensors],
-                        }
+        # Draw circle markers that are shown on hover
+        layers.append(
+            create_circle_layer(
+                row_sensors,
+                event_start_field_definition,
+                event_value_field_definition,
+                sensor_field_definition,
+                shared_tooltip,
+            )
+        )
+        layers.append(REPLAY_RULER)
+
+        # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
+        sensor_specs = {
+            "title": f"{capitalize(title)}" if title else None,
+            "transform": [
+                {
+                    "filter": {
+                        "field": "sensor.id",
+                        "oneOf": [sensor.id for sensor in row_sensors],
                     }
-                ],
-                "layer": layers,
-                "width": "container",
-            }
-            sensors_specs.append(sensor_specs)
+                }
+            ],
+            "layer": layers,
+            "width": "container",
+        }
+        sensors_specs.append(sensor_specs)
 
     # Vertically concatenate the rows
     chart_specs = dict(
