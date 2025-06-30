@@ -9,8 +9,8 @@ import websockets
 async def main():
     uri = "ws://127.0.0.1:5000/ping1"
     headers = {
-        'X-Custom-Header': 'SomeValue',
-        'Authorization': 'Bearer YourToken',
+        "X-Custom-Header": "SomeValue",
+        "Authorization": "Bearer YourToken",
     }
 
     async with websockets.connect(uri, extra_headers=headers) as ws:
