@@ -1068,6 +1068,7 @@ def chart_for_chargepoint_sessions(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
+                            "title": "Asset",
                             "orient": "right",
                             "columns": 1,
                             "direction": "vertical",
