@@ -25,7 +25,7 @@ New features
 * Add toggle to show sensors stats based on selected daterange. [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_ and `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_]
 * Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_ and `PR #1544 <https://github.com/FlexMeasures/flexmeasures/pull/1544>`_]
 * Modified Account, Asset and Sensor model ACL to give consultant role more permissions. ALso add testcases to check if these permissions work as expected [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_ and `PR #1550 <https://github.com/FlexMeasures/flexmeasures/pull/1550>`_]
-* Group by source id in stats and show model and version with source name in UI in sensor page. [see `PR #1548 <https://github.com/FlexMeasures/flexmeasures/pull/1548>`_]
+* Group statistics on the UI's sensor page by data source ID, and show the description and ID of each data source [see `PR #1548 <https://github.com/FlexMeasures/flexmeasures/pull/1548>`_]
 * Added 2FA support for email and added _macros.html for UI components. [see `PR #1555 <https://github.com/FlexMeasures/flexmeasures/pull/1555>`_]
 
 Infrastructure / Support
