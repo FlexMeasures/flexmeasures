@@ -944,11 +944,11 @@ def chart_for_chargepoint_sessions(
                     "y": {
                         "field": "asset_id",
                         "type": "nominal",
-                        "title": "Sessions",
                         "scale": {
                             "domain": {"selection": "arr_dep", "field": "asset_id"}
                         },
-                        "axis": None,
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
                     },
                     "yOffset": {
                         "field": "session_id",
@@ -1052,7 +1052,8 @@ def chart_for_chargepoint_sessions(
                                 "field": "asset_id",
                             }
                         },
-                        "axis": None,
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
                     },
                     "yOffset": {
                         "field": "session_id",
@@ -1153,7 +1154,8 @@ def chart_for_chargepoint_sessions(
                                 "field": "asset_id",
                             }
                         },
-                        "axis": None,
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
                     },
                     "yOffset": {
                         "field": "session_id",
