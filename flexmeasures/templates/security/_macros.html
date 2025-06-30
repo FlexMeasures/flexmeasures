@@ -1,0 +1,21 @@
+{% macro render_field_with_errors(field) %}
+  <div class="fs-div" id="{{ field.id|default('fs-field') }}">
+    {{ field.label }} {{ field(**kwargs)|safe }}
+    {% if field.errors %}
+        <div class="mt-2">
+            <ul class="list-unstyled mb-0">
+            {% for error in field.errors %}
+                <li class="text-danger small d-flex align-items-center gap-2">
+                <i class="fa fa-exclamation-triangle"></i>
+                {{ error }}
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro render_field(field) %}
+    <div class="fs-div mt-2" id="{{ field.id|default('fs-field') }}">{{ field(**kwargs)|safe }}</div>
+{% endmacro %}

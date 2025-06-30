@@ -10,6 +10,7 @@ v0.27.0 | August XX, 2025
 
 .. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -------------
@@ -25,6 +26,7 @@ New features
 * Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_ and `PR #1544 <https://github.com/FlexMeasures/flexmeasures/pull/1544>`_]
 * Modified Account, Asset and Sensor model ACL to give consultant role more permissions. ALso add testcases to check if these permissions work as expected [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_ and `PR #1550 <https://github.com/FlexMeasures/flexmeasures/pull/1550>`_]
 * Group by source id in stats and show model and version with source name in UI in sensor page. [see `PR #1548 <https://github.com/FlexMeasures/flexmeasures/pull/1548>`_]
+* Added 2FA support for email and added _macros.html for UI components. [see `PR #1555 <https://github.com/FlexMeasures/flexmeasures/pull/1555>`_]
 
 Infrastructure / Support
 ----------------------
