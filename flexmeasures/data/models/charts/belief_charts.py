@@ -961,7 +961,7 @@ def chart_for_chargepoint_sessions(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "bottom",
+                            "orient": "right",
                             "columns": 1,
                             "direction": "vertical",
                         },
@@ -1068,7 +1068,7 @@ def chart_for_chargepoint_sessions(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "bottom",
+                            "orient": "right",
                             "columns": 1,
                             "direction": "vertical",
                         },
@@ -1168,7 +1168,7 @@ def chart_for_chargepoint_sessions(
                         "field": "asset",
                         "type": "nominal",
                         "legend": {
-                            "orient": "bottom",
+                            "orient": "right",
                             "columns": 1,
                             "direction": "vertical",
                         },
