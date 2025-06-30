@@ -77,6 +77,7 @@ class Config(object):
     )
     SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
     SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
+    SECURITY_TWO_FACTOR_RESCUE_EMAIL=True
 
     # Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" here
     CORS_ORIGINS: list[str] | str = []
