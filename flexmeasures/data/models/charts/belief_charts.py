@@ -932,6 +932,7 @@ def chart_for_chargepoint_sessions(
                     "x2": {
                         "field": "departure",
                         "type": "temporal",
+                        "title": None,
                         "scale": {
                             "domain": [
                                 event_starts_after.timestamp() * 1000,
@@ -942,7 +943,7 @@ def chart_for_chargepoint_sessions(
                     "y": {
                         "field": "asset_id",
                         "type": "nominal",
-                        "title": "EVSE ID",
+                        "title": "Sessions",
                         "scale": {
                             "domain": {"selection": "arr_dep", "field": "asset_id"}
                         },
@@ -1024,7 +1025,6 @@ def chart_for_chargepoint_sessions(
                     "x": {
                         "field": "plug in",
                         "type": "temporal",
-                        "title": "Sessions",
                         "scale": {
                             "domain": [
                                 event_starts_after.timestamp() * 1000,
@@ -1045,7 +1045,6 @@ def chart_for_chargepoint_sessions(
                     "y": {
                         "field": "asset_id",
                         "type": "nominal",
-                        "title": "EVSE ID",
                         "scale": {
                             "domain": {
                                 "selection": "plugin_plugout",
