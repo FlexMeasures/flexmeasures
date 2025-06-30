@@ -1216,5 +1216,5 @@ def chart_for_chargepoint_sessions(
         for chart in chart_specs["vconcat"]
         if chart["title"] in ["Prices", "Power flow by type"]
     ]
-    chart_specs["vconcat"].append(cp_chart)
+    chart_specs["vconcat"].insert(0, cp_chart)
     return chart_specs
