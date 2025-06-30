@@ -4,7 +4,7 @@ Tooling & docs for implementing our auth policy
 
 from __future__ import annotations
 
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 from flask import current_app
 from flask_security import current_user
@@ -22,7 +22,9 @@ CONSULTANT_ROLE = "consultant"
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
 
 # todo: Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-PRINCIPALS_TYPE = Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
+PRINCIPALS_TYPE = Optional[
+    Union[str, Tuple[str], List[Optional[Union[str, Tuple[str]]]]]
+]
 
 
 class AuthModelMixin(object):
@@ -66,6 +68,9 @@ class AuthModelMixin(object):
         Iterable principal descriptors should be treated as follows:
         - a list contains OR-connected items, which can be principal or tuples of principals (one of the items in the list is sufficient to grant the permission)
         - a tuple contains AND-connected strings (you need all of the items in the list to grant the permission).
+
+        Empty principals (e.g. None, an empty list, tuple or string) will not match and the user will not be given the permission.
+        We want to prevent accidental bugs this way. If you provide access, do it explicitly.
 
         # Row-level authorization
 
@@ -138,6 +143,8 @@ def user_matches_principals(user, principals: PRINCIPALS_TYPE) -> bool:
     if not isinstance(principals, list):
         principals = [principals]  # now we handle a list of str or Tuple[str]
     for matchable_principals in principals:
+        if matchable_principals is None or len(matchable_principals) == 0:
+            continue  # these cases will not evaluate to True, rather use the explicit case (see below)
         if isinstance(matchable_principals, str):
             matchable_principals = (
                 matchable_principals,

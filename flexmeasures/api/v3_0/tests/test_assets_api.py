@@ -548,7 +548,7 @@ def test_consultant_can_read(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
-def test_consultant_can_not_patch(
+def test_consultant_can_patch(
     client, setup_api_test_data, setup_accounts, requesting_user, db
 ):
     """
@@ -567,7 +567,7 @@ def test_consultant_can_not_patch(
         },
     )
     print(f"Editing Response: {asset_edit_response.json}")
-    assert asset_edit_response.status_code == 403
+    assert asset_edit_response.status_code == 200
 
 
 @pytest.mark.parametrize(
