@@ -544,7 +544,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             name=self.name,
             sensor_unit=self.unit,
             description=f"{self.name} ({self.generic_asset.name})",
-            asset_description=f"{self.generic_asset.name} ({parent_asset.name})",
+            asset_description=f"{self.generic_asset.name}"
+            + (f" ({parent_asset.name})" if parent_asset is not None else ""),
         )
 
     @classmethod
