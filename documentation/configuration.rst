@@ -402,6 +402,15 @@ You can also set this in a file (which some Flask tutorials advise).
 
 Default: ``None``
 
+SECURITY_TOTP_SECRETS
+^^^^^^^^^^^^^^^^^^^^
+
+Used to sign TOTP tokens.
+
+.. note:: Leave this setting set to ``None`` to get more instructions when you attempt to run FlexMeasures.
+
+Default: ``None``
+
 SECURITY_PASSWORD_SALT
 ^^^^^^^^^^^^^^^^^^^^^^
 
