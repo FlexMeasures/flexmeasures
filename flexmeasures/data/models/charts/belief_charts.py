@@ -965,6 +965,7 @@ def chart_for_chargepoint_sessions(
                             "orient": "right",
                             "columns": 1,
                             "direction": "vertical",
+                            "labelLimit": 200,
                         },
                     },
                     "tooltip": [
@@ -1074,6 +1075,7 @@ def chart_for_chargepoint_sessions(
                             "orient": "right",
                             "columns": 1,
                             "direction": "vertical",
+                            "labelLimit": 200,
                         },
                     },
                     "tooltip": [
@@ -1175,6 +1177,7 @@ def chart_for_chargepoint_sessions(
                             "orient": "right",
                             "columns": 1,
                             "direction": "vertical",
+                            "labelLimit": 200,
                         },
                     },
                     "tooltip": [
