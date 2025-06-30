@@ -8,11 +8,12 @@ def main():
         "X-Custom-Header": "SomeValue",
         # 'Authorization': 'Bearer YourToken',
     }
-    ws = Client.connect("ws://127.0.0.1:5000/ping1", headers=headers)
+    ws = Client.connect("ws://127.0.0.1:5000/s2", headers=headers)
     try:
         print("Connected to the WebSocket server!")
 
         # Get initial metadata message
+        ws.send("Hello")
         initial_msg = json.loads(ws.receive())
         print(initial_msg)
         if initial_msg.get("type") != "metadata":

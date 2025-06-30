@@ -71,10 +71,7 @@ def create(  # noqa C901
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
     add_basic_error_handlers(app)
-    if (
-        app.config.get("FLEXMEASURES_ENV") not in ("development", "documentation")
-        and not app.testing
-    ):
+    if app.config.get("FLEXMEASURES_ENV") not in ("development", "documentation") and not app.testing:
         init_sentry(app)
 
     app.mail = Mail(app)
@@ -85,9 +82,7 @@ def create(  # noqa C901
     if app.testing:
         from fakeredis import FakeStrictRedis
 
-        redis_conn = FakeStrictRedis(
-            host="redis", port="1234"
-        )  # dummy connection details
+        redis_conn = FakeStrictRedis(host="redis", port="1234")  # dummy connection details
     else:
         redis_conn = Redis(
             app.config["FLEXMEASURES_REDIS_URL"],
@@ -143,9 +138,7 @@ def create(  # noqa C901
     schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
 
     app.data_generators = dict()
-    app.data_generators["reporter"] = copy(
-        reporters
-    )  # use copy to avoid mutating app.reporters
+    app.data_generators["reporter"] = copy(reporters)  # use copy to avoid mutating app.reporters
     app.data_generators["scheduler"] = schedulers
 
     # add auth policy
@@ -219,9 +212,7 @@ def create(  # noqa C901
         if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
             diff = time.time() - g.start
             if all([kw not in request.url for kw in ["/static", "favicon.ico"]]):
-                app.logger.info(
-                    f"[PROFILE] {str(round(diff, 2)).rjust(6)} seconds to serve {request.url}."
-                )
+                app.logger.info(f"[PROFILE] {str(round(diff, 2)).rjust(6)} seconds to serve {request.url}.")
                 if not hasattr(g, "profiler"):
                     return app
                 g.profiler.stop()
@@ -231,13 +222,9 @@ def create(  # noqa C901
                     endpoint = "unknown"
                 today = date.today()
                 profile_filename = f"pyinstrument_{endpoint}.html"
-                profile_output_path = Path(
-                    "profile_reports", today.strftime("%Y-%m-%d")
-                )
+                profile_output_path = Path("profile_reports", today.strftime("%Y-%m-%d"))
                 profile_output_path.mkdir(parents=True, exist_ok=True)
-                with open(
-                    os.path.join(profile_output_path, profile_filename), "w+"
-                ) as f:
+                with open(os.path.join(profile_output_path, profile_filename), "w+") as f:
                     f.write(output_html)
 
     return app

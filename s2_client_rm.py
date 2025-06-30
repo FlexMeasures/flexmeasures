@@ -146,14 +146,14 @@ class MyNoControlControlType(NoControlControlType):
 
 if __name__ == "__main__":
     # Configuration
-    parser = argparse.ArgumentParser(description="S2 pairing example for FRBC RM")
-    parser.add_argument("--pairing_endpoint", type=str, required=True)
-    parser.add_argument("--pairing_token", type=str, required=True)
+    # parser = argparse.ArgumentParser(description="S2 pairing example for FRBC RM")
+    # parser.add_argument("--pairing_endpoint", type=str, required=True)
+    # parser.add_argument("--pairing_token", type=str, required=True)
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
-    pairing_endpoint = args.pairing_endpoint
-    pairing_token = args.pairing_token
+    # pairing_endpoint = args.pairing_endpoint
+    # pairing_token = args.pairing_token
 
     # --- Client Setup ---
     # Create node description
@@ -168,6 +168,8 @@ if __name__ == "__main__":
     )
 
     # Create a client to perform the pairing
+    pairing_endpoint = "ws://127.0.0.1:5000/s2"
+    pairing_token = "1234567890"
     client = S2DefaultClient(
         pairing_uri=pairing_endpoint,
         token=PairingToken(token=pairing_token),
@@ -191,7 +193,7 @@ if __name__ == "__main__":
         # logger.info("Challenge solved successfully")
 
         s2_connection = S2Connection(
-            url="wss://127.0.0.1:5000/v1",  # type: ignore
+            url="ws://127.0.0.1:5000/s2",  # type: ignore
             role=EnergyManagementRole.RM,
             control_types=[MyFRBCControlType(), MyNoControlControlType()],
             asset_details=AssetDetails(

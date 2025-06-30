@@ -65,16 +65,20 @@ class MessageHandlers:
                     eventloop = asyncio.get_event_loop()
                     await eventloop.run_in_executor(executor=None, func=do_message)
             except Exception:
+                message_id = getattr(msg, "message_id", "N/A")
                 logger.error(
                     "While processing message %s an unrecoverable error occurred.",
-                    msg.message_id,  # type: ignore[attr-defined]
+                    message_id,
                 )
                 logger.error("Error: %s", traceback.format_exc())
                 await server.respond_with_reception_status(
-                    subject_message_id=msg.message_id,  # type: ignore[attr-defined]
+                    subject_message_id=getattr(
+                        msg,
+                        "message_id",
+                        uuid.UUID("00000000-0000-0000-0000-000000000000"),
+                    ),
                     status=ReceptionStatusValues.PERMANENT_ERROR,
-                    diagnostic_label=f"While processing message {msg.message_id} "  # type: ignore[attr-defined]
-                    f"an unrecoverable error occurred.",
+                    diagnostic_label=f"While processing message {message_id} an unrecoverable error occurred.",
                     websocket=websocket,
                 )
                 raise
@@ -99,7 +103,7 @@ class S2FlaskWSServer:
     def __init__(
         self,
         role: EnergyManagementRole = EnergyManagementRole.CEM,
-        ws_path: str = "/",
+        ws_path: str = "/s2",
         app: Optional[Flask] = None,
         sock: Optional[Sock] = None,
     ) -> None:
@@ -114,8 +118,8 @@ class S2FlaskWSServer:
         self.role = role
         self.ws_path = ws_path
 
-        self.app = app or Flask(__name__)
-        self.sock = sock or Sock(self.app)
+        self.app = app if app else Flask(__name__)
+        self.sock = sock if sock else Sock(self.app)
 
         self._handlers = MessageHandlers()
         self.s2_parser = S2Parser()
@@ -123,6 +127,7 @@ class S2FlaskWSServer:
         self.reception_status_awaiter = ReceptionStatusAwaiter()
 
         self._register_default_handlers()
+        self.sock.route(self.ws_path)(self._ws_handler)
 
     def _register_default_handlers(self) -> None:
         """Register default message handlers."""
@@ -137,16 +142,16 @@ class S2FlaskWSServer:
         be able to run the async handler directly.
         """
         try:
+            self.app.logger.info("Received connection from client")
             asyncio.run(self._handle_websocket_connection(ws))
         except Exception as e:
             # The websocket is likely closed, or another network error occurred.
-            logger.error("Error in websocket handler: %s", e)
-    
-    @sock.route("/s2")
+            self.app.logger.error("Error in websocket handler: %s", e)
+
     async def _handle_websocket_connection(self, websocket: Sock) -> None:
         """Handle incoming WebSocket connections."""
         client_id = str(uuid.uuid4())
-        logger.info("Client %s connected.", client_id)
+        self.app.logger.info("Client %s connected.", client_id)
         self._connections[client_id] = websocket
 
         try:
@@ -192,14 +197,14 @@ class S2FlaskWSServer:
                             websocket=websocket,
                         )
                 except Exception as e:
-                    logger.error("Error processing message: %s", str(e))
+                    self.app.logger.error("Error processing message: %s", str(e))
                     raise
         except ConnectionClosed:
-            logger.info("Connection with client %s closed", client_id)
+            self.app.logger.info("Connection with client %s closed", client_id)
         finally:
             if client_id in self._connections:
                 del self._connections[client_id]
-            logger.info("Client %s disconnected", client_id)
+            self.app.logger.info("Client %s disconnected", client_id)
 
     async def respond_with_reception_status(
         self,
@@ -210,13 +215,15 @@ class S2FlaskWSServer:
     ) -> None:
         """Send a reception status response."""
         response = ReceptionStatus(
-            subject_message_id=subject_message_id, status=status, diagnostic_label=diagnostic_label
+            subject_message_id=subject_message_id,
+            status=status,
+            diagnostic_label=diagnostic_label,
         )
-        logger.info("Sending reception status %s for message %s", status, subject_message_id)
+        self.app.logger.info("Sending reception status %s for message %s", status, subject_message_id)
         try:
             await websocket.send(response.to_json())
         except ConnectionClosed:
-            logger.warning("Connection closed while sending reception status")
+            self.app.logger.warning("Connection closed while sending reception status")
 
     async def send_msg_and_await_reception_status_async(
         self,
@@ -227,25 +234,26 @@ class S2FlaskWSServer:
     ) -> ReceptionStatus:
         """Send a message and await a reception status."""
         await self._send_and_forget(s2_msg, websocket)
+        message_id = getattr(s2_msg, "message_id", uuid.UUID("00000000-0000-0000-0000-000000000000"))
         try:
-            response = await asyncio.wait_for(websocket.receive(), timeout=timeout_reception_status)
+            await asyncio.wait_for(websocket.receive(), timeout=timeout_reception_status)
             # Assuming the response is the correct reception status
             return ReceptionStatus(
-                subject_message_id=s2_msg.message_id,  # type: ignore[attr-defined]
+                subject_message_id=message_id,
                 status=ReceptionStatusValues.OK,
                 diagnostic_label="Reception status received.",
             )
         except asyncio.TimeoutError:
             if raise_on_error:
-                raise TimeoutError(f"Did not receive a reception status on time for {s2_msg.message_id}")  # type: ignore[attr-defined]
+                raise TimeoutError(f"Did not receive a reception status on time for {message_id}")
             return ReceptionStatus(
-                subject_message_id=s2_msg.message_id,  # type: ignore[attr-defined]
+                subject_message_id=message_id,
                 status=ReceptionStatusValues.PERMANENT_ERROR,
                 diagnostic_label="Timeout waiting for reception status.",
             )
         except ConnectionClosed:
             return ReceptionStatus(
-                subject_message_id=s2_msg.message_id,  # type: ignore[attr-defined]
+                subject_message_id=message_id,
                 status=ReceptionStatusValues.OK,
                 diagnostic_label="Connection closed, assuming OK status.",
             )
@@ -254,11 +262,14 @@ class S2FlaskWSServer:
         """Handle handshake messages."""
         if not isinstance(message, Handshake):
             return
-
+        self.app.logger.info("Received Handshake: %s", message.to_json())
         handshake_response = HandshakeResponse(
-            message_id=message.message_id, selected_protocol_version=message.supported_protocol_versions
+            message_id=message.message_id,
+            selected_protocol_version=(
+                message.supported_protocol_versions[0] if message.supported_protocol_versions else "2.0.0"
+            ),  # TODO: proper version negotiation
         )
-        await self.send_msg_and_await_reception_status_async(handshake_response, websocket)
+        await self._send_and_forget(handshake_response, websocket)
 
         await self.respond_with_reception_status(
             subject_message_id=message.message_id,
@@ -271,20 +282,20 @@ class S2FlaskWSServer:
         """Handle reception status messages."""
         if not isinstance(message, ReceptionStatus):
             return
-        logger.info("Received ReceptionStatus in handle_reception_status: %s", message.to_json())
+        self.app.logger.info("Received ReceptionStatus in handle_reception_status: %s", message.to_json())
 
     async def handle_handshake_response(self, _: "S2FlaskWSServer", message: S2Message, websocket: Sock) -> None:
         """Handle handshake response messages."""
         if not isinstance(message, HandshakeResponse):
             return
-        logger.debug("Received HandshakeResponse: %s", message.to_json())
+        self.app.logger.debug("Received HandshakeResponse: %s", message.to_json())
 
     async def _send_and_forget(self, s2_msg: S2Message, websocket: Sock) -> None:
         """Send a message and forget about it."""
         try:
             await websocket.send(s2_msg.to_json())
         except ConnectionClosed:
-            logger.warning("Connection closed while sending message")
+            self.app.logger.warning("Connection closed while sending message")
 
     async def send_select_control_type(self, control_type: ControlType, websocket: Sock) -> None:
         """Select the control type."""

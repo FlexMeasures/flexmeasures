@@ -74,6 +74,7 @@ flask==3.1.1
     #   flask-migrate
     #   flask-principal
     #   flask-security-too
+    #   flask-sock
     #   flask-sqlalchemy
     #   flask-sslify
     #   flask-wtf
@@ -99,6 +100,8 @@ flask-principal==0.4.0
     # via flask-security-too
 flask-security-too==5.6.2
     # via -r requirements/app.in
+flask-sock==0.7.0
+    # via -r requirements/app.in
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
@@ -115,8 +118,8 @@ flexparser==0.4
     # via pint
 fonttools==4.58.2
     # via matplotlib
-greenlet==3.2.3
-    # via sqlalchemy
+h11==0.16.0
+    # via wsproto
 humanize==4.12.3
     # via -r requirements/app.in
 idna==3.10
@@ -320,6 +323,8 @@ scipy==1.15.3
     #   timetomodel
 sentry-sdk[flask]==2.29.1
     # via -r requirements/app.in
+simple-websocket==1.1.0
+    # via flask-sock
 six==1.17.0
     # via python-dateutil
 sktime==0.37.0
@@ -384,6 +389,8 @@ werkzeug==3.1.3
     #   flask-login
 workalendar==17.0.0
     # via -r requirements/app.in
+wsproto==1.2.0
+    # via simple-websocket
 wtforms==3.2.1
     # via
     #   flask-security-too
