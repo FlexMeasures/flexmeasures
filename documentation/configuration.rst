@@ -402,6 +402,9 @@ You can also set this in a file (which some Flask tutorials advise).
 
 Default: ``None``
 
+
+.. _security_totp_secrets:
+
 SECURITY_TOTP_SECRETS
 ^^^^^^^^^^^^^^^^^^^^^
 

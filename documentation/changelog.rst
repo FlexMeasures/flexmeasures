@@ -10,9 +10,13 @@ v0.27.0 | August XX, 2025
 
 .. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. warning:: Upgrading to this version requires the following steps:
 
-.. warning:: Upgrading to this version requires to add SECURITY_TOTP_SECRETS (dictionary) to either the ``.env``, ``.flexmeasures.cfg`` or a new file named ``totp_secrets`` in the app's instance directory.
+             - Add the :ref:`SECURITY_TOTP_SECRETS configuration setting <security_totp_secrets>` to either the ``.env``, ``.flexmeasures.cfg`` or a new file named ``totp_secrets`` in the app's instance directory.
+               FlexMeasures will not run without it.
+               It will advise you how to set it on startup, however.
+             - Run ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 
 New features
 -------------
