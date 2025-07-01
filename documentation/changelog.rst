@@ -12,6 +12,8 @@ v0.27.0 | August XX, 2025
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
+.. warning:: Upgrading to this version requires to add SECURITY_TOTP_SECRETS (dictionary) to either the ``.env``, ``.flexmeasures.cfg`` or a new file named ``totp_secrets`` in the app's instance directory.
+
 New features
 -------------
 
