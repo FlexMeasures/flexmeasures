@@ -408,7 +408,8 @@ Default: ``None``
 SECURITY_TOTP_SECRETS
 ^^^^^^^^^^^^^^^^^^^^^
 
-Used to sign :abbr:`TOTP (time-based one-time password)` tokens.
+A dictionary with secrets used to sign :abbr:`TOTP (time-based one-time password)` tokens.
+For example, ``{"1": "00000000000000000000000000000000"}``.
 
 Default: ``None``
 
