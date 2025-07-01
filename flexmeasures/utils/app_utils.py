@@ -86,7 +86,7 @@ def set_secret_key(app, filename="secret_key"):
 
         You can add the SECRET_KEY setting to your conf file (this example works only on Unix):
 
-        echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
+        echo "SECRET_KEY=\\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\\"" >> ~/.flexmeasures.cfg
 
         OR you can add an env var:
 
@@ -116,11 +116,11 @@ def log_totp_secrets_error_and_exit(app, filename):
 
         Update your %s file to contain a dictionary:
 
-        echo "{\"1\": \"$(head -c 24 /dev/urandom | base64)\"}" > %s
+        echo "{\\"1\\": \\"$(head -c 24 /dev/urandom | base64)\\"}" > %s
 
         You can also use Python to create a good secret:
 
-        python -c 'import secrets; print(f"{{\"1\": \"{secrets.token_urlsafe()}\"}}")'
+        python -c 'import secrets; print(f"{{\\"1\\": \\"{secrets.token_urlsafe()}\\"}}")'
 
         """
         % (os.path.dirname(filename), filename, filename)
@@ -159,7 +159,7 @@ def set_totp_secrets(app, filename="totp_secrets"):
     try:
         security_totp_secrets = open(filename, "r").read()
         security_totp_secrets = json.loads(security_totp_secrets)
-        
+
         # Now check if it's a dictionary
         if isinstance(security_totp_secrets, dict):
             app.config["SECURITY_TOTP_SECRETS"] = security_totp_secrets
@@ -184,11 +184,11 @@ def set_totp_secrets(app, filename="totp_secrets"):
         OR you can create a secret key file (this example works only on Unix):
 
         mkdir -p %s
-        echo "{\"1\": \"$(head -c 24 /dev/urandom | base64)\"}" > %s
+        echo "{\\"1\\": \\"$(head -c 24 /dev/urandom | base64)\\"}" > %s
 
         You can also use Python to create a good secret:
 
-        python -c 'import secrets; print(f"{{\"1\": \"{secrets.token_urlsafe()}\"}}")'
+        python -c 'import secrets; print(f"{{\\"1\\": \\"{secrets.token_urlsafe()}\\"}}")'
 
         """
             % (os.path.dirname(filename), filename)
