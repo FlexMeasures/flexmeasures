@@ -145,7 +145,6 @@ class S2FlaskWSServer:
             self.app.logger.info("Received connection from client")
             asyncio.run(self._handle_websocket_connection(ws))
         except Exception as e:
-            # The websocket is likely closed, or another network error occurred.
             self.app.logger.error("Error in websocket handler: %s", e)
 
     async def _handle_websocket_connection(self, websocket: Sock) -> None:
@@ -278,17 +277,24 @@ class S2FlaskWSServer:
             websocket=websocket,
         )
 
-    async def handle_reception_status(self, _: "S2FlaskWSServer", message: S2Message, websocket: Sock) -> None:
-        """Handle reception status messages."""
-        if not isinstance(message, ReceptionStatus):
-            return
-        self.app.logger.info("Received ReceptionStatus in handle_reception_status: %s", message.to_json())
-
     async def handle_handshake_response(self, _: "S2FlaskWSServer", message: S2Message, websocket: Sock) -> None:
         """Handle handshake response messages."""
         if not isinstance(message, HandshakeResponse):
             return
         self.app.logger.debug("Received HandshakeResponse: %s", message.to_json())
+        # Send ReceptionStatus (OK) for the HandshakeResponse message
+        await self.respond_with_reception_status(
+            subject_message_id=message.message_id,
+            status=ReceptionStatusValues.OK,
+            diagnostic_label="HandshakeResponse processed okay.",
+            websocket=websocket,
+        )
+
+    async def handle_reception_status(self, _: "S2FlaskWSServer", message: S2Message, websocket: Sock) -> None:
+        """Handle reception status messages."""
+        if not isinstance(message, ReceptionStatus):
+            return
+        self.app.logger.info("Received ReceptionStatus in handle_reception_status: %s", message.to_json())
 
     async def _send_and_forget(self, s2_msg: S2Message, websocket: Sock) -> None:
         """Send a message and forget about it."""
