@@ -167,7 +167,7 @@ def set_totp_secrets(app, filename="totp_secrets"):
             log_totp_secrets_error_and_exit(app, filename)
     except json.JSONDecodeError:
         log_totp_secrets_error_and_exit(app, filename)
-    except IOError:
+    except (IOError, UnicodeDecodeError):
         app.logger.error(
             """
         Error:  No SECURITY_TOTP_SECRETS set (required for two-factor authentication).
