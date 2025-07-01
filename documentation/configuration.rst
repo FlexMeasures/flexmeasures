@@ -407,11 +407,10 @@ SECURITY_TOTP_SECRETS
 
 Used to sign TOTP tokens.
 
-.. note:: Leave this setting set to ``None`` to get more instructions when you attempt to run FlexMeasures.
-
 Default: ``None``
 
-.. note:: This setting is also recognized as environment variable.
+.. note:: Leave this setting set to ``None`` to get more instructions when you attempt to run FlexMeasures.
+          This setting is also recognized as environment variable.
 
 SECURITY_PASSWORD_SALT
 ^^^^^^^^^^^^^^^^^^^^^^
