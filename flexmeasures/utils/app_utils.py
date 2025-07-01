@@ -114,16 +114,12 @@ def log_totp_secrets_error_and_exit(app, filename):
         """
         ERROR: The file %s exists but does not contain a valid dictionary.
 
-        Update your %s file to contain a dictionary:
+        The correct format is:
 
-        echo "{\\"1\\": \\"$(head -c 24 /dev/urandom | base64)\\"}" > %s
-
-        You can also use Python to create a good secret:
-
-        python -c 'import secrets; print(f"{{\\"1\\": \\"{secrets.token_urlsafe()}\\"}}")'
+        {"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
 
         """
-        % (os.path.dirname(filename), filename, filename)
+        % (filename)
     )
     sys.exit(2)
 
