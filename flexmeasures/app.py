@@ -113,6 +113,10 @@ def create(  # noqa C901
     set_secret_key(app)
     if app.config.get("SECURITY_TWO_FACTOR", False):
         set_totp_secrets(app)
+    elif app.config.get("FLEXMEASURES_ENV") == "production":
+        app.logger.warning(
+            "SECURITY_TWO_FACTOR is False. We advise to set it to True in a production environment."
+        )
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
