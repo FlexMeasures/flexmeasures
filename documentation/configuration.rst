@@ -553,7 +553,7 @@ Password of mail system user.
 Default: ``None``
 
 
-.. _monitoring
+.. _monitoring:
 
 Monitoring
 -----------
