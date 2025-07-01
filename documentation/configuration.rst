@@ -411,6 +411,8 @@ Used to sign TOTP tokens.
 
 Default: ``None``
 
+.. note:: This setting is also recognized as environment variable.
+
 SECURITY_PASSWORD_SALT
 ^^^^^^^^^^^^^^^^^^^^^^
 
