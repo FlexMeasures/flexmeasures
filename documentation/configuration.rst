@@ -405,7 +405,7 @@ Default: ``None``
 SECURITY_TOTP_SECRETS
 ^^^^^^^^^^^^^^^^^^^^^
 
-Used to sign TOTP tokens.
+Used to sign :abbr:`TOTP (time-based one-time password)` tokens.
 
 Default: ``None``
 
