@@ -312,3 +312,5 @@ Finally, add this config setting to your FlexMeasures config file (using the tem
  .. code-block:: python
 
     SECURITY_LOGIN_USER_TEMPLATE = "my_user_login.html"
+
+Similarly, to cover the 2FA step in the login procedure, you might want to update ``ui/templates/admin/two_factor_verify_code.html`` and SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE.
