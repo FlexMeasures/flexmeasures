@@ -111,7 +111,8 @@ def create(  # noqa C901
     # Some basic security measures
 
     set_secret_key(app)
-    set_totp_secrets(app)
+    if app.config.get("SECURITY_TWO_FACTOR", False):
+        set_totp_secrets(app)
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
