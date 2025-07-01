@@ -43,6 +43,9 @@ def fall_back_to_flask_template(render_function):
 @fall_back_to_flask_template
 def render_flexmeasures_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
+    variables["FLEXMEASURES_ALLOW_DATA_OVERWRITE"] = current_app.config.get(
+        "FLEXMEASURES_ALLOW_DATA_OVERWRITE"
+    )
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
         "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
     )

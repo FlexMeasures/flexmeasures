@@ -8,14 +8,34 @@ FlexMeasures Changelog
 v0.27.0 | August XX, 2025
 ============================
 
+.. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 
+* New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices [see `PR #1065 <https://github.com/FlexMeasures/flexmeasures/pull/1065/>`_]
+* Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_]
 * Allow editing users in the UI [see `PR #1502 <https://github.com/FlexMeasures/flexmeasures/pull/1502>`_]
+* Smarter toast notifications [see `PR #1530 <https://github.com/FlexMeasures/flexmeasures/pull/1530>`_]
+* Move various warnings to toast notifications [see `PR #1529 <https://github.com/FlexMeasures/flexmeasures/pull/1529>`_]
+* Document how to set a parent asset when creating an asset through the API, and show parent assets in ``flexmeasures show account`` [see `PR #1533 <https://github.com/FlexMeasures/flexmeasures/pull/1533>`_]
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account [see `PR #1536 <https://github.com/FlexMeasures/flexmeasures/pull/1536>`_]
+* Add toggle to show sensors stats based on selected daterange. [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_ and `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_]
+* Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_ and `PR #1544 <https://github.com/FlexMeasures/flexmeasures/pull/1544>`_]
+* Modified Account, Asset and Sensor model ACL to give consultant role more permissions. ALso add testcases to check if these permissions work as expected [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_ and `PR #1550 <https://github.com/FlexMeasures/flexmeasures/pull/1550>`_]
+* Group statistics on the UI's sensor page by data source ID, and show the description and ID of each data source [see `PR #1548 <https://github.com/FlexMeasures/flexmeasures/pull/1548>`_]
+* Added :abbr:`2FA (two-factor authentication)` support for email and added ``_macros.html`` for UI components [see `PR #1555 <https://github.com/FlexMeasures/flexmeasures/pull/1555>`_]
 
 Infrastructure / Support
 ----------------------
+* Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_ and `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_]
+* Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
+* In authorization, prevent accidental errors by not matching empty principals [see `PR #1556 <https://github.com/FlexMeasures/flexmeasures/pull/1556>`_]
 * Tests: guarantee a clean db upon creating the test db [see `PR #1518 <https://github.com/FlexMeasures/flexmeasures/pull/1518>`_]
+* Stopped testing Python3.8 in our GitHub Actions CI [see `PR #1541 <https://github.com/FlexMeasures/flexmeasures/pull/1541>`_]
+* Stopped auto-deploying to Seita's staging server on commits to main. Kept scripts and documentation how to do it. Added short description of the two existing CI workflows [see `PR #1552 <https://github.com/FlexMeasures/flexmeasures/pull/1552>`_]
 
 Bugfixes
 -----------

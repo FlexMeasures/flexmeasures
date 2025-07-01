@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 
 import click
 from flask import Flask, current_app, redirect
@@ -106,6 +107,66 @@ def set_secret_key(app, filename="secret_key"):
         )
 
         sys.exit(2)
+
+
+def set_totp_secrets(app, filename="totp_secrets"):
+    """Set the SECURITY_TOTP_SECRETS or exit.
+
+    We first check if it is already in the config.
+
+    Then we look for it in environment var SECURITY_TOTP_SECRETS.
+
+    Finally, we look for `filename` in the app's instance directory.
+
+    If nothing is found, we print instructions
+    to create the secret and then exit.
+    """
+    totp_secrets = app.config.get("SECURITY_TOTP_SECRETS", None)
+    if totp_secrets is not None:
+        return
+    totp_secrets = os.environ.get("SECURITY_TOTP_SECRETS", None)
+    if totp_secrets is not None:
+        try:
+            # Try to parse the string from the environment variable into a dictionary
+            app.config["SECURITY_TOTP_SECRETS"] = json.loads(totp_secrets)
+            return
+        except json.JSONDecodeError:
+            app.logger.error(
+                "Error: The environment variable SECURITY_TOTP_SECRETS is not valid JSON."
+            )
+            sys.exit(2)
+
+    filename = os.path.join(app.instance_path, filename)
+    try:
+        app.config["SECURITY_TOTP_SECRETS"] = open(filename, "rb").read()
+    except IOError:
+        app.logger.error(
+            """
+        Error:  No SECURITY_TOTP_SECRETS set (required for two-factor authentication).
+
+        You can add the SECURITY_TOTP_SECRETS setting to your conf file (this example works only on Unix):
+
+        echo "SECURITY_TOTP_SECRETS={\\"1\\": \\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\\"}" >> ~/.flexmeasures.cfg
+
+        OR you can add an env var:
+
+        export SECURITY_TOTP_SECRETS={"1": "xxxxxxxxxxxxxxx"}
+        (on windows, use "set" instead of "export")
+
+        OR you can create a secret key file (this example works only on Unix):
+
+        mkdir -p %s
+        head -c 24 /dev/urandom > %s
+
+        You can also use Python to create a good secret:
+
+        python -c "import secrets; print(secrets.token_urlsafe())"
+
+        """
+            % (os.path.dirname(filename), filename)
+        )
+
+    sys.exit(2)
 
 
 def root_dispatcher():

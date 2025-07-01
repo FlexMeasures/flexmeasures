@@ -79,11 +79,12 @@ Configuration
 
 Most configuration happens in a config file, see :ref:`configuration` on where it can live and all supported settings.
 
-For now, we let it live in your home directory and we add the first required setting: a secret key:
+For now, we let it live in your home directory and we add the first two required settings: a secret key and a totp secrets:
 
 .. code-block:: bash
 
    echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
+   echo "SECURITY_TOTP_SECRETS={\"1\":\"$(python3 -c 'import secrets; print(secrets.token_hex(24))')\"}" >> ~/.flexmeasures.cfg
 
    
 Also, we add some env settings in an `.env` file. Create that file in the `flexmeasures` directory (from where you'll run flexmeasures) and enter:
