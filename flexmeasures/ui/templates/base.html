@@ -351,8 +351,8 @@
                 });
 
                 // Reload daterange
-                picker.setDateRange(picker.getStartDate(), picker.getEndDate());
-            });
+                embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult)).resize().run();            });
         }
     });
 
