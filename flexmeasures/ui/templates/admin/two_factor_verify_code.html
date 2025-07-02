@@ -36,10 +36,14 @@
                             {{ render_csrf(two_factor_rescue_form, "rescue") }}
                             {{ render_field_with_errors(two_factor_rescue_form.help_setup, id="rescue-email") }}
                             {% if problem=="email" %}
-                                <div>{{ _fsdomain("The code for authentication was sent to your email address") }}</div>
+                                <div class="alert alert-success mt-2">
+                                    {{ _fsdomain("The code for authentication was sent to your email address.") }}
+                                </div>
                             {% endif %}
                             {% if problem=="help" %}
-                                <div>{{ _fsdomain("An email was sent to us in order to reset your application account") }}</div>
+                                <div class="alert alert-success mt-2">
+                                    {{ _fsdomain("An email was sent to us in order to reset your application account.") }}
+                                </div>
                             {% endif %}
                             {{ render_field(two_factor_rescue_form.submit) }}
                             </form>

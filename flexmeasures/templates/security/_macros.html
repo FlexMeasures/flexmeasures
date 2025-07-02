@@ -1,3 +1,5 @@
+{# Common macros from the original flask-security that we'll override here for additional styling. #}
+
 {% macro render_field_with_errors(field) %}
   <div class="fs-div" id="{{ field.id|default('fs-field') }}">
     {{ field.label }} {{ field(**kwargs)|safe }}
@@ -20,6 +22,7 @@
     <div class="fs-div mt-2" id="{{ field.id|default('fs-field') }}">{{ field(**kwargs)|safe }}</div>
 {% endmacro %}
 
+{# For storing the next URL #}
 {% macro prop_next() -%}
   {% if 'next' in request.args %}?next={{ request.args.next|urlencode }}{% endif %}
 {%- endmacro %}

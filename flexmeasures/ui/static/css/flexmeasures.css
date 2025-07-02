@@ -2005,9 +2005,15 @@ body.touched [title]:hover:after {
 }
 
 #rescue-email {
-  display: inline-grid !important;
+  padding-inline-start: 0 !important;
+  margin: 0 !important;
 }
 
 #rescue-email li {
   display: inline-block !important;
+  border: 1px solid var(--gray);
+  background: azure;
+  margin-right: 1em;
+  text-align: center;
+  border-radius: 0.275rem;
 }
