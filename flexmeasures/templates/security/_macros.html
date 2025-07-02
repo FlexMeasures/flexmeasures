@@ -22,6 +22,8 @@
     <div class="fs-div mt-2" id="{{ field.id|default('fs-field') }}">{{ field(**kwargs)|safe }}</div>
 {% endmacro %}
 
+{# Adding the following macro from the original flask-security because the TFA code will now only look for these macros here. #}
+
 {# For storing the next URL #}
 {% macro prop_next() -%}
   {% if 'next' in request.args %}?next={{ request.args.next|urlencode }}{% endif %}
