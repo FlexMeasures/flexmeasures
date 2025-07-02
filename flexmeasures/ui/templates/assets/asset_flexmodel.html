@@ -182,6 +182,7 @@
         const flexOptionsContainer = document.getElementById('flexOptionsContainer');
         const flexmodelContainer = document.getElementById('flexmodelContainer');
         const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON);
+        const [activeCard, setActiveCard] = createReactiveState(null);
 
 
         function renderFlexSelectOptions() {
@@ -243,6 +244,42 @@
             card.className = 'card m-1 mt-0';
             card.id = `${name}-control`;
 
+            card.onclick = function () {
+                if (card.classList.contains('border-on-click')) {
+                    if (event.target.closest('.fa-times')) {
+                        // trigger the close icon's onclick function
+                        if (activeCard() && activeCard().id === card.id) {
+                            setActiveCard(null); // Deselect if the same card is clicked again
+                            card.classList.remove('border-on-click'); // Remove the border class
+                        }
+                        card.remove(); // Remove the card from the DOM
+                        const flexModel = getFlexModel();
+                        if (Array.isArray(flexModel[name])) {
+                            flexModel[name] = []; 
+                        } else {
+                            flexModel[name] = null; 
+                        }
+
+                        setFlexModel(flexModel); // Update the state
+                        renderFlexSelectOptions(); // Re-render the select options
+                        showToast(`Field "${getFlexContextFieldTitle(name)}" has been unset`, "success");
+                        return;
+                    }
+
+                    if (activeCard() && activeCard().id === card.id) {
+                        setActiveCard(null); // Deselect if the same card is clicked again
+                        card.classList.remove('border-on-click'); // Remove the border class
+                    } else {
+                        setActiveCard(card); // Set the active card
+                    }
+                    return;
+                }
+
+                const allCards = document.querySelectorAll('.card');
+                allCards.forEach(c => c.classList.remove('border-on-click'));
+                card.classList.add('border-on-click');
+            }
+
             const isString = typeof value === "string";
             const isArray = Array.isArray(value);
             const isBool = typeof value === "boolean";
@@ -254,7 +291,16 @@
 
             card.innerHTML = `
                 <div class="card-highlight">
-                    <h5 class="card-title">${getFlexContextFieldTitle(name)}</h5>
+                    <div class="d-flex justify-content-between">
+                        <h5 class="card-title">${getFlexContextFieldTitle(name)}</h5>
+                        <i class="fa fa-times"
+                            onclick=""
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            title="Unset this field"
+                            style="cursor: pointer;"
+                        ></i>
+                    </div>
                     ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
                     ${isBool ? `
                         <div class="form-check form-switch">
