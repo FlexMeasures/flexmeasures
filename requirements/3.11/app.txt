@@ -393,7 +393,7 @@ tzdata==2025.2
     # via pandas
 uniplot==0.21.2
     # via -r requirements/app.in
-urllib3==2.4.0
+urllib3==2.5.0
     # via
     #   requests
     #   sentry-sdk
