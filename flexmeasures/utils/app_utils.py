@@ -170,7 +170,7 @@ def set_totp_secrets(app, filename="totp_secrets"):
 
         You can add the SECURITY_TOTP_SECRETS setting to your conf file (this example works only on Unix):
 
-        echo "SECURITY_TOTP_SECRETS={\\"1\\": \\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\\"}" >> ~/.flexmeasures.cfg
+        echo "SECURITY_TOTP_SECRETS={\\"1\\": \\"`python3 -c 'from passlib import totp; print(totp.generate_secret())'`\\"}" >> ~/.flexmeasures.cfg
 
         OR you can add an env var:
 
@@ -180,11 +180,11 @@ def set_totp_secrets(app, filename="totp_secrets"):
         OR you can create a secret key file (this example works only on Unix):
 
         mkdir -p %s
-        echo "{\\"1\\": \\"$(head -c 24 /dev/urandom | base64)\\"}" > %s
+        echo "{\"1\": \"$(head -c 24 /dev/urandom | base64)\"}" > %s
 
         You can also use Python to create a good secret:
 
-        python -c 'import secrets; print(f"{{\\"1\\": \\"{secrets.token_urlsafe()}\\"}}")'
+        python -c 'from passlib import totp; print(f"{{\\"1\\": \\"{totp.generate_secret()}\\"}}")'
 
         """
             % (os.path.dirname(filename), filename)
