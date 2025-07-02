@@ -347,60 +347,6 @@
         return processedJSON;
     }
 
-    // Fetch Account Details
-    async function getAccount(accountId) {
-        const cacheKey = `account_${accountId}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/accounts/" + accountId;
-        const response = await fetch(apiUrl);
-        const account = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(account));
-
-        return account;
-    }
-
-    // Fetch Asset Details
-    async function getAsset(assetId, useCache = true) {
-        const cacheKey = `asset_${assetId}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData && useCache) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/assets/" + assetId;
-        const response = await fetch(apiUrl);
-        const asset = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(asset));
-
-        return asset;
-    }
-
-    // Fetch Sensor Details
-    async function getSensor(id) {
-        const cacheKey = `sensor_${id}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/sensors/" + id;
-        const response = await fetch(apiUrl);
-        const sensor = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(sensor));
-
-        return sensor;
-    }
-
     // highlight selected graph 
     async function selectGraph(graphIndex) {
         if (graphIndex !== undefined) {

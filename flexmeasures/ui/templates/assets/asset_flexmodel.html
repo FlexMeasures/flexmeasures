@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} {{ asset.name }} - Scenario {% endblock %}
+
+{% block divs %}
+
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2 on-top-md">
+
+        </div>
+
+        <div class="col-md-8">
+            <div class="row mt-3">
+                <!-- Left Column -->
+                <div class="col-5">
+                    <div id="flexmodelContainer">
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div class="col-7">
+                    <div class="">
+                        <!-- Loading Spinner -->
+                        <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
+                            style="height: 50vh; display: none !important;">
+                            <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+
+                        <!-- Settings -->
+                        <div>
+                            <div class="row">
+                                <div class="col-10">
+                                    <select class="form-select" id="flexSelect">
+                                        <option value="blank">Select flex-model field to add</option>
+                                    </select>
+                                </div>
+                                <div class="col-2 p-0">
+                                    <button class="btn btn-secondary btn-md" onclick="addFlexModelField()">Add
+                                        Field</button>
+                                </div>
+                            </div>
+
+                            <div id="flexInfoContainer" class="mt-3"></div>
+                        </div>
+
+                        <hr class="border border-dark" />
+
+                        <div id="flexOptionsContainer" class="mt-3"></div>
+
+                        <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+
+        </div>
+    </div>
+</div>
+
+<script>
+    const apiBasePath = window.location.origin;
+    const typeOne = [Boolean];
+    const typeTwo = [Object];
+    const typeThree = [String, Object];
+    const typeFour = [Array];
+
+    const assetFlexModelSchema = {
+        "soc-min": null,
+        "soc-max": null,
+        "soc-minima": null,
+        "soc-maxima": null,
+        "soc-targets": null,
+        "state-of-charge": null,
+        "soc-gain": [],
+        "soc-usage": [],
+        "roundtrip-efficiency": null,
+        "charging-efficiency": null,
+        "discharging-efficiency": null,
+        "storage-efficiency": null,
+        "prefer-charging-sooner": null,
+        "prefer-curtailing-later": null,
+        "power-capacity": null,
+        "consumption-capacity": null,
+        "production-capacity": null,
+    }
+
+    const FlexModelFieldValidTypes = {
+        "soc-min": typeThree,
+        "soc-max": typeThree,
+        "soc-minima": typeTwo,
+        "soc-maxima": typeTwo,
+        "soc-targets": typeTwo,
+        "state-of-charge": typeOne,
+        "soc-gain": typeFour,
+        "soc-usage": typeFour,
+        "roundtrip-efficiency": typeThree,
+        "charging-efficiency": typeThree,
+        "discharging-efficiency": typeThree,
+        "storage-efficiency": typeThree,
+        "prefer-charging-sooner": typeOne,
+        "prefer-curtailing-later": typeOne,
+        "power-capacity": typeThree,
+        "consumption-capacity": typeThree,
+        "production-capacity": typeThree,
+    };
+
+
+    /**
+    * A custom function to mimic React's useState for simple DOM manipulation.
+    *
+    * @param {*} initialValue - The initial value for the state.
+    * @param {function(value: *): void} renderFunction - A callback function that
+    * will be executed whenever the state updates. This function should contain
+    * the logic to update the relevant DOM elements. It receives the new state value.
+    * @returns {[function(): *, function(*): void]} - A tuple/array containing:
+    * - A getter function for the current state value (to be reactive, we need a function).
+    * - A setter function to update the state value, which also triggers the renderFunction.
+    */
+    function createReactiveState(initialValue, renderFunction) {
+        let value = initialValue;
+
+        // The function that returns the current state value
+        function getValue() {
+            return value;
+        }
+
+        // The function that updates the state value
+        function setValue(newValue) {
+            if (typeof newValue === 'function') {
+                value = newValue(value);
+            } else {
+                value = newValue;
+            }
+            if (renderFunction) {
+                renderFunction(value);
+            }
+        }
+
+        if (renderFunction) {
+            renderFunction(value);
+        }
+
+        return [getValue, setValue];
+    }
+
+    function processAssetRawFlexContextJSON(rawJSON) {
+        let processedJSON = rawJSON.replace(/'/g, '"');
+        // change None to null
+        processedJSON = processedJSON.replace(/None/g, 'null');
+        // update the assetFlexModel fields
+        processedJSON = JSON.parse(processedJSON);
+
+        for (const [key, value] of Object.entries(processedJSON)) {
+            if (key in assetFlexModelSchema) {
+                assetFlexModelSchema[key] = processedJSON[key];
+            } else {
+                assetFlexModelSchema[key] = null;
+            }
+        }
+
+        return processedJSON;
+    }
+
+
+    let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
+    assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processAssetRawFlexContextJSON(assetFlexModelRawJSON));
+
+
+    document.addEventListener('DOMContentLoaded', async function () {
+        const flexOptionsContainer = document.getElementById('flexOptionsContainer');
+        const flexmodelContainer = document.getElementById('flexmodelContainer');
+        const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON);
+
+
+        function renderFlexSelectOptions() {
+            // comapare the assetFlexContext with the template and get the fields that are not set
+            const assetFlexModel = Object.assign({}, assetFlexModelSchema, getFlexModel());
+            flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
+            for (const [key, value] of Object.entries(assetFlexModel)) {
+                if (value === null || value.length === 0) {
+                    flexSelect.innerHTML += `<option value="${key}">${getFlexContextFieldTitle(key)}</option>`;
+                }
+            }
+
+        }
+
+        function getFlexContextFieldTitle(fieldName) {
+            return fieldName.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+        }
+
+        async function addFlexContextField() {
+            const fieldName = flexSelect.value;
+            if (fieldName === "blank") {
+                showToast("Please select a field to add", "error");
+                return;
+            }
+            assetFlexContext[fieldName] = "";
+            flexOptionsContainer.innerHTML = "";
+            await renderFlexContextForm(); // im rendring here so te card with the 'border-on-click' class is updated/exists
+            const card = document.getElementById(`${fieldName}-control`);
+            selectFlexField(card);
+        }
+
+        async function renderSensor(sensorId) {
+            if (!sensorId) {
+                return `<div class="text-info">No sensor data available</div>`;
+            }
+
+            const sensorData = await getSensor(sensorId);
+            const Asset = await getAsset(sensorData.generic_asset_id);
+            const Account = await getAccount(Asset.account_id);
+
+            return `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <b>Sensor:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
+                            <b>Unit:</b> ${sensorData.unit},
+                            <b>Name:</b> ${sensorData.name},
+                            <div style="padding-top: 1px;"></div>
+                            <b>Asset:</b> ${Asset.name},
+                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function renderFlexModelFieldCard(name, value) {
+            const card = document.createElement('div');
+            card.className = 'card m-1 mt-0';
+            card.id = `${name}-control`;
+
+            const isString = typeof value === "string";
+            const isArray = Array.isArray(value);
+            const isBool = typeof value === "boolean";
+            const isNumber = typeof value === "number";
+            const isKeyValueObject = typeof value === "object" &&
+                value !== null &&
+                !Array.isArray(value) && // Exclude arrays
+                Object.keys(value).length > 0;
+
+            card.innerHTML = `
+                <div class="card-highlight">
+                    <h5 class="card-title">${getFlexContextFieldTitle(name)}</h5>
+                    ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
+                    ${isBool ? `
+                        <div class="form-check form-switch">
+                            <input class="form-check-input ps-1" style="transform: scale(1.5); margin-left: -2.1em !important" type="checkbox" id="flexSwitchCheckChecked" ${value ? 'checked' : ''} onchange="setFlexModel({ '${name}': this.checked })">
+                        </div>
+                    ` : ''}
+                      ${isNumber ? `<p class="card-text">Value: ${value}</p>` : ''}
+                </div>
+            `;
+            flexmodelContainer.appendChild(card);
+            return card;
+        }
+
+        async function renderFlexContextForm() {
+            flexOptionsContainer.innerHTML = "";
+            const assetFlexModel = getFlexModel();
+            for (const [key, value] of Object.entries(assetFlexModel)) {
+                if (value !== null) {
+                    if (Array.isArray(value) && value.length > 0) {
+                        const card = await renderFlexModelFieldCard(key, value);
+                    } else if (!Array.isArray(value)) {
+                        const card = await renderFlexModelFieldCard(key, value);
+                    }
+                }
+            }
+        };
+
+        renderFlexSelectOptions();
+        renderFlexContextForm();
+    });
+</script>
+
+{% endblock %}
