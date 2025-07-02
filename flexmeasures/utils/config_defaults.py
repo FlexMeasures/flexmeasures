@@ -77,6 +77,7 @@ class Config(object):
     )
     SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
     SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
+    # this default probably is not what you want (default sender is usuallay a no-reply address)
     SECURITY_TWO_FACTOR_RESCUE_MAIL = (
         MAIL_DEFAULT_SENDER[1]
         if isinstance(MAIL_DEFAULT_SENDER, tuple) and len(MAIL_DEFAULT_SENDER) > 1
