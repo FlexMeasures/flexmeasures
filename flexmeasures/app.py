@@ -40,7 +40,11 @@ def create(  # noqa C901
     """
 
     from flexmeasures.utils import config_defaults
-    from flexmeasures.utils.config_utils import read_config, configure_logging
+    from flexmeasures.utils.config_utils import (
+        read_config,
+        configure_logging,
+        get_flexmeasures_env,
+    )
     from flexmeasures.utils.app_utils import (
         set_secret_key,
         set_totp_secrets,
@@ -113,7 +117,7 @@ def create(  # noqa C901
     set_secret_key(app)
     if app.config.get("SECURITY_TWO_FACTOR", False):
         set_totp_secrets(app)
-    elif app.config.get("FLEXMEASURES_ENV") == "production":
+    elif get_flexmeasures_env(app) == "production":
         app.logger.warning(
             "SECURITY_TWO_FACTOR is False. We advise to set it to True in a production environment."
         )
