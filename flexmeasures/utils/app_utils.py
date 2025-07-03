@@ -180,7 +180,7 @@ def set_totp_secrets(app, filename="totp_secrets"):
         OR you can create a secret key file (this example works only on Unix):
 
         mkdir -p %s
-        echo "{\"1\": \"$(head -c 24 /dev/urandom | base64)\"}" > %s
+        echo "{\\"1\\": \\"$(head -c 24 /dev/urandom | base64)\\"}" > %s
 
         You can also use Python to create a good secret:
 
