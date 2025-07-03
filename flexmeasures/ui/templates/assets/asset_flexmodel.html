@@ -116,6 +116,25 @@
         "production-capacity": typeThree,
     };
 
+    const assetFlexModelFieldDesc = {
+        "soc-min": "A constant lower boundary for all values in the schedule (defaults to 0).",
+        "soc-max": null,
+        "soc-minima": null,
+        "soc-maxima": null,
+        "soc-targets": null,
+        "state-of-charge": null,
+        "soc-gain": [],
+        "soc-usage": [],
+        "roundtrip-efficiency": null,
+        "charging-efficiency": null,
+        "discharging-efficiency": null,
+        "storage-efficiency": null,
+        "prefer-charging-sooner": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.",
+        "prefer-curtailing-later": null,
+        "power-capacity": null,
+        "consumption-capacity": null,
+        "production-capacity": null,
+    }
 
     /**
     * A custom function to mimic React's useState for simple DOM manipulation.
@@ -155,50 +174,68 @@
         return [getValue, setValue];
     }
 
-    function processAssetRawFlexContextJSON(rawJSON) {
-        let processedJSON = rawJSON.replace(/'/g, '"');
-        // change None to null
-        processedJSON = processedJSON.replace(/None/g, 'null');
-        // update the assetFlexModel fields
-        processedJSON = JSON.parse(processedJSON);
-
-        for (const [key, value] of Object.entries(processedJSON)) {
-            if (key in assetFlexModelSchema) {
-                assetFlexModelSchema[key] = processedJSON[key];
-            } else {
-                assetFlexModelSchema[key] = null;
-            }
-        }
-
-        return processedJSON;
-    }
-
-
-    let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
-    assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processAssetRawFlexContextJSON(assetFlexModelRawJSON));
-
-
     document.addEventListener('DOMContentLoaded', async function () {
+        let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
+        assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
+
         const flexOptionsContainer = document.getElementById('flexOptionsContainer');
         const flexmodelContainer = document.getElementById('flexmodelContainer');
+        const flexInfoContainer = document.getElementById('flexInfoContainer');
         const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON);
         const [activeCard, setActiveCard] = createReactiveState(null);
 
 
-        function renderFlexSelectOptions() {
-            // comapare the assetFlexContext with the template and get the fields that are not set
-            const assetFlexModel = Object.assign({}, assetFlexModelSchema, getFlexModel());
-            flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
-            for (const [key, value] of Object.entries(assetFlexModel)) {
-                if (value === null || value.length === 0) {
-                    flexSelect.innerHTML += `<option value="${key}">${getFlexContextFieldTitle(key)}</option>`;
+        async function updateFlexModel() {
+            const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
+            let data = getFlexModel();
+
+            // Clean null values
+            for (const [key, value] of Object.entries(data)) {
+                if (value === null) {
+                    delete data[key];
                 }
             }
 
+            const requestBody = JSON.stringify({ flex_model: JSON.stringify(data) });
+
+            const response = await fetch(apiURL, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: requestBody,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData?.message || errorData?.error || response.statusText;
+                showToast(`Failed to update the flex context: ${errorMessage}`, "error");
+
+                // Revert to previous state
+                // const asset = await getAsset("{{ asset.id }}", false);
+                // const previousFlexContext = await processResourceRawJSON(assetFlexModelSchema, asset.flex_context);
+                // assetFlexContext = previousFlexContext;
+                // renderFlexContextForm();
+            } else {
+                showToast("Flex context updated successfully", "success");
+            }
         }
 
-        function getFlexContextFieldTitle(fieldName) {
-            return fieldName.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+        async function renderSelectInfoCards(modelKey) {
+            if (modelKey) {
+                flexInfoContainer.innerHTML = `
+                <div>
+                    <div class="alert alert-info" role="alert">
+                        <b> About ${getFlexFieldTitle(modelKey)}
+                        <div class="pt-2 fw-normal">
+                            ${assetFlexModelFieldDesc[modelKey] || "No description available."}
+                        </div>
+                    </div>
+                </div>
+            `;
+            } else {
+                flexInfoContainer.innerHTML = "";
+            }
         }
 
         async function addFlexContextField() {
@@ -212,31 +249,6 @@
             await renderFlexContextForm(); // im rendring here so te card with the 'border-on-click' class is updated/exists
             const card = document.getElementById(`${fieldName}-control`);
             selectFlexField(card);
-        }
-
-        async function renderSensor(sensorId) {
-            if (!sensorId) {
-                return `<div class="text-info">No sensor data available</div>`;
-            }
-
-            const sensorData = await getSensor(sensorId);
-            const Asset = await getAsset(sensorData.generic_asset_id);
-            const Account = await getAccount(Asset.account_id);
-
-            return `
-                <div class="mb-2">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <b>Sensor:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
-                            <b>Unit:</b> ${sensorData.unit},
-                            <b>Name:</b> ${sensorData.name},
-                            <div style="padding-top: 1px;"></div>
-                            <b>Asset:</b> ${Asset.name},
-                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
-                        </div>
-                    </div>
-                </div>
-            `;
         }
 
         async function renderFlexModelFieldCard(name, value) {
@@ -255,14 +267,14 @@
                         card.remove(); // Remove the card from the DOM
                         const flexModel = getFlexModel();
                         if (Array.isArray(flexModel[name])) {
-                            flexModel[name] = []; 
+                            flexModel[name] = [];
                         } else {
-                            flexModel[name] = null; 
+                            flexModel[name] = null;
                         }
 
                         setFlexModel(flexModel); // Update the state
-                        renderFlexSelectOptions(); // Re-render the select options
-                        showToast(`Field "${getFlexContextFieldTitle(name)}" has been unset`, "success");
+                        renderFlexFieldOptions(assetFlexModelSchema, getFlexModel()); // Re-render the select options
+                        showToast(`Field "${getFlexFieldTitle(name)}" has been unset`, "success");
                         return;
                     }
 
@@ -278,6 +290,7 @@
                 const allCards = document.querySelectorAll('.card');
                 allCards.forEach(c => c.classList.remove('border-on-click'));
                 card.classList.add('border-on-click');
+                renderSelectInfoCards(name); // Render the info card for the selected field
             }
 
             const isString = typeof value === "string";
@@ -292,7 +305,7 @@
             card.innerHTML = `
                 <div class="card-highlight">
                     <div class="d-flex justify-content-between">
-                        <h5 class="card-title">${getFlexContextFieldTitle(name)}</h5>
+                        <h5 class="card-title">${getFlexFieldTitle(name)}</h5>
                         <i class="fa fa-times"
                             onclick=""
                             data-bs-toggle="tooltip"
@@ -328,7 +341,7 @@
             }
         };
 
-        renderFlexSelectOptions();
+        renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
         renderFlexContextForm();
     });
 </script>
