@@ -535,10 +535,17 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         return self.name
 
     def to_dict(self) -> dict:
+        parent_asset = db.session.execute(
+            select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
+        ).scalar_one_or_none()
         return dict(
+            asset_id=self.generic_asset.id,
             id=self.id,
             name=self.name,
+            sensor_unit=self.unit,
             description=f"{self.name} ({self.generic_asset.name})",
+            asset_description=f"{self.generic_asset.name}"
+            + (f" ({parent_asset.name})" if parent_asset is not None else ""),
         )
 
     @classmethod

@@ -219,7 +219,7 @@ passlib==1.7.4
     # via flask-security-too
 patsy==1.0.1
     # via statsmodels
-pillow==11.2.1
+pillow==11.3.0
     # via
     #   -r requirements/app.in
     #   matplotlib
@@ -282,7 +282,7 @@ referencing==0.36.2
     # via
     #   jsonschema
     #   jsonschema-specifications
-requests==2.32.3
+requests==2.32.4
     # via
     #   requests-file
     #   tldextract
@@ -355,7 +355,7 @@ tzdata==2025.2
     # via pandas
 uniplot==0.21.1
     # via -r requirements/app.in
-urllib3==2.4.0
+urllib3==2.5.0
     # via
     #   requests
     #   sentry-sdk
