@@ -305,7 +305,7 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { subtract, thisMonth, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
@@ -524,87 +524,109 @@
 
     // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
     const date = Date();
-    picker = new Litepicker({
-        element: document.getElementById('datepicker'),
-        plugins: ['ranges', 'keyboardnav'],
-        ranges: {
-            customRanges: {
-                'Today': [new Date(date), new Date(date)],
-                'Last 7 days': [subtract(date, 6), new Date(date)],
-                'This month': thisMonth(date)
+    {% if active_page == "sensors" and sensor.event_resolution.days > 0 %}
+        const minRes = "day"
+    {% else %}
+        const minRes = "hour"
+    {% endif %}
+
+    function createPicker(startDate, endDate, customRanges) {
+        picker = new Litepicker({
+            element: document.getElementById('datepicker'),
+            plugins: ['ranges', 'keyboardnav'],
+            ranges: {
+                customRanges: customRanges,
+                position: 'top'
             },
-            position: 'bottom'
-        },
-        autoRefresh: true,
-        moduleRanges: true,
-        showWeekNumbers: true,
-        numberOfMonths: 1,
-        numberOfColumns: 1,
-        inlineMode: true,
-        switchingMonths: 1,
-        singleMode: false,
-        startDate: sessionStart,
-        endDate: sessionEnd,
-        dropdowns: {
-            years: true,
-            months: true,
-        },
-        format: 'YYYY-MM-DD\\T00:00:00',
-    });
-    picker.on('selected', (startDate, endDate) => {
-        startDate = startDate.toJSDate();
-        endDate = endDate.toJSDate();
-        endDate.setDate(endDate.getDate() + 1);
-        storeStartDate = startDate;
-        storeEndDate = endDate;
-        var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
-        var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
+            autoRefresh: true,
+            moduleRanges: true,
+            showWeekNumbers: true,
+            numberOfMonths: 1,
+            numberOfColumns: 1,
+            inlineMode: true,
+            switchingMonths: 1,
+            singleMode: false,
+            startDate: startDate,
+            endDate: endDate,
+            dropdowns: {
+                years: true,
+                months: true,
+            },
+            format: 'YYYY-MM-DD\\T00:00:00',
+        });
+        picker.on('selected', (startDate, endDate) => {
+            startDate = startDate.toJSDate();
+            endDate = endDate.toJSDate();
 
-        {% if active_page == "sensors" %}
-            const toggleStats = document.getElementById('toggleStatsCheckbox');
-            if (toggleStats.checked) {
-                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
-            }
-            else {
-                loadSensorStats({{ sensor.id }});
-            }
-        {% endif %}
+            {% if FLEXMEASURES_MODE == "play" %}
+                // Update daterange buttons on simulation servers (only replacing the entire picker works)
+                picker.destroy();
+                customRanges = computeSimulationRanges(startDate, endDate, minRes);
+                picker = createPicker(startDate, endDate, customRanges);
+            {% endif %}
 
-        stopReplay()
+            endDate.setDate(endDate.getDate() + 1);
+            storeStartDate = startDate;
+            storeEndDate = endDate;
+            var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
+            var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
-        $("#spinner").show();
-        checkDSTTransitions(startDate, endDate)
-        Promise.all([
-            // Fetch time series data
-            fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                method: "GET",
-                headers: {"Content-Type": "application/json"},
-                signal: signal,
-            })
-            .then(function(response) { return response.json(); }),
+            {% if active_page == "sensors" %}
+                const toggleStats = document.getElementById('toggleStatsCheckbox');
+                if (toggleStats.checked) {
+                    loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+                }
+                else {
+                    loadSensorStats({{ sensor.id }});
+                }
+            {% endif %}
 
-            /**
-            // Fetch annotations
-            fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                method: "GET",
-                headers: {"Content-Type": "application/json"},
-                signal: signal,
-            })
-            .then(function(response) { return response.json(); }),
-            */
+            stopReplay()
 
-            // Embed chart
-            embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
-        ]).then(function(result) {
-            $("#spinner").hide();
-            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
-            previousResult = result[0];
-            checkSourceMasking(previousResult);
-            /**
-            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
-            */
-        }).catch(console.error);
-    });
+            $("#spinner").show();
+            checkDSTTransitions(startDate, endDate)
+            Promise.all([
+                // Fetch time series data
+                fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                    signal: signal,
+                })
+                .then(function(response) { return response.json(); }),
+
+                /**
+                // Fetch annotations
+                fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                    signal: signal,
+                })
+                .then(function(response) { return response.json(); }),
+                */
+
+                // Embed chart
+                embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
+            ]).then(function(result) {
+                $("#spinner").hide();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+                previousResult = result[0];
+                checkSourceMasking(previousResult);
+                /**
+                vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+                */
+            }).catch(console.error);
+        });
+        return picker
+    }
+    {% if FLEXMEASURES_MODE == "play" %}
+        const customRanges = computeSimulationRanges(sessionStart, sessionEnd, minRes);
+    {% else %}
+        const customRanges = {
+            'Last 7 days': [subtract(date, 6), new Date(date)],
+            'Today and tomorrow': [subtract(date, -1), new Date(date)]
+        };
+    {% endif %}
+    picker = createPicker(sessionStart, sessionEnd, customRanges);
 
     {% if active_page == "sensors" %}
         // Call loadSensorStats if the toggleStatsCheckbox checkbox is checked or unchecked
@@ -683,7 +705,7 @@
                     // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
                     var end_time = '{{event_ends_before}}';
                     var new_end_date = new Date(end_time);
-                    // Adjusting the date by deducting one day to account for timezone discrepancies.
+                    // Adjusting the date by subtracting one day to account for timezone discrepancies.
                     new_end_date.setDate(new_end_date.getDate() - 1);
                     var start_time = '{{event_starts_after}}';
                     var new_start_date = new Date(start_time);
