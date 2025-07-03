@@ -154,19 +154,23 @@ p.error {
 }
 
 .flashes {
-    list-style-type: none
-}
-
-.flashes.alert.alert-info {
-    color: var(--black);
-    background: var(--secondary-color);
+    list-style: none;
     border: none;
     text-align: center;
     margin-top: 20px;
     text-transform: uppercase;
     font-weight: 700;
 }
-
+.flashes.alert.alert-info {
+    color: var(--black);
+    background: var(--secondary-color);
+}
+.flashes .success {
+    color: var(--black);
+    background: lightgreen;
+    padding: 1rem;
+    border-radius: 0.375rem;
+}
 /* ---- End errors, alerts and flashes ---- */
 
 
