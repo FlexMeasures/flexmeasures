@@ -63,6 +63,7 @@
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" rel="stylesheet" />
     <!-- Latest Bootstrap link-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <!-- Fonts -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
@@ -321,6 +322,9 @@
     let replaySpeed = 100
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
 
+    if ('{{ active_page }}' == 'assets'){
+        chartType = 'chart_for_multiple_sensors'
+    }
     // Update chart type picker: active state, reload data event
     document.addEventListener('DOMContentLoaded', function() {
         var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
@@ -347,8 +351,8 @@
                 });
 
                 // Reload daterange
-                picker.setDateRange(picker.getStartDate(), picker.getEndDate());
-            });
+                embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult)).resize().run();            });
         }
     });
 
