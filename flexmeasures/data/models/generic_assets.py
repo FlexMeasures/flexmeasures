@@ -738,6 +738,17 @@ class GenericAsset(db.Model, AuthModelMixin):
             df = df.reset_index()
             df["source"] = df["source"].apply(lambda x: x.to_dict())
             df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+            df["sensor_unit"] = df["sensor"].apply(lambda x: x["sensor_unit"])
+            df["event_value"] = df.apply(
+                lambda row: (
+                    pd.to_datetime(row["event_value"], unit="s", origin="unix")
+                    .tz_localize("UTC")
+                    .tz_convert(self.timezone)
+                    if row["sensor_unit"] == "s" and pd.notnull(row["event_value"])
+                    else row["event_value"]
+                ),
+                axis=1,
+            )
             return df.to_json(orient="records")
         return bdf_dict
 
