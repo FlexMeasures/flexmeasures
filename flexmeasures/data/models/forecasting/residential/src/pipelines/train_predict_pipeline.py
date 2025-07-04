@@ -134,6 +134,7 @@ class TrainPredictPipeline:
     def run(
         self,
         as_job: bool = False,
+        queue: str = "forecasting",
     ):
         try:
             logging.info("Starting Train-Predict Pipeline")
@@ -196,7 +197,7 @@ class TrainPredictPipeline:
                     job = Job.create(
                         self.run_cycle,
                         kwargs=param,
-                        connection=current_app.queues["forecasting"].connection,
+                        connection=current_app.queues[queue].connection,
                         ttl=int(
                             current_app.config.get(
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
@@ -206,9 +207,9 @@ class TrainPredictPipeline:
 
                     jobs.append(job)
 
-                    current_app.queues["forecasting"].enqueue_job(job)
+                    current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
-                        self.sensors[self.target],job_id=job.id, queue="forecasting", asset_or_sensor_type="sensor"
+                        self.sensors[self.target], job_id=job.id, queue=queue, asset_or_sensor_type="sensor"
                     )
                 return jobs
         except Exception as e:
