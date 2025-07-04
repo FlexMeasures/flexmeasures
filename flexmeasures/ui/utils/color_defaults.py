@@ -57,6 +57,23 @@ def darken_color(hex_color: str, percentage: int) -> str:
 
 
 def lighten_color(hex_color: str, percentage: int) -> str:
+    """Lightens a hex color by a given percentage towards white.
+
+    :param hex_color:   The hex color string (e.g. "#abc" or "#aabbcc").
+    :param percentage:  The percentage to lighten the color (0-100).
+
+    :returns:           The lightened hex color string.
+
+    Examples:
+        >>> lighten_color("#000000", 0)
+        '#000000'
+        >>> lighten_color("#000000", 100)
+        '#ffffff'
+        >>> lighten_color("#123456", 50)
+        '#8899aa'
+        >>> lighten_color("#abc", 50)
+        '#d4dde5'
+    """
     hex_color = hex_color.lstrip("#")
     r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
     r = int(r + (255 - r) * percentage / 100)
