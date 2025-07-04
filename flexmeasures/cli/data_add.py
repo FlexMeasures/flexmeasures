@@ -40,7 +40,6 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
-from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
