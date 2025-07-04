@@ -124,7 +124,9 @@ class TrainPredictPipeline:
             f"{counter} Prediction cycle completed in {predict_runtime:.2f} seconds. "
         )
 
-        total_runtime = train_runtime + predict_runtime  # To track the cumulative runtime of PredictPipeline and TrainPipeline for this cycle
+        total_runtime = (
+            train_runtime + predict_runtime
+        )  # To track the cumulative runtime of PredictPipeline and TrainPipeline for this cycle
         logging.info(
             f"{counter} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
@@ -209,7 +211,10 @@ class TrainPredictPipeline:
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
-                        self.sensors[self.target], job_id=job.id, queue=queue, asset_or_sensor_type="sensor"
+                        self.sensors[self.target],
+                        job_id=job.id,
+                        queue=queue,
+                        asset_or_sensor_type="sensor",
                     )
                 return jobs
         except Exception as e:
