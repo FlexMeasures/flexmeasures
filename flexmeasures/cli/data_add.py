@@ -1103,7 +1103,7 @@ def create_forecasts(
             forecast_end=forecast_end,
             event_resolution=event_resolution,
         )
-@fm_add_data.command("train-predict", cls=DeprecatedOptionsCommand)
+@fm_add_data.command("train-predict")
 @click.option(
     "--sensors",
     required=True,
