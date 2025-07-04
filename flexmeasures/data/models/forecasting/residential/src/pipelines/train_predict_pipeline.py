@@ -154,9 +154,8 @@ class TrainPredictPipeline:
             while predict_end <= self.end_date:
                 counter += 1
 
-                cycle_start_time = time.time()
                 if not as_job:
-                    self.run_cycle(
+                    cycle_runtime = self.run_cycle(
                         train_start=train_start,
                         train_end=train_end,
                         predict_start=predict_start,
@@ -164,7 +163,7 @@ class TrainPredictPipeline:
                         counter=counter,
                         multiplier=multiplier,
                     )
-                    cumulative_cycles_runtime += time.time() - cycle_start_time
+                    cumulative_cycles_runtime += cycle_runtime
                 else:
                     cycles_job_params.append(
                         {
