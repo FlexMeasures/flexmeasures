@@ -133,7 +133,7 @@ class TrainPredictPipeline:
         self.start_date = start_date
         self.end_date = end_date
         self.predict_start = predict_start
-        self.predict_end = self.predict_start + timedelta(hours=predict_period_in_hours)
+        self.predict_end = predict_start + timedelta(hours=predict_period_in_hours)
         self.predict_period_in_hours = predict_period_in_hours
         self.train_period_in_hours = train_period_in_hours
         self.max_forecast_horizon = max_forecast_horizon
