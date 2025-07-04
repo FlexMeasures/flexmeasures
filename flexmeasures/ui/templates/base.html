@@ -586,14 +586,7 @@
             $("#spinner").show();
             checkDSTTransitions(startDate, endDate)
             Promise.all([
-                // Fetch time series data
-                fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                    method: "GET",
-                    headers: {"Content-Type": "application/json"},
-                    signal: signal,
-                })
-                .then(function(response) { return response.json(); }),
-
+                initialData,
                 /**
                 // Fetch annotations
                 fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
