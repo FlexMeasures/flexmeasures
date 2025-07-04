@@ -411,7 +411,7 @@
         });
     }
     
-    {% if active_page == "sensors" %}
+    {% if active_page == "sensors" and user_can_update_sensor %}
         let upload = document.querySelector('#submitUpload');
         let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
         upload.addEventListener('click', function(e) {
