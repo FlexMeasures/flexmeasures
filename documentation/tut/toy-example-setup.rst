@@ -53,7 +53,7 @@ Install Flexmeasures and the database
         .. code-block:: bash
 
             $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=fm-db-passwd -e POSTGRES_DB=flexmeasures-db -d --network=flexmeasures_network postgres:latest
-            $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@flexmeasures-tutorial-db:5432/flexmeasures-db --env SECRET_KEY=notsecret --env FLEXMEASURES_ENV=development --env LOGGING_LEVEL=INFO -d --network=flexmeasures_network -p 5000:5000 lfenergy/flexmeasures
+            $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@flexmeasures-tutorial-db:5432/flexmeasures-db --env SECRET_KEY=notsecret --env SECURITY_TOTP_SECRETS={"1": "something-secret"} --env FLEXMEASURES_ENV=development --env LOGGING_LEVEL=INFO -d --network=flexmeasures_network -p 5000:5000 lfenergy/flexmeasures
 
         When the app has started, the FlexMeasures UI should be available at http://localhost:5000 in your browser.
 
@@ -108,7 +108,7 @@ Install Flexmeasures and the database
 
             $ pip install flexmeasures
             $ pip install highspy
-            $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
+            $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret SECURITY_TOTP_SECRETS={"1": "notsecret"} LOGGING_LEVEL="INFO" DEBUG=0
             $ export FLEXMEASURES_ENV="development"
             $ flexmeasures db upgrade
 
