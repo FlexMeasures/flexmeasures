@@ -62,8 +62,6 @@ class TrainPredictPipeline:
         """
         Runs a single training and prediction cycle.
         """
-        train_predict_cycle_runtime = 0  # To track the cumulative runtime of PredictPipeline and TrainPipeline for this cycle
-
         logging.info(
             f"Starting Train-Predict cycle from {train_start} to {predict_end}"
         )
@@ -124,13 +122,12 @@ class TrainPredictPipeline:
             f"{counter} Prediction cycle completed in {predict_runtime:.2f} seconds. "
         )
 
-        train_predict_cycle_runtime = train_runtime + predict_runtime
-
+        total_runtime = train_runtime + predict_runtime  # To track the cumulative runtime of PredictPipeline and TrainPipeline for this cycle
         logging.info(
-            f"{counter} Train-Predict cycle from {train_start} to {predict_end} completed in {train_predict_cycle_runtime:.2f} seconds."
+            f"{counter} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
 
-        return train_predict_cycle_runtime
+        return total_runtime
 
     def run(
         self,
