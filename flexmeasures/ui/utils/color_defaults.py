@@ -48,6 +48,23 @@ def get_color_settings(account: Account | None) -> dict:
 
 
 def darken_color(hex_color: str, percentage: int) -> str:
+    """Darkens a hex color by a given percentage towards black.
+
+    :param hex_color:   The hex color string (e.g. "#abc" or "#aabbcc").
+    :param percentage:  The percentage to darken the color (0-100).
+
+    :returns:           The darkened hex color string.
+
+    Examples:
+        >>> darken_color("#ffffff", 0)
+        '#ffffff'
+        >>> darken_color("#ffffff", 100)
+        '#000000'
+        >>> darken_color("#123456", 50)
+        '#091a2b'
+        >>> darken_color("#abc", 50)
+        '#555d66'
+    """
     hex_color = hex_color.lstrip("#")
     hex_color = ensure_6_digit_hex(hex_color)
 
