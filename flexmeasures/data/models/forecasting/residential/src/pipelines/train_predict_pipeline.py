@@ -183,11 +183,11 @@ class TrainPredictPipeline:
                 predict_end += cycle_frequency
             if counter == 0:
                 logging.info("Train-Predict Pipeline Not Run.")
-            else:
-                if not as_job:
-                    logging.info(
-                        f"Train-Predict Pipeline completed successfully in {cumulative_cycles_runtime:.2f} seconds."
-                    )
+            elif not as_job:
+                logging.info(
+                    f"Train-Predict Pipeline completed successfully in {cumulative_cycles_runtime:.2f} seconds."
+                )
+
             if as_job:
                 return cycles_job_params
         except Exception as e:
