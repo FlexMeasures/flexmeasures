@@ -1048,6 +1048,7 @@
                     <div class="tab-content" id="pills-tabContent">
                         ${sensorsOnly ? `
                         <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
+
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
                                 <label for="sensor" class="form-label">Look up Sensor for <b>${getFlexContextFieldTitle(contextKey)} </b>
                                     <i class="fa fa-info-circle ps-2"
@@ -1083,6 +1084,7 @@
                                 </div>
 
                             </div>
+                            
                         </div>
                         ` : `
                         <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
