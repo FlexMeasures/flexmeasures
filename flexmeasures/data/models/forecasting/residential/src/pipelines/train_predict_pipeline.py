@@ -123,6 +123,7 @@ class TrainPredictPipeline:
         forecast_frequency: int = 1,
         probabilistic: bool = False,
         delete_model: bool = False,
+        as_job: bool = False,
     ):
         self.sensors = sensors
         self.regressors = regressors
@@ -140,6 +141,7 @@ class TrainPredictPipeline:
         self.probabilistic = probabilistic
         self.sensor_to_save = sensor_to_save
         self.delete_model = delete_model
+        self.as_job = as_job
 
     def run_cycle(
         self,

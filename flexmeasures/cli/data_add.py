@@ -1165,6 +1165,12 @@ def create_forecasts(
     type=SensorIdField(),
     help="Sensor ID to save the predictions into.",
 )
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a forecasting job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
+)
 @with_appcontext
 def train_predict_pipeline(
     sensors,
@@ -1181,6 +1187,7 @@ def train_predict_pipeline(
     forecast_frequency,
     probabilistic,
     sensor_to_save,
+    as_job,
 ):
     """Run the Train-Predict Pipeline."""
 
@@ -1241,8 +1248,9 @@ def train_predict_pipeline(
             max_forecast_horizon=max_forecast_horizon,
             forecast_frequency=forecast_frequency,
             probabilistic=probabilistic,
+            as_job=as_job,
         )
-        pipeline.run()
+        pipeline.run(as_job=as_job)
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
         raise
