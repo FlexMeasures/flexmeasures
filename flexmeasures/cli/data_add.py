@@ -1082,7 +1082,32 @@ def train_predict_pipeline(
     sensor_to_save,
     as_job,
 ):
-    """Run the Train-Predict Pipeline."""
+    """
+    Generate forecasts for a target sensor.
+
+    Example:
+
+        flexmeasures add forecast \
+            --sensors '{"Heating_demand": 2092, "Ambient_temp": 2093}' \
+            --regressors Ambient_temp \
+            --target Heating_demand \
+            --start-date 2023-01-01T00:00:00+01:00 \
+            --end-date 2023-01-15T00:00:00+01:00 \
+            --train-period 5 \
+            --predict-period 7 \
+            --forecast-frequency 6 \
+            --max-forecast-horizon 48 \
+            --as-job
+
+    This will:
+    - Generate forecasts 48 hour forecasts each 6 hours for the next 7 days starting from 2023-01-06T00:00:00+01:00.
+    - Enqueue the forecasting jobs to be run on forecasting queues.
+    - Use Ambient_temp as a regressor for Heating_demand.
+    Notes:
+
+    - Use `--start-predict-date` or `--start-train-date`  to explicitly separate training and prediction periods.
+    - Use `--sensor-to-save` to save forecasts into a specific sensor by default forecasts are saved on the target sensor.
+    """
 
     try:
         # Parse inputs
