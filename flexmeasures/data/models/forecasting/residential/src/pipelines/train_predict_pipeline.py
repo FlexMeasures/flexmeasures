@@ -1,108 +1,15 @@
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from flexmeasures.data.models.time_series import Sensor
 from rq.job import Job
-
-from flexmeasures_smartbuildings.models.const import Status
-from flexmeasures_smartbuildings.models.jobs import Priority, create_job
-from flexmeasures_smartbuildings.models.smartbuilding import SmartBuildingSimulation
 
 from ..exception import CustomException
 from ..logger import logging
 from .predict_pipeline import PredictPipeline
 from .train_pipeline import TrainPipeline
-
-
-def update_forecasting_status(
-    simulation_id: int,
-    created_at: datetime = None,
-    error: bool = False,
-    target_sensor_id: int = None,
-):
-    """
-    Update the status of all scenarios to `FORECASTING_FINISHED` if forecasting jobs run successfully,
-    or to `ERROR_DURING_FORECASTING` if an error occurs.
-    """
-    simulation = SmartBuildingSimulation.fetch(simulation_id)
-    scenarios = simulation.scenarios  # get all scenarios for the simulation
-
-    if error:
-        simulation.log(
-            f"Forecasting pipeline run has failed for sensor {target_sensor_id:} in {simulation.name}.",
-            level="ERROR",
-        )
-        for scenario in scenarios:
-            scenario.change_status(Status.ERROR_DURING_FORECASTING)
-    else:
-        for scenario in scenarios:
-
-            scenario.change_status(Status.FORECASTING_FINISHED)
-
-            pipeline_duration = (
-                datetime.now(timezone.utc) - created_at
-            ).total_seconds()
-        simulation.log(
-            f"Forecasting pipeline run has been completed for {simulation.name} in: {pipeline_duration:.2f} seconds.",
-        )
-
-
-def create_train_predict_pipeline_jobs(
-    simulation_id: int,
-    sensors: list[Sensor],
-    start: datetime,
-    end: datetime,
-    train_period: int,
-    predict_period: int,
-    max_forecast_horizon: int,
-    simulation_job: Job,
-    probabilistic: bool = False,
-    forecast_frequency: int = 1,
-):
-    """Run the Train-Predict Pipeline."""
-    simulation = SmartBuildingSimulation.fetch(simulation_id)
-
-    cycle_jobs = []
-    for sensor in sensors:
-        simulation.log(
-            f"Running Forecasting Pipeline for sensor `{sensor.name}` with id: {sensor.id}."
-        )
-
-        train_predict_pipeline = TrainPredictPipeline(
-            sensors={f"{sensor.name}": sensor.id},
-            regressors=["auto_regressive"],
-            target=sensor.name,
-            model_save_dir="flexmeasures/data/models/forecasting/residential/artifacts/models",
-            output_path=None,
-            start_date=start,
-            end_date=end,
-            train_period_in_hours=train_period * 24,
-            predict_start=start + timedelta(hours=train_period * 24),
-            predict_period_in_hours=predict_period * 24,
-            max_forecast_horizon=max_forecast_horizon,
-            probabilistic=probabilistic,
-            sensor_to_save=sensor,
-            delete_model=True,
-            forecast_frequency=forecast_frequency,
-        )
-
-        cycles_job_params = train_predict_pipeline.run(as_job=True)
-
-        for cycle_job_params in cycles_job_params:
-            cycle_job_params["simulation_id"] = simulation_id
-
-            job = create_job(
-                simulation,
-                func=train_predict_pipeline.run_cycle,
-                enqueue=True,
-                depends_on=simulation_job,
-                kwargs=cycle_job_params,
-                priority=Priority.HIGH,
-            )
-            cycle_jobs.append(job)
-    return cycle_jobs
 
 
 class TrainPredictPipeline:
@@ -151,7 +58,6 @@ class TrainPredictPipeline:
         predict_end: datetime,
         counter: int,
         multiplier: int,
-        simulation_id: int = None,
     ):
         """
         Runs a single training and prediction cycle.
@@ -161,13 +67,6 @@ class TrainPredictPipeline:
         logging.info(
             f"Starting Train-Predict cycle from {train_start} to {predict_end}"
         )
-
-        if simulation_id:
-            for scenario in SmartBuildingSimulation.fetch(simulation_id).scenarios:
-                # If any forecasting cycle fails, we avoid switching to FORECASTING_RUNNING to preserve the ERROR_DURING_FORECASTING status.
-                # Otherwise, when other cycle jobs start, they may override the error status, hiding the failure.
-                if scenario.status != Status.ERROR_DURING_FORECASTING:
-                    scenario.change_status(Status.FORECASTING_RUNNING)
 
         # Train model
         train_pipeline = TrainPipeline(
@@ -184,15 +83,7 @@ class TrainPredictPipeline:
 
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
         train_start_time = time.time()
-        try:
-            train_pipeline.run(counter=counter)
-        except Exception:
-            if simulation_id:
-                update_forecasting_status(
-                    simulation_id=simulation_id,
-                    error=True,
-                    target_sensor_id=self.sensors[self.target],
-                )
+        train_pipeline.run(counter=counter)
         train_runtime = time.time() - train_start_time
         logging.info(
             f"{counter} Training cycle completed in {train_runtime:.2f} seconds."
