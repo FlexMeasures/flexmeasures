@@ -340,87 +340,110 @@
             }
         };
 
+        function renderDataTypeComponents(dataType, activeTab) {
+            const card = activeCard();
+            const name = card.id.replace('-control', '');
+            const flexModel = getFlexModel()
+            const value = flexModel[name];
+
+
+            if (dataType == Boolean) {
+                // Boolean Tab
+                const boolTab = document.createElement('li');
+                boolTab.className = 'nav-item';
+                boolTab.setAttribute('role', 'presentation');
+                const boolBtn = document.createElement('button');
+                boolBtn.className = `nav-link ${activeTab ? "active" : ""}`; // active will be added here
+                boolBtn.setAttribute('data-bs-toggle', 'pill');
+                boolBtn.setAttribute('data-bs-target', `#pills-bool`);
+                boolBtn.setAttribute('type', 'button');
+                boolBtn.setAttribute('role', 'tab');
+                boolBtn.setAttribute('aria-controls', 'pills-bool');
+                boolBtn.setAttribute('aria-selected', 'true');
+                boolBtn.textContent = 'Boolean';
+
+                // Add bool tab to the tab list
+                boolTab.appendChild(boolBtn);
+
+                // Boolean Tab Content
+                const boolTabContent = document.createElement('div');
+                boolTabContent.className = `tab-pane rounded-bottom ${activeTab ? "fade show active" : ""}`; // active will be added here as well
+                // inline style
+                boolTabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
+                boolTabContent.style.border = '1px solid #0000002d';
+                boolTabContent.id = 'pills-bool';
+                boolTabContent.setAttribute('role', 'tabpanel');
+                boolTabContent.setAttribute('aria-labelledby', 'pills-bool-tab');
+                const boolTabContentSaveBtn = document.createElement('button');
+                boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
+                boolTabContentSaveBtn.textContent = 'Set Value';
+                boolTabContentSaveBtn.onclick = function () {
+                    const checkbox = document.getElementById('flexBoolInput');
+                    flexModel[name] = checkbox.checked;
+                    setFlexModel(flexModel);
+                    updateFlexModel();
+                };
+                boolTabContent.innerHTML = `
+                    <div class="flex-input-group mb-1 p-2">
+                        <label for="fixed-value" class="form-label">Value for <b>${getFlexFieldTitle(name)} </b>
+                            <i class="fa fa-info-circle ps-2"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="bottom"
+                                title="Set a fixed value for this field. If the field is a boolean, it will be set to true or false."
+                            ></i>
+                        </label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input ps-1" style="transform: scale(1.5); margin-left: -2.1em !important" type="checkbox" id="flexBoolInput" ${value ? 'checked' : ''} />
+                        </div>
+                    </div>
+                `;
+                boolTabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
+
+                return [boolTab, boolTabContent];
+            } else {
+                return [null, null];
+            }
+        }
+
         async function renderFlexInputOptions() {
             const card = activeCard();
             if (!card) {
+                showToast(`Cant render input options without a selcted Field`, "info");
                 return;
             }
 
             const name = card.id.replace('-control', '');
-            const value = getFlexModel()[name];
-            const fieldDataType = FlexModelFieldValidTypes[name];
-            const flexModel = getFlexModel()
+            const fieldDataTypes = FlexModelFieldValidTypes[name];
 
-            // tabs container
-            const tabContainer = document.createElement('div');
-            tabContainer.className = 'card-header';
-            const tabList = document.createElement('ul');
-            tabList.className = 'nav nav-tabs card-header-tabs';
-            tabList.setAttribute('role', 'tablist');
-            tabContainer.appendChild(tabList);
-
-            // Boolean Tab
-            const boolTab = document.createElement('li');
-            boolTab.className = 'nav-item';
-            boolTab.setAttribute('role', 'presentation');
-            const boolBtn = document.createElement('button');
-            boolBtn.className = 'nav-link active'; // active will be added here
-            boolBtn.setAttribute('data-bs-toggle', 'pill');
-            boolBtn.setAttribute('data-bs-target', `#pills-bool`);
-            boolBtn.setAttribute('type', 'button');
-            boolBtn.setAttribute('role', 'tab');
-            boolBtn.setAttribute('aria-controls', 'pills-bool');
-            boolBtn.setAttribute('aria-selected', 'true');
-            boolBtn.textContent = 'Boolean';
-
-            // Add bool tab to the tab list
-            boolTab.appendChild(boolBtn);
-            tabList.appendChild(boolTab);
-
-
+            // main tab components contianer
+            const tabsContainer = document.createElement('div');
+            tabsContainer.className = 'card-header';
+            // tab headers
+            const tabHeaders = document.createElement('ul');
+            tabHeaders.className = 'nav nav-tabs card-header-tabs';
+            tabHeaders.setAttribute('role', 'tabHeaders');
+            // tab contents
             const tabContent = document.createElement('div');
             tabContent.className = 'tab-content';
 
-            // Boolean Tab Content
-            const boolTabContent = document.createElement('div');
-            boolTabContent.className = 'tab-pane rounded-bottom fade show active';
-            // inline style
-            boolTabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
-            boolTabContent.style.border = '1px solid #0000002d';
-            boolTabContent.id = 'pills-bool';
-            boolTabContent.setAttribute('role', 'tabpanel');
-            boolTabContent.setAttribute('aria-labelledby', 'pills-bool-tab');
-            const boolTabContentSaveBtn = document.createElement('button');
-            boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-            boolTabContentSaveBtn.textContent = 'Set Value';
-            boolTabContentSaveBtn.onclick = function () {
-                const checkbox = document.getElementById('flexBoolInput');
-                flexModel[name] = checkbox.checked;
-                setFlexModel(flexModel);
-                updateFlexModel();
-            };
-            boolTabContent.innerHTML = `
-                <div class="flex-input-group mb-1 p-2">
-                    <label for="fixed-value" class="form-label">Value for <b>${getFlexFieldTitle(name)} </b>
-                        <i class="fa fa-info-circle ps-2"
-                            data-bs-toggle="tooltip"
-                            data-bs-placement="bottom"
-                            title="Set a fixed value for this field. If the field is a boolean, it will be set to true or false."
-                        ></i>
-                    </label>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input ps-1" style="transform: scale(1.5); margin-left: -2.1em !important" type="checkbox" id="flexBoolInput" ${value ? 'checked' : ''} />
-                    </div>
-                </div>
-            `;
-            boolTabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
 
-            // Add the boolean tab content to the tab content
-            tabContent.appendChild(boolTabContent);
-            tabContainer.appendChild(tabContent);
+            fieldDataTypes.forEach((type, index) => {
+                const activeTab = (index === 0); 
+                const [boolTabheader, boolTabContent] = renderDataTypeComponents(type, activeTab)
+                if (boolTabheader && boolTabContent) {
+                    tabHeaders.appendChild(boolTabheader);
+                    tabContent.appendChild(boolTabContent);
+                } else {
+                    showToast(`Invalid data type for field: ${getFlexFieldTitle(name)}`);
+                }
+            });
+
+            // setup headers and contents in container
+            tabsContainer.appendChild(tabHeaders);
+            tabsContainer.appendChild(tabContent);
 
             flexOptionsContainer.innerHTML = ""; // Clear previous content
-            flexOptionsContainer.appendChild(tabContainer);
+            flexOptionsContainer.appendChild(tabsContainer);
         }
 
         renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
