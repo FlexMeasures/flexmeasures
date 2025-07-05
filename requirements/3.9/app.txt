@@ -207,7 +207,7 @@ kiwisolver==1.4.7
     # via matplotlib
 lightgbm==4.6.0
     # via u8darts
-llvmlite==0.44.0
+llvmlite==0.43.0
     # via numba
 lunardate==0.2.2
     # via workalendar
