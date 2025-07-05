@@ -137,6 +137,7 @@ class TrainPredictPipeline:
         self,
         as_job: bool = False,
         queue: str = "forecasting",
+        **job_kwargs: dict[str, str | int | bool | None],
     ):
         try:
             logging.info("Starting Train-Predict Pipeline")
@@ -205,6 +206,7 @@ class TrainPredictPipeline:
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
+                        **job_kwargs,
                     )
 
                     jobs.append(job)
