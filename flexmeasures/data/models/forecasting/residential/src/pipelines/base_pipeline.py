@@ -30,6 +30,7 @@ class BasePipeline:
     - event_starts_after (datetime | None): Earliest event_start to include.
     - event_ends_before (datetime | None): Latest event_start to include.
     """
+
     def __init__(
         self,
         sensors: dict[str, int],
