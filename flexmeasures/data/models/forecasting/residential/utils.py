@@ -5,7 +5,6 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import get_data_source
 
 
-
 def negative_to_zero(x: np.ndarray) -> np.ndarray:
     return np.where(x < 0, 0, x)
 
