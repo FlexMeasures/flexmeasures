@@ -60,6 +60,8 @@ jobs:
         if: github.event_name == 'pull_request'
       - name: Run all doctests in the data/schemas subpackage
         run: pytest flexmeasures/data/schemas --doctest-modules --ignore flexmeasures/data/schemas/tests
+      - name: Run all doctests in the ui/utils subpackage
+        run: pytest flexmeasures/ui --doctest-modules --ignore flexmeasures/ui/tests
       - name: Run all doctests in the utils subpackage
         run: pytest flexmeasures/utils --doctest-modules --ignore flexmeasures/utils/tests
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage

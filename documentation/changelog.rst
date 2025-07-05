@@ -40,6 +40,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix support for using 3-digit hex colors in account color scheme [see `PR #1569 <https://github.com/FlexMeasures/flexmeasures/pull/1569>`_]
 
 
 v0.26.1 | June 09, 2025
