@@ -15,6 +15,21 @@ from ..logger import logging
 
 
 class BasePipeline:
+    """
+    Base class for Train and Predict pipelines.
+
+    This class handles loading and preprocessing time series data for training or prediction,
+    including missing value handling and splitting into regressors (X) and target (y).
+
+    Parameters:
+    - sensors (dict[str, int]): Dictionary mapping sensor names to sensor IDs.
+    - regressors (list[str]): Names of sensors used as features.
+    - target (str): Name of the target sensor.
+    - n_hours_to_predict: Number of hours to predict into the future.
+    - max_forecast_horizon (int): Max forecasting horizon.
+    - event_starts_after (datetime | None): Earliest event_start to include.
+    - event_ends_before (datetime | None): Latest event_start to include.
+    """
     def __init__(
         self,
         sensors: dict[str, int],
