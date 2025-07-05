@@ -28,8 +28,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Install libgomp1 (required for LightGBM)
-        run: sudo apt-get update && sudo apt-get install -y libgomp1
       - name: Build Docker Image
         run: docker build -t flexmeasures:latest -f Dockerfile .
       - name: Generate random secret key
