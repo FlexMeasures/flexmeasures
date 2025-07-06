@@ -162,28 +162,21 @@ class TrainPredictPipeline:
             while predict_end <= self.end_date:
                 counter += 1
 
+                train_predict_params = {
+                    "train_start": train_start,
+                    "train_end": train_end,
+                    "predict_start": predict_start,
+                    "predict_end": predict_end,
+                    "counter": counter,
+                    "multiplier": multiplier,
+                }
+
                 if not as_job:
-                    cycle_runtime = self.run_cycle(
-                        train_start=train_start,
-                        train_end=train_end,
-                        predict_start=predict_start,
-                        predict_end=predict_end,
-                        counter=counter,
-                        multiplier=multiplier,
-                    )
+                    cycle_runtime = self.run_cycle(**train_predict_params)
                     cumulative_cycles_runtime += cycle_runtime
                 else:
-                    cycles_job_params.append(
-                        {
-                            "train_start": train_start,
-                            "train_end": train_end,
-                            "predict_start": predict_start,
-                            "predict_end": predict_end,
-                            "counter": counter,
-                            "multiplier": multiplier,
-                            "target_sensor_id": self.sensors[self.target],
-                        }
-                    )
+                    train_predict_params["target_sensor_id"] = self.sensors[self.target]
+                    cycles_job_params.append(train_predict_params)
 
                 # Move forward to the next cycle one prediction period later
                 cycle_frequency = timedelta(hours=self.predict_period_in_hours)
