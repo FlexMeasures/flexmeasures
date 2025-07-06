@@ -127,69 +127,65 @@ The event_value should be a numeric value."
                             </fieldset>
                         </div>
                     </div>
-    <script type="text/javascript">
-        let upload = document.querySelector('#submitUpload');
-        let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
-        upload.addEventListener('click', function(e) {
-            upload.classList.add('d-none');
-            uploadSpinner.classList.remove('d-none');
-            var formData = new FormData(document.getElementById('uploadForm'));
-            fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
-                method: 'POST',
-                body: formData,
-            })
-            .then(async function(response) {
-                if (response.ok) {
-                    const data = await response.json();
-                    showToast(data.message, "success");
-                    // Update date range
-                    picker.setDateRange(
-                        storeStartDate,
-                        subtract(storeEndDate, 1),
-                    );
-                    // Wait for 2 seconds and then reload the page
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    window.location.reload();
-                } else {
-                    const data = await response.json();
-                    if (data.message.path_and_files === undefined) {
-                        showToast(data.message, "error");
-                    }
-                    else {
-                        for (const [key, value] of Object.entries(data.message.path_and_files)) {
-                            if (typeof value === 'string') {
-                                showToast(value, "error");
-                            } else if (Array.isArray(value)) {
-                                value.forEach(element => {
-                                    showToast(element, "error");
-                                });
-                            } else if (typeof value === 'object' && value !== null) {
-                                Object.values(value).forEach(element => {
-                                    if (Array.isArray(element)) {
-                                        element.forEach(item => showToast(item, "error"));
-                                    } else {
-                                        showToast(element, "error");
+                    <script type="text/javascript">
+                        // Adding event listener for upload click action
+                        let upload = document.querySelector('#submitUpload');
+                        let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
+                        upload.addEventListener('click', function(e) {
+                            upload.classList.add('d-none');
+                            uploadSpinner.classList.remove('d-none');
+                            var formData = new FormData(document.getElementById('uploadForm'));
+                            fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
+                                method: 'POST',
+                                body: formData,
+                            })
+                            .then(async function(response) {
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    showToast(data.message, "success");
+                                    // Wait for 2 seconds and then reload the page
+                                    await new Promise(resolve => setTimeout(resolve, 2000));
+                                    window.location.reload();
+                                } else {
+                                    const data = await response.json();
+                                    if (data.message.path_and_files === undefined) {
+                                        showToast(data.message, "error");
                                     }
-                                });
-                            } else {
-                                // fallback for unexpected types
-                                showToast(String(value), "error");
-                            }
-                        }
-                    }
-                    uploadSpinner.classList.add('d-none');
-                    upload.classList.remove('d-none');
-                }
-            })
-            .catch(function(error) {
-                // Network or unexpected error
-                console.error("Upload error:", error);
-                showToast("An error occurred: " + error.message, "error");
-                uploadSpinner.classList.add('d-none');
-                upload.classList.remove('d-none');
-            });
-        });
-    </script>
+                                    else {
+                                        for (const [key, value] of Object.entries(data.message.path_and_files)) {
+                                            if (typeof value === 'string') {
+                                                showToast(value, "error");
+                                            } else if (Array.isArray(value)) {
+                                                value.forEach(element => {
+                                                    showToast(element, "error");
+                                                });
+                                            } else if (typeof value === 'object' && value !== null) {
+                                                Object.values(value).forEach(element => {
+                                                    if (Array.isArray(element)) {
+                                                        element.forEach(item => showToast(item, "error"));
+                                                    } else {
+                                                        showToast(element, "error");
+                                                    }
+                                                });
+                                            } else {
+                                                // fallback for unexpected types
+                                                showToast(String(value), "error");
+                                            }
+                                        }
+                                    }
+                                    uploadSpinner.classList.add('d-none');
+                                    upload.classList.remove('d-none');
+                                }
+                            })
+                            .catch(function(error) {
+                                // Network or unexpected error
+                                console.error("Upload error:", error);
+                                showToast("An error occurred: " + error.message, "error");
+                                uploadSpinner.classList.add('d-none');
+                                upload.classList.remove('d-none');
+                            });
+                        });
+                    </script>
                   {% endif %}
 
               </div>
