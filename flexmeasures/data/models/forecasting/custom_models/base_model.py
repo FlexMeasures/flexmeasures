@@ -3,9 +3,9 @@ from abc import ABC, abstractmethod
 
 from darts import TimeSeries
 
-from ...utils import negative_to_zero
-from ..exception import CustomException
-from ..logger import logging
+from flexmeasures.data.models.forecasting.utils import negative_to_zero
+from flexmeasures.data.models.forecasting.exceptions import CustomException
+from flexmeasures.data.models.forecasting.logger import logging
 
 
 class BaseModel(ABC):

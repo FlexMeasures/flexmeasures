@@ -1,6 +1,6 @@
 from darts.models import LightGBMModel
 
-from ..custom_models.base_model import BaseModel
+from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
 
 
 class CustomLGBM(BaseModel):
