@@ -88,7 +88,7 @@ from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from timely_beliefs import BeliefsDataFrame
-from flexmeasures.data.models.forecasting.residential.src.pipelines.train_predict_pipeline import (
+from flexmeasures.data.models.forecasting.pipelines.train_predict import (
     TrainPredictPipeline,
 )
 
