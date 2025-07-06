@@ -1,6 +1,14 @@
 import sys
 
 
+class NotEnoughDataException(Exception):
+    pass
+
+
+class InvalidHorizonException(Exception):
+    pass
+
+
 def error_message_detail(error, error_detail: sys):
     """
     This function returns the error message and the error detail
