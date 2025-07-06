@@ -60,6 +60,7 @@ class TrainPredictPipeline:
         predict_end: datetime,
         counter: int,
         multiplier: int,
+        **kwargs: dict[str, str | int | bool | None],
     ):
         """
         Runs a single training and prediction cycle.
@@ -179,6 +180,7 @@ class TrainPredictPipeline:
                             "predict_end": predict_end,
                             "counter": counter,
                             "multiplier": multiplier,
+                            "target_sensor_id": self.sensors[self.target],
                         }
                     )
 
