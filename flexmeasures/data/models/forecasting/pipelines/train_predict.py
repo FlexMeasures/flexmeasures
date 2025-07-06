@@ -3,15 +3,16 @@ import sys
 import time
 from datetime import datetime, timedelta
 
+# from flexmeasures.cli import jobs
 from flexmeasures.data.models.time_series import Sensor
 from rq.job import Job
 
 from flask import current_app
 
-from ..exception import CustomException
-from ..logger import logging
-from .predict_pipeline import PredictPipeline
-from .train_pipeline import TrainPipeline
+from flexmeasures.data.models.forecasting.exceptions import CustomException
+from flexmeasures.data.models.forecasting.logger import logging
+from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
+from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
 
 
 class TrainPredictPipeline:
@@ -210,7 +211,8 @@ class TrainPredictPipeline:
                         ),
                         **job_kwargs,
                     )
-
+                    # job.meta["model_search_term"] = model_search_term
+                    # job.save_meta()
                     jobs.append(job)
 
                     current_app.queues[queue].enqueue_job(job)

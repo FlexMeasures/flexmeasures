@@ -12,10 +12,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.utils import save_to_db
 
-from ...utils import data_to_bdf
-from ..exception import CustomException
+from flexmeasures.data.models.forecasting.utils import data_to_bdf
+from flexmeasures.data.models.forecasting.exceptions import CustomException
 from ..logger import logging
-from .base_pipeline import BasePipeline
+from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 
 
 class PredictPipeline(BasePipeline):
