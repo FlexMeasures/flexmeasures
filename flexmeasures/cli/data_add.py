@@ -1086,16 +1086,16 @@ def train_predict_pipeline(
 
     Example:
 
-        flexmeasures add forecast \
-            --sensors '{"Heating_demand": 2092, "Ambient_temp": 2093}' \
-            --regressors Ambient_temp \
-            --target Heating_demand \
-            --start-date 2023-01-01T00:00:00+01:00 \
-            --end-date 2023-01-15T00:00:00+01:00 \
-            --train-period 5 \
-            --predict-period 7 \
-            --forecast-frequency 6 \
-            --max-forecast-horizon 48 \
+        flexmeasures add forecast \n
+            --sensors '{"Heating_demand": 2092, "Ambient_temp": 2093}' \n
+            --regressors Ambient_temp \n
+            --target Heating_demand \n
+            --start-date 2023-01-01T00:00:00+01:00 \n
+            --end-date 2023-01-15T00:00:00+01:00 \n
+            --train-period 5 \n
+            --predict-period 7 \n
+            --forecast-frequency 6 \n
+            --max-forecast-horizon 48 \n
             --as-job
 
     This will:
