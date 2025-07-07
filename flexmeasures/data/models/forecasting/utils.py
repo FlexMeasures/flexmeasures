@@ -203,17 +203,17 @@ def data_to_bdf(
             []
         )  # timestamps for the event_start of the forecasts for each horizon
         forecasts = []
-        for horizon in range(1, horizon + 1):
+        for h in range(1, horizon + 1):
             time_add = (
-                sensor.event_resolution * horizon
+                sensor.event_resolution * h
             )  # Calculate the time increment for each forecast horizon based on the sensor's event resolution.
             preds_timestamps.append(date + time_add)
-            forecasts.append(df[f"{horizon}h"][i])
+            forecasts.append(df[f"{h}h"][i])
 
         forecasts_column.extend(forecasts)
         datetime_column.extend(preds_timestamps)
-        belief_column.extend([date + sensor.event_resolution] * (horizon))
-        probabilistic_column.extend([probabilistic_values[i]] * horizon)
+        belief_column.extend([date + sensor.event_resolution] * (h))
+        probabilistic_column.extend([probabilistic_values[i]] * h)
 
     test_df["event_start"] = datetime_column
     test_df["belief_time"] = belief_column
