@@ -14,7 +14,7 @@ from flexmeasures.data.utils import save_to_db
 
 from flexmeasures.data.models.forecasting.utils import data_to_bdf
 from flexmeasures.data.models.forecasting.exceptions import CustomException
-from ..logger import logging
+from flexmeasures.data.models.forecasting.logger import logging
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 
 
@@ -23,6 +23,7 @@ class PredictPipeline(BasePipeline):
         self,
         sensors: dict[str, int],
         regressors: list[str],
+        future_regressors: list[str],
         target: str,
         model_path: str,
         output_path: str,
@@ -51,13 +52,15 @@ class PredictPipeline(BasePipeline):
         :param forecast_frequency: Create a forecast every Nth interval.
         """
         super().__init__(
-            sensors,
-            regressors,
-            target,
-            n_hours_to_predict,
-            max_forecast_horizon,
-            event_starts_after,
-            event_ends_before,
+            sensors=sensors,
+            regressors=regressors,
+            future_regressors=future_regressors,
+            target=target,
+            n_hours_to_predict=n_hours_to_predict,
+            max_forecast_horizon=max_forecast_horizon,
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            forecast_frequency=forecast_frequency,
         )
         self.model_path = model_path
         self.output_path = output_path
@@ -138,7 +141,9 @@ class PredictPipeline(BasePipeline):
         except Exception as e:
             raise CustomException(f"Error preparing prediction DataFrame: {e}", sys)
 
-    def make_single_horizon_prediction(self, model, X, y, time_offset) -> pd.DataFrame:
+    def make_single_horizon_prediction(
+        self, model, future_covariates, past_covariates, y, time_offset
+    ) -> pd.DataFrame:
         """
         Make a single prediction for the given time offset, which can represent minutes or hours
         based on the sensor resolution. The time offset increments the belief horizon and event time
@@ -149,15 +154,37 @@ class PredictPipeline(BasePipeline):
                 f"Predicting for {self.readable_resolution} offset {time_offset + 1}, forecasting up to ({self.total_forecast_hours} hours) ahead."
             )
 
-            current_y = y[: -self.n_hours_to_predict + time_offset]
-            if X != []:
-                current_X = X[: -self.n_hours_to_predict + time_offset]
-            else:
-                current_X = None
-            y_pred = model.predict(current_y, past_covariates=current_X)
+            current_y = y
+            # CHECK THIS DIAGRAM : https://cloud.seita.nl/index.php/s/FYRgJwE3ER8kTLk
+            """past covariates and future_covariates data is loaded initially to extend
+            from the beginning of the train_period up to the end of the predict_period PLUS max_forecast_horizon.
+            Check load_data in base_pipeline."""
+
+            """ For each single-horizon forecast, past_covariates
+            start from the beginning of the training dataset and
+            end before the last `n_hours_to_predict` time steps that are yet to be predicted,
+            while also shifting by `time_offset` after each horizon.
+            and discarding the additional period at the end which extends a period of max_forecast_horizon meant for future_covariates
+            """
+            if past_covariates is not None:
+                past_covariates = past_covariates
+            """ For each single-horizon forecast, future covariates
+             start from the forecasted horizon
+             extend the last `n_hours_to_predict` time steps that are yet to be predicted,
+             and the additional period at the end for the last forecasted horizon of the predict_period
+             While also shifting by `time_offset` after each horizon.
+            """
+            if future_covariates is not None:
+                future_covariates = future_covariates
+
+            y_pred = model.predict(
+                current_y,
+                past_covariates=past_covariates,
+                future_covariates=future_covariates,
+            )
+
             belief_horizon = current_y.end_time()
             value_at_belief_horizon = current_y.last_value()
-
             y_pred_df = self._prepare_df_single_horizon_prediction(
                 y_pred, belief_horizon, value_at_belief_horizon, time_offset
             )
@@ -171,7 +198,9 @@ class PredictPipeline(BasePipeline):
                 sys,
             )
 
-    def make_multi_horizon_predictions(self, model, X, y) -> pd.DataFrame:
+    def make_multi_horizon_predictions(
+        self, model, future_covariates_list, past_covariates_list, y_list
+    ) -> pd.DataFrame:
         """
         Make multiple predictions for the given model, X, and y.
         """
@@ -183,11 +212,22 @@ class PredictPipeline(BasePipeline):
             df_res = pd.DataFrame()
             n_hours_can_predict = self.n_hours_to_predict
             forecast_frequency = self.forecast_frequency
+            # We make predictions up to the last hour in the predict_period
             for i in range(0, n_hours_can_predict, forecast_frequency):
+                future_covariates = (
+                    future_covariates_list[i] if future_covariates_list else None
+                )
+                past_covariates = (
+                    past_covariates_list[i] if past_covariates_list else None
+                )
+                y = y_list[i]
+
                 logging.debug(
                     f"Making prediction for {self.readable_resolution} offset {i + 1}/{n_hours_can_predict}"
                 )
-                y_pred_df = self.make_single_horizon_prediction(model, X, y, i)
+                y_pred_df = self.make_single_horizon_prediction(
+                    model, future_covariates, past_covariates, y, i
+                )
                 df_res = pd.concat([df_res, y_pred_df])
             logging.debug("Finished generating predictions.")
             return df_res
@@ -212,11 +252,15 @@ class PredictPipeline(BasePipeline):
         Execute the prediction pipeline.
         """
         try:
-            df = self.load_data()
-            X, y = self.split_data(df)
-            model = self.load_model()
+            df = self.load_data_all_beliefs()
+            past_covariates_list, future_covariates_list, y_list = (
+                self.split_data_all_beliefs(df, is_predict_pipeline=True)
+            )
 
-            df_pred = self.make_multi_horizon_predictions(model, X, y)
+            model = self.load_model()
+            df_pred = self.make_multi_horizon_predictions(
+                model, future_covariates_list, past_covariates_list, y_list
+            )
             if self.output_path is not None:
                 self.save_results_to_CSV(df_pred)
             bdf = data_to_bdf(
@@ -226,6 +270,7 @@ class PredictPipeline(BasePipeline):
                 sensors=self.sensors,
                 target_sensor=self.target,
                 sensor_to_save=self.sensor_to_save,
+                regressors=self.regressors,
             )
 
             save_to_db(
@@ -233,7 +278,7 @@ class PredictPipeline(BasePipeline):
             )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
             db.session.commit()
             logging.info(
-                f"Predictions saved to database to sensor: {self.sensor_to_save}, with id: {self.sensor_to_save.id}."
+                f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
             )
             if delete_model:
                 os.remove(self.model_path)
