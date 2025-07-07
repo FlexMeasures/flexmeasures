@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import timely_beliefs as tb
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.utils import get_or_create_source
+from flexmeasures.data.services.data_sources import get_or_create_source
 
 from datetime import datetime, timedelta
 from sqlalchemy import select
