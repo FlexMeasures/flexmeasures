@@ -1,6 +1,6 @@
 import pytest
 
-from datetime import datetime, timedelta, timezone
+import pandas as pd
 
 from flexmeasures.data.models.forecasting.pipelines.train_predict import (
     TrainPredictPipeline,
@@ -17,16 +17,12 @@ from flexmeasures.data.models.forecasting.pipelines.train_predict import (
                 "target": "PV",
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
-                "start_date": datetime(
-                    2025, 7, 1, 0, 0, tzinfo=timezone(timedelta(seconds=7200))
-                ),
-                "end_date": datetime(
-                    2025, 7, 3, 0, 0, tzinfo=timezone(timedelta(seconds=7200))
-                ),
+                "start_date": pd.Timestamp("2025-07-01T00:00", tz="Europe/Amsterdam"),
+                "end_date": pd.Timestamp("2025-07-03T00:00", tz="Europe/Amsterdam"),
                 "train_period_in_hours": 24.0,
                 "sensor_to_save": 313,
-                "predict_start": datetime(
-                    2025, 7, 2, 0, 0, tzinfo=timezone(timedelta(seconds=7200))
+                "predict_start": pd.Timestamp(
+                    "2025-07-02T00:00", tz="Europe/Amsterdam"
                 ),
                 "predict_period_in_hours": 24,
                 "max_forecast_horizon": 24,
