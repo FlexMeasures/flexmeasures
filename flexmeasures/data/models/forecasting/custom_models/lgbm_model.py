@@ -24,6 +24,8 @@ class CustomLGBM(BaseModel):
         probabilistic=True,
         models_params=None,
         auto_regressive=True,
+        use_past_covariates=False,
+        use_future_covariates=False,
     ):
 
         if models_params is None:
@@ -46,7 +48,13 @@ class CustomLGBM(BaseModel):
             }
         else:
             self.models_params = models_params
-        super().__init__(max_forecast_horizon, probabilistic, auto_regressive)
+        super().__init__(
+            max_forecast_horizon=max_forecast_horizon,
+            probabilistic=probabilistic,
+            auto_regressive=auto_regressive,
+            use_past_covariates=use_past_covariates,
+            use_future_covariates=use_future_covariates,
+        )
 
     def _setup(self) -> None:
         for horizon in range(self.max_forecast_horizon):
@@ -75,11 +83,14 @@ class CustomLGBM(BaseModel):
                 lags = [-1, -2]  # noqa F841
 
             model_params["lags"] = lags
-            if self.auto_regressive is False:
+            if self.use_past_covariates:
                 model_params["lags_past_covariates"] = lags
 
-            # It's the event start at the `horizon` lag, not the belief time at the `0` lag, that matters for the cyclic time encoders
-            model_params["lags_future_covariates"] = [horizon]
+                # The one future covariate lag that is probably the most important is the one at the `horizon`,
+                # but here we pass all future lags up until `max_horizon`, and let the model figure it out.
+                # One future covariate that is of considerable importance is the cyclic time encoder, which contains information about the time at the `horizon`,
+                # i.e. the time of the event that we forecast, rather than the time at which the forecast is made, which would be at lag `0`.
+            model_params["lags_future_covariates"] = lags + [0]
 
             model = LightGBMModel(**model_params)
             self.models.append(model)
