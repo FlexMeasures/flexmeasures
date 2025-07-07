@@ -162,7 +162,7 @@ class BasePipeline:
         """
 
         if df.empty:
-            transformer = MissingValuesFiller(fill=fill)
+            transformer = MissingValuesFiller(fill=float(fill))
             logging.warning(
                 f"Sensor '{self.sensors[sensor_name]}' has no data from {start} to {end}. Filling with {fill}."
             )
