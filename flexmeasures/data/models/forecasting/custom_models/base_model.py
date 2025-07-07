@@ -54,7 +54,9 @@ class BaseModel(ABC):
                 self.models[i].fit(series=series, past_covariates=past_covariates)
             logging.debug("Base model trained successfully")
         except Exception as e:
-            raise CustomException(f"Error training base model: {e}", sys)
+            raise CustomException(
+                f"Error training base model: {e}. Try decreasing the --start-date.", sys
+            )
 
     def predict(
         self, series: TimeSeries, past_covariates: TimeSeries, num_samples=500
