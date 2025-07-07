@@ -142,7 +142,9 @@ class TrainPredictPipeline:
         **job_kwargs,
     ):
         try:
-            logging.info("Starting Train-Predict Pipeline")
+            logging.info(
+                f"Starting Train-Predict Pipeline to predict for {self.predict_period_in_hours} hours."
+            )
 
             train_start = self.start_date
             train_end = train_start + timedelta(hours=self.train_period_in_hours)
