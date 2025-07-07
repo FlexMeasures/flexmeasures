@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import timely_beliefs as tb
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.utils import get_data_source
+from flexmeasures.data.utils import get_or_create_source
 
 from datetime import datetime, timedelta
 from sqlalchemy import select
@@ -156,6 +156,7 @@ def data_to_bdf(
     probabilistic: bool,
     sensors: dict[str, int],
     target_sensor: str,
+    regressors: list[str],
     sensor_to_save: Sensor,
 ) -> tb.BeliefsDataFrame:
     """
@@ -172,6 +173,8 @@ def data_to_bdf(
         Dictionary mapping sensor names to sensor IDs.
     target_sensor : str
         The name of the target sensor.
+    regressors : list[str]
+        List of regressor names.
     sensor_to_save : Sensor
         The sensor object to save the forecasts to.
     Returns:
@@ -240,9 +243,28 @@ def data_to_bdf(
         ),
     )
 
-    data_source = get_data_source(
-        data_source_name="forecaster",
-        data_source_type="forecaster",
+    # Set up forecaster regressors attributes to be saved on the datasource
+    # use sensor names from the database and id's in attribute
+    # use sensor names from cli command for model name
+
+    if "autoregressive" in regressors:
+        regressors_names = "autoregressive"
+        sensor = Sensor.query.get(sensors[target_sensor])
+        regressors_attribute = f"(autoregressive) {sensor.name}: {sensor.id}"
+    else:
+        regressor_pairs = []
+        for sensor_name, sensor_id in sensors.items():
+            if sensor_name in regressors:
+                sensor = Sensor.query.get(sensor_id)
+                regressor_pairs.append(f"{sensor.name}: {sensor.id}")
+        regressors_attribute = ", ".join(regressor_pairs)
+        regressors_names = ", ".join(regressors)
+
+    data_source = get_or_create_source(
+        source="forecaster",
+        model=f"CustomLGBM ({regressors_names})",
+        source_type="forecaster",
+        attributes={"regressors": regressors_attribute},
     )
 
     ts_value_forecasts = [
