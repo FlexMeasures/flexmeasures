@@ -1006,6 +1006,10 @@ def add_holidays(
     default="autoregressive",
     help="Comma-separated list of the sensor names to be used as regressors, default is 'autoregressive' to use the AR forecasting",
 )
+@click.option(
+    "--future-regressors",
+    help="Comma-separated list of the sensor names to be used as future regressors. future regressors need to be included in '--regressors' too. To set past regressors, use just the '--regressors' option .",
+)
 @click.option("--target", required=True, help="Name of the target sensor")
 @click.option(
     "--model-save-dir",
@@ -1067,6 +1071,7 @@ def add_holidays(
 def train_predict_pipeline(
     sensors,
     regressors,
+    future_regressors,
     target,
     model_save_dir,
     output_path,
@@ -1149,10 +1154,16 @@ def train_predict_pipeline(
         if sensor_to_save is None:
             sensor_to_save = Sensor.query.get(int(sensors_dict[target]))
 
+        if future_regressors is not None:
+            future_regressors_list = future_regressors.split(",")
+        else:
+            future_regressors_list = []
+
         # Create and run the pipeline
         pipeline = TrainPredictPipeline(
             sensors=sensors_dict,
             regressors=regressors_list,
+            future_regressors=future_regressors_list,
             target=target,
             model_save_dir=model_save_dir,
             output_path=output_path,
