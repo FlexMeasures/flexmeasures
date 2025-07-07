@@ -183,12 +183,12 @@ class BasePipeline:
 
         # Ensure the first and last event_starts match the expected dates specified in the CLI arguments
         # Add start time if missing
-        if data["time"].iloc[0] != start:
+        if data.empty or data["time"].iloc[0] != start:
             new_row_start = pd.DataFrame({"time": [start], "target": [None]})
             data = pd.concat([new_row_start, data], ignore_index=True)
 
         # Add end time if missing
-        if data["time"].iloc[-1] != last_event_start:
+        if data.empty or data["time"].iloc[-1] != last_event_start:
             new_row_end = pd.DataFrame({"time": [last_event_start], "target": [None]})
             data = pd.concat([data, new_row_end], ignore_index=True)
 
