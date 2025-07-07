@@ -392,9 +392,9 @@ class BasePipeline:
                 data = pd.concat([data, new_row_end], ignore_index=True)
 
             # Check for duplicate events
-            if len(data) != len(data["event_start"].unique()):
+            if n_extra_points := len(data) - len(data["event_start"].unique()):
                 logging.warning(
-                    f"Data for {sensor_name} contains multiple beliefs about a single event. Dropping beliefs with duplicate event starts."
+                    f"Data for {sensor_name} contains multiple beliefs about a single event. Dropping {n_extra_points} beliefs with duplicate event starts."
                 )
                 data = data.drop_duplicates("event_start")
 
