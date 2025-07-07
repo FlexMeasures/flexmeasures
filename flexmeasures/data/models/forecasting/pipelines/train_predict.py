@@ -186,7 +186,9 @@ class TrainPredictPipeline:
                 predict_start += cycle_frequency
                 predict_end += cycle_frequency
             if counter == 0:
-                logging.info("Train-Predict Pipeline Not Run.")
+                logging.info(
+                    f"Train-Predict Pipeline Not Run: --start-predict-date + --predict-period is {predict_end}, which exceeds --end-date {self.end_date}."
+                )
             elif not as_job:
                 logging.info(
                     f"Train-Predict Pipeline completed successfully in {cumulative_cycles_runtime:.2f} seconds."
