@@ -28,12 +28,19 @@ class BaseModel(ABC):
     probabilistic: bool
 
     def __init__(
-        self, max_forecast_horizon: int, probabilistic: bool, auto_regressive: bool
+        self,
+        max_forecast_horizon: int,
+        probabilistic: bool,
+        auto_regressive: bool,
+        use_past_covariates: bool,
+        use_future_covariates: bool,
     ) -> None:
         self.models = []
         self.max_forecast_horizon = max_forecast_horizon
         self.probabilistic = probabilistic
         self.auto_regressive = auto_regressive
+        self.use_past_covariates = use_past_covariates
+        self.use_future_covariates = use_future_covariates
         self._setup()
 
     @abstractmethod
@@ -47,11 +54,20 @@ class BaseModel(ABC):
     def get_models(self) -> list:
         return self.models
 
-    def fit(self, series: TimeSeries, past_covariates: TimeSeries) -> None:
+    def fit(
+        self,
+        series: TimeSeries,
+        past_covariates: TimeSeries,
+        future_covariates: TimeSeries,
+    ) -> None:
         try:
             logging.debug("Training base model")
             for i in range(self.max_forecast_horizon):
-                self.models[i].fit(series=series, past_covariates=past_covariates)
+                self.models[i].fit(
+                    series=series,
+                    past_covariates=past_covariates,
+                    future_covariates=future_covariates,
+                )
             logging.debug("Base model trained successfully")
         except Exception as e:
             raise CustomException(
@@ -59,7 +75,11 @@ class BaseModel(ABC):
             )
 
     def predict(
-        self, series: TimeSeries, past_covariates: TimeSeries, num_samples=500
+        self,
+        series: TimeSeries,
+        past_covariates: TimeSeries,
+        future_covariates: TimeSeries,
+        num_samples=500,
     ) -> TimeSeries:
         y_preds = TimeSeries
         for i in range(self.max_forecast_horizon):
@@ -69,6 +89,7 @@ class BaseModel(ABC):
                 n=1,
                 series=series,
                 past_covariates=past_covariates,
+                future_covariates=future_covariates,
                 **optional_params,
             )
             y_pred = y_pred.map(negative_to_zero)
