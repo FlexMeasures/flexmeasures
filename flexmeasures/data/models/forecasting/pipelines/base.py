@@ -336,16 +336,8 @@ class BasePipeline:
         if isinstance(sensor_names, str):
             sensor_names = [sensor_names]
 
-        if df.empty:
-            transformer = MissingValuesFiller(fill=float(fill))
-            logging.warning(
-                f"Sensor '{self.sensors[sensor_name]}' has no data from {start} to {end}. Filling with {fill}."
-            )
-        else:
-            transformer = MissingValuesFiller(fill="auto")
         for sensor_name in sensor_names:
             if df.empty:
-                transformer = MissingValuesFiller(fill=float(fill))
                 sensor = db.session.get(Sensor, self.sensors[sensor_name])
 
                 last_event_start = end - pd.Timedelta(
@@ -362,7 +354,7 @@ class BasePipeline:
                 logging.warning(
                     f"Sensor '{self.sensors[sensor_name]}' has no data from {start} to {end}. Filling with {fill}."
                 )
-                transformer = MissingValuesFiller(fill=fill)
+                transformer = MissingValuesFiller(fill=float(fill))
             else:
                 transformer = MissingValuesFiller(fill="auto")
 
