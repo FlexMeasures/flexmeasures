@@ -327,7 +327,7 @@
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
 
     function processAssetRawFlexContextJSON(rawJSON){
         let processedJSON = rawJSON.replace(/'/g, '"');
@@ -1107,7 +1107,7 @@
                                     <i class="fa fa-info-circle ps-2"
                                         data-bs-toggle="tooltip"
                                         data-bs-placement="bottom"
-                                        title="Search for sensor(s) to add here. Make sure that the sensor data will be available consistently, though, so scheduling will work."
+                                        title="Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. Make sure that the sensor data will be available consistently, though, so scheduling will work."
                                     ></i>
                                 </label>
 
