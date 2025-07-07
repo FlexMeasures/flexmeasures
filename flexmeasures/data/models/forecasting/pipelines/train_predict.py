@@ -13,6 +13,7 @@ from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.logger import logging
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
+from flexmeasures.utils.flexmeasures_inflection import p
 
 
 class TrainPredictPipeline:
@@ -89,7 +90,7 @@ class TrainPredictPipeline:
         train_pipeline.run(counter=counter)
         train_runtime = time.time() - train_start_time
         logging.info(
-            f"{counter} Training cycle completed in {train_runtime:.2f} seconds."
+            f"{p.ordinal(counter)} Training cycle completed in {train_runtime:.2f} seconds."
         )
 
         # Make predictions
@@ -125,14 +126,14 @@ class TrainPredictPipeline:
         predict_pipeline.run(delete_model=self.delete_model)
         predict_runtime = time.time() - predict_start_time
         logging.info(
-            f"{counter} Prediction cycle completed in {predict_runtime:.2f} seconds. "
+            f"{p.ordinal(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
         )
 
         total_runtime = (
             train_runtime + predict_runtime
         )  # To track the cumulative runtime of PredictPipeline and TrainPipeline for this cycle
         logging.info(
-            f"{counter} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
+            f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
 
         return total_runtime
