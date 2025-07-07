@@ -1176,7 +1176,6 @@ def train_predict_pipeline(
             max_forecast_horizon=max_forecast_horizon,
             forecast_frequency=forecast_frequency,
             probabilistic=probabilistic,
-            as_job=as_job,
         )
         pipeline.run(as_job=as_job)
     except Exception as e:
