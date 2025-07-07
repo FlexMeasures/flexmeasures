@@ -2,7 +2,6 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta
-from typing import Union
 
 # from flexmeasures.cli import jobs
 from flexmeasures.data.models.time_series import Sensor
@@ -62,7 +61,7 @@ class TrainPredictPipeline:
         predict_end: datetime,
         counter: int,
         multiplier: int,
-        **kwargs: dict[str, Union[str | int | bool | None]],
+        **kwargs,
     ):
         """
         Runs a single training and prediction cycle.
@@ -140,7 +139,7 @@ class TrainPredictPipeline:
         self,
         as_job: bool = False,
         queue: str = "forecasting",
-        **job_kwargs: dict[str, Union[str | int | bool | None]],
+        **job_kwargs,
     ):
         try:
             logging.info("Starting Train-Predict Pipeline")
