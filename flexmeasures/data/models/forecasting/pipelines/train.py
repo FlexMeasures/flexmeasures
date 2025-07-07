@@ -8,10 +8,10 @@ from datetime import datetime
 
 from darts import TimeSeries
 
-from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
-from flexmeasures.data.models.forecasting.exceptions import CustomException
-from flexmeasures.data.models.forecasting.logger import logging
-from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from ..custom_models.lgbm_model import CustomLGBM
+from ..exception import CustomException
+from ..logger import logging
+from .base_pipeline import BasePipeline
 
 warnings.filterwarnings("ignore")
 
@@ -21,10 +21,12 @@ class TrainPipeline(BasePipeline):
         self,
         sensors: dict[str, int],
         regressors: list[str],
+        future_regressors: list[str],
         target: str,
         model_save_dir: str,
         n_hours_to_predict: int,
         max_forecast_horizon: int,
+        forecast_frequency: int = 1,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
         probabilistic: bool = False,
@@ -49,25 +51,35 @@ class TrainPipeline(BasePipeline):
             else False
         )
         super().__init__(
-            sensors,
-            regressors,
-            target,
-            n_hours_to_predict,
-            max_forecast_horizon,
-            event_starts_after,
-            event_ends_before,
+            sensors=sensors,
+            regressors=regressors,
+            future_regressors=future_regressors,
+            target=target,
+            n_hours_to_predict=n_hours_to_predict,
+            max_forecast_horizon=max_forecast_horizon,
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            forecast_frequency=forecast_frequency,
         )
 
-    def train_model(self, model, X_train: TimeSeries, y_train: TimeSeries):
+    def train_model(
+        self,
+        model,
+        future_covariates: TimeSeries,
+        past_covariates: TimeSeries,
+        y_train: TimeSeries,
+    ):
         """
         Trains the specified model using the provided training data.
         """
         try:
-            X_train = (
-                X_train if X_train != [] else None
-            )  # X_train empty in case of autorregressive forecasting.
             logging.debug(f"Training model {model.__class__.__name__}")
-            model.fit(series=y_train, past_covariates=X_train)
+
+            model.fit(
+                series=y_train,
+                past_covariates=past_covariates,
+                future_covariates=future_covariates,
+            )
             logging.debug("Model trained successfully")
             return model
         except Exception as e:
@@ -95,18 +107,33 @@ class TrainPipeline(BasePipeline):
         trains multiple models on the training set, and saves the trained models.
         """
         try:
-            df = self.load_data()
-            X_train, y_train = self.split_data(df)
+            df = self.load_data_all_beliefs()
+            past_covariates_list, future_covariates_list, y_train_list = (
+                self.split_data_all_beliefs(df)
+            )
+            past_covariates = past_covariates_list[0] if past_covariates_list else None
+            future_covariates = (
+                future_covariates_list[0] if future_covariates_list else None
+            )
+            y_train = y_train_list[0]
+
             models = {
                 f"sensor_{self.sensors[self.target]}-cycle_{counter}-lgbm.pkl": CustomLGBM(
                     max_forecast_horizon=self.max_forecast_horizon,
                     probabilistic=self.probabilistic,
                     auto_regressive=self.auto_regressive,
+                    use_past_covariates=past_covariates_list is not None,
+                    use_future_covariates=future_covariates_list is not None,
                 )
             }
 
             for model_name, model in models.items():
-                trained_model = self.train_model(model, X_train, y_train)
+                trained_model = self.train_model(
+                    model=model,
+                    future_covariates=future_covariates,
+                    past_covariates=past_covariates,
+                    y_train=y_train,
+                )
                 self.save_model(trained_model, model_name)
 
         except Exception as e:
