@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime
+from functools import reduce
 
 import pandas as pd
 from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.utils import get_data_source
+from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.logger import logging
@@ -30,86 +31,232 @@ class BasePipeline:
     - event_starts_after (datetime | None): Earliest event_start to include.
     - event_ends_before (datetime | None): Latest event_start to include.
     """
-
     def __init__(
         self,
         sensors: dict[str, int],
         regressors: list[str],
+        future_regressors: list[str],
         target: str,
         n_hours_to_predict: int,
         max_forecast_horizon: int,
+        forecast_frequency: int,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
     ) -> None:
         self.sensors = sensors
         self.regressors = regressors
+        self.future_regressors = future_regressors
         self.target = target
         self.n_hours_to_predict = n_hours_to_predict
         self.max_forecast_horizon = max_forecast_horizon
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
+        self.target_sensor = db.session.get(Sensor, self.sensors[self.target])
+        self.max_forecast_horizon_in_hours = (
+            self.max_forecast_horizon
+            * self.target_sensor.event_resolution.total_seconds()
+            / 3600
+        )  # convert max_forecast_horizon to hours
+        self.forecast_frequency = forecast_frequency
 
-    def load_data(self) -> TimeSeries:
+    def load_data_all_beliefs(self) -> pd.DataFrame:
         """
-        Load the data from dict of sensor id's.
+        This function fetches data for each sensor.
+        If a sensor is listed as a future regressor, it fetches all available beliefs (including forecasts).
 
-        Example: sensors={'derived_demand':4612,'Ta':4613}.
+        Returns:
+        - pd.DataFrame: A DataFrame containing all the data from each sensor.
         """
         try:
-            logging.debug("Loading data from %s", self.sensors)
+            logging.debug("Loading all data from %s", self.sensors)
+
             sensor_dfs = []
             for name, sensor_id in self.sensors.items():
 
+                logging.debug(f"Loading data for {name} (sensor ID {sensor_id})")
+
                 sensor = db.session.get(Sensor, sensor_id)
+                sensor_event_ends_before = self.event_ends_before
+                sensor_event_starts_after = self.event_starts_after - pd.Timedelta(
+                    hours=sensor.event_resolution.total_seconds() / 3600
+                )
+                most_recent_beliefs_only = True
+                # Extend time range for future regressors
+                if name in self.future_regressors:
+                    sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
+                        hours=self.max_forecast_horizon_in_hours
+                    )
 
-                forecasting_source = [
-                    get_data_source(
-                        data_source_name="forecaster", data_source_type="forecaster"
-                    ),
-                ]  # Data source of forecasts
-
-                data_sources = {
-                    x
-                    for x in sensor.search_data_sources()
-                    if x not in forecasting_source
-                }  # Get all data sources except forecaster which is data source of forecasts
+                    most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
 
                 df = sensor.search_beliefs(
-                    event_starts_after=self.event_starts_after,
-                    event_ends_before=self.event_ends_before,
-                    resolution=sensor.event_resolution,
-                    source=data_sources,
-                ).reset_index()
-
-                df[["time", name]] = df[["event_start", "event_value"]].copy()
-                df_filtered = df[["time", name]]
-
-                # check if sensor data has missing data and fills it.
-                df_filtered_darts = self.detect_and_fill_missing_values(
-                    df=df_filtered,
-                    sensor_name=name,
-                    start=self.event_starts_after,
-                    end=self.event_ends_before,
+                    event_starts_after=sensor_event_starts_after,
+                    event_ends_before=sensor_event_ends_before,
+                    # resolution=self.target_sensor.event_resolution,  # we do a custom resample below
+                    most_recent_beliefs_only=most_recent_beliefs_only,
+                    exclude_source_types=(
+                        ["forecaster"] if name in self.target else []
+                    ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
                 )
-                sensor_dfs.append(df_filtered_darts)
+
+                # Custom resample
+                df = tb_utils.replace_multi_index_level(
+                    df,
+                    "event_start",
+                    df.event_starts.floor(self.target_sensor.event_resolution),
+                )
+
+                df = df.reset_index()
+                df[["event_start", "belief_time", "source", name]] = df[
+                    ["event_start", "belief_time", "source", "event_value"]
+                ].copy()
+                df_filtered = df[["event_start", "belief_time", "source", name]]
+
+                sensor_dfs.append(df_filtered)
 
             if len(sensor_dfs) == 1:
-                data_darts = sensor_dfs[0]
+                data_pd = sensor_dfs[0]
             else:
-                data_darts = TimeSeries.concatenate(*sensor_dfs, axis=1)
+                # When using future_covariate, the last day in its sensor_df extends beyond
+                # the target and past regressors by "max_forecast_horizon."
+                # To ensure we retain these additional future regressor records,
+                # we use an outer join to merge all sensor_dfs DataFrames on the "event_start" and "belief_time" columns.
 
-            logging.debug("Data loaded successfully from %s", self.sensors)
-            return data_darts
+                data_pd = reduce(
+                    lambda left, right: pd.merge(
+                        left, right, on=["event_start", "belief_time"], how="outer"
+                    ),
+                    sensor_dfs,
+                )
+                data_pd = data_pd.sort_values(
+                    by=["event_start", "belief_time"]
+                ).reset_index(drop=True)
+            data_pd["event_start"] = pd.to_datetime(
+                data_pd["event_start"], utc=True
+            ).dt.tz_localize(None)
+            data_pd["belief_time"] = pd.to_datetime(
+                data_pd["belief_time"], utc=True
+            ).dt.tz_localize(None)
+            return data_pd
+
         except Exception as e:
-            raise CustomException(f"Error loading data: {e}", sys)
+            raise CustomException(f"Error loading dataframe with all beliefs: {e}", sys)
 
-    def split_data(self, df: TimeSeries) -> tuple:
+    def split_data_all_beliefs(
+        self, df: pd.DataFrame, is_predict_pipeline: bool = False
+    ) -> tuple:
         """
-        Split the data into train and test sets.
-        The test size is equal to self.n_hours_to_predict (168, i.e. 7 days by default).
+        Splits the input DataFrame into past covariates, future covariates, and target series
+        for each prediction belief_time.
+
+        This function ensures that:
+        - Past covariates contain realized (actual) and forecast data, based on the latest available beliefs before the prediction event_start, about events up to the prediction belief_time.
+        - Future covariates consist of:
+            - Forecasted values up to max_forecast_horizon with belief_time under the prediction belief_time.
+            - Realized data (i.e., data with the most recent belief_time) for event_starts that occur before the prediction belief_time.
+        - The target series is extracted for each prediction belief_time.
+
+        Returns:
+            tuple:
+                - past_covariates_list (List[TimeSeries] or None): List of DataFrames, each containing past data up
+                to the corresponding prediction belief_time.
+                - future_covariates_list (List[TimeSeries] or None): List of DataFrames, each containing future data
+                up to the prediction belief_time.
+                - target_list (List[TimeSeries]): List of Series, each containing the target values up to the respective
+                prediction belief_time.
         """
         try:
-            logging.debug("Splitting data into train and test sets.")
+            logging.debug("Splitting data target and covariates.")
+
+            def _generate_splits(X_past_regressors_df, X_future_regressors_df, y):
+                """
+                Generates past covariates, future covariates, and target series for multiple prediction belief times.
+
+                This function:
+                - Extracts the relevant past and future covariates for each prediction belief time.
+                - Retrieves the target values dataframe corresponding to each prediction belief_time.
+
+                """
+
+                target_sensor_resolution = self.target_sensor.event_resolution
+
+                first_split_timestamp = y["belief_time"][
+                    len(y)
+                    - (
+                        self.n_hours_to_predict + 1
+                        if is_predict_pipeline
+                        else self.max_forecast_horizon + 1
+                    )
+                ]
+                # first event_start of the target dataframe (i.e. start of first observation)
+                target_start = y["event_start"][0]
+
+                # Last event start of the target dataframe (i.e. start of last observation)
+                target_end = y["event_start"][
+                    len(y)
+                    - (
+                        self.n_hours_to_predict + 1
+                        if is_predict_pipeline
+                        else self.max_forecast_horizon + 1
+                    )
+                ]
+                target_start = pd.to_datetime(target_start, utc=True).tz_localize(None)
+                target_end = pd.to_datetime(target_end, utc=True).tz_localize(None)
+
+                forecast_end = (
+                    target_end
+                    + pd.Timedelta(hours=self.max_forecast_horizon_in_hours)
+                    + self.target_sensor.event_resolution
+                )
+                forecast_end = pd.to_datetime(forecast_end, utc=True).tz_localize(None)
+
+                target_list = []
+                past_covariates_list = []
+                future_covariates_list = []
+                target_list = []
+                end_for_loop = self.n_hours_to_predict if is_predict_pipeline else 1
+
+                for index_offset in range(0, end_for_loop):
+                    split_timestamp = first_split_timestamp + pd.Timedelta(
+                        minutes=index_offset
+                        * target_sensor_resolution.total_seconds()
+                        / 60
+                    )  # The timestamp to simulate the start of prediction, used to obtain future and past data relative to this timestamp.
+                    target_end = target_end + pd.Timedelta(
+                        minutes=target_sensor_resolution.total_seconds() / 60
+                    )
+
+                    forecast_end = forecast_end + pd.Timedelta(
+                        minutes=target_sensor_resolution.total_seconds() / 60
+                    )
+                    past_covariates, future_covariates, y_split = (
+                        self._split_covariates_data(
+                            X_past_regressors_df,
+                            X_future_regressors_df,
+                            y,
+                            split_timestamp,
+                            target_start,
+                            target_end,
+                            forecast_end,
+                        )
+                    )
+
+                    target_list.append(y_split)
+                    past_covariates_list.append(past_covariates)
+                    future_covariates_list.append(future_covariates)
+
+                future_covariates_list = (
+                    future_covariates_list
+                    if future_covariates_list[0] is not None
+                    else None
+                )
+                past_covariates_list = (
+                    past_covariates_list
+                    if past_covariates_list[0] is not None
+                    else None
+                )
+
+                return past_covariates_list, future_covariates_list, target_list
 
             if (
                 "auto_regressive" in self.regressors
@@ -117,27 +264,51 @@ class BasePipeline:
             ):
                 logging.info("Using autoregressive forecasting.")
 
-                y = df[self.target]
+                y = df[["event_start", "belief_time", self.target]].copy()
+
+                _, _, target_list = _generate_splits(None, None, y)
 
                 logging.debug("Data split successfully with autoregressive lags.")
-                return ([], y)
+                return None, None, target_list
             # Existing logic for using regressors
-            X = df[self.regressors]
-            y = df[self.target]
 
-            logging.debug("Data split successfully.")
-            return X, y
+            X_past_regressors_df = (
+                df[
+                    ["event_start", "source_y", "belief_time"]
+                    + [r for r in self.regressors if r not in self.future_regressors]
+                ]
+                if self.future_regressors != self.regressors
+                else None
+            )
+            X_future_regressors_df = (
+                df[["event_start", "source_y", "belief_time"] + self.future_regressors]
+                if self.future_regressors != []
+                else None
+            )
+            y = (
+                df[["event_start", "belief_time", self.target]]
+                .dropna()
+                .reset_index(drop=True)
+                .copy()
+            )
+
+            past_covariates_list, future_covariates_list, target_list = (
+                _generate_splits(X_past_regressors_df, X_future_regressors_df, y)
+            )
+
+            return past_covariates_list, future_covariates_list, target_list
+
         except Exception as e:
             raise CustomException(f"Error splitting data: {e}", sys)
 
     def detect_and_fill_missing_values(
         self,
         df: pd.DataFrame,
-        sensor_name: str,
+        sensor_names: str | list[str],
         start: datetime,
         end: datetime,
         interpolate_kwargs: dict = None,
-        fill: float = 0,
+        fill: float = 0.0,
     ) -> TimeSeries:
         """
         Detects and fills missing values in a time series using the Darts `MissingValuesFiller` transformer.
@@ -160,6 +331,9 @@ class BasePipeline:
         - ValueError: If the input dataframe is empty.
         - logging.warning: If missing values are detected and filled using `pd.DataFrame.interpolate()`.
         """
+        dfs = []
+        if isinstance(sensor_names, str):
+            sensor_names = [sensor_names]
 
         if df.empty:
             transformer = MissingValuesFiller(fill=float(fill))
@@ -168,47 +342,287 @@ class BasePipeline:
             )
         else:
             transformer = MissingValuesFiller(fill="auto")
+        for sensor_name in sensor_names:
+            if df.empty:
+                transformer = MissingValuesFiller(fill=float(fill))
+                sensor = db.session.get(Sensor, self.sensors[sensor_name])
 
-        data = df.copy()
-        data["time"] = pd.to_datetime(data["time"], utc=True)
-        sensor = db.session.get(Sensor, self.sensors[sensor_name])
+                last_event_start = end - pd.Timedelta(
+                    hours=sensor.event_resolution.total_seconds() / 3600
+                )
+                new_row_start = pd.DataFrame(
+                    {"event_start": [start], f"{sensor_name}": [None]}
+                )
+                new_row_end = pd.DataFrame(
+                    {"event_start": [last_event_start], f"{sensor_name}": [None]}
+                )
+                df = pd.concat([new_row_start, df, new_row_end], ignore_index=True)
 
-        # Convert start & end to UTC
-        start = pd.to_datetime(start).tz_convert("UTC")
-        end = pd.to_datetime(end).tz_convert("UTC")
-        # last event_start in sensor df is end - event_resolution
-        last_event_start = end - pd.Timedelta(
-            hours=sensor.event_resolution.total_seconds() / 3600
-        )
+                logging.warning(
+                    f"Sensor '{self.sensors[sensor_name]}' has no data from {start} to {end}. Filling with {fill}."
+                )
+                transformer = MissingValuesFiller(fill=fill)
+            else:
+                transformer = MissingValuesFiller(fill="auto")
 
-        # Ensure the first and last event_starts match the expected dates specified in the CLI arguments
-        # Add start time if missing
-        if data.empty or data["time"].iloc[0] != start:
-            new_row_start = pd.DataFrame({"time": [start], "target": [None]})
-            data = pd.concat([new_row_start, data], ignore_index=True)
+            data = df.copy()
 
-        # Add end time if missing
-        if data.empty or data["time"].iloc[-1] != last_event_start:
-            new_row_end = pd.DataFrame({"time": [last_event_start], "target": [None]})
-            data = pd.concat([data, new_row_end], ignore_index=True)
+            sensor = db.session.get(Sensor, self.sensors[sensor_name])
 
-        # Prepare data for Darts TimeSeries
-        data["time"] = data["time"].dt.tz_localize(None)
-        data_darts = TimeSeries.from_dataframe(
-            df=data,
-            time_col="time",
-            fill_missing_dates=True,  # Ensures all timestamps are present, filling gaps with NaNs
-            freq=sensor.event_resolution,
-        )
-        data_darts_gaps = data_darts.gaps()
-
-        # Fill missing values using Darts transformer
-        if not data_darts_gaps.empty:
-            data_darts = transformer.transform(data_darts, **(interpolate_kwargs or {}))
-
-            logging.warning(
-                f"Sensor '{sensor_name}' has gaps:\n{data_darts_gaps.to_string()}\n"
-                "These were filled using `pd.DataFrame.interpolate()` method."
+            # Convert start & end to UTC
+            start = start.tz_localize(None)
+            end = end.tz_localize(None)
+            # last event_start in sensor df is end - event_resolution
+            last_event_start = end - pd.Timedelta(
+                hours=sensor.event_resolution.total_seconds() / 3600
             )
 
+            # Ensure the first and last event_starts match the expected dates specified in the CLI arguments
+            # Add start time if missing
+            if data.empty or (
+                data["event_start"].iloc[0] != start
+                and data["event_start"].iloc[0] > start
+            ):
+                new_row_start = pd.DataFrame(
+                    {"event_start": [start], f"{sensor_name}": [None]}
+                )
+                data = pd.concat([new_row_start, data], ignore_index=True)
+
+            # Add end time if missing
+            if data.empty or (
+                data["event_start"].iloc[-1] != last_event_start
+                and data["event_start"].iloc[-1] < last_event_start
+            ):
+                new_row_end = pd.DataFrame(
+                    {"event_start": [last_event_start], f"{sensor_name}": [None]}
+                )
+                data = pd.concat([data, new_row_end], ignore_index=True)
+
+            # Convert data to Darts TimeSeries
+            data_darts = TimeSeries.from_dataframe(
+                df=data,
+                time_col="event_start",
+                fill_missing_dates=True,  # Ensures all timestamps are present, filling gaps with NaNs
+                freq=self.target_sensor.event_resolution,
+            )
+            data_darts_gaps = data_darts.gaps()
+
+            # Fill missing values using Darts transformer
+            if not data_darts_gaps.empty:
+                data_darts = transformer.transform(
+                    data_darts, **(interpolate_kwargs or {})
+                )
+
+                logging.warning(
+                    f"Sensor '{sensor_name}' has gaps:\n{data_darts_gaps.to_string()}\n"
+                    "These were filled using `pd.DataFrame.interpolate()` method."
+                )
+            dfs.append(data_darts)
+        if len(dfs) == 1:
+            data_darts = dfs[0]
+        else:
+            # When using future_covariate, the last day in its sensor_df extends beyond
+            # the target and past regressors by "max_forecast_horizon."
+            # To ensure we retain these additional future regressor records,
+            # we use an outer join to merge all sensor_dfs DataFrames on the "event_start" and "belief_time" columns.
+
+            data_darts = reduce(
+                lambda left, right: left.concatenate(right),
+                dfs,
+            )
+            data_darts = data_darts.sort_values(by=["event_start"]).reset_index(
+                drop=True
+            )
         return data_darts
+
+    def _split_covariates_data(
+        self,
+        X_past_regressors_df,
+        X_future_regressors_df,
+        target_dataframe,
+        split_timestamp,
+        target_start,
+        target_end,
+        forecast_end,
+    ) -> list[TimeSeries]:
+        """
+        Splits past covariates, future covariates, and target data at a given timestamp.
+
+        - Past covariates include data available before `split_timestamp`.
+        - Future covariates include forecasted values available before `split_timestamp`
+        and extending up to `max_forecast_horizon_in_hours`.
+        - Target data includes values up to `split_timestamp` for model training.
+
+        Notes:
+        ------
+        - **Past covariates** include only known historical values (i.e., belief time is after event time).
+        - **Future covariates** include forecasts made before `split_timestamp` and ensure that only
+        the latest available belief is selected for each future event time.
+
+        Example:
+        --------
+        Given:
+            - `split_timestamp = "2024-01-10 00:00:00"`
+            - Forecast horizon: `4 hours`
+            - Past covariates: Observed values before `split_timestamp`
+            - Future covariates: Forecasts made before `split_timestamp` for the next 4 hours
+
+        The function returns:
+            - **past_covariates** → Values before `2024-01-10 00:00:00`
+            - **future_covariates** → Forecasted values end at `2024-01-10 04:00:00`
+            - **target_data** → Target values up to `2024-01-10 00:00:00
+
+        """
+
+        def _filter_past_covariates(df):
+            if df is None:
+                return None
+
+            df = df.dropna().reset_index(drop=True)
+            past_data = df[
+                (df["event_start"] <= target_end)
+                & (df["belief_time"] > df["event_start"])
+            ].copy()
+            past_data = past_data.loc[
+                past_data.groupby("event_start")["belief_time"].idxmax()
+            ]  # get data with most recent belief_time at a certain event_start
+
+            past_data["time_diff"] = (
+                past_data["event_start"] - past_data["belief_time"]
+            ).abs()
+            past_data = past_data.loc[
+                past_data.groupby("event_start")["time_diff"].idxmin()
+            ]
+            past_data = past_data.drop(columns=["time_diff"])
+
+            columns = [x for x in df.columns if x not in ["belief_time", "source_y"]]
+            past_data = past_data[columns].copy().reset_index(drop=True)
+
+            past_covariates = self.detect_and_fill_missing_values(
+                df=past_data,
+                sensor_names=[
+                    r for r in self.regressors if r not in self.future_regressors
+                ],
+                start=target_start,
+                end=target_end,
+            )
+
+            return past_covariates
+
+        def _filter_future_covariates(df):
+            if df is None:
+                return None
+
+            realized_data = X_future_regressors_df[
+                (X_future_regressors_df["event_start"] <= target_end)
+                & (
+                    X_future_regressors_df["belief_time"]
+                    > X_future_regressors_df["event_start"]
+                )
+            ].copy()
+            # Select the closest belief_time for each event_start (i.e., the most recent forecast)
+            realized_data["time_diff"] = (
+                realized_data["event_start"] - realized_data["belief_time"]
+            ).abs()
+            realized_data = realized_data.loc[
+                realized_data.groupby("event_start")["time_diff"].idxmin()
+            ]
+            realized_data = realized_data.drop(columns=["time_diff"])
+
+            forecast_data = X_future_regressors_df[
+                (X_future_regressors_df["event_start"] > target_end)
+                & (
+                    X_future_regressors_df["event_start"]
+                    <= target_end
+                    + pd.Timedelta(hours=self.max_forecast_horizon_in_hours)
+                )  # we take forecasts up to max_forecast_horizon
+                & (
+                    X_future_regressors_df["belief_time"]
+                    <= X_future_regressors_df["event_start"]
+                )  # this ensures we get forecasts
+                & (
+                    X_future_regressors_df["belief_time"] <= split_timestamp
+                )  # this ensures we get forecasts made before the point we make are making the prediction
+            ].copy()
+
+            # Compute forecast horizon (in hours)
+            forecast_data["forecast_horizon"] = (
+                forecast_data["event_start"] - forecast_data["belief_time"]
+            ).dt.total_seconds() / 3600
+
+            # Filter forecasts within the max_forecast_horizon
+            forecast_data = forecast_data[
+                forecast_data["forecast_horizon"] <= self.max_forecast_horizon_in_hours
+            ]
+
+            # Select the closest belief_time for each event_start (i.e., the most recent forecast)
+            forecast_data["time_diff"] = (
+                forecast_data["event_start"] - forecast_data["belief_time"]
+            ).abs()
+            forecast_data = forecast_data.loc[
+                forecast_data.groupby("event_start")["time_diff"].idxmin()
+            ]
+            forecast_data = forecast_data.drop(
+                columns=["time_diff", "forecast_horizon"]
+            )
+            columns = [
+                x for x in forecast_data.columns if x not in ["belief_time", "source_y"]
+            ]
+
+            forecast_data = forecast_data[columns].copy().reset_index(drop=True)
+            realized_data = realized_data[columns].copy().reset_index(drop=True)
+
+            # Concatenate realized and forecasted data
+            future_covariates_df = (
+                pd.concat([realized_data, forecast_data])
+                .sort_values("event_start")
+                .reset_index(drop=True)
+            )
+            forecast_data_darts = self.detect_and_fill_missing_values(
+                df=forecast_data,
+                sensor_names=[r for r in self.future_regressors],
+                start=target_end + self.target_sensor.event_resolution,
+                end=forecast_end + self.target_sensor.event_resolution,
+            )
+
+            realized_data_darts = self.detect_and_fill_missing_values(
+                df=realized_data,
+                sensor_names=[r for r in self.future_regressors],
+                start=target_start,
+                end=target_end,
+            )
+
+            past = realized_data_darts.pd_dataframe()
+            future = forecast_data_darts.pd_dataframe()
+            future_covariates_df = (
+                pd.concat([past, future])
+                .sort_index()  # sort by event_start (the index)
+                .reset_index()  # reset_index
+            )
+            future_covariates_df.columns.name = None
+            future_covariates_df = future_covariates_df.drop_duplicates(
+                subset=["event_start"]
+            )
+
+            future_data_darts_end = TimeSeries.from_dataframe(
+                future_covariates_df,
+                time_col="event_start",
+                freq=self.target_sensor.event_resolution,
+            )
+
+            return future_data_darts_end
+
+        target_dataframe = target_dataframe.drop(columns=["belief_time"])
+
+        target_data = self.detect_and_fill_missing_values(
+            df=target_dataframe[(target_dataframe["event_start"] <= target_end)],
+            sensor_names=self.target,
+            start=target_start,
+            end=target_end,
+        )
+
+        # Split covariate data
+        past_covariates = _filter_past_covariates(X_past_regressors_df)
+        future_covariates = _filter_future_covariates(X_future_regressors_df)
+
+        return past_covariates, future_covariates, target_data
