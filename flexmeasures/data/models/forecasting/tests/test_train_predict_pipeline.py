@@ -2,9 +2,7 @@ import pytest
 
 import pandas as pd
 
-from flexmeasures.data.models.forecasting.pipelines.train_predict import (
-    TrainPredictPipeline,
-)
+from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 
 
 @pytest.mark.parametrize(
