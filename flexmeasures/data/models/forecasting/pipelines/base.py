@@ -78,9 +78,9 @@ class BasePipeline:
 
                 sensor = db.session.get(Sensor, sensor_id)
                 sensor_event_ends_before = self.event_ends_before
-                sensor_event_starts_after = self.event_starts_after - pd.Timedelta(
-                    hours=sensor.event_resolution.total_seconds() / 3600
-                )
+                sensor_event_starts_after = self.event_starts_after  # - pd.Timedelta(
+                #     hours=self.target_sensor.event_resolution.total_seconds() / 3600
+                # )
                 most_recent_beliefs_only = True
                 # Extend time range for future regressors
                 if name in self.future_regressors:
