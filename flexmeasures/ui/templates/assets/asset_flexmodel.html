@@ -160,7 +160,7 @@
         const flexmodelContainer = document.getElementById('flexmodelContainer');
         const flexInfoContainer = document.getElementById('flexInfoContainer');
 
-        const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON);
+        const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, renderFlexModelForm);
         const [activeCard, setActiveCard] = createReactiveState(null);
 
 
@@ -180,15 +180,15 @@
             const value = flexModel[name];
             flexModel[name] = { "sensor": sensorId };
 
-            setFlexModel(flexModel, renderFlexModelForm());
+            setFlexModel(flexModel);
         }
 
 
         async function searchSensors() {
-            const searchValue = searchSensflexModelSensorSearchors.value.toLowerCase(); // Use the direct reference
-            spinnerElement.style.display = 'flex'; // Assuming spinnerElement is defined globally or passed
-            senSearchResEle.style.display = 'none'; // Assuming senSearchResEle is defined globally or passed
-            const flexUnitsSelectValue = flexUnitsSelect.value; // Use the direct reference
+            const searchValue = searchSensflexModelSensorSearchors.value.toLowerCase();
+            spinnerElement.style.display = 'flex';
+            senSearchResEle.style.display = 'none';
+            const flexUnitsSelectValue = flexUnitsSelect.value;
 
             const params = new URLSearchParams();
 
@@ -217,14 +217,14 @@
                 const filteredSensors = responseData.data;
 
                 // Render the fetched sensors
-                renderSensorSearchResults(filteredSensors, senSearchResEle, setCardSensor); // Assuming renderSensorSearchResults is defined
+                renderSensorSearchResults(filteredSensors, senSearchResEle, setCardSensor);
 
                 spinnerElement.classList.add('hidden-important');
                 senSearchResEle.style.display = 'block';
             } catch (error) {
                 // Ensure 'response' is defined if you try to access response.statusText
                 const errorMessage = error?.message || error?.error || (response ? response.statusText : 'Unknown error');
-                showToast(`Failed to search sensors: ${errorMessage}`, "error"); // Assuming showToast is defined
+                showToast(`Failed to search sensors: ${errorMessage}`, "error");
             }
         }
 
@@ -289,7 +289,7 @@
             }
             assetFlexContext[fieldName] = "";
             flexOptionsContainer.innerHTML = "";
-            await renderFlexModelForm(); //  rendering here so the card with the 'border-on-click' class is updated/exists
+            await renderFlexModelForm(); // rendering here so the card with the 'border-on-click' class is updated/exists
             const card = document.getElementById(`${fieldName}-control`);
             selectFlexField(card);
         }
