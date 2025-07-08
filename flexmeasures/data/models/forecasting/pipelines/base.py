@@ -413,7 +413,7 @@ class BasePipeline:
                     data_darts, **(interpolate_kwargs or {})
                 )
 
-                logging.warning(
+                logging.debug(
                     f"Sensor '{sensor_name}' has gaps:\n{data_darts_gaps.to_string()}\n"
                     "These were filled using `pd.DataFrame.interpolate()` method."
                 )
