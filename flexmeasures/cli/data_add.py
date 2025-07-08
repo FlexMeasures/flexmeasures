@@ -1039,10 +1039,13 @@ def add_holidays(
     "If not set, derives a training period from --start-predict-date instead. "
     "If that is also not set, defaults to 2 days.",
 )
-@click.option("--predict-period", default=7, help="Prediction period in days")
+@click.option(
+    "--predict-period", required=False, help="Prediction period in days"
+)  # todo: iso durations
 @click.option(
     "--start-predict-date",
     default=None,
+    required=False,
     help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM)",
 )
 @click.option(
@@ -1112,6 +1115,18 @@ def train_predict_pipeline(
     - Use `--start-predict-date` or `--start-train-date`  to explicitly separate training and prediction periods.
     - Use `--sensor-to-save` to save forecasts into a specific sensor by default forecasts are saved on the target sensor.
     """
+    if start_predict_date is None:
+        start_predict_date = (
+            server_now().isoformat()
+        )  # todo: floor using sensor resolution of the target sensor
+    if predict_period is None:
+        # predict_period = (datetime.fromisoformat(end_date) - datetime.fromisoformat(start_predict_date)) // pd.Timedelta("P1D")
+        predict_period = abs(
+            (
+                datetime.fromisoformat(end_date)
+                - datetime.fromisoformat(start_predict_date)
+            ).days
+        )
 
     try:
         # Parse inputs
