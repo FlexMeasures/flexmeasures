@@ -180,12 +180,12 @@
             const value = flexModel[name];
             flexModel[name] = { "sensor": sensorId };
 
-            setFlexModel(flexModel, renderFlexContextForm());
+            setFlexModel(flexModel, renderFlexModelForm());
         }
 
 
         async function searchSensors() {
-            const searchValue = flexContextSensorSearch.value.toLowerCase(); // Use the direct reference
+            const searchValue = searchSensflexModelSensorSearchors.value.toLowerCase(); // Use the direct reference
             spinnerElement.style.display = 'flex'; // Assuming spinnerElement is defined globally or passed
             senSearchResEle.style.display = 'none'; // Assuming senSearchResEle is defined globally or passed
             const flexUnitsSelectValue = flexUnitsSelect.value; // Use the direct reference
@@ -241,8 +241,6 @@
 
             const requestBody = JSON.stringify({ flex_model: JSON.stringify(data) });
 
-            console.log("reqbody: ", requestBody)
-
             const response = await fetch(apiURL, {
                 method: "PATCH",
                 headers: {
@@ -260,7 +258,7 @@
                 // const asset = await getAsset("{{ asset.id }}", false);
                 // const previousFlexContext = await processResourceRawJSON(assetFlexModelSchema, asset.flex_context);
                 // assetFlexContext = previousFlexContext;
-                // renderFlexContextForm();
+                // renderFlexModelForm();
             } else {
                 showToast("Flex model updated successfully", "success");
             }
@@ -291,7 +289,7 @@
             }
             assetFlexContext[fieldName] = "";
             flexOptionsContainer.innerHTML = "";
-            await renderFlexContextForm(); //  rendering here so the card with the 'border-on-click' class is updated/exists
+            await renderFlexModelForm(); //  rendering here so the card with the 'border-on-click' class is updated/exists
             const card = document.getElementById(`${fieldName}-control`);
             selectFlexField(card);
         }
@@ -368,7 +366,7 @@
             return card;
         }
 
-        async function renderFlexContextForm() {
+        async function renderFlexModelForm() {
             flexOptionsContainer.innerHTML = "";
             flexmodelContainer.innerHTML = "";
             const assetFlexModel = getFlexModel();
@@ -493,7 +491,7 @@
                             <div class="col-8  pe-1">
                                 <input
                                 type="text"
-                                id="flexContextSensorSearch"
+                                id="searchSensflexModelSensorSearchors"
                                 class="form-control"
                                 placeholder="Search sensors..."
                                 />
@@ -556,17 +554,17 @@
             flexOptionsContainer.appendChild(tabsContainer);
 
             const flexCheckBox = document.getElementById('flexCheckBox');
-            const flexContextSensorSearch = document.getElementById('flexContextSensorSearch');
+            const searchSensflexModelSensorSearchors = document.getElementById('searchSensflexModelSensorSearchors');
             const flexUnitsSelect = document.getElementById('flexUnitsSelect');
 
             flexCheckBox.addEventListener('change', searchSensors);
-            flexContextSensorSearch.addEventListener('input', searchSensors);
+            searchSensflexModelSensorSearchors.addEventListener('input', searchSensors);
             flexUnitsSelect.addEventListener('change', searchSensors);
 
         }
 
         renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
-        renderFlexContextForm();
+        renderFlexModelForm();
     });
 </script>
 
