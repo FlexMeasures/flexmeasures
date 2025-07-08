@@ -347,6 +347,7 @@ class AssetCrudUI(FlaskView):
             "assets/asset_flexmodel.html",
             asset=asset,
             asset_flexmodel=json.dumps(asset.flex_model),
+            available_units=available_units(),
             current_page="FlexModel",
         )
 

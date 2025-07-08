@@ -288,7 +288,12 @@
         ).addTo(assetMap);
 </script>
 
-<script>
+<script type="module" type="text/javascript">
+    import {
+        getFlexFieldTitle, renderSensor,
+        createReactiveState, processResourceRawJSON, getAsset,
+        getAccount, getSensor, apiBasePath
+    } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
     const senSearchResEle = document.getElementById("sensorsSearchResults")
     const flexContextFormEle = document.getElementById("flexContextForm")
@@ -326,7 +331,6 @@
     let editingIndex; // keeps track of which graph we are currently editing
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
-    const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
     function processAssetRawFlexContextJSON(rawJSON){
@@ -820,6 +824,7 @@
         senSearchResEle.innerHTML = "";
         let fieldValue = assetFlexContext[fieldName]
         let newFieldValue;
+        let isSensorValue = false;
         let sensorsContent = [];
 
         if (fieldValue === null) {

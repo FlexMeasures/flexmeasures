@@ -69,11 +69,19 @@
     </div>
 </div>
 
-<script>
-    const apiBasePath = window.location.origin;
+<script type="module" type="text/javascript">
+
+    import {
+        getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
+        createReactiveState, processResourceRawJSON, getAsset,
+        getAccount, getSensor, apiBasePath
+    } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+
+
     const typeOne = [Boolean];
     const typeTwo = [Object];
-    const typeThree = [String, Object];
+    const typeThree = [Object];
+    // const typeThree = [String, Object];
     const typeFour = [Array];
 
 
@@ -137,54 +145,98 @@
         "production-capacity": null,
     }
 
-    /**
-    * A custom function to mimic React's useState for simple DOM manipulation.
-    *
-    * @param {*} initialValue - The initial value for the state.
-    * @param {function(value: *): void} renderFunction - A callback function that
-    * will be executed whenever the state updates. This function should contain
-    * the logic to update the relevant DOM elements. It receives the new state value.
-    * @returns {[function(): *, function(*): void]} - A tuple/array containing:
-    * - A getter function for the current state value (to be reactive, we need a function).
-    * - A setter function to update the state value, which also triggers the renderFunction.
-    */
-    function createReactiveState(initialValue, renderFunction) {
-        let value = initialValue;
-
-        // The function that returns the current state value
-        function getValue() {
-            return value;
-        }
-
-        // The function that updates the state value
-        function setValue(newValue) {
-            if (typeof newValue === 'function') {
-                value = newValue(value);
-            } else {
-                value = newValue;
-            }
-            if (renderFunction) {
-                renderFunction(value);
-            }
-        }
-
-        if (renderFunction) {
-            renderFunction(value);
-        }
-
-        return [getValue, setValue];
-    }
 
     document.addEventListener('DOMContentLoaded', async function () {
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
         assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
+        let availableUnitsRawJSON = "{{ available_units | safe }}";
+        availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+        const availableUnits = JSON.parse(availableUnitsRawJSON);
 
         const flexOptionsContainer = document.getElementById('flexOptionsContainer');
         const flexmodelContainer = document.getElementById('flexmodelContainer');
         const flexInfoContainer = document.getElementById('flexInfoContainer');
+        const senSearchResEle = document.getElementById("sensorsSearchResults")
+
         const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON);
         const [activeCard, setActiveCard] = createReactiveState(null);
 
+        function renderSensorSearchResults(sensors) {
+            senSearchResEle.innerHTML = "";
+            if (sensors.length === 0) {
+                senSearchResEle.innerHTML = "<h4>No sensors found</h4>";
+                return;
+            }
+
+            sensors.forEach(async (sensor) => {
+                const Asset = await getAsset(sensor.generic_asset_id);
+                const Account = await getAccount(Asset.account_id);
+
+                const col = document.createElement("div");
+                col.classList.add("col-12", "mb-1");
+
+                col.innerHTML = `
+                <div class="card m-0">
+                    <div class="card-body p-0 sensor-card">
+                        <h5 class="card-title">${sensor.name}</h5>
+                        <p class="card-text">
+                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
+                            <b>Unit:</b> ${sensor.unit},
+                            <b>Asset:</b> ${Asset.name},
+                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                        </p>
+                        <button class="btn btn-primary btn-sm" onclick="udpateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
+                    </div>
+                </div>
+            `;
+
+                senSearchResEle.appendChild(col);
+            });
+        }
+
+        async function searchSensorsFlexContextForm() {
+            const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
+            spinnerElement.style.display = 'flex';
+            senSearchResEle.style.display = 'none';
+            const flexUnitsSelectValue = document.getElementById("flexUnitsSelect").value;
+            const flexCheckBox = document.getElementById('flexCheckBox');
+
+            const params = new URLSearchParams();
+
+            if (searchValue) {
+                params.append('filter', searchValue);
+            }
+
+            if (flexCheckBox.checked) {
+                params.append('include_public_assets', true);
+            }
+
+            if (flexUnitsSelectValue != "null") {
+                params.append('unit', flexUnitsSelectValue);
+            }
+
+            const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
+
+            try {
+                const response = await fetch(apiUrl);
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch sensors');
+                }
+
+                const responseData = await response.json();
+                const filteredSensors = responseData.data;
+
+                // Render the fetched sensors
+                renderSensorSearchResults(filteredSensors);
+
+                spinnerElement.classList.add('hidden-important');
+                senSearchResEle.style.display = 'block';
+            } catch (error) {
+                const errorMessage = error?.message || error?.error || response.statusText;
+                showToast(`Failed to search sensors: ${errorMessage}`, "error");
+            }
+        }
 
         async function updateFlexModel() {
             const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
@@ -347,13 +399,14 @@
             const value = flexModel[name];
 
 
-            if (dataType == Boolean) {
+            if (dataType == Boolean) { // Boolean Tab =================
+                console.log("rendering bool tab for: ", name, " with value: ", value);
                 // Boolean Tab
                 const boolTab = document.createElement('li');
                 boolTab.className = 'nav-item';
                 boolTab.setAttribute('role', 'presentation');
                 const boolBtn = document.createElement('button');
-                boolBtn.className = `nav-link ${activeTab ? "active" : ""}`; // active will be added here
+                boolBtn.className = `nav-link ${activeTab ? "active" : ""}`;
                 boolBtn.setAttribute('data-bs-toggle', 'pill');
                 boolBtn.setAttribute('data-bs-target', `#pills-bool`);
                 boolBtn.setAttribute('type', 'button');
@@ -367,7 +420,7 @@
 
                 // Boolean Tab Content
                 const boolTabContent = document.createElement('div');
-                boolTabContent.className = `tab-pane rounded-bottom ${activeTab ? "fade show active" : ""}`; // active will be added here as well
+                boolTabContent.className = `tab-pane rounded-bottom ${activeTab ? "fade show active" : ""}`;
                 // inline style
                 boolTabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
                 boolTabContent.style.border = '1px solid #0000002d';
@@ -400,6 +453,74 @@
                 boolTabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
 
                 return [boolTab, boolTabContent];
+            } else if (dataType == Object) { // Object/Senosr Tab =================
+                console.log("rendering object tab for: ", name, " with value: ", value);
+                // Object Tab
+                const objectTab = document.createElement('li');
+                objectTab.className = 'nav-item';
+                objectTab.setAttribute('role', 'presentation');
+                const objectBtn = document.createElement('button');
+                objectBtn.className = `nav-link ${activeTab ? "active" : ""}`;
+                objectBtn.setAttribute('data-bs-toggle', 'pill');
+                objectBtn.setAttribute('data-bs-target', `#pills-object`);
+                objectBtn.setAttribute('type', 'button');
+                objectBtn.setAttribute('role', 'tab');
+                objectBtn.setAttribute('aria-controls', 'pills-object');
+                objectBtn.setAttribute('aria-selected', 'true');
+                objectBtn.textContent = 'A Sensor';
+
+                // Add object tab to the tab list
+                objectTab.appendChild(objectBtn);
+
+                // Boolen Tab Content
+                const objectTabContent = document.createElement('div');
+                objectTabContent.className = `tab-pane rounded-bottom ${activeTab ? "fade show active" : ""}`;
+                // inline style
+                objectTabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
+                objectTabContent.style.border = '1px solid #0000002d';
+                objectTabContent.id = 'pills-object';
+                objectTabContent.setAttribute('role', 'tabpanel');
+                objectTabContent.setAttribute('aria-labelledby', 'pills-object-tab');
+
+                objectTabContent.innerHTML = `
+                    <div class="flex-input-group mb-1 p-2">
+                        <label for="flexSensorInput" class="form-label">Select a Sensor for <b>${getFlexFieldTitle(name)} </b>
+                            <i class="fa fa-info-circle ps-2"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="bottom"
+                                title="Select a sensor to link with this field. The sensor will be used to provide data for this field."
+                            ></i>
+                        </label>
+
+                         <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="flexCheckBox" onchange="searchSensorsFlexContextForm()">
+                            <label class="form-check-label" for="flexCheckBox">
+                                Include Public Assets
+                            </label>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-8  pe-1">
+                                <input
+                                type="text"
+                                id="flexContextSensorSearch"
+                                class="form-control"
+                                placeholder="Search sensors..."
+                                oninput="searchSensorsFlexContextForm()"
+                                />
+                            </div>
+                            <div class="col-4 ps-0">
+                                <select id="flexUnitsSelect" class="form-select" onchange="searchSensorsFlexContextForm()">
+                                    <option value="${null}" selected>Units</option>
+                                    ${availableUnits.map(unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                </select>
+                            </div>
+                        </div>
+
+                    </div>
+                `;
+
+                return [objectTab, objectTabContent];
             } else {
                 return [null, null];
             }
@@ -428,13 +549,14 @@
 
 
             fieldDataTypes.forEach((type, index) => {
-                const activeTab = (index === 0); 
+                const activeTab = (index === 0);
                 const [boolTabheader, boolTabContent] = renderDataTypeComponents(type, activeTab)
                 if (boolTabheader && boolTabContent) {
                     tabHeaders.appendChild(boolTabheader);
                     tabContent.appendChild(boolTabContent);
                 } else {
                     showToast(`Invalid data type for field: ${getFlexFieldTitle(name)}`);
+                    return;
                 }
             });
 
