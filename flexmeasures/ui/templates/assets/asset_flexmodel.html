@@ -254,7 +254,7 @@
             if (!response.ok) {
                 const errorData = await response.json();
                 const errorMessage = errorData?.message || errorData?.error || response.statusText;
-                showToast(`Failed to update the flex context: ${errorMessage}`, "error");
+                showToast(`Failed to update the flex model: ${errorMessage}`, "error");
 
                 // Revert to previous state
                 // const asset = await getAsset("{{ asset.id }}", false);
