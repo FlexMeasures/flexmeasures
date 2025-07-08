@@ -366,9 +366,9 @@ class BasePipeline:
             start = start.tz_localize(None)
             end = end.tz_localize(None)
             # last event_start in sensor df is end - event_resolution
-            last_event_start = end - pd.Timedelta(
-                hours=sensor.event_resolution.total_seconds() / 3600
-            )
+            last_event_start = end  # - pd.Timedelta(
+            #     hours=self.target_sensor.event_resolution.total_seconds() / 3600
+            # )
 
             # Ensure the first and last event_starts match the expected dates specified in the CLI arguments
             # Add start time if missing
