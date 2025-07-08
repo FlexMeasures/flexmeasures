@@ -74,7 +74,7 @@
     import {
         getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
         createReactiveState, processResourceRawJSON, getAsset,
-        getAccount, getSensor, apiBasePath
+        getAccount, getSensor, apiBasePath, renderSensorSearchResults
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 
@@ -84,6 +84,8 @@
     // const typeThree = [String, Object];
     const typeFour = [Array];
 
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
+    const senSearchResEle = document.getElementById("sensorsSearchResults")
 
     const assetFlexModelSchema = {
         "soc-min": null,
@@ -146,6 +148,7 @@
     }
 
 
+
     document.addEventListener('DOMContentLoaded', async function () {
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
         assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
@@ -156,50 +159,36 @@
         const flexOptionsContainer = document.getElementById('flexOptionsContainer');
         const flexmodelContainer = document.getElementById('flexmodelContainer');
         const flexInfoContainer = document.getElementById('flexInfoContainer');
-        const senSearchResEle = document.getElementById("sensorsSearchResults")
 
         const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON);
         const [activeCard, setActiveCard] = createReactiveState(null);
 
-        function renderSensorSearchResults(sensors) {
-            senSearchResEle.innerHTML = "";
-            if (sensors.length === 0) {
-                senSearchResEle.innerHTML = "<h4>No sensors found</h4>";
+
+        function setCardSensor(sensorId) {
+            if (!activeCard()) {
+                showToast("Please select a field to set a sensor", "info");
                 return;
             }
 
-            sensors.forEach(async (sensor) => {
-                const Asset = await getAsset(sensor.generic_asset_id);
-                const Account = await getAccount(Asset.account_id);
+            if (!sensorId) {
+                return;
+            }
 
-                const col = document.createElement("div");
-                col.classList.add("col-12", "mb-1");
+            const card = activeCard();
+            const name = card.id.replace('-control', '');
+            const flexModel = getFlexModel()
+            const value = flexModel[name];
+            flexModel[name] = { "sensor": sensorId };
 
-                col.innerHTML = `
-                <div class="card m-0">
-                    <div class="card-body p-0 sensor-card">
-                        <h5 class="card-title">${sensor.name}</h5>
-                        <p class="card-text">
-                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                            <b>Unit:</b> ${sensor.unit},
-                            <b>Asset:</b> ${Asset.name},
-                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
-                        </p>
-                        <button class="btn btn-primary btn-sm" onclick="udpateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
-                    </div>
-                </div>
-            `;
-
-                senSearchResEle.appendChild(col);
-            });
+            setFlexModel(flexModel, renderFlexContextForm());
         }
 
-        async function searchSensorsFlexContextForm() {
-            const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
-            spinnerElement.style.display = 'flex';
-            senSearchResEle.style.display = 'none';
-            const flexUnitsSelectValue = document.getElementById("flexUnitsSelect").value;
-            const flexCheckBox = document.getElementById('flexCheckBox');
+
+        async function searchSensors() {
+            const searchValue = flexContextSensorSearch.value.toLowerCase(); // Use the direct reference
+            spinnerElement.style.display = 'flex'; // Assuming spinnerElement is defined globally or passed
+            senSearchResEle.style.display = 'none'; // Assuming senSearchResEle is defined globally or passed
+            const flexUnitsSelectValue = flexUnitsSelect.value; // Use the direct reference
 
             const params = new URLSearchParams();
 
@@ -211,7 +200,7 @@
                 params.append('include_public_assets', true);
             }
 
-            if (flexUnitsSelectValue != "null") {
+            if (flexUnitsSelectValue !== "null") {
                 params.append('unit', flexUnitsSelectValue);
             }
 
@@ -228,13 +217,14 @@
                 const filteredSensors = responseData.data;
 
                 // Render the fetched sensors
-                renderSensorSearchResults(filteredSensors);
+                renderSensorSearchResults(filteredSensors, senSearchResEle, setCardSensor); // Assuming renderSensorSearchResults is defined
 
                 spinnerElement.classList.add('hidden-important');
                 senSearchResEle.style.display = 'block';
             } catch (error) {
-                const errorMessage = error?.message || error?.error || response.statusText;
-                showToast(`Failed to search sensors: ${errorMessage}`, "error");
+                // Ensure 'response' is defined if you try to access response.statusText
+                const errorMessage = error?.message || error?.error || (response ? response.statusText : 'Unknown error');
+                showToast(`Failed to search sensors: ${errorMessage}`, "error"); // Assuming showToast is defined
             }
         }
 
@@ -380,6 +370,7 @@
 
         async function renderFlexContextForm() {
             flexOptionsContainer.innerHTML = "";
+            flexmodelContainer.innerHTML = "";
             const assetFlexModel = getFlexModel();
             for (const [key, value] of Object.entries(assetFlexModel)) {
                 if (value !== null) {
@@ -454,7 +445,6 @@
 
                 return [boolTab, boolTabContent];
             } else if (dataType == Object) { // Object/Senosr Tab =================
-                console.log("rendering object tab for: ", name, " with value: ", value);
                 // Object Tab
                 const objectTab = document.createElement('li');
                 objectTab.className = 'nav-item';
@@ -492,8 +482,8 @@
                             ></i>
                         </label>
 
-                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" value="" id="flexCheckBox" onchange="searchSensorsFlexContextForm()">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="flexCheckBox">
                             <label class="form-check-label" for="flexCheckBox">
                                 Include Public Assets
                             </label>
@@ -506,17 +496,15 @@
                                 id="flexContextSensorSearch"
                                 class="form-control"
                                 placeholder="Search sensors..."
-                                oninput="searchSensorsFlexContextForm()"
                                 />
                             </div>
                             <div class="col-4 ps-0">
-                                <select id="flexUnitsSelect" class="form-select" onchange="searchSensorsFlexContextForm()">
+                                <select id="flexUnitsSelect" class="form-select">
                                     <option value="${null}" selected>Units</option>
                                     ${availableUnits.map(unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
                                 </select>
                             </div>
                         </div>
-
                     </div>
                 `;
 
@@ -566,6 +554,15 @@
 
             flexOptionsContainer.innerHTML = ""; // Clear previous content
             flexOptionsContainer.appendChild(tabsContainer);
+
+            const flexCheckBox = document.getElementById('flexCheckBox');
+            const flexContextSensorSearch = document.getElementById('flexContextSensorSearch');
+            const flexUnitsSelect = document.getElementById('flexUnitsSelect');
+
+            flexCheckBox.addEventListener('change', searchSensors);
+            flexContextSensorSearch.addEventListener('input', searchSensors);
+            flexUnitsSelect.addEventListener('change', searchSensors);
+
         }
 
         renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());

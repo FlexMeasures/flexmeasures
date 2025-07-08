@@ -150,3 +150,62 @@ export function createReactiveState(initialValue, renderFunction) {
 
     return [getValue, setValue];
 }
+
+export function renderSensorSearchResults(sensors, resultContainer, actionFunc) {
+    if (!resultContainer) {
+        console.error("Result container is not defined.");
+        showToast("Error", "Result container is not defined.", "error");
+        return;
+    }
+
+    if (actionFunc && typeof actionFunc !== "function") {
+        console.error("Action function is not a valid function.");
+        showToast("Error", "Action function is not a valid function.", "error");
+        return;
+    }
+
+    resultContainer.innerHTML = "";
+    if (sensors.length === 0) {
+        resultContainer.innerHTML = "<h4>No sensors found</h4>";
+        return;
+    }
+
+    sensors.forEach(async (sensor) => {
+        const Asset = await getAsset(sensor.generic_asset_id);
+        const Account = await getAccount(Asset.account_id);
+
+        const col = document.createElement("div");
+        col.classList.add("col-12", "mb-1");
+
+        col.innerHTML = `
+                <div class="card m-0">
+                    <div class="card-body p-0 result-sensor-card">
+                        <h5 class="card-title">${sensor.name}</h5>
+                        <p class="card-text">
+                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
+                            <b>Unit:</b> ${sensor.unit},
+                            <b>Asset:</b> ${Asset.name},
+                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                        </p>
+                    </div>
+                </div>
+            `;
+
+        const cardBody = col.querySelector('.result-sensor-card');
+        const addButton = document.createElement('button');
+        addButton.className = 'btn btn-primary btn-sm'; // Removed me-2 mt-2 as it might be added by a parent div
+        addButton.textContent = 'Add Sensor';
+
+        addButton.onclick = () => {
+            if (actionFunc) {
+                actionFunc(sensor.id);
+            } else {
+                console.error("Action function is not defined.");
+                showToast("Error", "Action function is not defined.", "error");
+            }
+        };
+        cardBody.appendChild(addButton);
+
+        resultContainer.appendChild(col);
+    });
+}
