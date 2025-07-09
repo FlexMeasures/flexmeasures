@@ -74,6 +74,8 @@ Data
 
 The postgres database is a test database with toy data filled in when the flexmeasures container starts.
 You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config. 
+The database within the ``dev-db`` and ``test-db`` postgres containers resides in ``/var/lib/postgresql/data``, which we map to local directories ``./psql-data/<foo>`` for persistence.
+
 
 
 .. _docker-compose-tutorial:
