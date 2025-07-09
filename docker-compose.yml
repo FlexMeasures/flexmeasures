@@ -23,6 +23,7 @@ services:
       POSTGRES_PASSWORD: fm-dev-db-pass
     volumes:
       - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
+      - ./data/dev-db:/var/lib/postgresql/data # persist dev-db data with local mount
   queue-db:
     image: redis
     restart: always
@@ -117,7 +118,7 @@ services:
       POSTGRES_PASSWORD: fm-test-db-pass
     volumes:
       - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
-
+      - ./data/test-db:/var/lib/postgresql/data # persist test-db data with local mount
 volumes:
   redis-cache:
     driver: local
