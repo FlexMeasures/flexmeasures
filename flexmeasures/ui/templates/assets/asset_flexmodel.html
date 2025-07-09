@@ -80,8 +80,8 @@
 
     const typeOne = [Boolean];
     const typeTwo = [Object];
-    const typeThree = [Object];
-    // const typeThree = [String, Object];
+    // const typeThree = [Object];
+    const typeThree = [String, Object];
     const typeFour = [Array];
 
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -358,7 +358,7 @@
 
                     ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
                     ${isBool ? `<i>${String(value).charAt(0).toUpperCase() + String(value).slice(1)} </i>` : ''}
-                    ${isNumber ? `<p class="card-text">Value: ${value}</p>` : ''}
+                    ${isNumber ||isString ? `<p class="card-text fs-4">${value}</p>` : ''}
                 </div>
             `;
             flexmodelContainer.appendChild(card);
@@ -381,10 +381,23 @@
         };
 
         function renderDataTypeComponents(dataType, activeTab) {
+            console.log("renderDataTypeComponents", dataType, activeTab);
             const card = activeCard();
             const name = card.id.replace('-control', '');
             const flexModel = getFlexModel()
             const value = flexModel[name];
+
+            let tabType;
+
+            if (dataType == Boolean) {
+                tabType = 'bool';
+            } else if (dataType == Object) {
+                tabType = 'object';
+            } else if (dataType == String) {
+                tabType = 'string';
+            } else {
+                return [null, null]; // Unsupported data type
+            }
 
             const tab = document.createElement('li');
             tab.className = 'nav-item';
@@ -392,10 +405,10 @@
             const btn = document.createElement('button');
             btn.className = `nav-link ${activeTab ? "active" : ""}`;
             btn.setAttribute('data-bs-toggle', 'pill');
-            btn.setAttribute('data-bs-target', `#pills-${name}`);
+            btn.setAttribute('data-bs-target', `#pills-${tabType}`);
             btn.setAttribute('type', 'button');
             btn.setAttribute('role', 'tab');
-            btn.setAttribute('aria-controls', `pills-${name}`);
+            btn.setAttribute('aria-controls', `pills-${tabType}`);
             btn.setAttribute('aria-selected', activeTab ? "true" : "false");
 
             // Add tab to the tab list
@@ -403,18 +416,17 @@
 
             // Tab Content
             const tabContent = document.createElement('div');
+            tabContent.id = `pills-${tabType}`;
             tabContent.className = `tab-pane rounded-bottom ${activeTab ? "fade show active" : ""}`;
             // inline style
             tabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
             tabContent.style.border = '1px solid #0000002d';
             tabContent.setAttribute('role', 'tabpanel');
+            tabContent.setAttribute('aria-labelledby', `pills-${tabType}-tab`);
 
 
             if (dataType == Boolean) { // Boolean Tab =================
                 btn.textContent = 'Boolean';
-                tabContent.id = 'pills-bool';
-                tabContent.setAttribute('aria-labelledby', 'pills-bool-tab');
-
                 const boolTabContentSaveBtn = document.createElement('button');
                 boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
                 boolTabContentSaveBtn.textContent = 'Set Value';
@@ -441,8 +453,6 @@
                 tabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
             } else if (dataType == Object) { // Object/Senosr Tab =================
                 btn.textContent = 'A Sensor';
-                tabContent.id = 'pills-object';
-                tabContent.setAttribute('aria-labelledby', 'pills-object-tab');
 
                 tabContent.innerHTML = `
                     <div class="flex-input-group mb-1 p-2">
@@ -479,6 +489,35 @@
                         </div>
                     </div>
                 `;
+            } else if (dataType == String) { // String Tab =================
+                btn.textContent = 'Fixed Value';
+                tabContent.id = 'pills-string';
+                tabContent.setAttribute('aria-labelledby', 'pills-string-tab');
+
+                const stringTabContentSaveBtn = document.createElement('button');
+                stringTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
+                stringTabContentSaveBtn.textContent = 'Set Value';
+                stringTabContentSaveBtn.onclick = function () {
+                    const input = document.getElementById('flexStringInput');
+                    flexModel[name] = input.value;
+                    setFlexModel(flexModel);
+                    updateFlexModel();
+                };
+
+                tabContent.innerHTML = `
+                    <div class="flex-input-group mb-1 p-2">
+                        <label for="fixed-value" class="form-label">Value for <b>${getFlexFieldTitle(name)} </b>
+                            <i class="fa fa-info-circle ps-2"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="bottom"
+                                title="Set a fixed value for this field. If the field is a boolean, it will be set to true or false."
+                            ></i>
+                        </label>
+                        <input type="text" class="form-control" id="flexStringInput" value="${typeof value === 'string' ? value : ''}" />
+                    </div>
+                `;
+
+                tabContent.querySelector('.flex-input-group').appendChild(stringTabContentSaveBtn);
             } else {
                 return [null, null];
             }
