@@ -304,26 +304,37 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_upload_csv_file(client, setup_api_test_data, sensor_name, requesting_user):
+def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requesting_user):
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     csv_content = """event_start,event_value
 2022-12-16T05:11:00Z,4
 2022-12-16T06:11:00Z,2
 2022-12-16T07:11:00Z,6
 """
-    sensor_id = setup_api_test_data[sensor_name].id
+    sensor = setup_api_test_data[sensor_name]
     file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
 
     # Match what the schema expects
     data = {"uploaded-files": file}
 
     response = client.post(
-        url_for("SensorAPI:upload_data", id=sensor_id),
+        url_for("SensorAPI:upload_data", id=sensor.id),
         data=data,
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
     assert response.status_code == 200 or response.status_code == 400
+    audit_log_event = (
+        f"Data from test.csv uploaded to sensor '{sensor.name}': {sensor.id}"
+    )
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=audit_log_event,
+            active_user_id=requesting_user.id,
+            active_user_name=requesting_user.username,
+            affected_asset_id=sensor.generic_asset.id,
+        )
+    ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
