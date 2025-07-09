@@ -42,6 +42,7 @@ from s2python.s2_control_type import FRBCControlType, NoControlControlType
 from s2python.message import S2Message
 
 logger = logging.getLogger("s2python")
+SERVER_URL = "ws://127.0.0.1:5000"
 
 
 class MyFRBCControlType(FRBCControlType):
@@ -182,7 +183,7 @@ if __name__ == "__main__":
     )
 
     # Create a client to perform the pairing
-    pairing_endpoint = "ws://127.0.0.1:5000/s2"
+    pairing_endpoint = f"{SERVER_URL}/s2"
     pairing_token = "1234567890"
     client = S2DefaultClient(
         pairing_uri=pairing_endpoint,
@@ -207,7 +208,7 @@ if __name__ == "__main__":
         # logger.info("Challenge solved successfully")
 
         s2_connection = S2Connection(
-            url="ws://127.0.0.1:5000/s2",  # type: ignore
+            url=f"{SERVER_URL}/s2",  # type: ignore
             role=EnergyManagementRole.RM,
             control_types=[MyFRBCControlType(), MyNoControlControlType()],
             asset_details=AssetDetails(
