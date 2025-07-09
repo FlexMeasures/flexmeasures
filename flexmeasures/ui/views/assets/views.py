@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
@@ -329,6 +330,30 @@ class AssetCrudUI(FlaskView):
             "assets/asset_graph.html",
             asset=asset,
             current_page="Graphs",
+        )
+
+    @login_required
+    @route("/<id>/flexmodel")
+    def flexmodel(self, id: str):
+        """/assets/<id>/flexmodel"""
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
+
+        asset_form = AssetForm()
+        asset_form.with_options()
+        asset_form.process(obj=asset)
+
+        site_asset = asset
+        while site_asset.parent_asset_id:
+            site_asset = site_asset.parent_asset
+
+        return render_flexmeasures_template(
+            "assets/asset_flexmodel.html",
+            asset=asset,
+            site_asset=site_asset,
+            asset_flexmodel=json.dumps(asset.flex_model),
+            available_units=available_units(),
+            current_page="FlexModel",
         )
 
     @login_required
