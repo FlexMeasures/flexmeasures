@@ -10,8 +10,10 @@ from sqlalchemy import select, func
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
-from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.api.v3_0.tests.utils import (
+    get_sensor_post_data,
+    check_audit_log_event,
+)
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
@@ -286,14 +288,12 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert sensor.unit == "kWh"
     assert sensor.attributes["capacity_in_mw"] == 0.0074
 
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            affected_asset_id=post_data["generic_asset_id"],
-            event=f"Created sensor '{sensor.name}': {sensor.id}",
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Created sensor '{sensor.name}': {sensor.id}",
+        user=requesting_user,
+        asset=sensor.generic_asset,
+    )
 
 
 @pytest.mark.parametrize(
@@ -324,17 +324,13 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
         headers={"Authorization": auth_token},
     )
     assert response.status_code == 200 or response.status_code == 400
-    audit_log_event = (
-        f"Data from test.csv uploaded to sensor '{sensor.name}': {sensor.id}"
+
+    check_audit_log_event(
+        db=db,
+        event=f"Data from test.csv uploaded to sensor '{sensor.name}': {sensor.id}",
+        user=requesting_user,
+        asset=sensor.generic_asset,
     )
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            event=audit_log_event,
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-            affected_asset_id=sensor.generic_asset.id,
-        )
-    ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -419,18 +415,15 @@ def test_patch_sensor(client, setup_api_test_data, requesting_user, db):
     )
     assert new_sensor.attributes["test_attribute"] == "test_attribute_value"
 
-    audit_log_event = (
-        f"Updated sensor 'some gas sensor': {sensor.id}. Updated fields: Field name: name, Old value: some gas sensor, New value: Changed name; Field name: attributes, "
-        + "Old value: {}, New value: {'test_attribute': 'test_attribute_value'}"
+    check_audit_log_event(
+        db=db,
+        event=(
+            f"Updated sensor 'some gas sensor': {sensor.id}. Updated fields: Field name: name, Old value: some gas sensor, New value: Changed name; Field name: attributes, "
+            + "Old value: {}, New value: {'test_attribute': 'test_attribute_value'}"
+        ),
+        user=requesting_user,
+        asset=sensor.generic_asset,
     )
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            event=audit_log_event,
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-            affected_asset_id=sensor.generic_asset_id,
-        )
-    ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize(
@@ -521,15 +514,12 @@ def test_delete_a_sensor_data(client, setup_api_test_data, requesting_user, db):
         == []
     )
 
-    # Make sure audit log is created
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            affected_asset_id=existing_sensor.generic_asset_id,
-            event=f"Deleted data for sensor '{existing_sensor.name}': {existing_sensor.id}",
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Deleted data for sensor '{existing_sensor.name}': {existing_sensor.id}",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -554,14 +544,12 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
         db.session.scalar(select(func.count()).select_from(Sensor)) == sensor_count - 1
     )
 
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            affected_asset_id=existing_sensor.generic_asset_id,
-            event=f"Deleted sensor '{existing_sensor.name}': {existing_sensor.id}",
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Deleted sensor '{existing_sensor.name}': {existing_sensor.id}",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
 
 
 @pytest.mark.parametrize(
