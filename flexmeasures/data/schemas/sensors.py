@@ -549,7 +549,7 @@ class SensorDataFileSchema(Schema):
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
                     resample=(
-                        True if sensor.event_resolution is not timedelta(0) else False
+                        True if sensor.event_resolution != timedelta(0) else False
                     ),
                     timezone=sensor.timezone,
                 )
