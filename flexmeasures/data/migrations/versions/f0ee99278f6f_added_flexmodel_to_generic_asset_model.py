@@ -210,7 +210,7 @@ def downgrade():
                 # Update the generic asset attributes
                 stmt = (
                     asset_table.update()
-                    .where(asset_table.c.id == asset_id)
+                    .where(asset_table.c.id == sa.literal(asset_id))
                     .values(attributes=asset_attrs)
                 )
                 conn.execute(stmt)
