@@ -143,53 +143,53 @@ def downgrade():
 
     Also restore fallback asset attributes used by code before this migration.
     """
-    with op.batch_alter_table("generic_asset", schema=None) as batch_op:
-        asset_table, assets, conn = fetch_assets()
+    asset_table, assets, conn = fetch_assets()
 
-        # Process each generic asset
-        for asset in assets:
-            asset_id = asset.id
-            flex_model_data = asset.flex_model
+    # Process each generic asset
+    for asset in assets:
+        asset_id = asset.id
+        flex_model_data = asset.flex_model
 
-            # Revert flex-model data to attributes
-            if flex_model_data is not None:
+        # Revert flex-model data to attributes
+        if flex_model_data is not None:
 
-                asset_attrs_flex_model = asset.attributes.get("flex-model", {})
-                asset_attrs = asset.attributes or {}
+            asset_attrs_flex_model = asset.attributes.get("flex-model", {})
+            asset_attrs = asset.attributes or {}
 
-                for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
-                    if new_field_name in flex_model_data and isinstance(
-                        flex_model_data[new_field_name], str
-                    ):
-                        # Convert the value back to the original format
-                        value = flex_model_data[new_field_name]
-                        if old_field_name[-6:] == "in_mwh" and is_energy_unit(value):
-                            value_in_mwh = ur.Quantity(value).to("MWh").magnitude
-                            asset_attrs[old_field_name] = value_in_mwh
-                        elif old_field_name[-6:] == "in_mw" and is_power_unit(value):
-                            value_in_mw = ur.Quantity(value).to("MW").magnitude
-                            asset_attrs[old_field_name] = value_in_mw
-                        else:
-                            asset_attrs[old_field_name] = value
-                    elif new_field_name in flex_model_data and isinstance(
-                        flex_model_data[new_field_name], dict
-                    ):
-                        asset_attrs_flex_model[new_field_name] = value
+            for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
+                if new_field_name in flex_model_data and isinstance(
+                    flex_model_data[new_field_name], str
+                ):
+                    # Convert the value back to the original format
+                    value = flex_model_data[new_field_name]
+                    if old_field_name[-6:] == "in_mwh" and is_energy_unit(value):
+                        value_in_mwh = ur.Quantity(value).to("MWh").magnitude
+                        asset_attrs[old_field_name] = value_in_mwh
+                    elif old_field_name[-6:] == "in_mw" and is_power_unit(value):
+                        value_in_mw = ur.Quantity(value).to("MW").magnitude
+                        asset_attrs[old_field_name] = value_in_mw
+                    else:
+                        asset_attrs[old_field_name] = value
+                elif new_field_name in flex_model_data and isinstance(
+                    flex_model_data[new_field_name], dict
+                ):
+                    asset_attrs_flex_model[new_field_name] = value
 
-                # Remove the new fields from the attributes flex-model data
-                asset_attrs_flex_model.pop(new_field_name, None)
-                # update flex-model data in attributes
-                asset_attrs["flex-model"] = asset_attrs_flex_model
+            # Remove the new fields from the attributes flex-model data
+            asset_attrs_flex_model.pop(new_field_name, None)
+            # update flex-model data in attributes
+            asset_attrs["flex-model"] = asset_attrs_flex_model
 
-                # Update the generic asset attributes
-                stmt = (
-                    asset_table.update()
-                    .where(asset_table.c.id == sa.literal(asset_id))
-                    .values(attributes=asset_attrs)
-                )
-                conn.execute(stmt)
+            # Update the generic asset attributes
+            stmt = (
+                asset_table.update()
+                .where(asset_table.c.id == sa.literal(asset_id))
+                .values(attributes=asset_attrs)
+            )
+            conn.execute(stmt)
 
-        batch_op.drop_column("flex_model")
+        with op.batch_alter_table("generic_asset", schema=None) as batch_op:
+            batch_op.drop_column("flex_model")
 
 
 def migrate_value(old_field_name, old_value, sensor=None, asset=None):
