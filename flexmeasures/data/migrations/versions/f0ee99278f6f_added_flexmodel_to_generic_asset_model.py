@@ -76,7 +76,7 @@ def upgrade():
 
          Steps:
 
-         - Start with the asset's flex-model attribute
+         - Start with the asset's flex-model attribute (used as a backup in the downgrade step)
          - Pop all the relevant fields from the asset's attributes
          - For each of its sensors:
            - Pop all the relevant fields from the sensor's attributes
