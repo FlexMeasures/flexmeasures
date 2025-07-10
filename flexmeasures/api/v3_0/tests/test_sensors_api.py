@@ -608,7 +608,7 @@ def test_fetch_sensor_stats(
     ["test_admin_user@seita.nl"],
     indirect=True,
 )
-def test_sensor_page(db, client, requests_mock, requesting_user):
+def test_sensor_page(db, client, setup_api_test_data, requests_mock, requesting_user):
     sensor = db.session.get(Sensor, 1)
     sensor_page = client.get(
         url_for(
@@ -676,7 +676,9 @@ def test_sensor_page(db, client, requests_mock, requesting_user):
         ),
     ],
 )
-def test_sensor_page_dates_validation(db, client, requests_mock, args, error):
+def test_sensor_page_dates_validation(
+    db, client, setup_api_test_data, requests_mock, args, error
+):
     sensor = db.session.get(Sensor, 1)
     sensor_page = client.get(
         url_for(
