@@ -16,5 +16,5 @@ Here you see an example how that might look:
 
 
 These styles will be applied when users of this account log in and browse the FlexMeasures UI.
-When they do not have unique account settings, but their consultancy account has, they will see the custome style of their consultant.
+When they do not have unique account settings, but their consultancy account has, they will see the custom style of their consultant.
 
