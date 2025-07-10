@@ -8,6 +8,8 @@ Create Date: 2025-04-15 11:00:13.154048
 
 from __future__ import annotations
 
+from typing import Iterable
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -216,7 +218,7 @@ def migrate_value(old_field_name, old_value, sensor=None, asset=None):
         return old_value
 
 
-def fetch_assets() -> tuple[sa.Table, sa.Sequence[sa.Row], sa.Connection]:
+def fetch_assets() -> tuple[sa.Table, Iterable[sa.Row], sa.Connection]:
     """Fetch the part of the asset table needed for this migration."""
     asset_table = sa.Table(
         "generic_asset",
