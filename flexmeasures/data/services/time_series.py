@@ -93,14 +93,14 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     else:
         # Look up only ex-post beliefs (horizon <= 0)
         kwargs = dict(horizons_at_most=timedelta(0))
+    previous_beliefs_in_db = bdf.sensor.search_beliefs(
+        event_starts_after=bdf.event_starts[0],
+        event_ends_before=bdf.event_ends[-1],
+        most_recent_beliefs_only=False,  # all beliefs
+        **kwargs,
+    )
     previous_beliefs_in_db_by_source = {
-        source: bdf.sensor.search_beliefs(
-            event_starts_after=bdf.event_starts[0],
-            event_ends_before=bdf.event_ends[-1],
-            source=source,  # unique source
-            most_recent_beliefs_only=False,  # all beliefs
-            **kwargs,
-        )
+        source: previous_beliefs_in_db[previous_beliefs_in_db.sources == source]
         for source in bdf.lineage.sources
     }
     return (
