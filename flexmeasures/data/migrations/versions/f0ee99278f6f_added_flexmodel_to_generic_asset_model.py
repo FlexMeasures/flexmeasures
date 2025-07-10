@@ -48,6 +48,10 @@ The following flex-model fields exist that had no prior support as an asset attr
 """
 
 
+class NonDowngradableValueError(ValueError):
+    pass
+
+
 def upgrade():
     """Migrate db flex-model fields stored as asset/sensor attributes to a new flex_model db column."""
 
@@ -81,12 +85,13 @@ def upgrade():
         - Save the asset's new attributes (without the old fields) and the asset's new flex_model (with the new fields)
         """
 
+        # Start by restoring the backup that might have been made in the downgrade of this migration
         asset.flex_model = asset.attributes.pop("flex-model", {})
 
         # Pop all the relevant fields from the asset's attributes
         for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
             if old_value := asset.attributes.pop(old_field_name, None) is not None:
-                asset.flex_model[new_field_name] = migrate_value(
+                asset.flex_model[new_field_name] = upgrade_value(
                     old_field_name, old_value, asset=asset
                 )
 
@@ -95,7 +100,7 @@ def upgrade():
             # Pop all the relevant fields from the sensor's attributes
             for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
                 if old_value := sensor.attributes.pop(old_field_name, None) is not None:
-                    new_value = migrate_value(old_field_name, old_value, sensor=sensor)
+                    new_value = upgrade_value(old_field_name, old_value, sensor=sensor)
                     if new_field_name not in asset.flex_model:
                         asset.flex_model[new_field_name] = new_value
                     elif new_value != asset.flex_model[new_field_name]:
@@ -164,26 +169,19 @@ def downgrade():
             for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
                 if new_field_name not in flex_model_data:
                     continue
-                value = flex_model_data[new_field_name]
-                if isinstance(value, str):
-                    # Convert the value back to the original format
-                    if old_field_name[-6:] == "in_mwh" and is_energy_unit(value):
-                        value_in_mwh = ur.Quantity(value).to("MWh").magnitude
-                        asset_attrs[old_field_name] = value_in_mwh
-                    elif old_field_name[-6:] == "in_mw" and is_power_unit(value):
-                        value_in_mw = ur.Quantity(value).to("MW").magnitude
-                        asset_attrs[old_field_name] = value_in_mw
-                    else:
-                        # Put back string quantity
-                        asset_attrs[old_field_name] = value
-                elif isinstance(value, dict):
-                    # Put back sensor reference
-                    asset_attrs[old_field_name] = value
+                new_value = flex_model_data[new_field_name]
+                try:
+                    asset_attrs[old_field_name] = downgrade_value(
+                        old_field_name, new_value
+                    )
 
-            # Remove the new fields from the attributes flex-model data
-            asset_attrs_flex_model.pop(new_field_name, None)
-            # update flex-model data in attributes
-            asset_attrs["flex-model"] = asset_attrs_flex_model
+                    # Remove the new field from the flex-model data
+                    flex_model_data.pop(new_field_name)
+                except NonDowngradableValueError:
+                    continue
+
+            # Back up the remaining flex-model data as the flex-model attribute
+            asset_attrs["flex-model"] = flex_model_data
 
             # Update the generic asset attributes
             stmt = (
@@ -197,7 +195,9 @@ def downgrade():
             batch_op.drop_column("flex_model")
 
 
-def migrate_value(old_field_name, old_value, sensor=None, asset=None):
+def upgrade_value(
+    old_field_name: str, old_value: int | float | dict | bool, sensor=None, asset=None
+) -> str | int | float | dict | bool:
     """Depending on the old field name, some values still need to be turned into string quantities."""
 
     # check if value is an int, bool, float or dict
@@ -210,17 +210,37 @@ def migrate_value(old_field_name, old_value, sensor=None, asset=None):
             raise Exception(
                 f"Invalid value for '{old_field_name}' in asset {asset.id}: {old_value}"
             )
-    if old_field_name[-6:] == "in_mwh":
+    if old_field_name[-6:] == "in_mwh" and isinstance(old_value, (float, int)):
         # convert from float (in MWh) to string (in kWh)
         value_in_kwh = old_value * 1000
         return f"{value_in_kwh} kWh"
-    elif old_field_name[-6:] == "in_mw":
+    elif old_field_name[-6:] == "in_mw" and isinstance(old_value, (float, int)):
         # convert from float (in MW) to string (in kW)
         value_in_kw = old_value * 1000
         return f"{value_in_kw} kW"
     else:
         # move as is
         return old_value
+
+
+def downgrade_value(old_field_name: str, new_value) -> float | str | dict:
+    """Depending on the old field name, some values still need to be turned back into floats."""
+    if isinstance(new_value, str):
+        # Convert the value back to the original format
+        if old_field_name[-6:] == "in_mwh" and is_energy_unit(new_value):
+            value_in_mwh = ur.Quantity(new_value).to("MWh").magnitude
+            return value_in_mwh
+        elif old_field_name[-6:] == "in_mw" and is_power_unit(new_value):
+            value_in_mw = ur.Quantity(new_value).to("MW").magnitude
+            return value_in_mw
+        else:
+            # Return string quantity
+            return new_value
+    elif isinstance(new_value, dict):
+        # Return sensor reference
+        return new_value
+    else:
+        raise NonDowngradableValueError()
 
 
 def fetch_assets() -> tuple[sa.Table, Iterable[sa.Row], sa.Connection]:
