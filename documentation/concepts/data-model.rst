@@ -80,3 +80,5 @@ Accounts "own" assets, and data of these assets are protected against anyone fro
 Accounts can "consult" other accounts. This depicts the real situation that some organizations are the consultants or advisors to many others.
 They have certain rights, e.g. to read the data of their clients. That is useful for serving them.
 If you are hosting FlexMeasures, and the organizations you serve with it use this feature, you are effectively running a B2B2B setup :)
+
+Finally, accounts can be white-labelled. Each account can have a logo and a unique set of primary and secondary color. This will determine what users see in the UI when they login as users of an account.
