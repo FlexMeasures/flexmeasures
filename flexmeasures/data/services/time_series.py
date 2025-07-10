@@ -87,15 +87,32 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
 
     # Remove unchanged beliefs with respect to what is already stored in the database
+    if bdf.belief_horizons[0] > timedelta(0):
+        # Look up only ex-ante beliefs (horizon > 0)
+        kwargs = dict(horizons_at_least=timedelta(0))
+    else:
+        # Look up only ex-post beliefs (horizon <= 0)
+        kwargs = dict(horizons_at_most=timedelta(0))
+    previous_beliefs_in_db_by_source = {
+        source: bdf.sensor.search_beliefs(
+            event_starts_after=bdf.event_starts[0],
+            event_ends_before=bdf.event_ends[-1],
+            source=source,  # unique source
+            most_recent_beliefs_only=False,  # all beliefs
+            **kwargs,
+        )
+        for source in bdf.lineage.sources
+    }
     return (
         bdf.convert_index_from_belief_horizon_to_time()
         .groupby(level=["belief_time", "source"], group_keys=False, as_index=False)
-        .apply(_drop_unchanged_beliefs_compared_to_db)
+        .apply(_drop_unchanged_beliefs_compared_to_db, previous_beliefs_in_db_by_source)
     )
 
 
 def _drop_unchanged_beliefs_compared_to_db(
     bdf: tb.BeliefsDataFrame,
+    previous_beliefs_in_db_by_source,
 ) -> tb.BeliefsDataFrame:
     """Drop beliefs that are already stored in the database with an earlier belief time.
 
@@ -104,21 +121,12 @@ def _drop_unchanged_beliefs_compared_to_db(
 
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
-    if bdf.belief_horizons[0] > timedelta(0):
-        # Look up only ex-ante beliefs (horizon > 0)
-        kwargs = dict(horizons_at_least=timedelta(0))
-    else:
-        # Look up only ex-post beliefs (horizon <= 0)
-        kwargs = dict(horizons_at_most=timedelta(0))
-    previous_most_recent_beliefs_in_db = bdf.sensor.search_beliefs(
-        event_starts_after=bdf.event_starts[0],
-        event_ends_before=bdf.event_ends[-1],
-        beliefs_before=bdf.lineage.belief_times[0],  # unique belief time
-        source=bdf.lineage.sources[0],  # unique source
-        most_recent_beliefs_only=True,
-        **kwargs,
-    )
-
+    # unique source
+    previous_beliefs_in_db = previous_beliefs_in_db_by_source[bdf.lineage.sources[0]]
+    # unique belief time
+    previous_most_recent_beliefs_in_db = previous_beliefs_in_db[
+        previous_beliefs_in_db.lineage.belief_times <= bdf.lineage.belief_times[0]
+    ]
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
     b = previous_most_recent_beliefs_in_db.reset_index().set_index(compare_fields)
