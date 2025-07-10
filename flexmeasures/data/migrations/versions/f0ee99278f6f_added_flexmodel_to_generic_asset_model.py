@@ -63,24 +63,7 @@ def upgrade():
         sa.Column("generic_asset_id", sa.Integer),
     )
 
-    asset_table = sa.Table(
-        "generic_asset",
-        sa.MetaData(),
-        sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("flex_model", sa.JSON),
-        sa.Column("attributes", sa.JSON),
-    )
-
-    # Fetch all assets
-    conn = op.get_bind()
-    result = conn.execute(
-        sa.select(
-            asset_table.c.id,
-            asset_table.c.flex_model,
-            asset_table.c.attributes,
-        )
-    )
-    assets = result.fetchall()
+    asset_table, assets, conn = fetch_assets()
 
     def migrate_flex_model_fields(asset, sensors):
         """Migrate old flex-model fields (attributes) from the asset or its sensors to the asset's flex_model column.
@@ -159,27 +142,10 @@ def downgrade():
     Also restore fallback asset attributes used by code before this migration.
     """
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
-        asset_table = sa.Table(
-            "generic_asset",
-            sa.MetaData(),
-            sa.Column("id", sa.Integer, primary_key=True),
-            sa.Column("flex_model", sa.JSON),
-            sa.Column("attributes", sa.JSON),
-        )
-
-        # Fetch all generic assets
-        conn = op.get_bind()
-        result = conn.execute(
-            sa.select(
-                asset_table.c.id,
-                asset_table.c.flex_model,
-                asset_table.c.attributes,
-            )
-        )
-        generic_assets = result.fetchall()
+        asset_table, assets, conn = fetch_assets()
 
         # Process each generic asset
-        for asset in generic_assets:
+        for asset in assets:
             asset_id = asset.id
             flex_model_data = asset.flex_model
 
@@ -248,3 +214,26 @@ def migrate_value(old_field_name, old_value, sensor=None, asset=None):
     else:
         # move as is
         return old_value
+
+
+def fetch_assets() -> tuple[sa.Table, sa.Sequence[sa.Row], sa.Connection]:
+    """Fetch the part of the asset table needed for this migration."""
+    asset_table = sa.Table(
+        "generic_asset",
+        sa.MetaData(),
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("flex_model", sa.JSON),
+        sa.Column("attributes", sa.JSON),
+    )
+
+    # Fetch all assets
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.select(
+            asset_table.c.id,
+            asset_table.c.flex_model,
+            asset_table.c.attributes,
+        )
+    )
+    assets = result.fetchall()
+    return asset_table, assets, conn
