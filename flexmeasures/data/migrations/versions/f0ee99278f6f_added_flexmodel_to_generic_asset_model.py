@@ -153,7 +153,12 @@ def downgrade():
         # Revert flex-model data to attributes
         if flex_model_data is not None:
 
+            # Ensure that the flex-model attribute is available for backing up the flex-model data
             asset_attrs_flex_model = asset.attributes.get("flex-model", {})
+            if asset_attrs_flex_model:
+                raise NotImplementedError(
+                    f"Asset {asset_id} already has a 'flex-model' attribute, so it is unavailable for backing up the flex-model data"
+                )
             asset_attrs = asset.attributes or {}
 
             for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
