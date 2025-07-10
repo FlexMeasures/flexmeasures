@@ -99,6 +99,8 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         most_recent_beliefs_only=False,  # all beliefs
         **kwargs,
     )
+    if previous_beliefs_in_db.empty:
+        return bdf
     return (
         bdf.convert_index_from_belief_horizon_to_time()
         .groupby(level=["belief_time", "source"], group_keys=False, as_index=False)
@@ -121,6 +123,8 @@ def _drop_unchanged_beliefs_compared_to_db(
     previous_beliefs = previous_beliefs_in_db[
         previous_beliefs_in_db.sources == bdf.lineage.sources[0]
     ]
+    if previous_beliefs.empty:
+        return bdf
     # unique belief time
     previous_most_recent_beliefs_in_db = previous_beliefs[
         previous_beliefs.lineage.belief_times <= bdf.lineage.belief_times[0]
