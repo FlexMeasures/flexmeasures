@@ -47,6 +47,8 @@ The following flex-model fields exist that had no prior support as an asset attr
 
 
 def upgrade():
+    """Migrate db flex-model fields stored as asset/sensor attributes to a new flex_model db column."""
+
     # Add the new column
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
         batch_op.add_column(
@@ -152,6 +154,10 @@ def upgrade():
 
 
 def downgrade():
+    """Migrate the flex_model db column to an asset attribute.
+
+    Also restore fallback asset attributes used by code before this migration.
+    """
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
         asset_table = sa.Table(
             "generic_asset",
