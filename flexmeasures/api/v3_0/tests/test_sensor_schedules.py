@@ -140,7 +140,7 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     assert job.is_failed
 
     # Make sure that the db flex_context shows up in the job kwargs
-    assert "flex-context" not in message and "flex_context" in job.kwargs
+    assert "flex-context" not in message and job.kwargs.get("flex_context")
 
     # check results are not in the database
     scheduler_source = db.session.execute(
@@ -255,7 +255,7 @@ def test_get_schedule_fallback(
         assert job.is_failed
 
         # Make sure that the db flex_context shows up in the job kwargs
-        assert "flex-context" not in message and "flex_context" in job.kwargs
+        assert "flex-context" not in message and job.kwargs.get("flex_context")
 
         # the callback creates the fallback job which is still pending
         assert len(app.queues["scheduling"]) == 1
@@ -407,7 +407,7 @@ def test_get_schedule_fallback_not_redirect(
         assert job.is_failed
 
         # Make sure that the db flex_context shows up in the job kwargs
-        assert "flex-context" not in message and "flex_context" in job.kwargs
+        assert "flex-context" not in message and job.kwargs.get("flex_context")
 
         # the callback creates the fallback job which is still pending
         assert len(app.queues["scheduling"]) == 1
