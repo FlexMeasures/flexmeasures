@@ -227,6 +227,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     host/data
     host/deployment
     configuration
+    host/white-labelling
     host/queues
     host/error-monitoring
     host/modes
