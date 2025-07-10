@@ -7,6 +7,7 @@ import inflect
 from flask import current_app
 import pandas as pd
 import timely_beliefs as tb
+from timely_beliefs.beliefs import utils as belief_utils
 
 from flexmeasures.data.queries.utils import simplify_index
 
@@ -119,16 +120,17 @@ def _drop_unchanged_beliefs_compared_to_db(
 
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
-    # unique source
     previous_beliefs = previous_beliefs_in_db[
-        previous_beliefs_in_db.sources == bdf.lineage.sources[0]
+        previous_beliefs_in_db.sources == bdf.lineage.sources[0]  # unique source
     ]
     if previous_beliefs.empty:
         return bdf
-    # unique belief time
-    previous_most_recent_beliefs_in_db = previous_beliefs[
-        previous_beliefs.lineage.belief_times <= bdf.lineage.belief_times[0]
-    ]
+    previous_most_recent_beliefs_in_db = belief_utils.select_most_recent_belief(
+        previous_beliefs[
+            previous_beliefs.belief_times
+            <= bdf.lineage.belief_times[0]  # unique belief time
+        ]
+    )
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
     b = previous_most_recent_beliefs_in_db.reset_index().set_index(compare_fields)
