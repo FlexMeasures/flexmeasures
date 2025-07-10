@@ -144,5 +144,4 @@ def save_to_db(
 
     if values_saved == 0:
         status = "success_but_nothing_new"
-    breakpoint()
     return status
