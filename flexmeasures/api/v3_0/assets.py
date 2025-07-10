@@ -433,9 +433,9 @@ class AssetAPI(FlaskView):
         # assign asset id
         db.session.flush()
 
-        db.session.commit()
-
         AssetAuditLog.add_record(asset, f"Created asset '{asset.name}': {asset.id}")
+
+        db.session.commit()
 
         return asset_schema.dump(asset), 201
 
@@ -627,6 +627,7 @@ class AssetAPI(FlaskView):
             "dataset_name": fields.Str(required=False),
             "height": fields.Str(required=False),
             "width": fields.Str(required=False),
+            "chart_type": fields.Str(required=False),
         },
         location="query",
     )
