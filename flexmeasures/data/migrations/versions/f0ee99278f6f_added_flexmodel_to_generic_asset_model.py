@@ -59,7 +59,7 @@ def upgrade():
     )
     assets = result.fetchall()
 
-    def migrate_flex_model_fields(asset):
+    def migrate_flex_model_fields(asset, sensors):
         """Migrate old flex-model fields (attributes) from the asset or its sensors to the asset's flex_model column.
 
          Steps:
@@ -82,7 +82,7 @@ def upgrade():
                     old_field_name, old_value, asset=asset
                 )
 
-        for sensor in asset.sensors:
+        for sensor in sensors:
 
             # Pop all the relevant fields from the sensor's attributes
             for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
@@ -118,7 +118,7 @@ def upgrade():
 
     for asset in assets:
         # Fetch the sensors
-        asset.sensors = conn.execute(
+        sensors = conn.execute(
             sa.select(
                 sensor_table.c.id,
                 sensor_table.c.attributes,
@@ -127,7 +127,7 @@ def upgrade():
         ).fetchall()
 
         # Migrate the asset's flex-model fields
-        migrate_flex_model_fields(asset)
+        migrate_flex_model_fields(asset=asset, sensors=sensors)
 
 
 def downgrade():
