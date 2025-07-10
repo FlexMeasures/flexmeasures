@@ -157,11 +157,11 @@ def downgrade():
             asset_attrs = asset.attributes or {}
 
             for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
-                if new_field_name in flex_model_data and isinstance(
-                    flex_model_data[new_field_name], str
-                ):
+                if new_field_name not in flex_model_data:
+                    continue
+                value = flex_model_data[new_field_name]
+                if isinstance(value, str):
                     # Convert the value back to the original format
-                    value = flex_model_data[new_field_name]
                     if old_field_name[-6:] == "in_mwh" and is_energy_unit(value):
                         value_in_mwh = ur.Quantity(value).to("MWh").magnitude
                         asset_attrs[old_field_name] = value_in_mwh
@@ -170,9 +170,7 @@ def downgrade():
                         asset_attrs[old_field_name] = value_in_mw
                     else:
                         asset_attrs[old_field_name] = value
-                elif new_field_name in flex_model_data and isinstance(
-                    flex_model_data[new_field_name], dict
-                ):
+                elif isinstance(value, dict):
                     asset_attrs_flex_model[new_field_name] = value
 
             # Remove the new fields from the attributes flex-model data
