@@ -169,9 +169,11 @@ def downgrade():
                         value_in_mw = ur.Quantity(value).to("MW").magnitude
                         asset_attrs[old_field_name] = value_in_mw
                     else:
+                        # Put back string quantity
                         asset_attrs[old_field_name] = value
                 elif isinstance(value, dict):
-                    asset_attrs_flex_model[new_field_name] = value
+                    # Put back sensor reference
+                    asset_attrs[old_field_name] = value
 
             # Remove the new fields from the attributes flex-model data
             asset_attrs_flex_model.pop(new_field_name, None)
