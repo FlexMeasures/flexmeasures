@@ -174,7 +174,7 @@ class Scheduler:
         pass
 
     def fetch_db_flex_config(self):
-        """Merge the flex-config from the db (from the asset and its ancestors) and with the initialization flex-config.
+        """Merge the flex-config from the db (from the asset and its ancestors) with the initialization flex-config.
 
         Note that self.flex_context overrides db_flex_context (from the asset and its ancestors).
         """
