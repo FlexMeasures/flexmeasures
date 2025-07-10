@@ -19,10 +19,31 @@ down_revision = "cb8df44ebda5"
 branch_labels = None
 depends_on = None
 
-# all flex-model fields that, before upgrading, were supported as a sensor or asset attribute
-FLEX_MODEL_FIELDS = dict(
-    min_soc_in_mwh="soc-min",
-)
+# All flex-model fields that, before upgrading, were supported as an asset attribute (float, quantity string, or sensor reference, or a list thereof):
+FLEX_MODEL_FIELDS = {
+    "min_soc_in_mwh": "soc-min",  # snake_case fallback attribute containing a float
+    # "max_soc_in_mwh": "soc-max",  # snake_case fallback attribute containing a float
+    # "soc-gain": "soc-gain",  # fallback attribute containing a list of quantity strings and/or sensor references
+    # "soc-usage": "soc-usage",  # fallback attribute containing a list of quantity strings and/or sensor references
+    # "roundtrip_efficiency": "roundtrip-efficiency",  # snake_case fallback attribute containing a float
+    # "charging-efficiency": "charging-efficiency",  # fallback attribute containing a quantity string, sensor reference or float
+    # "discharging-efficiency": "discharging-efficiency",  # fallback attribute containing a quantity string, sensor reference or float
+    # "storage_efficiency": "storage-efficiency",  # snake_case fallback attribute containing a quantity string, sensor reference or float
+    # "capacity_in_mw": "power-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+    # "consumption_capacity": "consumption-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+    # "production_capacity": "production-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+}
+"""
+The following flex-model fields exist that had no prior support as an asset attribute, and are therefore not migrated:
+- soc-at-start
+- soc-unit
+- soc-minima
+- soc-maxima
+- soc-targets
+- state-of-charge
+- prefer-charging-sooner
+- prefer-curtailing-later
+"""
 
 
 def upgrade():
