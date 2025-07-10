@@ -100,7 +100,7 @@ def upgrade():
             # Save the sensor's new attributes (without the old fields)
             stmt = (
                 sensor_table.update()
-                .where(sensor_table.c.id == sensor.id)
+                .where(sensor_table.c.id == sa.literal(sensor.id))
                 .values(attributes=sensor.attributes)
             )
             conn.execute(stmt)
@@ -108,7 +108,7 @@ def upgrade():
         # Save the asset's new attributes (without the old fields) and the asset's new flex_model (with the new fields)
         stmt = (
             asset_table.update()
-            .where(asset_table.c.id == asset.id)
+            .where(asset_table.c.id == sa.literal(asset.id))
             .values(
                 flex_model=asset.flex_model,
                 attributes=asset.attributes,
@@ -123,7 +123,7 @@ def upgrade():
                 sensor_table.c.id,
                 sensor_table.c.attributes,
                 sensor_table.c.generic_asset_id,
-            ).where(sensor_table.c.generic_asset_id == asset.id)
+            ).where(sensor_table.c.generic_asset_id == sa.literal(asset.id))
         ).fetchall()
 
         # Migrate the asset's flex-model fields
