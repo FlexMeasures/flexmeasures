@@ -199,7 +199,7 @@ def downgrade():
     # ### end Alembic commands ###
 
 
-def migrate_value(old_field_name, old_value, sensor, asset):
+def migrate_value(old_field_name, old_value, sensor=None, asset=None):
     """Depending on the old field name, some values still need to be turned into string quantities."""
 
     # check if value is an int, bool, float or dict
