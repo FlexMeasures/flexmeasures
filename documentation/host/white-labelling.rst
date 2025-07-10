@@ -10,7 +10,7 @@ Each account can be edited, so that they use their own logo URL, as well as prim
 
 Here you see an example how that might look:
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-whitelabelling.png
+.. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/screenshot-whitelabelling.png
     :align: center
 ..    :scale: 40%
 
