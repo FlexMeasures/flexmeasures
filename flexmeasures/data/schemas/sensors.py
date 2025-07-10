@@ -568,4 +568,5 @@ class SensorDataFileSchema(Schema):
         if errors:
             raise ValidationError(errors)
         fields["data"] = dfs
+        fields["filenames"] = [file.filename for file in files]
         return fields
