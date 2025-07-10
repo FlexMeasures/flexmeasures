@@ -1,7 +1,8 @@
 from sqlalchemy import select
 
-from flexmeasures import Sensor
+from flexmeasures import Asset, Sensor, User
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AssetAuditLog
 
 
 def make_sensor_data_request_for_gas_sensor(
@@ -113,3 +114,20 @@ def message_for_trigger_schedule(
             {"value": target_value + 1, **target_time_window}
         ]
     return message
+
+
+def check_audit_log_event(
+    db,
+    event: str,
+    user: User,
+    asset: Asset,
+):
+    """Make sure the event is registered in the audit log."""
+    assert db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=event,
+            active_user_id=user.id,
+            active_user_name=user.username,
+            affected_asset_id=asset.id,
+        )
+    ).scalar_one_or_none(), f"expected audit log event: {event}"
