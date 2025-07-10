@@ -131,6 +131,8 @@ def _drop_unchanged_beliefs_compared_to_db(
             <= bdf.lineage.belief_times[0]  # unique belief time
         ]
     )
+    if previous_most_recent_beliefs_in_db.empty:
+        return bdf
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
     b = previous_most_recent_beliefs_in_db.reset_index().set_index(compare_fields)
