@@ -437,6 +437,9 @@
     var controller = new AbortController();
     var signal = controller.signal;
 
+    
+    var initialStartDate = new Date('{{ event_starts_after }}');
+    var initialEndDate = new Date('{{ event_ends_before }}');
     const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
         method: "GET",
         headers: {"Content-Type": "application/json"},
@@ -521,6 +524,7 @@
             $("#spinner").show();
             checkDSTTransitions(startDate, endDate)
             Promise.all([
+                (initialStartDate.getTime() === startDate.getTime() && initialEndDate.getTime() === endDate.getTime()) ? Promise.resolve(previousResult) :
                 // Fetch time series data
                 fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
                     method: "GET",
@@ -528,7 +532,6 @@
                     signal: signal,
                 })
                 .then(function(response) { return response.json(); }),
-
                 /**
                 // Fetch annotations
                 fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
