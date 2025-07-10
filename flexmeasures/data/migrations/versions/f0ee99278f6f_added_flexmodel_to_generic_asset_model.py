@@ -202,7 +202,7 @@ def downgrade():
 def migrate_value(old_field_name, old_value, sensor, asset):
     """Depending on the old field name, some values still need to be turned into string quantities."""
 
-    # check if value is a int, bool, float or dict
+    # check if value is an int, bool, float or dict
     if not isinstance(old_value, (int, float, dict, bool)):
         if sensor:
             raise Exception(
