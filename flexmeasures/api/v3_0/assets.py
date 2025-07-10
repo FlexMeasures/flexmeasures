@@ -433,9 +433,9 @@ class AssetAPI(FlaskView):
         # assign asset id
         db.session.flush()
 
-        db.session.commit()
-
         AssetAuditLog.add_record(asset, f"Created asset '{asset.name}': {asset.id}")
+
+        db.session.commit()
 
         return asset_schema.dump(asset), 201
 
