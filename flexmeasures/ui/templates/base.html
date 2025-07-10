@@ -411,7 +411,7 @@
             }
         });
     }
-
+    
     // event listener to refresh graph
     document.addEventListener('sensorsToShowUpdated', async function() {
         await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
