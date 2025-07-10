@@ -173,7 +173,7 @@ Alternatively, use ``from my_plugin import __settings__`` in your plugin module,
     }
 
 
-Set config progrmmatically - Example of using a custom logo
+Set config programmatically - Example of using a custom logo
 -------------------------------------------------------------
 
 Finally, you might want to override some FlexMeasures configuration settings from within your plugin.
