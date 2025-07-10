@@ -432,9 +432,8 @@
                         storeStartDate,
                         subtract(storeEndDate, 1),
                     );
-                    // Wait for 2 seconds and then reload the page
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    window.location.reload();
+                    uploadSpinner.classList.add('d-none');
+                    upload.classList.remove('d-none');
                 } else {
                     const data = await response.json();
                     if (data.message.path_and_files === undefined) {
