@@ -143,6 +143,11 @@ The event_value should be a numeric value."
                                 if (response.ok) {
                                     const data = await response.json();
                                     showToast(data.message, "success");
+                                    // Update date range
+                                    picker.setDateRange(
+                                        storeStartDate,
+                                        subtract(storeEndDate, 1),
+                                    );
                                     // Wait for 2 seconds and then reload the page
                                     await new Promise(resolve => setTimeout(resolve, 2000));
                                     window.location.reload();
