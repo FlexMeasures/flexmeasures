@@ -787,8 +787,9 @@
         var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
         queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
         queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
-
-        $("#spinner").show();
+        const spinner = document.getElementById('spinner');
+        spinner.hidden = false;
+        spinner.style.display = 'block';
         Promise.all([
             playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) : 
             // Fetch time series data (all data, not only the most recent beliefs)
@@ -799,7 +800,6 @@
             })
             .then(function(response) { return response.json(); }),
         ]).then(function(result) {
-            $("#spinner").hide();
             previousPlaybackResult = result;
             replayBeliefsData(result[0]);
             playBackDataLoadedForKnownDateRange = true;
