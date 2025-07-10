@@ -310,6 +310,7 @@
 
     let vegaView;
     let previousResult;
+    let previousPlaybackResult;
     let queryStartDate;
     let queryEndDate;
     let storeStartDate;
@@ -502,6 +503,7 @@
     var controller = new AbortController();
     var signal = controller.signal;
 
+    var playBackDataLoadedForKnownDateRange = false;
     const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
         method: "GET",
         headers: {"Content-Type": "application/json"},
@@ -611,6 +613,7 @@
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
                 previousResult = result[0];
                 checkSourceMasking(previousResult);
+                playBackDataLoadedForKnownDateRange = false;
                 /**
                 vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
                 */
@@ -784,6 +787,7 @@
 
         $("#spinner").show();
         Promise.all([
+            playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) : 
             // Fetch time series data (all data, not only the most recent beliefs)
             fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
                 method: "GET",
@@ -793,7 +797,9 @@
             .then(function(response) { return response.json(); }),
         ]).then(function(result) {
             $("#spinner").hide();
+            previousPlaybackResult = result;
             replayBeliefsData(result[0]);
+            playBackDataLoadedForKnownDateRange = true;
         }).catch(console.error);
 
         const timer = ms => new Promise(res => setAbortableTimeout(res, Math.max(ms, 0), signal));
