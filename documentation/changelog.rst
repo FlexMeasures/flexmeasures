@@ -41,6 +41,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * On the asset context page, send the highest ancestor as site_asset (then the asset context view uses this to look up sensors for the flex-context) [see `PR #1581 <https://www.github.com/FlexMeasures/flexmeasures/pull/1581>`_]
+* Fix support for using 3-digit hex colors in account color scheme [see `PR #1569 <https://github.com/FlexMeasures/flexmeasures/pull/1569>`_]
 
 
 v0.26.1 | June 09, 2025
