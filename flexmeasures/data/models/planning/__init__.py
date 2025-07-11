@@ -177,6 +177,7 @@ class Scheduler:
         """Merge the flex-config from the db (from the asset and its ancestors) with the initialization flex-config.
 
         Note that self.flex_context overrides db_flex_context (from the asset and its ancestors).
+        # todo: also fetch db_flex_model once that exists
         """
         if self.asset is not None:
             asset = self.asset
