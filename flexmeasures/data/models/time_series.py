@@ -207,15 +207,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             return self.attributes[attribute]
         if hasattr(self.generic_asset, attribute):
             return getattr(self.generic_asset, attribute)
-        if attribute in self.generic_asset.attributes:
-            return self.generic_asset.attributes[attribute]
-        if hasattr(self.generic_asset.flex_context, attribute):
-            return getattr(self.generic_asset.flex_context, attribute)
-        if (
-            self.generic_asset.flex_context
-            and attribute in self.generic_asset.flex_context
-        ):
-            return self.generic_asset.flex_context[attribute]
+        asset_value = self.generic_asset.get_attribute(attribute)
+        if asset_value is not None:
+            return asset_value
 
         return default
 
