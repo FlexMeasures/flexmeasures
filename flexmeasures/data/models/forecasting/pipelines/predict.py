@@ -216,10 +216,10 @@ class PredictPipeline(BasePipeline):
                 f"Starting to generate predictions for up to {self.max_forecast_horizon} ({self.readable_resolution}) intervals e,g ({self.total_forecast_hours} hours)."
             )
 
-            df_res = pd.DataFrame()
             n_hours_can_predict = self.n_hours_to_predict
             forecast_frequency = self.forecast_frequency
             # We make predictions up to the last hour in the predict_period
+            y_pred_dfs = list()
             for i in range(0, n_hours_can_predict, forecast_frequency):
                 future_covariates = (
                     future_covariates_list[i] if future_covariates_list else None
@@ -235,7 +235,8 @@ class PredictPipeline(BasePipeline):
                 y_pred_df = self.make_single_horizon_prediction(
                     model, future_covariates, past_covariates, y, i
                 )
-                df_res = pd.concat([df_res, y_pred_df])
+                y_pred_dfs.append(y_pred_df)
+            df_res = pd.concat(y_pred_dfs)
             logging.debug("Finished generating predictions.")
             return df_res
         except Exception as e:
