@@ -17,7 +17,7 @@ New features
 -------------
 
 * New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices [see `PR #1065 <https://github.com/FlexMeasures/flexmeasures/pull/1065/>`_]
-* Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_, `PR #1583 <https://github.com/FlexMeasures/flexmeasures/pull/1583>`_ and `PR #1585 <https://github.com/FlexMeasures/flexmeasures/pull/1585>`_]
+* Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_, `PR #1573 <https://github.com/FlexMeasures/flexmeasures/pull/1573>`_, `PR #1583 <https://github.com/FlexMeasures/flexmeasures/pull/1583>`_ and `PR #1585 <https://github.com/FlexMeasures/flexmeasures/pull/1585>`_]
 * Allow editing users in the UI [see `PR #1502 <https://github.com/FlexMeasures/flexmeasures/pull/1502>`_]
 * Scheduling job descriptions on the tasks page (RQ Dashboard) shows the whole flex-model and flex-context, including any server-side configuration of e.g. capacities [see `PR #1579 <https://github.com/FlexMeasures/flexmeasures/pull/1579>`_]
 * Smarter date range navigation [see `PR #1531 <https://github.com/FlexMeasures/flexmeasures/pull/1531>`_]
