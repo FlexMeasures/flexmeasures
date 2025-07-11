@@ -787,8 +787,8 @@
         var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
         queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
         queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
+        const spinner = document.getElementById('spinner');
         if (!playBackDataLoadedForKnownDateRange) {
-            const spinner = document.getElementById('spinner');
             spinner.hidden = false;
             spinner.style.display = 'block';
         }
@@ -805,7 +805,12 @@
             previousPlaybackResult = result[0];
             replayBeliefsData(result[0]);
             playBackDataLoadedForKnownDateRange = true;
-        }).catch(console.error);
+        }).catch(console.error)
+        .finally(function() {
+            spinner.hidden = true;
+            spinner.style.display = 'none';
+        });
+
 
         const timer = ms => new Promise(res => setAbortableTimeout(res, Math.max(ms, 0), signal));
 
