@@ -562,7 +562,8 @@ class AssetAPI(FlaskView):
                     schema_map[k]().load(v)
                 except Exception as e:
                     return {"error": str(e)}, 422
-                # todo: add audit log entry for the updated fields, similar to when changing an attribute
+                # todo: add audit log entry for the updated fields, similar to when changing an attribute, because
+                #       the events have a 255 character limit, which may not be enough for the whole flex-model
 
             audit_log_data.append(
                 f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
