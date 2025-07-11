@@ -78,6 +78,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     flex_context = db.Column(
         MutableDict.as_mutable(db.JSON), nullable=False, default={}
     )
+    flex_model = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
@@ -371,6 +372,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
+        if self.flex_model and attribute in self.flex_model:
+            return self.flex_model[attribute]
         if self.flex_context and attribute in self.flex_context:
             return self.flex_context[attribute]
         return default
@@ -400,6 +403,18 @@ class GenericAsset(db.Model, AuthModelMixin):
             flex_context = {**parent_asset.flex_context, **flex_context}
             parent_asset = parent_asset.parent_asset
         return flex_context
+
+    def get_flex_model(self) -> list[dict]:
+        """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
+
+        Recursive function returning a multi-asset flex-model.
+        """
+        flex_model = []
+        if self.flex_model:
+            flex_model.append(self.flex_model.copy())
+        for child in self.child_assets:
+            flex_model.extend(child.get_flex_model())
+        return flex_model
 
     def get_consumption_price_sensor(self):
         """Searches for consumption_price_sensor upwards on the asset tree"""
