@@ -315,7 +315,6 @@
 
                 if (isKeyValueObject) {
                     const sensor = await renderSensor(value.sensor);
-                    // remove 
                     component.innerHTML = sensor;
                 } else if (isFixed) {
                     component.innerHTML = `<p class="card-text fs-4">${value}</p>`;
@@ -350,7 +349,7 @@
 
             card.onclick = function () {
                 if (card.classList.contains('border-on-click')) {
-                    if (event.target.closest('.fa-times')) {
+                    if (event.target.closest('.card-close-icon')) {
                         // trigger the close icon's onclick function
                         if (activeCard() && activeCard().id === card.id) {
                             setActiveCard(null); // Deselect if the same card is clicked again
@@ -397,7 +396,7 @@
                 <div class="card-highlight">
                     <div class="d-flex justify-content-between">
                         <h5 class="card-title">${getFlexFieldTitle(name)}</h5>
-                        <i class="fa fa-times"
+                        <i class="fa fa-times card-close-icon"
                             onclick=""
                             data-bs-toggle="tooltip"
                             data-bs-placement="top"
