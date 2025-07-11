@@ -93,6 +93,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             kwargs["generic_asset_id"] = generic_asset_id
         if attributes is not None:
             kwargs["attributes"] = attributes
+        else:
+            # Otherwise, the attributes only default to {} when flushing/committing to the db
+            kwargs["attributes"] = {}
         db.Model.__init__(self, **kwargs)
 
     __table_args__ = (

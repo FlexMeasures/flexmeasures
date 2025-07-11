@@ -109,6 +109,12 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("assets", lazy="dynamic"),
     )
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Otherwise, the attributes only default to {} when flushing/committing to the db
+        if self.attributes is None:
+            self.attributes = {}
+
     def __acl__(self):
         """
         All logged-in users can read if the asset is public.
