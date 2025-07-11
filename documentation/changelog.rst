@@ -25,7 +25,7 @@ New features
 * Move various warnings to toast notifications [see `PR #1529 <https://github.com/FlexMeasures/flexmeasures/pull/1529>`_]
 * Document how to set a parent asset when creating an asset through the API, and show parent assets in ``flexmeasures show account`` [see `PR #1533 <https://github.com/FlexMeasures/flexmeasures/pull/1533>`_]
 * Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account [see `PR #1536 <https://github.com/FlexMeasures/flexmeasures/pull/1536>`_]
-* Add toggle to show sensors stats based on selected daterange. [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_ and `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_]
+* Add toggle to show sensor statistics based on selected daterange [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_, `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_ and `PR #1589 <https://github.com/FlexMeasures/flexmeasures/pull/1589>`_]
 * Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_ and `PR #1544 <https://github.com/FlexMeasures/flexmeasures/pull/1544>`_]
 * Modified Account, Asset and Sensor model ACL to give consultant role more permissions. ALso add testcases to check if these permissions work as expected [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_ and `PR #1550 <https://github.com/FlexMeasures/flexmeasures/pull/1550>`_]
 * Group statistics on the UI's sensor page by data source ID, and show the description and ID of each data source [see `PR #1548 <https://github.com/FlexMeasures/flexmeasures/pull/1548>`_]
@@ -45,7 +45,6 @@ Bugfixes
 * Prevent redundant second call to fetch chart data [see `PR #1568 <https://github.com/FlexMeasures/flexmeasures/pull/1568>`_]
 * On the asset context page, send the highest ancestor as site_asset (then the asset context view uses this to look up sensors for the flex-context) [see `PR #1581 <https://www.github.com/FlexMeasures/flexmeasures/pull/1581>`_]
 * Fix support for using 3-digit hex colors in account color scheme [see `PR #1569 <https://github.com/FlexMeasures/flexmeasures/pull/1569>`_]
-* Fix the statistics don't update anymore when selecting a different source [see `PR #1589 <https://github.com/FlexMeasures/flexmeasures/pull/1589>`_]
 
 
 v0.26.1 | June 09, 2025
