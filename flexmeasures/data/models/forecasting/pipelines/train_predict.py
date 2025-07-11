@@ -115,8 +115,10 @@ class TrainPredictPipeline:
             max_forecast_horizon=self.max_forecast_horizon * multiplier,
             forecast_frequency=self.forecast_frequency * multiplier,
             probabilistic=self.probabilistic,
-            event_starts_after=train_start,
-            event_ends_before=predict_end,
+            event_starts_after=train_start,  # use beliefs about events before the start of the predict period
+            event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period
+            predict_start=predict_start,
+            predict_end=predict_end,
             sensor_to_save=self.sensor_to_save,
         )
         logging.info(

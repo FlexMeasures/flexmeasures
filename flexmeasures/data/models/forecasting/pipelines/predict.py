@@ -35,6 +35,8 @@ class PredictPipeline(BasePipeline):
         quantiles: list[float] | None = None,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
+        predict_start: datetime | None = None,
+        predict_end: datetime | None = None,
     ) -> None:
         """
         Initialize the PredictPipeline.
@@ -49,6 +51,8 @@ class PredictPipeline(BasePipeline):
         :param quantiles: Optional list of quantiles to predict for probabilistic forecasts. If None, predictions are deterministic.
         :param event_starts_after: Only consider events starting after this time.
         :param event_ends_before: Only consider events ending before this time.
+        :param predict_start: Only save events starting after this time.
+        :param predict_end: Only save events ending before this time.
         :param forecast_frequency: Create a forecast every Nth interval.
         """
         super().__init__(
@@ -73,6 +77,8 @@ class PredictPipeline(BasePipeline):
         self.forecast_horizon = np.arange(1, max_forecast_horizon + 1)
         self.forecast_frequency = forecast_frequency
         self.sensor_to_save = sensor_to_save
+        self.predict_start = predict_start
+        self.predict_end = predict_end
 
         self.sensor_resolution = Sensor.query.get(
             self.sensors[self.target]
@@ -273,6 +279,9 @@ class PredictPipeline(BasePipeline):
                 regressors=self.regressors,
             )
             print(bdf)
+            # Mask beliefs outside the prediction window
+            # bdf = bdf[bdf.index.get_level_values("event_start") >= self.predict_start]
+            # bdf = bdf[bdf.index.get_level_values("event_start") < self.predict_end]
             breakpoint()
             save_to_db(
                 bdf, save_changed_beliefs_only=False
