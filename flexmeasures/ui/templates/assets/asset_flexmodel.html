@@ -80,7 +80,6 @@
 
     const typeOne = [Boolean];
     const typeTwo = [Object];
-    // const typeThree = [Object];
     const typeThree = [String, Object];
     const typeFour = [Array];
 
@@ -146,7 +145,6 @@
         "consumption-capacity": null,
         "production-capacity": null,
     }
-
 
 
     document.addEventListener('DOMContentLoaded', async function () {
@@ -281,7 +279,7 @@
         }
 
         async function addFlexContextField() {
-            const fieldName = flexSelect.value;
+            const fieldName = flexSelect.value; // value from the select dropdown
             if (fieldName === "blank") {
                 showToast("Please select a field to add", "error");
                 return;
@@ -291,6 +289,58 @@
             await renderFlexModelForm(); // rendering here so the card with the 'border-on-click' class is updated/exists
             const card = document.getElementById(`${fieldName}-control`);
             selectFlexField(card);
+        }
+
+        async function renderCarouselCards(cardValues) {
+            const scrollContainer = document.createElement('div');
+            scrollContainer.className = 'row flex-row flex-nowrap';
+            scrollContainer.style.overflowY = 'auto';
+
+            cardValues.forEach(async (value, index) => {
+                const isFixed = typeof value === "string"
+                const isKeyValueObject = typeof value === "object" &&
+                    value !== null &&
+                    !Array.isArray(value) && // Exclude arrays
+                    Object.keys(value).length > 0;
+
+                const card = document.createElement('div');
+                card.className = 'col-10 d-flex border rounded m-1 justify-content-center flex-column';
+                card.style.padding = '5px 15px';
+                const cardHighlight = document.createElement('div');
+                cardHighlight.className = 'card-highlight';
+                const cardContentContainer = document.createElement('div');
+                cardContentContainer.className = 'd-flex justify-content-between align-items-center';
+
+                const component = document.createElement('div');
+
+                if (isKeyValueObject) {
+                    const sensor = await renderSensor(value.sensor);
+                    // remove 
+                    component.innerHTML = sensor;
+                } else if (isFixed) {
+                    component.innerHTML = `<p class="card-text fs-4">${value}</p>`;
+                } else {
+                    showToast(`Invalid value type for card: ${value}`, "error");
+                    return;
+                }
+
+                const closeIcon = document.createElement('i');
+                closeIcon.className = 'fa fa-times';
+                closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+                closeIcon.setAttribute('data-bs-placement', 'top');
+                closeIcon.setAttribute('title', 'Remove');
+                closeIcon.style.cursor = 'pointer';
+                closeIcon.onclick = function () { };
+
+                cardContentContainer.appendChild(component);
+                cardContentContainer.appendChild(closeIcon);
+                cardHighlight.appendChild(cardContentContainer);
+
+                card.appendChild(cardHighlight);
+                scrollContainer.appendChild(card);
+            });
+
+            return scrollContainer;
         }
 
         async function renderFlexModelFieldCard(name, value) {
@@ -358,9 +408,14 @@
 
                     ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
                     ${isBool ? `<i>${String(value).charAt(0).toUpperCase() + String(value).slice(1)} </i>` : ''}
-                    ${isNumber ||isString ? `<p class="card-text fs-4">${value}</p>` : ''}
+                    ${isNumber || isString ? `<p class="card-text fs-4">${value}</p>` : ''}
                 </div>
             `;
+
+            if (isArray) {
+                const carouselCards = await renderCarouselCards(value);
+                card.querySelector('.card-highlight').appendChild(carouselCards);
+            }
             flexmodelContainer.appendChild(card);
             return card;
         }
@@ -518,6 +573,8 @@
                 `;
 
                 tabContent.querySelector('.flex-input-group').appendChild(stringTabContentSaveBtn);
+            } else if (dataType == Array) { // Array Tab =================
+                // pass
             } else {
                 return [null, null];
             }

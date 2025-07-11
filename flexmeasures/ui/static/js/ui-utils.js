@@ -98,19 +98,17 @@ export async function renderSensor(sensorId) {
     const Account = await getAccount(Asset.account_id);
 
     return `
-                <div class="mb-2">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <b>Sensor:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
-                            <b>Unit:</b> ${sensorData.unit},
-                            <b>Name:</b> ${sensorData.name},
-                            <div style="padding-top: 1px;"></div>
-                            <b>Asset:</b> ${Asset.name},
-                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
-                        </div>
-                    </div>
-                </div>
-            `;
+        <div class="d-flex justify-content-between">
+            <div>
+                <b>Sensor:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
+                <b>Unit:</b> ${sensorData.unit},
+                <b>Name:</b> ${sensorData.name},
+                <div style="padding-top: 1px;"></div>
+                <b>Asset:</b> ${Asset.name},
+                <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+            </div>
+        </div>
+    `;
 }
 
 /**
