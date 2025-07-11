@@ -220,7 +220,11 @@ class PredictPipeline(BasePipeline):
             forecast_frequency = self.forecast_frequency
             # We make predictions up to the last hour in the predict_period
             y_pred_dfs = list()
-            for i in range(0, n_hours_can_predict, forecast_frequency):
+            for i in range(
+                n_hours_can_predict - forecast_frequency,
+                n_hours_can_predict,
+                -forecast_frequency,
+            ):
                 future_covariates = (
                     future_covariates_list[i] if future_covariates_list else None
                 )
