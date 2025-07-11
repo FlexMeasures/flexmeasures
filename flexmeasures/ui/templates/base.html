@@ -353,7 +353,8 @@
 
                 // Reload daterange
                 embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult)).resize().run();            });
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult)).resize().run();
+            });
         }
     });
 
@@ -412,7 +413,7 @@
         });
     }
     
-    {% if active_page == "sensors" %}
+    {% if active_page == "sensors" and user_can_update_sensor %}
         let upload = document.querySelector('#submitUpload');
         let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
         upload.addEventListener('click', function(e) {
@@ -432,9 +433,8 @@
                         storeStartDate,
                         subtract(storeEndDate, 1),
                     );
-                    // Wait for 2 seconds and then reload the page
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    window.location.reload();
+                    uploadSpinner.classList.add('d-none');
+                    upload.classList.remove('d-none');
                 } else {
                     const data = await response.json();
                     if (data.message.path_and_files === undefined) {
