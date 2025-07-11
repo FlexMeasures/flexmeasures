@@ -29,7 +29,29 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "as_job": False,
             },
             "Try decreasing the --start-date.",
-        )
+        ),
+        # (
+        #     {
+        #         "sensors": {"PV": 313},
+        #         "regressors": ["autoregressive"],
+        #         "target": "PV",
+        #         "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        #         "output_path": None,
+        #         "start_date": pd.Timestamp("2025-07-01T00:00", tz="Europe/Amsterdam"),
+        #         "end_date": pd.Timestamp("2025-07-12T00:00", tz="Europe/Amsterdam"),
+        #         "train_period_in_hours": 24.0,
+        #         "sensor_to_save": 313,
+        #         "predict_start": pd.Timestamp(
+        #             "2025-07-11T17:26", tz="Europe/Amsterdam"
+        #         ),
+        #         "predict_period_in_hours": 24,
+        #         "max_forecast_horizon": 24,
+        #         "forecast_frequency": 1,
+        #         "probabilistic": False,
+        #         "as_job": False,
+        #     },
+        #     "Try increasing the --end-date.",
+        # )
     ],
 )
 def test_bad_timing_params(setup_assets, kwargs, expected_error):
