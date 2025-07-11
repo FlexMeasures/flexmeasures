@@ -271,11 +271,14 @@ class PredictPipeline(BasePipeline):
             past_covariates_list, future_covariates_list, y_list = (
                 self.split_data_all_beliefs(df, is_predict_pipeline=True)
             )
+            logging.debug("Done splitting data")
 
             model = self.load_model()
+            logging.debug("Model loaded")
             df_pred = self.make_multi_horizon_predictions(
                 model, future_covariates_list, past_covariates_list, y_list
             )
+            logging.debug("Predictions ready to be saved")
             if self.output_path is not None:
                 self.save_results_to_CSV(df_pred)
             bdf = data_to_bdf(
