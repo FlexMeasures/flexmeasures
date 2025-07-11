@@ -329,7 +329,11 @@
                 closeIcon.setAttribute('data-bs-placement', 'top');
                 closeIcon.setAttribute('title', 'Remove');
                 closeIcon.style.cursor = 'pointer';
-                closeIcon.onclick = function () { };
+                closeIcon.onclick = function () {
+                    // remove value from the array
+                    cardValues.splice(index, 1);
+                    scrollContainer.removeChild(card);
+                 };
 
                 cardContentContainer.appendChild(component);
                 cardContentContainer.appendChild(closeIcon);
