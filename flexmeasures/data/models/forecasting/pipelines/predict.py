@@ -240,6 +240,9 @@ class PredictPipeline(BasePipeline):
                     model, future_covariates, past_covariates, y, i
                 )
                 y_pred_dfs.append(y_pred_df)
+                # todo: this seems to be all we need for a live setting
+                if i > 1:
+                    break
             df_res = pd.concat(y_pred_dfs)
             logging.debug("Finished generating predictions.")
             return df_res
