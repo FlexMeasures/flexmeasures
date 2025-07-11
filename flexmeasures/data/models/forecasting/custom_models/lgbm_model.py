@@ -84,6 +84,7 @@ class CustomLGBM(BaseModel):
 
             model_params["lags"] = lags
             if self.use_past_covariates:
+                #breakpoint()
                 model_params["lags_past_covariates"] = lags
 
                 # The one future covariate lag that is probably the most important is the one at the `horizon`,

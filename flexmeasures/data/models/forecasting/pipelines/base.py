@@ -114,6 +114,9 @@ class BasePipeline:
                 df_filtered = df[["event_start", "belief_time", "source", name]]
 
                 sensor_dfs.append(df_filtered)
+                print('event_start: ', sensor_event_starts_after)
+                print('event_end: ', sensor_event_ends_before)
+                print(f"{name}: {df_filtered}")
 
             if len(sensor_dfs) == 1:
                 data_pd = sensor_dfs[0]
@@ -138,6 +141,7 @@ class BasePipeline:
             data_pd["belief_time"] = pd.to_datetime(
                 data_pd["belief_time"], utc=True
             ).dt.tz_localize(None)
+            print(data_pd)
             return data_pd
 
         except Exception as e:
@@ -479,25 +483,20 @@ class BasePipeline:
                 return None
 
             df = df.dropna().reset_index(drop=True)
-            past_data = df[
-                (df["event_start"] <= target_end)
-                & (df["belief_time"] > df["event_start"])
-            ].copy()
-            past_data = past_data.loc[
-                past_data.groupby("event_start")["belief_time"].idxmax()
-            ]  # get data with most recent belief_time at a certain event_start
+            past_data = df[(df["event_start"] <= target_end)& (df["belief_time"] > df["event_start"])].copy()
+            past_data = past_data.loc[past_data.groupby("event_start")["belief_time"].idxmax()]  # get data with most recent belief_time at a certain event_start
 
-            past_data["time_diff"] = (
-                past_data["event_start"] - past_data["belief_time"]
-            ).abs()
-            past_data = past_data.loc[
-                past_data.groupby("event_start")["time_diff"].idxmin()
-            ]
+            past_data["time_diff"] = (past_data["event_start"] - past_data["belief_time"]).abs()
+            past_data = past_data.loc[past_data.groupby("event_start")["time_diff"].idxmin()]
             past_data = past_data.drop(columns=["time_diff"])
 
             columns = [x for x in df.columns if x not in ["belief_time", "source_y"]]
             past_data = past_data[columns].copy().reset_index(drop=True)
-
+            print('== past regressors: ==')
+            print('target_start: ', target_start)
+            print('target_end: ', target_end)
+            print('======================')
+            #breakpoint()
             past_covariates = self.detect_and_fill_missing_values(
                 df=past_data,
                 sensor_names=[
@@ -506,7 +505,7 @@ class BasePipeline:
                 start=target_start,
                 end=target_end,
             )
-
+            #breakpoint()
             return past_covariates
 
         def _filter_future_covariates(df):
@@ -613,7 +612,11 @@ class BasePipeline:
             return future_data_darts_end
 
         target_dataframe = target_dataframe.drop(columns=["belief_time"])
-
+        print('==== target: =========')
+        print('target_start: ', target_start)
+        print('target_end: ', target_end)
+        print('======================')
+        #breakpoint()
         target_data = self.detect_and_fill_missing_values(
             df=target_dataframe[(target_dataframe["event_start"] <= target_end)],
             sensor_names=self.target,

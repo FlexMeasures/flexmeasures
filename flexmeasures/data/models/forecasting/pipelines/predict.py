@@ -272,7 +272,8 @@ class PredictPipeline(BasePipeline):
                 sensor_to_save=self.sensor_to_save,
                 regressors=self.regressors,
             )
-
+            print(bdf)
+            breakpoint()
             save_to_db(
                 bdf, save_changed_beliefs_only=False
             )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.

@@ -1115,29 +1115,42 @@ def train_predict_pipeline(
     - Use `--start-predict-date` or `--start-train-date`  to explicitly separate training and prediction periods.
     - Use `--sensor-to-save` to save forecasts into a specific sensor by default forecasts are saved on the target sensor.
     """
-    if start_predict_date is None:
-        start_predict_date = (
-            server_now().isoformat()
-        )  # todo: floor using sensor resolution of the target sensor
-    if predict_period is None:
-        # predict_period = (datetime.fromisoformat(end_date) - datetime.fromisoformat(start_predict_date)) // pd.Timedelta("P1D")
-        predict_period = abs(
-            (
-                datetime.fromisoformat(end_date)
-                - datetime.fromisoformat(start_predict_date)
-            ).days
-        )
+
 
     try:
         # Parse inputs
         sensors_dict = json.loads(sensors)
+        from dateutil.parser import isoparse
+
+        def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+            delta_seconds = resolution.total_seconds()
+            timestamp = dt.timestamp()
+            floored = timestamp - (timestamp % delta_seconds)
+            return datetime.fromtimestamp(floored, tz=dt.tzinfo)
+        #breakpoint()
+        if start_predict_date is None:
+            target_sensor_id = sensors_dict[target]
+            target_sensor = Sensor.query.get(target_sensor_id)
+            resolution = target_sensor.event_resolution  # This is a timedelta
+
+            now = server_now()
+            start_predict_date = floor_to_resolution(now, resolution).isoformat()
+
+        if predict_period is None:
+            # predict_period = (isoparse(end_date) - isoparse(start_predict_date)) // pd.Timedelta("P1D")
+            predict_period = abs(
+                (
+                    isoparse(end_date)-
+                    isoparse(start_predict_date)
+                ).days
+        )
         regressors_list = regressors.split(",")
         predict_period_in_hours = int(predict_period) * 24
         train_period_in_hours = int(train_period) * 24 if train_period else None
-        start_date = datetime.fromisoformat(start_date)
-        end_date = datetime.fromisoformat(end_date)
+        start_date = isoparse(start_date)
+        end_date = isoparse(end_date)
         predict_start = (
-            datetime.fromisoformat(start_predict_date)
+            isoparse(start_predict_date)
             if start_predict_date
             else (start_date + timedelta(hours=train_period_in_hours))
         )
@@ -1146,7 +1159,7 @@ def train_predict_pipeline(
         # Set predict_start and train_period_in_hours
         if train_period is None and start_predict_date is not None:
             # If no explicit training period is defined, use everything before the start_predict_date
-            predict_start = datetime.fromisoformat(start_predict_date)
+            predict_start = isoparse(start_predict_date)
             train_period_in_hours = (predict_start - start_date) / pd.Timedelta("1h")
         elif train_period is not None and start_predict_date is None:
             # If no start_predict_date is explicitly defined, start right after the training period
@@ -1155,7 +1168,7 @@ def train_predict_pipeline(
         elif train_period is not None and start_predict_date is not None:
             # If both are explicitly defined, use them (this allows gaps between the training and prediction periods)
             train_period_in_hours = int(train_period) * 24
-            predict_start = datetime.fromisoformat(start_predict_date)
+            predict_start = isoparse(start_predict_date)
         elif train_period is None and start_predict_date is None:
             # Of neither is defined, set a minimum training period of 2 days, with predictions starting right after
             train_period_in_hours = 2 * 24
