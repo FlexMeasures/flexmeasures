@@ -50,6 +50,7 @@ from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 
 asset_schema = AssetSchema()
@@ -555,6 +556,13 @@ class AssetAPI(FlaskView):
                 try:
                     # Validate the flex context schema
                     DBFlexContextSchema().load(v)
+                except Exception as e:
+                    return {"error": str(e)}, 422
+                # todo: add audit log entry for the updated fields, similar to when changing an attribute
+            if k == "flex_model":
+                try:
+                    # Validate the flex model schema
+                    DBStorageFlexModelSchema().load(v)
                 except Exception as e:
                     return {"error": str(e)}, 422
                 # todo: add audit log entry for the updated fields, similar to when changing an attribute
