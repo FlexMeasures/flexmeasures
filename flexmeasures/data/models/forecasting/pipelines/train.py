@@ -128,9 +128,12 @@ class TrainPipeline(BasePipeline):
             }
             print("target: ")
             print(y_train.pd_dataframe())
-            print("past: ")
-            print(past_covariates.pd_dataframe())
-            #breakpoint()
+            try:
+                print("past: ")
+                print(past_covariates.pd_dataframe())
+            except Exception:  # noqa
+                pass
+            # breakpoint()
 
             for model_name, model in models.items():
                 trained_model = self.train_model(
