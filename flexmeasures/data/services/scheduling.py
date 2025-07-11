@@ -230,7 +230,7 @@ def create_scheduling_job(
         asset_or_sensor=asset_or_sensor,
         scheduler_params=scheduler_kwargs,
     )
-    scheduler.fetch_db_flex_config()
+    scheduler.collect_flex_config()
     scheduler_kwargs["flex_context"] = scheduler.flex_context
     scheduler.deserialize_config()
 

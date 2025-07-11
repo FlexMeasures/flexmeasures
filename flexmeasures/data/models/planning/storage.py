@@ -1004,7 +1004,7 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        self.fetch_db_flex_config()
+        self.collect_flex_config()
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
         if isinstance(self.flex_model, dict):
