@@ -127,8 +127,8 @@ This will find `css/styles.css` if you add that folder and file to your Blueprin
 .. note:: This styling will only apply to the pages defined in your plugin (to pages based on your own base template). To apply a styling to all other pages which are served by FlexMeasures, consider using the config setting :ref:`extra-css-config`. 
 
 
-Adding config settings
-----------------------------
+Adding your own config settings
+--------------------------------
 
 FlexMeasures can automatically check for you if any custom config settings, which your plugin is using, are present.
 This can be very useful in maintaining installations of FlexMeasures with plugins.
@@ -171,6 +171,10 @@ Alternatively, use ``from my_plugin import __settings__`` in your plugin module,
         "description": "Color used to override the default plugin color.",
         "level": "info",
     }
+
+
+Set config programmatically - Example of using a custom logo
+-------------------------------------------------------------
 
 Finally, you might want to override some FlexMeasures configuration settings from within your plugin.
 Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below).
