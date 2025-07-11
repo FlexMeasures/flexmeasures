@@ -557,6 +557,7 @@ class AssetAPI(FlaskView):
                     DBFlexContextSchema().load(v)
                 except Exception as e:
                     return {"error": str(e)}, 422
+                # todo: add audit log entry for the updated fields, similar to when changing an attribute
 
             audit_log_data.append(
                 f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
