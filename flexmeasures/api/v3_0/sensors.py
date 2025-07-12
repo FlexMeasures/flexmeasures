@@ -49,7 +49,7 @@ from flexmeasures.data.schemas.sensors import (
     SensorDataFileSchema,
 )
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.schemas.utils import path_and_files
+from flexmeasures.data.schemas.utils import path_and_files, path_and_json
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
@@ -322,6 +322,51 @@ class SensorAPI(FlaskView):
         response, code = save_and_enqueue(data)
         return response, code
 
+    @route("/<id>/data", methods=["POST"])
+    @path_and_json(PostSensorDataSchema)  # merge sensor ID from path into the JSON
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="bdf",
+        ctx_loader=lambda bdf: bdf.sensor,
+        pass_ctx_to_loader=True,
+    )
+    def post_data(self, id: int, bdf: tb.BeliefsDataFrame):
+        """
+        Post sensor data to FlexMeasures.
+
+        .. :quickref: Data; Post sensor data
+
+        **Example request**
+
+        .. code-block:: json
+
+            {
+                "values": [-11.28, -11.28, -11.28, -11.28],
+                "start": "2021-06-07T00:00:00+02:00",
+                "duration": "PT1H",
+                "unit": "m³/h"
+            }
+
+        The above request posts four values for a duration of one hour, where the first
+        event start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.
+
+        The unit has to be convertible to the sensor's unit.
+        The resolution of the data has to match the sensor's required resolution, but
+        FlexMeasures will attempt to upsample lower resolutions.
+        The list of values may include null values.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        response, code = save_and_enqueue(bdf)
+        return response, code
+
     @route("/data", methods=["POST"])
     @use_args(
         post_sensor_schema,
@@ -330,14 +375,17 @@ class SensorAPI(FlaskView):
     @permission_required_for_context(
         "create-children",
         ctx_arg_pos=1,
+        ctx_arg_name="bdf",
         ctx_loader=lambda bdf: bdf.sensor,
         pass_ctx_to_loader=True,
     )
-    def post_data(self, bdf: tb.BeliefsDataFrame):
+    def post_data_deprecated(self, data: dict):
         """
         Post sensor data to FlexMeasures.
 
-        .. :quickref: Data; Upload sensor data
+        .. :quickref: Data; Post sensor data (DEPRECATED)
+
+        This endpoint is deprecated. Post to /sensors/(id)/data instead.
 
         **Example request**
 
@@ -369,6 +417,11 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        bdf = data.get("bdf")
+        sensor_id = bdf.sensor.id if bdf is not None else "<id>"
+        current_app.logger.warning(
+            f"Usage of deprecated endpoint /sensors/data for sensor {sensor_id}. Should start using /sensors/{sensor_id}/data."
+        )
         response, code = save_and_enqueue(bdf)
         return response, code
 

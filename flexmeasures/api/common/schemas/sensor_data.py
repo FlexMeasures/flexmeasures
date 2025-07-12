@@ -73,6 +73,8 @@ class SensorDataDescriptionSchema(ma.Schema):
     Schema describing sensor data (specifically, the sensor and the timing of the data).
     """
 
+    # TODO: transition to SensorIdField
+    # The sensor field relies on entity addresses which are going to be faded out.
     sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
@@ -310,7 +312,10 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             if any(h < timedelta(0) for h in bdf.belief_horizons):
                 raise ValidationError("Prognoses must lie in the future.")
 
-        return bdf
+        # return bdf
+        # Returning a dict with our value wrapped in there, as that is expected
+        # (not sure why using location_loader leads to this expectation ...)
+        return dict(bdf=bdf)
 
     @staticmethod
     def possibly_convert_units(data):
