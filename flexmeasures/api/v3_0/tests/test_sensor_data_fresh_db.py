@@ -6,7 +6,7 @@ from flask import url_for
 from timely_beliefs.tests.utils import equal_lists
 from sqlalchemy import select
 
-from flexmeasures import Sensor, Source
+from flexmeasures import Source
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -63,9 +63,7 @@ def test_post_sensor_data(
     post_data = make_sensor_data_request_for_gas_sensor(
         num_values=num_values, unit=unit, include_a_null=include_a_null
     )
-    sensor: Sensor = db.session.execute(
-        select(Sensor).filter_by(name="some gas sensor")
-    ).scalar_one_or_none()
+    sensor = setup_api_fresh_test_data["some gas sensor"]
     filters = (
         TimedBelief.sensor_id == sensor.id,
         TimedBelief.event_start >= post_data["start"],
@@ -75,7 +73,7 @@ def test_post_sensor_data(
     assert len(beliefs_before) == 0
 
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
@@ -100,6 +98,7 @@ def test_auto_fix_missing_registration_of_user_as_data_source(
     """Try to post sensor data as a user that has not been properly registered as a data source.
     The API call should succeed and the user should be automatically registered as a data source.
     """
+    sensor = setup_api_fresh_test_data["some gas sensor"]
 
     # Make sure the user is not yet registered as a data source
     data_source = db.session.execute(
@@ -111,7 +110,7 @@ def test_auto_fix_missing_registration_of_user_as_data_source(
         num_values=6, unit="m³/h", include_a_null=False
     )
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     assert response.status_code == 200
@@ -147,7 +146,7 @@ def test_post_sensor_instantaneous_data_round(
     assert rows == 0
 
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
 

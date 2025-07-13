@@ -1,7 +1,6 @@
 from sqlalchemy import select
 
-from flexmeasures import Asset, Sensor, User
-from flexmeasures.data import db
+from flexmeasures import Asset, User
 from flexmeasures.data.models.audit_log import AssetAuditLog
 
 
@@ -15,15 +14,11 @@ def make_sensor_data_request_for_gas_sensor(
     """Creates request to post sensor data for a gas sensor.
     This particular gas sensor measures units of m³/h with a 10-minute resolution.
     """
-    sensor = db.session.execute(
-        select(Sensor).filter_by(name=sensor_name)
-    ).scalar_one_or_none()
     values = num_values * [-11.28]
     if include_a_null:
         values[0] = None
     message: dict = {
         "type": "PostSensorDataRequest",
-        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "values": values,
         "start": "2021-06-07T00:00:00+02:00",
         "duration": duration,
