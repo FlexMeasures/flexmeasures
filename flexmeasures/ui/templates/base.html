@@ -185,7 +185,6 @@
     {% if (msg is defined) and msg %}
     <div class="col-md-12 alert alert-info">{{ msg }}</div>
     {% endif %}
-    {% include "security/_messages.html" %}
 
     <!-- loading this earlier so templates can use it -->
     <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.5.1.min.js"></script>
@@ -1259,7 +1258,6 @@
         </div>
     </footer>
     {% endblock body %}
-
 </body>
 
 </html>

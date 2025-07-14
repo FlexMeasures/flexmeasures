@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from passlib.totp import TOTP
 import random
 import string
 
@@ -136,11 +135,6 @@ def create_user(  # noqa: C901
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(password=hash_password(password), email=email, username=username)
     user = user_datastore.create_user(**kwargs)
-
-    # create TOTP secret
-    totp = TOTP.new()
-    jsonified_totp = totp.to_json()
-    user.tf_totp_secret = jsonified_totp
 
     user.account = account
 
