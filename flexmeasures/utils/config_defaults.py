@@ -237,9 +237,10 @@ class TestingConfig(Config):
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
     SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
+    SECURITY_TOTP_ISSUER = "flexmeasures"
 
 
 class DocumentationConfig(Config):
     SECRET_KEY: str = "dummy-key-for-documentation"
     SQLALCHEMY_DATABASE_URI: str = "postgresql://dummy:uri@for/documentation"
-    SECURITY_TOTP_SECRETS = {"1": "222222222222222222222222222222222"}
+    SECRURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}

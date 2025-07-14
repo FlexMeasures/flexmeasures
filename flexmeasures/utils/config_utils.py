@@ -69,10 +69,9 @@ def check_app_env(env: str | None):
         sys.exit(2)
 
 
-def get_flexmeasures_env(app) -> str:
-    """
-    Determine which flexmeasures_env should be used, trying various ways in decreasing importance.
-    """
+def read_config(app: Flask, custom_path_to_config: str | None):
+    """Read configuration from various expected sources, complain if not setup correctly."""
+
     flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
     if app.testing:
         flexmeasures_env = "testing"
@@ -84,13 +83,7 @@ def get_flexmeasures_env(app) -> str:
             "'FLASK_ENV' is deprecated and replaced by FLEXMEASURES_ENV"
             " Change FLASK_ENV to FLEXMEASURES_ENV in the environment variables",
         )
-    return flexmeasures_env
 
-
-def read_config(app: Flask, custom_path_to_config: str | None):
-    """Read configuration from various expected sources, complain if not setup correctly."""
-
-    flexmeasures_env = get_flexmeasures_env(app)
     check_app_env(flexmeasures_env)
 
     # First, load default config settings
