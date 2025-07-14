@@ -189,7 +189,7 @@ class FlexContextSchema(Schema):
             for field_var, field in self.declared_fields.items()
         }
         if any(
-            field_map[field] in data
+            field_map[field] in data and data[field_map[field]]
             for field in (
                 "soc-minima-breach-price",
                 "soc-maxima-breach-price",
@@ -478,6 +478,7 @@ class AssetTriggerSchema(Schema):
         data_key="flex-model",
     )
     flex_context = fields.Dict(required=False, data_key="flex-context")
+    sequential = fields.Bool(load_default=False)
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):

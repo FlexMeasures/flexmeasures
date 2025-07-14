@@ -18,7 +18,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
@@ -97,12 +97,24 @@ class Account(db.Model, AuthModelMixin):
         read_access = [f"account:{self.id}"]
         if self.consultancy_account_id is not None:
             read_access.append(
-                (f"account:{self.consultancy_account_id}", "role:consultant")
+                (f"account:{self.consultancy_account_id}", f"role:{CONSULTANT_ROLE}")
             )
         return {
-            "create-children": (f"account:{self.id}", "role:account-admin"),
+            "create-children": [
+                (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
             "read": read_access,
-            "update": f"account:{self.id}",
+            "update": [
+                f"account:{self.id}",
+                (
+                    f"account:{self.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
         }
 
     def get_path(self, separator: str = ">"):
@@ -239,6 +251,9 @@ class User(db.Model, UserMixin, AuthModelMixin):
     # How often have they logged in?
     login_count = Column(Integer)
     active = Column(Boolean())
+
+    tf_totp_secret = db.Column(db.String(255), nullable=True)
+    tf_primary_method = db.Column(db.String(255), nullable=True, default="email")
     # Faster token checking
     fs_uniquifier = Column(String(64), unique=True, nullable=False)
     timezone = Column(String(255), default="Europe/Amsterdam")
@@ -257,14 +272,18 @@ class User(db.Model, UserMixin, AuthModelMixin):
     def __acl__(self):
         """
         Within same account, everyone can read.
-        Only the user themselves or account-admins can edit their user record.
+        Only the user themselves, consultants or account-admins can edit their user record.
         Creation and deletion are left to site admins in CLI.
         """
         return {
             "read": f"account:{self.account_id}",
             "update": [
                 f"user:{self.id}",
-                (f"account:{self.account_id}", "role:account-admin"),
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.account.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
             ],
         }
 

@@ -27,6 +27,8 @@ def check_constraints(
     roundtrip_efficiency: float = 1,
     storage_efficiency: float = 1,
     tolerance: float = 0.00001,
+    soc_min: float | None = None,
+    soc_max: float | None = None,
 ) -> pd.Series:
     soc_schedule = integrate_time_series(
         schedule,
@@ -45,8 +47,12 @@ def check_constraints(
     assert min(schedule.values) >= capacity * -1 - tolerance
     assert max(schedule.values) <= capacity + tolerance
     for soc in soc_schedule.values:
-        assert soc >= sensor.get_attribute("min_soc_in_mwh")
-        assert soc <= sensor.get_attribute("max_soc_in_mwh")
+        assert soc >= (
+            soc_min if soc_min is not None else sensor.get_attribute("min_soc_in_mwh")
+        )
+        assert soc <= (
+            soc_max if soc_max is not None else sensor.get_attribute("max_soc_in_mwh")
+        )
     return soc_schedule
 
 

@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+
+{% set active_page = "users" %}
+
+{% block title %} User {{ user.username }} {% endblock %}
+
+{% block divs %}
+
+{% if user %}
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-2 on-top-md">
+
+      <div class="d-grid gap-2 col-8 mt-3">
+        {% if can_edit_user_details %}
+        <button class="btn p-2 border-0 btn-info" type="button" title="Edit user details" data-bs-toggle="modal"
+          data-bs-target="#editUserModal">Edit</button>
+        {% endif %}
+
+        {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
+        <button class="btn p-2 border-0 {% if user.active %} btn-warning {% else %} btn-success {% endif %}"
+          type="button" title="Toggle activation status of this user."
+          onclick="window.location.href='/users/toggle_active/{{ user.id }}'">
+          {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
+        </button>
+
+        <button class="btn p-2 border-0 btn-info" type="button"
+          title="Reset the password and send instructions how to choose a new one."
+          onclick="window.location.href='/users/reset_password_for/{{ user.id }}'">
+          Reset password
+        </button>
+        {% endif %}
+      </div>
+
+    </div>
+    <div class="col-md-8">
+      <div class="user-data-table card">
+        <h2>User overview</h2>
+        <small>User: {{ user.username }}</small>
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <tbody>
+              <tr>
+                <td>
+                  Email address
+                </td>
+                <td>
+                  <a href="mailto:{{ user.email }}">{{ user.email }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Account
+                </td>
+                <td>
+                  <a href="/accounts/{{ user.account.id }}">{{ user.account.name }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Assets in account
+                </td>
+                <td>
+                  <a href="/assets/owned_by/{{ user.account.id }}">{{ asset_count }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Time Zone
+                </td>
+                <td>
+                  {{ user.timezone }}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Last login was
+                </td>
+                <td title="{{  user.last_login_at | localized_datetime }}">
+                  {{  user.last_login_at | naturalized_datetime }}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Last seen
+                </td>
+                <td title="{{  user.last_seen_at | localized_datetime }}">
+                  {{  user.last_seen_at | naturalized_datetime }}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Roles
+                </td>
+                <td>
+                  {% for role in user.flexmeasures_roles %}
+                  {{ role.name }}{{ "," if not loop.last }}
+                  {% endfor %}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Active
+                </td>
+                <td>
+                  {{ user.active }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      {% if can_view_user_auditlog %}
+      <button class="btn p-3 btn-info border-0 mb-3 mt-3" type="button"
+        onclick="window.location.href='/users/auditlog/{{ user.id }}'" title="View history of user actions.">User audit
+        log</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade modal-xl" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel"
+  aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title pe-2">Edit {{ user.username }}'s details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="editUserForm">
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" name="username" value="{{ user.username }}" required>
+          </div>
+          <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
+          </div>
+          <div class="mb-3">
+            <label for="timezone" class="form-label">Timezone</label>
+            <input type="text" class="form-control" id="timezone" name="timezone" value="{{ user.timezone }}" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="tagsInput" class="form-label">Roles</label>
+            <div class="input-group">
+              <select class="form-select" id="tagsInput" aria-label="Default select example">
+                <option selected>Select Role</option>
+                {% for role in roles %}
+                <option value="{{ role }}">{{ role }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-outline-secondary" type="button" id="addRoleBtn">Add</button>
+            </div>
+            <div id="rolesContainer" class="mt-2 d-flex flex-wrap gap-2">
+            </div>
+            <input type="hidden" name="roles" id="rolesHiddenInput">
+          </div>
+
+          <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="active" name="active" {% if user.active %} checked {%
+              endif %}>
+            <label class="form-check-label" for="active">Active</label>
+          </div>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+  const editUserModal = document.getElementById('editUserModal');
+  const editUserForm = document.getElementById('editUserForm');
+  const userRoles = JSON.parse('{{ user_roles | tojson }}');
+  const allRoles = JSON.parse('{{ roles | tojson }}');
+  let currentRoles = new Set(); // Use a Set to store unique roles easily
+  const user = {
+    id: '{{ user.id }}',
+    username: '{{ user.username }}',
+    email: '{{ user.email }}',
+    timezone: '{{ user.timezone }}',
+    active: '{{ user.active | tojson }}',
+    flexmeasures_roles: userRoles.map(role => allRoles[role]),
+  };
+
+  // Handle form submission
+  editUserForm.addEventListener('submit', async function (event) {
+    event.preventDefault(); // Prevent the default form submission
+
+    const data = Object.fromEntries(new FormData(editUserForm).entries());
+    delete data.roles;
+    data.flexmeasures_roles = Array.from(currentRoles).map(role => allRoles[role]);
+    data.active = `${data.active === 'on'}`;
+
+    // remove unmodified fields
+    const modifiedFields = Object.keys(data).reduce((acc, key) => {
+      if (data[key] !== user[key]) {
+        if (Array.isArray(data[key])) {
+          // check if the arrays are equal
+          if (JSON.stringify(data[key]) !== JSON.stringify(user[key])) {
+            acc[key] = data[key];
+          }
+        } else {
+          acc[key] = data[key];
+        }
+
+      }
+      return acc;
+    }, {});
+
+
+    // Check if there are any modified fields
+    if (Object.keys(modifiedFields).length === 0) {
+      showToast('No changes made to the user details.', 'info');
+      return;
+    }
+
+    const response = await fetch('/api/v3_0/users/{{ user.id }}', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(modifiedFields)
+    });
+
+    if (response.ok) {
+      showToast('User details updated successfully!', 'success');
+      // Delay for 1 second and reload the page
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      const errorData = await response.json();
+      let errorMessage;
+      if (typeof errorData.message === 'object') {
+        errorMessage = Object.entries(errorData.message.json).map(([key, value]) => value).join(', ');
+      } else {
+        errorMessage = errorData.message || 'An unknown error occurred.';
+      }
+
+      showToast('Error: ' + errorMessage, 'error');
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const tagsInput = document.getElementById('tagsInput');
+    const addRoleBtn = document.getElementById('addRoleBtn');
+    const rolesContainer = document.getElementById('rolesContainer');
+    const rolesHiddenInput = document.getElementById('rolesHiddenInput');
+
+    const initialRoles = userRoles || [];
+
+    function renderTags() {
+      rolesContainer.innerHTML = ''; // Clear existing tags
+      rolesHiddenInput.value = Array.from(currentRoles).join(','); // Update hidden input
+
+      currentRoles.forEach(role => {
+        const tagSpan = document.createElement('span');
+        tagSpan.className = 'badge bg-primary-custom text-white d-flex align-items-center me-1';
+        tagSpan.style.padding = '0.5em 0.75em';
+        tagSpan.style.borderRadius = '0.25rem';
+
+        const tagName = document.createElement('span');
+        tagName.textContent = role;
+        tagSpan.appendChild(tagName);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn-close btn-close-white ms-2';
+        removeBtn.setAttribute('aria-label', `Remove ${role}`);
+        removeBtn.onclick = () => {
+          currentRoles.delete(role);
+          renderTags(); // Re-render to update the display
+        };
+        tagSpan.appendChild(removeBtn);
+        rolesContainer.appendChild(tagSpan);
+      });
+
+    }
+
+    function addRole() {
+      const tagValue = tagsInput.value.trim();
+      if (tagValue && !currentRoles.has(tagValue)) { // Check if not empty and not already added
+        const isValidTag = true ? allRoles[tagValue] : false
+        if (!isValidTag) {
+          showToast('Invalid role name. Please choose a valid role.', 'error');
+          tagsInput.value = '';
+          return;
+        }
+
+        currentRoles.add(tagValue);
+        tagsInput.value = '';
+        renderTags();
+      }
+    }
+
+    // Add tag on button click
+    addRoleBtn.addEventListener('click', addRole);
+
+    // Add tag on Enter key press in the input field
+    tagsInput.addEventListener('keypress', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent form submission
+        addRole();
+      }
+    });
+
+    // Initialize with existing roles
+    initialRoles.forEach(role => currentRoles.add(role));
+    renderTags();
+  });
+</script>
+{% endblock %}

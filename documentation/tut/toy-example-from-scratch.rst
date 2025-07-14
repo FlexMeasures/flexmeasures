@@ -19,14 +19,77 @@ Make a schedule
 
 After going through the setup, we can finally create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our (dis)charging sensor (ID 2). We also need to specify what to optimize against. Here we pass the Id of our market price sensor (ID 1).
+We'll ask FlexMeasures for a schedule for our (dis)charging sensor (ID 2).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
-.. code-block:: bash
+.. tabs::
 
-    $ flexmeasures add schedule for-storage --sensor 2 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90%
-    New schedule is stored.
+    .. tab:: CLI
+
+        .. code-block:: bash
+
+            $ flexmeasures add schedule for-storage \
+                --sensor 2 \
+                --start ${TOMORROW}T07:00+01:00 \
+                --duration PT12H \
+                --soc-at-start 50% \
+                --roundtrip-efficiency 90%
+            New schedule is stored.
+
+    .. tab:: API
+
+        Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ (update the start date to tomorrow):
+
+        .. code-block:: json
+
+            {
+                "start": "2025-06-11T07:00+01:00",
+                "duration": "PT12H",
+                "flex-model": [
+                    "sensor": 2,
+                    "soc-at-start": "50%",
+                    "roundtrip-efficiency": "90%"
+                ]
+            }
+
+    .. tab:: FlexMeasures Client
+
+        Using the `FlexMeasures Client <https://pypi.org/project/flexmeasures-client/>`_:
+
+        .. code-block:: bash
+
+            pip install flexmeasures-client
+
+        .. code-block:: python
+
+            import asyncio
+            from datetime import date
+            from flexmeasures_client import FlexMeasuresClient as Client
+
+            async def client_script():
+                client = Client(
+                    email="toy-user@flexmeasures.io",
+                    password="toy-password",
+                    host="localhost:5000",
+                )
+                schedule = await client.trigger_and_get_schedule(
+                    asset_id=2,  # Toy building (asset ID)
+                    start=f"{date.today().isoformat()}T07:00+01:00",
+                    duration="PT12H",
+                    flex_model=[
+                        {
+                            "sensor": 2,  # battery power (sensor ID)
+                            "soc-at-start": "50%",
+                            "roundtrip-efficiency": "90%",
+                        },
+                    ],
+                )
+                print(schedule)
+                await client.close()
+
+            asyncio.run(client_script())
+
+.. note:: We already specified what to optimize against by having set the consumption price sensor in the flex-context of the battery (see :ref:`tut_load_data`).
 
 Great. Let's see what we made:
 
@@ -69,7 +132,7 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
-The `asset page for the battery <http://localhost:5000/assets/3>`_ shows both prices and the schedule.
+The `battery's graph dashboard <http://localhost:5000/assets/3/graphs>`_ shows both prices and the schedule.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-without-solar.png
     :align: center

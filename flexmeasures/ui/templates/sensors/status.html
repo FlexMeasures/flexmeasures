@@ -10,10 +10,6 @@
 
 <div class="container-fluid">
     <div class="row">
-        <div class="alert alert-info" id="tzwarn" style="display:none;"></div>
-        <div class="alert alert-info" id="dstwarn" style="display:none;"></div>
-    </div>
-    <div class="row">
         <div class="col-sm-2"></div>
         <div class="col-sm-8">
             <div class="card">
@@ -22,7 +18,9 @@
 
 A red traffic light indicates that the last time a record was made was too long ago (it is 'stale'). Hover the light to learn more about why it is displayed red. It could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made.
 
-How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future." style="margin-left: 10px;"></span>
+How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future.
+
+Sensors shown on this page are the ones relevant for correct functioning of the asset. We list the ones linked in the flex-context and the graphs page." style="margin-left: 10px;"></span>
                 </h4>
                 <table id="sensor_statuses" class="table table-striped paginate">
                     <thead>
@@ -82,8 +80,10 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             "ordering": false
         });
 
-        // Append a loading row to the sensor status table
-        $('#sensor_statuses tbody').append(getLoadingRow());
+        if (sensors.length != 0) {
+            // Append a loading row to the sensor status table
+            $('#sensor_statuses tbody').append(getLoadingRow());
+        }
 
         sensors.forEach(element => {
             // Fetch and populate sensor data
@@ -95,7 +95,17 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
             
             const sensorId = $(this).attr('id').split('_')[2];
             const rowId = `row_${sensorId}`;
-            getSensorData(sensorId, rowId);
+
+            // Check if the sensor info text is empty
+            // This is to determine if we need to show the sensor info or not in case of refresh
+            const sensorInfoText = $(`#sensor_info_${sensorId}`);
+            const show_info = (sensorInfoText.html().trim() === "") ? false : true;
+            
+            // Add Loading Row
+            $(`#${rowId}`).replaceWith(getLoadingRow(rowId));
+
+            // Fetch and update sensor data
+            getSensorData(sensorId, rowId, show_info);
         });
     });
 
@@ -104,7 +114,7 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
     var lastSensorName = '';
     var assetId = "{{ asset.id }}";
 
-    function getSensorData(sensor_id, row_id = null) {
+    function getSensorData(sensor_id, row_id = null, show_info = false) {
 
         /**
          * Fetches sensor data and updates the sensor status table dynamically.
@@ -120,6 +130,7 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
          * @param {string|null} [row_id=null] - The ID of the table row to update (optional).
          * The row_id is basically used to make a refresh call on a particular sensor and then update only 
          * that row in the table. If not provided, a new row will be appended to the table.
+         * @param {boolean} [show_info=false] - Whether to show sensor info or not incase of refresh.
          * 
          * @returns {void}
          * 
@@ -148,7 +159,7 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
                     const isNewSensorName = lastSensorName !== sensor.name;
                     lastSensorName = sensor.name;
 
-                    const sensorInfo = isNewSensorName
+                    const sensorInfo = (isNewSensorName || show_info)
                         ? `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>) 
                         <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', reason for listing here: ${sensor.relation}" style="margin-left: 10px;"></span>`
                         : '';
@@ -174,7 +185,7 @@ Note that jobs do not live forever, so only rather recent jobs (usually younger 
 
                     const row = `
                         <tr title="View data" id="row_${sensor.id}">
-                            <td>${sensorInfo}</td>
+                            <td id="sensor_info_${sensor.id}">${sensorInfo}</td>
                             <td>${source_type}</td>
                             <td>${staleness_since}</td>
                             <td class="text-right">${status}<br><span class="time-ago" title="Refresh Sensor Status" data-timestamp="${lastCallTime}"><small>${refresh_icon}(${timeAgo})</small></span></td>

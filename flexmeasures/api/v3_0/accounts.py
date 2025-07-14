@@ -282,8 +282,10 @@ class AccountAPI(FlaskView):
         )
 
         if not user_has_admin_access(current_user, "update"):
-            # Remove consultancy_account_id from account_data if no admin access
-            account_data.pop("consultancy_account_id", None)
+            if "consultancy_account_id" in account_data:
+                return {
+                    "errors": ["You are not allowed to update consultancy_account_id"]
+                }, 401
         else:
             # Check if consultancy_account_id has changed
             new_consultancy_account_id = account_data.get("consultancy_account_id")

@@ -11,10 +11,6 @@
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <div class="container-fluid">
-    <div class="row mx-1">
-        <div class="alert alert-info d-none" id="tzwarn"></div>
-        <div class="alert alert-info d-none" id="dstwarn"></div>
-    </div>
     <div class="row">
         <div class="col-md-2 on-top-md">
             <div class="header-action-button">
@@ -30,6 +26,41 @@
                 <div class="sidepanel left-sidepanel">
                     <div id="datepicker"></div>
                 </div>
+            </div>
+            <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3" style="display: none">
+                <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Select chart
+                </button>
+                <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center" href="#" data-chart-type="chart_for_chargepoint_sessions">
+                        <span>Charge Points</span>
+                        <i class="bi bi-info-circle"
+                           style="margin-left: 8px;"
+                           tabindex="0"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="right"
+                           data-bs-html="true"
+                           title="<div style='max-width: 300px;'>
+                             <strong>This chart shows charge hub patterns.
+                             Especially useful for many chargers. <br>It only shows <em>when</em> charging happened, not <em>how much</em>.</strong>
+                             <hr style='border-top: 1px; margin: 0.75rem 0 0.5rem 0;'>
+                             <strong>
+                             This chart will also show two context graphs if your main dashboard includes them - their titles should be `Power flow by type` and `Prices`.
+                             </strong>
+                             <hr style='border-top: 1px; margin: 0.75rem 0 0.5rem 0;'>
+                             <strong>Dashed line: Arrival → Departure</strong>
+                             <small>Shows the time the vehicle was present at the location.</small>
+                             <strong>Thin line: Plug-in → Plug-out</strong>
+                             <small>Indicates when the EV was physically plugged in but not necessarily charging.</small>
+                             <strong>Bold line: Start → Stop Charging</strong>
+                             <small>Marks the actual charging period, when energy is being delivered to the EV.</small>
+                           </div>">
+                        </i>
+                      </a>
+                    </li>
+                </ul>
             </div>
    
         </div>
@@ -122,6 +153,39 @@
                 <div id="replay-time"></div>
             </div>
         </div>
+
+        <div id="chartInfoNote" class="text-center text-muted fst-italic my-2" style="display: none;">
+          ℹ️ Click legend to filter | Hold <kbd>Ctrl</kbd> + drag to pan
+        </div>
+        <script>
+              document.addEventListener('DOMContentLoaded', function () {
+                const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.forEach(function (el) {
+                  new bootstrap.Tooltip(el);
+                });
+              });
+            document.addEventListener("DOMContentLoaded", function () {
+                const note = document.getElementById("chartInfoNote");
+                const chartTypeDropdown = document.getElementById("chartTypeDropdown");
+
+                // Initial check
+                if (chartTypeDropdown.innerText.includes("ChargePoints Chart")) {
+                    note.style.display = "block";
+                }
+
+                // Show note only if "ChargePoints Chart" is selected
+                document.querySelectorAll("[data-chart-type]").forEach((el) => {
+                    el.addEventListener("click", (e) => {
+                        const chartType = el.getAttribute("data-chart-type");
+                        if (chartType === "chart_for_chargepoint_sessions") {
+                            note.style.display = "block";
+                        } else {
+                            note.style.display = "none";
+                        }
+                    });
+                });
+            });
+        </script>
     </div>
     <!-- Modal -->
     <div class="modal fade modal-xl" id="sensorsToShowModal" tabindex="-1" aria-labelledby="sensorsToShowModalLabel"
@@ -691,9 +755,26 @@
             renderApiSensors(cachedFilteredSensors, graphIndex);
         }
     }
-
+    async function showAssetChartSelection(){
+        let asset = await getAsset({{ asset.id }})
+        for (let child of asset.child_assets){
+            if (child['generic_asset_type']['name'] == 'smartbuilding.chargepoint'){
+                return true;
+            };
+        };
+        return false;
+    }
 
     // ============== Page Events ============== //
+    document.addEventListener('DOMContentLoaded', async () => {
+        const shouldShow = await showAssetChartSelection();
+        const chartTypeDropdown = document.getElementById('chart-type-picker');
+        if (shouldShow) {
+            console.log("Show chart selection!");
+            chartTypeDropdown.style.display = 'block';
+        }
+    });
+
     formModal.addEventListener('hidden.bs.modal', function () {
         updateAssetSensorsToShow("sensorToShow");
     });

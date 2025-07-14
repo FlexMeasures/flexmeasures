@@ -11,34 +11,9 @@
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <div class="container-fluid">
-    <div class="row mx-1">
-        <div class="alert alert-info d-none" id="tzwarn"></div>
-        <div class="alert alert-info d-none" id="dstwarn"></div>
-    </div>
     <div class="row">
 
         <div class="col-md-2 on-top-md">
-            <div class="header-action-button">
-                {% if user_can_delete_asset %}
-                <div>
-                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this asset</button>
-                    </form>
-                    <script>
-                        $("#delete-asset-button").click(function () {
-                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-                                return true;
-                            }
-                            else {
-                                return false;
-                            }
-                        });
-                    </script>
-                </div>
-                {% endif %}
-            </div>
-
             <div class="sidepanel-container d-none d-md-block">
                 <div class="left-sidepanel-label">Select dates</div>
                 <div class="sidepanel left-sidepanel">
@@ -127,6 +102,28 @@
                 </div>
             </div>
             {% endif %}
+
+            <div class="header-action-button">
+                {% if user_can_delete_asset %}
+                <div>
+                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
+                            type="submit">Delete this asset
+                        </button>
+                    </form>
+                    <script>
+                        $("#delete-asset-button").click(function () {
+                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
+                                return true;
+                            }
+                            else {
+                                return false;
+                            }
+                        });
+                    </script>
+                </div>
+                {% endif %}
+            </div>
    
         </div>
         <div class="col-md-8">

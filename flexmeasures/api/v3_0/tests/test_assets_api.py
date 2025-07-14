@@ -8,7 +8,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
-from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 
@@ -36,34 +36,36 @@ def test_get_assets_badauth(client, setup_api_test_data, requesting_user, status
 
 
 @pytest.mark.parametrize(
+    ("whose_asset", "exp_status"),
+    [
+        # okay to look at assets in own account
+        ("test_supplier_user_4@seita.nl", 200),
+        # not okay to see assets owned by other accounts
+        ("test_prosumer_user@seita.nl", 403),
+        # proper 404 for non-existing asset
+        (None, 404),
+    ],
+)
+@pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
-def test_get_asset_nonaccount_access(client, setup_api_test_data, requesting_user):
+def test_get_asset_nonaccount_access(
+    client, setup_api_test_data, whose_asset, exp_status, requesting_user
+):
     """Without being on the same account, test correct responses when accessing one asset."""
-    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
-        prosumer1_assets = prosumer1.account.generic_assets
-    with UserContext("test_supplier_user_4@seita.nl") as supplieruser4:
-        supplieruser4_assets = supplieruser4.account.generic_assets
+    if isinstance(whose_asset, str):
+        with UserContext(whose_asset) as owner:
+            asset_id = owner.account.generic_assets[0].id
+    else:
+        asset_id = 8171766575  # non-existent asset ID
 
-    # okay to look at assets in own account
     asset_response = client.get(
-        url_for("AssetAPI:fetch_one", id=supplieruser4_assets[0].id),
+        url_for("AssetAPI:fetch_one", id=asset_id),
         follow_redirects=True,
     )
-    assert asset_response.status_code == 200
-    # not okay to see assets owned by other accounts
-    asset_response = client.get(
-        url_for("AssetAPI:fetch_one", id=prosumer1_assets[0].id),
-        follow_redirects=True,
-    )
-    assert asset_response.status_code == 403
-    # proper 404 for non-existing asset
-    asset_response = client.get(
-        url_for("AssetAPI:fetch_one", id=8171766575),
-        follow_redirects=True,
-    )
-    assert asset_response.status_code == 404
-    assert "not found" in asset_response.json["message"]
+    assert asset_response.status_code == exp_status
+    if exp_status == 404:
+        assert asset_response.json["message"] == "No asset found with ID 8171766575."
 
 
 @pytest.mark.parametrize(
@@ -285,25 +287,18 @@ def test_alter_an_asset(
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
 
-    audit_log_event = f"Updated Field: name, From: {name}, To: other"
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            event=audit_log_event,
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-            affected_asset_id=prosumer_asset.id,
-        )
-    ).scalar_one_or_none()
-
-    audit_log_event = f"Updated Field: latitude, From: {latitude}, To: 11.1"
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            event=audit_log_event,
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-            affected_asset_id=prosumer_asset.id,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Updated Field: name, From: {name}, To: other",
+        user=requesting_user,
+        asset=prosumer_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Updated Field: latitude, From: {latitude}, To: 11.1",
+        user=requesting_user,
+        asset=prosumer_asset,
+    )
 
 
 @pytest.mark.parametrize(
@@ -484,14 +479,12 @@ def test_post_an_asset(client, setup_api_test_data, requesting_user, db):
     assert asset is not None
     assert asset.latitude == 30.1
 
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            affected_asset_id=asset.id,
-            event=f"Created asset '{asset.name}': {asset.id}",
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Created asset '{asset.name}': {asset.id}",
+        user=requesting_user,
+        asset=asset,
+    )
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -546,7 +539,7 @@ def test_consultant_can_read(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_consultant@seita.nl"], indirect=True)
-def test_consultant_can_not_patch(
+def test_consultant_can_patch(
     client, setup_api_test_data, setup_accounts, requesting_user, db
 ):
     """
@@ -565,7 +558,7 @@ def test_consultant_can_not_patch(
         },
     )
     print(f"Editing Response: {asset_edit_response.json}")
-    assert asset_edit_response.status_code == 403
+    assert asset_edit_response.status_code == 200
 
 
 @pytest.mark.parametrize(
