@@ -69,7 +69,7 @@ class Config(object):
     SECURITY_TWO_FACTOR_ENABLED_METHODS = [
         "email"
     ]  # 'authenticator' will be made possible later
-    SECURITY_TWO_FACTOR = False
+    SECURITY_TWO_FACTOR = True
     SECURITY_TOTP_SECRETS: dict | None = None
     SECURITY_TOTP_ISSUER = "FlexMeasures"
     SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (

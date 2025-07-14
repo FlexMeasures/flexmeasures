@@ -86,7 +86,7 @@ def set_secret_key(app, filename="secret_key"):
 
         You can add the SECRET_KEY setting to your conf file (this example works only on Unix):
 
-        echo "SECRET_KEY=\\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\\"" >> ~/.flexmeasures.cfg
+        echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
 
         OR you can add an env var:
 
@@ -107,21 +107,6 @@ def set_secret_key(app, filename="secret_key"):
         )
 
         sys.exit(2)
-
-
-def log_totp_secrets_error_and_exit(app, filename):
-    app.logger.error(
-        """
-        ERROR: The file %s exists but does not contain a valid dictionary.
-
-        The correct format is:
-
-        {"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
-
-        """
-        % (filename)
-    )
-    sys.exit(2)
 
 
 def set_totp_secrets(app, filename="totp_secrets"):
@@ -153,17 +138,8 @@ def set_totp_secrets(app, filename="totp_secrets"):
 
     filename = os.path.join(app.instance_path, filename)
     try:
-        security_totp_secrets = open(filename, "r").read()
-        security_totp_secrets = json.loads(security_totp_secrets)
-
-        # Now check if it's a dictionary
-        if isinstance(security_totp_secrets, dict):
-            app.config["SECURITY_TOTP_SECRETS"] = security_totp_secrets
-        else:
-            log_totp_secrets_error_and_exit(app, filename)
-    except json.JSONDecodeError:
-        log_totp_secrets_error_and_exit(app, filename)
-    except (IOError, UnicodeDecodeError):
+        app.config["SECURITY_TOTP_SECRETS"] = open(filename, "rb").read()
+    except IOError:
         app.logger.error(
             """
         Error:  No SECURITY_TOTP_SECRETS set (required for two-factor authentication).
@@ -180,16 +156,17 @@ def set_totp_secrets(app, filename="totp_secrets"):
         OR you can create a secret key file (this example works only on Unix):
 
         mkdir -p %s
-        echo "{\\"1\\": \\"$(head -c 24 /dev/urandom | base64)\\"}" > %s
+        head -c 24 /dev/urandom > %s
 
         You can also use Python to create a good secret:
 
-        python -c 'import secrets; print(f"{{\\"1\\": \\"{secrets.token_urlsafe()}\\"}}")'
+        python -c "import secrets; print(secrets.token_urlsafe())"
 
         """
             % (os.path.dirname(filename), filename)
         )
-        sys.exit(2)
+
+    sys.exit(2)
 
 
 def root_dispatcher():
