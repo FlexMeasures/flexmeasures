@@ -1116,7 +1116,6 @@ def train_predict_pipeline(
     - Use `--sensor-to-save` to save forecasts into a specific sensor by default forecasts are saved on the target sensor.
     """
 
-
     try:
         # Parse inputs
         sensors_dict = json.loads(sensors)
@@ -1127,7 +1126,6 @@ def train_predict_pipeline(
             timestamp = dt.timestamp()
             floored = timestamp - (timestamp % delta_seconds)
             return datetime.fromtimestamp(floored, tz=dt.tzinfo)
-        #breakpoint()
         if start_predict_date is None:
             target_sensor_id = sensors_dict[target]
             target_sensor = Sensor.query.get(target_sensor_id)
@@ -1137,15 +1135,15 @@ def train_predict_pipeline(
             start_predict_date = floor_to_resolution(now, resolution).isoformat()
 
         if predict_period is None:
-            # predict_period = (isoparse(end_date) - isoparse(start_predict_date)) // pd.Timedelta("P1D")
             predict_period = abs(
                 (
-                    isoparse(end_date)-
+                    isoparse(end_date) -
                     isoparse(start_predict_date)
-                ).days
-        )
+                ).total_seconds() // 3600
+            )
+
         regressors_list = regressors.split(",")
-        predict_period_in_hours = int(predict_period) * 24
+        predict_period_in_hours = int(predict_period)
         train_period_in_hours = int(train_period) * 24 if train_period else None
         start_date = isoparse(start_date)
         end_date = isoparse(end_date)
