@@ -353,7 +353,7 @@
 
                 // Reload daterange
                 embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult)).resize().run();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult.data)).resize().run();
             });
         }
     });
@@ -404,11 +404,11 @@
             // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
             vegaView = result.view;
             if (previousResult) {
-                checkSourceMasking(previousResult);
-                var slicedPreviousResult = previousResult.filter(item => {
+                checkSourceMasking(previousResult.data);
+                var slicedPreviousData = previousResult.data.filter(item => {
                     return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
                 })
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousResult)).resize().run();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousData)).resize().run();
             }
         });
     }
@@ -505,8 +505,6 @@
 
     var playBackDataLoadedForKnownDateRange = false;
 
-    var initialStartDate = new Date('{{ event_starts_after }}');
-    var initialEndDate = new Date('{{ event_ends_before }}');
     const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
         method: "GET",
         headers: {"Content-Type": "application/json"},
@@ -591,19 +589,14 @@
             $("#spinner").show();
             checkDSTTransitions(startDate, endDate)
             Promise.all([
-                (initialStartDate.getTime() === startDate.getTime() && initialEndDate.getTime() === endDate.getTime()) ? Promise.resolve(previousResult) :
+                (previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) ? Promise.resolve(previousResult.data) :
                 // Fetch time series data
                 fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
                     method: "GET",
                     headers: {"Content-Type": "application/json"},
                     signal: signal,
                 })
-                .then(function(response) {
-                    // Update the initial start and end dates
-                    initialStartDate = startDate;
-                    initialEndDate = endDate;
-                    return response.json();
-                }),
+                .then(function(response) { return response.json(); }),
 
                 /**
                 // Fetch annotations
@@ -620,8 +613,12 @@
             ]).then(function(result) {
                 $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
-                previousResult = result[0];
-                checkSourceMasking(previousResult);
+                previousResult = {
+                    start: startDate,
+                    end: endDate,
+                    data: result[0]
+                };
+                checkSourceMasking(previousResult.data);
                 playBackDataLoadedForKnownDateRange = false;
                 /**
                 vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
@@ -667,8 +664,14 @@
                 ]).then(function (result) {return result[0]}).catch(console.error);
                 $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
-                previousResult = fetchedInitialData;
-                checkSourceMasking(previousResult);
+                var sessionStart = new Date('{{ event_starts_after }}');
+                var sessionEnd = new Date('{{ event_ends_before }}');
+                previousResult = {
+                    start: sessionStart,
+                    end: sessionEnd,
+                    data: fetchedInitialData
+                };
+                checkSourceMasking(previousResult.data);
                 var timerangeNotSetYet = false
             {% else %}
                 var timerangeNotSetYet = true
