@@ -584,7 +584,7 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
                     event.preventDefault();
                     const selectedSourceKey = event.target.dataset.sourceKey;
                     dropdownButton.textContent = selectedSourceKey;
-                    updateStatsTable(data[selectedSourceKey]);
+                    updateStatsTable(data[selectedSourceKey], tableBody);
                 });
 
                 dropdownItem.appendChild(dropdownLink);
