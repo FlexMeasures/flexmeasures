@@ -45,6 +45,7 @@ Bugfixes
 * Prevent redundant second call to fetch chart data on page load and start replay button [see `PR #1586 <https://github.com/FlexMeasures/flexmeasures/pull/1586>`_ and `PR #1596 <https://github.com/FlexMeasures/flexmeasures/pull/1596>`_]
 * On the asset context page, send the highest ancestor as site_asset (then the asset context view uses this to look up sensors for the flex-context) [see `PR #1581 <https://www.github.com/FlexMeasures/flexmeasures/pull/1581>`_]
 * Fix support for using 3-digit hex colors in account color scheme [see `PR #1569 <https://github.com/FlexMeasures/flexmeasures/pull/1569>`_]
+* Fix deletion of sensors in the UI, also move the delete button for assets & sensors to the bottom of the page [see `PR #1597 <https://github.com/FlexMeasures/flexmeasures/pull/1597>`_]
 
 
 v0.26.1 | June 09, 2025
