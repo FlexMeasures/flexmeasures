@@ -38,6 +38,7 @@ Infrastructure / Support
 * Stopped testing Python3.8 in our GitHub Actions CI [see `PR #1541 <https://github.com/FlexMeasures/flexmeasures/pull/1541>`_]
 * Stopped auto-deploying to Seita's staging server on commits to main. Kept scripts and documentation how to do it. Added short description of the two existing CI workflows [see `PR #1552 <https://github.com/FlexMeasures/flexmeasures/pull/1552>`_]
 * Explain white-labelling in documentation [see `PR #1587 <https://github.com/FlexMeasures/flexmeasures/pull/1587>`_]
+* Changed example ``docker-compose.yaml`` to persist database on local volume [see `PR #1584 <https://github.com/FlexMeasures/flexmeasures/pull/1584>`_]
 
 Bugfixes
 -----------
