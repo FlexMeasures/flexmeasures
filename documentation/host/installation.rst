@@ -419,9 +419,6 @@ This suffices for a quick start. For an actually secure secret, here is a Python
    $ python -c "from passlib import totp; print(f'{{\"1\": \"{totp.generate_secret()}\"}}')"
 
 
-Finally, you should set ``SECURITY_TWO_FACTOR_RESCUE_MAIL`` to an email address under which you can be reached by users who cannot use their 2nd means of authentication. 
-
-
 Where to go from here?
 ------------------------
 
