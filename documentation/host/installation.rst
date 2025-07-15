@@ -376,7 +376,7 @@ Turn it on in the settings:
 
         .. code-block:: bash
 
-            $ export SECURITY_TWO_FACTOR=True}
+            $ export SECURITY_TWO_FACTOR=True
 
         (on Windows, use ``set`` instead of ``export``\ )
 
