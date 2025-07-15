@@ -1,20 +1,15 @@
 {% extends "base.html" %} {% set active_page = "accounts" %} {% block title %}
 Account overview {% endblock %} {% block divs %}
 
-<div class="pl-3">
-  {% if can_view_account_auditlog %}
-    <button
-      class="btn btn-sm btn-responsive btn-info m-4"
-      type="submit"
-      title="View history of user actions."
-    >
-      <a href="/accounts/auditlog/{{ account.id }}">Audit log</a>
-    </button>
-  {% endif %}
-</div>
 <div class="container-fluid">
   <div class="row">
-    <div class="col-md-2">
+    <div class="col-md-2 on-top-md">
+      {% if user_can_create_children %}
+          <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
+            <a href="/assets/new?account_id={{ account.id }}">Create asset</a>
+          </button>
+      {% endif %}
+      
       {% if user_can_update_account %}  
       <div class="sidepanel-container">
         <div
@@ -272,7 +267,15 @@ Account overview {% endblock %} {% block divs %}
         </div>
       </div>
     </div>
-    <div class="col-md-2"></div>
+    <div class="col-md-2">
+      {% if can_view_account_auditlog %}
+      <button
+        class="btn p-3 btn-info border-0 mb-3 mt-3" type="button"
+        onclick="window.location.href='/users/auditlog/{{ account.id }}'"
+        title="View history of actions on this account.">
+        Audit log
+      </button>
+      {% endif %}
   </div>
 </div>
 
