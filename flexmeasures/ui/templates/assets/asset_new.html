@@ -7,23 +7,15 @@
 {% block divs %}
 
 <div class="container-fluid">
-    <div class="row">
-        <div class="col-md-12">
-            <button class="btn btn-sm btn-responsive btn-info" type="submit">
-                <a href="../../assets">Go to asset overview</a>
-            </button>
-        </div>
-        <div class="col-md-10">
-        </div>
-    </div>
+    
+    <h3>Creating a new asset {% if parent_asset_name %} under asset <a href="/assets/{{parent_asset_id}}">{{ parent_asset_name }}</a> {% endif %}</h3>
+    
     <form class="new-asset-form form-horizontal" method="POST" action="/assets/create">
         {{ asset_form.csrf_token }}
         {{ asset_form.hidden_tag() }}
         <fieldset>
             <div class="row">
                 <div class="col-md-6">
-
-                    <h2>Creating a new asset {% if parent_asset_name %} under asset "{{ parent_asset_name }}" {% endif %}</h2>
                     <input type="hidden" name="parent_asset_id" value="{{ parent_asset_id }}">
                     <div class="form-group">
                         {{ asset_form.name.label(class="col-md-6 control-label") }}
