@@ -84,9 +84,13 @@ class AssetForm(FlaskForm):
                 for atype in db.session.scalars(select(GenericAssetType)).all()
             ]
         if "account_id" in self:
+            selectable_accounts = [current_user.account]
+            if current_user.has_role("consultant"):
+                selectable_accounts += current_user.account.consultancy_client_accounts
+            if user_has_admin_access(current_user, "create_children"):
+                selectable_accounts = db.session.scalars(select(Account)).all()
             self.account_id.choices = [(-1, "--Select account--")] + [
-                (account.id, account.name)
-                for account in db.session.scalars(select(Account)).all()
+                (account.id, account.name) for account in selectable_accounts
             ]
 
 
