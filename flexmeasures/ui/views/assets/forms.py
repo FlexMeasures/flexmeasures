@@ -18,7 +18,10 @@ from flexmeasures.data.models.user import Account
 class AssetForm(FlaskForm):
     """The default asset form only allows to edit the name and location."""
 
-    name = StringField("Name")
+    name = StringField(
+        "Name",
+        validators=[DataRequired()],
+    )
     latitude = DecimalField(
         "Latitude",
         validators=[optional()],
@@ -115,7 +118,7 @@ class NewAssetForm(AssetForm):
             if user_has_admin_access(current_user, "update"):
                 return None, None  # Account can be None (public asset)
             else:
-                account_error = "Please pick an existing account."
+                return None, "Please pick an existing account."
 
         account = db.session.execute(
             select(Account).filter_by(id=int(self.account_id.data))
@@ -124,6 +127,7 @@ class NewAssetForm(AssetForm):
         if account:
             self.account_id.data = account.id
         else:
+            account_error = f"Account {self.account_id.data} could not be found."
             current_app.logger.error(account_error)
         return account, account_error
 
