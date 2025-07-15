@@ -207,15 +207,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             return self.attributes[attribute]
         if hasattr(self.generic_asset, attribute):
             return getattr(self.generic_asset, attribute)
-        if attribute in self.generic_asset.attributes:
-            return self.generic_asset.attributes[attribute]
-        if hasattr(self.generic_asset.flex_context, attribute):
-            return getattr(self.generic_asset.flex_context, attribute)
-        if (
-            self.generic_asset.flex_context
-            and attribute in self.generic_asset.flex_context
-        ):
-            return self.generic_asset.flex_context[attribute]
+        asset_value = self.generic_asset.get_attribute(attribute)
+        if asset_value is not None:
+            return asset_value
 
         return default
 
@@ -535,10 +529,17 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         return self.name
 
     def to_dict(self) -> dict:
+        parent_asset = db.session.execute(
+            select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
+        ).scalar_one_or_none()
         return dict(
+            asset_id=self.generic_asset.id,
             id=self.id,
             name=self.name,
+            sensor_unit=self.unit,
             description=f"{self.name} ({self.generic_asset.name})",
+            asset_description=f"{self.generic_asset.name}"
+            + (f" ({parent_asset.name})" if parent_asset is not None else ""),
         )
 
     @classmethod

@@ -284,10 +284,28 @@ class StorageFlexModelSchema(Schema):
         return data
 
 
-class DBStorageFlexModelSchema(StorageFlexModelSchema):
+class DBStorageFlexModelSchema(Schema):
     """
     Schema for flex-models stored in the db. Supports fixed quantities and sensor references, while disallowing time series specs.
     """
+
+    soc_min = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-min",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
+    prefer_charging_sooner = fields.Bool(
+        data_key="prefer-charging-sooner", load_default=True
+    )
+
+    soc_gain = fields.List(
+        VariableQuantityField("MW"),
+        data_key="soc-gain",
+        required=False,
+        validate=validate.Length(min=1),
+    )
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):

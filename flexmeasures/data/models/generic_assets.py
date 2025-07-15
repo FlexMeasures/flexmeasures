@@ -372,6 +372,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
+        if self.flex_model and attribute in self.flex_model:
+            return self.flex_model[attribute]
         if self.flex_context and attribute in self.flex_context:
             return self.flex_context[attribute]
         return default
@@ -401,6 +403,18 @@ class GenericAsset(db.Model, AuthModelMixin):
             flex_context = {**parent_asset.flex_context, **flex_context}
             parent_asset = parent_asset.parent_asset
         return flex_context
+
+    def get_flex_model(self) -> list[dict]:
+        """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
+
+        Recursive function returning a multi-asset flex-model.
+        """
+        flex_model = []
+        if self.flex_model:
+            flex_model.append(self.flex_model.copy())
+        for child in self.child_assets:
+            flex_model.extend(child.get_flex_model())
+        return flex_model
 
     def get_consumption_price_sensor(self):
         """Searches for consumption_price_sensor upwards on the asset tree"""
@@ -739,6 +753,17 @@ class GenericAsset(db.Model, AuthModelMixin):
             df = df.reset_index()
             df["source"] = df["source"].apply(lambda x: x.to_dict())
             df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+            df["sensor_unit"] = df["sensor"].apply(lambda x: x["sensor_unit"])
+            df["event_value"] = df.apply(
+                lambda row: (
+                    pd.to_datetime(row["event_value"], unit="s", origin="unix")
+                    .tz_localize("UTC")
+                    .tz_convert(self.timezone)
+                    if row["sensor_unit"] == "s" and pd.notnull(row["event_value"])
+                    else row["event_value"]
+                ),
+                axis=1,
+            )
             return df.to_json(orient="records")
         return bdf_dict
 

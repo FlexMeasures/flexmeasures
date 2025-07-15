@@ -151,11 +151,15 @@ class AssetCrudUI(FlaskView):
             for sensor in asset.sensors
         ]
 
+        site_asset = asset
+        while site_asset.parent_asset_id:
+            site_asset = site_asset.parent_asset
         return render_flexmeasures_template(
             "assets/asset_context.html",
             assets=assets,
             asset=asset,
             current_asset_sensors=current_asset_sensors,
+            site_asset=site_asset,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),

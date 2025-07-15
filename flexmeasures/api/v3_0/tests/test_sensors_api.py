@@ -10,8 +10,10 @@ from sqlalchemy import select, func
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.v3_0.tests.utils import get_sensor_post_data
-from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.api.v3_0.tests.utils import (
+    get_sensor_post_data,
+    check_audit_log_event,
+)
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
@@ -286,36 +288,49 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert sensor.unit == "kWh"
     assert sensor.attributes["capacity_in_mw"] == 0.0074
 
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            affected_asset_id=post_data["generic_asset_id"],
-            event=f"Created sensor '{sensor.name}': {sensor.id}",
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Created sensor '{sensor.name}': {sensor.id}",
+        user=requesting_user,
+        asset=sensor.generic_asset,
+    )
 
 
+@pytest.mark.parametrize(
+    "sensor_name",
+    [
+        "some gas sensor",  # 10-min resolution
+        "some temperature sensor",  # instantaneous resolution
+    ],
+)
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_upload_csv_file(client, requesting_user):
+def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requesting_user):
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     csv_content = """event_start,event_value
 2022-12-16T05:11:00Z,4
 2022-12-16T06:11:00Z,2
 2022-12-16T07:11:00Z,6
 """
+    sensor = setup_api_test_data[sensor_name]
     file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
 
     # Match what the schema expects
     data = {"uploaded-files": file}
 
     response = client.post(
-        url_for("SensorAPI:upload_data", id=1),
+        url_for("SensorAPI:upload_data", id=sensor.id),
         data=data,
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
     assert response.status_code == 200 or response.status_code == 400
+
+    check_audit_log_event(
+        db=db,
+        event=f"Data from test.csv uploaded to sensor '{sensor.name}': {sensor.id}",
+        user=requesting_user,
+        asset=sensor.generic_asset,
+    )
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -400,18 +415,15 @@ def test_patch_sensor(client, setup_api_test_data, requesting_user, db):
     )
     assert new_sensor.attributes["test_attribute"] == "test_attribute_value"
 
-    audit_log_event = (
-        f"Updated sensor 'some gas sensor': {sensor.id}. Updated fields: Field name: name, Old value: some gas sensor, New value: Changed name; Field name: attributes, "
-        + "Old value: {}, New value: {'test_attribute': 'test_attribute_value'}"
+    check_audit_log_event(
+        db=db,
+        event=(
+            f"Updated sensor 'some gas sensor': {sensor.id}. Updated fields: Field name: name, Old value: some gas sensor, New value: Changed name; Field name: attributes, "
+            + "Old value: {}, New value: {'test_attribute': 'test_attribute_value'}"
+        ),
+        user=requesting_user,
+        asset=sensor.generic_asset,
     )
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            event=audit_log_event,
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-            affected_asset_id=sensor.generic_asset_id,
-        )
-    ).scalar_one_or_none()
 
 
 @pytest.mark.parametrize(
@@ -502,15 +514,12 @@ def test_delete_a_sensor_data(client, setup_api_test_data, requesting_user, db):
         == []
     )
 
-    # Make sure audit log is created
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            affected_asset_id=existing_sensor.generic_asset_id,
-            event=f"Deleted data for sensor '{existing_sensor.name}': {existing_sensor.id}",
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Deleted data for sensor '{existing_sensor.name}': {existing_sensor.id}",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -535,14 +544,12 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
         db.session.scalar(select(func.count()).select_from(Sensor)) == sensor_count - 1
     )
 
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            affected_asset_id=existing_sensor.generic_asset_id,
-            event=f"Deleted sensor '{existing_sensor.name}': {existing_sensor.id}",
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Deleted sensor '{existing_sensor.name}': {existing_sensor.id}",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
 
 
 @pytest.mark.parametrize(
@@ -563,9 +570,9 @@ def test_fetch_sensor_stats(
 
         del response_content["status"]
         assert sorted(list(response_content.keys())) == [
-            "Other source",
-            "Test Admin User",
-            "Test Supplier User",
+            "Other source (ID: 12)",
+            "Test Admin User (ID: 7)",
+            "Test Supplier User (ID: 6)",
         ]
         for source, record in response_content.items():
             assert record["First event start"]
@@ -573,11 +580,11 @@ def test_fetch_sensor_stats(
             assert record["Min value"]
             assert record["Min value"]
             assert record["Max value"]
-            if source == "Test Admin User":
+            if source == "Test Admin User (ID: 7)":
                 sum_values = 162.0
                 count_values = 36
                 mean_value = 4.5
-            elif source == "Test Supplier User":
+            elif source == "Test Supplier User (ID: 6)":
                 sum_values = 275.1
                 count_values = 3
                 mean_value = 91.7
@@ -601,3 +608,92 @@ def test_fetch_sensor_stats(
 
     # Check stats cache works and stats query is executed only once
     assert counter1.count == counter2.count + 1
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_sensor_page(db, client, setup_api_test_data, requests_mock, requesting_user):
+    sensor = db.session.get(Sensor, 1)
+    sensor_page = client.get(
+        url_for(
+            "SensorUI:get",
+            id=sensor.id,
+            start_time="2022-10-01T00:00:00+02:00",
+            end_time="2022-10-02T00:00:00+02:00",
+        ),
+        follow_redirects=True,
+    )
+    assert sensor_page.status_code == 200
+    chart_query = {
+        "event_starts_before": "2022-10-01T00:00:00%2B02:00",
+        "event_ends_after": "2022-10-02T00:00:00%2B02:00",
+    }
+    chart_data_query = {
+        "event_starts_after": "2025-04-30T19:00:00.000Z",
+        "event_ends_before": "2025-05-15T19:00:00.000Z",
+        "dataset_name": "asset_12561",
+        "combine_legend": "false",
+        "width": "container",
+        "include_sensor_annotations": "false",
+        "include_asset_annotations": "false",
+        "chart_type": "chart_for_multiple_sensors",
+    }
+    chat_response = client.get(
+        url_for("AssetAPI:get_chart", id=sensor.generic_asset_id),
+        query_string=chart_query,
+    )
+    print("chart response: %s" % chat_response.json)
+    assert chat_response.status_code == 200
+
+    chat_data_response = client.get(
+        url_for("AssetAPI:get_chart_data", id=sensor.generic_asset_id),
+        query_string=chart_data_query,
+    )
+    print("chart data response: %s" % chat_data_response.json)
+    assert chat_data_response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "args, error",
+    [
+        (
+            {"start_time": "2022-10-01T00:00:00+02:00"},
+            "Both start_time and end_time must be provided together.",
+        ),
+        (
+            {"end_time": "2022-10-01T00:00:00+02:00"},
+            "Both start_time and end_time must be provided together.",
+        ),
+        (
+            {
+                "start_time": "2022-10-01T00:00:00+02:00",
+                "end_time": "2022-10-01T00:00:00+02:00",
+            },
+            "start_time must be before end_time.",
+        ),
+        (
+            {
+                "start_time": "2022-10-01T00:00:00",
+                "end_time": "2022-10-02T00:00:00+02:00",
+            },
+            "Not a valid aware datetime",
+        ),
+    ],
+)
+def test_sensor_page_dates_validation(
+    db, client, setup_api_test_data, requests_mock, args, error
+):
+    sensor = db.session.get(Sensor, 1)
+    sensor_page = client.get(
+        url_for(
+            "SensorUI:get",
+            id=sensor.id,
+            **args,
+        ),
+        follow_redirects=True,
+    )
+    assert error.encode() in sensor_page.data
+    assert "UNPROCESSABLE_ENTITY".encode() in sensor_page.data

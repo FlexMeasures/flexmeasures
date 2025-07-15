@@ -6,11 +6,12 @@ Create Date: 2025-04-15 11:00:13.154048
 
 """
 
+from __future__ import annotations
+
+from typing import Iterable
+
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB
-
-from collections import defaultdict
 
 from flexmeasures.utils.unit_utils import is_power_unit, is_energy_unit, ur
 
@@ -20,79 +21,40 @@ down_revision = "cb8df44ebda5"
 branch_labels = None
 depends_on = None
 
-flex_model_fields = dict(
-    min_soc_in_mwh="soc-min",
-)
+# All flex-model fields that, before upgrading, were supported as an asset attribute (float, quantity string, or sensor reference, or a list thereof):
+FLEX_MODEL_FIELDS = {
+    "min_soc_in_mwh": "soc-min",  # snake_case fallback attribute containing a float
+    # "max_soc_in_mwh": "soc-max",  # snake_case fallback attribute containing a float
+    # "soc-gain": "soc-gain",  # fallback attribute containing a list of quantity strings and/or sensor references
+    # "soc-usage": "soc-usage",  # fallback attribute containing a list of quantity strings and/or sensor references
+    # "roundtrip_efficiency": "roundtrip-efficiency",  # snake_case fallback attribute containing a float
+    # "charging-efficiency": "charging-efficiency",  # fallback attribute containing a quantity string, sensor reference or float
+    # "discharging-efficiency": "discharging-efficiency",  # fallback attribute containing a quantity string, sensor reference or float
+    # "storage_efficiency": "storage-efficiency",  # snake_case fallback attribute containing a quantity string, sensor reference or float
+    # "capacity_in_mw": "power-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+    # "consumption_capacity": "consumption-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+    # "production_capacity": "production-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+}
+"""
+The following flex-model fields exist that had no prior support as an asset attribute, and are therefore not migrated:
+- soc-at-start
+- soc-unit
+- soc-minima
+- soc-maxima
+- soc-targets
+- state-of-charge
+- prefer-charging-sooner
+- prefer-curtailing-later
+"""
 
 
-def group_sensors_by_field(sensors, conn, generic_asset_table):
-    """
-    This function groups sensors by flexmodel fields (using the old field names) and checks for value mismatches.
-    """
-    field_specs = []
-
-    # construct the field specifications
-    for old_field_name, new_field_name in flex_model_fields.items():
-        field_spec = dict(
-            new_field_name=new_field_name,
-            old_field_name=old_field_name,
-            grouped=defaultdict(list),
-        )
-        field_specs.append(field_spec)
-
-    # iterate over the sensors and group them by field
-    # and check for value mismatches
-    for sensor in sensors:
-        # fetch the generic asset
-        sensor_generic_asset = conn.execute(
-            sa.select(
-                generic_asset_table.c.id,
-                generic_asset_table.c.attributes,
-            ).where(generic_asset_table.c.id == sensor.generic_asset_id)
-        ).fetchone()
-
-        if sensor_generic_asset is None:
-            raise Exception(
-                f"Generic asset not found for sensor {sensor.id} with asset_id {sensor.generic_asset_id}"
-            )
-
-        sensor_attrs = sensor.attributes or {}
-        asset_flex_model = sensor_generic_asset.attributes.get("flex-model", {})
-
-        for field_spec in field_specs:
-            old_field_name = field_spec["old_field_name"]
-
-            # check if old_field_name exist on both attributes on sensor and asset
-            sensor_val = sensor_attrs.get(old_field_name)
-            asset_val = asset_flex_model.get(old_field_name)
-
-            if sensor_val is not None and asset_val is not None:
-                if sensor_val != asset_val:
-                    raise Exception(
-                        f"Value mismatch for '{old_field_name}' in sensor {sensor.id}: sensor={sensor_val}, asset={asset_val}"
-                    )
-
-            # check if old_field_name exist on sensor attributes
-            if sensor_val is not None:
-                field_spec["grouped"][sensor_generic_asset].append(sensor)
-
-    return field_specs
-
-
-def validate_for_duplicate_keys(fields_specs):
-    """
-    This function checks for duplicate keys in the grouped sensors of a parent asset.
-    """
-    for field_spec in fields_specs:
-        grouped = field_spec["grouped"]
-        for asset_id, sensors in grouped.items():
-            if len(sensors) > 1:
-                raise Exception(
-                    f"Multiple sensors with '{field_spec['old_field_name']}' found for asset_id {asset_id}: {[s.id for s in sensors]}"
-                )
+class NonDowngradableValueError(ValueError):
+    pass
 
 
 def upgrade():
+    """Migrate db flex-model fields stored as asset/sensor attributes to a new flex_model db column."""
+
     # Add the new column
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
         batch_op.add_column(
@@ -107,7 +69,183 @@ def upgrade():
         sa.Column("generic_asset_id", sa.Integer),
     )
 
-    generic_asset_table = sa.Table(
+    asset_table, assets, conn = fetch_assets()
+
+    def migrate_flex_model_fields(asset, sensors):
+        """Migrate old flex-model fields (attributes) from the asset or its sensors to the asset's flex_model column.
+
+         Steps:
+
+         - Start with the asset's flex-model attribute (used as a backup in the downgrade step)
+         - Pop all the relevant fields from the asset's attributes
+         - For each of its sensors:
+           - Pop all the relevant fields from the sensor's attributes
+           - Check for ambiguous values
+           - Save the sensor's new attributes (without the old fields)
+        - Save the asset's new attributes (without the old fields) and the asset's new flex_model (with the new fields)
+        """
+
+        # Start by restoring the backup that might have been made in the downgrade of this migration
+        asset.flex_model = asset.attributes.pop("flex-model", {})
+
+        # Pop all the relevant fields from the asset's attributes
+        for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
+            if old_value := asset.attributes.pop(old_field_name, None) is not None:
+                asset.flex_model[new_field_name] = upgrade_value(
+                    old_field_name, old_value, asset=asset
+                )
+
+        for sensor in sensors:
+
+            # Pop all the relevant fields from the sensor's attributes
+            for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
+                if old_value := sensor.attributes.pop(old_field_name, None) is not None:
+                    new_value = upgrade_value(old_field_name, old_value, sensor=sensor)
+                    if new_field_name not in asset.flex_model:
+                        asset.flex_model[new_field_name] = new_value
+                    elif new_value != asset.flex_model[new_field_name]:
+                        # Check for ambiguous values
+                        raise Exception(
+                            f"Value mismatch for '{old_field_name}' in sensor {sensor.id}: sensor={new_value}, asset={asset.flex_model[new_field_name]}. "
+                            f"Please file a GitHub Issue describing your situation."
+                        )
+
+            # Save the sensor's new attributes (without the old fields)
+            stmt = (
+                sensor_table.update()
+                .where(sensor_table.c.id == sa.literal(sensor.id))
+                .values(attributes=sensor.attributes)
+            )
+            conn.execute(stmt)
+
+        # Save the asset's new attributes (without the old fields) and the asset's new flex_model (with the new fields)
+        stmt = (
+            asset_table.update()
+            .where(asset_table.c.id == sa.literal(asset.id))
+            .values(
+                flex_model=asset.flex_model,
+                attributes=asset.attributes,
+            )
+        )
+        conn.execute(stmt)
+
+    for asset in assets:
+        # Fetch the sensors
+        sensors = conn.execute(
+            sa.select(
+                sensor_table.c.id,
+                sensor_table.c.attributes,
+                sensor_table.c.generic_asset_id,
+            ).where(sensor_table.c.generic_asset_id == sa.literal(asset.id))
+        ).fetchall()
+
+        # Migrate the asset's flex-model fields
+        migrate_flex_model_fields(asset=asset, sensors=sensors)
+
+
+def downgrade():
+    """Migrate the flex_model db column to an asset attribute.
+
+    Also restore fallback asset attributes used by code before this migration.
+    """
+    asset_table, assets, conn = fetch_assets()
+
+    # Process each generic asset
+    for asset in assets:
+        asset_id = asset.id
+        flex_model_data = asset.flex_model
+
+        # Revert flex-model data to attributes
+        if flex_model_data is not None:
+
+            # Ensure that the flex-model attribute is available for backing up the flex-model data
+            asset_attrs_flex_model = asset.attributes.get("flex-model", {})
+            if asset_attrs_flex_model:
+                raise NotImplementedError(
+                    f"Asset {asset_id} already has a 'flex-model' attribute, so it is unavailable for backing up the flex-model data"
+                )
+            asset_attrs = asset.attributes or {}
+
+            for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
+                if new_field_name not in flex_model_data:
+                    continue
+                new_value = flex_model_data[new_field_name]
+                try:
+                    asset_attrs[old_field_name] = downgrade_value(
+                        old_field_name, new_value
+                    )
+
+                    # Remove the new field from the flex-model data
+                    flex_model_data.pop(new_field_name)
+                except NonDowngradableValueError:
+                    continue
+
+            # Back up the remaining flex-model data as the flex-model attribute
+            asset_attrs["flex-model"] = flex_model_data
+
+            # Update the generic asset attributes
+            stmt = (
+                asset_table.update()
+                .where(asset_table.c.id == sa.literal(asset_id))
+                .values(attributes=asset_attrs)
+            )
+            conn.execute(stmt)
+
+        with op.batch_alter_table("generic_asset", schema=None) as batch_op:
+            batch_op.drop_column("flex_model")
+
+
+def upgrade_value(
+    old_field_name: str, old_value: int | float | dict | bool, sensor=None, asset=None
+) -> str | int | float | dict | bool:
+    """Depending on the old field name, some values still need to be turned into string quantities."""
+
+    # check if value is an int, bool, float or dict
+    if not isinstance(old_value, (int, float, dict, bool)):
+        if sensor:
+            raise Exception(
+                f"Invalid value for '{old_field_name}' in sensor {sensor.id}: {old_value}"
+            )
+        elif asset:
+            raise Exception(
+                f"Invalid value for '{old_field_name}' in asset {asset.id}: {old_value}"
+            )
+    if old_field_name[-6:] == "in_mwh" and isinstance(old_value, (float, int)):
+        # convert from float (in MWh) to string (in kWh)
+        value_in_kwh = old_value * 1000
+        return f"{value_in_kwh} kWh"
+    elif old_field_name[-6:] == "in_mw" and isinstance(old_value, (float, int)):
+        # convert from float (in MW) to string (in kW)
+        value_in_kw = old_value * 1000
+        return f"{value_in_kw} kW"
+    else:
+        # move as is
+        return old_value
+
+
+def downgrade_value(old_field_name: str, new_value) -> float | str | dict:
+    """Depending on the old field name, some values still need to be turned back into floats."""
+    if isinstance(new_value, str):
+        # Convert the value back to the original format
+        if old_field_name[-6:] == "in_mwh" and is_energy_unit(new_value):
+            value_in_mwh = ur.Quantity(new_value).to("MWh").magnitude
+            return value_in_mwh
+        elif old_field_name[-6:] == "in_mw" and is_power_unit(new_value):
+            value_in_mw = ur.Quantity(new_value).to("MW").magnitude
+            return value_in_mw
+        else:
+            # Return string quantity
+            return new_value
+    elif isinstance(new_value, dict):
+        # Return sensor reference
+        return new_value
+    else:
+        raise NonDowngradableValueError()
+
+
+def fetch_assets() -> tuple[sa.Table, Iterable[sa.Row], sa.Connection]:
+    """Fetch the part of the asset table needed for this migration."""
+    asset_table = sa.Table(
         "generic_asset",
         sa.MetaData(),
         sa.Column("id", sa.Integer, primary_key=True),
@@ -115,194 +253,14 @@ def upgrade():
         sa.Column("attributes", sa.JSON),
     )
 
-    # Fetch all sensors
+    # Fetch all assets
     conn = op.get_bind()
     result = conn.execute(
         sa.select(
-            sensor_table.c.id,
-            sensor_table.c.attributes,
-            sensor_table.c.generic_asset_id,
+            asset_table.c.id,
+            asset_table.c.flex_model,
+            asset_table.c.attributes,
         )
     )
-    sensors = result.fetchall()
-
-    fields_specs = group_sensors_by_field(sensors, conn, generic_asset_table)
-
-    # Check for duplicate keys in the grouped sensors
-    validate_for_duplicate_keys(fields_specs)
-
-    # Process each group
-    for field_spec in fields_specs:
-        old_name = field_spec["old_field_name"]
-        new_name = field_spec["new_field_name"]
-
-        # Check if the key exist on any asset's attributes and move that into the asset's flex_model
-        # This is to ensure that the flex_model is not empty in the edge case where the asset has no
-        # sensors or has no sensors using the field/key
-        asset_result = conn.execute(
-            sa.select(
-                generic_asset_table.c.id,
-                generic_asset_table.c.attributes,
-                generic_asset_table.c.flex_model,
-            ).where(
-                sa.func.jsonb_path_exists(
-                    sa.cast(generic_asset_table.c.attributes, JSONB),
-                    f'$."flex-model"."{new_name}"',
-                )
-                | sa.cast(generic_asset_table.c.attributes, JSONB).has_key(old_name)
-            )
-        )
-
-        affected_assets = asset_result.fetchall()
-
-        for asset in affected_assets:
-            asset_id = asset.id
-            asset_attr = asset.attributes or {}
-            asset_attr_flex_model = asset_attr.get("flex-model", {})
-            flex_model_data = {**asset_attr_flex_model, **asset_attr}
-
-            # check if value is a int, bool, float or dict
-            if not isinstance(flex_model_data[old_name], (int, float, dict, bool)):
-                raise Exception(
-                    f"Invalid value for '{old_name}' in generic asset {asset_id}: {flex_model_data[old_name]}"
-                )
-
-            if old_name[-6:] == "in_mwh":
-                # convert from float (in MWh) to string (in kWh)
-                value_in_kwh = flex_model_data[old_name] * 1000
-                flex_model_data[new_name] = f"{value_in_kwh} kWh"
-            elif old_name[-6:] == "in_mw":
-                # convert from float (in MW) to string (in kW)
-                value_in_kw = flex_model_data[old_name] * 1000
-                flex_model_data[new_name] = f"{value_in_kw} kW"
-            else:
-                # move as is
-                value = flex_model_data[old_name]
-                flex_model_data[new_name] = value
-
-            # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
-            asset_attr_flex_model.pop(new_name, None)
-            asset_attr.pop(old_name)
-            flex_model_data.pop(old_name)
-            flex_model_data.pop("flex-model", None)
-            stmt = (
-                generic_asset_table.update()
-                .where(generic_asset_table.c.id == asset_id)
-                .values(
-                    flex_model=flex_model_data,
-                    attributes=asset_attr,
-                )
-            )
-            conn.execute(stmt)
-
-        # Process the grouped sensors
-        for sensor_generic_asset, sensors_with_key in field_spec["grouped"].items():
-            sensor = sensors_with_key[0]
-            field_value = None
-
-            if sensor.attributes.get(old_name) is not None:
-                field_value = sensor.attributes.get(old_name)
-            elif sensor_generic_asset.attributes.get(old_name) is not None:
-                field_value = sensor_generic_asset.attributes.get(old_name)
-
-            if field_value is not None:
-                # check if value is a int or float
-                if not isinstance(field_value, (int, float)):
-                    raise Exception(
-                        f"Invalid value for '{old_name}' in sensor {sensor.id}: {sensor.attributes[old_name]}"
-                    )
-
-                soc_min_value_kwh = field_value * 1000
-                soc_min_in_kwh = f"{soc_min_value_kwh} kWh"
-                flex_model_data = {new_name: soc_min_in_kwh}
-
-                # Update the generic asset attributes to remove 'old_name' and add 'new_name' to flex_model
-                sensor_generic_asset.attributes.pop(old_name, None)
-                stmt = (
-                    generic_asset_table.update()
-                    .where(generic_asset_table.c.id == asset_id)
-                    .values(
-                        flex_model=flex_model_data,
-                        attributes=sensor_generic_asset.attributes,
-                    )
-                )
-
-                conn.execute(stmt)
-
-                # Update the sensor attributes to remove 'old_name' and add 'new_name'
-                sensor.attributes.pop(old_name, None)
-                stmt = (
-                    sensor_table.update()
-                    .where(sensor_table.c.id == sensor.id)
-                    .values(attributes=sensor.attributes)
-                )
-                conn.execute(stmt)
-
-
-def downgrade():
-    with op.batch_alter_table("generic_asset", schema=None) as batch_op:
-        generic_asset_table = sa.Table(
-            "generic_asset",
-            sa.MetaData(),
-            sa.Column("id", sa.Integer, primary_key=True),
-            sa.Column("flex_model", sa.JSON),
-            sa.Column("attributes", sa.JSON),
-        )
-
-        # Fetch all generic assets
-        conn = op.get_bind()
-        result = conn.execute(
-            sa.select(
-                generic_asset_table.c.id,
-                generic_asset_table.c.flex_model,
-                generic_asset_table.c.attributes,
-            )
-        )
-        generic_assets = result.fetchall()
-
-        # Process each generic asset
-        for asset in generic_assets:
-            asset_id = asset.id
-            flex_model_data = asset.flex_model
-
-            # Revert flex-model data to attributes
-            if flex_model_data is not None:
-
-                asset_attrs_flex_model = asset.attributes.get("flex-model", {})
-                asset_attrs = asset.attributes or {}
-
-                for old_field_name, new_field_name in flex_model_fields.items():
-                    if new_field_name in flex_model_data and isinstance(
-                        flex_model_data[new_field_name], str
-                    ):
-                        # Convert the value back to the original format
-                        value = flex_model_data[new_field_name]
-                        if old_field_name[-6:] == "in_mwh" and is_energy_unit(value):
-                            value_in_mwh = ur.Quantity(value).to("MWh").magnitude
-                            asset_attrs[old_field_name] = value_in_mwh
-                        elif old_field_name[-6:] == "in_mw" and is_power_unit(value):
-                            value_in_mw = ur.Quantity(value).to("MW").magnitude
-                            asset_attrs[old_field_name] = value_in_mw
-                        else:
-                            asset_attrs[old_field_name] = value
-                    elif new_field_name in flex_model_data and isinstance(
-                        flex_model_data[new_field_name], dict
-                    ):
-                        asset_attrs_flex_model[new_field_name] = value
-
-                # Remove the new fields from the attributes flex-model data
-                asset_attrs_flex_model.pop(new_field_name, None)
-                # update flex-model data in attributes
-                asset_attrs["flex-model"] = asset_attrs_flex_model
-
-                # Update the generic asset attributes
-                stmt = (
-                    generic_asset_table.update()
-                    .where(generic_asset_table.c.id == asset_id)
-                    .values(attributes=asset_attrs)
-                )
-                conn.execute(stmt)
-
-        batch_op.drop_column("flex_model")
-
-    # ### end Alembic commands ###
+    assets = result.fetchall()
+    return asset_table, assets, conn

@@ -242,6 +242,7 @@ def setup(sphinx_app):
         We are in play mode.
 
     """
+    os.environ["FLEXMEASURES_ENV"] = "documentation"
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
     sphinx_app.add_config_value(
