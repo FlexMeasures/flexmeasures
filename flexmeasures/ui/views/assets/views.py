@@ -108,14 +108,15 @@ class AssetCrudUI(FlaskView):
                 parent_asset = db.session.get(GenericAsset, parent_asset_id)
                 if parent_asset:
                     parent_asset_name = parent_asset.name
-                if not account_id:
-                    account = parent_asset.account
-                else:
-                    if account_id != parent_asset.account.id:
-                        return (
-                            "The parent asset needs to be under the specified account.",
-                            422,
-                        )
+                if parent_asset.owner:  # public parent asset
+                    if not account_id:
+                        account = parent_asset.owner
+                    else:
+                        if account_id != parent_asset.owner.id:
+                            return (
+                                f"The parent asset needs to be under the specified account ({parent_asset.owner.id}).",
+                                422,
+                            )
 
             if account and not user_can_create_assets(account=account):
                 return unauthorized_handler(None, [])
@@ -223,7 +224,7 @@ class AssetCrudUI(FlaskView):
             form_valid = asset_form.validate_on_submit()
 
             # Fill up the form with useful errors for the user
-            if account_error is not None:
+            if account_error is not None and asset_form.account_id:
                 form_valid = False
                 asset_form.account_id.errors.append(account_error)
             if asset_type_error is not None:
