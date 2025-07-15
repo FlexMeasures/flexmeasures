@@ -186,7 +186,15 @@ def user_can_create_assets(account: Account | None = None) -> bool:
     return True
 
 
-def user_can_delete(asset) -> bool:
+def user_can_create_children(asset: GenericAsset) -> bool:
+    try:
+        check_access(asset, "create-children")
+    except Exception:
+        return False
+    return True
+
+
+def user_can_delete(asset: GenericAsset) -> bool:
     try:
         check_access(asset, "delete")
     except Exception:
@@ -194,7 +202,7 @@ def user_can_delete(asset) -> bool:
     return True
 
 
-def user_can_update(asset) -> bool:
+def user_can_update(asset: GenericAsset) -> bool:
     try:
         check_access(asset, "update")
     except Exception:

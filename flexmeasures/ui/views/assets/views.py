@@ -22,6 +22,7 @@ from flexmeasures.ui.views.assets.utils import (
     get_asset_by_id_or_raise_notfound,
     process_internal_api_response,
     user_can_create_assets,
+    user_can_create_children,
     user_can_delete,
     user_can_update,
     get_list_assets_chart,
@@ -171,15 +172,16 @@ class AssetCrudUI(FlaskView):
             asset=asset,
             current_asset_sensors=current_asset_sensors,
             site_asset=site_asset,
+            user_can_create_children=user_can_create_children(asset),
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),
         )
 
     @login_required
-    @route("/<id>/sensor/new")
+    @route("/<id>/sensors/new")
     def create_sensor(self, id: str):
-        """GET to /assets/<id>/sensor/new"""
+        """GET to /assets/<id>/sensors/new"""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "create-children")
 
@@ -386,6 +388,7 @@ class AssetCrudUI(FlaskView):
             msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
+            user_can_create_children=user_can_create_children(asset),
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
             current_page="Properties",
