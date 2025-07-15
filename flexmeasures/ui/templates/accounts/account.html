@@ -4,11 +4,6 @@ Account overview {% endblock %} {% block divs %}
 <div class="container-fluid">
   <div class="row">
     <div class="col-md-2 on-top-md">
-      {% if user_can_create_children %}
-          <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
-            <a href="/assets/new?account_id={{ account.id }}">Create asset</a>
-          </button>
-      {% endif %}
       
       {% if user_can_update_account %}  
       <div class="sidepanel-container">
@@ -257,7 +252,13 @@ Account overview {% endblock %} {% block divs %}
         </div>
       </div>
       <div class="card">
-        <h3>Assets</h3>
+        <h3>Assets
+        {% if user_can_create_children %}
+            <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
+              <a href="/assets/new?account_id={{ account.id }}">Create asset</a>
+            </button>
+        {% endif %}
+        </h3>
         <div class="table-responsive">
           <table
             class="table table-striped paginate nav-on-click"
