@@ -288,7 +288,11 @@
         ).addTo(assetMap);
 </script>
 
-<script>
+<script type="module" type="text/javascript">
+    import {
+        getFlexFieldTitle, renderSensor, getAsset,
+        getAccount, getSensor, apiBasePath
+    } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
     const senSearchResEle = document.getElementById("sensorsSearchResults")
     const flexContextFormEle = document.getElementById("flexContextForm")
@@ -326,8 +330,7 @@
     let editingIndex; // keeps track of which graph we are currently editing
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
-    const apiBasePath = window.location.origin;
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
     function processAssetRawFlexContextJSON(rawJSON){
         let processedJSON = rawJSON.replace(/'/g, '"');
@@ -345,60 +348,6 @@
         }
 
         return processedJSON;
-    }
-
-    // Fetch Account Details
-    async function getAccount(accountId) {
-        const cacheKey = `account_${accountId}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/accounts/" + accountId;
-        const response = await fetch(apiUrl);
-        const account = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(account));
-
-        return account;
-    }
-
-    // Fetch Asset Details
-    async function getAsset(assetId, useCache = true) {
-        const cacheKey = `asset_${assetId}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData && useCache) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/assets/" + assetId;
-        const response = await fetch(apiUrl);
-        const asset = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(asset));
-
-        return asset;
-    }
-
-    // Fetch Sensor Details
-    async function getSensor(id) {
-        const cacheKey = `sensor_${id}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/sensors/" + id;
-        const response = await fetch(apiUrl);
-        const sensor = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(sensor));
-
-        return sensor;
     }
 
     // highlight selected graph 
@@ -874,6 +823,7 @@
         senSearchResEle.innerHTML = "";
         let fieldValue = assetFlexContext[fieldName]
         let newFieldValue;
+        let isSensorValue = false;
         let sensorsContent = [];
 
         if (fieldValue === null) {
@@ -1102,6 +1052,7 @@
                     <div class="tab-content" id="pills-tabContent">
                         ${sensorsOnly ? `
                         <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
+
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
                                 <label for="sensor" class="form-label">Look up Sensor for <b>${getFlexContextFieldTitle(contextKey)} </b>
                                     <i class="fa fa-info-circle ps-2"
@@ -1137,6 +1088,7 @@
                                 </div>
 
                             </div>
+                            
                         </div>
                         ` : `
                         <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
