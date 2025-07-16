@@ -139,7 +139,7 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
     charging_station = db.session.execute(
         select(Sensor)
         .filter(Sensor.name == "power")
-        .join(GenericAsset)
+        .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
         .filter(GenericAsset.id == Sensor.generic_asset_id)
         .filter(GenericAsset.name == "Test charging stations")
     ).scalar_one_or_none()
@@ -214,7 +214,7 @@ def test_scheduling_multiple_triggers(
         soc_targets = [dict(datetime=target_datetime.isoformat(), value=target_soc)]
 
         job = create_scheduling_job(
-            sensor=charging_station,
+            asset_or_sensor=charging_station,
             start=start,
             end=end,
             belief_time=start,

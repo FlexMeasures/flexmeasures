@@ -6,16 +6,19 @@ import pytest
 from timely_beliefs.sensors.func_store.knowledge_horizons import at_date
 import pandas as pd
 
+from sqlalchemy import select
+
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.fixture(params=["appsi_highs", "cbc"])
 def app_with_each_solver(app, request):
     """Set up the app config to run with different solvers.
 
-    A test that uses this fixtures runs all of its test cases with HiGHS and then again with Cbc.
+    A test that uses this fixture runs all of its test cases with HiGHS and then again with Cbc.
     """
     original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
     app.config["FLEXMEASURES_LP_SOLVER"] = request.param
@@ -95,16 +98,21 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
     """
     Set up a building.
     """
-    building_type = GenericAssetType(name="building")
+    building_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="building")
+    ).scalar_one_or_none()
+    if not building_type:
+        # create_test_battery_assets might have created it already
+        building_type = GenericAssetType(name="battery")
     db.session.add(building_type)
     building = GenericAsset(
         name="building",
         generic_asset_type=building_type,
         owner=setup_accounts["Prosumer"],
-        attributes=dict(
-            market_id=setup_markets["epex_da"].id,
-            capacity_in_mw=2,
-        ),
+        flex_context={
+            "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
+        },
     )
     db.session.add(building)
     return building
@@ -145,7 +153,7 @@ def inflexible_devices(db, building) -> dict[str, Sensor]:
         name="PV power sensor",
         generic_asset=building,
         event_resolution=timedelta(hours=1),
-        unit="kW",
+        unit="MW",
         attributes={"capacity_in_mw": 2},
     )
     db.session.add(pv_sensor)
@@ -174,7 +182,7 @@ def add_inflexible_device_forecasts(
     time_slots = initialize_index(
         start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
         end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
-        resolution="15T",
+        resolution="15min",
     )
 
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
@@ -186,9 +194,9 @@ def add_inflexible_device_forecasts(
     ) * (len(time_slots) // (24 * 4))
     add_as_beliefs(db, pv_sensor, pv_values, time_slots, setup_sources["Seita"])
 
-    # Residual demand (1 MW continuously)
+    # Residual demand (1 MW = 1000 kW continuously)
     residual_demand_sensor = inflexible_devices["residual demand power sensor"]
-    residual_demand_values = [-1] * len(time_slots)
+    residual_demand_values = [-1000] * len(time_slots)
     add_as_beliefs(
         db,
         residual_demand_sensor,
@@ -270,7 +278,10 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
 
     battery = add_battery_assets["Test battery"]
-    capacity = battery.get_attribute("capacity_in_mw")
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    )
     sensors = {}
     sensor_specs = [
         ("delta fails", timedelta(minutes=15), capacity * 1.2),
@@ -364,6 +375,51 @@ def add_storage_efficiency(db, add_battery_assets, setup_sources) -> dict[str, S
             setup_sources["Seita"],
         )
         sensors[name] = storage_efficiency_sensor
+
+    return sensors
+
+
+@pytest.fixture(scope="module")
+def add_soc_targets(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
+    """
+    Fixture to add storage SOC targets as sensors and their beliefs to the database.
+
+    The function creates a single event at 14:00 + offset with a value of 0.5.
+    """
+
+    battery = add_battery_assets["Test battery"]
+    soc_value = 0.5
+    soc_datetime = pd.Timestamp("2015-01-01T14:00:00", tz="Europe/Amsterdam")
+    sensors = {}
+
+    sensor_specs = [
+        # name, resolution, offset from the resolution tick
+        ("soc-targets (1h)", timedelta(minutes=60), timedelta(minutes=0)),
+        ("soc-targets (15min)", timedelta(minutes=15), timedelta(minutes=0)),
+        ("soc-targets (15min lagged)", timedelta(minutes=15), timedelta(minutes=5)),
+        ("soc-targets (5min)", timedelta(minutes=5), timedelta(minutes=0)),
+        ("soc-targets (instantaneous)", timedelta(minutes=0), timedelta(minutes=0)),
+    ]
+
+    for name, resolution, offset in sensor_specs:
+        storage_constraint_sensor = Sensor(
+            name=name,
+            unit="MWh",
+            event_resolution=resolution,
+            generic_asset=battery,
+        )
+        db.session.add(storage_constraint_sensor)
+        db.session.flush()
+
+        belief = TimedBelief(
+            event_start=soc_datetime + offset,
+            belief_horizon=timedelta(hours=100),
+            event_value=soc_value,
+            source=setup_sources["Seita"],
+            sensor=storage_constraint_sensor,
+        )
+        db.session.add(belief)
+        sensors[name] = storage_constraint_sensor
 
     return sensors
 

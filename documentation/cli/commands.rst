@@ -92,6 +92,15 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 
 
+``monitor`` - Monitoring
+--------------
+
+================================================= =======================================
+``flexmeasures monitor latest-run``               Check if the given task's last successful execution happened less than the allowed time ago.
+``flexmeasures monitor last-seen``                Check if given users last contact (via a request) happened less than the allowed time ago.
+================================================= =======================================
+
+
 ``jobs`` - Job queueing
 --------------
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 from itertools import groupby
 from flask_login import current_user
 
-from sqlalchemy import select, Select
+from sqlalchemy import select, Select, or_, and_, union_all
+from sqlalchemy.orm import aliased
 from flexmeasures.data import db
 from flexmeasures.auth.policy import user_has_admin_access
 
@@ -120,16 +121,21 @@ def get_asset_group_queries(
     asset_queries = {}
 
     # 1. Custom asset groups by combinations of asset types
+    asset_types_to_remove = []
     if custom_aggregate_type_groups:
         for asset_type_group_name, asset_types in custom_aggregate_type_groups.items():
             asset_queries[asset_type_group_name] = query_assets_by_type(asset_types)
+            # Remember subgroups
+            asset_types_to_remove += asset_types
 
     # 2. Include a group per asset type - using the pluralised asset type name
     if group_by_type:
         for asset_type in db.session.scalars(select(GenericAssetType)).all():
-            asset_queries[pluralize(asset_type.name)] = query_assets_by_type(
-                asset_type.name
-            )
+            # Add asset type as a group if not already covered by custom group
+            if asset_type.name not in asset_types_to_remove:
+                asset_queries[pluralize(asset_type.name)] = query_assets_by_type(
+                    asset_type.name
+                )
 
     # 3. Include a group per account (admins only)  # TODO: we can later adjust this for accounts who admin certain others, not all
     if group_by_account and user_has_admin_access(current_user, "read"):
@@ -143,3 +149,77 @@ def get_asset_group_queries(
         asset_queries.update(get_location_queries())
 
     return asset_queries
+
+
+def query_assets_by_search_terms(
+    search_terms: list[str] | None,
+    filter_statement: bool = True,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
+) -> Select:
+    select_statement = select(GenericAsset)
+
+    valid_sort_columns = {
+        "id": GenericAsset.id,
+        "name": GenericAsset.name,
+        "owner": GenericAsset.account_id,
+    }
+
+    # Initialize base query
+    query = select_statement
+
+    if search_terms is not None:
+        private_select_statement = select_statement.join(
+            Account, Account.id == GenericAsset.account_id
+        )
+        private_filter_statement = filter_statement & and_(
+            *(
+                or_(
+                    GenericAsset.name.ilike(f"%{term}%"),
+                    Account.name.ilike(f"%{term}%"),
+                )
+                for term in search_terms
+            )
+        )
+        public_select_statement = select_statement
+        public_filter_statement = (
+            filter_statement
+            & GenericAsset.account_id.is_(None)
+            & and_(GenericAsset.name.ilike(f"%{term}%") for term in search_terms)
+        )
+
+        if sort_by is not None and sort_dir is not None:
+            if sort_by in valid_sort_columns:
+                order_by_clause = (
+                    valid_sort_columns[sort_by].asc()
+                    if sort_dir == "asc"
+                    else valid_sort_columns[sort_by].desc()
+                )
+                private_select_statement = private_select_statement.order_by(
+                    order_by_clause
+                )
+                public_select_statement = public_select_statement.order_by(
+                    order_by_clause
+                )
+
+        # Combine private and public queries
+        subquery = union_all(
+            private_select_statement.where(private_filter_statement),
+            public_select_statement.where(public_filter_statement),
+        ).subquery()
+
+        asset_alias = aliased(GenericAsset, subquery)
+        query = select(asset_alias)
+
+    else:
+        query = query.where(filter_statement)
+
+        if sort_by is not None and sort_dir is not None:
+            if sort_by in valid_sort_columns:
+                order_by_clause = (
+                    valid_sort_columns[sort_by].asc()
+                    if sort_dir == "asc"
+                    else valid_sort_columns[sort_by].desc()
+                )
+                query = query.order_by(order_by_clause)
+    return query

@@ -12,3 +12,5 @@ fakeredis
 lupa
 # LP solver required to test the function device_scheduler which is used by the StorageScheduler
 highspy
+pytest-mock
+openpyxl

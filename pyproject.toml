@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=62", "setuptools_scm[toml]>=6.2", "wheel>=0.29.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flexmeasures"
+description = "The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}  # todo: move to `licence = "Apache-2.0"` when dropping support for Python 3.8
+# license-files = ["LICENSE"]  # todo: Python 3.8 installation on GH Actions still fails on this
+authors = [
+    {name = "Seita BV", email = "nicolas@seita.nl"}
+]
+keywords = ["smart grid", "renewables", "balancing", "forecasting", "scheduling"]
+classifiers = [
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: Flask",
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Natural Language :: English"
+]
+dynamic = ["version", "dependencies"]
+
+[project.urls]
+Homepage = "https://flexmeasures.io"
+Documentation = "https://flexmeasures.readthedocs.io/"
+"Source code" = "https://github.com/FlexMeasures/flexmeasures"
+
+[project.scripts]
+flexmeasures = "flexmeasures.utils.app_utils:flexmeasures_cli"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["flexmeasures*"]
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+version_scheme = "guess-next-dev"

@@ -65,7 +65,7 @@ def test_requeue_failing_job(
 
     for _ in range(2):
         job = create_scheduling_job(
-            sensor=charging_station,
+            asset_or_sensor=charging_station,
             start=start,
             end=end,
             resolution=resolution,

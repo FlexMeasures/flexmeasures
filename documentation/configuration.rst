@@ -402,6 +402,20 @@ You can also set this in a file (which some Flask tutorials advise).
 
 Default: ``None``
 
+
+.. _security_totp_secrets:
+
+SECURITY_TOTP_SECRETS
+^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary with secrets used to sign :abbr:`TOTP (time-based one-time password)` tokens.
+For example, ``{"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}``.
+
+Default: ``None``
+
+.. note:: Leave this setting set to ``None`` to get more instructions when you attempt to run FlexMeasures.
+          This setting is also recognized as environment variable.
+
 SECURITY_PASSWORD_SALT
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -453,6 +467,14 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 .. note::  This option cannot be used in conjunction with a “*” origin.
 
 Default: ``True``
+
+
+FLEXMEASURES_FORCE_HTTPS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set to ``True`` if all requests should be forced to be HTTPS.
+
+Default: ``False``
 
 
 FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
@@ -535,7 +557,7 @@ Password of mail system user.
 Default: ``None``
 
 
-.. _monitoring
+.. _monitoring:
 
 Monitoring
 -----------

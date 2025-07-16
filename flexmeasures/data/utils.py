@@ -58,7 +58,7 @@ def get_data_source(
 
 def save_to_db(
     data: BeliefsDataFrame | BeliefsSeries | list[BeliefsDataFrame | BeliefsSeries],
-    bulk_save_objects: bool = False,
+    bulk_save_objects: bool = True,
     save_changed_beliefs_only: bool = True,
 ) -> str:
     """Save the timed beliefs to the database.
@@ -104,13 +104,16 @@ def save_to_db(
     values_saved = 0
     for timed_values in timed_values_list:
 
-        if timed_values.empty:
-            # Nothing to save
-            continue
-
         # Convert series to frame if needed
         if isinstance(timed_values, BeliefsSeries):
             timed_values = timed_values.rename("event_value").to_frame()
+
+        # Don't save NaN event values to the database
+        timed_values = timed_values.dropna(subset=["event_value"])
+
+        if timed_values.empty:
+            # Nothing to save
+            continue
 
         len_before = len(timed_values)
         if save_changed_beliefs_only:

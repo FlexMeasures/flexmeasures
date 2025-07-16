@@ -29,8 +29,10 @@ class SensorAPI(FlaskView):
     """
 
     route_base = "/sensor"
+    trailing_slash = False
+    # Note: when promoting these endpoints to the main API, we aim to be strict with trailing slashes, see #1014
 
-    @route("/<id>/chart/")
+    @route("/<id>/chart", strict_slashes=False)
     @use_kwargs(
         {"sensor": SensorIdField(data_key="id")},
         location="path",
@@ -64,7 +66,7 @@ class SensorAPI(FlaskView):
         - "event_ends_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
-        - "include_data" (if true, chart specs include the data; if false, use the `GET /api/dev/sensor/(id)/chart_data/ <../api/dev.html#get--api-dev-sensor-(id)-chart_data->`_ endpoint to fetch data)
+        - "include_data" (if true, chart specs include the data; if false, use the `GET /api/dev/sensor/(id)/chart_data <../api/dev.html#get--api-dev-sensor-(id)-chart_data->`_ endpoint to fetch data)
         - "chart_type" (currently 'bar_chart' and 'daily_heatmap' are supported types)
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
         - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
@@ -73,7 +75,7 @@ class SensorAPI(FlaskView):
         set_session_variables("event_starts_after", "event_ends_before", "chart_type")
         return json.dumps(sensor.chart(**kwargs))
 
-    @route("/<id>/chart_data/")
+    @route("/<id>/chart_data", strict_slashes=False)
     @use_kwargs(
         {"sensor": SensorIdField(data_key="id")},
         location="path",
@@ -85,7 +87,9 @@ class SensorAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "resolution": DurationField(required=False),
-            "most_recent_beliefs_only": fields.Boolean(required=False, default=True),
+            "most_recent_beliefs_only": fields.Boolean(
+                required=False, load_default=True
+            ),
         },
         location="query",
     )
@@ -108,7 +112,7 @@ class SensorAPI(FlaskView):
         """
         return sensor.search_beliefs(as_json=True, **kwargs)
 
-    @route("/<id>/chart_annotations/")
+    @route("/<id>/chart_annotations", strict_slashes=False)
     @use_kwargs(
         {"sensor": SensorIdField(data_key="id")},
         location="path",
@@ -146,7 +150,7 @@ class SensorAPI(FlaskView):
         df["source"] = df["source"].astype(str)
         return df.to_json(orient="records")
 
-    @route("/<id>/")
+    @route("/<id>", strict_slashes=False)
     @use_kwargs(
         {"sensor": SensorIdField(data_key="id")},
         location="path",
@@ -168,8 +172,9 @@ class AssetAPI(FlaskView):
     """
 
     route_base = "/asset"
+    trailing_slash = False
 
-    @route("/<id>/")
+    @route("/<id>", strict_slashes=False)
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
         location="path",

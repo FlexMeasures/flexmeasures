@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
 
@@ -69,9 +69,10 @@ def check_app_env(env: str | None):
         sys.exit(2)
 
 
-def read_config(app: Flask, custom_path_to_config: str | None):
-    """Read configuration from various expected sources, complain if not setup correctly."""
-
+def get_flexmeasures_env(app) -> str:
+    """
+    Determine which flexmeasures_env should be used, trying various ways in decreasing importance.
+    """
     flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
     if app.testing:
         flexmeasures_env = "testing"
@@ -83,7 +84,13 @@ def read_config(app: Flask, custom_path_to_config: str | None):
             "'FLASK_ENV' is deprecated and replaced by FLEXMEASURES_ENV"
             " Change FLASK_ENV to FLEXMEASURES_ENV in the environment variables",
         )
+    return flexmeasures_env
 
+
+def read_config(app: Flask, custom_path_to_config: str | None):
+    """Read configuration from various expected sources, complain if not setup correctly."""
+
+    flexmeasures_env = get_flexmeasures_env(app)
     check_app_env(flexmeasures_env)
 
     # First, load default config settings
@@ -133,7 +140,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     app.logger.setLevel(app.config.get("LOGGING_LEVEL", "INFO"))
     # print("Logging level is %s" % logging.getLevelName(app.logger.level))
 
-    app.config["START_TIME"] = datetime.utcnow()
+    app.config["START_TIME"] = datetime.now(timezone.utc)
 
 
 def read_custom_config(
@@ -176,11 +183,18 @@ def read_env_vars(app: Flask):
     - Logging settings
     - access tokens
     - plugins (handled in plugin utils)
+    - json compactness
     """
     for var in (
         required
         + list(warnable.keys())
-        + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN", "FLEXMEASURES_PLUGINS"]
+        + [
+            "LOGGING_LEVEL",
+            "MAPBOX_ACCESS_TOKEN",
+            "SENTRY_SDN",
+            "FLEXMEASURES_PLUGINS",
+            "FLEXMEASURES_JSON_COMPACT",
+        ]
     ):
         app.config[var] = os.getenv(var, app.config.get(var, None))
     # DEBUG in env can come in as a string ("True") so make sure we don't trip here

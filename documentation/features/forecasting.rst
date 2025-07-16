@@ -6,7 +6,7 @@ Forecasting
 Scheduling is about the future, and you need some knowledge / expectations about the future to do it.
 
 Of course, the nicest forecasts are the one you don't have to make yourself (it's not an easy field), so do use price or usage forecasts from third parties if available.
-There are even existing plugins for importing `weather forecasts <https://github.com/SeitaBV/flexmeasures-openweathermap>`_ or `market data <https://github.com/SeitaBV/flexmeasures-entsoe>`_.
+There are even existing plugins for importing `weather forecasts <https://github.com/flexmeasures/flexmeasures-weather>`_ or `market data <https://github.com/SeitaBV/flexmeasures-entsoe>`_.
 
 If you need to make your own predictions, forecasting algorithms can be used within FlexMeasures, for instance to assess the expected profile of future consumption/production.
 
@@ -72,7 +72,7 @@ The attribute `sensor.weather_correlations` can be used for this, e.g. for the s
 FlexMeasures will then try to find an asset with asset type "weather_station" that has a location near the asset your forecasted sensor belogs to.
 That weather station should have sensors with the correlations you entered, and if they have data in a suitable range, the regressors can be used in your forecasting.
 
-In `this weather forecast plugin <https://github.com/SeitaBV/flexmeasures-openweathermap>`_, we enabled you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
+In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
 
 
 Performance benchmarks

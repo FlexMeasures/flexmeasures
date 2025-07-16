@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -276,3 +277,31 @@ def test_persist_beliefs(setup_beliefs, setup_test_data, db):
         sensor, source=source, most_recent_beliefs_only=False
     )
     assert len(bdf) == setup_beliefs * 2
+
+
+def test_search_sources(db, setup_multiple_sources):
+    test_sensor, s1, s2, s3 = setup_multiple_sources
+
+    def get_sources_names(vec: list[DataSource]) -> list[str]:
+        return [s.name for s in vec]
+
+    # no filter
+    assert get_sources_names(test_sensor.search_data_sources()) == ["S1", "S2", "S3"]
+
+    # exclude results by type
+    assert get_sources_names(
+        test_sensor.search_data_sources(exclude_source_types=["type 1"])
+    ) == ["S2", "S3"]
+
+    # filter by type
+    assert get_sources_names(
+        test_sensor.search_data_sources(source_types=["type 2"])
+    ) == ["S2"]
+
+    # time window filter
+    assert get_sources_names(
+        test_sensor.search_data_sources(
+            event_starts_after="2024-01-01T00:00:00+01:00",
+            event_ends_before="2024-01-02T00:00:00+01:00",
+        )
+    ) == ["S1", "S2"]

@@ -65,8 +65,13 @@ function clickableTable(element, urlColumn) {
 
             if (euclidean <= radiusLimit) {
                 var columnIndex = table.column(':contains(' + urlColumn + ')').index();
+                
                 var data = table.row(this).data();
-                var url = data[columnIndex];
+                if(Array.isArray(data)){
+                    var url = data[columnIndex];
+                } else{
+                    var url = data["url"];
+                }
                 handleClick(event, url);
             }
         }
@@ -452,4 +457,163 @@ function replaceMultiple(str, mapObj){
     // Use the regular expression to replace matched substrings with their corresponding values from the mapObj.
     // The "g" flag makes the replacement global (replaces all occurrences), and it is case-sensitive by default.
     return str.replace(regex, matched => mapObj[matched]);
+}
+
+
+function getTimeAgo(timestamp) {
+    /**
+     * Converts a timestamp into a human-readable "time ago" format.
+     *
+     * @param {number} timestamp - The timestamp in milliseconds to convert.
+     * @returns {string} A string representing how much time has passed since the given timestamp,
+     *                   formatted as "X seconds ago", "X minutes ago", "X hours ago", or "X days ago".
+     */
+    const now = Date.now();
+    const diffInSeconds = Math.floor((now - timestamp) / 1000); // Difference in seconds
+    if (diffInSeconds < 60) {
+        return `${diffInSeconds} seconds ago`;
+    } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
+}
+
+
+// Function to return a loading row for a table
+function getLoadingRow(id="loading-row") {
+    const loading_row = `
+        <tr id="${id}">
+            <td colspan="5" class="text-center">
+                <i class="fa fa-spinner fa-spin"></i> Loading...
+            </td>
+        </tr>
+    `;
+    return loading_row;
+}
+
+function unpackData(data) {
+    return Object.fromEntries(
+        Object.entries(data).map(([key, value]) => {
+            if (Array.isArray(value) && value.every(item => Array.isArray(item) && item.length === 2)) {
+                return [key, Object.fromEntries(value)];
+            }
+            console.error(`Invalid entry for key: ${key}`, value);
+            return [key, value];
+        })
+    );
+}
+
+function getLatestBeliefName(data) {
+    return Object.keys(data).reduce((latest, name) => {
+        const currentBeliefTime = new Date(data[name]["Last recorded"]);
+        const latestBeliefTime = latest ? new Date(data[latest]["Last recorded"]) : new Date(0);
+        return currentBeliefTime > latestBeliefTime ? name : latest;
+    }, null);
+}
+
+function updateStatsTable(stats, tableBody) {
+    tableBody.innerHTML = ''; // Clear the table body
+
+    Object.entries(stats).forEach(([key, val]) => {
+        const row = document.createElement('tr');
+        const keyCell = document.createElement('th');
+        const valueCell = document.createElement('td');
+
+        keyCell.textContent = key;
+        // Round value to 2 decimal points if it's a number
+        if (typeof val === 'number' & key != 'Number of values') {
+            valueCell.textContent = val.toFixed(4);
+        } else {
+            valueCell.textContent = val;
+        }
+
+        row.appendChild(keyCell);
+        row.appendChild(valueCell);
+        tableBody.appendChild(row);
+    });
+}
+
+function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
+    const spinner = document.getElementById('spinner-run-simulation');
+    const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
+    const tableBody = document.getElementById('statsTableBody');
+    const toggleStatsCheckbox = document.getElementById('toggleStatsCheckbox');
+    const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
+    const dropdownButton = document.getElementById('sourceKeyDropdown');
+    const noDataWarning = document.getElementById('noDataWarning');
+    const fetchError = document.getElementById('fetchError');
+    let queryParams = '?sort=false';
+    // Show the spinner
+    spinner.classList.remove('d-none');
+    if (toggleStatsCheckbox.checked) {
+        queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
+    }
+    
+    // Enable all the default behaviors on every API call.
+    dropdownMenu.innerHTML = '';
+    noDataWarning.classList.add('d-none');
+    fetchError.classList.add('d-none');
+    tableBody.innerHTML = '';
+    
+    fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)
+    .then(response => response.json())
+    .then(data => {
+        // Remove 'status' sourceKey
+        delete data['status'];
+        data = unpackData(data);
+
+        if (Object.keys(data).length > 0) {
+            // Show the header and dropdown container
+            dropdownContainer.classList.remove('d-none');
+            // Populate the dropdown menu with sourceKeys
+            Object.keys(data).forEach(sourceKey => {
+                const dropdownItem = document.createElement('li');
+                const dropdownLink = document.createElement('a');
+                dropdownLink.className = 'dropdown-item';
+                dropdownLink.href = '#';
+                dropdownLink.textContent = sourceKey;
+                dropdownLink.dataset.sourceKey = sourceKey;
+
+                dropdownLink.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const selectedSourceKey = event.target.dataset.sourceKey;
+                    dropdownButton.textContent = selectedSourceKey;
+                    updateStatsTable(data[selectedSourceKey], tableBody);
+                });
+
+                dropdownItem.appendChild(dropdownLink);
+                dropdownMenu.appendChild(dropdownItem);
+            });
+
+            // Update the table with the first sourceKey's data by default
+            const firstSourceKey = getLatestBeliefName(data);
+            dropdownButton.textContent = firstSourceKey;
+            updateStatsTable(data[firstSourceKey], tableBody);
+        } else {
+            // If the stats table is empty, make the properties table full width
+            noDataWarning.classList.remove('d-none');
+            dropdownContainer.classList.add('d-none');
+            tableBody.innerHTML = '';
+            if (toggleStatsCheckbox.checked) {
+                noDataWarning.innerHTML = 'There is no data for the selected date range.'
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        dropdownContainer.classList.add('d-none');
+        fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
+        fetchError.classList.remove('d-none');
+    })
+    .finally(() => {
+        // Hide the spinner
+        spinner.classList.add('d-none');
+    });
+
 }

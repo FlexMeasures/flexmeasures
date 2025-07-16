@@ -1,11 +1,11 @@
 repos:
 -   repo: https://github.com/pycqa/flake8
-    rev: 6.0.0  # New version tags can be found here: https://github.com/pycqa/flake8/tags
+    rev: 7.1.1  # New version tags can be found here: https://github.com/pycqa/flake8/tags
     hooks:
     - id: flake8
       name: flake8 (code linting)
 -   repo: https://github.com/psf/black
-    rev: 22.10.0  # New version tags can be found here: https://github.com/psf/black/tags
+    rev: 24.8.0  # New version tags can be found here: https://github.com/psf/black/tags
     hooks:
     - id: black
       name: black (code formatting)

@@ -12,6 +12,18 @@ Here, we define a few terms around this idea, which come up in other parts of th
     :depth: 2
 
 
+Behind-the-meter and front-of-the-meter
+----------------------------------------
+
+In the energy sector, we draw a distinction between behind-the-meter (BTM) and front-of-the-meter (FTM) optimization. As usual, the distinction isn't always clear, but we can give the general definition and the focus for FlexMeasures (BTM).
+
+BTM optimization describes the optimization of assets connected on a site behind the main meter (which has the connection to the rest of the electricity grid). Think of local solar, heating, EV charging and even batteries. A (dynamic) tariff and limits to the grid connection often complete the picture, which can become quite complex and also rewarding to get right.
+
+On the other hand, there is front-of-the-meter (FTM) optimization, which relates to grid-level optimization as is the work of utilities, DSOs and TSOs. Think of large-scale generation and its role in wholesale markets, managing transmission lines. But also, flexible grid-level assets like batteries and solar parks might belong here, and you might find that FlexMeasures can help to optimize some of these assets if you model the circumstances correctly.
+
+When we focus on the situation behind the meter, do we ignore everything else? Not at all. It simply means to prioritize the local orchestration modeling, and then add services which the site can offer to the grid. For instance, using a dynamic tariff can already help the grid. Obeying (flexible) grid capacity constraints, as well, of course. Going further, extra flexibility can be offered explicitly to congestion markets/auctions, which is part of `FlexMeasures' roadmap <https://flexmeasures.io/roadmap/>`_. (Note: For a distinction between implicit and explicit flexibility, read on below).
+
+
 Flexibility opportunities and activation
 -----------------------------------------
 

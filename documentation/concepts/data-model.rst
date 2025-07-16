@@ -31,7 +31,7 @@ Here is an example of an asset with sub-assets:
         A[Grid] <--> B(Campus)
         B <--> C(Site 1)
         B <--> D(Site 2)
-        
+
         C <--> E[PV]
         C <--> F[Battery]
 
@@ -39,6 +39,7 @@ Here is an example of an asset with sub-assets:
         D <--> H[Battery]
         D <--> I[Charge\nPoint]
 
+We model asset types explicitly. None are required for running FlexMeasures. Some asset types have support in the UI (for icons, like a sun for ``"solar"``), and in the toy tutorial and test. Some are used to select the scheduler (e.g. using ``"battery"`` or ``"one-way_evse"`` leads to using the storage scheduler). You can add your own types, which is useful for plugin logic (an example is the ``"weather station"`` type for a plugin that reads in weather forecasts).
 
 Sensors
 ---------
@@ -58,8 +59,11 @@ A market might have a publication date you want to adhere to. More information `
 Data sources
 ------------
 
-We keep track of where data comes from, for better reporting (this is also an aspect of the timely-beliefs package).
+We keep track of where data comes from, for better reporting, graphing and the status page (this is also an aspect of the timely-beliefs package).
 A data source can be a FlexMeasures user, but also simply a named source from outside, e.g. a third-party API, where weather forecasts are collected from.
+
+In FlexMeasures, data sources have a type. It is just a string which you can freely choose (we do not model them explicitly im the data model like Asset types).
+We do support some types out of the box: "scheduler", "forecaster" "reporter", "demo script" and "user".
 
 
 Beliefs
@@ -91,3 +95,5 @@ Accounts "own" assets, and data of these assets are protected against anyone fro
 Accounts can "consult" other accounts. This depicts the real situation that some organizations are the consultants or advisors to many others.
 They have certain rights, e.g. to read the data of their clients. That is useful for serving them.
 If you are hosting FlexMeasures, and the organizations you serve with it use this feature, you are effectively running a B2B2B setup :)
+
+Finally, accounts can be white-labelled. Each account can have a logo and a unique set of primary and secondary color. This will determine what users see in the UI when they log in as users of an account.

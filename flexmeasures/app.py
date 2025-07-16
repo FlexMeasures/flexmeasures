@@ -20,6 +20,8 @@ from flask_cors import CORS
 from redis import Redis
 from rq import Queue
 
+from flexmeasures.data.services.job_cache import JobCache
+
 
 def create(  # noqa C901
     env: str | None = None,
@@ -38,8 +40,16 @@ def create(  # noqa C901
     """
 
     from flexmeasures.utils import config_defaults
-    from flexmeasures.utils.config_utils import read_config, configure_logging
-    from flexmeasures.utils.app_utils import set_secret_key, init_sentry
+    from flexmeasures.utils.config_utils import (
+        read_config,
+        configure_logging,
+        get_flexmeasures_env,
+    )
+    from flexmeasures.utils.app_utils import (
+        set_secret_key,
+        set_totp_secrets,
+        init_sentry,
+    )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
     # Create app
@@ -100,13 +110,20 @@ def create(  # noqa C901
         # labelling=Queue(connection=redis_conn, name="labelling"),
         # alerting=Queue(connection=redis_conn, name="alerting"),
     )
+    app.job_cache = JobCache(app.redis_connection)
 
     # Some basic security measures
 
     set_secret_key(app)
+    if app.config.get("SECURITY_TWO_FACTOR", False):
+        set_totp_secrets(app)
+    elif get_flexmeasures_env(app) == "production":
+        app.logger.warning(
+            "SECURITY_TWO_FACTOR is False. We advise to set it to True in a production environment."
+        )
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
-    if app.config.get("FLEXMEASURES_ENV") not in ("documentation", "development"):
+    if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
         SSLify(app)
 
     # Prepare profiling, if needed
@@ -139,23 +156,24 @@ def create(  # noqa C901
     )  # use copy to avoid mutating app.reporters
     app.data_generators["scheduler"] = schedulers
 
-    # deprecated: app.reporters and app.schedulers
-    app.reporters = reporters
-    app.schedulers = schedulers
-
-    def get_reporters():
-        app.logger.warning(
-            '`app.reporters` is deprecated. Use `app.data_generators["reporter"]` instead.'
-        )
-        return app.data_generators["reporter"]
-
-    setattr(app, "reporters", get_reporters())
-
     # add auth policy
 
     from flexmeasures.auth import register_at as register_auth_at
 
     register_auth_at(app)
+
+    # This needs to happen here because for unknown reasons, Security(app)
+    # and FlaskJSON() will set this to False on their own
+    if app.config.get("FLEXMEASURES_JSON_COMPACT", False) in (
+        True,
+        "True",
+        "true",
+        "1",
+        "yes",
+    ):
+        app.json.compact = True
+    else:
+        app.json.compact = False
 
     # Register the CLI
 
@@ -215,7 +233,7 @@ def create(  # noqa C901
                 if not hasattr(g, "profiler"):
                     return app
                 g.profiler.stop()
-                output_html = g.profiler.output_html(timeline=True)
+                output_html = g.profiler.output_html()
                 endpoint = request.endpoint
                 if endpoint is None:
                     endpoint = "unknown"

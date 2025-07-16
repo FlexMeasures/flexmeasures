@@ -37,8 +37,8 @@
 
 
 {% if current_user.is_authenticated %}
-    {% set has_admin_reader_rights = True if (current_user.has_role('admin') or current_user.has_role('admin-reader') or FLEXMEASURES_MODE == "demo") %}
-    {% set is_consultant = True if current_user.has_role('consultant') %}
+    {% set has_admin_reader_rights = True if (current_user.has_role(ADMIN_ROLE) or current_user.has_role(ADMIN_READER_ROLE) or FLEXMEASURES_MODE == "demo") %}
+    {% set is_consultant = True if current_user.has_role(CONSULTANT_ROLE) %}
     {% if has_admin_reader_rights %}
         {% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul'))  %}
         {% do navigation_bar.append(('users', 'users', 'Users', '', 'users')) %}

@@ -18,12 +18,11 @@ jobs:
 
   test:
     needs: check
-    # fixed for now due to problems with 22.04 (see #551), try -latest sometime
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ "3.8", "3.9", "3.10", "3.11" ]
+        py_version: [ "3.9", "3.10", "3.11", "3.12" ]
         include:
           - python-version: "3.9"
             coverage: yes
@@ -38,8 +37,11 @@ jobs:
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - name: Upgrade pip
+        run: |
+          pip3 install --upgrade pip
       - name: "Caching for dependencies (.txt) - restore existing or ensure new cache will be made"
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         id: cache
         with:
           path: ${{ env.pythonLocation }}
@@ -56,10 +58,18 @@ jobs:
       - name: Install FlexMeasures & latest dependencies for tests
         run: make install-for-test pinned=no
         if: github.event_name == 'pull_request'
+      - name: Run all doctests in the data/schemas subpackage
+        run: pytest flexmeasures/data/schemas --doctest-modules --ignore flexmeasures/data/schemas/tests
+      - name: Run all doctests in the ui/utils subpackage
+        run: pytest flexmeasures/ui --doctest-modules --ignore flexmeasures/ui/tests
+      - name: Run all doctests in the utils subpackage
+        run: pytest flexmeasures/utils --doctest-modules --ignore flexmeasures/utils/tests
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch --cov-report=lcov
       - name: Coveralls
         uses: coverallsapp/github-action@v2
+        with:
+          fail-on-error: false
         if: ${{ matrix.coverage == 'yes' }}
     env:
       PGHOST: 127.0.0.1

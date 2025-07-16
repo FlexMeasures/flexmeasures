@@ -7,7 +7,6 @@ import inflect
 from flask import current_app
 import pandas as pd
 import timely_beliefs as tb
-from timely_beliefs.beliefs import utils as belief_utils
 
 from flexmeasures.data.queries.utils import simplify_index
 
@@ -69,7 +68,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
     if not ex_ante_bdf.empty and not ex_post_bdf.empty:
-        # We treat each part separately to avoid the ex-post knowledge would be lost
+        # We treat each part separately to avoid that ex-post knowledge would be lost
         ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf)
         ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf)
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
@@ -88,15 +87,34 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
 
     # Remove unchanged beliefs with respect to what is already stored in the database
+    if bdf.belief_horizons[0] > timedelta(0):
+        # Look up only ex-ante beliefs (horizon > 0)
+        kwargs = dict(horizons_at_least=timedelta(0))
+    else:
+        # Look up only ex-post beliefs (horizon <= 0)
+        kwargs = dict(horizons_at_most=timedelta(0))
+    bdf_db = bdf.sensor.search_beliefs(
+        event_starts_after=bdf.event_starts[0],
+        event_ends_before=bdf.event_ends[-1],
+        most_recent_beliefs_only=False,  # all beliefs
+        **kwargs,
+    )
+    if bdf_db.empty:
+        return bdf
     return (
         bdf.convert_index_from_belief_horizon_to_time()
-        .groupby(level=["belief_time", "source"], group_keys=False, as_index=False)
-        .apply(_drop_unchanged_beliefs_compared_to_db)
+        .groupby(
+            level=["event_start", "belief_time", "source"],
+            group_keys=False,
+            as_index=False,
+        )
+        .apply(_drop_unchanged_beliefs_compared_to_db, bdf_db=bdf_db)
     )
 
 
 def _drop_unchanged_beliefs_compared_to_db(
     bdf: tb.BeliefsDataFrame,
+    bdf_db: tb.BeliefsDataFrame,
 ) -> tb.BeliefsDataFrame:
     """Drop beliefs that are already stored in the database with an earlier belief time.
 
@@ -105,28 +123,24 @@ def _drop_unchanged_beliefs_compared_to_db(
 
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
-    if bdf.belief_horizons[0] > timedelta(0):
-        # Look up only ex-ante beliefs (horizon > 0)
-        kwargs = dict(horizons_at_least=timedelta(0))
-    else:
-        # Look up only ex-post beliefs (horizon <= 0)
-        kwargs = dict(horizons_at_most=timedelta(0))
-    previous_beliefs_in_db = bdf.sensor.search_beliefs(
-        event_starts_after=bdf.event_starts[0],
-        event_ends_before=bdf.event_ends[-1],
-        beliefs_before=bdf.lineage.belief_times[0],  # unique belief time
-        source=bdf.lineage.sources[0],  # unique source
-        most_recent_beliefs_only=False,
-        **kwargs,
-    )
-    # todo: delete next line and set most_recent_beliefs_only=True when this is resolved: https://github.com/SeitaBV/timely-beliefs/pull/117
-    previous_most_recent_beliefs_in_db = belief_utils.select_most_recent_belief(
-        previous_beliefs_in_db
-    )
-
+    source = bdf.lineage.sources[0]  # unique source
+    belief_time = bdf.lineage.belief_times[0]  # unique belief time
+    bdf_db_from_source = bdf_db[bdf_db.sources == source]
+    if bdf_db_from_source.empty:
+        return bdf
+    cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
+    if cutoff_idx == 0:
+        # No earlier belief time in db
+        return bdf
+    most_recent_bt = bdf_db_from_source.belief_times[cutoff_idx - 1]
+    previous_most_recent_beliefs = bdf_db_from_source[
+        bdf_db_from_source.belief_times == most_recent_bt
+    ]
+    if previous_most_recent_beliefs.empty:
+        return bdf
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
-    b = previous_most_recent_beliefs_in_db.reset_index().set_index(compare_fields)
+    b = previous_most_recent_beliefs.reset_index().set_index(compare_fields)
     bdf = a.drop(
         b.index,
         errors="ignore",

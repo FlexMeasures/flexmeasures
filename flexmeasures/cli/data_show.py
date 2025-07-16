@@ -24,16 +24,28 @@ from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetIdField,
+    SensorsToShowSchema,
+)
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.cli.utils import MsgStyle, validate_unique
+from flexmeasures.cli.utils import (
+    MsgStyle,
+    validate_unique,
+    tabulate_account_assets,
+)
 from flexmeasures.utils.coding_utils import delete_key_recursive
-from flexmeasures.cli.utils import DeprecatedOptionsCommand, DeprecatedOption
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.cli.utils import (
+    DeprecatedOptionsCommand,
+    DeprecatedOption,
+    get_sensor_aliases,
+)
 
 
 @click.group("show")
@@ -154,11 +166,39 @@ def show_account(account):
         click.secho("No assets in account ...", **MsgStyle.WARN)
     else:
         click.echo("All assets:\n ")
-        asset_data = [
-            (asset.id, asset.name, asset.generic_asset_type.name, asset.location)
-            for asset in assets
-        ]
-        click.echo(tabulate(asset_data, headers=["ID", "Name", "Type", "Location"]))
+        tabulate_account_assets(assets)
+
+
+@fm_show_data.command("assets")
+@with_appcontext
+@click.option("--account", "account", type=AccountIdField(), required=False)
+def show_account_assets(account: Account | None = None):
+    """
+    Show all the assets for a given account if account id is provided
+    Show only public assets if account id is not provided
+    """
+
+    if account:
+        click.echo(f"========{len(account.name) * '='}========")
+        click.echo(f"Account {account.name} (ID: {account.id})")
+        click.echo(f"========{len(account.name) * '='}========\n")
+        assets = db.session.scalars(
+            select(GenericAsset)
+            .filter_by(account_id=account.id)
+            .order_by(GenericAsset.name)
+        ).all()
+    else:
+        click.echo(f"========{18 * '='}========")
+        click.echo("Public Assets")
+        click.echo(f"========{18 * '='}========\n")
+        assets = db.session.scalars(
+            select(GenericAsset).filter_by(account_id=None).order_by(GenericAsset.name)
+        ).all()
+    if not assets:
+        click.secho("No assets in account ...", **MsgStyle.WARN)
+    else:
+        click.echo("All assets:\n ")
+        tabulate_account_assets(assets)
 
 
 @fm_show_data.command("asset-types")
@@ -188,18 +228,61 @@ def show_generic_asset(asset):
     """
     Show asset info and list sensors
     """
-    click.echo(f"======{len(asset.name) * '='}========")
+    separator_num = 18 if asset.parent_asset is not None else 8
+    click.echo(f"======{len(asset.name) * '='}{separator_num * '='}")
     click.echo(f"Asset {asset.name} (ID: {asset.id})")
-    click.echo(f"======{len(asset.name) * '='}========\n")
+    if asset.parent_asset is not None:
+        click.echo(
+            f"Child of asset {asset.parent_asset.name} (ID: {asset.parent_asset.id})"
+        )
+    click.echo(f"======{len(asset.name) * '='}{separator_num * '='}\n")
 
+    standardized_sensors_to_show = SensorsToShowSchema().deserialize(
+        asset.sensors_to_show
+    )
     asset_data = [
         (
             asset.generic_asset_type.name,
             asset.location,
+            "".join([f"{k}: {v}\n" for k, v in asset.flex_context.items()]),
+            "".join(
+                [
+                    f"{graph['title']}: {graph['sensors']} \n"
+                    for graph in standardized_sensors_to_show
+                ]
+            ),
             "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
         )
     ]
-    click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
+    click.echo(
+        tabulate(
+            asset_data,
+            headers=[
+                "Type",
+                "Location",
+                "Flex-Context",
+                "Sensors to show",
+                "Attributes",
+            ],
+        )
+    )
+
+    child_asset_data = [
+        (
+            child.id,
+            child.name,
+            child.generic_asset_type.name,
+        )
+        for child in asset.child_assets
+    ]
+    click.echo()
+    click.echo(f"======{len(asset.name) * '='}===================")
+    click.echo(f"Child assets of {asset.name} (ID: {asset.id})")
+    click.echo(f"======{len(asset.name) * '='}===================\n")
+    if child_asset_data:
+        click.echo(tabulate(child_asset_data, headers=["ID", "Name", "Type"]))
+    else:
+        click.secho("No child assets ...", **MsgStyle.WARN)
 
     click.echo()
     sensors = db.session.scalars(
@@ -359,6 +442,13 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
     " Example: 'result_file_$entity_type_$id_$now.csv' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
 )
+@click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(),
+    required=False,
+    help="Resolution of the data in ISO 8601 format. If not set, defaults to the minimum resolution of the sensor data. Note: Nominal durations like 'P1D' are converted to absolute timedeltas.",
+)
 def chart(
     sensors: list[Sensor] | None = None,
     assets: list[GenericAsset] | None = None,
@@ -368,11 +458,12 @@ def chart(
     height: int | None = None,
     width: int | None = None,
     filename_template: str | None = None,
+    resolution: timedelta | None = None,
 ):
     """
     Export sensor or asset charts in PNG or SVG formats. For example:
 
-        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3
+        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3 --resolution P1D
     """
 
     datetime_format = "%Y-%m-%dT%H:%M:%S"
@@ -426,6 +517,7 @@ def chart(
             event_ends_before=end,
             beliefs_before=belief_time,
             include_data=True,
+            resolution=resolution,
         )
 
         # remove formatType as it relies on a custom JavaScript function
@@ -529,6 +621,15 @@ def chart(
     help="Include sensor IDs in the plot's legend labels and the file's column headers. "
     "NB non-unique sensor names will always show an ID.",
 )
+@click.option(
+    "--reduced-paths/--full-paths",
+    "reduce_paths",
+    default=True,
+    type=bool,
+    help="Whether to include the full path to the asset that the sensor belongs to"
+    "which shows any parent assets and their account, "
+    "or a reduced version of the path, which shows as much detail as is needed to distinguish the sensors.",
+)
 def plot_beliefs(
     sensors: list[Sensor],
     start: datetime,
@@ -540,6 +641,7 @@ def plot_beliefs(
     filepath: str | None,
     source_types: list[str] = None,
     include_ids: bool = False,
+    reduce_paths: bool = True,
 ):
     """
     Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
@@ -586,21 +688,24 @@ def plot_beliefs(
             **MsgStyle.WARN,
         )
 
-    # Decide whether to include sensor IDs (always include them in case of non-unique sensor names)
+    # Decide whether to include sensor IDs
     if include_ids:
         df.columns = [f"{s.name} (ID {s.id})" for s in sensors]
     else:
+        # In case of non-unique sensor names, show more of the sensor's ancestry
         duplicates = find_duplicates(sensors, "name")
         if duplicates:
-            df.columns = [
-                f"{s.name} (ID {s.id})" if s.name in duplicates else s for s in sensors
-            ]
-            click.secho(
-                f"The following sensor names are duplicated: {duplicates}. To distinguish them, their plot labels will include their IDs. To include IDs for all sensors, use the --include-ids flag.",
-                **MsgStyle.WARN,
+            message = "The following sensor name"
+            message += "s are " if len(duplicates) > 1 else " is "
+            message += (
+                f"duplicated: {join_words_into_a_list(duplicates)}. "
+                f"To distinguish the sensors, their plot labels will include more parent assets and their account, as needed. "
+                f"To show the full path for each sensor, use the --full-path flag. "
+                f"Or to uniquely label them by their ID instead, use the --include-ids flag."
             )
-        else:
-            df.columns = [s.name for s in sensors]
+            click.secho(message, **MsgStyle.WARN)
+        sensor_aliases = get_sensor_aliases(sensors, reduce_paths=reduce_paths)
+        df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
     if timezone is not None:
@@ -611,23 +716,24 @@ def plot_beliefs(
     if len(sensors) == 1:
         title = f"Beliefs for Sensor '{sensors[0].name}' (ID {sensors[0].id}).\n"
     else:
-        title = f"Beliefs for Sensor(s) [{', '.join([s.name for s in sensors])}], (ID(s): [{', '.join([str(s.id) for s in sensors])}]).\n"
-    title += f"Data spans {naturaldelta(duration)} and starts at {start}."
+        title = f"Beliefs for Sensors {join_words_into_a_list([s.name + ' (ID ' + str(s.id) + ')' for s in sensors])}.\n"
+    title += f"Data spans {naturaldelta(duration)} and starts at {start}.\n"
+    title += f"The time resolution (x-axis) is {naturaldelta(resolution)}.\n"
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    title += f"\nThe time resolution (x-axis) is {naturaldelta(resolution)}."
 
     uniplot.plot(
-        [df[col] for col in df.columns],
+        ys=[df[col] for col in df.columns],
+        xs=[df.index for _ in df.columns],
         title=title,
         color=True,
         lines=True,
         y_unit=shared_unit,
-        legend_labels=df.columns
-        if shared_unit
-        else [f"{col} in {s.unit}" for col in df.columns],
+        legend_labels=(
+            df.columns if shared_unit else [f"{col} in {s.unit}" for col in df.columns]
+        ),
     )
     if filepath is not None:
         df.columns = pd.MultiIndex.from_arrays(

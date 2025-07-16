@@ -1,6 +1,7 @@
 """
 Populate the database with data we know or read in.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -86,11 +87,19 @@ def add_default_user_roles(db: SQLAlchemy):
     """
     Add a few useful user roles.
     """
+    from flexmeasures.auth import policy as auth_policy
+
     for role_name, role_description in (
-        ("admin", "Super user"),
-        ("admin-reader", "Can read everything"),
-        ("account-admin", "Can post and edit sensors and assets in their account"),
-        ("consultant", "Can read everything in consultancy client accounts"),
+        (auth_policy.ADMIN_ROLE, "Super user"),
+        (auth_policy.ADMIN_READER_ROLE, "Can read everything"),
+        (
+            auth_policy.ACCOUNT_ADMIN_ROLE,
+            "Can update and delete data in their account (e.g. assets, sensors, users, beliefs)",
+        ),
+        (
+            auth_policy.CONSULTANT_ROLE,
+            "Can read everything in consultancy client accounts",
+        ),
     ):
         role = db.session.execute(
             select(Role).filter_by(name=role_name)
@@ -310,7 +319,8 @@ def depopulate_measurements(
     query = delete(TimedBelief).filter(TimedBelief.belief_horizon <= timedelta(hours=0))
     if sensor_id is not None:
         query = query.filter(TimedBelief.sensor_id == sensor_id)
-    num_measurements_deleted = db.session.execute(query)
+    deletion_result = db.session.execute(query)
+    num_measurements_deleted = deletion_result.rowcount
 
     click.echo("Deleted %d measurements (ex-post beliefs)" % num_measurements_deleted)
 
@@ -343,7 +353,8 @@ def depopulate_prognoses(
 
     if sensor_id is not None:
         query = query.filter(TimedBelief.sensor_id == sensor_id)
-    num_forecasts_deleted = db.session.execute(query)
+    deletion_result = db.session.execute(query)
+    num_forecasts_deleted = deletion_result.rowcount
 
     if not sensor_id:
         click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)

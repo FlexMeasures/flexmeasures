@@ -6,10 +6,11 @@ version: 2
 
 sphinx:
   configuration: documentation/conf.py
+  fail_on_warning: true
 
 # Optionally build your docs in additional formats such as PDF
-formats:
-  - pdf
+#formats:
+#  - pdf  # stopped working (e.g. https://readthedocs.org/projects/flexmeasures/builds/26604114/, also not required)
 
 build:
   os: ubuntu-20.04
@@ -26,6 +27,3 @@ python:
     - requirements: requirements/3.9/app.txt
     - requirements: requirements/3.9/docs.txt
 
-
-sphinx:
-  fail_on_warning: true

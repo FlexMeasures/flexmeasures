@@ -8,7 +8,11 @@ from flexmeasures.data.schemas.reporting import (
 )
 
 from flexmeasures.data.schemas.io import RequiredInput, RequiredOutput
-from timely_beliefs import BeliefsDataFrame
+from timely_beliefs import BeliefsDataFrame, BeliefsSeries
+
+
+from pandas.core.resample import Resampler
+from pandas.core.groupby.grouper import Grouper
 
 
 class PandasMethodCall(Schema):
@@ -22,29 +26,68 @@ class PandasMethodCall(Schema):
 
     @validates_schema
     def validate_method_call(self, data, **kwargs):
+        """Validates the method name and its arguments against a set of base classes.
+
+        This validation ensures that the provided method exists in one of the
+        specified base classes (`BeliefsSeries`, `BeliefsDataFrame`, `Resampler`, `Grouper`)
+        and that the provided arguments (`args` and `kwargs`) are valid for the method's
+        signature.
+
+        Args:
+            data (dict): A dictionary containing the method name (`method`) and optionally
+                         the method arguments (`args` as a list and `kwargs` as a dictionary).
+            **kwargs: Additional keyword arguments passed by the validation framework.
+
+        Raises:
+            ValidationError: If the method is not callable in any of the base classes or
+                             if the provided arguments do not match the method signature.
+        """
 
         method = data["method"]
-        method_callable = getattr(
-            BeliefsDataFrame, method, None
-        )  # what if the object which is applied to is not a BeliefsDataFrame...
+        is_callable = []
+        bad_arguments = True
 
-        if not callable(method_callable):
-            raise ValidationError(
-                f"method {method} is not a valid BeliefsDataFrame method."
-            )
+        # Iterate through the base classes to validate the method
+        for base_class in [BeliefsSeries, BeliefsDataFrame, Resampler, Grouper]:
 
-        method_signature = signature(method_callable)
+            # Check if the method exists in the base class
+            method_callable = getattr(base_class, method, None)
+            if method_callable is None:
+                # Method does not exist in this base class
+                is_callable.append(False)
+                continue
 
-        try:
-            args = data.get("args", []).copy()
-            _kwargs = data.get("kwargs", {}).copy()
+            # Check if the found method is callable
+            is_callable.append(callable(method_callable))
 
-            args.insert(0, BeliefsDataFrame)
+            # Retrieve the method's signature for argument validation
+            method_signature = signature(method_callable)
 
-            method_signature.bind(*args, **_kwargs)
-        except TypeError:
+            try:
+                # Copy `args` and `kwargs` to avoid modifying the input data
+                args = data.get("args", []).copy()
+                _kwargs = data.get("kwargs", {}).copy()
+
+                # Insert the base class as the first argument to the method (self/cls context)
+                args.insert(0, BeliefsDataFrame)
+
+                # Bind the arguments to the method's signature for validation
+                method_signature.bind(*args, **_kwargs)
+                bad_arguments = False  # Arguments are valid if binding succeeds
+            except TypeError:
+                # If binding raises a TypeError, the arguments are invalid
+                pass
+
+        # Raise an error if all arguments are invalid across all base classes
+        if bad_arguments:
             raise ValidationError(
                 f"Bad arguments or keyword arguments for method {method}"
+            )
+
+        # Raise an error if the method is not callable in any of the base classes
+        if not any(is_callable):
+            raise ValidationError(
+                f"Method {method} is not a valid BeliefsSeries, BeliefsDataFrame, Resampler or Grouper method."
             )
 
 
@@ -56,10 +99,10 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
 
         {
             "required_input" : [
-                {"name" : "df1}
+                {"name" : "df1", "unit" : "MWh"}
             ],
             "required_output" : [
-                {"name" : "df2"}
+                {"name" : "df2", "unit" : "kWh"}
             ],
             "transformations" : [
                 {
@@ -87,6 +130,8 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
         fields.Nested(RequiredOutput()), validate=validate.Length(min=1)
     )
     transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
+
+    droplevels = fields.Bool(required=False, load_default=False)
 
     @validates_schema
     def validate_chaining(self, data, **kwargs):
@@ -139,6 +184,7 @@ class PandasReporterParametersSchema(ReporterParametersSchema):
     # for the single sensors in `input_variables`
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
+    use_latest_version_only = fields.Bool(required=False)
 
     @validates_schema
     def validate_time_parameters(self, data, **kwargs):

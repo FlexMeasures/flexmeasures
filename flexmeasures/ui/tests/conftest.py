@@ -2,6 +2,7 @@ import pytest
 
 from flexmeasures.data.services.users import create_user
 from flexmeasures.ui.tests.utils import login, logout
+from flexmeasures import Asset
 
 
 @pytest.fixture(scope="function")
@@ -41,3 +42,21 @@ def setup_ui_test_data(
         account_name=setup_accounts["Prosumer"].name,
         user_roles=dict(name="admin", description="A site admin."),
     )
+
+
+@pytest.fixture
+def assets_prosumer(db, setup_accounts, setup_generic_asset_types):
+    assets = []
+    for name in ["TestAsset", "TestAsset2"]:
+        asset = Asset(
+            name=name,
+            generic_asset_type=setup_generic_asset_types["battery"],
+            owner=setup_accounts["Prosumer"],
+            latitude=70.4,
+            longitude=30.9,
+        )
+        assets.append(asset)
+
+    db.session.add_all(assets)
+
+    return assets

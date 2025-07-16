@@ -50,7 +50,7 @@ def delete_account_role(name: str):
     accounts = role.accounts.all()
     if len(accounts) > 0:
         click.secho(
-            f"The following accounts have role '{role.name}': {','.join([a.name for a in accounts])}. Removing this role from them ...",
+            f"The following accounts have role '{role.name}': {join_words_into_a_list([a.name for a in accounts])}. Removing this role from them ...",
         )
         for account in accounts:
             account.account_roles.remove(role)
@@ -256,11 +256,13 @@ def delete_prognoses(
     required=False,
     help="Remove beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
+@click.option("--offspring", type=bool, required=False, default=False, is_flag=True)
 def delete_beliefs(  # noqa: C901
     generic_assets: list[GenericAsset],
     sensors: list[Sensor],
     start: datetime | None = None,
     end: datetime | None = None,
+    offspring: bool = False,
 ):
     """Delete all beliefs recorded on a given sensor (or on sensors of a given asset)."""
 
@@ -271,6 +273,8 @@ def delete_beliefs(  # noqa: C901
         abort("Passing both sensors and assets at the same time is not supported.")
     if start is not None and end is not None and start > end:
         abort("Start should not exceed end.")
+    if offspring and len(generic_assets) == 0:
+        abort("Must pass at least one asset when the offspring option is employed.")
 
     # Time window filter
     event_filters = []
@@ -284,6 +288,14 @@ def delete_beliefs(  # noqa: C901
     if sensors:
         entity_filters += [TimedBelief.sensor_id.in_([sensor.id for sensor in sensors])]
     if generic_assets:
+
+        # get the offspring of all generic assets
+        generic_assets_offspring = []
+
+        for asset in generic_assets:
+            generic_assets_offspring.extend(asset.offspring)
+        generic_assets = list(generic_assets) + generic_assets_offspring
+
         entity_filters += [
             TimedBelief.sensor_id == Sensor.id,
             Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
@@ -300,26 +312,22 @@ def delete_beliefs(  # noqa: C901
     elif generic_assets:
         prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
     click.confirm(prompt, abort=True)
-
-    # Delete all beliefs found by query
-    beliefs_up_for_deletion = db.session.scalars(q).all()
-    batch_size = 10000
-    for i, b in enumerate(beliefs_up_for_deletion, start=1):
-        if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
-            click.echo(f"{i} beliefs processed ...")
-        db.session.delete(b)
+    db.session.execute(delete(TimedBelief).where(*entity_filters, *event_filters))
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
     # only show the entity names for the final confirmation
+    message = f"{num_beliefs_after} beliefs left on sensors "
     if sensors:
-        done(
-            f"{num_beliefs_after} beliefs left on sensors {join_words_into_a_list([sensor.name for sensor in sensors])}."
-        )
+        message += f"{join_words_into_a_list([sensor.name for sensor in sensors])}"
     elif generic_assets:
-        done(
-            f"{num_beliefs_after} beliefs left on sensors of {join_words_into_a_list([asset.name for asset in generic_assets])}."
+        message += (
+            f"of {join_words_into_a_list([asset.name for asset in generic_assets])}"
         )
+    if start is not None or end is not None:
+        message += " within the specified time window"
+    message += "."
+    done(message)
 
 
 @fm_delete_data.command("unchanged-beliefs", cls=DeprecatedOptionsCommand)

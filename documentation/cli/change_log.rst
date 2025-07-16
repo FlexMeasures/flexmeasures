@@ -4,11 +4,43 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v.0.20.0 | March XX, 2024
+since v0.27.0 | August XX, 2025
+=================================
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account.
+
+since v0.26.0 | June 03, 2025
+=================================
+* Switch to ``flexmeasures jobs save-last`` CLI command for saving the last n canceled/deferred/failed/finished/scheduled/started jobs (from the scheduling queue, by default).
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account.
+
+since v0.25.0 | April 01, 2025
+=================================
+* Report parameters set using ``flexmeasures add report --parameters`` can use any argument supported by ``Sensor.search_beliefs`` to allow more control over input for the report.
+* Add ``flexmeasures jobs save-last-failed`` (since v0.26: ``flexmeasures jobs save-last``) CLI command for saving the last n failed jobs (from the scheduling queue, by default).
+* Add ``flexmeasures jobs delete-queue`` CLI command for deleting an obsolete queue.
+
+since v0.24.0 | January 6, 2025
+=================================
+
+* ``flexmeasures show beliefs`` shows datetime values on x-axis labels.
+* ``flexmeasures add sensor`` no longer requires the ``capacity_in_mw`` attribute to be set for power sensors.
+
+since v0.22.0 | June 29, 2024
+=================================
+
+* Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions.
+
+since v0.21.0 | April 16, 2024
+=================================
+
+* Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
+
+since v.0.20.0 | March 26, 2024
 =================================
 
 * Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children.
-- Add support for providing a sensor definition to the ``--site-power-capacity``, ``--site-consumption-capacity`` and ``--site-production-capacity`` options of the ``flexmeasures add schedule for-storage`` command.
+* Add ``--offspring`` option to ``flexmeasures delete beliefs`` command, allowing to delete beliefs of children, as well.
+* Add support for providing a sensor definition to the ``--site-power-capacity``, ``--site-consumption-capacity`` and ``--site-production-capacity`` options of the ``flexmeasures add schedule for-storage`` command.
 
 since v0.19.1 | February 26, 2024
 =======================================

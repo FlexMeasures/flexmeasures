@@ -214,38 +214,49 @@ def storage_schedule_sensors(
 
 @pytest.fixture(scope="module")
 def add_asset_with_children(db, setup_accounts):
-    account_id = setup_accounts["Supplier"].id
+    assets_dict = {}
     parent_type = GenericAssetType(
         name="parent",
     )
     child_type = GenericAssetType(name="child")
 
-    db.session.add_all([parent_type, child_type])
+    for account_name in ["Supplier", "Dummy"]:
+        account_id = setup_accounts[account_name].id
 
-    parent = GenericAsset(
-        name="parent",
-        generic_asset_type=parent_type,
-        account_id=account_id,
-    )
-    db.session.add(parent)
-    db.session.flush()  # assign parent asset id
+        db.session.add_all([parent_type, child_type])
 
-    assets = [
-        GenericAsset(
-            name=f"child_{i}",
-            generic_asset_type=child_type,
-            parent_asset_id=parent.id,
+        parent = GenericAsset(
+            name="parent",
+            generic_asset_type=parent_type,
             account_id=account_id,
         )
-        for i in range(1, 3)
-    ]
+        db.session.add(parent)
+        db.session.flush()  # assign parent asset id
 
-    db.session.add_all(assets)
-    db.session.flush()  # assign children asset ids
+        assets = [
+            GenericAsset(
+                name=f"child_{i}",
+                generic_asset_type=child_type,
+                parent_asset_id=parent.id,
+                account_id=account_id,
+            )
+            for i in range(1, 3)
+        ]
 
-    assets.append(parent)
+        db.session.add_all(assets)
+        db.session.flush()  # assign children asset ids
 
-    return {a.name: a for a in assets}
+        assets.append(parent)
+
+        # add a sensor with the same name to the parent and children
+        for asset in assets:
+            sensor = Sensor(name="power", generic_asset=asset)
+            db.session.add(sensor)
+
+        db.session.flush()
+        assets_dict[account_name] = {a.name: a for a in assets}
+
+    return assets_dict
 
 
 @pytest.fixture(scope="module")
