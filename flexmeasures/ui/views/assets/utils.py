@@ -1,9 +1,10 @@
 from __future__ import annotations
+from typing import Optional, Dict
 
 import json
 from flask import url_for
 from flask_security import current_user
-from typing import Optional, Dict
+from werkzeug.exceptions import NotFound
 from sqlalchemy import select
 from sqlalchemy.sql.expression import or_
 
@@ -20,6 +21,16 @@ from flexmeasures.utils.unit_utils import (
     is_power_unit,
 )
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
+
+
+def get_asset_by_id_or_raise_notfound(asset_id: str) -> GenericAsset:
+    """find an show existing asset or raise NotFound"""
+    if not str(asset_id).isdigit():
+        raise NotFound
+    asset = db.session.query(GenericAsset).filter_by(id=asset_id).first()
+    if asset is None:
+        raise NotFound
+    return asset
 
 
 def get_allowed_price_sensor_data(account_id: Optional[int]) -> Dict[int, str]:
@@ -165,15 +176,25 @@ def process_internal_api_response(
     return asset_data
 
 
-def user_can_create_assets() -> bool:
+def user_can_create_assets(account: Account | None = None) -> bool:
+    if account is None:
+        account = current_user.account
     try:
-        check_access(current_user.account, "create-children")
+        check_access(account, "create-children")
     except Exception:
         return False
     return True
 
 
-def user_can_delete(asset) -> bool:
+def user_can_create_children(asset: GenericAsset) -> bool:
+    try:
+        check_access(asset, "create-children")
+    except Exception:
+        return False
+    return True
+
+
+def user_can_delete(asset: GenericAsset) -> bool:
     try:
         check_access(asset, "delete")
     except Exception:
@@ -181,7 +202,7 @@ def user_can_delete(asset) -> bool:
     return True
 
 
-def user_can_update(asset) -> bool:
+def user_can_update(asset: GenericAsset) -> bool:
     try:
         check_access(asset, "update")
     except Exception:

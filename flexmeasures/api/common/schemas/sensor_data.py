@@ -358,15 +358,20 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         source = get_or_create_source(current_user)
         num_values = len(sensor_data["values"])
         event_resolution = sensor_data["duration"] / num_values
+        start = sensor_data["start"]
+        sensor = sensor_data["sensor"]
+
+        if frequency := sensor.get_attribute("frequency"):
+            start = pd.Timestamp(start).round(frequency)
 
         if event_resolution == timedelta(hours=0):
             dt_index = pd.date_range(
-                sensor_data["start"],
+                start,
                 periods=num_values,
             )
         else:
             dt_index = pd.date_range(
-                sensor_data["start"],
+                start,
                 periods=num_values,
                 freq=event_resolution,
             )
@@ -385,4 +390,4 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             source=source,
             sensor=sensor_data["sensor"],
             **belief_timing,
-        ).dropna()
+        )

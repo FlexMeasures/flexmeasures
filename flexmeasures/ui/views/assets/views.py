@@ -3,7 +3,6 @@ from __future__ import annotations
 from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
-from werkzeug.exceptions import NotFound
 from webargs.flaskparser import use_kwargs
 from flexmeasures.auth.error_handling import unauthorized_handler
 
@@ -20,8 +19,10 @@ from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.api_wrapper import InternalApi
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
 from flexmeasures.ui.views.assets.utils import (
+    get_asset_by_id_or_raise_notfound,
     process_internal_api_response,
     user_can_create_assets,
+    user_can_create_children,
     user_can_delete,
     user_can_update,
     get_list_assets_chart,
@@ -34,19 +35,14 @@ from flexmeasures.ui.utils.view_utils import available_units
 
 """
 Asset crud view.
-
-Note: This uses the internal dev API version
-      ― if those endpoints get moved or updated to a higher version,
-      we probably should change the version used here, as well.
 """
 
 
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
-    The main focus on logic is the API, so these views simply call the API functions,
-    and deal with the response.
-    Some new functionality, like fetching accounts and asset types, is added here.
+    If endpoints create/change data, we aim to use the logic and authorization in the actual API,
+    so these views simply call the API functions,and deal with the response.
     """
 
     route_base = "/assets"
@@ -99,6 +95,48 @@ class AssetCrudUI(FlaskView):
         """
         This is a kind of utility view that redirects to the default asset view, either Context or the one saved in the user session.
         """
+        if id == "new":  # show empty asset creation form
+            parent_asset_id = request.args.get("parent_asset_id", "")
+            account_id = request.args.get("account_id", "")
+
+            asset_form = NewAssetForm()
+            asset_form.with_options()
+            parent_asset_name = ""
+            account = None
+            if account_id:
+                account = db.session.get(Account, account_id)
+            if parent_asset_id:
+                parent_asset = db.session.get(GenericAsset, parent_asset_id)
+                if parent_asset:
+                    parent_asset_name = parent_asset.name
+                if parent_asset.owner:  # public parent asset
+                    if not account_id:
+                        account = parent_asset.owner
+                    else:
+                        if account_id != parent_asset.owner.id:
+                            return (
+                                f"The parent asset needs to be under the specified account ({parent_asset.owner.id}).",
+                                422,
+                            )
+
+            if account and not user_can_create_assets(account=account):
+                return unauthorized_handler(None, [])
+
+            if account:  # Pre-set account
+                asset_form.account_id.data = str(account.id)
+
+            return render_flexmeasures_template(
+                "assets/asset_new.html",
+                asset_form=asset_form,
+                msg="",
+                map_center=get_center_location_of_assets(user=current_user),
+                mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+                parent_asset_name=parent_asset_name,
+                parent_asset_id=parent_asset_id,
+                account=account,
+            )
+
+        # otherwise, redirect to the default asset view
         default_asset_view = session.get("default_asset_view", "Context")
         return redirect(
             url_for(
@@ -112,41 +150,10 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/context")
     def context(self, id: str, **kwargs):
         """/assets/<id>/context"""
-        # Get default asset view
-        parent_asset_id = request.args.get("parent_asset_id", "")
-        if id == "new":
-            if not user_can_create_assets():
-                return unauthorized_handler(None, [])
-
-            asset_form = NewAssetForm()
-            asset_form.with_options()
-            parent_asset_name = ""
-            account = None
-            if parent_asset_id:
-                parent_asset = db.session.get(GenericAsset, parent_asset_id)
-                if parent_asset:
-                    asset_form.account_id.data = str(
-                        parent_asset.account_id
-                    )  # Pre-set account
-                    parent_asset_name = parent_asset.name
-                    account = parent_asset.account_id
-            return render_flexmeasures_template(
-                "assets/asset_new.html",
-                asset_form=asset_form,
-                msg="",
-                map_center=get_center_location_of_assets(user=current_user),
-                mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-                parent_asset_name=parent_asset_name,
-                parent_asset_id=parent_asset_id,
-                account=account,
-            )
-
-        asset = db.session.query(GenericAsset).filter_by(id=id).first()
-        if asset is None:
-            assets = []
-        else:
-            assets = get_list_assets_chart(asset, base_asset=asset)
-
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
+        assets = get_list_assets_chart(asset, base_asset=asset)
+        assets = add_child_asset(asset, assets)
         current_asset_sensors = [
             {
                 "name": sensor.name,
@@ -155,29 +162,31 @@ class AssetCrudUI(FlaskView):
             }
             for sensor in asset.sensors
         ]
-        assets = add_child_asset(asset, assets)
 
+        site_asset = asset
+        while site_asset.parent_asset_id:
+            site_asset = site_asset.parent_asset
         return render_flexmeasures_template(
             "assets/asset_context.html",
             assets=assets,
             asset=asset,
             current_asset_sensors=current_asset_sensors,
+            site_asset=site_asset,
+            user_can_create_children=user_can_create_children(asset),
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),
         )
 
     @login_required
-    @route("/<id>/sensor/new")
+    @route("/<id>/sensors/new")
     def create_sensor(self, id: str):
-        """GET to /assets/<id>/sensor/new"""
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+        """GET to /assets/<id>/sensors/new"""
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "create-children")
 
         return render_flexmeasures_template(
-            "assets/sensor_new.html",
+            "sensors/sensor_new.html",
             asset=asset,
             available_units=available_units(),
         )
@@ -186,10 +195,7 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/status")
     def status(self, id: str):
         """GET from /assets/<id>/status to show the staleness of the asset's sensors."""
-
-        asset = GenericAsset.query.get(id)
-        if asset is None:
-            raise NotFound
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
 
         status_data = get_asset_sensors_metadata(asset)
@@ -220,7 +226,7 @@ class AssetCrudUI(FlaskView):
             form_valid = asset_form.validate_on_submit()
 
             # Fill up the form with useful errors for the user
-            if account_error is not None:
+            if account_error is not None and asset_form.account_id:
                 form_valid = False
                 asset_form.account_id.errors.append(account_error)
             if asset_type_error is not None:
@@ -264,7 +270,8 @@ class AssetCrudUI(FlaskView):
                 )
 
         else:
-            asset = db.session.get(GenericAsset, id)
+            asset = get_asset_by_id_or_raise_notfound(id)
+            check_access(asset, "update")
             asset_form = AssetForm()
             asset_form.with_options()
             if not asset_form.validate_on_submit():
@@ -315,9 +322,8 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/auditlog")
     def auditlog(self, id: str):
         """/assets/<id>/auditlog"""
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
 
         return render_flexmeasures_template(
             "assets/asset_audit_log.html",
@@ -330,16 +336,12 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/graphs")
     def graphs(self, id: str, start_time=None, end_time=None):
         """/assets/<id>/graphs"""
-
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
-
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
 
         asset_form = AssetForm()
         asset_form.with_options()
-
-        asset_form.process(data=process_internal_api_response(asset_dict))
+        asset_form.process(obj=asset)
 
         return render_flexmeasures_template(
             "assets/asset_graph.html",
@@ -359,12 +361,12 @@ class AssetCrudUI(FlaskView):
             msg = ""
         get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
-
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+
+        check_access(asset, "read")
 
         asset_form = AssetForm()
         asset_form.with_options()
-
         asset_form.process(data=process_internal_api_response(asset_dict))
 
         asset_summary = {
@@ -386,6 +388,7 @@ class AssetCrudUI(FlaskView):
             msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
+            user_can_create_children=user_can_create_children(asset),
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
             current_page="Properties",

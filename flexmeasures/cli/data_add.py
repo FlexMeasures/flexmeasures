@@ -1943,7 +1943,7 @@ def add_report(  # noqa: C901
         # save the report if it's not running in dry mode
         if not dry_run:
             click.echo(f"Saving report for sensor `{sensor}` to the database...")
-            save_to_db(data.dropna())
+            save_to_db(data)
             db.session.commit()
             click.secho(
                 f"Success. The report for sensor `{sensor}` has been saved to the database.",
@@ -2178,18 +2178,21 @@ def add_toy_account(kind: str, name: str):
             "toy-process",
             "process",
             "Power (Inflexible)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         breakable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Breakable)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         shiftable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Shiftable)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         db.session.flush()

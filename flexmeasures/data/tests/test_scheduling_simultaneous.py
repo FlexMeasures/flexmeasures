@@ -38,7 +38,7 @@ def test_create_simultaneous_jobs(
     # The EV is scheduled firstly.
     assert job.kwargs["asset_or_sensor"] == {
         "id": assets["Test Site"].id,
-        "class": "GenericAsset",
+        "class": "Asset",
     }
     # It uses the inflexible-device-sensors that are defined in the flex-context, exclusively.
     assert job.kwargs["flex_context"]["inflexible-device-sensors"] == [
@@ -91,8 +91,8 @@ def test_create_simultaneous_jobs(
         )
 
     # Get price data
-    price_sensor_id = flex_description_sequential["flex_context"]["consumption-price"][
-        "sensor"
+    price_sensor_id = flex_description_sequential["flex_context"][
+        "consumption-price-sensor"
     ]
     price_sensor = db.session.get(Sensor, price_sensor_id)
     prices = price_sensor.search_beliefs(

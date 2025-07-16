@@ -11,34 +11,9 @@
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <div class="container-fluid">
-    <div class="row mx-1">
-        <div class="alert alert-info d-none" id="tzwarn"></div>
-        <div class="alert alert-info d-none" id="dstwarn"></div>
-    </div>
     <div class="row">
 
         <div class="col-md-2 on-top-md">
-            <div class="header-action-button">
-                {% if user_can_delete_asset %}
-                <div>
-                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this asset</button>
-                    </form>
-                    <script>
-                        $("#delete-asset-button").click(function () {
-                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-                                return true;
-                            }
-                            else {
-                                return false;
-                            }
-                        });
-                    </script>
-                </div>
-                {% endif %}
-            </div>
-
             <div class="sidepanel-container d-none d-md-block">
                 <div class="left-sidepanel-label">Select dates</div>
                 <div class="sidepanel left-sidepanel">
@@ -127,6 +102,28 @@
                 </div>
             </div>
             {% endif %}
+
+            <div class="header-action-button">
+                {% if user_can_delete_asset %}
+                <div>
+                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
+                            type="submit">Delete this asset
+                        </button>
+                    </form>
+                    <script>
+                        $("#delete-asset-button").click(function () {
+                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
+                                return true;
+                            }
+                            else {
+                                return false;
+                            }
+                        });
+                    </script>
+                </div>
+                {% endif %}
+            </div>
    
         </div>
         <div class="col-md-8">
@@ -163,7 +160,13 @@
             </div>
 
             <div class="sensors-asset card">
-                <h3>All sensors for {{ asset.name }}</h3>
+                <h3>All sensors for {{ asset.name }}
+                    {% if user_can_create_children %}
+                    <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
+                        <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
+                    </button>
+                    {% endif %}
+                </h3>
                 <div class="table-responsive">
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
                     </table>
@@ -171,7 +174,13 @@
             </div>
 
             <div class="sensors-asset card">
-                <h3>All child assets for {{ asset.name }}</h3>
+                <h3>All child assets for {{ asset.name }}
+                    {% if user_can_create_assets %}
+                    <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
+                        <a href="/assets/new?parent_asset_id={{asset.id}}">Create asset</a>
+                    </button>
+                    {% endif %}
+                </h3>
                 <div class="table-responsive">
                     <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
                         <thead>

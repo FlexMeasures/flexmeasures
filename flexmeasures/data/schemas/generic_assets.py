@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from http import HTTPStatus
 
+from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
 from flask_security import current_user
 from sqlalchemy import select
@@ -14,7 +16,6 @@ from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
-    with_appcontext_if_needed,
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
@@ -194,10 +195,12 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             ).first()
 
             if asset:
-                raise ValidationError(
-                    f"An asset with the name '{data['name']}' already exists under parent asset with id={data.get('parent_asset_id')}.",
-                    "name",
-                )
+                err_msg = f"An asset with the name '{data['name']}' already exists in account {data.get('account_id')}"
+                if data.get("parent_asset_id"):
+                    err_msg += (
+                        f" under the parent asset with id={data.get('parent_asset_id')}"
+                    )
+                raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int):
@@ -267,16 +270,24 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a GenericAsset and serializes back to an integer."""
 
-    @with_appcontext_if_needed()
-    def _deserialize(self, value, attr, obj, **kwargs) -> GenericAsset:
+    def __init__(self, status_if_not_found: HTTPStatus | None = None, *args, **kwargs):
+        self.status_if_not_found = status_if_not_found
+        super().__init__(*args, **kwargs)
+
+    def _deserialize(self, value: int | str, attr, obj, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
-        generic_asset = db.session.get(GenericAsset, value)
+        generic_asset: GenericAsset = db.session.execute(
+            select(GenericAsset).filter_by(id=int(value))
+        ).scalar_one_or_none()
         if generic_asset is None:
-            raise FMValidationError(f"No asset found with id {value}.")
-        # lazy loading now (asset is somehow not in session after this)
-        generic_asset.generic_asset_type
+            message = f"No asset found with ID {value}."
+            if self.status_if_not_found == HTTPStatus.NOT_FOUND:
+                raise abort(404, message)
+            else:
+                raise FMValidationError(message)
+
         return generic_asset
 
-    def _serialize(self, asset, attr, data, **kwargs):
+    def _serialize(self, asset: GenericAsset, attr, data, **kwargs) -> int:
         """Turn a GenericAsset into a generic asset id."""
         return asset.id

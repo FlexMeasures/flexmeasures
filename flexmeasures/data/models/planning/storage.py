@@ -686,6 +686,9 @@ class MetaStorageScheduler(Scheduler):
                     soc_max[d],
                     soc_min[d],
                 )
+            else:
+                # No need to validate non-existing storage constraints
+                skip_validation = True
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
@@ -1001,15 +1004,8 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        # self.flex_context overrides db_flex_context (from the asset and its ancestors)
-        if self.asset is not None:
-            asset = self.asset
-        else:
-            asset = self.sensor.generic_asset
-        db_flex_context = asset.get_flex_context()
-        self.flex_context = FlexContextSchema().load(
-            {**db_flex_context, **self.flex_context}
-        )
+        self.collect_flex_config()
+        self.flex_context = FlexContextSchema().load(self.flex_context)
 
         if isinstance(self.flex_model, dict):
             # Check state of charge.
@@ -1049,14 +1045,18 @@ class MetaStorageScheduler(Scheduler):
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
                 self.flex_model[d] = StorageFlexModelSchema(
-                    start=self.start, sensor=sensor_flex_model["sensor"]
+                    start=self.start,
+                    sensor=sensor_flex_model["sensor"],
+                    default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
+                        "soc-unit"
+                    ),
                 ).load(sensor_flex_model["sensor_flex_model"])
                 self.flex_model[d]["sensor"] = sensor_flex_model["sensor"]
 
                 # Extend schedule period in case a target exceeds its end
                 self.possibly_extend_end(
-                    soc_targets=sensor_flex_model.get("soc_targets"),
-                    sensor=sensor_flex_model["sensor"],
+                    soc_targets=self.flex_model[d].get("soc_targets"),
+                    sensor=self.flex_model[d]["sensor"],
                 )
 
         else:
@@ -1086,51 +1086,42 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     self.end = max_target_datetime
 
-    def get_min_max_targets(
-        self, deserialized_names: bool = True
-    ) -> tuple[float | None, float | None]:
+    def get_min_max_targets(self) -> tuple[float | None, float | None]:
+        """This happens before deserializing the flex-model."""
         min_target = None
         max_target = None
-        soc_targets_label = "soc_targets" if deserialized_names else "soc-targets"
 
         # if the SOC targets are defined as a Sensor, we don't get min max values
-        if isinstance(self.flex_model.get(soc_targets_label), dict):
+        if isinstance(self.flex_model.get("soc-targets"), dict):
             return None, None
 
-        if (
-            soc_targets_label in self.flex_model
-            and len(self.flex_model[soc_targets_label]) > 0
-        ):
+        if "soc-targets" in self.flex_model and len(self.flex_model["soc-targets"]) > 0:
             min_target = min(
-                [target["value"] for target in self.flex_model[soc_targets_label]]
+                [target["value"] for target in self.flex_model["soc-targets"]]
             )
             max_target = max(
-                [target["value"] for target in self.flex_model[soc_targets_label]]
+                [target["value"] for target in self.flex_model["soc-targets"]]
             )
         return min_target, max_target
 
-    def get_min_max_soc_on_sensor(
-        self, adjust_unit: bool = False, deserialized_names: bool = True
-    ) -> tuple[float | None, float | None]:
+    def get_min_max_soc_on_sensor(self) -> tuple[float | None, float | None]:
+        """This happens before deserializing the flex-model."""
         soc_min_sensor: float | None = self.sensor.get_attribute("min_soc_in_mwh")
         soc_max_sensor: float | None = self.sensor.get_attribute("max_soc_in_mwh")
-        soc_unit_label = "soc_unit" if deserialized_names else "soc-unit"
-        if adjust_unit:
-            if soc_min_sensor and self.flex_model.get(soc_unit_label) == "kWh":
-                soc_min_sensor *= 1000  # later steps assume soc data is kWh
-            if soc_max_sensor and self.flex_model.get(soc_unit_label) == "kWh":
-                soc_max_sensor *= 1000
+        if soc_min_sensor and self.flex_model.get("soc-unit") == "kWh":
+            soc_min_sensor *= 1000  # later steps assume soc data is kWh
+        if soc_max_sensor and self.flex_model.get("soc-unit") == "kWh":
+            soc_max_sensor *= 1000
         return soc_min_sensor, soc_max_sensor
 
     def ensure_soc_min_max(self):
         """
         Make sure we have min and max SOC.
         If not passed directly, then get default from sensor or targets.
+        This happens before deserializing the flex-model.
         """
-        _, max_target = self.get_min_max_targets(deserialized_names=False)
-        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor(
-            adjust_unit=True, deserialized_names=False
-        )
+        _, max_target = self.get_min_max_targets()
+        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor()
         if "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
             # Default is 0 - can't drain the storage by more than it contains
             self.flex_model["soc-min"] = soc_min_sensor if soc_min_sensor else 0

@@ -26,10 +26,12 @@ from flexmeasures.auth.policy import (
     AuthModelMixin,
     EVERY_LOGGED_IN_USER,
     ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
 
 class GenericAssetType(db.Model):
@@ -111,14 +113,44 @@ class GenericAsset(db.Model, AuthModelMixin):
         Deletion is left to account admins.
         """
         return {
-            "create-children": f"account:{self.account_id}",
+            "create-children": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
             "read": (
                 self.owner.__acl__()["read"]
                 if self.account_id is not None
                 else EVERY_LOGGED_IN_USER
             ),
-            "update": f"account:{self.account_id}",
-            "delete": (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            "update": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
+            "delete": [
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
         }
 
     def __repr__(self):
@@ -634,6 +666,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         if sensors is None:
             sensors = self.sensors
 
+        _, factors = find_smallest_common_unit(
+            list(set([sensor.unit for sensor in sensors]))
+        )
+
         for sensor in sensors:
             bdf_dict[sensor] = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
@@ -678,6 +714,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                         append=True,
                     )
                     df["sensor"] = sensor  # or some JSONifiable representation
+                    df["scale_factor"] = factors[sensor.unit]
                     df = df.set_index(["sensor"], append=True)
                     df_dict[sensor.id] = df
                 df = pd.concat(df_dict.values())
@@ -701,6 +738,17 @@ class GenericAsset(db.Model, AuthModelMixin):
             df = df.reset_index()
             df["source"] = df["source"].apply(lambda x: x.to_dict())
             df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+            df["sensor_unit"] = df["sensor"].apply(lambda x: x["sensor_unit"])
+            df["event_value"] = df.apply(
+                lambda row: (
+                    pd.to_datetime(row["event_value"], unit="s", origin="unix")
+                    .tz_localize("UTC")
+                    .tz_convert(self.timezone)
+                    if row["sensor_unit"] == "s" and pd.notnull(row["event_value"])
+                    else row["event_value"]
+                ),
+                axis=1,
+            )
             return df.to_json(orient="records")
         return bdf_dict
 
