@@ -176,15 +176,25 @@ def process_internal_api_response(
     return asset_data
 
 
-def user_can_create_assets() -> bool:
+def user_can_create_assets(account: Account | None = None) -> bool:
+    if account is None:
+        account = current_user.account
     try:
-        check_access(current_user.account, "create-children")
+        check_access(account, "create-children")
     except Exception:
         return False
     return True
 
 
-def user_can_delete(asset) -> bool:
+def user_can_create_children(asset: GenericAsset) -> bool:
+    try:
+        check_access(asset, "create-children")
+    except Exception:
+        return False
+    return True
+
+
+def user_can_delete(asset: GenericAsset) -> bool:
     try:
         check_access(asset, "delete")
     except Exception:
@@ -192,7 +202,7 @@ def user_can_delete(asset) -> bool:
     return True
 
 
-def user_can_update(asset) -> bool:
+def user_can_update(asset: GenericAsset) -> bool:
     try:
         check_access(asset, "update")
     except Exception:

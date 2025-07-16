@@ -160,7 +160,13 @@
             </div>
 
             <div class="sensors-asset card">
-                <h3>All sensors for {{ asset.name }}</h3>
+                <h3>All sensors for {{ asset.name }}
+                    {% if user_can_create_children %}
+                    <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
+                        <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
+                    </button>
+                    {% endif %}
+                </h3>
                 <div class="table-responsive">
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
                     </table>
@@ -168,7 +174,13 @@
             </div>
 
             <div class="sensors-asset card">
-                <h3>All child assets for {{ asset.name }}</h3>
+                <h3>All child assets for {{ asset.name }}
+                    {% if user_can_create_assets %}
+                    <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
+                        <a href="/assets/new?parent_asset_id={{asset.id}}">Create asset</a>
+                    </button>
+                    {% endif %}
+                </h3>
                 <div class="table-responsive">
                     <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
                         <thead>
