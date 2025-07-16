@@ -16,12 +16,11 @@ build:
   os: ubuntu-20.04
   tools:
     python: "3.9"
-    nodejs: "23"
   jobs:
     post_create_environment:
       - pip install . --no-deps  # as python install step, RTD installs deps eagerly
     post_install:
-      - npm install -g @mermaid-js/mermaid-cli
+      - pip install sphinxcontrib-mermaid
 
 python: 
   install:
