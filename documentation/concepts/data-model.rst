@@ -37,7 +37,7 @@ Here is an example of an asset with sub-assets:
 
         D <--> G[PV]
         D <--> H[Battery]
-        D <--> I[Charge\nPoint]
+        D <--> I["Charge<br>Point"]
 
 We model asset types explicitly. None are required for running FlexMeasures. Some asset types have support in the UI (for icons, like a sun for ``"solar"``), and in the toy tutorial and test. Some are used to select the scheduler (e.g. using ``"battery"`` or ``"one-way_evse"`` leads to using the storage scheduler). You can add your own types, which is useful for plugin logic (an example is the ``"weather station"`` type for a plugin that reads in weather forecasts).
 
