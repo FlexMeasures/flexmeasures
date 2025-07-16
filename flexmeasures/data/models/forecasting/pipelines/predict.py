@@ -222,7 +222,7 @@ class PredictPipeline(BasePipeline):
             y_pred_dfs = list()
             for i in range(
                 n_hours_can_predict - forecast_frequency,
-                0,
+                n_hours_can_predict,
                 -forecast_frequency,
             ):
                 future_covariates = (
