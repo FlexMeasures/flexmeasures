@@ -8,7 +8,6 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from darts import TimeSeries
-from timely_beliefs.beliefs.utils import select_most_recent_belief
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.utils import save_to_db
@@ -284,15 +283,10 @@ class PredictPipeline(BasePipeline):
                 regressors=self.regressors,
             )
             print(bdf)
-
-            # todo: maybe these filters only apply to a live setting
             # Mask beliefs outside the prediction window
-            bdf = bdf[bdf.index.get_level_values("event_start") >= self.predict_start]
-            bdf = bdf[bdf.index.get_level_values("event_start") < self.predict_end]
-            # Keep only the most recent belief
-            bdf = select_most_recent_belief(bdf)
-            print(bdf)
-
+            # bdf = bdf[bdf.index.get_level_values("event_start") >= self.predict_start]
+            # bdf = bdf[bdf.index.get_level_values("event_start") < self.predict_end]
+            breakpoint()
             save_to_db(
                 bdf, save_changed_beliefs_only=False
             )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
