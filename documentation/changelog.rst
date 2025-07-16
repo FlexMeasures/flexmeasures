@@ -20,7 +20,7 @@ New features
 * Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_, `PR #1573 <https://github.com/FlexMeasures/flexmeasures/pull/1573>`_, `PR #1583 <https://github.com/FlexMeasures/flexmeasures/pull/1583>`_, `PR #1585 <https://github.com/FlexMeasures/flexmeasures/pull/1585>`_, `PR #1588 <https://github.com/FlexMeasures/flexmeasures/pull/1588>`_ and `PR #1590 <https://github.com/FlexMeasures/flexmeasures/pull/1590>`_]
 * Improved the UX for creating child-assets and sensors in the UI [see `PR #1605 <https://github.com/FlexMeasures/flexmeasures/pull/1605>`_]
 * Allow editing users in the UI [see `PR #1502 <https://github.com/FlexMeasures/flexmeasures/pull/1502>`_]
-* Scheduling job descriptions on the tasks page (RQ Dashboard) shows the whole flex-model and flex-context, including any server-side configuration of e.g. capacities [see `PR #1579 <https://github.com/FlexMeasures/flexmeasures/pull/1579>`_]
+* Scheduling job descriptions on the tasks page (RQ Dashboard) shows the whole flex-model and flex-context, including any server-side configuration of e.g. capacities [see `PR #1579 <https://github.com/FlexMeasures/flexmeasures/pull/1579>`_ and `PR #1601 <https://github.com/FlexMeasures/flexmeasures/pull/1601>`_]
 * Smarter date range navigation [see `PR #1531 <https://github.com/FlexMeasures/flexmeasures/pull/1531>`_]
 * Smarter toast notifications [see `PR #1530 <https://github.com/FlexMeasures/flexmeasures/pull/1530>`_]
 * Move various warnings to toast notifications [see `PR #1529 <https://github.com/FlexMeasures/flexmeasures/pull/1529>`_]
