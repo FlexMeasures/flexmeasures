@@ -115,7 +115,7 @@ typing-extensions==4.14.0
     #   -c requirements/3.10/app.txt
     #   exceptiongroup
     #   fakeredis
-urllib3==2.4.0
+urllib3==2.5.0
     # via
     #   -c requirements/3.10/app.txt
     #   requests

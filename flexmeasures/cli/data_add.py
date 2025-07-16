@@ -1943,7 +1943,7 @@ def add_report(  # noqa: C901
         # save the report if it's not running in dry mode
         if not dry_run:
             click.echo(f"Saving report for sensor `{sensor}` to the database...")
-            save_to_db(data.dropna())
+            save_to_db(data)
             db.session.commit()
             click.secho(
                 f"Success. The report for sensor `{sensor}` has been saved to the database.",

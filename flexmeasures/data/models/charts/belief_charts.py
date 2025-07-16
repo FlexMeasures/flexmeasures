@@ -508,6 +508,8 @@ def chart_for_multiple_sensors(
     sensors_specs = []
     for entry in sensors_to_show:
         title = entry.get("title")
+        if title == "Charge Point sessions":
+            continue
         sensors = entry.get("sensors")
         # List the sensors that go into one row
         row_sensors: list["Sensor"] = sensors  # noqa F821
@@ -834,3 +836,392 @@ def create_rect_layer(
         },
     }
     return rect_layer
+
+
+def chart_for_chargepoint_sessions(
+    sensors_to_show,
+    event_starts_after=None,
+    event_ends_before=None,
+    combine_legend=True,
+    **override_chart_specs,
+) -> dict:
+
+    all_sensors = []
+    sensors_to_show_copy = sensors_to_show.copy()
+    for entry in sensors_to_show_copy:
+        sensors = entry.get("sensors")
+        all_sensors.extend(
+            [
+                s
+                for s in sensors
+                if s.unit == "s"
+                and s.name
+                in [
+                    "arrival",
+                    "departure",
+                    "start charging",
+                    "stop charging",
+                    "plug in",
+                    "plug out",
+                ]
+            ]
+        )
+
+    sensor_ids = [s.id for s in all_sensors]
+
+    cp_chart = {
+        "title": "Charge Point sessions",
+        "width": "container",
+        "height": 300,
+        "selection": {
+            "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+        },
+        "transform": [
+            {"filter": {"field": "sensor.id", "oneOf": sensor_ids}},
+            {"calculate": "datum.sensor.name", "as": "sensor_name"},
+            {"calculate": "datum.sensor.asset_id", "as": "asset_id"},
+            {"calculate": "datum.sensor.asset_description", "as": "asset"},
+        ],
+        "layer": [
+            # --- Dotted Line: Arrival to Departure ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'arrival' || datum.sensor_name == 'departure'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {"filter": {"selection": "arr_dep"}},
+                ],
+                "selection": {
+                    "scroll": {
+                        "type": "interval",
+                        "bind": "scales",
+                        "encodings": ["x"],
+                    },
+                    "arr_dep": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    },
+                },
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 1,
+                    "strokeDash": [4, 4],
+                },
+                "encoding": {
+                    "x": {
+                        "field": "arrival",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "departure",
+                        "type": "temporal",
+                        "title": None,
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": {"selection": "arr_dep", "field": "asset_id"}
+                        },
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {"selection": "arr_dep", "field": "session_id"}
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                            "labelLimit": 200,
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "arrival",
+                            "type": "temporal",
+                            "title": "Arrival",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "departure",
+                            "type": "temporal",
+                            "title": "Departure",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+            # --- Solid Line: Plug-in to Plug-out ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'plug in' || datum.sensor_name == 'plug out'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": [
+                            "session_id",
+                            "asset",
+                            "asset_id",
+                        ],
+                    },
+                    {"filter": {"selection": "plugin_plugout"}},
+                ],
+                "selection": {
+                    "plugin_plugout": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    }
+                },
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 2,
+                },
+                "encoding": {
+                    "x": {
+                        "field": "plug in",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "plug out",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": {
+                                "selection": "plugin_plugout",
+                                "field": "asset_id",
+                            }
+                        },
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {
+                                "selection": "plugin_plugout",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "title": "Asset",
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                            "labelLimit": 200,
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "plug in",
+                            "type": "temporal",
+                            "title": "Plug-in",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "plug out",
+                            "type": "temporal",
+                            "title": "Plug-Out",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+            # ---  Thick line: Start to Stop Charging ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'start charging' || datum.sensor_name == 'stop charging'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {"filter": {"selection": "start_stop_charging"}},
+                ],
+                "selection": {
+                    "start_stop_charging": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    }
+                },
+                "mark": {"type": "rule", "strokeWidth": 6},
+                "encoding": {
+                    "x": {
+                        "field": "start charging",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "stop charging",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "asset_id",
+                            }
+                        },
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                            "labelLimit": 200,
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "start charging",
+                            "type": "temporal",
+                            "title": "Start Charging",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "stop charging",
+                            "type": "temporal",
+                            "title": "Stop Charging",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+    for idx, entry in enumerate(sensors_to_show_copy):
+        title = entry.get("title")
+        if title == "Power flow by type":
+            sensors_to_show_copy[idx]["sensors"] = [
+                sensor
+                for sensor in entry["sensors"]
+                if sensor.name == "charge points power"
+            ]
+    chart_specs = chart_for_multiple_sensors(
+        sensors_to_show_copy,
+        event_starts_after,
+        event_ends_before,
+        combine_legend,
+        **override_chart_specs,
+    )
+    chart_specs["vconcat"] = [
+        chart
+        for chart in chart_specs["vconcat"]
+        if chart["title"] in ["Prices", "Power flow by type"]
+    ]
+    chart_specs["vconcat"].insert(0, cp_chart)
+    return chart_specs

@@ -48,7 +48,26 @@ def get_color_settings(account: Account | None) -> dict:
 
 
 def darken_color(hex_color: str, percentage: int) -> str:
+    """Darkens a hex color by a given percentage towards black.
+
+    :param hex_color:   The hex color string (e.g. "#abc" or "#aabbcc").
+    :param percentage:  The percentage to darken the color (0-100).
+
+    :returns:           The darkened hex color string.
+
+    Examples:
+        >>> darken_color("#ffffff", 0)
+        '#ffffff'
+        >>> darken_color("#ffffff", 100)
+        '#000000'
+        >>> darken_color("#123456", 50)
+        '#091a2b'
+        >>> darken_color("#abc", 50)
+        '#555d66'
+    """
     hex_color = hex_color.lstrip("#")
+    hex_color = ensure_6_digit_hex(hex_color)
+
     r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
     r = int(r * (1 - percentage / 100))
     g = int(g * (1 - percentage / 100))
@@ -57,7 +76,26 @@ def darken_color(hex_color: str, percentage: int) -> str:
 
 
 def lighten_color(hex_color: str, percentage: int) -> str:
+    """Lightens a hex color by a given percentage towards white.
+
+    :param hex_color:   The hex color string (e.g. "#abc" or "#aabbcc").
+    :param percentage:  The percentage to lighten the color (0-100).
+
+    :returns:           The lightened hex color string.
+
+    Examples:
+        >>> lighten_color("#000000", 0)
+        '#000000'
+        >>> lighten_color("#000000", 100)
+        '#ffffff'
+        >>> lighten_color("#123456", 50)
+        '#8899aa'
+        >>> lighten_color("#abc", 50)
+        '#d4dde5'
+    """
     hex_color = hex_color.lstrip("#")
+    hex_color = ensure_6_digit_hex(hex_color)
+
     r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
     r = int(r + (255 - r) * percentage / 100)
     g = int(g + (255 - g) * percentage / 100)
@@ -67,5 +105,14 @@ def lighten_color(hex_color: str, percentage: int) -> str:
 
 def rgba_color(hex_color: str, alpha: float) -> str:
     hex_color = hex_color.lstrip("#")
+    hex_color = ensure_6_digit_hex(hex_color)
+
     r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
     return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def ensure_6_digit_hex(hex_color: str) -> str:
+    """Expand 3-digit hex to 6-digit."""
+    if len(hex_color) == 3:
+        hex_color = "".join([c * 2 for c in hex_color])
+    return hex_color

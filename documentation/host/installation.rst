@@ -7,17 +7,19 @@ Installation & First steps
 This section walks you through the basics of installing FlexMeasures on a computer and running it continuously.
 
 We'll cover the most crucial settings you need to run FlexMeasures step-by-step, both for `pip`-based installation, as well as running via Docker.
-In addition, we'll explain some basics that you'll need:
+In addition, we'll explain some basics that you'll need for later steps:
 
 .. contents:: Table of contents
     :local:
-    :depth: 1
+    :depth: 2
+
+|
 
 
 Installing and running FlexMeasures 
 ------------------------------------
 
-In a nutshell, what does installation and running look like?
+What is the fastest way to get FlexMeasures to run on your computer? 
 Well, there are two major ways:
 
 .. tabs::
@@ -45,6 +47,8 @@ Well, there are two major ways:
       
 However, FlexMeasures is not a simple tool - it's a web-app, with bells and whistles, like user access and databases.
 We'll need to add a few minimal preparations before running will work, see below. 
+
+.. note:: All configuration settings we show here are short-term. We also tell you on this page how to store them more permanently in a config file.
 
 
 Make a secret key for sessions and password salts
@@ -76,38 +80,6 @@ This suffices for a quick start. For an actually secure secret, here is a Python
 .. code-block:: bash
 
    $ python -c "import secrets; print(secrets.token_urlsafe())"
-
-
-Make totp secrets for two-factor authentication
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-FlexMeasures supports two-factor authentication via Time-based One-time Passwords (TOTP).
-For this, we need a secret key for each user.
-This can be done in a similar way as above:
-
-.. tabs::
-
-    .. tab:: via `pip`
-
-        .. code-block:: bash
-
-            $ export SECURITY_TOTP_SECRETS={\"1\":\"something-secret\"}
-
-        (on Windows, use ``set`` instead of ``export``\ )
-
-    .. tab:: via `docker`
-
-        Add the `SECURITY_TOTP_SECRETS` as an environment variable:
-
-        .. code-block:: bash
-        
-            $ docker run -d --env SECURITY_TOTP_SECRETS={\"1\":\"something-secret\"} lfenergy/flexmeasures
-
-This suffices for a quick start. For an actually secure secret, here is a Pythonic way to generate a good secret key:
-
-.. code-block:: bash
-
-   $ python -c "import secrets; print(f'{{\"1\": \"{secrets.token_urlsafe()}\"}}')"
 
 
 Choose the environment
@@ -390,6 +362,66 @@ Then, start workers in a console (or some other method to keep a long-running pr
    $ flexmeasures jobs run-worker --queue scheduling
 
 
+Two-factor authentication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures supports two-factor authentication via Time-based One-time Passwords (TOTP).
+It is off by default, but for any kind of production system in the modern era, it is highly advised to use it to protect your user's data.
+
+Turn it on in the settings:
+
+.. tabs::
+
+    .. tab:: via `pip`
+
+        .. code-block:: bash
+
+            $ export SECURITY_TWO_FACTOR=True
+
+        (on Windows, use ``set`` instead of ``export``\ )
+
+    .. tab:: via `docker`
+
+        Add the `SECURITY_TWO_FACTOR` as an environment variable:
+
+        .. code-block:: bash
+        
+            $ docker run -d --env SECURITY_TWO_FACTOR=True lfenergy/flexmeasures
+
+
+
+If you use it, we need a secret key for encrypting the one-time passwords. This can be done in a similar way as above:
+
+.. tabs::
+
+    .. tab:: via `pip`
+
+        .. code-block:: bash
+
+            $ export SECURITY_TOTP_SECRETS={\"1\":\"something-secret\"}
+
+        (on Windows, use ``set`` instead of ``export``\ )
+
+    .. tab:: via `docker`
+
+        Add the `SECURITY_TOTP_SECRETS` as an environment variable:
+
+        .. code-block:: bash
+        
+            $ docker run -d --env SECURITY_TOTP_SECRETS={\"1\":\"something-secret\"} lfenergy/flexmeasures
+
+.. note:: You can add more secrets later on - keeping the older ones makes sure existing tokens and sessions will continue to work.
+
+This suffices for a quick start. For an actually secure secret, here is a Pythonic way to generate a good secret key:
+
+.. code-block:: bash
+
+   $ python -c "from passlib import totp; print(f'{{\"1\": \"{totp.generate_secret()}\"}}')"
+
+
+Finally, you should set ``SECURITY_TWO_FACTOR_RESCUE_MAIL`` to an email address under which you can be reached by users who cannot use their 2nd means of authentication. 
+
+
 Where to go from here?
 ------------------------
 
@@ -397,4 +429,4 @@ If your data structure is good, you should think about (continually) adding meas
 
 Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`tut_forecasting_scheduling`.
 
-One more consideration is to run FlexMeasures in a more professional ways as a we service. Head on to :ref:`deployment`.
+One more consideration is to run FlexMeasures in a more professional way as a web service. Head on to :ref:`deployment`.
