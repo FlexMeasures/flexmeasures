@@ -74,7 +74,8 @@
     import {
         getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
         createReactiveState, processResourceRawJSON, getAsset,
-        getAccount, getSensor, apiBasePath, renderSensorSearchResults
+        getAccount, getSensor, apiBasePath, renderSensorSearchResults,
+        initializeSensorsForm
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 
@@ -159,37 +160,10 @@
         const flexInfoContainer = document.getElementById('flexInfoContainer');
 
         const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, renderFlexModelForm);
-        const [activeCard, setActiveCard] = createReactiveState(null);
+        const [activeCard, setActiveCard] = createReactiveState(null, renderFlexInputOptions);
         const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
 
 
-        function initializeSensorsForm() {
-            const flexCheckBox = document.getElementById('flexCheckBox');
-            const sensorSearchBar = document.getElementById('sensorSearchBar');
-            const flexUnitsSelect = document.getElementById('flexUnitsSelect');
-
-            const elementsToInitialize = [
-                { element: flexCheckBox, id: 'flexCheckBox' },
-                { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
-                { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
-            ];
-
-            elementsToInitialize.forEach(({ element, id, eventType, handler }) => {
-                if (element) {
-                    if (!element.hasAttribute('data-listening')) {
-                        element.setAttribute('data-listening', 'true');
-                        if (eventType && handler) {
-                            element.addEventListener(eventType, handler);
-                            console.log(`Event listener for ${id} (${eventType}) would be added.`);
-                        }
-                    } else {
-                        console.log(`${id} element found and already listening.`);
-                    }
-                } else {
-                    console.warn(`${id} element not found.`);
-                }
-            });
-        }
 
         function setCardSensor(sensorId) {
             if (!activeCard()) {
@@ -477,21 +451,6 @@
             return card;
         }
 
-        async function renderFlexModelForm() {
-            flexOptionsContainer.innerHTML = "";
-            flexmodelContainer.innerHTML = "";
-            const assetFlexModel = getFlexModel();
-            for (const [key, value] of Object.entries(assetFlexModel)) {
-                if (value !== null) {
-                    if (Array.isArray(value) && value.length > 0) {
-                        const card = await renderFlexModelFieldCard(key, value);
-                    } else if (!Array.isArray(value)) {
-                        const card = await renderFlexModelFieldCard(key, value);
-                    }
-                }
-            }
-        };
-
         function renderDataTypeComponents(dataType, activeTab) {
             const card = activeCard();
             const name = card.id.replace('-control', '');
@@ -722,6 +681,21 @@
 
             initializeSensorsForm(); // Initialize the sensors form elements
         }
+
+        async function renderFlexModelForm() {
+            flexOptionsContainer.innerHTML = "";
+            flexmodelContainer.innerHTML = "";
+            const assetFlexModel = getFlexModel();
+            for (const [key, value] of Object.entries(assetFlexModel)) {
+                if (value !== null) {
+                    if (Array.isArray(value) && value.length > 0) {
+                        const card = await renderFlexModelFieldCard(key, value);
+                    } else if (!Array.isArray(value)) {
+                        const card = await renderFlexModelFieldCard(key, value);
+                    }
+                }
+            }
+        };
 
         renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
         renderFlexModelForm();
