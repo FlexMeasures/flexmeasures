@@ -43,6 +43,8 @@ class BasePipeline:
         forecast_frequency: int,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
+        predict_start: datetime | None = None,
+        predict_end: datetime | None = None,
     ) -> None:
         self.sensors = sensors
         self.regressors = regressors
@@ -53,6 +55,8 @@ class BasePipeline:
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
         self.target_sensor = db.session.get(Sensor, self.sensors[self.target])
+        self.predict_start = predict_start if predict_start else None
+        self.predict_end = predict_end if predict_end else None
         self.max_forecast_horizon_in_hours = (
             self.max_forecast_horizon
             * self.target_sensor.event_resolution.total_seconds()
