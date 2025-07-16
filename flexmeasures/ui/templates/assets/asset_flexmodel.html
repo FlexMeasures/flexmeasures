@@ -179,7 +179,7 @@
                     if (!element.hasAttribute('data-listening')) {
                         element.setAttribute('data-listening', 'true');
                         if (eventType && handler) {
-                            // element.addEventListener(eventType, handler);
+                            element.addEventListener(eventType, handler);
                             console.log(`Event listener for ${id} (${eventType}) would be added.`);
                         }
                     } else {
@@ -609,7 +609,6 @@
                         </div>
                     </div>
                 `;
-                initializeSensorsForm();    
             } else if (dataType == String) { // String Tab =================
                 btn.textContent = 'Fixed Value';
 
@@ -720,6 +719,8 @@
 
             flexOptionsContainer.innerHTML = ""; // Clear previous content
             flexOptionsContainer.appendChild(tabsContainer);
+
+            initializeSensorsForm(); // Initialize the sensors form elements
         }
 
         renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
