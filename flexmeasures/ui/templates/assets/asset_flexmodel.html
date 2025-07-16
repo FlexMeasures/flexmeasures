@@ -163,6 +163,34 @@
         const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
 
 
+        function initializeSensorsForm() {
+            const flexCheckBox = document.getElementById('flexCheckBox');
+            const sensorSearchBar = document.getElementById('sensorSearchBar');
+            const flexUnitsSelect = document.getElementById('flexUnitsSelect');
+
+            const elementsToInitialize = [
+                { element: flexCheckBox, id: 'flexCheckBox' },
+                { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
+                { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
+            ];
+
+            elementsToInitialize.forEach(({ element, id, eventType, handler }) => {
+                if (element) {
+                    if (!element.hasAttribute('data-listening')) {
+                        element.setAttribute('data-listening', 'true');
+                        if (eventType && handler) {
+                            // element.addEventListener(eventType, handler);
+                            console.log(`Event listener for ${id} (${eventType}) would be added.`);
+                        }
+                    } else {
+                        console.log(`${id} element found and already listening.`);
+                    }
+                } else {
+                    console.warn(`${id} element not found.`);
+                }
+            });
+        }
+
         function setCardSensor(sensorId) {
             if (!activeCard()) {
                 showToast("Please select a field to set a sensor", "info");
@@ -176,14 +204,21 @@
             const card = activeCard();
             const name = card.id.replace('-control', '');
             const flexModel = getFlexModel()
-            const value = flexModel[name];
-            flexModel[name] = { "sensor": sensorId };
+            if (FlexModelFieldValidTypes[name].includes(Array)) {
+                const valueIndex = selectedIndex()
+                const fieldValues = flexModel[name];
+                fieldValues[valueIndex] = { "sensor": sensorId };
+            } else {
+                const value = flexModel[name];
+                flexModel[name] = { "sensor": sensorId };
+            }
+
 
             setFlexModel(flexModel);
         }
 
         async function searchSensors() {
-            const searchValue = searchSensflexModelSensorSearchors.value.toLowerCase();
+            const searchValue = sensorSearchBar.value.toLowerCase();
             spinnerElement.style.display = 'flex';
             senSearchResEle.style.display = 'none';
             const flexUnitsSelectValue = flexUnitsSelect.value;
@@ -323,29 +358,9 @@
                 const selectBtn = document.createElement('button'); // ===================
                 selectBtn.className = 'btn btn-secondary btn-sm ms-2 py-0';
                 selectBtn.textContent = 'edit';
-                selectBtn.onclick = function () {
-
-                    typeThree.forEach((type, _) => {
-                        const flexModel = getFlexModel()
-                        const indexValue = cardValues[index];
-                        const activeTab = (indexValue instanceof type);
-                        const [fieldTabheader, fieldTabContent] = renderDataTypeComponents(type, activeTab)
-                        const tabHeaders = document.getElementById('flexModelTabHeaders');
-                        const tabContent = document.getElementById('flexModelTabContent');
-                        if (fieldTabheader && fieldTabContent) {
-                            tabHeaders.appendChild(fieldTabheader);
-                            tabContent.appendChild(fieldTabContent);
-                        } else {
-                            showToast(`Invalid data type for field: ${getFlexFieldTitle(name)}`);
-                            return;
-                        }
-                    });
-
-                    setSelectedIndex(index);
-                };
+                selectBtn.onclick = function () { setSelectedIndex(index); };
                 titleContainer.appendChild(itemTitle);
                 titleContainer.appendChild(selectBtn);
-
 
                 const component = document.createElement('div');
 
@@ -394,6 +409,7 @@
                         // trigger the close icon's onclick function
                         if (activeCard() && activeCard().id === card.id) {
                             setActiveCard(null); // Deselect if the same card is clicked again
+                            setSelectedIndex(null); // Reset selected index
                             card.classList.remove('border-on-click'); // Remove the border class
                         }
                         card.remove(); // Remove the card from the DOM
@@ -411,8 +427,10 @@
                     }
 
                     if (activeCard() && activeCard().id === card.id) {
-                        setActiveCard(null); // Deselect if the same card is clicked again
-                        card.classList.remove('border-on-click'); // Remove the border class
+                        if (selectedIndex() === null && !FlexModelFieldValidTypes[name].includes(Array)) {
+                            setActiveCard(null); // Deselect if the same card is clicked again
+                            card.classList.remove('border-on-click'); // Remove the border class
+                        }
                     }
                     return;
                 }
@@ -421,7 +439,6 @@
                 allCards.forEach(c => c.classList.remove('border-on-click'));
                 card.classList.add('border-on-click');
                 setActiveCard(card); // Set the active card
-                renderFlexInputOptions(); // Render the input options for the selected field
                 renderSelectInfoCards(name); // Render the info card for the selected field
             }
 
@@ -578,7 +595,7 @@
                             <div class="col-8 pe-1">
                                 <input
                                 type="text"
-                                id="searchSensflexModelSensorSearchors"
+                                id="sensorSearchBar"
                                 class="form-control"
                                 placeholder="Search sensors..."
                                 />
@@ -592,6 +609,7 @@
                         </div>
                     </div>
                 `;
+                initializeSensorsForm();    
             } else if (dataType == String) { // String Tab =================
                 btn.textContent = 'Fixed Value';
 
@@ -628,8 +646,6 @@
                 `;
 
                 tabContent.querySelector('.flex-input-group').appendChild(stringTabContentSaveBtn);
-            } else if (dataType == Array) { // Array Tab =================
-                // pass
             } else {
                 return [null, null];
             }
@@ -661,11 +677,12 @@
             tabContent.className = 'tab-content';
 
             if (fieldDataTypes[0] === Array) {
-                if (selectedIndex()) {
-                    typeThree.forEach((type, index) => {
+                const currentCarouselindex = selectedIndex();
+                if (currentCarouselindex >= 0) {
+                    typeThree.forEach((type, _) => {
                         const flexModel = getFlexModel()
                         const value = flexModel[name];
-                        const indexValue = value[selectedIndex()];
+                        const indexValue = value[currentCarouselindex];
                         let activeTab = false;
                         if (type === Object && typeof indexValue === 'object' && indexValue !== null) {
                             activeTab = true;
@@ -697,31 +714,12 @@
             }
 
 
-
             // setup headers and contents in container
             tabsContainer.appendChild(tabHeaders);
             tabsContainer.appendChild(tabContent);
 
             flexOptionsContainer.innerHTML = ""; // Clear previous content
             flexOptionsContainer.appendChild(tabsContainer);
-
-            const flexCheckBox = document.getElementById('flexCheckBox');
-            const searchSensflexModelSensorSearchors = document.getElementById('searchSensflexModelSensorSearchors');
-            const flexUnitsSelect = document.getElementById('flexUnitsSelect');
-
-            if (flexCheckBox) {
-                flexCheckBox.addEventListener('change', searchSensors);
-            }
-
-            if (searchSensflexModelSensorSearchors) {
-                searchSensflexModelSensorSearchors.addEventListener('input', searchSensors);
-            }
-
-            if (flexUnitsSelect) {
-                flexUnitsSelect.addEventListener('change', searchSensors);
-
-            }
-
         }
 
         renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
