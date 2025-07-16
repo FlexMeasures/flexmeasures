@@ -74,8 +74,7 @@
     import {
         getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
         createReactiveState, processResourceRawJSON, getAsset,
-        getAccount, getSensor, apiBasePath, renderSensorSearchResults,
-        initializeSensorsForm
+        getAccount, getSensor, apiBasePath, renderSensorSearchResults
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 
@@ -147,24 +146,48 @@
         "production-capacity": null,
     }
 
+    let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
+    assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
+    let availableUnitsRawJSON = "{{ available_units | safe }}";
+    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+    const availableUnits = JSON.parse(availableUnitsRawJSON);
 
     document.addEventListener('DOMContentLoaded', async function () {
-        let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
-        assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
-        let availableUnitsRawJSON = "{{ available_units | safe }}";
-        availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
-        const availableUnits = JSON.parse(availableUnitsRawJSON);
-
         const flexOptionsContainer = document.getElementById('flexOptionsContainer');
         const flexmodelContainer = document.getElementById('flexmodelContainer');
         const flexInfoContainer = document.getElementById('flexInfoContainer');
 
         const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, renderFlexModelForm);
-        const [activeCard, setActiveCard] = createReactiveState(null, renderFlexInputOptions);
+        const [activeCard, setActiveCard] = createReactiveState(null);
         const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
 
+        function initializeSensorsForm() {
+            const flexCheckBox = document.getElementById('flexCheckBox');
+            const sensorSearchBar = document.getElementById('sensorSearchBar');
+            const flexUnitsSelect = document.getElementById('flexUnitsSelect');
 
+            const elementsToInitialize = [
+                { element: flexCheckBox, id: 'flexCheckBox' },
+                { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
+                { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
+            ];
 
+            elementsToInitialize.forEach(({ element, id, eventType, handler }) => {
+                if (element) {
+                    if (!element.hasAttribute('data-listening')) {
+                        element.setAttribute('data-listening', 'true');
+                        if (eventType && handler) {
+                            element.addEventListener(eventType, handler);
+                            // console.log(`Event listener for ${id} (${eventType}) would be added.`);
+                        }
+                    } else {
+                        // console.log(`${id} element found and already listening.`);
+                    }
+                } else {
+                    // console.warn(`${id} element not found.`);
+                }
+            });
+        }
         function setCardSensor(sensorId) {
             if (!activeCard()) {
                 showToast("Please select a field to set a sensor", "info");
@@ -414,6 +437,9 @@
                 card.classList.add('border-on-click');
                 setActiveCard(card); // Set the active card
                 renderSelectInfoCards(name); // Render the info card for the selected field
+                if (!FlexModelFieldValidTypes[name].includes(Array)) {
+                    renderFlexInputOptions(); // Render the input options for the selected field
+                }
             }
 
             const isString = typeof value === "string";
@@ -651,9 +677,6 @@
                         if (fieldTabheader && fieldTabContent) {
                             tabHeaders.appendChild(fieldTabheader);
                             tabContent.appendChild(fieldTabContent);
-                        } else {
-                            showToast(`Invalid data type for field: ${getFlexFieldTitle(name)}`);
-                            return;
                         }
                     });
                 }
@@ -671,7 +694,6 @@
                 });
             }
 
-
             // setup headers and contents in container
             tabsContainer.appendChild(tabHeaders);
             tabsContainer.appendChild(tabContent);
@@ -679,7 +701,10 @@
             flexOptionsContainer.innerHTML = ""; // Clear previous content
             flexOptionsContainer.appendChild(tabsContainer);
 
-            initializeSensorsForm(); // Initialize the sensors form elements
+            if (fieldDataTypes[0] !== Boolean) {
+                initializeSensorsForm(); // Initialize the sensors form elements
+            }
+
         }
 
         async function renderFlexModelForm() {

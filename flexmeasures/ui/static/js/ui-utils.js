@@ -207,32 +207,3 @@ export function renderSensorSearchResults(sensors, resultContainer, actionFunc) 
         resultContainer.appendChild(col);
     });
 }
-
-
-export function initializeSensorsForm() {
-    const flexCheckBox = document.getElementById('flexCheckBox');
-    const sensorSearchBar = document.getElementById('sensorSearchBar');
-    const flexUnitsSelect = document.getElementById('flexUnitsSelect');
-
-    const elementsToInitialize = [
-        { element: flexCheckBox, id: 'flexCheckBox' },
-        { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
-        { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
-    ];
-
-    elementsToInitialize.forEach(({ element, id, eventType, handler }) => {
-        if (element) {
-            if (!element.hasAttribute('data-listening')) {
-                element.setAttribute('data-listening', 'true');
-                if (eventType && handler) {
-                    element.addEventListener(eventType, handler);
-                    console.log(`Event listener for ${id} (${eventType}) would be added.`);
-                }
-            } else {
-                console.log(`${id} element found and already listening.`);
-            }
-        } else {
-            console.warn(`${id} element not found.`);
-        }
-    });
-}
