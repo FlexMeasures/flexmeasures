@@ -19,8 +19,6 @@ build:
   jobs:
     post_create_environment:
       - pip install . --no-deps  # as python install step, RTD installs deps eagerly
-    post_install:
-      - pip install sphinxcontrib-mermaid
 
 python: 
   install:
