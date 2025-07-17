@@ -190,7 +190,8 @@ def data_to_bdf(
 
     # First, rename target to '0h' for consistency
     df = df.rename(columns={target_sensor: "0h"})
-    df["datetime"] = pd.to_datetime(df["datetime"])
+    df["event_start"] = pd.to_datetime(df["event_start"])
+    df["belief_time"] = pd.to_datetime(df["belief_time"])
     datetime_column = []
     belief_column = []
     forecasts_column = []
@@ -198,10 +199,11 @@ def data_to_bdf(
     probabilistic_values = (
         [float(x.rsplit("_", 1)[-1]) for x in data.index.get_level_values("component")]
         if probabilistic
-        else [0.5] * len(df["datetime"])
+        else [0.5] * len(df["event_start"])
     )
-    for i in range(len(df["datetime"])):
-        date = df["datetime"][i]
+
+    for i in range(len(df["event_start"])):
+        date = df["event_start"][i]
         preds_timestamps = (
             []
         )  # timestamps for the event_start of the forecasts for each horizon
@@ -215,7 +217,7 @@ def data_to_bdf(
 
         forecasts_column.extend(forecasts)
         datetime_column.extend(preds_timestamps)
-        belief_column.extend([date + sensor.event_resolution] * (h))
+        belief_column.extend([df["belief_time"][i]] * h)
         probabilistic_column.extend([probabilistic_values[i]] * h)
 
     test_df["event_start"] = datetime_column
