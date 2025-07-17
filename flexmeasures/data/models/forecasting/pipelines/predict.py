@@ -65,6 +65,8 @@ class PredictPipeline(BasePipeline):
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,
             forecast_frequency=forecast_frequency,
+            predict_start=predict_start,
+            predict_end=predict_end,
         )
         self.model_path = model_path
         self.output_path = output_path
