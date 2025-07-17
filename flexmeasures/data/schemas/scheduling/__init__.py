@@ -231,24 +231,39 @@ class FlexContextSchema(Schema):
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
 
-        # Fill in default soc breach prices when asked to relax SoC constraints.
-        if data["relax_soc_constraints"] or data["relax_constraints"]:
+        # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
+        if (
+            data["relax_soc_constraints"]
+            or data["relax_constraints"]
+            and not data.get("soc_minima_breach_price")
+            and not data.get("soc_maxima_breach_price")
+        ):
             self.set_default_breach_prices(
                 data,
                 fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
                 price=ur.Quantity("1000 EUR/kWh"),
             )
 
-        # Fill in default capacity breach prices when asked to relax capacity constraints.
-        if data["relax_capacity_constraints"] or data["relax_constraints"]:
+        # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
+        if (
+            data["relax_capacity_constraints"]
+            or data["relax_constraints"]
+            and not data.get("consumption_breach_price")
+            and not data.get("production_breach_price")
+        ):
             self.set_default_breach_prices(
                 data,
                 fields=["consumption_breach_price", "production_breach_price"],
                 price=ur.Quantity("100 EUR/kW"),
             )
 
-        # Fill in default site capacity breach prices when asked to relax site capacity constraints.
-        if data["relax_site_capacity_constraints"] or data["relax_constraints"]:
+        # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
+        if (
+            data["relax_site_capacity_constraints"]
+            or data["relax_constraints"]
+            and not data.get("ems_consumption_breach_price")
+            and not data.get("ems_production_breach_price")
+        ):
             self.set_default_breach_prices(
                 data,
                 fields=["ems_consumption_breach_price", "ems_production_breach_price"],
