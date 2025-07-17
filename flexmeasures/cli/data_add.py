@@ -63,6 +63,7 @@ from flexmeasures.data.schemas import (
     TimeIntervalField,
     VariableQuantityField,
 )
+from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSchema
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
@@ -1070,22 +1071,8 @@ def add_holidays(
 )
 @with_appcontext
 def train_predict_pipeline(
-    sensors,
-    regressors,
-    future_regressors,
-    target,
-    model_save_dir,
-    output_path,
-    start_date,
-    end_date,
-    train_period,
-    start_predict_date,
-    predict_period,
-    max_forecast_horizon,
-    forecast_frequency,
-    probabilistic,
-    sensor_to_save,
     as_job,
+    **kwargs,
 ):
     """
     Generate forecasts for a target sensor.
@@ -1114,16 +1101,26 @@ def train_predict_pipeline(
     - Use `--sensor-to-save` to save forecasts into a specific sensor by default forecasts are saved on the target sensor.
     """
 
+    # Load input by passing it through our Marshmallow schema
+    kwargs = ForecastingPipelineSchema().load(kwargs)
+
+    # todo: this block will become redundant
+    sensors = kwargs.pop("sensors")
+    regressors = kwargs.pop("regressors")
+    future_regressors = kwargs.pop("future_regressors")
+    output_path = kwargs.get("output_path")
+    predict_period = kwargs.pop("predict_period")
+    sensor_to_save = kwargs.get("sensor_to_save")
+
     try:
-        from dateutil.parser import isoparse
         from flexmeasures.cli.utils import resolve_forecast_config
 
         # Parse CLI string inputs
         sensors_dict = json.loads(sensors)
-        start_date_dt = isoparse(start_date)
-        end_date_dt = isoparse(end_date)
         regressors_list = regressors.split(",") if regressors else []
-        future_regressors_list = future_regressors.split(",") if future_regressors else None
+        future_regressors_list = (
+            future_regressors.split(",") if future_regressors else None
+        )
         predict_period_val = int(predict_period) if predict_period else None
 
         # Use helper function to resolve and validate all pipeline arguments
@@ -1131,18 +1128,10 @@ def train_predict_pipeline(
             sensors=sensors_dict,
             regressors=regressors_list,
             future_regressors=future_regressors_list or [],
-            target=target,
-            start_date=start_date_dt,
-            end_date=end_date_dt,
-            train_period=train_period,
-            start_predict_date=start_predict_date,
             predict_period=predict_period_val,
             sensor_to_save=sensor_to_save,
-            model_save_dir=model_save_dir,
             output_path=output_path,
-            max_forecast_horizon=max_forecast_horizon,
-            forecast_frequency=forecast_frequency,
-            probabilistic=probabilistic,
+            **kwargs,
         )
 
         pipeline = TrainPredictPipeline(**resolved_config)

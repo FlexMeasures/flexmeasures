@@ -5,7 +5,7 @@ Utils for FlexMeasures CLI
 from __future__ import annotations
 
 from typing import Any
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import click
 from tabulate import tabulate
@@ -365,10 +365,9 @@ def tabulate_account_assets(assets):
         tabulate(asset_data, headers=["ID", "Name", "Type", "Parent ID", "Location"])
     )
 
+
 import os
-import pandas as pd
 from datetime import datetime, timedelta
-from dateutil.parser import isoparse
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import server_now
 import click
@@ -388,7 +387,7 @@ def resolve_forecast_config(
     start_date: datetime,
     end_date: datetime,
     train_period: int | None,
-    start_predict_date: str | None,
+    start_predict_date: datetime | None,
     predict_period: int | None,
     sensor_to_save: int | None,
     model_save_dir: str,
@@ -441,7 +440,7 @@ def resolve_forecast_config(
     if start_predict_date is None:
         predict_start = floor_to_resolution(server_now(), resolution)
     else:
-        predict_start = isoparse(start_predict_date)
+        predict_start = start_predict_date
 
     if predict_start < start_date:
         raise click.BadParameter("--start-predict-date cannot be before --start-date")
@@ -451,11 +450,15 @@ def resolve_forecast_config(
     if train_period is None:
         train_period_in_hours = int((predict_start - start_date).total_seconds() / 3600)
         if train_period_in_hours < 48:
-            raise click.BadParameter("--train-period must be at least 2 days (48 hours). consider reducing --start-date. or increasing --start-predict-date.")
+            raise click.BadParameter(
+                "--train-period must be at least 2 days (48 hours). consider reducing --start-date. or increasing --start-predict-date."
+            )
     else:
         train_period_in_hours = int(train_period) * 24
         if train_period_in_hours < 48:
-            raise click.BadParameter("--train-period must be at least 2 days (48 hours). consider increasing --train-period.")
+            raise click.BadParameter(
+                "--train-period must be at least 2 days (48 hours). consider increasing --train-period."
+            )
 
     if predict_period is None:
         predict_period_in_hours = int((end_date - predict_start).total_seconds() / 3600)
