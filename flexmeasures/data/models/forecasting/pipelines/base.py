@@ -489,11 +489,7 @@ class BasePipeline:
 
             columns = [x for x in df.columns if x not in ["belief_time", "source_y"]]
             past_data = past_data[columns].copy().reset_index(drop=True)
-            print('== past regressors: ==')
-            print('target_start: ', target_start)
-            print('target_end: ', target_end)
-            print('======================')
-            #breakpoint()
+
             past_covariates = self.detect_and_fill_missing_values(
                 df=past_data,
                 sensor_names=[
@@ -502,7 +498,6 @@ class BasePipeline:
                 start=target_start,
                 end=target_end,
             )
-            #breakpoint()
             return past_covariates
 
         def _filter_future_covariates(df):
@@ -609,11 +604,7 @@ class BasePipeline:
             return future_data_darts_end
 
         target_dataframe = target_dataframe.drop(columns=["belief_time"])
-        print('==== target: =========')
-        print('target_start: ', target_start)
-        print('target_end: ', target_end)
-        print('======================')
-        #breakpoint()
+
         target_data = self.detect_and_fill_missing_values(
             df=target_dataframe[(target_dataframe["event_start"] <= target_end)],
             sensor_names=self.target,

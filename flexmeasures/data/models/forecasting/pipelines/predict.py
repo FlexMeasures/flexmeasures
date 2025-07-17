@@ -290,9 +290,6 @@ class PredictPipeline(BasePipeline):
                 regressors=self.regressors,
             )
             print(bdf)
-            # Mask beliefs outside the prediction window
-            # bdf = bdf[bdf.index.get_level_values("event_start") >= self.predict_start]
-            # bdf = bdf[bdf.index.get_level_values("event_start") < self.predict_end]
             breakpoint()
             save_to_db(
                 bdf, save_changed_beliefs_only=False
