@@ -1003,7 +1003,6 @@ def add_holidays(
 )
 @click.option(
     "--regressors",
-    default="autoregressive",
     help="Comma-separated list of the sensor names to be used as regressors, default is 'autoregressive' to use the AR forecasting",
 )
 @click.option(
@@ -1049,12 +1048,11 @@ def add_holidays(
     help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM)",
 )
 @click.option(
-    "--max-forecast-horizon", default=48, help="Maximum forecast horizon in hours"
+    "--max-forecast-horizon", required=False, help="Maximum forecast horizon in hours"
 )
 @click.option(
     "--forecast-frequency",
     type=int,
-    default=1,
     help="Forecast frequency in hours, i.e. how often to recompute forecasts.",
 )
 @click.option("--probabilistic", default=False, help="Enable probabilistic predictions")
