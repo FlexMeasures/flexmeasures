@@ -213,6 +213,7 @@ class BasePipeline:
                 future_covariates_list = []
                 target_list = []
                 end_for_loop = self.n_hours_to_predict if is_predict_pipeline else 1
+                belief_timestamps_list = []
 
                 for index_offset in range(0, end_for_loop):
                     split_timestamp = first_split_timestamp + pd.Timedelta(
@@ -244,6 +245,7 @@ class BasePipeline:
                     target_list.append(y_split)
                     past_covariates_list.append(past_covariates)
                     future_covariates_list.append(future_covariates)
+                    belief_timestamps_list.append(split_timestamp)
 
                 future_covariates_list = (
                     future_covariates_list
@@ -256,7 +258,7 @@ class BasePipeline:
                     else None
                 )
 
-                return past_covariates_list, future_covariates_list, target_list
+                return past_covariates_list, future_covariates_list, target_list, belief_timestamps_list
 
             if (
                 "auto_regressive" in self.regressors
@@ -266,10 +268,10 @@ class BasePipeline:
 
                 y = df[["event_start", "belief_time", self.target]].copy()
 
-                _, _, target_list = _generate_splits(None, None, y)
+                _, _, target_list, belief_timestamps_list = _generate_splits(None, None, y)
 
                 logging.debug("Data split successfully with autoregressive lags.")
-                return None, None, target_list
+                return None, None, target_list, belief_timestamps_list
             # Existing logic for using regressors
 
             X_past_regressors_df = (
@@ -292,11 +294,11 @@ class BasePipeline:
                 .copy()
             )
 
-            past_covariates_list, future_covariates_list, target_list = (
+            past_covariates_list, future_covariates_list, target_list, belief_timestamps_list = (
                 _generate_splits(X_past_regressors_df, X_future_regressors_df, y)
             )
 
-            return past_covariates_list, future_covariates_list, target_list
+            return past_covariates_list, future_covariates_list, target_list, belief_timestamps_list
 
         except Exception as e:
             raise CustomException(f"Error splitting data: {e}", sys)
