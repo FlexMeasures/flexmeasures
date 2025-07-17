@@ -192,7 +192,7 @@ def get_power_values(
         current_app.logger.warning(
             f"Assuming zero power values for (partially) unknown power values for planning window. (sensor {sensor.id})"
         )
-        df = df.fillna(0)
+        df = df.astype(float).fillna(0)
 
     series = convert_units(df.values, sensor.unit, "MW")
 
@@ -444,7 +444,9 @@ def process_time_series_segments(
     # Resolve overlaps using the specified method
     if resolve_overlaps == "first":
         # Use backfill to fill NaNs with the first non-NaN value
-        time_series = time_series_segments.fillna(method="bfill", axis=1).iloc[:, 0]
+        time_series = (
+            time_series_segments.astype(float).fillna(method="bfill", axis=1).iloc[:, 0]
+        )
     else:
         # Use the specified method to resolve overlaps (e.g., mean, max)
         time_series = getattr(time_series_segments, resolve_overlaps)(axis=1)
@@ -532,7 +534,7 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
         # [left]:  datetime64[ns, +0000]
         # [right]: datetime64[ns, UTC]
         value = value.tz_convert("UTC")
-    return s.fillna(value).clip(upper=value)
+    return s.astype(float).fillna(value).clip(upper=value)
 
 
 def initialize_energy_commitment(

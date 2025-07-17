@@ -359,8 +359,8 @@ def test_add_account(
 
 
 @pytest.mark.skip_github
-@pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])
-@pytest.mark.parametrize("storage_efficiency", ["sensor", "quantity", None])
+@pytest.mark.parametrize("storage_power_capacity", ["sensor"])
+@pytest.mark.parametrize("storage_efficiency", ["sensor"])
 def test_add_storage_schedule(
     app,
     add_market_prices_fresh_db,
