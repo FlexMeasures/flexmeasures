@@ -318,7 +318,10 @@ class FlexContextSchema(Schema):
                         f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
                         field_name=field_name,
                     )
-        data["shared_currency_unit"] = shared_currency_unit
+        if shared_currency_unit is not None:
+            data["shared_currency_unit"] = shared_currency_unit
+        else:
+            data["shared_currency_unit"] = "dimensionless"
         return data
 
 
