@@ -1,6 +1,13 @@
-from marshmallow import fields, Schema, validates_schema
+import os
+import click
+import json
+
+from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
 
 from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.utils.time_utils import server_now
 
 
 class ForecastingPipelineSchema(Schema):
