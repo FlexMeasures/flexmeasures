@@ -124,7 +124,7 @@ class ForecastingPipelineSchema(Schema):
             freq = max_horizon
 
         if data.get("sensor_to_save") is None:
-            sensor_to_save = target_sensor.id
+            sensor_to_save = target_sensor
         else:
             sensor_to_save = data["sensor_to_save"]
 
