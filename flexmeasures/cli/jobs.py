@@ -49,6 +49,26 @@ def fm_jobs():
     """FlexMeasures: Job queueing."""
 
 
+@fm_jobs.command("run-job")
+@with_appcontext
+@click.option(
+    "--job",
+    "job_id",
+    required=True,
+    help="Job UUID of the job you want to run.",
+)
+def run_job(job_id: str):
+    """
+    Run a single job.
+
+    We use the app context to find out which redis queues to use.
+    """
+    connection = app.queues["scheduling"].connection
+    job = Job.fetch(job_id, connection=connection)
+    result = job.func(**job.kwargs)
+    click.echo(f"Job {job_id} finished with: {result}")
+
+
 @fm_jobs.command("run-worker")
 @with_appcontext
 @click.option(
