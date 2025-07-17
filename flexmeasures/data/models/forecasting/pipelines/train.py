@@ -108,7 +108,7 @@ class TrainPipeline(BasePipeline):
         """
         try:
             df = self.load_data_all_beliefs()
-            past_covariates_list, future_covariates_list, y_train_list = (
+            past_covariates_list, future_covariates_list, y_train_list, _ = (
                 self.split_data_all_beliefs(df)
             )
             past_covariates = past_covariates_list[0] if past_covariates_list else None
