@@ -284,3 +284,9 @@ def data_to_bdf(
     bdf = tb.BeliefsDataFrame(ts_value_forecasts)
 
     return bdf
+
+
+def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+    delta_seconds = resolution.total_seconds()
+    floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
+    return datetime.fromtimestamp(floored, tz=dt.tzinfo)
