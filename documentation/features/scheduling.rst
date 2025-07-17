@@ -59,9 +59,11 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``relax-constraints``
      - ``True``
      - If True, several constraints are relaxed by setting default breach prices, leading to the default priority:
+
        1. Avoid breaching the site consumption/production capacity.
        2. Avoid not meeting SoC minima/maxima.
        3. Avoid breaching the desired device consumption/production capacity.
+
        We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
        For tighter control over prices and priorities, the breach prices can still be set explicitly.
    * - ``inflexible-device-sensors``
