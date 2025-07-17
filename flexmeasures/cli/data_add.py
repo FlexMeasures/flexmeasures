@@ -1104,37 +1104,8 @@ def train_predict_pipeline(
     # Load input by passing it through our Marshmallow schema
     kwargs = ForecastingPipelineSchema().load(kwargs)
 
-    # todo: this block will become redundant
-    sensors = kwargs.pop("sensors")
-    regressors = kwargs.pop("regressors")
-    future_regressors = kwargs.pop("future_regressors")
-    output_path = kwargs.get("output_path")
-    predict_period = kwargs.pop("predict_period")
-    sensor_to_save = kwargs.get("sensor_to_save")
-
     try:
-        from flexmeasures.cli.utils import resolve_forecast_config
-
-        # Parse CLI string inputs
-        sensors_dict = json.loads(sensors)
-        regressors_list = regressors.split(",") if regressors else []
-        future_regressors_list = (
-            future_regressors.split(",") if future_regressors else None
-        )
-        predict_period_val = int(predict_period) if predict_period else None
-
-        # Use helper function to resolve and validate all pipeline arguments
-        resolved_config = resolve_forecast_config(
-            sensors=sensors_dict,
-            regressors=regressors_list,
-            future_regressors=future_regressors_list or [],
-            predict_period=predict_period_val,
-            sensor_to_save=sensor_to_save,
-            output_path=output_path,
-            **kwargs,
-        )
-
-        pipeline = TrainPredictPipeline(**resolved_config)
+        pipeline = TrainPredictPipeline(**kwargs)
         pipeline.run(as_job=as_job)
 
     except Exception as e:
