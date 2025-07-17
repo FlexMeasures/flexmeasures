@@ -121,6 +121,15 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``production-breach-price``
      - ``"10 EUR/kW"``
      - The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
+    * - ``relax-constraints``
+     - ``True``
+     - If True, several constraints are relaxed by setting default breach prices, leading to the default priority:
+       1. Avoid breaching the site consumption/production capacity.
+       2. Avoid not meeting SoC minima/maxima.
+       3. Avoid breaching the desired device consumption/production capacity.
+       This field currently only works for prices with the EUR unit.
+       We recommend users working with EUR units to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
+       For tighter control over prices and priorities, the breach prices can still be set explicitly.
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
