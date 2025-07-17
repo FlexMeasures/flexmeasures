@@ -127,8 +127,7 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
        1. Avoid breaching the site consumption/production capacity.
        2. Avoid not meeting SoC minima/maxima.
        3. Avoid breaching the desired device consumption/production capacity.
-       This field currently only works for prices with the EUR unit.
-       We recommend users working with EUR units to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
+       We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
        For tighter control over prices and priorities, the breach prices can still be set explicitly.
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).

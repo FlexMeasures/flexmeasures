@@ -230,6 +230,7 @@ class FlexContextSchema(Schema):
 
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
+        shared_currency = ur.Quantity(data["shared_currency_unit"])
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
         if (
@@ -241,7 +242,7 @@ class FlexContextSchema(Schema):
             self.set_default_breach_prices(
                 data,
                 fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
-                price=ur.Quantity("1000 EUR/kWh"),
+                price=1000 * shared_currency / ur.Quantity("kWh"),
             )
 
         # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
@@ -254,7 +255,7 @@ class FlexContextSchema(Schema):
             self.set_default_breach_prices(
                 data,
                 fields=["consumption_breach_price", "production_breach_price"],
-                price=ur.Quantity("100 EUR/kW"),
+                price=100 * shared_currency / ur.Quantity("kW"),
             )
 
         # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
@@ -267,7 +268,7 @@ class FlexContextSchema(Schema):
             self.set_default_breach_prices(
                 data,
                 fields=["ems_consumption_breach_price", "ems_production_breach_price"],
-                price=ur.Quantity("10000 EUR/kW"),
+                price=10000 * shared_currency / ur.Quantity("kW"),
             )
 
         return data
