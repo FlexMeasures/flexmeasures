@@ -61,6 +61,7 @@ class FlexContextSchema(Schema):
         value_validator=validate.Range(min=0),
         default=None,
     )
+    relax_constraints = fields.Bool(data_key="relax-constraints", load_default=False)
     # Dev fields
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints", load_default=False
@@ -208,6 +209,7 @@ class FlexContextSchema(Schema):
                 "site-production-breach-price",
                 "site-peak-consumption-price",
                 "site-peak-production-price",
+                "relax-constraints",
                 "relax-soc-constraints",
                 "relax-capacity-constraints",
                 "relax-site-capacity-constraints",
@@ -230,7 +232,7 @@ class FlexContextSchema(Schema):
         data = self._try_to_convert_price_units(data)
 
         # Fill in default soc breach prices when asked to relax SoC constraints.
-        if data["relax_soc_constraints"]:
+        if data["relax_soc_constraints"] or data["relax_constraints"]:
             self.set_default_breach_prices(
                 data,
                 fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
@@ -238,7 +240,7 @@ class FlexContextSchema(Schema):
             )
 
         # Fill in default capacity breach prices when asked to relax capacity constraints.
-        if data["relax_capacity_constraints"]:
+        if data["relax_capacity_constraints"] or data["relax_constraints"]:
             self.set_default_breach_prices(
                 data,
                 fields=["consumption_breach_price", "production_breach_price"],
@@ -246,7 +248,7 @@ class FlexContextSchema(Schema):
             )
 
         # Fill in default site capacity breach prices when asked to relax site capacity constraints.
-        if data["relax_site_capacity_constraints"]:
+        if data["relax_site_capacity_constraints"] or data["relax_constraints"]:
             self.set_default_breach_prices(
                 data,
                 fields=["ems_consumption_breach_price", "ems_production_breach_price"],
