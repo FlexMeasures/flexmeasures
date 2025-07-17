@@ -1055,7 +1055,7 @@ def add_holidays(
     type=int,
     help="Forecast frequency in hours, i.e. how often to recompute forecasts.",
 )
-@click.option("--probabilistic", default=False, help="Enable probabilistic predictions")
+@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions")
 @click.option(
     "--sensor-to-save",
     default=None,
