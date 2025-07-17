@@ -59,3 +59,93 @@ class ForecastingPipelineSchema(Schema):
     def _parse_comma_list(self, text: str | None) -> list[str]:
         return [item.strip() for item in text.split(",") if item.strip()] if text else []
 
+    def _parse_json_dict(self, text: str) -> dict:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            raise ValidationError("sensors must be a valid JSON string mapping names to IDs", field_name="sensors")
+
+    @post_load
+    def resolve_config(self, data: dict, **kwargs) -> dict:
+        sensors = self._parse_json_dict(data["sensors"])
+        regressors = self._parse_comma_list(data.get("regressors", ""))
+        future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
+        target = data["target"]
+
+        if not regressors and not future_regressors:
+            regressors = ["autoregressive"]
+        elif not regressors and future_regressors:
+            regressors = future_regressors.copy()
+
+        if "autoregressive" not in regressors:
+            for key in regressors + [target]:
+                if key not in sensors:
+                    raise click.BadParameter(f"Sensor '{key}' not found in --sensors")
+
+        if missing := set(future_regressors) - set(regressors):
+            raise click.BadParameter(
+                f"--future-regressors contains entries not found in --regressors: {missing}"
+            )
+
+        target_sensor = Sensor.query.get(sensors[target])
+        if not target_sensor:
+            raise click.BadParameter(f"Target sensor '{target}' not found in DB.")
+
+        resolution = target_sensor.event_resolution
+        predict_start = data.get("start_predict_date") or floor_to_resolution(server_now(), resolution)
+
+        if data.get("train_period") is None:
+            train_period_in_hours = int((predict_start - data["start_date"]).total_seconds() / 3600)
+            if train_period_in_hours < 48:
+                raise click.BadParameter("--train-period must be at least 2 days (48 hours).")
+        else:
+            train_period_in_hours = data["train_period"] * 24
+            if train_period_in_hours < 48:
+                raise click.BadParameter("--train-period must be at least 2 days (48 hours).")
+
+        if data.get("predict_period") is None:
+            predict_period_in_hours = int((data["end_date"] - predict_start).total_seconds() / 3600)
+        else:
+            predict_period_in_hours = data["predict_period"]
+            if predict_period_in_hours < 1:
+                raise click.BadParameter("--predict-period must be at least 1 hour")
+
+        if "autoregressive" in regressors:
+            sensors = {target: sensors[target]}
+
+        max_horizon = data.get("max_forecast_horizon")
+        freq = data.get("forecast_frequency")
+
+        if max_horizon is None and freq is None:
+            max_horizon = freq = predict_period_in_hours
+        elif max_horizon is None:
+            max_horizon = freq
+        elif freq is None:
+            freq = max_horizon
+
+        if data.get("sensor_to_save") is None:
+            sensor_to_save = target_sensor.id
+        else:
+            sensor_to_save = data["sensor_to_save"]
+
+        output_path = data.get("output_path")
+        if output_path and not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        return dict(
+            sensors=sensors,
+            regressors=regressors,
+            future_regressors=future_regressors,
+            target=target,
+            model_save_dir=data["model_save_dir"],
+            output_path=output_path,
+            start_date=data["start_date"],
+            end_date=data["end_date"],
+            train_period_in_hours=train_period_in_hours,
+            predict_start=predict_start,
+            predict_period_in_hours=predict_period_in_hours,
+            max_forecast_horizon=max_horizon,
+            forecast_frequency=freq,
+            probabilistic=data["probabilistic"],
+            sensor_to_save=sensor_to_save,
+        )
