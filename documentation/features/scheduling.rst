@@ -55,7 +55,15 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
 
    * - Field
      - Example value
-     - Description 
+     - Description
+   * - ``relax-constraints``
+     - ``True``
+     - If True, several constraints are relaxed by setting default breach prices, leading to the default priority:
+       1. Avoid breaching the site consumption/production capacity.
+       2. Avoid not meeting SoC minima/maxima.
+       3. Avoid breaching the desired device consumption/production capacity.
+       We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
+       For tighter control over prices and priorities, the breach prices can still be set explicitly.
    * - ``inflexible-device-sensors``
      - ``[3,4]``
      - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -121,14 +129,6 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``production-breach-price``
      - ``"10 EUR/kW"``
      - The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
-    * - ``relax-constraints``
-     - ``True``
-     - If True, several constraints are relaxed by setting default breach prices, leading to the default priority:
-       1. Avoid breaching the site consumption/production capacity.
-       2. Avoid not meeting SoC minima/maxima.
-       3. Avoid breaching the desired device consumption/production capacity.
-       We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
-       For tighter control over prices and priorities, the breach prices can still be set explicitly.
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
