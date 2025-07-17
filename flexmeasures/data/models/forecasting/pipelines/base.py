@@ -189,31 +189,20 @@ class BasePipeline:
 
                 target_sensor_resolution = self.target_sensor.event_resolution
 
-                first_split_timestamp = y["belief_time"][
-                    len(y)
-                    - (
-                        self.n_hours_to_predict + 1
-                        if is_predict_pipeline
-                        else self.max_forecast_horizon + 1
-                    )
-                ]
-                # first event_start of the target dataframe (i.e. start of first observation)
-                target_start = y["event_start"][0]
+                # target_start is the timestamp of the event_start of the first event in realizations
+                target_start = pd.to_datetime(self.event_starts_after, utc=True).tz_localize(None)
 
-                # Last event start of the target dataframe (i.e. start of last observation)
-                target_end = y["event_start"][
-                    len(y)
-                    - (
-                        self.n_hours_to_predict + 1
-                        if is_predict_pipeline
-                        else self.max_forecast_horizon + 1
-                    )
-                ]
-                target_start = pd.to_datetime(target_start, utc=True).tz_localize(None)
-                target_end = pd.to_datetime(target_end, utc=True).tz_localize(None)
+                # target_end is the timestamp of the last event_start of realized data
+                # split_timestamp is the belief_time of the last realization to be used for forecasting.
+                if self.predict_start:
+                    first_target_end = pd.to_datetime(self.predict_start - self.target_sensor.event_resolution, utc=True).tz_localize(None)
+                    first_split_timestamp = pd.to_datetime(self.predict_start, utc=True).tz_localize(None)
+                else:
+                    first_target_end = pd.to_datetime(self.event_ends_before - self.target_sensor.event_resolution, utc=True).tz_localize(None)
+                    first_split_timestamp = pd.to_datetime(self.event_ends_before, utc=True).tz_localize(None)
 
                 forecast_end = (
-                    target_end
+                    first_target_end
                     + pd.Timedelta(hours=self.max_forecast_horizon_in_hours)
                     + self.target_sensor.event_resolution
                 )
@@ -231,8 +220,10 @@ class BasePipeline:
                         * target_sensor_resolution.total_seconds()
                         / 60
                     )  # The timestamp to simulate the start of prediction, used to obtain future and past data relative to this timestamp.
-                    target_end = target_end + pd.Timedelta(
-                        minutes=target_sensor_resolution.total_seconds() / 60
+                    target_end = first_target_end + pd.Timedelta(
+                        minutes=index_offset
+                        * target_sensor_resolution.total_seconds()
+                        / 60
                     )
 
                     forecast_end = forecast_end + pd.Timedelta(
