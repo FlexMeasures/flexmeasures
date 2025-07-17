@@ -1116,96 +1116,40 @@ def train_predict_pipeline(
     - Use `--sensor-to-save` to save forecasts into a specific sensor by default forecasts are saved on the target sensor.
     """
 
-
     try:
-        # Parse inputs
-        sensors_dict = json.loads(sensors)
         from dateutil.parser import isoparse
+        from flexmeasures.cli.utils import resolve_forecast_config
 
-        def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
-            delta_seconds = resolution.total_seconds()
-            timestamp = dt.timestamp()
-            floored = timestamp - (timestamp % delta_seconds)
-            return datetime.fromtimestamp(floored, tz=dt.tzinfo)
-        #breakpoint()
-        if start_predict_date is None:
-            target_sensor_id = sensors_dict[target]
-            target_sensor = Sensor.query.get(target_sensor_id)
-            resolution = target_sensor.event_resolution  # This is a timedelta
+        # Parse CLI string inputs
+        sensors_dict = json.loads(sensors)
+        start_date_dt = isoparse(start_date)
+        end_date_dt = isoparse(end_date)
+        regressors_list = regressors.split(",") if regressors else []
+        future_regressors_list = future_regressors.split(",") if future_regressors else None
+        predict_period_val = int(predict_period) if predict_period else None
 
-            now = server_now()
-            start_predict_date = floor_to_resolution(now, resolution).isoformat()
-
-        if predict_period is None:
-            # predict_period = (isoparse(end_date) - isoparse(start_predict_date)) // pd.Timedelta("P1D")
-            predict_period = abs(
-                (
-                    isoparse(end_date)-
-                    isoparse(start_predict_date)
-                ).days
-        )
-        regressors_list = regressors.split(",")
-        predict_period_in_hours = int(predict_period) * 24
-        train_period_in_hours = int(train_period) * 24 if train_period else None
-        start_date = isoparse(start_date)
-        end_date = isoparse(end_date)
-        predict_start = (
-            isoparse(start_predict_date)
-            if start_predict_date
-            else (start_date + timedelta(hours=train_period_in_hours))
-        )
-        probabilistic = bool(probabilistic)
-
-        # Set predict_start and train_period_in_hours
-        if train_period is None and start_predict_date is not None:
-            # If no explicit training period is defined, use everything before the start_predict_date
-            predict_start = isoparse(start_predict_date)
-            train_period_in_hours = (predict_start - start_date) / pd.Timedelta("1h")
-        elif train_period is not None and start_predict_date is None:
-            # If no start_predict_date is explicitly defined, start right after the training period
-            train_period_in_hours = int(train_period) * 24
-            predict_start = start_date + timedelta(hours=train_period_in_hours)
-        elif train_period is not None and start_predict_date is not None:
-            # If both are explicitly defined, use them (this allows gaps between the training and prediction periods)
-            train_period_in_hours = int(train_period) * 24
-            predict_start = isoparse(start_predict_date)
-        elif train_period is None and start_predict_date is None:
-            # Of neither is defined, set a minimum training period of 2 days, with predictions starting right after
-            train_period_in_hours = 2 * 24
-            predict_start = start_date + timedelta(hours=train_period_in_hours)
-            click.echo(
-                "No --train-period or --start-predict-date set. Defaulting to a training period of 2 days, with predictions starting right after."
-            )
-
-        if "autoregressive" in regressors_list:
-            sensors_dict = {target: sensors_dict[target]}
-        if sensor_to_save is None:
-            sensor_to_save = Sensor.query.get(int(sensors_dict[target]))
-
-        if future_regressors is not None:
-            future_regressors_list = future_regressors.split(",")
-        else:
-            future_regressors_list = []
-
-        # Create and run the pipeline
-        pipeline = TrainPredictPipeline(
+        # Use helper function to resolve and validate all pipeline arguments
+        resolved_config = resolve_forecast_config(
             sensors=sensors_dict,
             regressors=regressors_list,
-            future_regressors=future_regressors_list,
+            future_regressors=future_regressors_list or [],
             target=target,
+            start_date=start_date_dt,
+            end_date=end_date_dt,
+            train_period=train_period,
+            start_predict_date=start_predict_date,
+            predict_period=predict_period_val,
+            sensor_to_save=sensor_to_save,
             model_save_dir=model_save_dir,
             output_path=output_path,
-            start_date=start_date,
-            end_date=end_date,
-            train_period_in_hours=train_period_in_hours,
-            sensor_to_save=sensor_to_save,
-            predict_start=predict_start,
-            predict_period_in_hours=predict_period_in_hours,
             max_forecast_horizon=max_forecast_horizon,
             forecast_frequency=forecast_frequency,
             probabilistic=probabilistic,
         )
+
+        pipeline = TrainPredictPipeline(**resolved_config)
         pipeline.run(as_job=as_job)
+
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
         raise
