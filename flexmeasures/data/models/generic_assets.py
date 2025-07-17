@@ -78,6 +78,9 @@ class GenericAsset(db.Model, AuthModelMixin):
     flex_context = db.Column(
         MutableDict.as_mutable(db.JSON), nullable=False, default={}
     )
+    sensors_to_show_as_kpis = db.Column(
+        MutableList.as_mutable(db.JSON), nullable=False, default=[]
+    )
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
@@ -281,6 +284,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                 f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
             )
         return sensors_to_show
+
+    def get_sensors_to_show_as_kpis(self):
+        return self.sensors_to_show_as_kpis
 
     @property
     def asset_type(self) -> GenericAssetType:
