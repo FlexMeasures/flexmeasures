@@ -262,7 +262,7 @@ class PredictPipeline(BasePipeline):
         """
         try:
             df = self.load_data_all_beliefs()
-            past_covariates_list, future_covariates_list, y_list = (
+            past_covariates_list, future_covariates_list, y_list, belief_timestamps_list = (
                 self.split_data_all_beliefs(df, is_predict_pipeline=True)
             )
             logging.debug("Done splitting data")
