@@ -1070,3 +1070,93 @@ class AssetAPI(FlaskView):
         response = dict(schedule=job.id)
         d, s = request_processed()
         return dict(**response, **d), s
+
+    @route("/<id>/kpis", methods=["GET"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "event_start_time": fields.Str(required=True),
+            "event_end_time": fields.Str(required=True),
+        },
+        location="query",
+    )
+    def get_kpis(self, id: int, asset: GenericAsset, event_start_time, event_end_time):
+        from flexmeasures.data.services.sensors import get_sensor_stats
+
+        """API endpoint to get kpis for an asset.
+
+        .. :quickref: Asset; Get asset kpis
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "event_start_time": "2015-06-02T10:00:00+00:00",
+                "event_end_time": "2015-06-02T12:00:00+00:00"
+            }
+
+        **Example response**
+
+        .. sourcecode:: json
+
+            {
+                "data": [
+                    {
+                        "sensor": 145046,
+                        "title": "My KPI",
+                        "unit": "MW",
+                        "value": 0
+                    },
+                    {
+                        "sensor": 141053,
+                        "title": "Raw PowerKPI",
+                        "unit": "kW",
+                        "value": 816.67
+                    }
+                ]
+            }
+
+        This endpoint returns a list of kpis for the asset.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_DATA
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 405: INVALID_METHOD
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        asset_kpis = asset.get_sensors_to_show_as_kpis()
+        kpis = []
+        for kpi in asset_kpis:
+            sensor = Sensor.query.get(kpi["sensor"])
+            sensor_stats = get_sensor_stats(
+                sensor, event_start_time, event_end_time, sort_keys=False
+            )
+            try:
+                if sensor.unit == "%":
+                    stats_value = dict(next(iter(sensor_stats.values())))["Mean value"]
+                else:
+                    stats_value = dict(next(iter(sensor_stats.values())))[
+                        "Sum over values"
+                    ]
+            except StopIteration:
+                stats_value = 0
+            kpi_dict = {
+                "title": kpi["title"],
+                "unit": sensor.unit,
+                "sensor": sensor.id,
+                "value": round(stats_value, 2),
+            }
+            kpis.append(kpi_dict)
+        return dict(data=kpis), 200
