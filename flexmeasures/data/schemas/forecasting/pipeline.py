@@ -12,9 +12,15 @@ from flexmeasures.utils.time_utils import server_now
 
 class ForecastingPipelineSchema(Schema):
 
-    sensors = fields.Str(required=True)  # expects JSON string like '{"target": 123, "Ta": 456}'
-    regressors = fields.Str(required=False, allow_none=True)  # expects comma-separated string like "target,Ta"
-    future_regressors = fields.Str(required=False, allow_none=True)  # expects comma-separated string
+    sensors = fields.Str(
+        required=True
+    )  # expects JSON string like '{"target": 123, "Ta": 456}'
+    regressors = fields.Str(
+        required=False, allow_none=True
+    )  # expects comma-separated string like "target,Ta"
+    future_regressors = fields.Str(
+        required=False, allow_none=True
+    )  # expects comma-separated string
     target = fields.Str(required=True)
     model_save_dir = fields.Str(required=True)
     output_path = fields.Str(required=False, allow_none=True)
@@ -37,36 +43,57 @@ class ForecastingPipelineSchema(Schema):
         predict_period = data.get("predict_period")
 
         if start_date >= end_date:
-            raise ValidationError("--start-date must be before --end-date", field_name="start_date")
+            raise ValidationError(
+                "--start-date must be before --end-date", field_name="start_date"
+            )
 
         if predict_start:
             if predict_start < start_date:
-                raise ValidationError("--start-predict-date cannot be before --start-date", field_name="start_predict_date")
+                raise ValidationError(
+                    "--start-predict-date cannot be before --start-date",
+                    field_name="start_predict_date",
+                )
             if predict_start >= end_date:
-                raise ValidationError("--start-predict-date must be before --end-date", field_name="start_predict_date")
+                raise ValidationError(
+                    "--start-predict-date must be before --end-date",
+                    field_name="start_predict_date",
+                )
 
         if train_period is not None and train_period < 2:
-            raise ValidationError("--train-period must be at least 2 days (48 hours)", field_name="train_period")
+            raise ValidationError(
+                "--train-period must be at least 2 days (48 hours)",
+                field_name="train_period",
+            )
 
         if predict_period is not None and predict_period <= 0:
-            raise ValidationError("--predict-period must be greater than 0", field_name="predict_period")
+            raise ValidationError(
+                "--predict-period must be greater than 0", field_name="predict_period"
+            )
 
         regressors = self._parse_comma_list(data.get("regressors", ""))
         future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
         if not regressors and not future_regressors:
-            raise ValidationError("At least one of --regressors or --future-regressors must be provided", field_name="regressors")
+            raise ValidationError(
+                "At least one of --regressors or --future-regressors must be provided",
+                field_name="regressors",
+            )
 
     def _parse_comma_list(self, text: str | None) -> list[str]:
-        return [item.strip() for item in text.split(",") if item.strip()] if text else []
+        return (
+            [item.strip() for item in text.split(",") if item.strip()] if text else []
+        )
 
     def _parse_json_dict(self, text: str) -> dict:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            raise ValidationError("sensors must be a valid JSON string mapping names to IDs", field_name="sensors")
+            raise ValidationError(
+                "sensors must be a valid JSON string mapping names to IDs",
+                field_name="sensors",
+            )
 
     @post_load
-    def resolve_config(self, data: dict, **kwargs) -> dict:
+    def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
         sensors = self._parse_json_dict(data["sensors"])
         regressors = self._parse_comma_list(data.get("regressors", ""))
         future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
@@ -92,19 +119,29 @@ class ForecastingPipelineSchema(Schema):
             raise click.BadParameter(f"Target sensor '{target}' not found in DB.")
 
         resolution = target_sensor.event_resolution
-        predict_start = data.get("start_predict_date") or floor_to_resolution(server_now(), resolution)
+        predict_start = data.get("start_predict_date") or floor_to_resolution(
+            server_now(), resolution
+        )
 
         if data.get("train_period") is None:
-            train_period_in_hours = int((predict_start - data["start_date"]).total_seconds() / 3600)
+            train_period_in_hours = int(
+                (predict_start - data["start_date"]).total_seconds() / 3600
+            )
             if train_period_in_hours < 48:
-                raise click.BadParameter("--train-period must be at least 2 days (48 hours).")
+                raise click.BadParameter(
+                    "--train-period must be at least 2 days (48 hours)."
+                )
         else:
             train_period_in_hours = data["train_period"] * 24
             if train_period_in_hours < 48:
-                raise click.BadParameter("--train-period must be at least 2 days (48 hours).")
+                raise click.BadParameter(
+                    "--train-period must be at least 2 days (48 hours)."
+                )
 
         if data.get("predict_period") is None:
-            predict_period_in_hours = int((data["end_date"] - predict_start).total_seconds() / 3600)
+            predict_period_in_hours = int(
+                (data["end_date"] - predict_start).total_seconds() / 3600
+            )
         else:
             predict_period_in_hours = data["predict_period"]
             if predict_period_in_hours < 1:
