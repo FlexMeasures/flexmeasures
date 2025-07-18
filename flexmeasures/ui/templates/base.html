@@ -505,13 +505,6 @@
 
     var playBackDataLoadedForKnownDateRange = false;
 
-    const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
-        method: "GET",
-        headers: {"Content-Type": "application/json"},
-        signal: signal,
-    })
-    .then(function(response) { return response.json(); });
-
     // Set session start and end
     {% if event_starts_after and event_ends_before %}
         var sessionStart = new Date('{{ event_starts_after }}');
@@ -658,6 +651,13 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
+
+                const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                    signal: signal,
+                })
+                .then(function(response) { return response.json(); });
                 let fetchedInitialData = await Promise.all([
                     initialData,
                     embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
