@@ -112,7 +112,12 @@ class PredictPipeline(BasePipeline):
             raise CustomException(f"Error loading model and metadata: {e}", sys)
 
     def _prepare_df_single_horizon_prediction(
-        self, y_pred: TimeSeries, belief_horizon, value_at_belief_horizon, time_offset, belief_timestamp
+        self,
+        y_pred: TimeSeries,
+        belief_horizon,
+        value_at_belief_horizon,
+        time_offset,
+        belief_timestamp,
     ):
         """
         Prepare the DataFrame for a single prediction.
@@ -142,10 +147,13 @@ class PredictPipeline(BasePipeline):
             y_pred_df.insert(2, self.target, value_at_belief_horizon)
             if self.quantiles:
                 y_pred_df.set_index(
-                    ["event_start", "belief_time", self.target, "component"], inplace=True
+                    ["event_start", "belief_time", self.target, "component"],
+                    inplace=True,
                 )
             else:
-                y_pred_df.set_index(["event_start", "belief_time", self.target], inplace=True)
+                y_pred_df.set_index(
+                    ["event_start", "belief_time", self.target], inplace=True
+                )
 
             logging.debug(
                 f"DataFrame prepared for predictions: {self.readable_resolution} intervals at offset {time_offset + 1}."
@@ -155,7 +163,13 @@ class PredictPipeline(BasePipeline):
             raise CustomException(f"Error preparing prediction DataFrame: {e}", sys)
 
     def make_single_horizon_prediction(
-        self, model, future_covariates, past_covariates, y, time_offset, belief_timestamp
+        self,
+        model,
+        future_covariates,
+        past_covariates,
+        y,
+        time_offset,
+        belief_timestamp,
     ) -> pd.DataFrame:
         """
         Make a single prediction for the given time offset, which can represent minutes or hours
@@ -199,7 +213,11 @@ class PredictPipeline(BasePipeline):
             belief_horizon = current_y.end_time()
             value_at_belief_horizon = current_y.last_value()
             y_pred_df = self._prepare_df_single_horizon_prediction(
-                y_pred, belief_horizon, value_at_belief_horizon, time_offset, belief_timestamp
+                y_pred,
+                belief_horizon,
+                value_at_belief_horizon,
+                time_offset,
+                belief_timestamp,
             )
             logging.debug(
                 f"Prediction for {self.readable_resolution} offset {time_offset + 1} completed."
@@ -212,7 +230,12 @@ class PredictPipeline(BasePipeline):
             )
 
     def make_multi_horizon_predictions(
-        self, model, future_covariates_list, past_covariates_list, y_list, belief_timestamps_list
+        self,
+        model,
+        future_covariates_list,
+        past_covariates_list,
+        y_list,
+        belief_timestamps_list,
     ) -> pd.DataFrame:
         """
         Make multiple predictions for the given model, X, and y.
@@ -267,15 +290,22 @@ class PredictPipeline(BasePipeline):
         """
         try:
             df = self.load_data_all_beliefs()
-            past_covariates_list, future_covariates_list, y_list, belief_timestamps_list = (
-                self.split_data_all_beliefs(df, is_predict_pipeline=True)
-            )
+            (
+                past_covariates_list,
+                future_covariates_list,
+                y_list,
+                belief_timestamps_list,
+            ) = self.split_data_all_beliefs(df, is_predict_pipeline=True)
             logging.debug("Done splitting data")
 
             model = self.load_model()
             logging.debug("Model loaded")
             df_pred = self.make_multi_horizon_predictions(
-                model, future_covariates_list, past_covariates_list, y_list, belief_timestamps_list
+                model,
+                future_covariates_list,
+                past_covariates_list,
+                y_list,
+                belief_timestamps_list,
             )
             logging.debug("Predictions ready to be saved")
             if self.output_path is not None:
@@ -289,8 +319,6 @@ class PredictPipeline(BasePipeline):
                 sensor_to_save=self.sensor_to_save,
                 regressors=self.regressors,
             )
-            print(bdf)
-            breakpoint()
             save_to_db(
                 bdf, save_changed_beliefs_only=False
             )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.

@@ -118,9 +118,9 @@ class BasePipeline:
                 df_filtered = df[["event_start", "belief_time", "source", name]]
 
                 sensor_dfs.append(df_filtered)
-                print('event_start: ', sensor_event_starts_after)
-                print('event_end: ', sensor_event_ends_before)
-                print(f"{name}: {df_filtered}")
+                logging.debug("event_start: ", sensor_event_starts_after)
+                logging.debug("event_end: ", sensor_event_ends_before)
+                logging.debug(f"{name}: {df_filtered}")
 
             if len(sensor_dfs) == 1:
                 data_pd = sensor_dfs[0]
@@ -145,7 +145,7 @@ class BasePipeline:
             data_pd["belief_time"] = pd.to_datetime(
                 data_pd["belief_time"], utc=True
             ).dt.tz_localize(None)
-            print(data_pd)
+            logging.debug(data_pd)
             return data_pd
 
         except Exception as e:
@@ -190,16 +190,28 @@ class BasePipeline:
                 target_sensor_resolution = self.target_sensor.event_resolution
 
                 # target_start is the timestamp of the event_start of the first event in realizations
-                target_start = pd.to_datetime(self.event_starts_after, utc=True).tz_localize(None)
+                target_start = pd.to_datetime(
+                    self.event_starts_after, utc=True
+                ).tz_localize(None)
 
                 # target_end is the timestamp of the last event_start of realized data
                 # split_timestamp is the belief_time of the last realization to be used for forecasting.
                 if self.predict_start:
-                    first_target_end = pd.to_datetime(self.predict_start - self.target_sensor.event_resolution, utc=True).tz_localize(None)
-                    first_split_timestamp = pd.to_datetime(self.predict_start, utc=True).tz_localize(None)
+                    first_target_end = pd.to_datetime(
+                        self.predict_start - self.target_sensor.event_resolution,
+                        utc=True,
+                    ).tz_localize(None)
+                    first_split_timestamp = pd.to_datetime(
+                        self.predict_start, utc=True
+                    ).tz_localize(None)
                 else:
-                    first_target_end = pd.to_datetime(self.event_ends_before - self.target_sensor.event_resolution, utc=True).tz_localize(None)
-                    first_split_timestamp = pd.to_datetime(self.event_ends_before, utc=True).tz_localize(None)
+                    first_target_end = pd.to_datetime(
+                        self.event_ends_before - self.target_sensor.event_resolution,
+                        utc=True,
+                    ).tz_localize(None)
+                    first_split_timestamp = pd.to_datetime(
+                        self.event_ends_before, utc=True
+                    ).tz_localize(None)
 
                 forecast_end = (
                     first_target_end
@@ -258,7 +270,12 @@ class BasePipeline:
                     else None
                 )
 
-                return past_covariates_list, future_covariates_list, target_list, belief_timestamps_list
+                return (
+                    past_covariates_list,
+                    future_covariates_list,
+                    target_list,
+                    belief_timestamps_list,
+                )
 
             if (
                 "auto_regressive" in self.regressors
@@ -268,7 +285,9 @@ class BasePipeline:
 
                 y = df[["event_start", "belief_time", self.target]].copy()
 
-                _, _, target_list, belief_timestamps_list = _generate_splits(None, None, y)
+                _, _, target_list, belief_timestamps_list = _generate_splits(
+                    None, None, y
+                )
 
                 logging.debug("Data split successfully with autoregressive lags.")
                 return None, None, target_list, belief_timestamps_list
@@ -294,11 +313,19 @@ class BasePipeline:
                 .copy()
             )
 
-            past_covariates_list, future_covariates_list, target_list, belief_timestamps_list = (
-                _generate_splits(X_past_regressors_df, X_future_regressors_df, y)
-            )
+            (
+                past_covariates_list,
+                future_covariates_list,
+                target_list,
+                belief_timestamps_list,
+            ) = _generate_splits(X_past_regressors_df, X_future_regressors_df, y)
 
-            return past_covariates_list, future_covariates_list, target_list, belief_timestamps_list
+            return (
+                past_covariates_list,
+                future_covariates_list,
+                target_list,
+                belief_timestamps_list,
+            )
 
         except Exception as e:
             raise CustomException(f"Error splitting data: {e}", sys)
@@ -480,11 +507,20 @@ class BasePipeline:
                 return None
 
             df = df.dropna().reset_index(drop=True)
-            past_data = df[(df["event_start"] <= target_end)& (df["belief_time"] > df["event_start"])].copy()
-            past_data = past_data.loc[past_data.groupby("event_start")["belief_time"].idxmax()]  # get data with most recent belief_time at a certain event_start
+            past_data = df[
+                (df["event_start"] <= target_end)
+                & (df["belief_time"] > df["event_start"])
+            ].copy()
+            past_data = past_data.loc[
+                past_data.groupby("event_start")["belief_time"].idxmax()
+            ]  # get data with most recent belief_time at a certain event_start
 
-            past_data["time_diff"] = (past_data["event_start"] - past_data["belief_time"]).abs()
-            past_data = past_data.loc[past_data.groupby("event_start")["time_diff"].idxmin()]
+            past_data["time_diff"] = (
+                past_data["event_start"] - past_data["belief_time"]
+            ).abs()
+            past_data = past_data.loc[
+                past_data.groupby("event_start")["time_diff"].idxmin()
+            ]
             past_data = past_data.drop(columns=["time_diff"])
 
             columns = [x for x in df.columns if x not in ["belief_time", "source_y"]]
