@@ -5,14 +5,15 @@ Utils for FlexMeasures CLI
 from __future__ import annotations
 
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
 
 import click
 from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
 
-from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
+from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone, server_now
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures import Sensor
 
@@ -366,20 +367,13 @@ def tabulate_account_assets(assets):
     )
 
 
-import os
-from datetime import datetime, timedelta
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.time_utils import server_now
-import click
-
-
 def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
     delta_seconds = resolution.total_seconds()
     floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
     return datetime.fromtimestamp(floored, tz=dt.tzinfo)
 
 
-def resolve_forecast_config(
+def resolve_forecast_config(  # noqa: C901  todo: remove function, if everything has moved to ForecastingPipelineSchema
     sensors: dict,
     regressors: list[str],
     future_regressors: list[str],
