@@ -50,7 +50,7 @@ def delete_account_role(name: str):
     accounts = role.accounts.all()
     if len(accounts) > 0:
         click.secho(
-            f"The following accounts have role '{role.name}': {','.join([a.name for a in accounts])}. Removing this role from them ...",
+            f"The following accounts have role '{role.name}': {join_words_into_a_list([a.name for a in accounts])}. Removing this role from them ...",
         )
         for account in accounts:
             account.account_roles.remove(role)

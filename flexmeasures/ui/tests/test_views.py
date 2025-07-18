@@ -35,12 +35,6 @@ def test_assets_responds(client, requests_mock, as_prosumer_user1):
     assert b"Asset overview" in assets_page.data
 
 
-def test_control_responds(client, as_prosumer_user1):
-    control = client.get(url_for("flexmeasures_ui.control_view"), follow_redirects=True)
-    assert control.status_code == 200
-    assert b"Control actions" in control.data
-
-
 def test_logout(client, as_prosumer_user1):
     logout_response = logout(client)
     assert b"Please log in" in logout_response.data

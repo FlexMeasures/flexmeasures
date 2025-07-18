@@ -1,0 +1,577 @@
+{% extends "base.html" %} {% set active_page = "accounts" %} {% block title %}
+Account overview {% endblock %} {% block divs %}
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-2 on-top-md">
+      
+      {% if user_can_update_account %}  
+      <div class="sidepanel-container">
+        <div
+          class="left-sidepanel-label"
+          style="transform: translateX(-30%) !important"
+        >
+          Edit Account
+        </div>
+        <div class="sidepanel left-sidepanel">
+          <form class="form-horizontal" id="editaccount">
+            <fieldset>
+              <div class="asset-form">
+                <h3>Edit {{ account.name }}</h3>
+
+                <div class="form-group">
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="name" class="control-label">Name</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="name"
+                        name="name"
+                        value="{{ account.name }}"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="primary_color" class="control-label"
+                        >Primary Color</label
+                      >
+                      <span
+                        class="fa fa-info d-inline-block ps-2"
+                        rel="tooltip"
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)"
+                      ></span>
+                      <input
+                        type="text"
+                        class="form-control"
+                        data-bs-placement="right"
+                        id="primary_color"
+                        name="primary_color"
+                        value="{{ account.primary_color or '' }}"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="secondary_color" class="control-label"
+                        >Secondary Color</label
+                      >
+                      <span
+                        class="fa fa-info d-inline-block ps-2"
+                        rel="tooltip"
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)"
+                      ></span>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="secondary_color"
+                        name="secondary_color"
+                        value="{{ account.secondary_color or '' }}"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="logo_url" class="control-label"
+                        >Logo URL</label
+                      >
+                      <span
+                        class="fa fa-info d-inline-block ps-2"
+                        rel="tooltip"
+                        aria-hidden="true"
+                        tabindex="0"
+                        data-bs-placement="right"
+                        data-bs-toggle="tooltip"
+                        title="Logo URL to use in UI. Defaults to FlexMeasures' logo URL"
+                      ></span>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="logo_url"
+                        name="logo_url"
+                        value="{{ account.logo_url or '' }}"
+                      />
+                    </div>
+                  </div>
+
+                  {% if user_is_admin %}
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="consultant_account_id" class="control-label"
+                        >Consultant Account</label
+                      >
+                      <select
+                        class="form-select"
+                        aria-label="Default select example"
+                        id="consultant_account_id"
+                        name="consultancy_account_id"
+                      >
+                        <option
+                          value="{{ account.consultancy_account_id or '' }}"
+                          selected
+                        >
+                          {% if account.consultancy_account_id %} {% for
+                          consultancy_account in accounts %} {% if
+                          consultancy_account.id ==
+                          account.consultancy_account_id %} {{
+                          consultancy_account.name }} {% endif %} {% endfor %}
+                          {% else %} Select Account {% endif %}
+                        </option>
+                        {% for account in accounts %}
+                        <option value="{{ account.id }}">
+                          {{ account.name }}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                  {% endif %}
+                </div>
+
+                <button
+                  class="btn btn-sm btn-responsive btn-success create-button"
+                  type="submit"
+                  value="Save"
+                  style="
+                    margin-top: 20px;
+                    float: right;
+                    border: 1px solid var(--light-gray);
+                  "
+                >
+                  Save
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    <div class="col-md-8">
+      <div class="card">
+        <h3>Account</h3>
+        <small>Account: {{ account.name }}</small>
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <tbody>
+              <tr>
+                <td>ID</td>
+                <td>{{ account.id }}</td>
+              </tr>
+              <tr>
+                <td>Roles</td>
+                <td>
+                  {{ account.account_roles | map(attribute='name') | join(", ")
+                  }}
+                </td>
+              </tr>
+              {% if account.consultancy_account_name %}
+              <tr>
+                <td>Consultancy</td>
+                <td>{{ account.consultancy_account_name }}</td>
+              </tr>
+              {% endif %} {% if account.primary_color %}
+              <tr>
+                <td>Primary Color</td>
+                <td>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      background-color: {{ account.primary_color }};
+                      display: inline-block;
+                    "
+                  ></div>
+                </td>
+              </tr>
+              {% endif %} {% if account.secondary_color %}
+              <tr>
+                <td>Secondary Color</td>
+                <td>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      background-color: {{ account.secondary_color }};
+                      display: inline-block;
+                    "
+                  ></div>
+                </td>
+              </tr>
+              {% endif %} {% if account.logo_url %}
+              <tr>
+                <td>Logo URL</td>
+                <td>
+                  <img
+                    src="{{ account.logo_url }}"
+                    alt="Logo"
+                    style="max-width: 100px"
+                  />
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3 id="usersTableTitle">All users</h3>
+        <div class="form-check form-check-inline">
+          <label class="form-check-label">
+            <input
+              id="inactiveUsersCheckbox"
+              name="include_inactive"
+              type="checkbox"
+            />
+            Include inactive
+          </label>
+        </div>
+        <div class="table-responsive">
+          <table
+            class="table table-striped paginate nav-on-click"
+            title="View this user"
+            id="usersTable"
+          ></table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Assets
+        {% if user_can_create_children %}
+            <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
+              <a href="/assets/new?account_id={{ account.id }}">Create asset</a>
+            </button>
+        {% endif %}
+        </h3>
+        <div class="table-responsive">
+          <table
+            class="table table-striped paginate nav-on-click"
+            title="View this asset"
+            id="assetTable"
+          ></table>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      {% if can_view_account_auditlog %}
+      <button
+        class="btn p-3 btn-info border-0 mb-3 mt-3" type="button"
+        onclick="window.location.href='/users/auditlog/{{ account.id }}'"
+        title="View history of actions on this account.">
+        Audit log
+      </button>
+      {% endif %}
+  </div>
+</div>
+
+<script>
+  function User(
+    id,
+    username,
+    email,
+    roles,
+    account,
+    timezone,
+    lastLogin,
+    lastSeen,
+    active
+ ) {
+    this.id = id;
+    this.username = `<span>${username}</span>`;
+    this.email = `<a href="mailto:${email}" title="Mail this user">${email}</a>`;
+    this.roles = roles.map((role) => role).join(", ");
+    this.url = `/users/${id}`;
+
+    if (account == null) this.account = "PUBLIC";
+    else
+       this.account = `
+              <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+            `;
+    this.timezone = timezone;
+    this.lastLogin = lastLogin;
+    this.lastSeen = lastSeen;
+    this.active = active;
+ }
+
+$(document).ready(function () {
+  let includeInactive = false;
+  const tableTitle = $("#usersTableTitle");
+  // Initialize the DataTable
+  const table = $("#usersTable").dataTable({
+      order: [
+        [0, "asc"]
+      ],
+      serverSide: true,
+      // make the table row vertically aligned with header
+      columns: [{
+            data: "username",
+            title: "Username",
+            orderable: true
+        },
+        {
+            data: "email",
+            title: "Email",
+            orderable: true
+        },
+        {
+            data: "roles",
+            title: "Roles",
+            orderable: false
+        },
+        {
+            data: "account",
+            title: "Account",
+            orderable: false
+        },
+        {
+            data: "timezone",
+            title: "Timezone",
+            orderable: false
+        },
+        {
+            data: "lastLogin",
+            title: "Last login",
+            orderable: true
+        },
+        {
+            data: "lastSeen",
+            title: "Last seen",
+            orderable: true
+        },
+        {
+            data: "active",
+            title: "Active",
+            orderable: false
+        },
+        {
+            data: "url",
+            title: "URL",
+            className: "d-none"
+        },
+      ],
+
+      ajax: function (data, callback, settings) {
+
+        const basePath = window.location.origin;
+        let filter = data["search"]["value"];
+        let orderColumnIndex = data["order"][0]["column"]
+        let orderDirection = data["order"][0]["dir"];
+        let orderColumnName = data["columns"][orderColumnIndex]["data"];
+
+        let url = `${basePath}/api/v3_0/users?page=${data["start"] / data["length"] + 1}&per_page=${data["length"]}&include_inactive=${includeInactive}&account_id={{ account.id }}`;
+
+        if (filter.length > 0) {
+            url = `${url}&filter=${filter}`;
+        }
+
+        if (orderColumnName) {
+            url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+        }
+
+        $.ajax({
+            type: "get",
+            url: url,
+            success: function (response, text) {
+              let clean_response = [];
+              response["data"].forEach((element) =>
+                  clean_response.push(
+                    new User(
+                        element["id"],
+                        element["username"],
+                        element["email"],
+                        element["flexmeasures_roles"],
+                        element["account"],
+                        element["timezone"],
+                        element["last_login_at"],
+                        element["last_seen_at"],
+                        element["active"]
+                    )
+                  )
+              );
+
+              callback({
+                  data: clean_response,
+                  recordsTotal: response["num-records"],
+                  recordsFiltered: response["filtered-records"],
+              });
+            },
+            error: function (request, status, error) {
+              console.log("Error: ", error);
+            },
+        });
+      },
+  });
+
+
+  // Event listener for the checkbox to toggle includeInactive state
+  $("#inactiveUsersCheckbox").change(function () {
+      includeInactive = this.checked;
+      table.api().ajax.reload();
+      if (includeInactive) {
+        tableTitle.text("All users");
+      } else {
+        tableTitle.text("All active users");
+      }
+  });
+}); 
+
+  const asset_icon_map = JSON.parse("{{ asset_icon_map | tojson | safe }}");
+
+  function Asset(id, name, account, latitude, longitude, sensors, asset_type) {
+    let icon = asset_icon_map[asset_type.toLowerCase()];
+    if (icon === undefined) icon = `icon-${asset_type}`;
+
+    this.name = `
+    <i class="${icon} left-icon">${name}</i>
+  `;
+
+    this.id = id;
+    this.location = "";
+    this.url = `/assets/${id}`;
+    this.status = `
+        <a href="/assets/${id}/status">
+          <button type="button" class="btn btn-primary">Status</button>
+        </a>
+      `;
+
+    if (account == null) this.owner = "PUBLIC";
+    else
+      this.owner = `
+          <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
+        `;
+
+    this.num_sensors = sensors.length;
+
+    if (latitude != null && longitude != null)
+      this.location = `LAT: ${latitude}, LONG: ${longitude}`;
+  }
+
+  $(document).ready(function () {
+    $("#assetTable").dataTable({
+      order: [[1, "asc"]],
+      serverSide: true,
+      columns: [
+        { data: "id", title: "Asset ID" },
+        {data: "name", title: "Name", orderable: true},
+        {data: "owner", title: "Account", orderable: true},
+        {data: "location", title: "Location", orderable: false},
+        {data: "num_sensors", title: "Sensors", orderable: false},
+        {data: "status", title: "Status", orderable: false},
+        { data: "url", title: "URL", className: "d-none" },
+      ],
+      ajax: function (data, callback, settings) {
+        const basePath = window.location.origin;
+        let filter = data["search"]["value"];
+        let orderColumnIndex = data["order"][0]["column"]
+        let orderDirection = data["order"][0]["dir"];
+        let orderColumnName = data["columns"][orderColumnIndex]["data"];
+
+        let url = `${basePath}/api/v3_0/assets?page=${
+          Math.floor(data["start"] / data["length"]) + 1
+        }&per_page=${data["length"]}&include_public=true&account_id=${
+          {{ account.id }}
+        }`;
+
+        if (filter.length > 0) {
+          url = `${url}&filter=${filter}`;
+        }
+
+        if (orderColumnName){
+          url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+        }
+
+        $.ajax({
+          type: "get",
+          url: url,
+          success: function (response, text) {
+            let clean_response = [];
+            response["data"].forEach((element) =>
+              clean_response.push(
+                new Asset(
+                  element["id"],
+                  element["name"],
+                  element["owner"],
+                  element["latitude"],
+                  element["longitude"],
+                  element["sensors"],
+                  element["generic_asset_type"]["name"]
+                )
+              )
+            );
+            callback({
+              data: clean_response,
+              recordsTotal: response["num-records"],
+              recordsFiltered: response["filtered-records"],
+            });
+          },
+          error: function (request, status, error) {
+            console.log("Error: ", error);
+          },
+        });
+      },
+    });
+  });
+</script>
+
+<script defer>
+  let currentPage = 1;
+  const basePath = window.location.origin;
+  const form = document.getElementById("editaccount");
+  const tableBody = document.getElementById("users-table-body");
+  const paginationControls = document.getElementById("pagination-controls");
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault(); // Prevent the default form submission
+
+    // Collect form data
+    const formData = new FormData(event.target);
+    // create json payload from formData and set empty string to null
+    let payload;
+    payload = JSON.stringify(
+      Object.fromEntries(
+        Array.from(formData.entries()).map(([key, value]) => [
+          key,
+          value === "" ? null : value,
+        ])
+      )
+    );
+
+    // Make a PATCH request to the API
+    fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.status == 200) {
+          showToast("Account updated successfully!", "success");
+        } else {
+          if (data.message && typeof data.message === "string") {
+            showToast(data.message, "error");
+          } else {
+            const errors = data.message.json;
+
+            for (const key in errors) {
+              showToast(`${key}: ${errors[key]}`, "error");
+            }
+          }
+        }
+      });
+  });
+</script>
+{% block paginate_tables_script %} {{ super() }} {% endblock %} {% endblock %}

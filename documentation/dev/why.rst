@@ -13,7 +13,7 @@ I need help with integrating real-time data and continuously computing new data
 FlexMeasures is designed to make decisions based on data in an automated way. Data pipelining and dedicated machine learning tooling is crucial.
 
 - API/CLI functionality to read in time series data
-- Extensions for integrating 3rd party data, e.g. from `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_
+- Extensions for integrating 3rd party data, e.g. from `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `Weather APIs <https://github.com/flexmeasures/flexmeasures-weather>`_
 - Forecasting for the upcoming hours
 - Schedule optimization for flexible assets
 - Reporters to combine time series data and create KPIs 

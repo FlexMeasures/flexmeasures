@@ -10,11 +10,11 @@ babel==2.17.0
     # via
     #   -c requirements/3.9/app.txt
     #   sphinx
-certifi==2025.1.31
+certifi==2025.4.26
     # via
     #   -c requirements/3.9/app.txt
     #   requests
-charset-normalizer==3.4.1
+charset-normalizer==3.4.2
     # via
     #   -c requirements/3.9/app.txt
     #   requests
@@ -29,7 +29,7 @@ idna==3.10
     #   requests
 imagesize==1.4.1
     # via sphinx
-importlib-metadata==8.6.1
+importlib-metadata==8.7.0
     # via
     #   -c requirements/3.9/app.txt
     #   sphinx
@@ -41,7 +41,7 @@ markupsafe==3.0.2
     # via
     #   -c requirements/3.9/app.txt
     #   jinja2
-packaging==24.2
+packaging==25.0
     # via
     #   -c requirements/3.9/app.txt
     #   sphinx
@@ -49,7 +49,7 @@ pygments==2.19.1
     # via
     #   sphinx
     #   sphinx-tabs
-requests==2.32.3
+requests==2.32.4
     # via
     #   -c requirements/3.9/app.txt
     #   sphinx
@@ -57,7 +57,7 @@ six==1.17.0
     # via
     #   -c requirements/3.9/app.txt
     #   sphinxcontrib-httpdomain
-snowballstemmer==2.2.0
+snowballstemmer==3.0.1
     # via sphinx
 sphinx==7.3.7
     # via
@@ -88,17 +88,21 @@ sphinxcontrib-jquery==4.1
     # via sphinx-rtd-theme
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
+sphinxcontrib-mermaid==1.0.0
+    # via sphinx
 sphinxcontrib-qthelp==2.0.0
     # via sphinx
 sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
 tomli==2.2.1
-    # via sphinx
-urllib3==2.3.0
+    # via
+    #   -c requirements/3.9/app.txt
+    #   sphinx
+urllib3==2.4.0
     # via
     #   -c requirements/3.9/app.txt
     #   requests
-zipp==3.21.0
+zipp==3.23.0
     # via
     #   -c requirements/3.9/app.txt
     #   importlib-metadata

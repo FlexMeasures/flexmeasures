@@ -8,7 +8,7 @@ from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify
+from flask import request, jsonify, Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -84,17 +84,18 @@ def fresh_db(app):
 
 
 @contextmanager
-def create_test_db(app):
+def create_test_db(app: Flask):
     """
-    Provide a db object with the structure freshly created. This assumes a clean database.
-    It does clean up after itself when it's done (drops everything).
+    Provide a db object with the structure freshly created.
+    It cleans up before it starts and after it's done (drops everything).
     """
     print("DB FIXTURE")
-    # app is an instance of a flask app, _db a SQLAlchemy DB
+    # _db is a SQLAlchemy DB instance
     from flexmeasures.data import db as _db
 
     _db.app = app
     with app.app_context():
+        _db.drop_all()
         _db.create_all()
 
     yield _db
@@ -979,6 +980,50 @@ def create_test_battery_assets(
 
 
 @pytest.fixture(scope="module")
+def add_consultancy_assets(
+    db: SQLAlchemy, setup_accounts, setup_generic_asset_types
+) -> dict[str, GenericAsset]:
+    """
+    Add consultancy assets.
+    """
+    return create_test_consultancy_assets(db, setup_accounts, setup_generic_asset_types)
+
+
+def create_test_consultancy_assets(
+    db: SQLAlchemy, setup_accounts, generic_asset_types
+) -> dict[str, GenericAsset]:
+    """
+    Add consultancy assets.
+    """
+    wind_type = generic_asset_types["wind"]
+
+    test_wind_turbine = GenericAsset(
+        name="Test wind turbine",
+        owner=setup_accounts["ConsultancyClient"],
+        generic_asset_type=wind_type,
+        latitude=10,
+        longitude=100,
+    )
+    db.session.add(test_wind_turbine)
+    db.session.flush()
+
+    test_wind_sensor = Sensor(
+        name="wind speed tracker",
+        generic_asset=test_wind_turbine,
+        event_resolution=timedelta(minutes=15),
+        unit="m/s",
+    )
+
+    db.session.add(test_wind_sensor)
+    db.session.flush()
+
+    return {
+        "Test wind turbine": test_wind_turbine,
+        "wind speed tracker": test_wind_sensor,
+    }
+
+
+@pytest.fixture(scope="module")
 def add_charging_station_assets(
     db: SQLAlchemy, setup_accounts, setup_markets
 ) -> dict[str, GenericAsset]:
@@ -1000,11 +1045,21 @@ def create_charging_station_assets(
     """Add uni- and bi-directional charging station assets, set their capacity value and their initial SOC."""
     oneway_evse = GenericAssetType(name="one-way_evse")
     twoway_evse = GenericAssetType(name="two-way_evse")
+    charging_hub = GenericAssetType(name="charging_hub")
+
+    charging_hub = GenericAsset(
+        name="Test charging hub",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=charging_hub,
+        latitude=10,
+        longitude=100,
+    )
 
     charging_station = GenericAsset(
         name="Test charging station",
         owner=setup_accounts["Prosumer"],
         generic_asset_type=oneway_evse,
+        parent_asset=charging_hub,
         latitude=10,
         longitude=100,
         flex_context={
@@ -1040,6 +1095,7 @@ def create_charging_station_assets(
         name="Test charging station (bidirectional)",
         owner=setup_accounts["Prosumer"],
         generic_asset_type=twoway_evse,
+        parent_asset=charging_hub,
         latitude=10,
         longitude=100,
         flex_context={
@@ -1070,9 +1126,25 @@ def create_charging_station_assets(
         ),
     )
     db.session.add(bidirectional_charging_station_power_sensor)
+    bi_soc = Sensor(
+        name="bi-soc",
+        generic_asset=bidirectional_charging_station,
+        unit="MWh",
+        event_resolution=timedelta(minutes=0),
+    )
+    uni_soc = Sensor(
+        name="uni-soc",
+        generic_asset=charging_station,
+        unit="MWh",
+        event_resolution=timedelta(minutes=0),
+    )
+    db.session.add(bi_soc)
+    db.session.add(uni_soc)
     return {
         "Test charging station": charging_station,
         "Test charging station (bidirectional)": bidirectional_charging_station,
+        "bi-soc": bi_soc,
+        "uni-soc": uni_soc,
     }
 
 

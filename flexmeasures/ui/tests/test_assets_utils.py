@@ -1,6 +1,6 @@
 import pytest
 
-from flexmeasures.ui.crud.assets import (
+from flexmeasures.ui.views.assets import (
     get_allowed_price_sensor_data,
     get_allowed_inflexible_sensor_data,
 )

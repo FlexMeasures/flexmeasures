@@ -1,33 +1,101 @@
 .. _view_asset-data:
 
 *********************
-Assets & sensor data
+Assets  
 *********************
 
-Asset page
-------------
+The asset page is divided into different views. The default selection is the "Context" view. The views are:
 
-The asset page allows to plot data from the asset's sensors, show sensors and child assets and also to edit attributes of the asset, like its location.
+.. contents::
+    :local:
+    :depth: 1
+|
 
-For instance, in the picture below we include a price sensor from a public asset, then plot the asset's only sensor below that.
+
+.. _view_asset_context:
+
+Context page
+-------------------
 
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset.png
+On the context page, you see the asset in its structure (with its parent and children, if they exist), or its location on a map.
+In addition, you can do the following:
+
+- Click the "Show sensors" button to view the list of the sensors associated with the asset.
+- Click "Edit flex-context" to edit the flex-context of the asset.
+- Click the "Add child asset" button to add a child to the current asset.
+- Set a given page as default by clicking the checkbox on the top right of the page.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_context.png
     :align: center
 ..    :scale: 40%
 
 |
+
+
+Show sensors
+^^^^^^^^^^^^
+The sensors associated with the asset are shown in a list. 
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_sensors.png
+    :align: center
+..   :scale: 40%
+
 |
 
 
-The asset page as data dashboard
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The data charts are maybe the most interesting feature - they form your own data dashboard. When the most interesting sensors are shown, the replay button on the right creates a very meaningful dynamic insight!
+Editing an asset's flex-context
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
-Sensors to show on a graph
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Per asset, you can set fields in :ref:`the flex-context <flex_context>`, which will influence how scheduling works on this asset. The flex context dialogue allows you to define either fixed values or sensors (for dynamic values / time series). Initially, no fields are set.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editflexcontext.png
+    :align: center
+..    :scale: 40%
+
+|
+
+Flex context overview
+"""""""""""""""""""""""
+
+* **Left Panel:** Displays a list of currently configured fields.
+* **Right Panel:** Shows details of the selected field and provides a form to modify its value.
+
+Adding a field
+"""""""""""""""
+1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
+2.  **Add Field:** Click the "Add Field" button next to the dropdown.
+3.  The field will be added to the list in the left panel.
+
+Setting a field value
+"""""""""""""""""""""
+
+1.  **Select Field (if it is not selected yet):** Click on the field in the left panel.
+2.  **Set Value:** In the right panel, use the provided form to set the field's value.
+
+    * Some fields may only accept a sensor value.
+    * Other fields may accept either a sensor or a fixed value.
+
+|
+
+.. _view_asset_graphs:
+
+Graphs page
+-----------
+
+The graph page is a separate page that shows data (measurements/forecasts) which are relevant to the asset.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_graphs.png
+    :align: center
+..    :scale: 40%
+
+|
+
+Editing the graphs dashboard
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Click the "Edit Graph" button to open the graph editor.
 
 Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.  
 
@@ -39,57 +107,50 @@ Finally, it is possible to set custom titles for any sensor graph by clicking on
     :align: center
 ..    :scale: 40%
 
-Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. Accepted formats are simple lists of sensor IDs (e.g. `[2, [5,6]]` or a more expressive format (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }`). 
-
-
-Editing an asset's flex-context
-=========================
-
 |
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editflexcontext.png
+
+Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. The accepted format is a dictionary with a graph title and a lists of sensor IDs (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }]`).
+
+
+.. _view_asset_properties:
+
+Properties page
+---------------
+
+The properties page allows you to view and edit the properties of the asset.
+
+You can also delete the asset by clicking on the "Delete this asset" button.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_properties.png
     :align: center
 ..    :scale: 40%
-|
-
-Per asset, you can set fields in :ref:the flex-context <flex_context>, which will influence how scheduling works on this asset. The flex context dialogue allows you to define either fixed values or sensors (for dynamic values / time series). Initially, no fields are set.
-
-Overview
---------
-
-* **Left Panel:** Displays a list of currently configured fields.
-* **Right Panel:** Shows details of the selected field and provides a form to modify its value.
-
-Adding a field
---------------
-
-1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
-2.  **Add Field:** Click the "Add Field" button next to the dropdown.
-3.  The field will be added to the list in the left panel.
-
-Setting a field value
-----------------------
-
-1.  **Select Field (if it is not selected yet):** Click on the field in the left panel.
-2.  **Set Value:** In the right panel, use the provided form to set the field's value.
-
-    * Some fields may only accept a sensor value.
-    * Other fields may accept either a sensor or a fixed value.
 
 |
 
+.. _view_asset_status:
 
 Status page
-^^^^^^^^^^^^
+-----------
 
-For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay. At the moment, all sensors on the asset and from its flex context are tracked. Below is a fictious example, where the toy battery (from our tutorial) has schedules discharging data, but also some added by a user, and wind production data is part of the battery's flex context. There have been three succesful scheduling jobs.
+For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay.
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
+For data connectivity, all sensors on the asset's graph page and from its flex context are tracked.
+
+Below is a fictious example, where the toy battery (from our tutorial) has schedules discharging data, but also some added by a user, and wind production data is part of the battery's flex context. There have been three succesful scheduling jobs.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page.png
     :align: center
 ..    :scale: 40%
 
+|
+   
+Hovering over the traffic light will tell you how long ago this most recent entry is and why the light is red, yellow or green. For jobs, you can also get more information (e.g. error message).
+
+
+.. _view_asset_auditlog:
 
 Audit log 
-^^^^^^^^^
+---------
 
 The audit log lets you see who made what changes to the asset over time. 
 This is how the audit log looks for the history of actions taken on an asset:
@@ -98,36 +159,5 @@ This is how the audit log looks for the history of actions taken on an asset:
     :align: center
 ..    :scale: 40%
 
-
-Sensor page
--------------
-
-Each sensor also has its own page:
-
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_sensor.png
-    :align: center
-..    :scale: 40%
-
-|
 |
 
-Next to line plots, data can sometimes be more usefully displayed as heatmaps.
-Heatmaps are great ways to spot the hotspots of activity. Usually heatmaps are actually geographical maps. In our context, the most interesting background is time ― so we'd like to see activity hotspots on a map of time intervals.
-
-We chose the "time map" of weekdays. From our experience, this is where you see the most interesting activity hotspots at a glance. For instance, that mornings often experience peaks. Or that Tuesday afternoons have low energy use, for some reason.
-
-Here is what it looks like for one week of temperature data:
-
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/heatmap-week-temperature.png
-    :align: center
-    
-It's easy to see which days had milder temperatures.
-
-And here are 4 days of (dis)-charging patterns in Seita's V2GLiberty project:
-
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/heatmap-week-charging.png
-    :align: center
-    
-Charging (blue) mostly happens in sunshine hours, discharging during high-price hours (morning & evening)
-
-So on a technical level, the daily heatmap is essentially a heatmap of the sensor's values, with dates on the y-axis and time of day on the x-axis. For individual devices, it gives an insight into the device's running times. A new button lets users switch between charts.

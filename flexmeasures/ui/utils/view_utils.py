@@ -43,6 +43,9 @@ def fall_back_to_flask_template(render_function):
 @fall_back_to_flask_template
 def render_flexmeasures_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
+    variables["FLEXMEASURES_ALLOW_DATA_OVERWRITE"] = current_app.config.get(
+        "FLEXMEASURES_ALLOW_DATA_OVERWRITE"
+    )
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
         "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
     )
@@ -129,16 +132,32 @@ def render_flexmeasures_template(html_filename: str, **variables):
     return render_template(html_filename, **variables)
 
 
-def clear_session():
-    for skey in [
-        k
-        for k in session.keys()
-        if k not in ("_fresh", "_id", "_user_id", "csrf_token", "fs_cc", "fs_paa")
-    ]:
-        current_app.logger.info(
-            "Removing %s:%s from session ... " % (skey, session[skey])
-        )
-        del session[skey]
+def clear_session(keys_to_clear: list[str] = None):
+    """
+    Clear out session variables.
+
+    If keys_to_clear is provided, only clear out those specific session variables.
+    Otherwise, clear out all session variables except for some special ones
+    (e.g. Flask-Security's, CSRF token, and our own session variables).
+    """
+    if keys_to_clear:
+        for skey in keys_to_clear:
+            if skey not in session:
+                continue
+            current_app.logger.info(
+                "Removing %s:%s from session ... " % (skey, session[skey])
+            )
+            del session[skey]
+    else:
+        for skey in [
+            k
+            for k in session.keys()
+            if k not in ("_fresh", "_id", "_user_id", "csrf_token", "fs_cc", "fs_paa")
+        ]:
+            current_app.logger.info(
+                "Removing %s:%s from session ... " % (skey, session[skey])
+            )
+            del session[skey]
 
 
 def set_session_variables(*var_names: str):
