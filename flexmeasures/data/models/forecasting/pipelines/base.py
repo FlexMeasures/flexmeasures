@@ -421,7 +421,7 @@ class BasePipeline:
 
             # Check for duplicate events
             if n_extra_points := len(data) - len(data["event_start"].unique()):
-                logging.warning(
+                logging.debug(
                     f"Data for {sensor_name} contains multiple beliefs about a single event. Dropping {n_extra_points} beliefs with duplicate event starts."
                 )
                 data = data.drop_duplicates("event_start")
