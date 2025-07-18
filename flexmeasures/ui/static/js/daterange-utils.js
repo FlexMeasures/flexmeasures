@@ -183,3 +183,25 @@ export function computeSimulationRanges(startDate, endDate, minRes = "hour") {
         throw new Error(`Unsupported minimum resolution: ${minRes}`);
     }
 }
+
+/**
+ * Encode the query string of a relative URL to ensure proper URL encoding of special characters.
+ *
+ * This function preserves the base path and re-encodes the query string using URLSearchParams.
+ * It ensures that characters like `+` (often mistakenly interpreted as spaces in form submissions)
+ * are correctly encoded as `%2B`, along with other special characters like `:` and `&`.
+ *
+ * For example:
+ *   Input:  "path?date=2025-06-16T00:00:00+02:00"
+ *   Output: "path?date=2025-06-16T00%3A00%3A00%2B02%3A00"
+ *
+ * @param {string} rawUrl - A relative URL (e.g., "path?foo=bar&date=...").
+ * @returns {string} The same URL with the query string safely encoded.
+ */
+export function encodeUrlQuery(rawUrl) {
+    const [path, query] = rawUrl.split("?");
+    if (!query) return rawUrl;  // No query to encode
+
+    const params = new URLSearchParams(query);
+    return `${path}?${params.toString()}`;
+}
