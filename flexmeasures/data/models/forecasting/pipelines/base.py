@@ -379,7 +379,7 @@ class BasePipeline:
                 )
                 df = pd.concat([new_row_start, df, new_row_end], ignore_index=True)
 
-                logging.warning(
+                logging.debug(
                     f"Sensor '{self.sensors[sensor_name]}' has no data from {start} to {end}. Filling with {fill}."
                 )
                 transformer = MissingValuesFiller(fill=float(fill))
