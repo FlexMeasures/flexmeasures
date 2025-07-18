@@ -702,7 +702,7 @@
                     if (timerangeNotSetYet) {
                         // Initialize picker to the last 2 days of sensor data
                         var nearEnd = new Date(end)//.setDate(end.getDate() - 1);
-                        nearEnd.setDate(nearEnd.getDate() - 1);
+                        nearEnd.setDate(nearEnd.getDate() - 2);
                         var new_start_date = nearEnd;
                         var new_end_date = end;
                     } else {
