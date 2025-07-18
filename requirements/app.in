@@ -53,8 +53,7 @@ Flask-Classful>=0.16
 Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
-# <4: https://github.com/FlexMeasures/flexmeasures/issues/1447
-marshmallow>=3,<4
+marshmallow>=3
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs
