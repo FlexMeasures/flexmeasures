@@ -469,7 +469,7 @@ class TimeSeriesOrSensor(VariableQuantityField):
 
 class SensorDataFileSchema(Schema):
     uploaded_files = fields.List(
-        fields.Field(metadata={"type": "string", "format": "byte"}),
+        fields.Raw(metadata={"type": "file"}),
         data_key="uploaded-files",
     )
     belief_time_measured_instantly = fields.Boolean(

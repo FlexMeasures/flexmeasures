@@ -195,10 +195,12 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             ).first()
 
             if asset:
-                raise ValidationError(
-                    f"An asset with the name '{data['name']}' already exists under parent asset with id={data.get('parent_asset_id')}.",
-                    "name",
-                )
+                err_msg = f"An asset with the name '{data['name']}' already exists in account {data.get('account_id')}"
+                if data.get("parent_asset_id"):
+                    err_msg += (
+                        f" under the parent asset with id={data.get('parent_asset_id')}"
+                    )
+                raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int, **kwargs):

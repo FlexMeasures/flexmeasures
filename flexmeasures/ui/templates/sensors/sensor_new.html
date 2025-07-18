@@ -2,13 +2,8 @@
 sensor {% endblock %} {% block divs %}
 
 <div class="container-fluid">
-  <div class="row">
-    <div class="col-md-12">
-      <button class="btn btn-sm btn-responsive btn-info" type="submit">
-        <a href="/assets/{{asset.id}}">Go to parent asset</a>
-      </button>
-    </div>
-  </div>
+
+  <h3>Creating a new sensor on asset <a href="/assets/{{asset.id}}">{{asset.name}}</a></h3>
 
   <form id="sensorForm" class="form p-4" method="POST">
     <div
