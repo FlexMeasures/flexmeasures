@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import pytest
 
-import pandas as pd
+import json
+from marshmallow import ValidationError
 
+from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSchema
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 
 
@@ -10,54 +14,82 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
     [
         (
             {
-                "sensors": {"PV": 313},
-                "regressors": ["autoregressive"],
+                "sensors": {"PV": 1},
+                "regressors": "autoregressive",
                 "target": "PV",
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
-                "start_date": pd.Timestamp("2025-07-01T00:00", tz="Europe/Amsterdam"),
-                "end_date": pd.Timestamp("2025-07-03T00:00", tz="Europe/Amsterdam"),
-                "train_period_in_hours": 24.0,
-                "sensor_to_save": 313,
-                "predict_start": pd.Timestamp(
-                    "2025-07-02T00:00", tz="Europe/Amsterdam"
-                ),
-                "predict_period_in_hours": 24,
+                "start_date": "2025-07-01T00:00+02:00",
+                "end_date": "2025-07-03T00:00+02:00",
+                "train_period": 24.0,
+                "sensor_to_save": 1,
+                "start_predict_date": "2025-07-02T00:00+02:00",
+                "predict_period": 24,
                 "max_forecast_horizon": 24,
                 "forecast_frequency": 1,
                 "probabilistic": False,
-                "as_job": False,
             },
-            "Try decreasing the --start-date.",
+            (ValidationError, "Try decreasing the --start-date."),
+        ),
+        (
+            {
+                "sensors": {"PV": 1},
+                "regressors": "autoregressive",
+                "target": "PV",
+                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output_path": None,
+                "start_date": "2025-07-01T00:00+02:00",
+                "end_date": "2025-07-03T00:00+02:00",
+                "train_period": 24.0,
+                "sensor_to_save": 1,
+                "start_predict_date": "2025-07-02T00:00+02:00",
+                "predict_period": 24,
+                "max_forecast_horizon": 24,
+                "forecast_frequency": 1,
+                "probabilistic": False,
+            },
+            False,
         ),
         # (
         #     {
-        #         "sensors": {"PV": 313},
-        #         "regressors": ["autoregressive"],
+        #         "sensors": {"PV": 1},
+        #         "regressors": "autoregressive",
         #         "target": "PV",
         #         "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
         #         "output_path": None,
-        #         "start_date": pd.Timestamp("2025-07-01T00:00", tz="Europe/Amsterdam"),
-        #         "end_date": pd.Timestamp("2025-07-12T00:00", tz="Europe/Amsterdam"),
-        #         "train_period_in_hours": 24.0,
-        #         "sensor_to_save": 313,
-        #         "predict_start": pd.Timestamp(
-        #             "2025-07-11T17:26", tz="Europe/Amsterdam"
-        #         ),
-        #         "predict_period_in_hours": 24,
+        #         "start_date": "2025-07-01T00:00+02:00",
+        #         "end_date": "2025-07-12T00:00+02:00",
+        #         "train_period": 24.0,
+        #         "sensor_to_save": 1,
+        #         "start_predict_date": "2025-07-11T17:26+02:00",
+        #         "predict_period": 24,
         #         "max_forecast_horizon": 24,
         #         "forecast_frequency": 1,
         #         "probabilistic": False,
-        #         "as_job": False,
         #     },
-        #     "Try increasing the --end-date.",
+        #     (ValidationError, "Try increasing the --end-date."),
         # )
     ],
 )
-def test_bad_timing_params(setup_assets, kwargs, expected_error):
-    sensor_id = setup_assets["solar-asset-1"].sensors[0].id
+def test_bad_timing_params(
+    setup_assets, kwargs, expected_error: bool | tuple[type[BaseException], str]
+):
+    sensor = setup_assets["solar-asset-1"].sensors[0]
+    sensor_id = sensor.id
     kwargs["sensors"]["PV"] = sensor_id
-    as_job = kwargs.pop("as_job")
-    with pytest.raises(Exception) as e_info:
-        TrainPredictPipeline(**kwargs).run(as_job=as_job)
-    assert expected_error in str(e_info)
+    kwargs["sensors"] = json.dumps(
+        kwargs["sensors"]
+    )  # schema expects to load serialized kwargs
+    if expected_error:
+        with pytest.raises(expected_error[0]) as e_info:
+            kwargs = ForecastingPipelineSchema().load(kwargs)
+            pipeline = TrainPredictPipeline(**kwargs)
+            pipeline.run()
+        assert expected_error[1] in str(e_info)
+    else:
+        kwargs = ForecastingPipelineSchema().load(kwargs)
+        pipeline = TrainPredictPipeline(**kwargs)
+        beliefs_before = len(sensor.search_beliefs())
+        pipeline.run()
+        beliefs_after = len(sensor.search_beliefs())
+        assert beliefs_after > beliefs_before
