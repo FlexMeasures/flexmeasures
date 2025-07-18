@@ -22,6 +22,7 @@ from flexmeasures.ui.views.assets.utils import (
     get_asset_by_id_or_raise_notfound,
     process_internal_api_response,
     user_can_create_assets,
+    user_can_create_children,
     user_can_delete,
     user_can_update,
     get_list_assets_chart,
@@ -94,6 +95,48 @@ class AssetCrudUI(FlaskView):
         """
         This is a kind of utility view that redirects to the default asset view, either Context or the one saved in the user session.
         """
+        if id == "new":  # show empty asset creation form
+            parent_asset_id = request.args.get("parent_asset_id", "")
+            account_id = request.args.get("account_id", "")
+
+            asset_form = NewAssetForm()
+            asset_form.with_options()
+            parent_asset_name = ""
+            account = None
+            if account_id:
+                account = db.session.get(Account, account_id)
+            if parent_asset_id:
+                parent_asset = db.session.get(GenericAsset, parent_asset_id)
+                if parent_asset:
+                    parent_asset_name = parent_asset.name
+                if parent_asset.owner:  # public parent asset
+                    if not account_id:
+                        account = parent_asset.owner
+                    else:
+                        if account_id != parent_asset.owner.id:
+                            return (
+                                f"The parent asset needs to be under the specified account ({parent_asset.owner.id}).",
+                                422,
+                            )
+
+            if account and not user_can_create_assets(account=account):
+                return unauthorized_handler(None, [])
+
+            if account:  # Pre-set account
+                asset_form.account_id.data = str(account.id)
+
+            return render_flexmeasures_template(
+                "assets/asset_new.html",
+                asset_form=asset_form,
+                msg="",
+                map_center=get_center_location_of_assets(user=current_user),
+                mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+                parent_asset_name=parent_asset_name,
+                parent_asset_id=parent_asset_id,
+                account=account,
+            )
+
+        # otherwise, redirect to the default asset view
         default_asset_view = session.get("default_asset_view", "Context")
         return redirect(
             url_for(
@@ -107,36 +150,6 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/context")
     def context(self, id: str, **kwargs):
         """/assets/<id>/context"""
-        # Get default asset view
-        if id == "new":  # show empty asset creation form
-            parent_asset_id = request.args.get("parent_asset_id", "")
-            if not user_can_create_assets():
-                return unauthorized_handler(None, [])
-
-            asset_form = NewAssetForm()
-            asset_form.with_options()
-            parent_asset_name = ""
-            account = None
-            if parent_asset_id:
-                parent_asset = db.session.get(GenericAsset, parent_asset_id)
-                if parent_asset:
-                    asset_form.account_id.data = str(
-                        parent_asset.account_id
-                    )  # Pre-set account
-                    parent_asset_name = parent_asset.name
-                    account = parent_asset.account_id
-            return render_flexmeasures_template(
-                "assets/asset_new.html",
-                asset_form=asset_form,
-                msg="",
-                map_center=get_center_location_of_assets(user=current_user),
-                mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-                parent_asset_name=parent_asset_name,
-                parent_asset_id=parent_asset_id,
-                account=account,
-            )
-
-        # show existing asset
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
         assets = get_list_assets_chart(asset, base_asset=asset)
@@ -150,20 +163,25 @@ class AssetCrudUI(FlaskView):
             for sensor in asset.sensors
         ]
 
+        site_asset = asset
+        while site_asset.parent_asset_id:
+            site_asset = site_asset.parent_asset
         return render_flexmeasures_template(
             "assets/asset_context.html",
             assets=assets,
             asset=asset,
             current_asset_sensors=current_asset_sensors,
+            site_asset=site_asset,
+            user_can_create_children=user_can_create_children(asset),
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),
         )
 
     @login_required
-    @route("/<id>/sensor/new")
+    @route("/<id>/sensors/new")
     def create_sensor(self, id: str):
-        """GET to /assets/<id>/sensor/new"""
+        """GET to /assets/<id>/sensors/new"""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "create-children")
 
@@ -208,7 +226,7 @@ class AssetCrudUI(FlaskView):
             form_valid = asset_form.validate_on_submit()
 
             # Fill up the form with useful errors for the user
-            if account_error is not None:
+            if account_error is not None and asset_form.account_id:
                 form_valid = False
                 asset_form.account_id.errors.append(account_error)
             if asset_type_error is not None:
@@ -370,6 +388,7 @@ class AssetCrudUI(FlaskView):
             msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_create_assets=user_can_create_assets(),
+            user_can_create_children=user_can_create_children(asset),
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
             current_page="Properties",

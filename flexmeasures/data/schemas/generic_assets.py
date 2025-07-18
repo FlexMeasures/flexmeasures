@@ -195,13 +195,15 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             ).first()
 
             if asset:
-                raise ValidationError(
-                    f"An asset with the name '{data['name']}' already exists under parent asset with id={data.get('parent_asset_id')}.",
-                    "name",
-                )
+                err_msg = f"An asset with the name '{data['name']}' already exists in account {data.get('account_id')}"
+                if data.get("parent_asset_id"):
+                    err_msg += (
+                        f" under the parent asset with id={data.get('parent_asset_id')}"
+                    )
+                raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
-    def validate_generic_asset_type(self, generic_asset_type_id: int):
+    def validate_generic_asset_type(self, generic_asset_type_id: int, **kwargs):
         generic_asset_type = db.session.get(GenericAssetType, generic_asset_type_id)
         if not generic_asset_type:
             raise ValidationError(
@@ -209,7 +211,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("parent_asset_id")
-    def validate_parent_asset(self, parent_asset_id: int | None):
+    def validate_parent_asset(self, parent_asset_id: int | None, **kwargs):
         if parent_asset_id is not None:
             parent_asset = db.session.get(GenericAsset, parent_asset_id)
             if not parent_asset:
@@ -218,7 +220,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                 )
 
     @validates("account_id")
-    def validate_account(self, account_id: int | None):
+    def validate_account(self, account_id: int | None, **kwargs):
         if account_id is None and (
             running_as_cli() or user_has_admin_access(current_user, "update")
         ):
@@ -235,7 +237,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("attributes")
-    def validate_attributes(self, attributes: dict):
+    def validate_attributes(self, attributes: dict, **kwargs):
         sensors_to_show = attributes.get("sensors_to_show", [])
         if sensors_to_show:
 

@@ -119,7 +119,7 @@ button.btn:hover a {
     color: var(--nav-hover-color);
 }
 
-#spinner {
+.spinner {
     padding-top: 200px;
     text-align: center;
     position: absolute;
@@ -129,6 +129,15 @@ button.btn:hover a {
     left: 0;
     width: 100%;
     pointer-events: none; /* Prevents the spinner from blocking clicks */
+}
+.spinner-bottom-right {
+    top: auto;
+    left: auto;
+    right: 20px;
+    bottom: 20px;
+    width: auto;
+    padding-top: 0;
+    text-align: right;
 }
 
 .legend {

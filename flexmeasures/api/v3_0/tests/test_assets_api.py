@@ -8,7 +8,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
-from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 
@@ -287,25 +287,18 @@ def test_alter_an_asset(
     print(f"Editing Response: {asset_edit_response.json}")
     assert asset_edit_response.status_code == 200
 
-    audit_log_event = f"Updated Field: name, From: {name}, To: other"
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            event=audit_log_event,
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-            affected_asset_id=prosumer_asset.id,
-        )
-    ).scalar_one_or_none()
-
-    audit_log_event = f"Updated Field: latitude, From: {latitude}, To: 11.1"
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            event=audit_log_event,
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-            affected_asset_id=prosumer_asset.id,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Updated Field: name, From: {name}, To: other",
+        user=requesting_user,
+        asset=prosumer_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Updated Field: latitude, From: {latitude}, To: 11.1",
+        user=requesting_user,
+        asset=prosumer_asset,
+    )
 
 
 @pytest.mark.parametrize(
@@ -486,14 +479,12 @@ def test_post_an_asset(client, setup_api_test_data, requesting_user, db):
     assert asset is not None
     assert asset.latitude == 30.1
 
-    assert db.session.execute(
-        select(AssetAuditLog).filter_by(
-            affected_asset_id=asset.id,
-            event=f"Created asset '{asset.name}': {asset.id}",
-            active_user_id=requesting_user.id,
-            active_user_name=requesting_user.username,
-        )
-    ).scalar_one_or_none()
+    check_audit_log_event(
+        db=db,
+        event=f"Created asset '{asset.name}': {asset.id}",
+        user=requesting_user,
+        asset=asset,
+    )
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)

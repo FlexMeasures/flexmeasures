@@ -310,6 +310,7 @@
 
     let vegaView;
     let previousResult;
+    let previousPlaybackResult;
     let queryStartDate;
     let queryEndDate;
     let storeStartDate;
@@ -352,7 +353,8 @@
 
                 // Reload daterange
                 embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult)).resize().run();            });
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult.data)).resize().run();
+            });
         }
     });
 
@@ -402,16 +404,16 @@
             // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
             vegaView = result.view;
             if (previousResult) {
-                checkSourceMasking(previousResult);
-                var slicedPreviousResult = previousResult.filter(item => {
+                checkSourceMasking(previousResult.data);
+                var slicedPreviousData = previousResult.data.filter(item => {
                     return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
                 })
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousResult)).resize().run();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousData)).resize().run();
             }
         });
     }
     
-    {% if active_page == "sensors" %}
+    {% if active_page == "sensors" and user_can_update_sensor %}
         let upload = document.querySelector('#submitUpload');
         let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
         upload.addEventListener('click', function(e) {
@@ -431,9 +433,8 @@
                         storeStartDate,
                         subtract(storeEndDate, 1),
                     );
-                    // Wait for 2 seconds and then reload the page
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    window.location.reload();
+                    uploadSpinner.classList.add('d-none');
+                    upload.classList.remove('d-none');
                 } else {
                     const data = await response.json();
                     if (data.message.path_and_files === undefined) {
@@ -501,6 +502,8 @@
     // Set up abort controller to cancel requests
     var controller = new AbortController();
     var signal = controller.signal;
+
+    var playBackDataLoadedForKnownDateRange = false;
 
     const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
         method: "GET",
@@ -586,6 +589,7 @@
             $("#spinner").show();
             checkDSTTransitions(startDate, endDate)
             Promise.all([
+                (previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) ? Promise.resolve(previousResult.data) :
                 // Fetch time series data
                 fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
                     method: "GET",
@@ -609,8 +613,13 @@
             ]).then(function(result) {
                 $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
-                previousResult = result[0];
-                checkSourceMasking(previousResult);
+                previousResult = {
+                    start: startDate,
+                    end: endDate,
+                    data: result[0]
+                };
+                checkSourceMasking(previousResult.data);
+                playBackDataLoadedForKnownDateRange = false;
                 /**
                 vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
                 */
@@ -655,8 +664,14 @@
                 ]).then(function (result) {return result[0]}).catch(console.error);
                 $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
-                previousResult = fetchedInitialData;
-                checkSourceMasking(previousResult);
+                var sessionStart = new Date('{{ event_starts_after }}');
+                var sessionEnd = new Date('{{ event_ends_before }}');
+                previousResult = {
+                    start: sessionStart,
+                    end: sessionEnd,
+                    data: fetchedInitialData
+                };
+                checkSourceMasking(previousResult.data);
                 var timerangeNotSetYet = false
             {% else %}
                 var timerangeNotSetYet = true
@@ -781,9 +796,13 @@
         var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
         queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
         queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
-
-        $("#spinner").show();
+        const spinner = document.getElementById('spinner');
+        if (!playBackDataLoadedForKnownDateRange) {
+            spinner.hidden = false;
+            spinner.style.display = 'block';
+        }
         Promise.all([
+            playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
             // Fetch time series data (all data, not only the most recent beliefs)
             fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
                 method: "GET",
@@ -792,9 +811,15 @@
             })
             .then(function(response) { return response.json(); }),
         ]).then(function(result) {
-            $("#spinner").hide();
+            previousPlaybackResult = result[0];
             replayBeliefsData(result[0]);
-        }).catch(console.error);
+            playBackDataLoadedForKnownDateRange = true;
+        }).catch(console.error)
+        .finally(function() {
+            spinner.hidden = true;
+            spinner.style.display = 'none';
+        });
+
 
         const timer = ms => new Promise(res => setAbortableTimeout(res, Math.max(ms, 0), signal));
 

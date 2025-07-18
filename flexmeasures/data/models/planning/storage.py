@@ -889,24 +889,32 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["stock delta"] *= timedelta(hours=1) / resolution
 
             # Apply round-trip efficiency evenly to charging and discharging
-            charging_efficiency[d] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=charging_efficiency[d],
-                actuator=sensor_d,
-                unit="dimensionless",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fallback_attribute="charging-efficiency",
-            ).fillna(1)
-            discharging_efficiency[d] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=discharging_efficiency[d],
-                actuator=sensor_d,
-                unit="dimensionless",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fallback_attribute="discharging-efficiency",
-            ).fillna(1)
+            charging_efficiency[d] = (
+                get_continuous_series_sensor_or_quantity(
+                    variable_quantity=charging_efficiency[d],
+                    actuator=sensor_d,
+                    unit="dimensionless",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="charging-efficiency",
+                )
+                .astype(float)
+                .fillna(1)
+            )
+            discharging_efficiency[d] = (
+                get_continuous_series_sensor_or_quantity(
+                    variable_quantity=discharging_efficiency[d],
+                    actuator=sensor_d,
+                    unit="dimensionless",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fallback_attribute="discharging-efficiency",
+                )
+                .astype(float)
+                .fillna(1)
+            )
 
             roundtrip_efficiency = flex_model[d].get(
                 "roundtrip_efficiency",
@@ -940,6 +948,7 @@ class MetaStorageScheduler(Scheduler):
                         fallback_attribute="storage_efficiency",  # this should become storage-efficiency
                         max_value=1,
                     )
+                    .astype(float)
                     .fillna(1.0)
                     .clip(lower=0.0, upper=1.0)
                 )
@@ -1004,15 +1013,8 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        # self.flex_context overrides db_flex_context (from the asset and its ancestors)
-        if self.asset is not None:
-            asset = self.asset
-        else:
-            asset = self.sensor.generic_asset
-        db_flex_context = asset.get_flex_context()
-        self.flex_context = FlexContextSchema().load(
-            {**db_flex_context, **self.flex_context}
-        )
+        self.collect_flex_config()
+        self.flex_context = FlexContextSchema().load(self.flex_context)
 
         if isinstance(self.flex_model, dict):
             # Check state of charge.
@@ -1338,7 +1340,9 @@ class StorageScheduler(MetaStorageScheduler):
                     / timedelta(hours=1),
                     up_efficiency=device_constraints[d]["derivative up efficiency"],
                     down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"].fillna(1),
+                    storage_efficiency=device_constraints[d]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
                 ),
                 from_unit="MWh",
                 to_unit=flex_model_d["state_of_charge"].unit,
@@ -1557,8 +1561,8 @@ def add_storage_constraints(
             resolution,
         )
 
-    storage_device_constraints["min"] = storage_device_constraints["min"].fillna(
-        soc_min_change
+    storage_device_constraints["min"] = (
+        storage_device_constraints["min"].astype(float).fillna(soc_min_change)
     )
 
     if soc_maxima is not None:
@@ -1570,8 +1574,8 @@ def add_storage_constraints(
             resolution,
         )
 
-    storage_device_constraints["max"] = storage_device_constraints["max"].fillna(
-        soc_max_change
+    storage_device_constraints["max"] = (
+        storage_device_constraints["max"].astype(float).fillna(soc_max_change)
     )
 
     # limiting max and min to be in the range [soc_min, soc_max]
@@ -1787,8 +1791,18 @@ def validate_constraint(
 
     columns_involved = columns_lhs + columns_rhs
 
-    lhs = constraints_df.fillna(0).eval(lhs_expression).round(round_to_decimals)
-    rhs = constraints_df.fillna(0).eval(rhs_expression).round(round_to_decimals)
+    lhs = (
+        constraints_df.astype(float)
+        .fillna(0)
+        .eval(lhs_expression)
+        .round(round_to_decimals)
+    )
+    rhs = (
+        constraints_df.astype(float)
+        .fillna(0)
+        .eval(rhs_expression)
+        .round(round_to_decimals)
+    )
 
     condition = None
 

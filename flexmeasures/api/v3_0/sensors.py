@@ -59,6 +59,7 @@ from flexmeasures.data.services.scheduling import (
     get_data_source_for_job,
 )
 from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
@@ -83,14 +84,12 @@ class SensorAPI(FlaskView):
                 required=False, load_default=False
             ),
             "include_public_assets": fields.Boolean(required=False, load_default=False),
-            "page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=None
-            ),
+            "page": fields.Int(required=False, validate=validate.Range(min=1)),
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
-            "unit": UnitField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
+            "unit": UnitField(required=False),
         },
         location="query",
     )
@@ -278,7 +277,9 @@ class SensorAPI(FlaskView):
         ctx_loader=lambda data: data[0].sensor if data else None,
         pass_ctx_to_loader=True,
     )
-    def upload_data(self, data: list[tb.BeliefsDataFrame], **kwargs):
+    def upload_data(
+        self, data: list[tb.BeliefsDataFrame], filenames: list[str], **kwargs
+    ):
         """
         Post sensor data to FlexMeasures by file upload.
 
@@ -311,6 +312,11 @@ class SensorAPI(FlaskView):
         :status 200: PROCESSED
         :status 400: INVALID_REQUEST
         """
+        sensor = data[0].sensor
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}",
+        )
         response, code = save_and_enqueue(data)
         return response, code
 

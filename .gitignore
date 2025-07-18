@@ -54,6 +54,7 @@ venv*
 logs/
 *.dump
 iframe_figures/
+/docker-compose-data
 
 # Ignore all forecasting artifacts (models, predictions, etc.)
 flexmeasures/data/models/forecasting/**/artifacts/

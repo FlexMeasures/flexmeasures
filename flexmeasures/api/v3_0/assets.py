@@ -90,21 +90,17 @@ class AssetAPI(FlaskView):
             "include_public": fields.Bool(
                 data_key="include_public", load_default=False
             ),
-            "page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=None
-            ),
+            "page": fields.Int(required=False, validate=validate.Range(min=1)),
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
             "sort_by": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["id", "name", "owner"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["asc", "desc"]),
             ),
         },
@@ -233,15 +229,13 @@ class AssetAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), dump_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
             "sort_by": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["id", "name", "resolution"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["asc", "desc"]),
             ),
         },
@@ -433,9 +427,9 @@ class AssetAPI(FlaskView):
         # assign asset id
         db.session.flush()
 
-        db.session.commit()
-
         AssetAuditLog.add_record(asset, f"Created asset '{asset.name}': {asset.id}")
+
+        db.session.commit()
 
         return asset_schema.dump(asset), 201
 
@@ -687,15 +681,13 @@ class AssetAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
             "sort_by": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["event_datetime"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["asc", "desc"]),
             ),
         },

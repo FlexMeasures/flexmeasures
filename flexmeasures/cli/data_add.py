@@ -1211,7 +1211,7 @@ def create_schedule(ctx):
 @click.option(
     "--start",
     "start",
-    type=AwareDateTimeField(format="iso"),
+    type=AwareDateTimeField(),
     required=True,
     help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -1550,7 +1550,7 @@ def add_schedule_for_storage(  # noqa C901
 @click.option(
     "--start",
     "start",
-    type=AwareDateTimeField(format="iso"),
+    type=AwareDateTimeField(),
     required=True,
     help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -1699,7 +1699,7 @@ def add_schedule_process(
 @click.option(
     "--start",
     "start",
-    type=AwareDateTimeField(format="iso"),
+    type=AwareDateTimeField(),
     required=False,
     help="Report start time. `--start-offset` can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -1720,14 +1720,14 @@ def add_schedule_process(
 @click.option(
     "--end",
     "end",
-    type=AwareDateTimeField(format="iso"),
+    type=AwareDateTimeField(),
     required=False,
     help="Report end time. `--end-offset` can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--resolution",
     "resolution",
-    type=DurationField(format="iso"),
+    type=DurationField(),
     required=False,
     help="Time resolution of the input time series to employ for the calculations. Follow up with a ISO 8601 duration string",
 )
@@ -1954,7 +1954,7 @@ def add_report(  # noqa: C901
         # save the report if it's not running in dry mode
         if not dry_run:
             click.echo(f"Saving report for sensor `{sensor}` to the database...")
-            save_to_db(data.dropna())
+            save_to_db(data)
             db.session.commit()
             click.secho(
                 f"Success. The report for sensor `{sensor}` has been saved to the database.",
