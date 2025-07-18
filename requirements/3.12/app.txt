@@ -185,7 +185,7 @@ markupsafe==3.0.2
     #   sentry-sdk
     #   werkzeug
     #   wtforms
-marshmallow==4.0.0
+marshmallow==3.26.1
     # via
     #   -r requirements/app.in
     #   flask-marshmallow
