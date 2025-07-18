@@ -305,7 +305,7 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, encodeUrlQuery, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
@@ -375,8 +375,8 @@
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
-
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType);
+        await vegaEmbed('#'+elementId, url, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
