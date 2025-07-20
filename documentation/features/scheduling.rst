@@ -56,16 +56,6 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - Field
      - Example value
      - Description
-   * - ``relax-constraints``
-     - ``True``
-     - If True, several constraints are relaxed by setting default breach prices, leading to the default priority:
-
-       1. Avoid breaching the site consumption/production capacity.
-       2. Avoid not meeting SoC minima/maxima.
-       3. Avoid breaching the desired device consumption/production capacity.
-
-       We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
-       For tighter control over prices and priorities, the breach prices can still be set explicitly.
    * - ``inflexible-device-sensors``
      - ``[3,4]``
      - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -91,24 +81,35 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
        If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
-   * - ``site-consumption-breach-price``
-     - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-production-capacity``
      - ``"0kW"``
      - Maximum production power at the grid connection point.
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
        If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
-   * - ``site-production-breach-price``
-     - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-peak-consumption``
      - ``{"sensor": 7}``
      - Current peak consumption.
        Costs from peaks below it are considered sunk costs. Default to 0 kW.
+   * - ``relax-constraints``
+     - ``True``
+     - If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem,
+       leading to the default priority:
+
+       1. Avoid breaching the site consumption/production capacity.
+       2. Avoid not meeting SoC minima/maxima.
+       3. Avoid breaching the desired device consumption/production capacity.
+
+       We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
+       For tighter control over prices and priorities, the breach prices can also be set explicitly (see below).
+   * - ``site-consumption-breach-price``
+     - ``"1000 EUR/kW"``
+     - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
+   * - ``site-production-breach-price``
+     - ``"1000 EUR/kW"``
+     - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-peak-consumption-price``
      - ``"260 EUR/MWh"``
      - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
