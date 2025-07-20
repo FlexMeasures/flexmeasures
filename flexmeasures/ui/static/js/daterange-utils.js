@@ -183,3 +183,22 @@ export function computeSimulationRanges(startDate, endDate, minRes = "hour") {
         throw new Error(`Unsupported minimum resolution: ${minRes}`);
     }
 }
+
+/**
+ * Takes a Date object and returns an ISO string with the timezone offset appended
+ * @param {Date} date - The date to format
+ * @returns {string} An ISO string with the timezone offset appended, e.g. "2022-08-23T15:04:05.000+02:00"
+ */
+export function toIsoStringWithOffset(date) {
+    const offset = date.getTimezoneOffset();
+
+    const offsetHours = Math.floor(Math.abs(offset) / 60);
+    const offsetMinutes = Math.abs(offset) % 60;
+
+    const isoString = date.toISOString();
+    
+    const formattedIsoString = isoString.replace('Z', 
+        `${(offset <= 0 ? '+' : '-')}${String(offsetHours).padStart(2, '0')}:${String(offsetMinutes).padStart(2, '0')}`);
+    
+    return formattedIsoString;
+}

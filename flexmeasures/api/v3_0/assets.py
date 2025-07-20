@@ -1082,25 +1082,30 @@ class AssetAPI(FlaskView):
     )
     @use_kwargs(
         {
-            "event_start_time": fields.Str(required=True),
-            "event_end_time": fields.Str(required=True),
+            "event_starts_after": fields.Str(required=True),
+            "event_ends_before": fields.Str(required=True),
         },
         location="query",
     )
-    def get_kpis(self, id: int, asset: GenericAsset, event_start_time, event_end_time):
+    def get_kpis(
+        self, id: int, asset: GenericAsset, event_starts_after, event_ends_before
+    ):
         from flexmeasures.data.services.sensors import get_sensor_stats
 
         """API endpoint to get kpis for an asset.
 
         .. :quickref: Asset; Get asset kpis
 
+        Gets statistics for sensors for the given time range. The sensors are expected to have a daily resolution, suitable for KPIs.
+        Each sensor has a preferred function to downsample the daily values to the KPI value.
+
         **Example request**
 
         .. sourcecode:: json
 
             {
-                "event_start_time": "2015-06-02T10:00:00+00:00",
-                "event_end_time": "2015-06-02T12:00:00+00:00"
+                "event_starts_after": "2015-06-02T10:00:00+00:00",
+                "event_ends_before": "2015-06-02T12:00:00+00:00"
             }
 
         **Example response**
@@ -1141,22 +1146,27 @@ class AssetAPI(FlaskView):
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
             sensor_stats = get_sensor_stats(
-                sensor, event_start_time, event_end_time, sort_keys=False
+                sensor, event_starts_after, event_ends_before, sort_keys=False
             )
             try:
                 if sensor.unit == "%":
-                    stats_value = dict(next(iter(sensor_stats.values())))["Mean value"]
+                    downsample_function = "mean"
+                    downsample_value = dict(next(iter(sensor_stats.values())))[
+                        "Mean value"
+                    ]
                 else:
-                    stats_value = dict(next(iter(sensor_stats.values())))[
+                    downsample_function = "sum"
+                    downsample_value = dict(next(iter(sensor_stats.values())))[
                         "Sum over values"
                     ]
             except StopIteration:
-                stats_value = 0
+                downsample_value = 0
             kpi_dict = {
                 "title": kpi["title"],
                 "unit": sensor.unit,
                 "sensor": sensor.id,
-                "value": round(stats_value, 2),
+                "downsample_value": round(downsample_value, 2),
+                "downsample_function": downsample_function,
             }
             kpis.append(kpi_dict)
         return dict(data=kpis), 200

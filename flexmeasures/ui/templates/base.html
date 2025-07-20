@@ -305,7 +305,7 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
@@ -582,6 +582,10 @@
                 else {
                     loadSensorStats({{ sensor.id }});
                 }
+            {% endif %}
+
+            {% if active_subpage == "asset_graph" %}
+                getAssetKPIs();
             {% endif %}
 
             stopReplay()
@@ -877,6 +881,60 @@
             stopReplay()
         }
     }
+    
+    {% if active_subpage == "asset_graph" %}
+    function getAssetKPIs() {
+        const pickerStartDate = picker.getStartDate().toJSDate();
+        const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
+        var endDate = picker.getEndDate();
+        endDate.setDate(endDate.getDate() + 1);
+        endDate = encodeURIComponent(toIsoStringWithOffset(endDate.toJSDate()));
+        const kpiCards = document.querySelector('#kpi-cards');
+        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?event_starts_after=' + start + '&event_ends_before=' + endDate, {
+            method: 'GET',
+            headers: {
+                "Content-Type": "application/json",
+            },
+        })
+        .then(response => response.json())
+        .then(response => {
+            
+            // Create card for each KPI object
+            const data = response.data;
+            // Set kpiCards to empty
+            kpiCards.innerHTML = '';
+            data.forEach(kpi => {
+                const colDiv = document.createElement('div');
+                colDiv.classList.add('col-md-3');
+                const card = document.createElement('div');
+                card.classList.add('card', 'mb-3');
+                // Add sensor data to the card
+                const label = kpi.unit === "%" ? "Average" : "Total";
+                card.innerHTML = `
+                    <div class="card-body">
+                        <p class="card-title">${kpi.title}</p>
+                        <h5 class="card-text">
+                            <strong>
+                                ${label}: ${kpi.downsample_value}
+                                <small>${kpi.downsample_function}</small>
+                            </strong>
+                        </h5>
+                        <small style="float: right;">
+                            <a href="${apiBasePath}/sensors/${kpi.sensor}" title="See actual KPI data">see more</a>
+                        </small>
+                    </div>
+                `;
+                colDiv.appendChild(card);
+                kpiCards.appendChild(colDiv);
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            return []; // Return an empty array if there's an error
+        });
+    }
+    
+    {% endif %}
     </script>
 
     {% endblock sensorChartSetup %}

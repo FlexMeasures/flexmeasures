@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% set active_page = "assets" %}
+{% set active_subpage = "asset_graph" %}
 
 {% block title %} {{asset.name}} {% endblock %}
 
@@ -823,77 +824,6 @@
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
             renderApiSensors([], undefined);
         }
-    });
-
-    /**
-     * Takes a Date object and returns an ISO string with the timezone offset appended
-     * @param {Date} date - The date to format
-     * @returns {string} An ISO string with the timezone offset appended, e.g. "2022-08-23T15:04:05.000+02:00"
-     */
-    function toIsoStringWithOffset(date) {
-        const offset = date.getTimezoneOffset();
-
-        const offsetHours = Math.floor(Math.abs(offset) / 60);
-        const offsetMinutes = Math.abs(offset) % 60;
-
-        const isoString = date.toISOString();
-        
-        const formattedIsoString = isoString.replace('Z', 
-            `${(offset <= 0 ? '+' : '-')}${String(offsetHours).padStart(2, '0')}:${String(offsetMinutes).padStart(2, '0')}`);
-        
-        return formattedIsoString;
-    }
-
-    function getAssetKPIs() {
-        const pickerStartDate = picker.getStartDate().toJSDate();
-        const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
-        var endDate = picker.getEndDate();
-        endDate.setDate(endDate.getDate() + 1);
-        endDate = encodeURIComponent(toIsoStringWithOffset(endDate.toJSDate()));
-        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?event_start_time=' + start + '&event_end_time=' + endDate, {
-            method: 'GET',
-            headers: {
-                "Content-Type": "application/json",
-            },
-        })
-        .then(response => response.json())
-        .catch(error => {
-            console.error('Error:', error);
-            return []; // Return an empty array if there's an error
-        });
-    }
-
-
-    $(document).ready(function() {
-        getAssetKPIs().then(response => {
-            const kpiCards = document.querySelector('#kpi-cards');
-            
-            // Create card for each KPI object
-            const data = response.data;
-            data.forEach(kpi => {
-                const colDiv = document.createElement('div');
-                colDiv.classList.add('col-md-3');
-                const card = document.createElement('div');
-                card.classList.add('card', 'mb-3');
-                // Add sensor data to the card
-                const label = kpi.unit === "%" ? "Average" : "Total";
-                card.innerHTML = `
-                    <div class="card-body">
-                        <p class="card-title">${kpi.title}</p>
-                        <h5 class="card-text">
-                            <strong>
-                                ${label}: ${kpi.value}
-                            </strong>        
-                        </h5>
-                        <small style="float: right;">
-                            <a href="${apiBasePath}/sensors/${kpi.sensor}" title="See actual KPI data">see more</a>
-                        </small>
-                    </div>
-                `;
-                colDiv.appendChild(card);
-                kpiCards.appendChild(colDiv);
-            });
-        });
     });
 
 
