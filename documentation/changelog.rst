@@ -3,10 +3,23 @@
 FlexMeasures Changelog
 **********************
 
+v0.28.0 | September XX, 2025
+============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
 
 
 v0.27.0 | July 20, 2025
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v027-multi-asset-and-2fa/>`_.
 
 .. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
 
@@ -35,6 +48,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+
 * Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_, `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_ and `PR #1567 <https://www.github.com/FlexMeasures/flexmeasures/pull/1567>`_, `PR #1611 <https://www.github.com/FlexMeasures/flexmeasures/pull/1611>`_ and `PR #1613 <https://www.github.com/FlexMeasures/flexmeasures/pull/1613>`_]
 * Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
 * In authorization, prevent accidental errors by not matching empty principals [see `PR #1556 <https://github.com/FlexMeasures/flexmeasures/pull/1556>`_]
