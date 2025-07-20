@@ -24,7 +24,7 @@ New features
 * Smarter date range navigation [see `PR #1531 <https://github.com/FlexMeasures/flexmeasures/pull/1531>`_]
 * Smarter toast notifications [see `PR #1530 <https://github.com/FlexMeasures/flexmeasures/pull/1530>`_]
 * Move various warnings to toast notifications [see `PR #1529 <https://github.com/FlexMeasures/flexmeasures/pull/1529>`_]
-* Document how to set a parent asset when creating an asset through the API, and show parent assets in ``flexmeasures show account`` [see `PR #1533 <https://github.com/FlexMeasures/flexmeasures/pull/1533>`_]
+* Document how to set a parent asset when creating an asset through the API, and show parent assets in ``flexmeasures show account`` [see `PR #1533 <https://github.com/FlexMeasures/flexmeasures/pull/1533>`_ and `PR #974 <https://github.com/FlexMeasures/flexmeasures/pull/974>`_]
 * Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account [see `PR #1536 <https://github.com/FlexMeasures/flexmeasures/pull/1536>`_]
 * Add ``flexmeasures jobs run-job`` CLI command to run a single job [see `PR #1602 <https://github.com/FlexMeasures/flexmeasures/pull/1602>`_]
 * Add toggle to show sensor statistics based on selected daterange [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_, `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_ and `PR #1589 <https://github.com/FlexMeasures/flexmeasures/pull/1589>`_]
@@ -35,7 +35,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_, `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_ and `PR #1567 <https://www.github.com/FlexMeasures/flexmeasures/pull/1567>`_]
+* Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_, `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_ and `PR #1567 <https://www.github.com/FlexMeasures/flexmeasures/pull/1567>`_, `PR #1611 <https://www.github.com/FlexMeasures/flexmeasures/pull/1611>`_ and `PR #1613 <https://www.github.com/FlexMeasures/flexmeasures/pull/1613>`_]
 * Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
 * In authorization, prevent accidental errors by not matching empty principals [see `PR #1556 <https://github.com/FlexMeasures/flexmeasures/pull/1556>`_]
 * Tests: guarantee a clean db upon creating the test db [see `PR #1518 <https://github.com/FlexMeasures/flexmeasures/pull/1518>`_]
