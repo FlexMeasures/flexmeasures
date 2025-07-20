@@ -106,8 +106,11 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures jobs run-worker``                  Start a worker process for forecasting and/or scheduling jobs.
-``flexmeasures jobs show queues``                 List job queues.
+``flexmeasures jobs show queues``                 List job queues and number of current jobs.
 ``flexmeasures jobs clear-queue``                 Clear a job queue.
+``flexmeasures jobs delete-queue``                Delete a job queue.
+``flexmeasures jobs save-last``                   Save the last n jobs of your choice to a file. 
+``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
 ================================================= =======================================
 
 
