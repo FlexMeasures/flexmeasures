@@ -84,14 +84,12 @@ class SensorAPI(FlaskView):
                 required=False, load_default=False
             ),
             "include_public_assets": fields.Boolean(required=False, load_default=False),
-            "page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=None
-            ),
+            "page": fields.Int(required=False, validate=validate.Range(min=1)),
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
-            "unit": UnitField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
+            "unit": UnitField(required=False),
         },
         location="query",
     )
