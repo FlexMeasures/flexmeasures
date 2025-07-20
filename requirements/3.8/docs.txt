@@ -53,6 +53,10 @@ pytz==2025.2
     # via
     #   -c requirements/3.8/app.txt
     #   babel
+pyyaml==6.0.2
+    # via
+    #   -c requirements/3.8/app.txt
+    #   sphinxcontrib-mermaid
 requests==2.32.4
     # via
     #   -c requirements/3.8/app.txt
@@ -72,6 +76,7 @@ sphinx==7.1.2
     #   sphinx-tabs
     #   sphinxcontrib-httpdomain
     #   sphinxcontrib-jquery
+    #   sphinxcontrib-mermaid
 sphinx-copybutton==0.5.2
     # via -r requirements/docs.in
 sphinx-fontawesome==0.0.6
@@ -93,7 +98,7 @@ sphinxcontrib-jquery==4.1
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
 sphinxcontrib-mermaid==1.0.0
-    # via sphinx
+    # via -r requirements/docs.in
 sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
