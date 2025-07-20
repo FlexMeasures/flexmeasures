@@ -15,7 +15,7 @@ click==8.1.8
     #   -c requirements/3.9/app.txt
     #   -c requirements/3.9/test.txt
     #   black
-distlib==0.3.9
+distlib==0.4.0
     # via virtualenv
 filelock==3.18.0
     # via
@@ -34,7 +34,7 @@ importlib-metadata==8.7.0
     #   build
 mccabe==0.7.0
     # via flake8
-mypy==1.16.0
+mypy==1.17.0
     # via -r requirements/dev.in
 mypy-extensions==1.1.0
     # via
@@ -65,7 +65,7 @@ pycodestyle==2.12.1
     # via flake8
 pyflakes==3.2.0
     # via flake8
-pyinstrument==5.0.2
+pyinstrument==5.0.3
     # via -r requirements/dev.in
 pyproject-hooks==1.2.0
     # via build
@@ -85,7 +85,7 @@ tomli==2.2.1
     #   build
     #   mypy
     #   setuptools-scm
-typing-extensions==4.14.0
+typing-extensions==4.14.1
     # via
     #   -c requirements/3.9/app.txt
     #   -c requirements/3.9/test.txt

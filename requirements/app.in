@@ -41,12 +41,10 @@ importlib_metadata
 # see GH#607 for issue on this pin
 sqlalchemy>=2.0
 Flask-SSLify
-# use <0.4 if not compatible with Flask2.2 yet
 Flask_JSON
 Flask-Migrate
 Flask-WTF
 Flask-Mail
-# <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
 Flask-Security-Too[fsqla,mfa]>=5.0
 Flask-Login
 Flask-Classful>=0.16
