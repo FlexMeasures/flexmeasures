@@ -4,7 +4,7 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
-from functools import lru_cache
+from functools import cache
 from isodate import duration_isoformat
 import time
 from timely_beliefs import BeliefsDataFrame
@@ -447,7 +447,7 @@ def build_asset_jobs_data(
     return jobs_data
 
 
-@lru_cache()
+@cache()
 def _get_sensor_stats(
     sensor: Sensor,
     event_end_time: str,
@@ -564,7 +564,7 @@ def _get_sensor_stats(
 def _get_ttl_hash(seconds=120) -> int:
     """Returns the same value within "seconds" time period
     Is needed to make LRU cache a TTL one
-    (lru_cache is used when call arguments are the same,
+    (cache is used when call arguments are the same,
     here we ensure that call arguments are the same in "seconds" period of time).
     """
     return round(time.time() / seconds)
