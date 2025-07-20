@@ -57,6 +57,7 @@ of which some are referred to in this documentation.
 ``flexmeasures show beliefs``                     Plot time series data.
 ``flexmeasures show reporters``                   List available reporters.
 ``flexmeasures show schedulers``                  List available schedulers.
+``flexmeasures show chart``                       Export charts to PNG or SVG.
 ================================================= =======================================
 
 
