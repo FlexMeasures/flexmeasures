@@ -38,7 +38,7 @@ blinker==1.8.2
     #   sentry-sdk
 cbor2==5.6.5
     # via webauthn
-certifi==2025.4.26
+certifi==2025.7.14
     # via
     #   requests
     #   sentry-sdk
@@ -60,7 +60,7 @@ contourpy==1.1.1
     # via matplotlib
 convertdate==2.4.0
     # via workalendar
-cryptography==45.0.4
+cryptography==45.0.5
     # via
     #   flask-security-too
     #   pyopenssl
@@ -203,7 +203,7 @@ matplotlib==3.7.5
     # via timetomodel
 more-itertools==10.5.0
     # via inflect
-narwhals==1.42.0
+narwhals==1.42.1
     # via altair
 numpy==1.24.4
     # via
@@ -240,7 +240,7 @@ passlib==1.7.4
     # via flask-security-too
 patsy==1.0.1
     # via statsmodels
-phonenumberslite==9.0.8
+phonenumberslite==9.0.10
     # via flask-security-too
 pillow==10.4.0
     # via
@@ -328,7 +328,7 @@ rq==2.3.3
     # via
     #   -r requirements/app.in
     #   rq-dashboard
-rq-dashboard==0.8.3.2
+rq-dashboard==0.8.4
     # via -r requirements/app.in
 scikit-base==0.7.8
     # via sktime
@@ -344,7 +344,7 @@ scipy==1.10.1
     #   statsmodels
     #   timely-beliefs
     #   timetomodel
-sentry-sdk[flask]==2.29.1
+sentry-sdk[flask]==2.33.0
     # via -r requirements/app.in
 six==1.17.0
     # via python-dateutil
@@ -416,7 +416,7 @@ wtforms==3.1.2
     # via
     #   flask-security-too
     #   flask-wtf
-xlrd==2.0.1
+xlrd==2.0.2
     # via -r requirements/app.in
 zipp==3.20.2
     # via
