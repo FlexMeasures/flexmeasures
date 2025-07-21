@@ -3,6 +3,7 @@ Tooling & docs for implementing our auth policy
 """
 
 from __future__ import annotations
+from typing import Optional
 
 from flask import current_app
 from flask_security import current_user
@@ -19,7 +20,7 @@ CONSULTANT_ROLE = "consultant"
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
 
-PRINCIPALS_TYPE = None | str | tuple[str] | list[None | str | tuple[str]]
+PRINCIPALS_TYPE = Optional[str | tuple[str] | list[Optional[str | tuple[str]]]]
 
 
 class AuthModelMixin(object):
