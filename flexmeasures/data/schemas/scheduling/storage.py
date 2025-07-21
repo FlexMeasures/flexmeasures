@@ -403,7 +403,6 @@ class DBStorageFlexModelSchema(Schema):
 
     def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
         """Validate fields based on type and unit validator."""
-        print(f"Validating {field_type} field '{self.mapped_schema_keys[field]}'...")
         if isinstance(data[field], ur.Quantity):
             if not unit_validator(str(data[field].units)):
                 raise ValidationError(
