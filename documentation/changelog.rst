@@ -12,6 +12,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_]
+* Removed support for Python3.8 [see `PR #1615 <https://www.github.com/FlexMeasures/flexmeasures/pull/1615>`_]
 
 Bugfixes
 -----------

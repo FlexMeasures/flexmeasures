@@ -11,7 +11,7 @@ Let's walk through an example from scratch! We'll ...
 - create an account
 - load hourly prices
 
-What do you need? Your own computer, with one of two situations: either you have `Docker <https://www.docker.com/>`_ or your computer supports Python 3.8+, pip and PostgresDB. The former might be easier, see the installation step below. But you choose.
+What do you need? Your own computer, with one of two situations: either you have `Docker <https://www.docker.com/>`_ or your computer supports Python 3.9+, pip and PostgresDB. The former might be easier, see the installation step below. But you choose.
 
 Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain step by step. There are some other crucial steps for installation and setup, so this becomes a complete example from scratch, but this is the meat:
 
@@ -91,7 +91,7 @@ Install Flexmeasures and the database
 
   .. tab:: On your PC
 
-        This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python (3.8+) and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `postgres <https://www.postgresql.org/download/>`_.
+        This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python (3.9+) and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `postgres <https://www.postgresql.org/download/>`_.
 
         We'll create a database for FlexMeasures:
 
