@@ -4,7 +4,7 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
-from functools import cache
+from functools import lru_cache
 from isodate import duration_isoformat
 import time
 from timely_beliefs import BeliefsDataFrame
@@ -447,7 +447,7 @@ def build_asset_jobs_data(
     return jobs_data
 
 
-@cache()
+@lru_cache()
 def _get_sensor_stats(
     sensor: Sensor,
     event_end_time: str,
