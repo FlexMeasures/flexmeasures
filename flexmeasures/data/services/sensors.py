@@ -564,7 +564,7 @@ def _get_sensor_stats(
 def _get_ttl_hash(seconds=120) -> int:
     """Returns the same value within "seconds" time period
     Is needed to make LRU cache a TTL one
-    (cache is used when call arguments are the same,
+    (lru_cache is used when call arguments are the same,
     here we ensure that call arguments are the same in "seconds" period of time).
     """
     return round(time.time() / seconds)
