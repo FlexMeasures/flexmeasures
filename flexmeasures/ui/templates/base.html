@@ -305,7 +305,7 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
@@ -375,8 +375,8 @@
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
-
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType);
+        await vegaEmbed('#'+elementId, url, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
@@ -505,13 +505,6 @@
 
     var playBackDataLoadedForKnownDateRange = false;
 
-    const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
-        method: "GET",
-        headers: {"Content-Type": "application/json"},
-        signal: signal,
-    })
-    .then(function(response) { return response.json(); });
-
     // Set session start and end
     {% if event_starts_after and event_ends_before %}
         var sessionStart = new Date('{{ event_starts_after }}');
@@ -593,7 +586,7 @@
             $("#spinner").show();
             checkDSTTransitions(startDate, endDate)
             Promise.all([
-                (previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) ? Promise.resolve(previousResult.data) :
+                (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) ? Promise.resolve(previousResult.data) :
                 // Fetch time series data
                 fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
                     method: "GET",
@@ -662,6 +655,13 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
+
+                const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                    signal: signal,
+                })
+                .then(function(response) { return response.json(); });
                 let fetchedInitialData = await Promise.all([
                     initialData,
                     embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
@@ -706,12 +706,13 @@
                     if (timerangeNotSetYet) {
                         // Initialize picker to the last 2 days of sensor data
                         var nearEnd = new Date(end)//.setDate(end.getDate() - 1);
-                        nearEnd.setDate(nearEnd.getDate() - 1);
-                        picker.setDateRange(
-                            nearEnd,
-                            end,
-                        );
-                    } 
+                        nearEnd.setDate(nearEnd.getDate() - 2);
+                        var new_start_date = nearEnd;
+                        var new_end_date = end;
+                    } else {
+                        var new_start_date = new Date('{{ event_starts_after }}');
+                        var new_end_date = new Date('{{ event_ends_before }}');
+                    }
                     
                     // No use looking for data in years outside timerange of sensor data
                     picker.setOptions({
@@ -722,13 +723,10 @@
                     });
                     
                     // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
-                    var end_time = '{{event_ends_before}}';
-                    var new_end_date = new Date(end_time);
                     // Adjusting the date by subtracting one day to account for timezone discrepancies.
                     new_end_date.setDate(new_end_date.getDate() - 1);
-                    var start_time = '{{event_starts_after}}';
-                    var new_start_date = new Date(start_time);
                     picker.setDateRange(decodeURIComponent(toIsoString(new_start_date)), decodeURIComponent(toIsoString(new_end_date)));
+                    picker.gotoDate(new_end_date);
                 };
             });
         }
