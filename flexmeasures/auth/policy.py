@@ -3,7 +3,7 @@ Tooling & docs for implementing our auth policy
 """
 
 from __future__ import annotations
-from typing import Optional
+from typing import List, Tuple, Union, Optional
 
 from flask import current_app
 from flask_security import current_user
@@ -19,8 +19,10 @@ CONSULTANT_ROLE = "consultant"
 
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
-
-PRINCIPALS_TYPE = Optional[str | tuple[str] | list[Optional[str | tuple[str]]]]
+# todo: Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
+PRINCIPALS_TYPE = Optional[
+    Union[str, Tuple[str], List[Optional[Union[str, Tuple[str]]]]]
+]
 
 
 class AuthModelMixin(object):
