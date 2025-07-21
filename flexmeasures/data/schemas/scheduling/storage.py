@@ -16,8 +16,12 @@ from marshmallow.validate import OneOf, ValidationError
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.sensors import VariableQuantityField
-
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.flexmeasures_inflection import p
+from flexmeasures.utils.unit_utils import (
+    ur,
+    is_power_unit,
+    is_energy_price_unit,
+)
 
 
 class EfficiencyField(QuantityField):
@@ -290,7 +294,7 @@ class DBStorageFlexModelSchema(Schema):
     """
 
     soc_min = VariableQuantityField(
-        to_unit="MWh",
+        to_unit="/MWh",
         data_key="soc-min",
         required=False,
         value_validator=validate.Range(min=0),
@@ -301,11 +305,20 @@ class DBStorageFlexModelSchema(Schema):
     )
 
     soc_gain = fields.List(
-        VariableQuantityField("MW"),
+        VariableQuantityField("/MW"),
         data_key="soc-gain",
         required=False,
         validate=validate.Length(min=1),
     )
+
+    mapped_schema_keys: dict = {}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mapped_schema_keys = {
+            field: self.declared_fields[field].data_key
+            for field in self.declared_fields
+        }
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
@@ -324,4 +337,82 @@ class DBStorageFlexModelSchema(Schema):
                 raise ValidationError(
                     "A time series specification (listing segments) is not supported when storing flex-model fields. Use a fixed quantity or a sensor reference instead.",
                     field_name=field.data_key,
+                )
+
+    @validates_schema
+    def validate_fields_unit(self, data: dict, **kwargs):
+        """Check that each field value has a valid unit."""
+
+        self._validate_energy_price_fields(data)
+        self._validate_power_fields(data)
+        self._validate_array_fields(data)
+
+    def _validate_energy_price_fields(self, data: dict):
+        """Validate energy price fields."""
+        energy_price_fields = [
+            "soc_min",
+            "soc_max",
+            "soc_minima",
+            "soc_maxima",
+            "soc_targets",
+            "state_of_charge",
+        ]
+
+        for field in energy_price_fields:
+            if field in data:
+                self._validate_field(data, "energy price", field, is_energy_price_unit)
+
+    def _validate_power_fields(self, data: dict):
+        """Validate power fields."""
+        power_fields = [
+            "soc-gain",
+            "soc-usage",
+            "power-capacity",
+            "consumption-capacity",
+            "production-capacity",
+        ]
+
+        for field in power_fields:
+            if field in data:
+                self._validate_field(data, "power", field, is_power_unit)
+
+    def _validate_array_fields(self, data: dict):
+        """Validate power array fields."""
+        array_fields = ["soc-gain", "soc-usage"]
+
+        for field in array_fields:
+            if field in data:
+                for item in data[field]:
+                    if isinstance(item, ur.Quantity):
+                        if not is_power_unit(str(item.units)):
+                            raise ValidationError(
+                                f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
+                                field_name=self.mapped_schema_keys[field],
+                            )
+                    elif isinstance(item, Sensor):
+                        if not is_power_unit(item.unit):
+                            raise ValidationError(
+                                f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
+                                field_name=self.mapped_schema_keys[field],
+                            )
+                    else:
+                        raise ValidationError(
+                            f"Field '{self.mapped_schema_keys[field]}' must be a list of quantities or sensors.",
+                            field_name=self.mapped_schema_keys[field],
+                        )
+
+    def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
+        """Validate fields based on type and unit validator."""
+        print(f"Validating {field_type} field '{self.mapped_schema_keys[field]}'...")
+        if isinstance(data[field], ur.Quantity):
+            if not unit_validator(str(data[field].units)):
+                raise ValidationError(
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    field_name=self.mapped_schema_keys[field],
+                )
+        elif isinstance(data[field], Sensor):
+            if not unit_validator(data[field].unit):
+                raise ValidationError(
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    field_name=self.mapped_schema_keys[field],
                 )
