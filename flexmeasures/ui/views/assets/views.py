@@ -285,7 +285,7 @@ class AssetCrudUI(FlaskView):
                 asset = process_internal_api_response(
                     asset_info, int(id), make_obj=True
                 )
-                session["msg"] = "Cannot edit asset."
+                session["msg"] = f"Cannot edit asset: {asset_form.errors}"
                 return redirect(url_for("AssetCrudUI:properties", id=asset.id))
             patch_asset_response = InternalApi().patch(
                 url_for("AssetAPI:patch", id=id),

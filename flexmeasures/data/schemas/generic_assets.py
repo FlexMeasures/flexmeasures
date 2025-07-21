@@ -150,6 +150,41 @@ class SensorsToShowSchema(fields.Field):
         return list(dict.fromkeys(all_objects).keys())
 
 
+class SensorKPIFieldSchema(ma.SQLAlchemySchema):
+    title = fields.Str(required=True)
+    sensor = fields.Int(required=True)
+    default_function = fields.Str(required=True)
+
+
+class SensorsToShowAsKPIsSchema(ma.SQLAlchemySchema):
+    sensors_to_show_as_kpis = fields.List(
+        fields.Nested(SensorKPIFieldSchema), required=True
+    )
+
+    def validate(self, value):
+        if isinstance(value, str) and value.strip():
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                raise ValidationError("Invalid JSON string.")
+        if not isinstance(value, list):
+            raise ValidationError(
+                "sensors_to_show_as_kpis should be a list of dictionaries."
+            )
+        for item in value:
+            if not isinstance(item, dict):
+                raise ValidationError("Each item must be a dictionary.")
+            if (
+                "title" not in item
+                or "sensor" not in item
+                or "default_function" not in item
+            ):
+                raise ValidationError(
+                    "Each item must contain 'title', 'sensor', and 'default_function'."
+                )
+        return value
+
+
 class GenericAssetSchema(ma.SQLAlchemySchema):
     """
     GenericAsset schema, with validations.
@@ -176,6 +211,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
     sensors_to_show = JSON(required=False)
     flex_context = JSON(required=False)
+    sensors_to_show_as_kpis = JSON(required=False)
 
     class Meta:
         model = GenericAsset

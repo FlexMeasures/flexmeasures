@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 
 from flask import current_app
 from flask_security import current_user
@@ -8,11 +9,13 @@ from flask_wtf import FlaskForm
 from sqlalchemy import select
 from wtforms import StringField, DecimalField, SelectField, IntegerField
 from wtforms.validators import DataRequired, optional
+from marshmallow import ValidationError
 
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.schemas.generic_assets import SensorsToShowAsKPIsSchema
 
 
 class AssetForm(FlaskForm):
@@ -35,6 +38,10 @@ class AssetForm(FlaskForm):
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
+    sensors_to_show_as_kpis = StringField(
+        "Sensors to show as KPIs (JSON)",
+        default="[]",
+    )
 
     def validate_on_submit(self):
         if (
@@ -48,6 +55,24 @@ class AssetForm(FlaskForm):
             del self.account_id  # asset will be public
         result = super().validate_on_submit()
         return result
+
+    # Custom validator using Marshmallow
+    def validate_sensors_to_show_as_kpis(self, field):
+        try:
+            # First, try to parse the input as JSON
+            value = json.loads(field.data)
+        except json.JSONDecodeError:
+            field.errors.append("Invalid JSON string.")
+            return
+
+        # Now, use Marshmallow schema to validate the structure of the data
+        schema = SensorsToShowAsKPIsSchema()
+        try:
+            # Validate the parsed JSON data using the schema
+            schema.load({"sensors_to_show_as_kpis": value})
+        except ValidationError as e:
+            field.errors.append(str(e))
+            return
 
     def to_json(self) -> dict:
         """turn form data into a JSON we can POST to our internal API"""
