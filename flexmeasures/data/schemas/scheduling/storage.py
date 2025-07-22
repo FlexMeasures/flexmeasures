@@ -16,11 +16,10 @@ from marshmallow.validate import OneOf, ValidationError
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.sensors import VariableQuantityField
-from flexmeasures.utils.flexmeasures_inflection import p
 from flexmeasures.utils.unit_utils import (
     ur,
     is_power_unit,
-    is_energy_price_unit,
+    is_energy_unit,
 )
 
 
@@ -343,13 +342,13 @@ class DBStorageFlexModelSchema(Schema):
     def validate_fields_unit(self, data: dict, **kwargs):
         """Check that each field value has a valid unit."""
 
-        self._validate_energy_price_fields(data)
+        self._validate_energy_fields(data)
         self._validate_power_fields(data)
         self._validate_array_fields(data)
 
-    def _validate_energy_price_fields(self, data: dict):
-        """Validate energy price fields."""
-        energy_price_fields = [
+    def _validate_energy_fields(self, data: dict):
+        """Validate energy fields."""
+        energy_fields = [
             "soc_min",
             "soc_max",
             "soc_minima",
@@ -358,28 +357,27 @@ class DBStorageFlexModelSchema(Schema):
             "state_of_charge",
         ]
 
-        for field in energy_price_fields:
+        for field in energy_fields:
             if field in data:
-                self._validate_field(data, "energy price", field, is_energy_price_unit)
+                self._validate_field(data, field, unit_validator=is_energy_unit)
 
     def _validate_power_fields(self, data: dict):
         """Validate power fields."""
         power_fields = [
-            "soc-gain",
-            "soc-usage",
-            "power-capacity",
-            "consumption-capacity",
-            "production-capacity",
+            "soc_gain",
+            "soc_usage",
+            "power_capacity",
+            "consumption_capacity",
+            "production_capacity",
         ]
 
         for field in power_fields:
             if field in data:
-                self._validate_field(data, "power", field, is_power_unit)
+                self._validate_field(data, field, unit_validator=is_power_unit)
 
     def _validate_array_fields(self, data: dict):
         """Validate power array fields."""
-        array_fields = ["soc-gain", "soc-usage"]
-
+        array_fields = ["soc_gain", "soc_usage"]
         for field in array_fields:
             if field in data:
                 for item in data[field]:
@@ -401,17 +399,17 @@ class DBStorageFlexModelSchema(Schema):
                             field_name=self.mapped_schema_keys[field],
                         )
 
-    def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
+    def _validate_field(self, data: dict, field: str, unit_validator):
         """Validate fields based on type and unit validator."""
         if isinstance(data[field], ur.Quantity):
             if not unit_validator(str(data[field].units)):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",
                     field_name=self.mapped_schema_keys[field],
                 )
         elif isinstance(data[field], Sensor):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",
                     field_name=self.mapped_schema_keys[field],
                 )
