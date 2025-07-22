@@ -76,7 +76,7 @@ from flexmeasures.data.schemas.generic_assets import (
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.models.user import User
 from flexmeasures.data.services.data_sources import (
     get_source_or_none,
@@ -235,6 +235,7 @@ def new_account(
         logo_url=logo_url,
     )
     db.session.add(account)
+    db.session.flush()
     if roles:
         for role_name in roles.split(","):
             role = db.session.execute(
@@ -244,8 +245,13 @@ def new_account(
                 click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
                 role = AccountRole(name=role_name)
                 db.session.add(role)
-            db.session.flush()
             db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
+    account_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"Created account '{name}' ({account.id}) via CLI",
+        affected_account_id=account.id,
+    )
+    db.session.add(account_audit_log)
     db.session.commit()
     click.secho(
         f"Account '{name}' (ID: {account.id}) successfully created.",
@@ -384,7 +390,9 @@ def add_sensor(asset, **args):
     sensor.attributes = attributes
     db.session.add(sensor)
     db.session.flush()
-    AssetAuditLog.add_record(asset, f"Created sensor '{sensor.name}': {sensor.id}")
+    AssetAuditLog.add_record(
+        asset, f"Created sensor '{sensor.name}' ({sensor.id}) via CLI."
+    )
     db.session.commit()
     click.secho(f"Successfully created sensor with ID {sensor.id}", **MsgStyle.SUCCESS)
     click.secho(
@@ -466,6 +474,11 @@ def add_asset(**args):
             **MsgStyle.WARN,
         )
     db.session.add(generic_asset)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        generic_asset,
+        f"Created asset '{generic_asset.name}' ({generic_asset.id}) via CLI.",
+    )
     db.session.commit()
     click.secho(
         f"Successfully created asset with ID {generic_asset.id}.", **MsgStyle.SUCCESS
