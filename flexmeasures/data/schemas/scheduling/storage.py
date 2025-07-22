@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import TypedDict, cast
 from datetime import datetime, timedelta
 
 from flask import current_app
@@ -20,6 +21,19 @@ from flexmeasures.utils.unit_utils import (
     ur,
     is_power_unit,
     is_energy_unit,
+)
+
+#  Telling type hints what to expect after schema parsing
+SoCTarget = TypedDict(
+    "SoCTarget",
+    {
+        "datetime": datetime,
+        "start": datetime,
+        "end": datetime,
+        "duration": timedelta,
+        "value": float,
+    },
+    total=False,  # not all are required (just value, which we can say in 3.11)
 )
 
 
@@ -214,16 +228,16 @@ class StorageFlexModelSchema(Schema):
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
-        soc_targets: list[dict[str, datetime | float] | Sensor] | None = data.get(
-            "soc_targets"
-        )
+        soc_targets: list[SoCTarget] | Sensor | None = data.get("soc_targets")
         # skip check if the SOC targets are not provided or if they are defined as sensors
         if not soc_targets or isinstance(soc_targets, Sensor):
             return
+        max_target_datetime = max([target["end"] for target in soc_targets])
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
         if isinstance(max_server_horizon, int):
             max_server_horizon *= self.sensor.event_resolution
-        max_target_datetime = max([target["end"] for target in soc_targets])
+        # just telling the type checker that we are sure it is a timedelta now
+        max_server_horizon = cast(timedelta, max_server_horizon)
         max_server_datetime = self.start + max_server_horizon
         if max_target_datetime > max_server_datetime:
             current_app.logger.warning(
@@ -310,7 +324,7 @@ class DBStorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
     )
 
-    mapped_schema_keys: dict | None = None
+    mapped_schema_keys: dict
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
