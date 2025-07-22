@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypedDict, cast
+from typing import TypedDict, cast, Callable
 from datetime import datetime, timedelta
 
 from flask import current_app
@@ -375,23 +375,15 @@ class DBStorageFlexModelSchema(Schema):
             if field in data:
                 self._validate_field(data, field, unit_validator=is_energy_unit)
 
-    def _validate_power_fields(self, data: dict):
-        """Validate power fields."""
-        power_fields = [
-            "soc_gain",
-            "soc_usage",
-            "power_capacity",
-            "consumption_capacity",
-            "production_capacity",
-        ]
-
-        for field in power_fields:
-            if field in data:
-                self._validate_field(data, field, unit_validator=is_power_unit)
-
     def _validate_array_fields(self, data: dict):
         """Validate power array fields."""
         array_fields = ["soc_gain", "soc_usage"]
+
+        if self.mapped_schema_keys is None:
+            raise ValueError(
+                "mapped_schema_keys must be initialized before validation."
+            )
+
         for field in array_fields:
             if field in data:
                 for item in data[field]:
@@ -413,8 +405,14 @@ class DBStorageFlexModelSchema(Schema):
                             field_name=self.mapped_schema_keys[field],
                         )
 
-    def _validate_field(self, data: dict, field: str, unit_validator):
+    def _validate_field(self, data: dict, field: str, unit_validator: Callable):
         """Validate fields based on type and unit validator."""
+
+        if self.mapped_schema_keys is None:
+            raise ValueError(
+                "mapped_schema_keys must be initialized before validation."
+            )
+
         if isinstance(data[field], ur.Quantity):
             if not unit_validator(str(data[field].units)):
                 raise ValidationError(
