@@ -74,7 +74,9 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import User
 from flexmeasures.data.services.data_sources import (
     get_source_or_none,
@@ -320,7 +322,7 @@ def new_user(
     click.secho(f"Successfully created user {created_user}", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("sensor", cls=DeprecatedOptionsCommand)
+@fm_add_data.command("sensor")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
@@ -337,14 +339,10 @@ def new_user(
 )
 @click.option(
     "--asset",
-    "--asset-id",
-    "generic_asset_id",
+    "asset",
+    type=GenericAssetIdField(),
     required=True,
-    type=int,
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
-    help="Generic asset to assign this sensor to",
+    help="Id of the asset to assign this sensor to",
 )
 @click.option(
     "--attributes",
@@ -353,7 +351,7 @@ def new_user(
     default="{}",
     help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measure power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
 )
-def add_sensor(**args):
+def add_sensor(asset, **args):
     """Add a sensor."""
     check_timezone(args["timezone"])
     try:
@@ -375,6 +373,8 @@ def add_sensor(**args):
             timedelta_event_resolution
         )
         args["event_resolution"] = isodate_event_resolution
+    args["generic_asset_id"] = asset.id
+
     check_errors(SensorSchema().validate(args))
 
     sensor = Sensor(**args)
@@ -383,6 +383,8 @@ def add_sensor(**args):
         raise click.Abort()
     sensor.attributes = attributes
     db.session.add(sensor)
+    db.session.flush()
+    AssetAuditLog.add_record(asset, f"Created sensor '{sensor.name}': {sensor.id}")
     db.session.commit()
     click.secho(f"Successfully created sensor with ID {sensor.id}", **MsgStyle.SUCCESS)
     click.secho(
