@@ -3,6 +3,7 @@ FlexMeasures API routes and implementations.
 """
 
 from flask import Flask, Blueprint, request
+import html
 from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
@@ -57,7 +58,7 @@ def request_auth_token():
             ).scalar_one_or_none()
             if not user:
                 return (
-                    {"errors": ["User with email '%s' does not exist" % email]},
+                    {"errors": ["User with email '%s' does not exist" % html.escape(email)]},
                     404,
                 )
 
