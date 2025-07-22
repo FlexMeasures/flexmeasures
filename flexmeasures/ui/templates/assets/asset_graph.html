@@ -66,14 +66,25 @@
    
         </div>
         <div class="col-md-8">
-            <div class="row">
-                <div class="col-md-12">
-                    <div id="kpi-cards" class="row"></div>
-                </div>
-            </div>
             <div id="spinner">
                 <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                 <span class="sr-only">Loading...</span>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <div id="kpi-cards" class="row">
+                        {% if has_kpis %}
+                        {% for kpi in asset_kpis %}
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body">
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
             </div>
             <div id="sensorchart" class="card" style="width: 100%;"></div>
             <div class="row">

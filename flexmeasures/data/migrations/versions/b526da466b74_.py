@@ -18,7 +18,13 @@ depends_on = None
 
 def upgrade():
     op.add_column(
-        "generic_asset", sa.Column("sensors_to_show_as_kpis", sa.JSON(), nullable=True)
+        "generic_asset",
+        sa.Column(
+            "sensors_to_show_as_kpis",
+            sa.JSON(),
+            nullable=False,
+            server_default=sa.text("'[]'::json"),
+        ),
     )
 
 

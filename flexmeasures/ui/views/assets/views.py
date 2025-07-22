@@ -338,6 +338,11 @@ class AssetCrudUI(FlaskView):
         """/assets/<id>/graphs"""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
+        asset_kpis = asset.get_sensors_to_show_as_kpis()
+
+        has_kpis = False
+        if len(asset_kpis) > 0:
+            has_kpis = True
 
         asset_form = AssetForm()
         asset_form.with_options()
@@ -346,6 +351,8 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_graph.html",
             asset=asset,
+            has_kpis=has_kpis,
+            asset_kpis=asset_kpis,
             current_page="Graphs",
         )
 

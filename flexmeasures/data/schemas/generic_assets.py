@@ -6,6 +6,7 @@ from http import HTTPStatus
 
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
+from marshmallow.validate import OneOf
 from flask_security import current_user
 from sqlalchemy import select
 
@@ -155,14 +156,14 @@ class SensorsToShowSchema(fields.Field):
 class SensorKPIFieldSchema(ma.SQLAlchemySchema):
     title = fields.Str(required=True)
     sensor = SensorIdField(required=True)
-    default_function = fields.Str(required=True)
+    default_function = fields.Str(
+        required=False, validate=OneOf(["sum", "min", "max", "avg"])
+    )
 
     @validates("sensor")
     def validate_sensor(self, value):
-        if value.event_resolution not in (timedelta(hours=1), timedelta(days=1)):
-            raise ValidationError(
-                f"Sensor with ID {value} is not a daily or hourly sensor."
-            )
+        if value.event_resolution != timedelta(days=1):
+            raise ValidationError(f"Sensor with ID {value} is not a daily sensor.")
         return value
 
 
@@ -170,29 +171,6 @@ class SensorsToShowAsKPIsSchema(ma.SQLAlchemySchema):
     sensors_to_show_as_kpis = fields.List(
         fields.Nested(SensorKPIFieldSchema), required=True
     )
-
-    def validate(self, value):
-        if isinstance(value, str) and value.strip():
-            try:
-                value = json.loads(value)
-            except json.JSONDecodeError:
-                raise ValidationError("Invalid JSON string.")
-        if not isinstance(value, list):
-            raise ValidationError(
-                "sensors_to_show_as_kpis should be a list of dictionaries."
-            )
-        for item in value:
-            if not isinstance(item, dict):
-                raise ValidationError("Each item must be a dictionary.")
-            if (
-                "title" not in item
-                or "sensor" not in item
-                or "default_function" not in item
-            ):
-                raise ValidationError(
-                    "Each item must contain 'title', 'sensor', and 'default_function'."
-                )
-        return value
 
 
 class GenericAssetSchema(ma.SQLAlchemySchema):

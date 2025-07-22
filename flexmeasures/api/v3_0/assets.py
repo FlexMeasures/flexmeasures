@@ -19,6 +19,7 @@ from sqlalchemy import select, delete, func, or_
 
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
+    get_sensor_stats,
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -43,7 +44,10 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.utils.coding_utils import flatten_unique
+from flexmeasures.utils.coding_utils import (
+    flatten_unique,
+    get_downsample_function_and_value,
+)
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
@@ -1080,8 +1084,6 @@ class AssetAPI(FlaskView):
         location="query",
     )
     def get_kpis(self, id: int, asset: GenericAsset, start, end):
-        from flexmeasures.data.services.sensors import get_sensor_stats
-
         """API endpoint to get KPIs for an asset.
 
         .. :quickref: Asset; Get asset KPIs
@@ -1108,13 +1110,15 @@ class AssetAPI(FlaskView):
                         "sensor": 145046,
                         "title": "My KPI",
                         "unit": "MW",
-                        "value": 0
+                        "downsample_value": 0,
+                        "downsample_function": "sum",
                     },
                     {
                         "sensor": 141053,
                         "title": "Raw PowerKPI",
                         "unit": "kW",
-                        "value": 816.67
+                        "downsample_value": 816.67,
+                        "downsample_function": "sum",
                     }
                 ]
             }
@@ -1137,24 +1141,15 @@ class AssetAPI(FlaskView):
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
             sensor_stats = get_sensor_stats(sensor, start, end, sort_keys=False)
-            try:
-                if sensor.unit == "%":
-                    downsample_function = "mean"
-                    downsample_value = dict(next(iter(sensor_stats.values())))[
-                        "Mean value"
-                    ]
-                else:
-                    downsample_function = "sum"
-                    downsample_value = dict(next(iter(sensor_stats.values())))[
-                        "Sum over values"
-                    ]
-            except StopIteration:
-                downsample_value = 0
+
+            downsample_function, downsample_value = get_downsample_function_and_value(
+                kpi, sensor, sensor_stats
+            )
             kpi_dict = {
                 "title": kpi["title"],
                 "unit": sensor.unit,
                 "sensor": sensor.id,
-                "downsample_value": round(downsample_value, 2),
+                "downsample_value": round(float(downsample_value), 2),
                 "downsample_function": downsample_function,
             }
             kpis.append(kpi_dict)
