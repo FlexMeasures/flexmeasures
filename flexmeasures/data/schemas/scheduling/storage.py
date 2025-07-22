@@ -310,7 +310,7 @@ class DBStorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
     )
 
-    mapped_schema_keys: dict = {}
+    mapped_schema_keys: dict | None = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
