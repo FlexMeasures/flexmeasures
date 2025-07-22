@@ -293,7 +293,7 @@ class DBStorageFlexModelSchema(Schema):
     """
 
     soc_min = VariableQuantityField(
-        to_unit="/MWh",
+        to_unit="MWh",
         data_key="soc-min",
         required=False,
         value_validator=validate.Range(min=0),
@@ -304,7 +304,7 @@ class DBStorageFlexModelSchema(Schema):
     )
 
     soc_gain = fields.List(
-        VariableQuantityField("/MW"),
+        VariableQuantityField("MW"),
         data_key="soc-gain",
         required=False,
         validate=validate.Length(min=1),
