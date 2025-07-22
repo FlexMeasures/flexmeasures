@@ -10,7 +10,7 @@ babel==2.17.0
     # via
     #   -c requirements/3.9/app.txt
     #   sphinx
-certifi==2025.4.26
+certifi==2025.7.14
     # via
     #   -c requirements/3.9/app.txt
     #   requests
@@ -45,10 +45,14 @@ packaging==25.0
     # via
     #   -c requirements/3.9/app.txt
     #   sphinx
-pygments==2.19.1
+pygments==2.19.2
     # via
     #   sphinx
     #   sphinx-tabs
+pyyaml==6.0.2
+    # via
+    #   -c requirements/3.9/app.txt
+    #   sphinxcontrib-mermaid
 requests==2.32.4
     # via
     #   -c requirements/3.9/app.txt
@@ -68,6 +72,7 @@ sphinx==7.3.7
     #   sphinx-tabs
     #   sphinxcontrib-httpdomain
     #   sphinxcontrib-jquery
+    #   sphinxcontrib-mermaid
 sphinx-copybutton==0.5.2
     # via -r requirements/docs.in
 sphinx-fontawesome==0.0.6
@@ -89,7 +94,7 @@ sphinxcontrib-jquery==4.1
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
 sphinxcontrib-mermaid==1.0.0
-    # via sphinx
+    # via -r requirements/docs.in
 sphinxcontrib-qthelp==2.0.0
     # via sphinx
 sphinxcontrib-serializinghtml==2.0.0

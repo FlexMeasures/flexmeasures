@@ -57,12 +57,16 @@ class FlexContextSchema(Schema):
         required=False,
         value_validator=validate.Range(min=0),
     )
+    relax_constraints = fields.Bool(data_key="relax-constraints", load_default=False)
     # Dev fields
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints", load_default=False
     )
     relax_capacity_constraints = fields.Bool(
         data_key="relax-capacity-constraints", load_default=False
+    )
+    relax_site_capacity_constraints = fields.Bool(
+        data_key="relax-site-capacity-constraints", load_default=False
     )
 
     # Energy commitments
@@ -197,8 +201,10 @@ class FlexContextSchema(Schema):
                 "site-production-breach-price",
                 "site-peak-consumption-price",
                 "site-peak-production-price",
+                "relax-constraints",
                 "relax-soc-constraints",
                 "relax-capacity-constraints",
+                "relax-site-capacity-constraints",
                 "consumption-breach-price",
                 "production-breach-price",
             )
@@ -216,21 +222,45 @@ class FlexContextSchema(Schema):
 
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data)
+        shared_currency = ur.Quantity(data["shared_currency_unit"])
 
-        # Fill in default soc breach prices when asked to relax SoC constraints.
-        if data["relax_soc_constraints"]:
+        # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
+        if (
+            data["relax_soc_constraints"]
+            or data["relax_constraints"]
+            and not data.get("soc_minima_breach_price")
+            and not data.get("soc_maxima_breach_price")
+        ):
             self.set_default_breach_prices(
                 data,
                 fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
-                price=ur.Quantity("1000 EUR/kWh"),
+                price=1000 * shared_currency / ur.Quantity("kWh"),
             )
 
-        # Fill in default capacity breach prices when asked to relax capacity constraints.
-        if data["relax_capacity_constraints"]:
+        # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
+        if (
+            data["relax_capacity_constraints"]
+            or data["relax_constraints"]
+            and not data.get("consumption_breach_price")
+            and not data.get("production_breach_price")
+        ):
             self.set_default_breach_prices(
                 data,
                 fields=["consumption_breach_price", "production_breach_price"],
-                price=ur.Quantity("100 EUR/kW"),
+                price=100 * shared_currency / ur.Quantity("kW"),
+            )
+
+        # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
+        if (
+            data["relax_site_capacity_constraints"]
+            or data["relax_constraints"]
+            and not data.get("ems_consumption_breach_price")
+            and not data.get("ems_production_breach_price")
+        ):
+            self.set_default_breach_prices(
+                data,
+                fields=["ems_consumption_breach_price", "ems_production_breach_price"],
+                price=10000 * shared_currency / ur.Quantity("kW"),
             )
 
         return data
@@ -280,7 +310,10 @@ class FlexContextSchema(Schema):
                         f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
                         field_name=field_name,
                     )
-        data["shared_currency_unit"] = shared_currency_unit
+        if shared_currency_unit is not None:
+            data["shared_currency_unit"] = shared_currency_unit
+        else:
+            data["shared_currency_unit"] = "dimensionless"
         return data
 
 

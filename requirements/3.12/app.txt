@@ -6,7 +6,7 @@
 #
 adagio==0.2.6
     # via fugue
-alembic==1.16.1
+alembic==1.16.4
     # via flask-migrate
 altair==5.5.0
     # via -r requirements/app.in
@@ -40,7 +40,7 @@ catboost==1.2.8
     # via u8darts
 cbor2==5.6.5
     # via webauthn
-certifi==2025.4.26
+certifi==2025.7.14
     # via
     #   requests
     #   sentry-sdk
@@ -70,7 +70,7 @@ convertdate==2.4.0
     # via workalendar
 coreforecast==0.0.16
     # via statsforecast
-cryptography==45.0.4
+cryptography==45.0.5
     # via
     #   flask-security-too
     #   pyopenssl
@@ -108,7 +108,7 @@ flask==3.1.1
     #   sentry-sdk
 flask-classful==0.16.0
     # via -r requirements/app.in
-flask-cors==6.0.0
+flask-cors==6.0.1
     # via -r requirements/app.in
 flask-json==0.4.0
     # via -r requirements/app.in
@@ -143,7 +143,7 @@ flexcache==0.3
     # via pint
 flexparser==0.4
     # via pint
-fonttools==4.58.2
+fonttools==4.59.0
     # via matplotlib
 fs==2.4.16
     # via triad
@@ -192,14 +192,14 @@ jinja2==3.1.6
     # via
     #   altair
     #   flask
-joblib==1.4.2
+joblib==1.5.1
     # via
     #   pmdarima
     #   pyod
     #   scikit-learn
     #   sktime
     #   u8darts
-jsonschema==4.24.0
+jsonschema==4.25.0
     # via altair
 jsonschema-specifications==2025.4.1
     # via jsonschema
@@ -243,7 +243,7 @@ matplotlib==3.10.3
     #   u8darts
 more-itertools==10.7.0
     # via inflect
-narwhals==1.42.0
+narwhals==1.47.1
     # via
     #   altair
     #   plotly
@@ -288,7 +288,7 @@ numpy==1.26.4
     #   xgboost
 nvidia-nccl-cu12==2.27.5
     # via xgboost
-openturns==1.24
+openturns==1.25
     # via timely-beliefs
 packaging==25.0
     # via
@@ -325,7 +325,7 @@ passlib==1.7.4
     # via flask-security-too
 patsy==1.0.1
     # via statsmodels
-phonenumberslite==9.0.8
+phonenumberslite==9.0.10
     # via flask-security-too
 pillow==11.3.0
     # via
@@ -359,7 +359,7 @@ pyarrow==20.0.0
     # via triad
 pycparser==2.22
     # via cffi
-pydantic==2.11.5
+pydantic==2.11.7
     # via -r requirements/app.in
 pydantic-core==2.33.2
     # via pydantic
@@ -383,7 +383,7 @@ python-dateutil==2.9.0.post0
     #   pandas
     #   timetomodel
     #   workalendar
-python-dotenv==1.1.0
+python-dotenv==1.1.1
     # via -r requirements/app.in
 pytz==2025.2
     # via
@@ -416,19 +416,19 @@ requests==2.32.4
     #   u8darts
 requests-file==2.1.0
     # via tldextract
-rpds-py==0.25.1
+rpds-py==0.26.0
     # via
     #   jsonschema
     #   referencing
-rq==2.3.3
+rq==2.4.1
     # via
     #   -r requirements/app.in
     #   rq-dashboard
-rq-dashboard==0.8.3.2
+rq-dashboard==0.8.4
     # via -r requirements/app.in
 scikit-base==0.12.3
     # via sktime
-scikit-learn==1.6.1
+scikit-learn==1.7.1
     # via
     #   pmdarima
     #   pyod
@@ -437,7 +437,7 @@ scikit-learn==1.6.1
     #   tbats
     #   timetomodel
     #   u8darts
-scipy==1.15.3
+scipy==1.16.0
     # via
     #   catboost
     #   lightgbm
@@ -454,7 +454,7 @@ scipy==1.15.3
     #   timetomodel
     #   u8darts
     #   xgboost
-sentry-sdk[flask]==2.29.1
+sentry-sdk[flask]==2.33.0
     # via -r requirements/app.in
 shap==0.48.0
     # via u8darts
@@ -464,7 +464,7 @@ six==1.17.0
     #   fs
     #   python-dateutil
     #   triad
-sktime==0.37.0
+sktime==0.38.4
     # via timely-beliefs
 slicer==0.0.8
     # via shap
@@ -484,7 +484,7 @@ stanio==0.5.1
     # via cmdstanpy
 statsforecast==2.0.2
     # via u8darts
-statsmodels==0.14.4
+statsmodels==0.14.5
     # via
     #   pmdarima
     #   statsforecast
@@ -515,11 +515,11 @@ triad==0.9.8
     # via
     #   adagio
     #   fugue
-typeguard==4.4.3
+typeguard==4.4.4
     # via inflect
-types-python-dateutil==2.9.0.20250516
+types-python-dateutil==2.9.0.20250708
     # via arrow
-typing-extensions==4.14.0
+typing-extensions==4.14.1
     # via
     #   alembic
     #   altair
@@ -573,7 +573,7 @@ xarray==2025.7.0
     # via u8darts
 xgboost==3.0.2
     # via u8darts
-xlrd==2.0.1
+xlrd==2.0.2
     # via -r requirements/app.in
 zipp==3.23.0
     # via importlib-metadata
