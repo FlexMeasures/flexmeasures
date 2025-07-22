@@ -1074,19 +1074,17 @@ class AssetAPI(FlaskView):
     )
     @use_kwargs(
         {
-            "event_starts_after": fields.Str(required=True),
-            "event_ends_before": fields.Str(required=True),
+            "start": AwareDateTimeField(required=True),
+            "end": AwareDateTimeField(required=True),
         },
         location="query",
     )
-    def get_kpis(
-        self, id: int, asset: GenericAsset, event_starts_after, event_ends_before
-    ):
+    def get_kpis(self, id: int, asset: GenericAsset, start, end):
         from flexmeasures.data.services.sensors import get_sensor_stats
 
-        """API endpoint to get kpis for an asset.
+        """API endpoint to get KPIs for an asset.
 
-        .. :quickref: Asset; Get asset kpis
+        .. :quickref: Asset; Get asset KPIs
 
         Gets statistics for sensors for the given time range. The sensors are expected to have a daily resolution, suitable for KPIs.
         Each sensor has a preferred function to downsample the daily values to the KPI value.
@@ -1096,8 +1094,8 @@ class AssetAPI(FlaskView):
         .. sourcecode:: json
 
             {
-                "event_starts_after": "2015-06-02T10:00:00+00:00",
-                "event_ends_before": "2015-06-02T12:00:00+00:00"
+                "start": "2015-06-02T10:00:00+00:00",
+                "end": "2015-06-02T12:00:00+00:00"
             }
 
         **Example response**
@@ -1133,13 +1131,12 @@ class AssetAPI(FlaskView):
         :status 405: INVALID_METHOD
         :status 422: UNPROCESSABLE_ENTITY
         """
+        check_access(asset, "read")
         asset_kpis = asset.get_sensors_to_show_as_kpis()
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
-            sensor_stats = get_sensor_stats(
-                sensor, event_starts_after, event_ends_before, sort_keys=False
-            )
+            sensor_stats = get_sensor_stats(sensor, start, end, sort_keys=False)
             try:
                 if sensor.unit == "%":
                     downsample_function = "mean"

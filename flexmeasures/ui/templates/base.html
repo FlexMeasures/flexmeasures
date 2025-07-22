@@ -888,7 +888,7 @@
         endDate.setDate(endDate.getDate() + 1);
         endDate = encodeURIComponent(toIsoStringWithOffset(endDate.toJSDate()));
         const kpiCards = document.querySelector('#kpi-cards');
-        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?event_starts_after=' + start + '&event_ends_before=' + endDate, {
+        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + endDate, {
             method: 'GET',
             headers: {
                 "Content-Type": "application/json",

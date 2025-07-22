@@ -12,9 +12,9 @@ from sqlalchemy import select
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
+from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -154,19 +154,14 @@ class SensorsToShowSchema(fields.Field):
 
 class SensorKPIFieldSchema(ma.SQLAlchemySchema):
     title = fields.Str(required=True)
-    sensor = fields.Int(required=True)
+    sensor = SensorIdField(required=True)
     default_function = fields.Str(required=True)
 
     @validates("sensor")
     def validate_sensor(self, value):
-        sensor: Sensor = db.session.execute(
-            select(Sensor).filter_by(id=int(value))
-        ).scalar_one_or_none()
-        if sensor is None:
-            raise ValidationError(f"Sensor with id {value} does not exist.")
-        if sensor.event_resolution not in (timedelta(hours=1), timedelta(days=1)):
+        if value.event_resolution not in (timedelta(hours=1), timedelta(days=1)):
             raise ValidationError(
-                f"Sensor with id {value} is not a daily or hourly sensor."
+                f"Sensor with ID {value} is not a daily or hourly sensor."
             )
         return value
 
