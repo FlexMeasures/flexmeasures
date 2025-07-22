@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 
 from flask import url_for
 
@@ -29,6 +30,13 @@ def mock_asset_response(
     Mock response from asset API.
     Does not mock output of paginated assets endpoint!
     """
+    sensors_to_show_as_kpis = [
+        {
+            "title": "My KPIs",
+            "sensor": 1,
+            "default_function": "sum",
+        }
+    ]
     asset = dict(
         id=asset_id,
         name="TestAsset",
@@ -36,6 +44,7 @@ def mock_asset_response(
         account_id=int(account_id),
         latitude=70.4,
         longitude=30.9,
+        sensors_to_show_as_kpis=json.dumps(sensors_to_show_as_kpis),
     )
     if as_list:
         asset_list = [asset]
