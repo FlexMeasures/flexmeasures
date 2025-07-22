@@ -315,7 +315,7 @@ class DBStorageFlexModelSchema(Schema):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.mapped_schema_keys = {
-            field: self.declared_fields[field].data_key
+            field: (self.declared_fields[field].data_key or field)
             for field in self.declared_fields
         }
 
