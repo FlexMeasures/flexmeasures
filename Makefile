@@ -5,13 +5,10 @@ HIGHS_DIR = "../HiGHS"
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
 
 
 # ---- Development ---
-
-run-local:
-	python run-local.py
 
 test:
 	make install-for-test
