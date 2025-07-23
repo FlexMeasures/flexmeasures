@@ -328,6 +328,9 @@ class DBStorageFlexModelSchema(Schema):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Initialize mapped_schema_keys to map field names to their data keys
+        # This is necessary for validation methods to access the correct data keys
+        # after the schema is declared.
         self.mapped_schema_keys = {
             field: (self.declared_fields[field].data_key or field)
             for field in self.declared_fields
@@ -374,6 +377,20 @@ class DBStorageFlexModelSchema(Schema):
         for field in energy_fields:
             if field in data:
                 self._validate_field(data, field, unit_validator=is_energy_unit)
+
+    def _validate_power_fields(self, data: dict):
+        """Validate power fields."""
+        power_fields = [
+            "soc_gain",
+            "soc_usage",
+            "power_capacity",
+            "consumption_capacity",
+            "production_capacity",
+        ]
+
+        for field in power_fields:
+            if field in data:
+                self._validate_field(data, field, unit_validator=is_power_unit)
 
     def _validate_array_fields(self, data: dict):
         """Validate power array fields."""
