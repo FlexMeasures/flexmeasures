@@ -127,9 +127,7 @@ flask-migrate==4.1.0
 flask-principal==0.4.0
     # via flask-security-too
 flask-security-too[fsqla,mfa]==5.6.2
-    # via
-    #   -r requirements/app.in
-    #   flask-security-too
+    # via -r requirements/app.in
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
@@ -194,7 +192,7 @@ jinja2==3.1.6
     # via
     #   altair
     #   flask
-joblib==1.5.1
+joblib==1.4.2
     # via
     #   pmdarima
     #   pyod
@@ -245,8 +243,6 @@ matplotlib==3.10.3
     #   u8darts
 more-itertools==10.7.0
     # via inflect
-narwhals==1.47.1
-    # via altair
 narwhals==1.42.0
     # via
     #   altair
@@ -432,7 +428,7 @@ rq-dashboard==0.8.4
     # via -r requirements/app.in
 scikit-base==0.12.3
     # via sktime
-scikit-learn==1.7.1
+scikit-learn==1.6.1
     # via
     #   pmdarima
     #   pyod
@@ -463,8 +459,6 @@ sentry-sdk[flask]==2.33.0
 shap==0.48.0
     # via u8darts
 six==1.17.0
-    # via python-dateutil
-sktime==0.38.4
     # via
     #   catboost
     #   fs
