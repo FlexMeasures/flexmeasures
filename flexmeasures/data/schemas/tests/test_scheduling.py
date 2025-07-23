@@ -276,6 +276,13 @@ def test_efficiency_pair(
                 "site-consumption-breach-price": "Segments of a time series must share the same unit."
             },
         ),
+        (
+            {
+                "site-consumption-breach-price": "450 AUD/MW",
+                "relax-site-capacity-constraints": True,
+            },
+            False,
+        ),
     ],
 )
 def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):

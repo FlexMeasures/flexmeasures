@@ -3,10 +3,25 @@
 FlexMeasures Changelog
 **********************
 
-
-
-v0.27.0 | August XX, 2025
+v0.28.0 | September XX, 2025
 ============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+* Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_]
+* Removed support for Python3.8 [see `PR #1615 <https://www.github.com/FlexMeasures/flexmeasures/pull/1615>`_]
+
+Bugfixes
+-----------
+
+
+v0.27.0 | July 20, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v027-multi-asset-and-2fa/>`_.
 
 .. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
 
@@ -19,6 +34,8 @@ New features
 * New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices [see `PR #1065 <https://github.com/FlexMeasures/flexmeasures/pull/1065/>`_]
 * Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_, `PR #1573 <https://github.com/FlexMeasures/flexmeasures/pull/1573>`_, `PR #1583 <https://github.com/FlexMeasures/flexmeasures/pull/1583>`_, `PR #1585 <https://github.com/FlexMeasures/flexmeasures/pull/1585>`_, `PR #1588 <https://github.com/FlexMeasures/flexmeasures/pull/1588>`_ and `PR #1590 <https://github.com/FlexMeasures/flexmeasures/pull/1590>`_]
 * Improved the UX for creating child-assets and sensors in the UI [see `PR #1605 <https://github.com/FlexMeasures/flexmeasures/pull/1605>`_]
+* Added :abbr:`2FA (two-factor authentication)` support for email and one time recovery, and also added ``_macros.html`` for UI components [see `PR #1555 <https://github.com/FlexMeasures/flexmeasures/pull/1555>`_, `PR #1564 <https://github.com/FlexMeasures/flexmeasures/pull/1564>`_ and `PR #1562 <https://github.com/FlexMeasures/flexmeasures/pull/1562>`_]
+* Give consultants more permissions, so they can edit their client's accounts, assets and sensors. Also add test cases to check if these permissions work as expected [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_ and `PR #1550 <https://github.com/FlexMeasures/flexmeasures/pull/1550>`_]
 * Allow editing users in the UI [see `PR #1502 <https://github.com/FlexMeasures/flexmeasures/pull/1502>`_]
 * Scheduling job descriptions on the tasks page (RQ Dashboard) shows the whole flex-model and flex-context, including any server-side configuration of e.g. capacities [see `PR #1579 <https://github.com/FlexMeasures/flexmeasures/pull/1579>`_ and `PR #1601 <https://github.com/FlexMeasures/flexmeasures/pull/1601>`_]
 * Smarter date range navigation [see `PR #1531 <https://github.com/FlexMeasures/flexmeasures/pull/1531>`_]
@@ -26,21 +43,21 @@ New features
 * Move various warnings to toast notifications [see `PR #1529 <https://github.com/FlexMeasures/flexmeasures/pull/1529>`_]
 * Document how to set a parent asset when creating an asset through the API, and show parent assets in ``flexmeasures show account`` [see `PR #1533 <https://github.com/FlexMeasures/flexmeasures/pull/1533>`_ and `PR #974 <https://github.com/FlexMeasures/flexmeasures/pull/974>`_]
 * Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account [see `PR #1536 <https://github.com/FlexMeasures/flexmeasures/pull/1536>`_]
-* Add toggle to show sensor statistics based on selected daterange [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_, `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_ and `PR #1589 <https://github.com/FlexMeasures/flexmeasures/pull/1589>`_]
+* Add ``flexmeasures jobs run-job`` CLI command to run a single job [see `PR #1602 <https://github.com/FlexMeasures/flexmeasures/pull/1602>`_]
+* Add toggle to show sensor statistics based on selected date range [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_, `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_ and `PR #1589 <https://github.com/FlexMeasures/flexmeasures/pull/1589>`_]
 * Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_ and `PR #1544 <https://github.com/FlexMeasures/flexmeasures/pull/1544>`_]
-* Modified Account, Asset and Sensor model ACL to give consultant role more permissions. ALso add testcases to check if these permissions work as expected [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_ and `PR #1550 <https://github.com/FlexMeasures/flexmeasures/pull/1550>`_]
 * Group statistics on the UI's sensor page by data source ID, and show the description and ID of each data source [see `PR #1548 <https://github.com/FlexMeasures/flexmeasures/pull/1548>`_]
-* Added :abbr:`2FA (two-factor authentication)` support for email and one time recovery, and also added ``_macros.html`` for UI components [see `PR #1555 <https://github.com/FlexMeasures/flexmeasures/pull/1555>`_, `PR #1564 <https://github.com/FlexMeasures/flexmeasures/pull/1564>`_ and `PR #1562 <https://github.com/FlexMeasures/flexmeasures/pull/1562>`_]
 
 Infrastructure / Support
 ----------------------
+
 * Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_, `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_ and `PR #1567 <https://www.github.com/FlexMeasures/flexmeasures/pull/1567>`_, `PR #1611 <https://www.github.com/FlexMeasures/flexmeasures/pull/1611>`_ and `PR #1613 <https://www.github.com/FlexMeasures/flexmeasures/pull/1613>`_]
 * Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
 * In authorization, prevent accidental errors by not matching empty principals [see `PR #1556 <https://github.com/FlexMeasures/flexmeasures/pull/1556>`_]
 * Tests: guarantee a clean db upon creating the test db [see `PR #1518 <https://github.com/FlexMeasures/flexmeasures/pull/1518>`_]
 * Stopped testing Python3.8 in our GitHub Actions CI [see `PR #1541 <https://github.com/FlexMeasures/flexmeasures/pull/1541>`_]
 * Stopped auto-deploying to Seita's staging server on commits to main. Kept scripts and documentation how to do it. Added short description of the two existing CI workflows [see `PR #1552 <https://github.com/FlexMeasures/flexmeasures/pull/1552>`_]
-* Explain white-labelling in documentation [see `PR #1587 <https://github.com/FlexMeasures/flexmeasures/pull/1587>`_]
+* Explain white-labeling in documentation [see `PR #1587 <https://github.com/FlexMeasures/flexmeasures/pull/1587>`_]
 * Changed example ``docker-compose.yaml`` to persist database on local volume [see `PR #1584 <https://github.com/FlexMeasures/flexmeasures/pull/1584>`_]
 
 Bugfixes
@@ -73,6 +90,7 @@ New features
 * Support saving the scheduled :abbr:`SoC (state of charge)` by referencing an appropriate sensor in the ``flex-model`` field ``state-of-charge`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_ and `PR #1406 <https://github.com/FlexMeasures/flexmeasures/pull/1406>`_]
 * Allow relaxing :abbr:`SoC (state of charge)` minima and maxima, by setting penalties for not meeting these constraints, using two new ``flex-context`` fields [see `PR #1300 <https://github.com/FlexMeasures/flexmeasures/pull/1300>`_]
 * Allow relaxing device-level power constraints, by setting penalties for not meeting these constraints, using two new ``flex-context`` fields [see `PR #1405 <https://github.com/FlexMeasures/flexmeasures/pull/1405>`_]
+* Add flex-context fields to toggle on/off relaxation of various constraints [see `PR #1511 <https://github.com/FlexMeasures/flexmeasures/pull/1511>`_]
 * Add sensor attribute (``frequency``) to align incoming measurements to a specified time interval [see `PR #1461 <https://github.com/FlexMeasures/flexmeasures/pull/1461>`_]
 * Save changes in asset flex-context form right away [see `PR #1390 <https://github.com/FlexMeasures/flexmeasures/pull/1390>`_]
 * Extending sensor CRUD functionality to the UI [see `PR #1394 <https://github.com/FlexMeasures/flexmeasures/pull/1394>`_ and `PR #1413 <https://github.com/FlexMeasures/flexmeasures/pull/1413>`_]
