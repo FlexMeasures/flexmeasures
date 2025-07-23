@@ -437,7 +437,7 @@ scikit-learn==1.7.1
     #   tbats
     #   timetomodel
     #   u8darts
-scipy==1.16.0
+scipy==1.15.3
     # via
     #   catboost
     #   lightgbm
