@@ -260,7 +260,9 @@ class AssetCrudUI(FlaskView):
                                 post_asset_response.json()["message"]["json"]
                             )
             if asset is None:
-                msg = "Cannot create asset. " + error_msg
+                # Display the errors
+                error_msg = asset_form.errors
+                msg = "Cannot create asset. " + str(error_msg)
                 return render_flexmeasures_template(
                     "assets/asset_new.html",
                     asset_form=asset_form,

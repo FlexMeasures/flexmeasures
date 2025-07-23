@@ -5,7 +5,11 @@ import json
 import copy
 
 from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.ui.tests.utils import mock_asset_response, mock_api_data_as_form_input
+from flexmeasures.ui.tests.utils import (
+    mock_asset_response,
+    mock_asset_response_with_kpis,
+    mock_api_data_as_form_input,
+)
 from flexmeasures.ui.views.assets import get_assets_by_account
 
 """
@@ -121,7 +125,7 @@ def test_asset_page_dates_validation(
 
 
 def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
-    mock_asset = mock_asset_response(as_list=False)
+    mock_asset = mock_asset_response_with_kpis(db=db, as_list=False)
     requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)
     requests_mock.get(f"{api_path_assets}/1", status_code=200, json=mock_asset)
     response = client.post(
@@ -139,7 +143,7 @@ def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
 def test_sensors_to_show_as_kpis_json(
     db, client, setup_assets, requests_mock, as_admin
 ):
-    mock_asset = mock_asset_response(as_list=False)
+    mock_asset = mock_asset_response_with_kpis(db=db, as_list=False)
     requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)
     requests_mock.get(f"{api_path_assets}/1", status_code=200, json=mock_asset)
 
