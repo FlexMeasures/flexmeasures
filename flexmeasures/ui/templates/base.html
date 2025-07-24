@@ -868,6 +868,23 @@
         }
     }
 
+    /**
+     * Fetches data for the graph and KPIs, either from a previous result (if the date range is the same)
+     * or from the API (if the date range is different).
+     *
+     * The previous result is used to avoid fetching the same data twice when the user goes back and forth
+     * between different date ranges.
+     *
+     * If the date range changes, the function fetches the data from the API and also triggers an update
+     * of the asset KPIs if the active subpage is the asset graph.
+     *
+     * @param {Object} previousResult The previous result, containing the start and end dates and the data.
+     * @param {Date} startDate The start date for the new data.
+     * @param {Date} endDate The end date for the new data.
+     * @param {String} queryStartDate The start date as a string in ISO format, to be used in the query.
+     * @param {String} queryEndDate The end date as a string in ISO format, to be used in the query.
+     * @return {Promise} A promise that resolves with the data.
+     */
     function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()){
             return Promise.resolve(previousResult.data);
