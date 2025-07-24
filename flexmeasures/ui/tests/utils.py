@@ -76,7 +76,7 @@ def mock_asset_response_with_kpis(
             attributes={},
         )
         db.session.add(sensor)
-        db.session.commit()
+        db.session.flush()
     sensors_to_show_as_kpis = [
         {
             "title": "My KPIs",

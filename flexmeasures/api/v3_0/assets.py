@@ -1136,7 +1136,7 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         check_access(asset, "read")
-        asset_kpis = asset.get_sensors_to_show_as_kpis()
+        asset_kpis = asset.sensors_to_show_as_kpis
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])

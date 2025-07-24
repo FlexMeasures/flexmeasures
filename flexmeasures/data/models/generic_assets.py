@@ -285,9 +285,6 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
         return sensors_to_show
 
-    def get_sensors_to_show_as_kpis(self):
-        return self.sensors_to_show_as_kpis
-
     @property
     def asset_type(self) -> GenericAssetType:
         """This property prepares for dropping the "generic" prefix later"""

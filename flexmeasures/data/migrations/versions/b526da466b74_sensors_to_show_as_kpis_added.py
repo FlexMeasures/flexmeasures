@@ -22,7 +22,7 @@ def upgrade():
         sa.Column(
             "sensors_to_show_as_kpis",
             sa.JSON(),
-            nullable=True,
+            nullable=False,
             server_default=sa.text("'[]'::json"),
         ),
     )

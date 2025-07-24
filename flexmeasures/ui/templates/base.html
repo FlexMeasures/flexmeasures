@@ -577,24 +577,12 @@
                 }
             {% endif %}
 
-            {% if active_subpage == "asset_graph" %}
-                getAssetKPIs();
-            {% endif %}
-
             stopReplay()
 
             $("#spinner").show();
             checkDSTTransitions(startDate, endDate)
             Promise.all([
-                (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) ? Promise.resolve(previousResult.data) :
-                // Fetch time series data
-                fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                    method: "GET",
-                    headers: {"Content-Type": "application/json"},
-                    signal: signal,
-                })
-                .then(function(response) { return response.json(); }),
-
+                fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
                 /**
                 // Fetch annotations
                 fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
@@ -655,7 +643,7 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
-
+                getAssetKPIs();
                 const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
                     method: "GET",
                     headers: {"Content-Type": "application/json"},
@@ -877,6 +865,21 @@
 
             // Stop replay when finished
             stopReplay()
+        }
+    }
+
+    function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
+        if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()){
+            return Promise.resolve(previousResult.data);
+        } else {
+            {% if active_subpage == "asset_graph" %}
+                getAssetKPIs();
+            {% endif %}
+            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                    method: "GET",
+                    headers: { "Content-Type": "application/json" },
+                    signal: signal,
+            }).then(response => response.json());
         }
     }
     

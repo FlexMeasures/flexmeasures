@@ -70,22 +70,24 @@
                 <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                 <span class="sr-only">Loading...</span>
             </div>
+            {% if has_kpis %}
             <div class="row">
                 <div class="col-md-12">
                     <div id="kpi-cards" class="row">
-                        {% if has_kpis %}
                         {% for kpi in asset_kpis %}
                         <div class="col-md-3">
                             <div class="card">
                                 <div class="card-body">
+                                    <h5 class="card-title">{{ kpi.title }}</h5>
+                                    <p class="card-text">Loading...</p>
                                 </div>
                             </div>
                         </div>
                         {% endfor %}
-                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
             <div id="sensorchart" class="card" style="width: 100%;"></div>
             <div class="row">
                 <div class="copy-url" title="Click to copy the URL to the current time range to clipboard.">
