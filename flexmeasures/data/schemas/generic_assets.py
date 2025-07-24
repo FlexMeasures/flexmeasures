@@ -176,6 +176,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
     sensors_to_show = JSON(required=False)
     flex_context = JSON(required=False)
+    flex_model = JSON(required=False)
 
     class Meta:
         model = GenericAsset

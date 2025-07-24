@@ -188,6 +188,7 @@
                 }
             });
         }
+
         function setCardSensor(sensorId) {
             if (!activeCard()) {
                 showToast("Please select a field to set a sensor", "info");
@@ -266,6 +267,10 @@
             for (const [key, value] of Object.entries(data)) {
                 if (value === null) {
                     delete data[key];
+                } else if (Array.isArray(value) && value.length === 0) {
+                    delete data[key];
+                } else if (typeof value === 'object' && Object.keys(value).length === 0) {
+                    delete data[key];
                 }
             }
 
@@ -285,10 +290,10 @@
                 showToast(`Failed to update the flex model: ${errorMessage}`, "error");
 
                 // Revert to previous state
-                // const asset = await getAsset("{{ asset.id }}", false);
-                // const previousFlexContext = await processResourceRawJSON(assetFlexModelSchema, asset.flex_context);
-                // assetFlexContext = previousFlexContext;
-                // renderFlexModelForm();
+                const asset = await getAsset("{{ asset.id }}", false);
+                const previousFlexContext = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, '"{{ asset_flexmodel | safe}}"'));
+                setFlexModel(previousFlexContext);
+                renderFlexModelForm();
             } else {
                 showToast("Flex model updated successfully", "success");
             }

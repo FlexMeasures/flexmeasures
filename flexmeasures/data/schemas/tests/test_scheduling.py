@@ -12,6 +12,7 @@ from flexmeasures.data.schemas.scheduling.process import (
 )
 from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
+    DBStorageFlexModelSchema,
 )
 from flexmeasures.data.schemas.sensors import TimedEventSchema
 
@@ -470,3 +471,49 @@ def test_db_flex_context_schema(
             )
     else:
         schema.load(flex_context)
+
+
+# test DBStorageFlexModelSchema
+@pytest.mark.parametrize(
+    ["flex_model", "fails"],
+    [
+        (
+            {"soc-min": "450 EUR/MWh"},
+            {"soc-min": "Cannot convert value `450 EUR/MWh` to 'MWh'"},
+        ),
+        (
+            {"soc-min": "3500 kWh"},
+            False,
+        ),
+        (
+            {"soc-gain": ["450 EUR/MWh", "650 EUR/MWh"]},
+            {
+                "soc-gain": [
+                    ["Cannot convert value `450 EUR/MWh` to 'MW'"],
+                    ["Cannot convert value `650 EUR/MWh` to 'MW'"],
+                ]
+            },
+        ),
+    ],
+)
+def test_db_flex_model_schema(db, app, flex_model, fails):
+    schema = DBStorageFlexModelSchema()
+
+    if fails:
+        with pytest.raises(ValidationError) as e_info:
+            schema.load(flex_model)
+        for field_name, expected_message in fails.items():
+            assert field_name in e_info.value.messages
+            if field_name in ["soc-gain", "soc-usage"]:
+                for index, message_list in e_info.value.messages[field_name].items():
+                    assert message_list[0] == expected_message[index][0]
+            else:
+                # Check all messages for the given field for the expected message
+                assert any(
+                    [
+                        expected_message in message
+                        for message in e_info.value.messages[field_name]
+                    ]
+                )
+    else:
+        schema.load(flex_model)
