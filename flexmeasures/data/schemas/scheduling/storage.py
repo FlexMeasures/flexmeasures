@@ -381,8 +381,6 @@ class DBStorageFlexModelSchema(Schema):
     def _validate_power_fields(self, data: dict):
         """Validate power fields."""
         power_fields = [
-            "soc_gain",
-            "soc_usage",
             "power_capacity",
             "consumption_capacity",
             "production_capacity",
