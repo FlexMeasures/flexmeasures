@@ -1012,15 +1012,6 @@ def add_holidays(
 )
 @click.option("--target", required=True, help="Name of the target sensor")
 @click.option(
-    "--model-save-dir",
-    default="flexmeasures/data/models/forecasting/artifacts/models",
-    help="Directory to save the trained model",
-)
-@click.option(
-    "--output-path",
-    help="Directory to save prediction outputs",
-)
-@click.option(
     "--start-date",
     required=True,
     help="Start date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM)",
@@ -1055,6 +1046,15 @@ def add_holidays(
     "--forecast-frequency",
     type=int,
     help="Forecast frequency in hours, i.e. how often to recompute forecasts.",
+)
+@click.option(
+    "--model-save-dir",
+    default="flexmeasures/data/models/forecasting/artifacts/models",
+    help="Directory to save the trained model",
+)
+@click.option(
+    "--output-path",
+    help="Directory to save prediction outputs",
 )
 @click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions")
 @click.option(
