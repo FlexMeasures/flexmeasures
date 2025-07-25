@@ -4,7 +4,6 @@ import time
 import logging
 from datetime import datetime, timedelta
 
-# from flexmeasures.cli import jobs
 from flexmeasures.data.models.time_series import Sensor
 from rq.job import Job
 
@@ -214,8 +213,7 @@ class TrainPredictPipeline:
                         ),
                         **job_kwargs,
                     )
-                    # job.meta["model_search_term"] = model_search_term
-                    # job.save_meta()
+
                     jobs.append(job)
 
                     current_app.queues[queue].enqueue_job(job)
