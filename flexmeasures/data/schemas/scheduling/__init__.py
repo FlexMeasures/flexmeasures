@@ -300,7 +300,8 @@ class FlexContextSchema(Schema):
                                 )
                         elif isinstance(data[field], Sensor):
                             raise ValidationError(
-                                f"Please convert all flex-context prices to the unit of the {data[field]} sensor ({price_unit})."
+                                f"Please convert all flex-context prices to the unit of the {data[field]} sensor ({price_unit}).",
+                                field_name=price_field.data_key,
                             )
                 else:
                     field_name = price_field.data_key
