@@ -20,7 +20,6 @@ Play
 
 In this mode, the server is assumed to be used to run simulations.
 
-- [API] The ``restoreData`` endpoint is registered, enabling database resets through the API.
 - [UI] On the asset page, the ``sensors_to_show`` attribute can be used to show any sensor from any account, rather than only sensors from assets owned by the user's organization.
 
 .. note:: A former feature of play mode is now a separate config setting. To allow overwriting existing data when saving data to the database, use :ref:`overwrite-config`.
