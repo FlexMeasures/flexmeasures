@@ -96,6 +96,14 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_ty
             )
 
 
+@pytest.fixture(scope="function")
+def setup_fresh_test_forecast_data(
+    fresh_db,
+    app,
+) -> dict[str, Sensor]:
+    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db)
+
+
 def add_test_solar_sensor_and_irradiance_with_forecasts(
     db: SQLAlchemy,
 ) -> dict[str, Sensor]:
