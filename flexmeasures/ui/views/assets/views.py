@@ -260,7 +260,9 @@ class AssetCrudUI(FlaskView):
                                 post_asset_response.json()["message"]["json"]
                             )
             if asset is None:
-                msg = "Cannot create asset. " + error_msg
+                # Display the errors
+                error_msg = asset_form.errors
+                msg = "Cannot create asset. " + str(error_msg)
                 return render_flexmeasures_template(
                     "assets/asset_new.html",
                     asset_form=asset_form,
@@ -285,7 +287,7 @@ class AssetCrudUI(FlaskView):
                 asset = process_internal_api_response(
                     asset_info, int(id), make_obj=True
                 )
-                session["msg"] = "Cannot edit asset."
+                session["msg"] = f"Cannot edit asset: {asset_form.errors}"
                 return redirect(url_for("AssetCrudUI:properties", id=asset.id))
             patch_asset_response = InternalApi().patch(
                 url_for("AssetAPI:patch", id=id),
@@ -338,6 +340,11 @@ class AssetCrudUI(FlaskView):
         """/assets/<id>/graphs"""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
+        asset_kpis = asset.sensors_to_show_as_kpis
+
+        has_kpis = False
+        if len(asset_kpis) > 0:
+            has_kpis = True
 
         asset_form = AssetForm()
         asset_form.with_options()
@@ -346,6 +353,8 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_graph.html",
             asset=asset,
+            has_kpis=has_kpis,
+            asset_kpis=asset_kpis,
             current_page="Graphs",
         )
 

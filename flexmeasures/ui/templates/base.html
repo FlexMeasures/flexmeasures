@@ -305,7 +305,7 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, encodeUrlQuery, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
@@ -582,15 +582,7 @@
             $("#spinner").show();
             checkDSTTransitions(startDate, endDate)
             Promise.all([
-                (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) ? Promise.resolve(previousResult.data) :
-                // Fetch time series data
-                fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                    method: "GET",
-                    headers: {"Content-Type": "application/json"},
-                    signal: signal,
-                })
-                .then(function(response) { return response.json(); }),
-
+                fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
                 /**
                 // Fetch annotations
                 fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
@@ -651,7 +643,7 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
-
+                getAssetKPIs();
                 const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
                     method: "GET",
                     headers: {"Content-Type": "application/json"},
@@ -875,6 +867,92 @@
             stopReplay()
         }
     }
+
+    /**
+     * Fetches data for the graph and KPIs, either from a previous result (if the date range is the same)
+     * or from the API (if the date range is different).
+     *
+     * The previous result is used to avoid fetching the same data twice when the user goes back and forth
+     * between different date ranges.
+     *
+     * If the date range changes, the function fetches the data from the API and also triggers an update
+     * of the asset KPIs if the active subpage is the asset graph.
+     *
+     * @param {Object} previousResult The previous result, containing the start and end dates and the data.
+     * @param {Date} startDate The start date for the new data.
+     * @param {Date} endDate The end date for the new data.
+     * @param {String} queryStartDate The start date as a string in ISO format, to be used in the query.
+     * @param {String} queryEndDate The end date as a string in ISO format, to be used in the query.
+     * @return {Promise} A promise that resolves with the data.
+     */
+    function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
+        if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()){
+            return Promise.resolve(previousResult.data);
+        } else {
+            {% if active_subpage == "asset_graph" %}
+                getAssetKPIs();
+            {% endif %}
+            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                    method: "GET",
+                    headers: { "Content-Type": "application/json" },
+                    signal: signal,
+            }).then(response => response.json());
+        }
+    }
+    
+    {% if active_subpage == "asset_graph" %}
+    function getAssetKPIs() {
+        const pickerStartDate = picker.getStartDate().toJSDate();
+        const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
+        var endDate = picker.getEndDate();
+        endDate.setDate(endDate.getDate() + 1);
+        endDate = encodeURIComponent(toIsoStringWithOffset(endDate.toJSDate()));
+        const kpiCards = document.querySelector('#kpi-cards');
+        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + endDate, {
+            method: 'GET',
+            headers: {
+                "Content-Type": "application/json",
+            },
+        })
+        .then(response => response.json())
+        .then(response => {
+            
+            // Create card for each KPI object
+            const data = response.data;
+            // Set kpiCards to empty
+            kpiCards.innerHTML = '';
+            data.forEach(kpi => {
+                const colDiv = document.createElement('div');
+                colDiv.classList.add('col-md-3');
+                const card = document.createElement('div');
+                card.classList.add('card', 'mb-3');
+                // Add sensor data to the card
+                const label = kpi.unit === "%" ? "Average" : "Total";
+                card.innerHTML = `
+                    <div class="card-body">
+                        <h5 class="card-title">${kpi.title}</h5>
+                        <h5 class="card-text">
+                            <strong>
+                                ${label}: ${kpi.downsample_value}
+                                <small>${kpi.downsample_function}</small>
+                            </strong>
+                        </h5>
+                        <small style="float: right;">
+                            <a href="${apiBasePath}/sensors/${kpi.sensor}" title="See actual KPI data">see more</a>
+                        </small>
+                    </div>
+                `;
+                colDiv.appendChild(card);
+                kpiCards.appendChild(colDiv);
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            return []; // Return an empty array if there's an error
+        });
+    }
+    
+    {% endif %}
     </script>
 
     {% endblock sensorChartSetup %}
