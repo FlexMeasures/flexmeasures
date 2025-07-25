@@ -294,23 +294,23 @@ class FlexContextSchema(Schema):
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
         elif "consumption_price_sensor" in data:
-            data["shared_currency_unit"] = str(
-                (
-                    ur.Quantity(data["consumption_price_sensor"].unit)
-                    * ur.Quantity("MWh")
-                )
-                .to_base_units()
-                .units
+            data["shared_currency_unit"] = self._to_currency_per_mwh(
+                data["consumption_price_sensor"].unit
             )
         elif "production_price_sensor" in data:
-            data["shared_currency_unit"] = str(
-                (ur.Quantity(data["production_price_sensor"].unit) * ur.Quantity("MWh"))
-                .to_base_units()
-                .units
+            data["shared_currency_unit"] = self._to_currency_per_mwh(
+                data["production_price_sensor"].unit
             )
         else:
             data["shared_currency_unit"] = "dimensionless"
         return data
+
+    @staticmethod
+    def _to_currency_per_mwh(price_unit: str) -> str:
+        currency = str(
+            (ur.Quantity(price_unit) * ur.Quantity("MWh")).to_base_units().units
+        )
+        return currency
 
 
 class DBFlexContextSchema(FlexContextSchema):
