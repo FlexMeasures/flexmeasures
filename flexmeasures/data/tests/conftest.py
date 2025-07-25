@@ -136,8 +136,16 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
     db.session.add(asset)
 
     sensor_specs = {
-        "irradiance-sensor": {"unit": "kW/m²", "multiplier": 600, "horizon": timedelta(hours=6)},
-        "solar-sensor": {"unit": "kW", "multiplier": 1000, "horizon": timedelta(hours=1)},
+        "irradiance-sensor": {
+            "unit": "kW/m²",
+            "multiplier": 600,
+            "horizon": timedelta(hours=6),
+        },
+        "solar-sensor": {
+            "unit": "kW",
+            "multiplier": 1000,
+            "horizon": timedelta(hours=1),
+        },
     }
 
     time_slots = pd.date_range(
@@ -155,7 +163,10 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
         )
         db.session.add(sensor)
 
-        values = [random() * (1 + np.sin(x / 15)) * config["multiplier"] for x in range(len(time_slots))]
+        values = [
+            random() * (1 + np.sin(x / 15)) * config["multiplier"]
+            for x in range(len(time_slots))
+        ]
         beliefs = [
             TimedBelief(
                 sensor=sensor,

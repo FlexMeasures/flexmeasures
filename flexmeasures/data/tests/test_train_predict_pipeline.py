@@ -29,7 +29,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "forecast_frequency": 1,
                 "probabilistic": False,
             },
-            (ValidationError, "--predict-period must be greater than 0")
+            (ValidationError, "--predict-period must be greater than 0"),
         ),
         (
             {
@@ -72,7 +72,9 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
     ],
 )
 def test_bad_timing_params(
-    setup_fresh_test_forecast_data, kwargs, expected_error: bool | tuple[type[BaseException], str]
+    setup_fresh_test_forecast_data,
+    kwargs,
+    expected_error: bool | tuple[type[BaseException], str],
 ):
     sensor = setup_fresh_test_forecast_data["solar-sensor"]
     sensor_id = sensor.id
