@@ -1,9 +1,15 @@
 from flask import url_for
 
 import pytest
+import json
+import copy
 
 from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.ui.tests.utils import mock_asset_response, mock_api_data_as_form_input
+from flexmeasures.ui.tests.utils import (
+    mock_asset_response,
+    mock_asset_response_with_kpis,
+    mock_api_data_as_form_input,
+)
 from flexmeasures.ui.views.assets import get_assets_by_account
 
 """
@@ -119,7 +125,7 @@ def test_asset_page_dates_validation(
 
 
 def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
-    mock_asset = mock_asset_response(as_list=False)
+    mock_asset = mock_asset_response_with_kpis(db=db, as_list=False)
     requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)
     requests_mock.get(f"{api_path_assets}/1", status_code=200, json=mock_asset)
     response = client.post(
@@ -132,6 +138,37 @@ def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
     assert mock_asset["name"] in str(response.data)
     assert str(mock_asset["latitude"]) in str(response.data)
     assert str(mock_asset["longitude"]) in str(response.data)
+
+
+def test_sensors_to_show_as_kpis_json(
+    db, client, setup_assets, requests_mock, as_admin
+):
+    mock_asset = mock_asset_response_with_kpis(db=db, as_list=False)
+    requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)
+    requests_mock.get(f"{api_path_assets}/1", status_code=200, json=mock_asset)
+
+    # Test asset with invalid json
+    ma_copy = copy.deepcopy(mock_asset)
+    ma_copy["sensors_to_show_as_kpis"] = "not a json."
+    response = client.post(
+        url_for("AssetCrudUI:post", id=1),
+        follow_redirects=True,
+        data=mock_api_data_as_form_input(ma_copy),
+    )
+    assert response.status_code == 200
+    assert b"Cannot edit asset:" in response.data
+
+    # Test invalid default_function in the sensors_to_show_as_kpis
+    ma_copy = copy.deepcopy(mock_asset)
+    ma_copy["sensors_to_show_as_kpis"] = json.loads(ma_copy["sensors_to_show_as_kpis"])
+    ma_copy["sensors_to_show_as_kpis"][0]["default_function"] = "not valid function"
+    response = client.post(
+        url_for("AssetCrudUI:post", id=1),
+        follow_redirects=True,
+        data=mock_api_data_as_form_input(ma_copy),
+    )
+    assert response.status_code == 200
+    assert b"Cannot edit asset:" in response.data
 
 
 def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
