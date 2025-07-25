@@ -297,6 +297,15 @@ def test_efficiency_pair(
             },
             False,
         ),
+        (
+            {
+                "consumption-price": {"sensor": "consumption-price in SEK/kWh"},
+                "production-price": {"sensor": "production-price in SEK/MWh"},
+            },
+            {
+                "production-price": "Please convert all flex-context prices to the unit of the production-price in SEK/MWh sensor (SEK/MWh)."
+            },
+        ),
     ],
 )
 def test_flex_context_schema(
