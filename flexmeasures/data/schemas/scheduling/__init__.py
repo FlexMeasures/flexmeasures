@@ -285,27 +285,7 @@ class FlexContextSchema(Schema):
                         ur.Quantity(currency_unit).to_base_units().units
                     )
                     previous_field_name = price_field.data_key
-                if units_are_convertible(currency_unit, shared_currency_unit):
-                    # Make sure all compatible currency units are on the same scale (e.g. not kEUR mixed with EUR)
-                    if currency_unit != shared_currency_unit:
-                        denominator_unit = str(
-                            ur.Unit(currency_unit) / ur.Unit(price_unit)
-                        )
-                        if isinstance(data[field], ur.Quantity):
-                            data[field] = data[field].to(
-                                f"{shared_currency_unit}/({denominator_unit})"
-                            )
-                        elif isinstance(data[field], list):
-                            for j in range(len(data[field])):
-                                data[field][j]["value"] = data[field][j]["value"].to(
-                                    f"{shared_currency_unit}/({denominator_unit})"
-                                )
-                        elif isinstance(data[field], Sensor):
-                            raise ValidationError(
-                                f"Please convert all flex-context prices to the unit of the {data[field]} sensor ({price_unit}).",
-                                field_name=price_field.data_key,
-                            )
-                else:
+                if not units_are_convertible(currency_unit, shared_currency_unit):
                     field_name = price_field.data_key
                     raise ValidationError(
                         f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
