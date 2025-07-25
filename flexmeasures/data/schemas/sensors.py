@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import numbers
+import typing
 from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
@@ -14,6 +15,7 @@ from marshmallow import (
     validates,
     validates_schema,
 )
+from marshmallow.experimental.context import Context
 import marshmallow.validate as validate
 from pandas.api.types import is_numeric_dtype
 import timely_beliefs as tb
@@ -184,14 +186,19 @@ class SensorSchemaMixin(Schema):
             raise ValidationError(f"Unit '{unit}' cannot be handled.")
 
 
+# Define the context as a TypedDict (no need to inherit from GenericAsset)
+class SensorContext(typing.TypedDict):
+    generic_asset: "GenericAsset"  # Storing the generic asset in context
+
+
+# Create the Context wrapper for Sensor schema
+SensorSchemaContext = Context[SensorContext]
+
+
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
-    Sensor schema, with validations.
+    Sensor schema with validations, using the new context API in Marshmallow 4.x.
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.context: GenericAsset = None
 
     generic_asset_id = fields.Integer(required=True)
 
@@ -202,8 +209,12 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
             raise ValidationError(
                 f"Generic asset with id {generic_asset_id} doesn't exist."
             )
-        # Add it to context to use it for AssetAuditLog record
-        self.context["generic_asset"] = generic_asset
+
+        # Store the validated generic asset in the context
+        with SensorSchemaContext({"generic_asset": generic_asset}):
+            # Now the generic asset is stored in context and can be accessed later
+            # There's no need to call dump here; we just store the asset in context
+            pass
 
     class Meta:
         model = Sensor
