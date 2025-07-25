@@ -29,7 +29,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "forecast_frequency": 1,
                 "probabilistic": False,
             },
-            (ValidationError, "Try decreasing the --start-date."),
+            (ValidationError, "--predict-period must be greater than 0")
         ),
         (
             {
