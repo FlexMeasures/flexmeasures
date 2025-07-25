@@ -303,6 +303,13 @@ class FlexContextSchema(Schema):
 
     @staticmethod
     def _to_currency_per_mwh(price_unit: str) -> str:
+        """Convert a price unit to a base currency used to express that price per MWh.
+
+        >>> FlexContextSchema()._to_currency_per_mwh("EUR/MWh")
+        'EUR'
+        >>> FlexContextSchema()._to_currency_per_mwh("EUR/kWh")
+        'EUR'
+        """
         currency = str(ur.Quantity(price_unit + " * MWh").to_base_units().units)
         return currency
 
