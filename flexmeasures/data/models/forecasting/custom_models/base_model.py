@@ -1,11 +1,11 @@
 import sys
+import logging
 from abc import ABC, abstractmethod
 
 from darts import TimeSeries
 
 from flexmeasures.data.models.forecasting.utils import negative_to_zero
 from flexmeasures.data.models.forecasting.exceptions import CustomException
-from flexmeasures.data.models.forecasting.logger import logging
 
 
 class BaseModel(ABC):

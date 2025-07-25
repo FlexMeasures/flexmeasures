@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import logging
 from datetime import datetime, timedelta
 
 # from flexmeasures.cli import jobs
@@ -10,7 +11,6 @@ from rq.job import Job
 from flask import current_app
 
 from flexmeasures.data.models.forecasting.exceptions import CustomException
-from flexmeasures.data.models.forecasting.logger import logging
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
 from flexmeasures.utils.flexmeasures_inflection import p

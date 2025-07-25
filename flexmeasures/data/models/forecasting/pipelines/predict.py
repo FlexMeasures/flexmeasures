@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import pickle
 import sys
+import logging
 from datetime import datetime
 
 import numpy as np
@@ -14,7 +15,6 @@ from flexmeasures.data.utils import save_to_db
 
 from flexmeasures.data.models.forecasting.utils import data_to_bdf
 from flexmeasures.data.models.forecasting.exceptions import CustomException
-from flexmeasures.data.models.forecasting.logger import logging
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 
 

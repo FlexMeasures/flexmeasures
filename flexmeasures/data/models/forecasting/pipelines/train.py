@@ -4,13 +4,13 @@ import os
 import pickle
 import sys
 import warnings
+import logging
 from datetime import datetime
 
 from darts import TimeSeries
 
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.forecasting.exceptions import CustomException
-from flexmeasures.data.models.forecasting.logger import logging
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 
 warnings.filterwarnings("ignore")

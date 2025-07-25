@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import logging
 from datetime import datetime
 from functools import reduce
 
@@ -12,7 +13,6 @@ from flexmeasures.data.models.time_series import Sensor
 from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.forecasting.exceptions import CustomException
-from flexmeasures.data.models.forecasting.logger import logging
 
 
 class BasePipeline:
