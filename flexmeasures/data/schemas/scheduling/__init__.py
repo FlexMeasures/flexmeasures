@@ -303,9 +303,7 @@ class FlexContextSchema(Schema):
 
     @staticmethod
     def _to_currency_per_mwh(price_unit: str) -> str:
-        currency = str(
-            (ur.Quantity(price_unit) * ur.Quantity("MWh")).to_base_units().units
-        )
+        currency = str(ur.Quantity(price_unit + " * MWh").to_base_units().units)
         return currency
 
 
