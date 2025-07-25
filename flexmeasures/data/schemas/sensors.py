@@ -189,6 +189,10 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     Sensor schema, with validations.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.context: GenericAsset = None
+
     generic_asset_id = fields.Integer(required=True)
 
     @validates("generic_asset_id")
@@ -491,7 +495,7 @@ class SensorDataFileSchema(Schema):
     }
 
     @validates("uploaded_files")
-    def validate_uploaded_files(self, files: list[FileStorage]):
+    def validate_uploaded_files(self, files: list[FileStorage], **kwargs):
         """Validate the deserialized fields."""
         errors = {}
         for i, file in enumerate(files):
