@@ -72,9 +72,9 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
     ],
 )
 def test_bad_timing_params(
-    setup_assets, kwargs, expected_error: bool | tuple[type[BaseException], str]
+    setup_fresh_test_forecast_data, kwargs, expected_error: bool | tuple[type[BaseException], str]
 ):
-    sensor = setup_assets["solar-asset-1"].sensors[0]
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
     sensor_id = sensor.id
     kwargs["sensors"]["PV"] = sensor_id
     kwargs["sensors"] = json.dumps(
