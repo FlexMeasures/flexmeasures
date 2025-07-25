@@ -69,7 +69,7 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     schedule = results[0]["data"]
     costs = results[1]["data"]
     costs_unit = results[1]["unit"]
-    assert costs_unit == "MEUR"
+    assert costs_unit == "EUR"
 
     # Check if constraints were met
     check_constraints(battery, schedule, soc_at_start)
@@ -78,23 +78,19 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     np.testing.assert_allclose(schedule, (1 - 0.4) / 24)
 
     # Check costs are correct
-    # 60 EUR for 600 kWh consumption priced at 100 EUR/MWh / 10**6 EUR/MEUR
-    np.testing.assert_almost_equal(costs["energy"], 100 * (1 - 0.4) / 10**6)
-    # 24000 EUR for any 24 kW consumption breach priced at 1000 EUR/kW / 10**6 EUR/MEUR
+    # 60 EUR for 600 kWh consumption priced at 100 EUR/MWh
+    np.testing.assert_almost_equal(costs["energy"], 100 * (1 - 0.4))
+    # 24000 EUR for any 24 kW consumption breach priced at 1000 EUR/kW
+    np.testing.assert_almost_equal(costs["any consumption breach"], 1000 * (25 - 1))
+    # 24000 EUR for each 24 kW consumption breach per hour priced at 1000 EUR/kWh
     np.testing.assert_almost_equal(
-        costs["any consumption breach"], 1000 * (25 - 1) / 10**6
-    )
-    # 24000 EUR for each 24 kW consumption breach per hour priced at 1000 EUR/kWh / 10**6 EUR/MEUR
-    np.testing.assert_almost_equal(
-        costs["all consumption breaches"], 1000 * (25 - 1) * 96 / 4 / 10**6
+        costs["all consumption breaches"], 1000 * (25 - 1) * 96 / 4
     )
     # No production breaches
     np.testing.assert_almost_equal(costs["any production breach"], 0)
     np.testing.assert_almost_equal(costs["all production breaches"], 0 * 96)
-    # 1.3 EUR for the 5 kW extra consumption peak priced at 260 EUR/MW / 10**6 EUR/MEUR
-    np.testing.assert_almost_equal(
-        costs["consumption peak"], 260 / 1000 * (25 - 20) / 10**6
-    )
+    # 1.3 EUR for the 5 kW extra consumption peak priced at 260 EUR/MW
+    np.testing.assert_almost_equal(costs["consumption peak"], 260 / 1000 * (25 - 20))
     # No production peak
     np.testing.assert_almost_equal(costs["production peak"], 0)
 
@@ -181,7 +177,7 @@ def test_battery_relaxation(add_battery_assets, db):
     schedule = results[0]["data"]
     costs = results[1]["data"]
     costs_unit = results[1]["unit"]
-    assert costs_unit == "kEUR"
+    assert costs_unit == "EUR"
 
     # Check if constraints were met
     check_constraints(battery, schedule, soc_at_start)
@@ -199,10 +195,10 @@ def test_battery_relaxation(add_battery_assets, db):
     # Check costs are correct
     np.testing.assert_almost_equal(
         costs["any consumption breach device 0"],
-        device_power_breach_price * consumption_capacity_in_mw,
-    )  # 100 EUR/kW * 0.025 MW * 1000 kW/MW / 1000 EUR/kEUR
+        device_power_breach_price * consumption_capacity_in_mw * 1000,
+    )  # 100 EUR/kW * 0.025 MW * 1000 kW/MW
 
     np.testing.assert_almost_equal(
         costs["all consumption breaches device 0"],
-        device_power_breach_price * consumption_capacity_in_mw * 4,
-    )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW / 1000 EUR/kEUR * 4 hours
+        device_power_breach_price * consumption_capacity_in_mw * 1000 * 4,
+    )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW * 4 hours
