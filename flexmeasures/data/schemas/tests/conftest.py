@@ -92,3 +92,21 @@ def setup_site_capacity_sensor(db, app, dummy_asset, setup_sources):
     db.session.commit()
 
     return {sensor.name: sensor}
+
+
+@pytest.fixture(scope="module")
+def setup_price_sensors(db, app, dummy_asset, setup_sources):
+    sensor_names = ["consumption-price", "production-price"]
+    sensors = []
+    for sensor_name in sensor_names:
+        sensor = Sensor(
+            name=sensor_name,
+            generic_asset=dummy_asset,
+            event_resolution="PT1H",
+            unit="SEK/kWh",
+        )
+        db.session.add(sensor)
+        sensors.append(sensor)
+    db.session.commit()
+
+    return {sensor.name: sensor for sensor in sensors}

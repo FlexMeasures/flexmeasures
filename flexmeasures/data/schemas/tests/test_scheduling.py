@@ -283,15 +283,25 @@ def test_efficiency_pair(
             },
             False,
         ),
+        (
+            {
+                "consumption-price": {"sensor": "consumption-price"},
+                "production-price": {"sensor": "production-price"},
+            },
+            False,
+        ),
     ],
 )
-def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):
+def test_flex_context_schema(
+    db, app, setup_site_capacity_sensor, setup_price_sensors, flex_context, fails
+):
     schema = FlexContextSchema()
 
     # Replace sensor name with sensor ID
+    sensors_to_pick_from = {**setup_site_capacity_sensor, **setup_price_sensors}
     for field_name, field_value in flex_context.items():
         if isinstance(field_value, dict):
-            flex_context[field_name]["sensor"] = setup_site_capacity_sensor[
+            flex_context[field_name]["sensor"] = sensors_to_pick_from[
                 field_value["sensor"]
             ].id
 
