@@ -293,6 +293,21 @@ class FlexContextSchema(Schema):
                     )
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
+        elif "consumption_price_sensor" in data:
+            data["shared_currency_unit"] = str(
+                (
+                    ur.Quantity(data["consumption_price_sensor"].unit)
+                    * ur.Quantity("MWh")
+                )
+                .to_base_units()
+                .units
+            )
+        elif "production_price_sensor" in data:
+            data["shared_currency_unit"] = str(
+                (ur.Quantity(data["production_price_sensor"].unit) * ur.Quantity("MWh"))
+                .to_base_units()
+                .units
+            )
         else:
             data["shared_currency_unit"] = "dimensionless"
         return data
