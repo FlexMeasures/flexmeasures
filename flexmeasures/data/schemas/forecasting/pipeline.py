@@ -145,7 +145,7 @@ class ForecastingPipelineSchema(Schema):
                 (data["end_date"] - predict_start).total_seconds() / 3600
             )
         else:
-            predict_period_in_hours = data["predict_period"]
+            predict_period_in_hours = data["predict_period"] * 24
             if predict_period_in_hours < 1:
                 raise click.BadParameter("--predict-period must be at least 1 hour")
 
