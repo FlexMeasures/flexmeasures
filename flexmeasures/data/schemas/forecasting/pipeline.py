@@ -72,14 +72,6 @@ class ForecastingPipelineSchema(Schema):
                 "--predict-period must be greater than 0", field_name="predict_period"
             )
 
-        regressors = self._parse_comma_list(data.get("regressors", ""))
-        future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
-        if not regressors and not future_regressors:
-            raise ValidationError(
-                "At least one of --regressors or --future-regressors must be provided",
-                field_name="regressors",
-            )
-
     def _parse_comma_list(self, text: str | None) -> list[str]:
         return (
             [item.strip() for item in text.split(",") if item.strip()] if text else []
