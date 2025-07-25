@@ -285,8 +285,15 @@ def test_efficiency_pair(
         ),
         (
             {
-                "consumption-price": {"sensor": "consumption-price"},
-                "production-price": {"sensor": "production-price"},
+                "consumption-price": {"sensor": "consumption-price in SEK/kWh"},
+                "production-price": {"sensor": "production-price in SEK/kWh"},
+            },
+            False,
+        ),
+        (
+            {
+                "consumption-price": {"sensor": "consumption-price in SEK/MWh"},
+                "production-price": {"sensor": "production-price in SEK/MWh"},
             },
             False,
         ),
