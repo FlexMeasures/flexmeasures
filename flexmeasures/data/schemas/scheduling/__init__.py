@@ -281,7 +281,9 @@ class FlexContextSchema(Schema):
                 )
 
                 if shared_currency_unit is None:
-                    shared_currency_unit = str(ur.Quantity(currency_unit).units)
+                    shared_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
                     previous_field_name = price_field.data_key
                 if units_are_convertible(currency_unit, shared_currency_unit):
                     # Make sure all compatible currency units are on the same scale (e.g. not kEUR mixed with EUR)
