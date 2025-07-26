@@ -51,8 +51,6 @@ class AssetForm(FlaskForm):
             self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
-        # if hasattr(self, "account_id") and self.account_id.data == -1:
-        #    del self.account_id  # asset will be public
 
         result = super().validate_on_submit()
         return result
