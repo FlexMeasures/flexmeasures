@@ -267,6 +267,7 @@ class AssetCrudUI(FlaskView):
                     "assets/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
+                    parent_asset_id=asset_form.parent_asset_id.data,
                     map_center=get_center_location_of_assets(user=current_user),
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
