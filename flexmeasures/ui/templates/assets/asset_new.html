@@ -35,6 +35,7 @@
                             {% endfor %}
                         </div>
                     </div>
+                    {% if asset_form.account_id %}
                     <div class="form-group">
                         {{ asset_form.account_id.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">
@@ -54,6 +55,7 @@
                             {% endfor %}
                         </div>
                     </div>
+                    {% endif %}
                     <div class="form-group">
                         {{ asset_form.latitude.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">

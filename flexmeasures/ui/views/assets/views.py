@@ -235,9 +235,12 @@ class AssetCrudUI(FlaskView):
 
             # Create new asset or return the form for new assets with a message
             if form_valid and asset_type is not None:
+                post_args = asset_form.to_json()
+                if post_args.get("account_id") == -1:
+                    del post_args["account_id"]
                 post_asset_response = InternalApi().post(
                     url_for("AssetAPI:post"),
-                    args=asset_form.to_json(),
+                    args=post_args,
                     do_not_raise_for=[400, 422],
                 )
                 if post_asset_response.status_code in (200, 201):
@@ -267,7 +270,7 @@ class AssetCrudUI(FlaskView):
                     "assets/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
-                    parent_asset_id=asset_form.parent_asset_id.data,
+                    parent_asset_id=asset_form.parent_asset_id.data or "",
                     map_center=get_center_location_of_assets(user=current_user),
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
