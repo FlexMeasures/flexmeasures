@@ -5,6 +5,14 @@ FlexMeasures Changelog
 
 
 
+v0.27.1 | July XX, 2025
+============================
+
+Bugfixes
+-----------
+* Flex-context price sensors can have any shared unit [see `PR #1628 <https://github.com/FlexMeasures/flexmeasures/pull/1628>`_]
+
+
 v0.27.0 | July 20, 2025
 ============================
 
