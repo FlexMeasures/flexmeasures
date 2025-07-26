@@ -2,7 +2,8 @@
 FlexMeasures API routes and implementations.
 """
 
-from flask import Flask, Blueprint, request
+from flask import Flask, Blueprint, request, current_app
+import html
 from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
@@ -57,7 +58,11 @@ def request_auth_token():
             ).scalar_one_or_none()
             if not user:
                 return (
-                    {"errors": ["User with email '%s' does not exist" % email]},
+                    {
+                        "errors": [
+                            "User with email '%s' does not exist" % html.escape(email)
+                        ]
+                    },
                     404,
                 )
 
@@ -68,7 +73,8 @@ def request_auth_token():
         token = user.get_auth_token()
         return {"auth_token": token, "user_id": user.id}
     except Exception as e:
-        return {"errors": [str(e)]}, 500
+        current_app.logger.error(f"Exception in /requestAuthToken endpoint: {e}")
+        return {"errors": ["An internal error has occurred."]}, 500
 
 
 @flexmeasures_api.route("/", methods=["GET"])
@@ -105,12 +111,6 @@ def register_at(app: Flask):
     from flexmeasures.api.common import register_at as ops_register_at
 
     ops_register_at(app)
-
-    # Load API endpoints for play mode
-    if app.config.get("FLEXMEASURES_MODE", "") == "play":
-        from flexmeasures.api.play import register_at as play_register_at
-
-        play_register_at(app)
 
     # Load all versions of the API functionality
     from flexmeasures.api.v3_0 import register_at as v3_0_register_at

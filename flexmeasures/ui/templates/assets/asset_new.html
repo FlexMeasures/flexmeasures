@@ -35,6 +35,7 @@
                             {% endfor %}
                         </div>
                     </div>
+                    {% if asset_form.account_id %}
                     <div class="form-group">
                         {{ asset_form.account_id.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">
@@ -54,6 +55,7 @@
                             {% endfor %}
                         </div>
                     </div>
+                    {% endif %}
                     <div class="form-group">
                         {{ asset_form.latitude.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">
@@ -104,7 +106,7 @@
 
     // create map
     var assetMap = L
-        .map('mapid', { center: [{{ map_center[0] }}, {{ map_center[1] }}], zoom: 10})
+        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6})
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
@@ -121,13 +123,22 @@
         popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
     });
 
+    {% if asset_form.latitude.data %}
+    // create marker for parent asset's location
+    var marker = L
+        .marker(
+            [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}],
+    { icon: location_icon }
+        ).addTo(assetMap);
+    {% else %}
     // dummy location somewhere else
-    var newMarker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    {% endif %}
 
     assetMap.on('click', function (e) {
         $("#latitude").val(e.latlng.lat.toFixed(4));
         $("#longitude").val(e.latlng.lng.toFixed(4));
-        newMarker.setLatLng(e.latlng);
+        marker.setLatLng(e.latlng);
     });
 
 </script>
