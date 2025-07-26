@@ -123,13 +123,22 @@
         popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
     });
 
+    {% if asset_form.latitude.data %}
+    // create marker for parent asset's location
+    var marker = L
+        .marker(
+            [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}],
+    { icon: location_icon }
+        ).addTo(assetMap);
+    {% else %}
     // dummy location somewhere else
-    var newMarker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    {% endif %}
 
     assetMap.on('click', function (e) {
         $("#latitude").val(e.latlng.lat.toFixed(4));
         $("#longitude").val(e.latlng.lng.toFixed(4));
-        newMarker.setLatLng(e.latlng);
+        marker.setLatLng(e.latlng);
     });
 
 </script>

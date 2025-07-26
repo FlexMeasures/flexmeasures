@@ -101,6 +101,8 @@ class AssetCrudUI(FlaskView):
 
             asset_form = NewAssetForm()
             asset_form.with_options()
+            map_center = get_center_location_of_assets(user=current_user)
+
             parent_asset_name = ""
             account = None
             if account_id:
@@ -118,6 +120,10 @@ class AssetCrudUI(FlaskView):
                                 f"The parent asset needs to be under the specified account ({parent_asset.owner.id}).",
                                 422,
                             )
+                if parent_asset.latitude and parent_asset.longitude:
+                    asset_form.latitude.data = parent_asset.latitude
+                    asset_form.longitude.data = parent_asset.longitude
+                    map_center = parent_asset.latitude, parent_asset.longitude
 
             if account and not user_can_create_assets(account=account):
                 return unauthorized_handler(None, [])
@@ -129,7 +135,7 @@ class AssetCrudUI(FlaskView):
                 "assets/asset_new.html",
                 asset_form=asset_form,
                 msg="",
-                map_center=get_center_location_of_assets(user=current_user),
+                map_center=map_center,
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 parent_asset_name=parent_asset_name,
                 parent_asset_id=parent_asset_id,
@@ -266,12 +272,16 @@ class AssetCrudUI(FlaskView):
                 # Display the errors
                 error_msg = asset_form.errors
                 msg = "Cannot create asset. " + str(error_msg)
+                if asset_form.latitude.data and asset_form.longitude.data:
+                    map_center = asset_form.latitude.data, asset_form.longitude.data
+                else:
+                    map_center = get_center_location_of_assets(user=current_user)
                 return render_flexmeasures_template(
                     "assets/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
                     parent_asset_id=asset_form.parent_asset_id.data or "",
-                    map_center=get_center_location_of_assets(user=current_user),
+                    map_center=map_center,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
 
