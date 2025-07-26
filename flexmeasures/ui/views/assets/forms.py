@@ -51,8 +51,7 @@ class AssetForm(FlaskForm):
             self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
-        if hasattr(self, "account_id") and self.account_id.data == -1:
-            del self.account_id  # asset will be public
+
         result = super().validate_on_submit()
         return result
 
@@ -128,10 +127,8 @@ class NewAssetForm(AssetForm):
     generic_asset_type_id = SelectField(
         "Asset type", coerce=int, validators=[DataRequired()]
     )
-    account_id = SelectField("Account", coerce=int)
-    parent_asset_id = IntegerField(
-        "Parent Asset Id", validators=[optional()]
-    )  # Add parent_id field
+    account_id = SelectField("Account", coerce=int, validators=[optional()])
+    parent_asset_id = IntegerField("Parent Asset Id", validators=[optional()])
 
     def set_account(self) -> tuple[Account | None, str | None]:
         """Set an account for the to-be-created asset.
@@ -139,7 +136,7 @@ class NewAssetForm(AssetForm):
 
         account_error = None
 
-        if self.account_id.data == -1:
+        if self.account_id.data == -1 or self.account_id.data is None:
             if user_has_admin_access(current_user, "update"):
                 return None, None  # Account can be None (public asset)
             else:
