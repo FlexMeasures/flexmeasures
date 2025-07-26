@@ -426,11 +426,12 @@ def test_charging_station_solver_day_2(
         flex_context={
             "ems_power_capacity_in_mw": ur.Quantity("2 MVA"),
             "consumption_price": epex_da,
+            "shared_currency_unit": "EUR",
         },
     )
-    scheduler.config_deserialized = (
-        True  # soc targets are already a DataFrame, names get underscore
-    )
+    # soc targets are already a DataFrame, names get underscore, shared currency unit is set
+    scheduler.config_deserialized = True
+
     consumption_schedule = scheduler.compute()
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
@@ -509,12 +510,13 @@ def test_fallback_to_unsolvable_problem(
         "flex_context": {
             "ems_power_capacity_in_mw": ur.Quantity(f"{capacity} MVA"),
             "consumption_price": epex_da,
+            "shared_currency_unit": "EUR",
         },
     }
     scheduler = StorageScheduler(**kwargs)
-    scheduler.config_deserialized = (
-        True  # soc targets are already a DataFrame, names get underscore
-    )
+
+    # soc targets are already a DataFrame, names get underscore, shared currency unit is set
+    scheduler.config_deserialized = True
 
     # calling the scheduler with an infeasible problem raises an Exception
     with pytest.raises(InfeasibleProblemException):
@@ -610,11 +612,12 @@ def test_building_solver_day_2(
             "inflexible_device_sensors": inflexible_devices.values(),
             "production_price": production_price_sensor,
             "consumption_price": consumption_price_sensor,
+            "shared_currency_unit": "EUR",
         },
     )
-    scheduler.config_deserialized = (
-        True  # inflexible device sensors are already objects, names get underscore
-    )
+    # inflexible device sensors are already objects, names get underscore, shared currency unit is set
+    scheduler.config_deserialized = True
+
     schedule = scheduler.compute()
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
