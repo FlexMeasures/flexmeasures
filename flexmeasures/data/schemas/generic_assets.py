@@ -161,7 +161,7 @@ class SensorKPIFieldSchema(ma.SQLAlchemySchema):
     )
 
     @validates("sensor")
-    def validate_sensor(self, value):
+    def validate_sensor(self, value, **kwargs):
         if value.event_resolution != timedelta(days=1):
             raise ValidationError(f"Sensor with ID {value} is not a daily sensor.")
         return value
