@@ -1079,7 +1079,7 @@ def train_predict_pipeline(
 
     Example:
 
-        flexmeasures add forecast \n
+        flexmeasures add forecasts \n
             --sensors '{"Heating_demand": 2092, "Ambient_temp": 2093}' \n
             --regressors Ambient_temp \n
             --target Heating_demand \n
