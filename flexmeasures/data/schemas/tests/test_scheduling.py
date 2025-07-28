@@ -517,6 +517,14 @@ def test_db_flex_context_schema(
             False,
         ),
         (
+            {"soc-minima": {"sensor": "energy-sensor"}},
+            False,
+        ),
+        (
+            {"soc-minima": {"sensor": "price-sensor"}},
+            {"soc-minima": "Cannot convert EUR/MWh to MWh"},
+        ),
+        (
             {"soc-gain": ["450 EUR/MWh", "650 EUR/MWh"]},
             {
                 "soc-gain": [
@@ -527,8 +535,21 @@ def test_db_flex_context_schema(
         ),
     ],
 )
-def test_db_flex_model_schema(db, app, flex_model, fails):
+def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
     schema = DBStorageFlexModelSchema()
+
+    sensors = {
+        "energy-sensor": setup_dummy_sensors[0],
+        "price-sensor": setup_dummy_sensors[1],
+    }
+
+    for field_name, field_value in flex_model.items():
+        if isinstance(field_value, dict) and "sensor" in field_value:
+            # Replace sensor name with sensor ID
+            flex_model[field_name]["sensor"] = sensors[
+                flex_model[field_name]["sensor"]
+            ].id
+            print("FlexModel: ", flex_model)
 
     if fails:
         with pytest.raises(ValidationError) as e_info:

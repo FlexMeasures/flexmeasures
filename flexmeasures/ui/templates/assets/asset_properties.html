@@ -134,7 +134,7 @@
                 </div>
                 {% endif %}
             </div>
-   
+
         </div>
         <div class="col-md-8">
             <div class="sensors-asset card">
@@ -348,20 +348,20 @@
             "soc-min": null,
             "soc-max": null,
             "soc-minima": null,
-            "soc-maxima": null,
-            "soc-targets": null,
-            "state-of-charge": null,
+            // "soc-maxima": null,
+            // "soc-targets": null,
+            // "state-of-charge": null,
             "soc-gain": [],
-            "soc-usage": [],
-            "roundtrip-efficiency": null,
-            "charging-efficiency": null,
-            "discharging-efficiency": null,
-            "storage-efficiency": null,
+            // "soc-usage": [],
+            // "roundtrip-efficiency": null,
+            // "charging-efficiency": null,
+            // "discharging-efficiency": null,
+            // "storage-efficiency": null,
             "prefer-charging-sooner": null,
             "prefer-curtailing-later": null,
-            "power-capacity": null,
-            "consumption-capacity": null,
-            "production-capacity": null,
+            // "power-capacity": null,
+            // "consumption-capacity": null,
+            // "production-capacity": null,
         }
 
         const FlexModelFieldValidTypes = {
@@ -415,6 +415,7 @@
             const flexmodelContainer = document.getElementById('flexmodelContainer');
             const flexInfoContainer = document.getElementById('flexInfoContainer');
             const addModelFieldbtn = document.getElementById('addModelFieldbtn');
+            const flexModelModal = document.getElementById('flexModelModal');
 
             const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, renderFlexModelForm);
             const [activeCard, setActiveCard] = createReactiveState(null);
@@ -997,8 +998,17 @@
                 }
             };
 
-            await renderFlexModelForm();
-            renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
+
+            flexModelModal.addEventListener('shown.bs.modal', function () {
+                // Initial renders
+                renderFlexModelForm(); // Initial render of flex model form
+                renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
+            });
+
+            flexModelModal.addEventListener('hidden.bs.modal', function () {
+                updateFlexModel();
+            });
+
         });
     </script>
 

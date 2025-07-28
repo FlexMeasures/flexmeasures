@@ -322,8 +322,19 @@ class DBStorageFlexModelSchema(Schema):
         value_validator=validate.Range(min=0),
     )
 
+    soc_minima = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-minima",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
     prefer_charging_sooner = fields.Bool(
         data_key="prefer-charging-sooner", load_default=True
+    )
+
+    prefer_curtailing_later = fields.Bool(
+        data_key="prefer-curtailing-later", load_default=True
     )
 
     soc_gain = fields.List(
