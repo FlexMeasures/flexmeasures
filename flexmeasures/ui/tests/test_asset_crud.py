@@ -157,11 +157,14 @@ def test_sensors_to_show_as_kpis_json(
     )
     assert response.status_code == 200
     assert b"Cannot edit asset:" in response.data
+    assert b"Invalid JSON" in response.data
 
-    # Test invalid default_function in the sensors_to_show_as_kpis
+    # Test invalid function in the sensors_to_show_as_kpis
     ma_copy = copy.deepcopy(mock_asset)
     ma_copy["sensors_to_show_as_kpis"] = json.loads(ma_copy["sensors_to_show_as_kpis"])
-    ma_copy["sensors_to_show_as_kpis"][0]["default_function"] = "not valid function"
+    ma_copy["sensors_to_show_as_kpis"][0]["function"] = "not valid function"
+    # Stringify the sensors_to_show_as_kpis
+    ma_copy["sensors_to_show_as_kpis"] = json.dumps(ma_copy["sensors_to_show_as_kpis"])
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
@@ -169,6 +172,7 @@ def test_sensors_to_show_as_kpis_json(
     )
     assert response.status_code == 200
     assert b"Cannot edit asset:" in response.data
+    assert b"Must be one of: sum, min, max, mean." in response.data
 
 
 def test_add_asset(db, client, setup_assets, requests_mock, as_admin):

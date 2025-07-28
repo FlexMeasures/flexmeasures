@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 
 
@@ -148,3 +148,24 @@ def save_to_db(
     if values_saved == 0:
         status = "success_but_nothing_new"
     return status
+
+
+def get_downsample_function_and_value(
+    kpi: dict, sensor: Sensor, sensor_stats: dict
+) -> tuple:
+    downsample_function = kpi.get("function", None)
+    if downsample_function is None:
+        if sensor.unit == "%":
+            downsample_function = "mean"
+        else:
+            downsample_function = "sum"
+    try:
+        if downsample_function == "mean":
+            downsample_value = dict(next(iter(sensor_stats.values())))["Mean value"]
+        else:
+            downsample_value = dict(next(iter(sensor_stats.values())))[
+                "Sum over values"
+            ]
+    except StopIteration:
+        downsample_value = 0
+    return downsample_function, downsample_value
