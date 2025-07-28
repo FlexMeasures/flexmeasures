@@ -166,7 +166,7 @@ def data_to_bdf(
     data : pd.DataFrame
         DataFrame containing predictions for different forecast horizons.
     horizon : int
-        Maximum forecast horizon based on sensor resolution (e.g., 48 for a 1-hour sensor or 4*48 for a 15-minute sensor).
+        Maximum forecast horizon in timesteps relative to the sensor's resolution. For example, if the sensor resolution is 1 hour, a horizon of 48 represents a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes, a horizon of 4*48 represents a forecast horizon of 48 hours.
     probabilistic : bool
         Whether the forecasts are probabilistic or deterministic.
     sensors : dict[str, int]
