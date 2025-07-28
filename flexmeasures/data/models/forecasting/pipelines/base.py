@@ -213,12 +213,12 @@ class BasePipeline:
                         self.event_ends_before, utc=True
                     ).tz_localize(None)
 
-                forecast_end = (
+                first_forecast_end = (
                     first_target_end
                     + pd.Timedelta(hours=self.max_forecast_horizon_in_hours)
                     + self.target_sensor.event_resolution
                 )
-                forecast_end = pd.to_datetime(forecast_end, utc=True).tz_localize(None)
+                first_forecast_end = pd.to_datetime(first_forecast_end, utc=True).tz_localize(None)
 
                 target_list = []
                 past_covariates_list = []
@@ -239,8 +239,10 @@ class BasePipeline:
                         / 60
                     )
 
-                    forecast_end = forecast_end + pd.Timedelta(
-                        minutes=target_sensor_resolution.total_seconds() / 60
+                    forecast_end = first_forecast_end + pd.Timedelta(
+                        minutes=index_offset
+                        * target_sensor_resolution.total_seconds()
+                        / 60
                     )
                     past_covariates, future_covariates, y_split = (
                         self._split_covariates_data(
