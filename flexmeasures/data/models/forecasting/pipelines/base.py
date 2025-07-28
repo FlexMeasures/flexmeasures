@@ -223,7 +223,7 @@ class BasePipeline:
                 target_list = []
                 past_covariates_list = []
                 future_covariates_list = []
-                target_list = []
+
                 end_for_loop = self.n_hours_to_predict if is_predict_pipeline else 1
                 belief_timestamps_list = []
 
