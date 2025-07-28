@@ -643,7 +643,9 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
-                getAssetKPIs();
+                {% if active_subpage == "asset_graph" %}
+                    getAssetKPIs();
+                {% endif %}
                 const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
                     method: "GET",
                     headers: {"Content-Type": "application/json"},
