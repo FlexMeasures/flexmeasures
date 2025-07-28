@@ -315,6 +315,13 @@ class DBStorageFlexModelSchema(Schema):
         value_validator=validate.Range(min=0),
     )
 
+    soc_max = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-max",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
     prefer_charging_sooner = fields.Bool(
         data_key="prefer-charging-sooner", load_default=True
     )

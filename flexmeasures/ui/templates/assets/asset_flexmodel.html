@@ -44,8 +44,7 @@
                                     </select>
                                 </div>
                                 <div class="col-2 p-0">
-                                    <button class="btn btn-secondary btn-md" onclick="addFlexModelField()">Add
-                                        Field</button>
+                                    <button id="addModelFieldbtn" class="btn btn-secondary btn-md">Add Field</button>
                                 </div>
                             </div>
 
@@ -156,6 +155,7 @@
         const flexOptionsContainer = document.getElementById('flexOptionsContainer');
         const flexmodelContainer = document.getElementById('flexmodelContainer');
         const flexInfoContainer = document.getElementById('flexInfoContainer');
+        const addModelFieldbtn = document.getElementById('addModelFieldbtn');
 
         const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, renderFlexModelForm);
         const [activeCard, setActiveCard] = createReactiveState(null);
@@ -189,6 +189,28 @@
             });
         }
 
+        addModelFieldbtn.onclick = async function () {
+            const flexSelect = document.getElementById('flexSelect');
+            const fieldName = flexSelect.value; // value from the select dropdown
+            if (fieldName === "blank") {
+                showToast("Please select a field to add", "error");
+                return;
+            }
+
+            if (getFlexModel()[fieldName] !== undefined && getFlexModel()[fieldName] !== null) {
+                showToast(`Field "${getFlexFieldTitle(fieldName)}" already exists`, "error");
+                return;
+            }
+
+            // Initialize the field with an empty value or an empty array
+            const currentFlexmodel = getFlexModel()
+            currentFlexmodel[fieldName] = "default value";
+            setFlexModel(currentFlexmodel)
+
+            const card = document.getElementById(`${fieldName}-control`);
+            setActiveCard(card);
+        }
+
         function setCardSensor(sensorId) {
             if (!activeCard()) {
                 showToast("Please select a field to set a sensor", "info");
@@ -210,7 +232,6 @@
                 const value = flexModel[name];
                 flexModel[name] = { "sensor": sensorId };
             }
-
 
             setFlexModel(flexModel);
         }
@@ -314,19 +335,6 @@
             } else {
                 flexInfoContainer.innerHTML = "";
             }
-        }
-
-        async function addFlexContextField() {
-            const fieldName = flexSelect.value; // value from the select dropdown
-            if (fieldName === "blank") {
-                showToast("Please select a field to add", "error");
-                return;
-            }
-            assetFlexContext[fieldName] = "";
-            flexOptionsContainer.innerHTML = "";
-            await renderFlexModelForm(); // rendering here so the card with the 'border-on-click' class is updated/exists
-            const card = document.getElementById(`${fieldName}-control`);
-            selectFlexField(card);
         }
 
         async function renderCarouselCards(fieldName, cardValues) {
@@ -715,20 +723,23 @@
         async function renderFlexModelForm() {
             flexOptionsContainer.innerHTML = "";
             flexmodelContainer.innerHTML = "";
+
             const assetFlexModel = getFlexModel();
             for (const [key, value] of Object.entries(assetFlexModel)) {
-                if (value !== null) {
-                    if (Array.isArray(value) && value.length > 0) {
-                        const card = await renderFlexModelFieldCard(key, value);
-                    } else if (!Array.isArray(value)) {
-                        const card = await renderFlexModelFieldCard(key, value);
+                if (value !== null && (!Array.isArray(value) || value.length > 0)) {
+                    const card = await renderFlexModelFieldCard(key, value);
+                } else if (value === "default value") {
+                    if (FlexModelFieldValidTypes[key].includes(Array)) {
+                        const card = await renderFlexModelFieldCard(key, []);
+                    } else {
+                        const card = await renderFlexModelFieldCard(key, null);
                     }
                 }
             }
         };
 
+        await renderFlexModelForm();
         renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
-        renderFlexModelForm();
     });
 </script>
 
