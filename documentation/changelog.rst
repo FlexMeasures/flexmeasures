@@ -6,8 +6,13 @@ FlexMeasures Changelog
 v0.28.0 | September XX, 2025
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+
 New features
 -------------
+
+* Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_ and `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_]
 
 Infrastructure / Support
 ----------------------
@@ -22,13 +27,8 @@ Bugfixes
 v0.27.1 | July XX, 2025
 ============================
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-
-
 New features
 -------------
-
-* Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_ and `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_]
 
 Bugfixes
 -----------
