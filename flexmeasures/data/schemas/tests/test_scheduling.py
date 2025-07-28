@@ -277,15 +277,46 @@ def test_efficiency_pair(
                 "site-consumption-breach-price": "Segments of a time series must share the same unit."
             },
         ),
+        (
+            {
+                "site-consumption-breach-price": "450 AUD/MW",
+                "relax-site-capacity-constraints": True,
+            },
+            False,
+        ),
+        (
+            {
+                "consumption-price": {"sensor": "consumption-price in SEK/kWh"},
+                "production-price": {"sensor": "production-price in SEK/kWh"},
+            },
+            False,
+        ),
+        (
+            {
+                "consumption-price": {"sensor": "consumption-price in SEK/MWh"},
+                "production-price": {"sensor": "production-price in SEK/MWh"},
+            },
+            False,
+        ),
+        (
+            {
+                "consumption-price": {"sensor": "consumption-price in SEK/kWh"},
+                "production-price": {"sensor": "production-price in SEK/MWh"},
+            },
+            False,
+        ),
     ],
 )
-def test_flex_context_schema(db, app, setup_site_capacity_sensor, flex_context, fails):
+def test_flex_context_schema(
+    db, app, setup_site_capacity_sensor, setup_price_sensors, flex_context, fails
+):
     schema = FlexContextSchema()
 
     # Replace sensor name with sensor ID
+    sensors_to_pick_from = {**setup_site_capacity_sensor, **setup_price_sensors}
     for field_name, field_value in flex_context.items():
         if isinstance(field_value, dict):
-            flex_context[field_name]["sensor"] = setup_site_capacity_sensor[
+            flex_context[field_name]["sensor"] = sensors_to_pick_from[
                 field_value["sensor"]
             ].id
 

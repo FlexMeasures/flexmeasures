@@ -89,6 +89,11 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
+                    {% if user_can_create_children %}
+                        <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
+                            <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
+                        </button>
+                    {% endif %}
                     <table id="modalTable" class="table table-bordered">
                         <thead id="modalTableHead"></thead>
                         <tbody id="modalTableBody"></tbody>

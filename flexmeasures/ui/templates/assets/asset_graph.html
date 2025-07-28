@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% set active_page = "assets" %}
+{% set active_subpage = "asset_graph" %}
 
 {% block title %} {{asset.name}} {% endblock %}
 
@@ -16,9 +17,9 @@
             <div class="header-action-button">
                 <div>
                     <button class="btn btn-primary" type="button" data-bs-toggle="modal"
-                                        data-bs-target="#sensorsToShowModal">
-                                        Edit Graphs
-                                    </button>
+                        data-bs-target="#sensorsToShowModal">
+                        Edit Graphs
+                    </button>
                 </div>
             </div>
             <div class="sidepanel-container ">
@@ -69,6 +70,24 @@
                 <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                 <span class="sr-only">Loading...</span>
             </div>
+            {% if has_kpis %}
+            <div class="row">
+                <div class="col-md-12">
+                    <div id="kpi-cards" class="row">
+                        {% for kpi in asset_kpis %}
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ kpi.title }}</h5>
+                                    <p class="card-text">Loading...</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             <div id="sensorchart" class="card" style="width: 100%;"></div>
             <div class="row">
                 <div class="copy-url" title="Click to copy the URL to the current time range to clipboard.">
@@ -91,16 +110,17 @@
                         }
 
                         $(window).ready(() => {
-                            picker.on('selected', (startDate, endDate) => {
-                                startDate = encodeURIComponent(toIsoString(startDate.toJSDate()));
-                                endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
-                                var base_url = window.location.href.split("?")[0];
-                                var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
+                            if (picker) {
+                                picker.on('selected', (startDate, endDate) => {
+                                    startDate = encodeURIComponent(toIsoString(startDate.toJSDate()));
+                                    endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
+                                    var base_url = window.location.href.split("?")[0];
+                                    var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
 
-                                // change current url without reloading the page
-                                window.history.pushState({}, null, new_url);
-                            });
-
+                                    // change current url without reloading the page
+                                    window.history.pushState({}, null, new_url);
+                                });
+                            }
                         });
 
                         function copyUrl(event) {
@@ -280,9 +300,8 @@
 {% block leftsidepanel %} {{ super() }} {% endblock %}
 {% block sensorChartSetup %} {{ super() }} {% endblock %}
 
-<!-- Initialise the map -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
-<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+<!-- Graph editing support -->
 <script>
     const senSearchResEle = document.getElementById("sensorsSearchResults")
 
@@ -819,6 +838,7 @@
             renderApiSensors([], undefined);
         }
     });
+
 
     // ============== Page Events ============== //
 </script>

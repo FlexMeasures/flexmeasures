@@ -8,11 +8,11 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    name: Check (on Python 3.9)
+    name: Check (on Python 3.11)
     steps:
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: 3.11
       - uses: actions/checkout@v3
       - uses: pre-commit/action@v3.0.0
 
@@ -24,7 +24,7 @@ jobs:
       matrix:
         py_version: [ "3.9", "3.10", "3.11", "3.12" ]
         include:
-          - python-version: "3.9"
+          - python-version: "3.11"
             coverage: yes
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:

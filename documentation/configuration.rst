@@ -92,12 +92,6 @@ Default: ``[]``
 .. note:: This setting is also recognized as environment variable (since v0.14, which is also the version required to pass this setting as a string).
 
 
-FLEXMEASURES_DB_BACKUP_PATH
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Relative path to the folder where database backups are stored if that feature is being used.
-
-Default: ``"migrations/dumps"``
 
 FLEXMEASURES_PROFILE_REQUESTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

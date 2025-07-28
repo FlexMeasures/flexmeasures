@@ -246,7 +246,7 @@ class StorageFlexModelSchema(Schema):
 
     @validates("state_of_charge")
     def validate_state_of_charge_is_sensor(
-        self, state_of_charge: Sensor | list[dict] | ur.Quantity
+        self, state_of_charge: Sensor | list[dict] | ur.Quantity, **kwargs
     ):
         if not isinstance(state_of_charge, Sensor):
             raise ValidationError(
@@ -259,7 +259,9 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates("storage_efficiency")
-    def validate_storage_efficiency_resolution(self, unit: Sensor | ur.Quantity):
+    def validate_storage_efficiency_resolution(
+        self, unit: Sensor | ur.Quantity, **kwargs
+    ):
         if (
             isinstance(unit, Sensor)
             and unit.event_resolution != self.sensor.event_resolution

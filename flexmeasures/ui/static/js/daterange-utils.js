@@ -183,3 +183,44 @@ export function computeSimulationRanges(startDate, endDate, minRes = "hour") {
         throw new Error(`Unsupported minimum resolution: ${minRes}`);
     }
 }
+
+/**
+ * Takes a Date object and returns an ISO string with the timezone offset appended
+ * @param {Date} date - The date to format
+ * @returns {string} An ISO string with the timezone offset appended, e.g. "2022-08-23T15:04:05.000+02:00"
+ */
+export function toIsoStringWithOffset(date) {
+    const offset = date.getTimezoneOffset();
+
+    const offsetHours = Math.floor(Math.abs(offset) / 60);
+    const offsetMinutes = Math.abs(offset) % 60;
+
+    const isoString = date.toISOString();
+    
+    const formattedIsoString = isoString.replace('Z', 
+        `${(offset <= 0 ? '+' : '-')}${String(offsetHours).padStart(2, '0')}:${String(offsetMinutes).padStart(2, '0')}`);
+    
+    return formattedIsoString;
+}
+
+/**
+ * Encode the query string of a relative URL to ensure proper URL encoding of special characters.
+ *
+ * This function preserves the base path and re-encodes the query string using URLSearchParams.
+ * It ensures that characters like `+` (often mistakenly interpreted as spaces in form submissions)
+ * are correctly encoded as `%2B`, along with other special characters like `:` and `&`.
+ *
+ * For example:
+ *   Input:  "path?date=2025-06-16T00:00:00+02:00"
+ *   Output: "path?date=2025-06-16T00%3A00%3A00%2B02%3A00"
+ *
+ * @param {string} rawUrl - A relative URL (e.g., "path?foo=bar&date=...").
+ * @returns {string} The same URL with the query string safely encoded.
+ */
+export function encodeUrlQuery(rawUrl) {
+    const [path, query] = rawUrl.split("?");
+    if (!query) return rawUrl;  // No query to encode
+
+    const params = new URLSearchParams(query);
+    return `${path}?${params.toString()}`;
+}

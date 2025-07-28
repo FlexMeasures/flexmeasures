@@ -86,12 +86,12 @@ def upgrade():
         """
 
         # Start by restoring the backup that might have been made in the downgrade of this migration
-        asset.flex_model = asset.attributes.pop("flex-model", {})
+        asset_flex_model = asset.attributes.pop("flex-model", {})
 
         # Pop all the relevant fields from the asset's attributes
         for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
             if old_value := asset.attributes.pop(old_field_name, None) is not None:
-                asset.flex_model[new_field_name] = upgrade_value(
+                asset_flex_model[new_field_name] = upgrade_value(
                     old_field_name, old_value, asset=asset
                 )
 
@@ -102,8 +102,8 @@ def upgrade():
                 if old_value := sensor.attributes.pop(old_field_name, None) is not None:
                     new_value = upgrade_value(old_field_name, old_value, sensor=sensor)
                     if new_field_name not in asset.flex_model:
-                        asset.flex_model[new_field_name] = new_value
-                    elif new_value != asset.flex_model[new_field_name]:
+                        asset_flex_model[new_field_name] = new_value
+                    elif new_value != asset_flex_model[new_field_name]:
                         # Check for ambiguous values
                         raise Exception(
                             f"Value mismatch for '{old_field_name}' in sensor {sensor.id}: sensor={new_value}, asset={asset.flex_model[new_field_name]}. "
@@ -123,7 +123,7 @@ def upgrade():
             asset_table.update()
             .where(asset_table.c.id == sa.literal(asset.id))
             .values(
-                flex_model=asset.flex_model,
+                flex_model=asset_flex_model,
                 attributes=asset.attributes,
             )
         )
@@ -191,8 +191,8 @@ def downgrade():
             )
             conn.execute(stmt)
 
-        with op.batch_alter_table("generic_asset", schema=None) as batch_op:
-            batch_op.drop_column("flex_model")
+    with op.batch_alter_table("generic_asset", schema=None) as batch_op:
+        batch_op.drop_column("flex_model")
 
 
 def upgrade_value(
