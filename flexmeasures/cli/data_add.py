@@ -40,7 +40,6 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
-from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
@@ -64,6 +63,7 @@ from flexmeasures.data.schemas import (
     TimeIntervalField,
     VariableQuantityField,
 )
+from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSchema
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
@@ -89,6 +89,9 @@ from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from timely_beliefs import BeliefsDataFrame
+from flexmeasures.data.models.forecasting.pipelines.train_predict import (
+    TrainPredictPipeline,
+)
 
 
 @click.group("add")
@@ -993,43 +996,72 @@ def add_holidays(
     )
 
 
-@fm_add_data.command("forecasts", cls=DeprecatedOptionsCommand)
-@with_appcontext
+@fm_add_data.command("forecasts")
 @click.option(
-    "--sensor",
-    "--sensor-id",
-    "sensor_ids",
-    multiple=True,
+    "--sensors",
     required=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
-    help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
+    help='JSON string of sensor names and IDs, e.g., \'{"Heating_demand": 2092, "Ambient_temp": 2093}\'',
 )
 @click.option(
-    "--from-date",
-    "from_date_str",
-    default="2015-02-08",
-    help="Forecast from date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
+    "--regressors",
+    help="Comma-separated list of the sensor names to be used as regressors, default is 'autoregressive' to use the AR forecasting",
 )
 @click.option(
-    "--to-date",
-    "to_date_str",
-    default="2015-12-31",
-    help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
+    "--future-regressors",
+    help="Comma-separated list of the sensor names to be used as future regressors. future regressors need to be included in '--regressors' too. To set past regressors, use just the '--regressors' option .",
+)
+@click.option("--target", required=True, help="Name of the target sensor")
+@click.option(
+    "--start-date",
+    required=True,
+    help="Start date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM)",
 )
 @click.option(
-    "--resolution",
+    "--end-date",
+    required=True,
+    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM)",
+)
+@click.option(
+    "--train-period",
+    required=False,
+    type=click.IntRange(min=2),
+    help="Duration of the initial training period in days (minimum of 2). "
+    "After each forecast period, each next cycle will increase the training period by the forecast period. "
+    "If not set, derives a training period from --start-predict-date instead. "
+    "If that is also not set, defaults to 2 days.",
+)
+@click.option(
+    "--predict-period", required=False, help="Prediction period in days"
+)  # todo: iso durations
+@click.option(
+    "--start-predict-date",
+    default=None,
+    required=False,
+    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM)",
+)
+@click.option(
+    "--max-forecast-horizon", required=False, help="Maximum forecast horizon in hours"
+)
+@click.option(
+    "--forecast-frequency",
     type=int,
-    help="Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
+    help="Forecast frequency in hours, i.e. how often to recompute forecasts.",
 )
 @click.option(
-    "--horizon",
-    "horizons_as_hours",
-    multiple=True,
-    type=click.Choice(["1", "6", "24", "48"]),
-    default=["1", "6", "24", "48"],
-    help="Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
+    "--model-save-dir",
+    default="flexmeasures/data/models/forecasting/artifacts/models",
+    help="Directory to save the trained model",
+)
+@click.option(
+    "--output-path",
+    help="Directory to save prediction outputs",
+)
+@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions")
+@click.option(
+    "--sensor-to-save",
+    default=None,
+    type=SensorIdField(),
+    help="Sensor ID to save the predictions into.",
 )
 @click.option(
     "--as-job",
@@ -1037,69 +1069,48 @@ def add_holidays(
     help="Whether to queue a forecasting job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
-def create_forecasts(
-    sensor_ids: list[int],
-    from_date_str: str = "2015-02-08",
-    to_date_str: str = "2015-12-31",
-    horizons_as_hours: list[str] = ["1"],
-    resolution: int | None = None,
-    as_job: bool = False,
+@with_appcontext
+def train_predict_pipeline(
+    as_job,
+    **kwargs,
 ):
     """
-    Create forecasts.
+    Generate forecasts for a target sensor.
 
-    For example:
+    Example:
 
-        --from-date 2015-02-02 --to-date 2015-02-04 --horizon 6 --sensor 12 --sensor 14
+        flexmeasures add forecast \n
+            --sensors '{"Heating_demand": 2092, "Ambient_temp": 2093}' \n
+            --regressors Ambient_temp \n
+            --target Heating_demand \n
+            --start-date 2023-01-01T00:00:00+01:00 \n
+            --end-date 2023-01-15T00:00:00+01:00 \n
+            --train-period 5 \n
+            --predict-period 7 \n
+            --forecast-frequency 6 \n
+            --max-forecast-horizon 48 \n
+            --as-job
 
-        This will create forecast values from 0am on May 2nd to 0am on May 5th,
-        based on a 6-hour horizon, for sensors 12 and 14.
+    This will:
+    - Generate forecasts 48 hour forecasts each 6 hours for the next 7 days starting from 2023-01-06T00:00:00+01:00.
+    - Enqueue the forecasting jobs to be run on forecasting queues.
+    - Use Ambient_temp as a regressor for Heating_demand.
+    Notes:
 
+    - Use `--start-predict-date` or `--start-train-date`  to explicitly separate training and prediction periods.
+    - Use `--sensor-to-save` to save forecasts into a specific sensor by default forecasts are saved on the target sensor.
     """
-    # make horizons
-    horizons = [timedelta(hours=int(h)) for h in horizons_as_hours]
 
-    # apply timezone and set forecast_end to be an inclusive version of to_date
-    timezone = app.config.get("FLEXMEASURES_TIMEZONE")
-    forecast_start = pd.Timestamp(from_date_str).tz_localize(timezone)
-    forecast_end = (pd.Timestamp(to_date_str) + pd.Timedelta("1D")).tz_localize(
-        timezone
-    )
+    # Load input by passing it through our Marshmallow schema
+    kwargs = ForecastingPipelineSchema().load(kwargs)
 
-    event_resolution: timedelta | None
-    if resolution is not None:
-        event_resolution = timedelta(minutes=resolution)
-    else:
-        event_resolution = None
+    try:
+        pipeline = TrainPredictPipeline(**kwargs)
+        pipeline.run(as_job=as_job)
 
-    if as_job:
-        num_jobs = 0
-        for sensor_id in sensor_ids:
-            for horizon in horizons:
-                # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
-                # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
-                jobs = create_forecasting_jobs(
-                    sensor_id=sensor_id,
-                    horizons=[horizon],
-                    start_of_roll=forecast_start - horizon,
-                    end_of_roll=forecast_end - horizon,
-                )
-                num_jobs += len(jobs)
-        click.secho(
-            f"{num_jobs} new forecasting job(s) added to the queue.",
-            **MsgStyle.SUCCESS,
-        )
-    else:
-        from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
-
-        populate_time_series_forecasts(  # this function reports its own output
-            db=app.db,
-            sensor_ids=sensor_ids,
-            horizons=horizons,
-            forecast_start=forecast_start,
-            forecast_end=forecast_end,
-            event_resolution=event_resolution,
-        )
+    except Exception as e:
+        click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
+        raise
 
 
 # todo: repurpose `flexmeasures add schedule` (deprecated since v0.12),
