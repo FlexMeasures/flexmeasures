@@ -15,8 +15,9 @@ from copy import deepcopy
 from traceback import print_tb
 
 
-from flask import current_app
 import click
+from flask import current_app
+from isodate import duration_isoformat
 from rq import get_current_job, Callback
 from rq.exceptions import InvalidJobOperation
 from rq.job import Job
@@ -262,13 +263,22 @@ def create_scheduling_job(
     job.meta["asset_or_sensor"] = asset_or_sensor
     job.meta["scheduler_kwargs"] = scheduler_kwargs
 
-    # Serialize start and end
+    # Serialize start, end, resolution and belief_time
     job.meta["scheduler_kwargs"]["start"] = job.meta["scheduler_kwargs"][
         "start"
     ].isoformat()
     job.meta["scheduler_kwargs"]["end"] = job.meta["scheduler_kwargs"][
         "end"
     ].isoformat()
+    if job.meta.get("belief_time") is not None:
+        job.meta["scheduler_kwargs"]["belief_time"] = job.meta["scheduler_kwargs"][
+            "belief_time"
+        ].isoformat()
+
+    if job.meta.get("resolution") is not None:
+        job.meta["scheduler_kwargs"]["resolution"] = duration_isoformat(
+            job.meta["scheduler_kwargs"]["resolution"]
+        )
 
     job.save_meta()
 
