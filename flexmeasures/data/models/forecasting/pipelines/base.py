@@ -103,13 +103,15 @@ class BasePipeline:
                         ["forecaster"] if name in self.target else []
                     ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
                 )
-
-                # Custom resample
-                df = tb_utils.replace_multi_index_level(
-                    df,
-                    "event_start",
-                    df.event_starts.floor(self.target_sensor.event_resolution),
-                )
+                try:
+                    # Custom resample
+                    df = tb_utils.replace_multi_index_level(
+                        df,
+                        "event_start",
+                        df.event_starts.floor(self.target_sensor.event_resolution),
+                    )
+                except Exception as e:
+                    logging.warning(f"Error during custom resample for {name}: {e}")
 
                 df = df.reset_index()
                 df[["event_start", "belief_time", "source", name]] = df[
