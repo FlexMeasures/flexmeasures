@@ -17,6 +17,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix editing of public assets in the UI [see `PR #1636 <https://www.github.com/FlexMeasures/flexmeasures/pull/1636>`_]
 
 
 v0.27.1 | July XX, 2025
