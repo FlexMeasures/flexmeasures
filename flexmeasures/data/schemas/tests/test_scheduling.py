@@ -541,6 +541,7 @@ def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
     sensors = {
         "energy-sensor": setup_dummy_sensors[0],
         "price-sensor": setup_dummy_sensors[1],
+        "power-sensor": setup_dummy_sensors[3],
     }
 
     for field_name, field_value in flex_model.items():
