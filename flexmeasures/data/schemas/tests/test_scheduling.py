@@ -97,7 +97,7 @@ def test_soc_value_field(timing_input, expected_start, expected_end):
 
 
 def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):
-    sensor1, _ = setup_dummy_sensors
+    sensor1, _, _, _ = setup_dummy_sensors
 
     schema = ProcessSchedulerFlexModelSchema(
         sensor=sensor1,
@@ -119,7 +119,7 @@ def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):
 
 
 def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors):
-    sensor1, _ = setup_dummy_sensors
+    sensor1, _, _, _ = setup_dummy_sensors
 
     # checking default
 
@@ -195,7 +195,7 @@ def test_efficiency_pair(
     or by the (dis)charging efficiency fields.
     """
 
-    sensor1, _ = setup_dummy_sensors
+    sensor1, _, _, _ = setup_dummy_sensors
 
     schema = StorageFlexModelSchema(
         sensor=sensor1,
@@ -533,6 +533,10 @@ def test_db_flex_context_schema(
                 ]
             },
         ),
+        (
+            {"soc-usage": ["3500 kW", {"sensor": "power-sensor"}]},
+            False,
+        ),
     ],
 )
 def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
@@ -550,7 +554,12 @@ def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
             flex_model[field_name]["sensor"] = sensors[
                 flex_model[field_name]["sensor"]
             ].id
-            print("FlexModel: ", flex_model)
+        if isinstance(field_value, list):
+            # Replace sensor names in lists with sensor IDs
+            flex_model[field_name] = [
+                {"sensor": sensors[item["sensor"]].id} if "sensor" in item else item
+                for item in field_value
+            ]
 
     if fails:
         with pytest.raises(ValidationError) as e_info:

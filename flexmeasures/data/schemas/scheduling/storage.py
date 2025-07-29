@@ -344,6 +344,13 @@ class DBStorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
     )
 
+    soc_usage = fields.List(
+        VariableQuantityField("MW"),
+        data_key="soc-usage",
+        required=False,
+        validate=validate.Length(min=1),
+    )
+
     mapped_schema_keys: dict
 
     def __init__(self, *args, **kwargs):
