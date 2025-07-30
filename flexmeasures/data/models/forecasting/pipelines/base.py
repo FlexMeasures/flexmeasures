@@ -82,9 +82,8 @@ class BasePipeline:
 
                 sensor = db.session.get(Sensor, sensor_id)
                 sensor_event_ends_before = self.event_ends_before
-                sensor_event_starts_after = self.event_starts_after  # - pd.Timedelta(
-                #     hours=self.target_sensor.event_resolution.total_seconds() / 3600
-                # )
+                sensor_event_starts_after = self.event_starts_after
+
                 most_recent_beliefs_only = True
                 # Extend time range for future regressors
                 if name in self.future_regressors:
@@ -97,7 +96,6 @@ class BasePipeline:
                 df = sensor.search_beliefs(
                     event_starts_after=sensor_event_starts_after,
                     event_ends_before=sensor_event_ends_before,
-                    # resolution=self.target_sensor.event_resolution,  # we do a custom resample below
                     most_recent_beliefs_only=most_recent_beliefs_only,
                     exclude_source_types=(
                         ["forecaster"] if name in self.target else []
@@ -120,9 +118,6 @@ class BasePipeline:
                 df_filtered = df[["event_start", "belief_time", "source", name]]
 
                 sensor_dfs.append(df_filtered)
-                logging.debug("event_start: ", sensor_event_starts_after)
-                logging.debug("event_end: ", sensor_event_ends_before)
-                logging.debug(f"{name}: {df_filtered}")
 
             if len(sensor_dfs) == 1:
                 data_pd = sensor_dfs[0]
@@ -147,7 +142,7 @@ class BasePipeline:
             data_pd["belief_time"] = pd.to_datetime(
                 data_pd["belief_time"], utc=True
             ).dt.tz_localize(None)
-            logging.debug(data_pd)
+
             return data_pd
 
         except Exception as e:
@@ -398,9 +393,7 @@ class BasePipeline:
             start = start.tz_localize(None)
             end = end.tz_localize(None)
             # last event_start in sensor df is end - event_resolution
-            last_event_start = end  # - pd.Timedelta(
-            #     hours=self.target_sensor.event_resolution.total_seconds() / 3600
-            # )
+            last_event_start = end
 
             # Ensure the first and last event_starts match the expected dates specified in the CLI arguments
             # Add start time if missing
