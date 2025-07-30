@@ -1031,7 +1031,9 @@ def add_holidays(
     "If that is also not set, defaults to 2 days.",
 )
 @click.option(
-    "--predict-period", required=False, help="Prediction period in days"
+    "--predict-period",
+    required=False,
+    help="Number of days to predict into the future in each cycle. After each cycle, the prediction window will move forward by this number of days."
 )  # todo: iso durations
 @click.option(
     "--start-predict-date",
