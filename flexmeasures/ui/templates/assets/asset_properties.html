@@ -138,7 +138,14 @@
         </div>
         <div class="col-md-8">
             <div class="sensors-asset card">
-                <h3>Asset Properties - {{ asset.name }}</h3>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3>Asset Properties - {{ asset.name }}</h3>
+
+                    <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal" data-bs-target="#flexModelModal">
+                        Edit Flex Model
+                    </a>
+                </div>
                 <div class="row">
                     <div class="col-md-7">
                         <table class="table table-striped table-responsive">
@@ -171,13 +178,16 @@
             </div>
 
             <div class="sensors-asset card">
-                <h3>All sensors for {{ asset.name }}
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3>All sensors for {{ asset.name }}</h3>
+
                     {% if user_can_create_children %}
-                    <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
-                        <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
-                    </button>
+                    <a href="/assets/{{asset.id}}/sensors/new"
+                        class="btn bg-primary-custom text-decoration-none text-light">
+                        Create sensor
+                    </a>
                     {% endif %}
-                </h3>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
                     </table>
@@ -185,13 +195,15 @@
             </div>
 
             <div class="sensors-asset card">
-                <h3>All child assets for {{ asset.name }}
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3>All child assets for {{ asset.name }} </h3>
                     {% if user_can_create_assets %}
-                    <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
-                        <a href="/assets/new?parent_asset_id={{asset.id}}">Create asset</a>
-                    </button>
+                    <a href="/assets/new?parent_asset_id={{asset.id}}" class="btn bg-primary-custom text-decoration-none text-light"
+                        style="float:right;">
+                        Create asset
+                    </a>
                     {% endif %}
-                </h3>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
                         <thead>
@@ -247,11 +259,7 @@
             </div>
         </div>
         <div class="col-md-2">
-            <div class="header-action-button mt-2">
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#flexModelModal">
-                    Edit Flex Model
-                </button>
-            </div>
+
         </div>
     </div>
 
@@ -270,26 +278,26 @@
                             <div>
                                 <strong>Help</strong>
                                 <p class="mb-2 pt-2">
-                                    <p>
-                                        Here, you can edit the flexibility model for this asset. This describes what
+                                <p>
+                                    Here, you can edit the flexibility model for this asset. This describes what
                                     schedulers need to take into account when optimizing what this asset should do. This
                                     includes constraints, set points, or efficiency parameters, but also additional
                                     information like where to look up relevant data (e.g. usage). You can read more in
                                     the documentation.
-                                    </p>
+                                </p>
 
-                                    <p>
-                                          These fields can also be sent via the API to FlexMeasures, but setting them here
+                                <p>
+                                    These fields can also be sent via the API to FlexMeasures, but setting them here
                                     permanently might be more convenient. Some fields can point to sensors, so they will
                                     always represent the dynamics of the asset's environment (as long as that sensor has
                                     current data).
-                                    </p>
-                                  
-                                   <p>
-                                     To add a field, choose it from the dropdown menu in the top right corner, then click
+                                </p>
+
+                                <p>
+                                    To add a field, choose it from the dropdown menu in the top right corner, then click
                                     the "Add Field" button'. Set a value in the right panel, using the provided form to
                                     set the field's value.
-                                   </p>
+                                </p>
                                 </p>
                             </div>
                         </div>
