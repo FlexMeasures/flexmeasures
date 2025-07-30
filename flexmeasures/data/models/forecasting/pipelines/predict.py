@@ -308,8 +308,7 @@ class PredictPipeline(BasePipeline):
                 belief_timestamps_list,
             )
             logging.debug("Predictions ready to be saved")
-            if self.output_path is not None:
-                self.save_results_to_CSV(df_pred)
+
             bdf = data_to_bdf(
                 data=df_pred,
                 horizon=self.max_forecast_horizon,
@@ -319,6 +318,9 @@ class PredictPipeline(BasePipeline):
                 sensor_to_save=self.sensor_to_save,
                 regressors=self.regressors,
             )
+            if self.output_path is not None:
+                self.save_results_to_CSV(bdf)
+
             save_to_db(
                 bdf, save_changed_beliefs_only=False
             )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
