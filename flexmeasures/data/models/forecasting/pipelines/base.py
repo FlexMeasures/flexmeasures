@@ -215,7 +215,9 @@ class BasePipeline:
                     + pd.Timedelta(hours=self.max_forecast_horizon_in_hours)
                     + self.target_sensor.event_resolution
                 )
-                first_forecast_end = pd.to_datetime(first_forecast_end, utc=True).tz_localize(None)
+                first_forecast_end = pd.to_datetime(
+                    first_forecast_end, utc=True
+                ).tz_localize(None)
 
                 target_list = []
                 past_covariates_list = []
