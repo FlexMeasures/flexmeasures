@@ -162,6 +162,10 @@ def get_downsample_function_and_value(
     try:
         if downsample_function == "mean":
             downsample_value = dict(next(iter(sensor_stats.values())))["Mean value"]
+        elif downsample_function == "max":
+            downsample_value = dict(next(iter(sensor_stats.values())))["Max value"]
+        elif downsample_function == "min":
+            downsample_value = dict(next(iter(sensor_stats.values())))["Min value"]
         else:
             downsample_value = dict(next(iter(sensor_stats.values())))[
                 "Sum over values"
