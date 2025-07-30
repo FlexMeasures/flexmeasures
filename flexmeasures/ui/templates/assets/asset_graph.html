@@ -300,9 +300,8 @@
 {% block leftsidepanel %} {{ super() }} {% endblock %}
 {% block sensorChartSetup %} {{ super() }} {% endblock %}
 
-<!-- Initialise the map -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
-<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+<!-- Graph editing support -->
 <script>
     const senSearchResEle = document.getElementById("sensorsSearchResults")
 
