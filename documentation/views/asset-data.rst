@@ -56,6 +56,17 @@ Per asset, you can set fields in :ref:`the flex-context <flex_context>`, which w
 
 |
 
+Editing an asset's flex-model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Per asset, you can set fields in :ref:`the flex-model <flex_model>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
+    :align: center
+..    :scale: 40%
+
+|
+
 Flex context overview
 """""""""""""""""""""""
 
