@@ -260,7 +260,40 @@
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Edit Asset's FlexModel</h5>
+                    <h5 class="modal-title pe-2">Edit Asset's FlexModel</h5>
+                    <div class="dropdown" data-bs-auto-close="outside">
+                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
+                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+
+                        <div class="dropdown-menu p-3" style="width: 400px;">
+                            <div>
+                                <strong>Help</strong>
+                                <p class="mb-2 pt-2">
+                                    <p>
+                                        Here, you can edit the flexibility model for this asset. This describes what
+                                    schedulers need to take into account when optimizing what this asset should do. This
+                                    includes constraints, set points, or efficiency parameters, but also additional
+                                    information like where to look up relevant data (e.g. usage). You can read more in
+                                    the documentation.
+                                    </p>
+
+                                    <p>
+                                          These fields can also be sent via the API to FlexMeasures, but setting them here
+                                    permanently might be more convenient. Some fields can point to sensors, so they will
+                                    always represent the dynamics of the asset's environment (as long as that sensor has
+                                    current data).
+                                    </p>
+                                  
+                                   <p>
+                                     To add a field, choose it from the dropdown menu in the top right corner, then click
+                                    the "Add Field" button'. Set a value in the right panel, using the provided form to
+                                    set the field's value.
+                                   </p>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="px-2 pt-3 pb-2">
