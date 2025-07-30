@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+import os
+import click
+import json
+
+from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
+
+from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.utils.time_utils import server_now
+
+
+class ForecastingPipelineSchema(Schema):
+
+    sensors = fields.Str(
+        required=True
+    )  # expects JSON string like '{"target": 123, "Ta": 456}'
+    regressors = fields.Str(
+        required=False, allow_none=True
+    )  # expects comma-separated string like "target,Ta"
+    future_regressors = fields.Str(
+        required=False, allow_none=True
+    )  # expects comma-separated string
+    target = fields.Str(required=True)
+    model_save_dir = fields.Str(required=True)
+    output_path = fields.Str(required=False, allow_none=True)
+    start_date = AwareDateTimeField(required=True)
+    end_date = AwareDateTimeField(required=True)
+    train_period = fields.Int(required=False, allow_none=True)
+    start_predict_date = AwareDateTimeField(required=False, allow_none=True)
+    predict_period = fields.Int(required=False, allow_none=True)
+    max_forecast_horizon = fields.Int(required=False, allow_none=True)
+    forecast_frequency = fields.Int(required=False, allow_none=True)
+    probabilistic = fields.Bool(required=True)
+    sensor_to_save = SensorIdField(required=False, allow_none=True)
+
+    @validates_schema
+    def validate_parameters(self, data: dict, **kwargs):
+        start_date = data["start_date"]
+        end_date = data["end_date"]
+        predict_start = data.get("start_predict_date", None)
+        train_period = data.get("train_period")
+        predict_period = data.get("predict_period")
+
+        if start_date >= end_date:
+            raise ValidationError(
+                "--start-date must be before --end-date", field_name="start_date"
+            )
+
+        if predict_start:
+            if predict_start < start_date:
+                raise ValidationError(
+                    "--start-predict-date cannot be before --start-date",
+                    field_name="start_predict_date",
+                )
+            if predict_start >= end_date:
+                raise ValidationError(
+                    "--start-predict-date must be before --end-date",
+                    field_name="start_predict_date",
+                )
+
+        if train_period is not None and train_period < 2:
+            raise ValidationError(
+                "--train-period must be at least 2 days (48 hours)",
+                field_name="train_period",
+            )
+
+        if predict_period is not None and predict_period <= 0:
+            raise ValidationError(
+                "--predict-period must be greater than 0", field_name="predict_period"
+            )
+
+    def _parse_comma_list(self, text: str | None) -> list[str]:
+        return (
+            [item.strip() for item in text.split(",") if item.strip()] if text else []
+        )
+
+    def _parse_json_dict(self, text: str) -> dict:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            raise ValidationError(
+                "sensors must be a valid JSON string mapping names to IDs",
+                field_name="sensors",
+            )
+
+    @post_load
+    def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
+        sensors = self._parse_json_dict(data["sensors"])
+        regressors = self._parse_comma_list(data.get("regressors", ""))
+        future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
+        target = data["target"]
+
+        if not regressors and not future_regressors:
+            regressors = ["autoregressive"]
+        elif not regressors and future_regressors:
+            regressors = future_regressors.copy()
+
+        if "autoregressive" not in regressors:
+            for key in regressors + [target]:
+                if key not in sensors:
+                    raise click.BadParameter(f"Sensor '{key}' not found in --sensors")
+
+        if missing := set(future_regressors) - set(regressors):
+            raise click.BadParameter(
+                f"--future-regressors contains entries not found in --regressors: {missing}"
+            )
+
+        target_sensor = Sensor.query.get(sensors[target])
+        if not target_sensor:
+            raise click.BadParameter(f"Target sensor '{target}' not found in DB.")
+
+        resolution = target_sensor.event_resolution
+
+        predict_start = data.get("start_predict_date") or floor_to_resolution(
+            server_now(), resolution
+        )
+        if data.get("start_predict_date") is None and data.get("train_period"):
+            from datetime import timedelta
+            predict_start = data["start_date"] + timedelta(hours=data["train_period"] * 24)
+
+        if data.get("train_period") is None:
+            train_period_in_hours = int(
+                (predict_start - data["start_date"]).total_seconds() / 3600
+            )
+            if train_period_in_hours < 48:
+                raise click.BadParameter(
+                    "--train-period must be at least 2 days (48 hours)."
+                )
+        else:
+            train_period_in_hours = data["train_period"] * 24
+            if train_period_in_hours < 48:
+                raise click.BadParameter(
+                    "--train-period must be at least 2 days (48 hours)."
+                )
+
+        if data.get("predict_period") is None:
+            predict_period_in_hours = int(
+                (data["end_date"] - predict_start).total_seconds() / 3600
+            )
+        else:
+            predict_period_in_hours = data["predict_period"] * 24
+            if predict_period_in_hours < 1:
+                raise click.BadParameter("--predict-period must be at least 1 hour")
+
+        if "autoregressive" in regressors:
+            sensors = {target: sensors[target]}
+
+        max_horizon = data.get("max_forecast_horizon")
+        freq = data.get("forecast_frequency")
+
+        if max_horizon is None and freq is None:
+            max_horizon = freq = predict_period_in_hours
+        elif max_horizon is None:
+            max_horizon = freq
+        elif freq is None:
+            freq = max_horizon
+
+        if data.get("sensor_to_save") is None:
+            sensor_to_save = target_sensor
+        else:
+            sensor_to_save = data["sensor_to_save"]
+
+        output_path = data.get("output_path")
+        if output_path and not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        return dict(
+            sensors=sensors,
+            regressors=regressors,
+            future_regressors=future_regressors,
+            target=target,
+            model_save_dir=data["model_save_dir"],
+            output_path=output_path,
+            start_date=data["start_date"],
+            end_date=data["end_date"],
+            train_period_in_hours=train_period_in_hours,
+            predict_start=predict_start,
+            predict_period_in_hours=predict_period_in_hours,
+            max_forecast_horizon=max_horizon,
+            forecast_frequency=freq,
+            probabilistic=data["probabilistic"],
+            sensor_to_save=sensor_to_save,
+        )
