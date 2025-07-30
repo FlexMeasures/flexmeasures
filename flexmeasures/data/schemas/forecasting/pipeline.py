@@ -113,9 +113,13 @@ class ForecastingPipelineSchema(Schema):
             raise click.BadParameter(f"Target sensor '{target}' not found in DB.")
 
         resolution = target_sensor.event_resolution
+
         predict_start = data.get("start_predict_date") or floor_to_resolution(
             server_now(), resolution
         )
+        if data.get("start_predict_date") is None and data.get("train_period"):
+            from datetime import timedelta
+            predict_start = data["start_date"] + timedelta(hours=data["train_period"] * 24)
 
         if data.get("train_period") is None:
             train_period_in_hours = int(
