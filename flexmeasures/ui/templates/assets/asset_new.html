@@ -133,6 +133,7 @@
     {% else %}
     // dummy location somewhere else
     var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    // zoom to cover pre-existing asset portfolio (so only if there is no parent asset)
     assetMap.fitBounds({{ bounding_box | tojson }});
     {% endif %}
 
