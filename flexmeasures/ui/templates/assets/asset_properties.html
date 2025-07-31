@@ -142,7 +142,8 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <h3>Asset Properties - {{ asset.name }}</h3>
 
-                    <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal" data-bs-target="#flexModelModal">
+                    <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
+                        data-bs-target="#flexModelModal">
                         Edit Flex Model
                     </a>
                 </div>
@@ -198,8 +199,8 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <h3>All child assets for {{ asset.name }} </h3>
                     {% if user_can_create_assets %}
-                    <a href="/assets/new?parent_asset_id={{asset.id}}" class="btn bg-primary-custom text-decoration-none text-light"
-                        style="float:right;">
+                    <a href="/assets/new?parent_asset_id={{asset.id}}"
+                        class="btn bg-primary-custom text-decoration-none text-light" style="float:right;">
                         Create asset
                     </a>
                     {% endif %}
@@ -828,6 +829,16 @@
                 btn.setAttribute('role', 'tab');
                 btn.setAttribute('aria-controls', `pills-${tabType}`);
                 btn.setAttribute('aria-selected', activeTab ? "true" : "false");
+                btn.style.borderBottomColor = 'transparent';
+
+                // if (activeTab) {
+                //     // remove backhground color and bottome boirder color
+                //     btn.style.borderBottomColor = 'transparent';
+                //     btn.style.backgroundColor = "#fff";
+                // } else {
+                //     btn.style.borderBottomColor = 'transparent';
+                //     // btn.style.borderBottom = "1px solid #0000002d"; // Add border to inactive tabs
+                // }
 
                 // Add tab to the tab list
                 tab.appendChild(btn);

@@ -304,7 +304,7 @@
         ).addTo(assetMap);
 </script>
 
-<script type="module" type="text/javascript">
+<script type="module">
     import {
         getFlexFieldTitle, renderSensor, getAsset,
         getAccount, getSensor, apiBasePath
@@ -347,6 +347,11 @@
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
+
+    // Making certain functions available globally
+    window.udpateFlexContextFieldValue = udpateFlexContextFieldValue;
+    window.searchSensorsFlexContextForm = searchSensorsFlexContextForm;
+    window.removeFlexContextField = removeFlexContextField;
 
     const addFieldBtn = document.getElementById("addFieldBtn");
     addFieldBtn.onclick = async function () {
