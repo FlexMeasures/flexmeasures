@@ -11,6 +11,7 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
+    get_bounding_box_of_assets,
     get_center_location_of_assets,
 )
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
@@ -102,6 +103,7 @@ class AssetCrudUI(FlaskView):
             asset_form = NewAssetForm()
             asset_form.with_options()
             map_center = get_center_location_of_assets(user=current_user)
+            bounding_box = get_bounding_box_of_assets(user=current_user)
 
             parent_asset_name = ""
             account = None
@@ -136,6 +138,7 @@ class AssetCrudUI(FlaskView):
                 asset_form=asset_form,
                 msg="",
                 map_center=map_center,
+                bounding_box=bounding_box,
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 parent_asset_name=parent_asset_name,
                 parent_asset_id=parent_asset_id,

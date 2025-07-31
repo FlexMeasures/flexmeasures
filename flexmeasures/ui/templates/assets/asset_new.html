@@ -133,6 +133,7 @@
     {% else %}
     // dummy location somewhere else
     var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    assetMap.fitBounds({{ bounding_box | tojson }});
     {% endif %}
 
     assetMap.on('click', function (e) {

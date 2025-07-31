@@ -873,6 +873,36 @@ def assets_share_location(assets: list[GenericAsset]) -> bool:
     return all([a.location == assets[0].location for a in assets])
 
 
+def get_bounding_box_of_assets(
+    user: User | None,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """
+    Find the bounding box covering all assets of the user's account.
+    """
+    query = (
+        "select"
+        " min(latitude) as min_latitude,"
+        " max(latitude) as max_latitude,"
+        " min(longitude) as min_longitude,"
+        " max(longitude) as max_longitude"
+        " from generic_asset"
+    )
+    if user is None:
+        user = current_user
+    query += f" where generic_asset.account_id = {user.account_id}"
+    bounding_box: list[Row] = db.session.execute(text(query + ";")).fetchall()
+    if (
+        len(bounding_box) == 0
+        or bounding_box[0].min_latitude is None
+        or bounding_box[0].min_longitude is None
+    ):
+        return (52.366, 4.904), (52.366, 4.904)  # Amsterdam, NL
+    return [
+        [bounding_box[0].min_latitude, bounding_box[0].min_longitude],
+        [bounding_box[0].max_latitude, bounding_box[0].max_longitude],
+    ]
+
+
 def get_center_location_of_assets(user: User | None) -> tuple[float, float]:
     """
     Find the center position between all generic assets of the user's account.
