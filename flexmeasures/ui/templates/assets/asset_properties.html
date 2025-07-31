@@ -14,6 +14,27 @@
     <div class="row">
 
         <div class="col-md-2 on-top-md">
+            <div class="header-action-button">
+                {% if user_can_delete_asset %}
+                <div>
+                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
+                            type="submit">Delete this asset
+                        </button>
+                    </form>
+                    <script>
+                        $("#delete-asset-button").click(function () {
+                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
+                                return true;
+                            }
+                            else {
+                                return false;
+                            }
+                        });
+                    </script>
+                </div>
+                {% endif %}
+            </div>
             <div class="sidepanel-container d-none d-md-block">
                 <div class="left-sidepanel-label">Select dates</div>
                 <div class="sidepanel left-sidepanel">
@@ -32,7 +53,7 @@
 
                                 <h3>Edit {{ asset.name }}</h3>
                                 <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id
-                                    }})</small>k
+                                    }})</small>
 
                                 <div class="form-group">
                                     {{ asset_form.name.label(class="col-sm-3 control-label") }}
@@ -112,30 +133,8 @@
                 </div>
             </div>
             {% endif %}
-
-            <div class="header-action-button">
-                {% if user_can_delete_asset %}
-                <div>
-                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this asset
-                        </button>
-                    </form>
-                    <script>
-                        $("#delete-asset-button").click(function () {
-                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-                                return true;
-                            }
-                            else {
-                                return false;
-                            }
-                        });
-                    </script>
-                </div>
-                {% endif %}
-            </div>
-
         </div>
+
         <div class="col-md-8">
             <div class="sensors-asset card">
 
@@ -499,18 +498,31 @@
                     return;
                 }
 
-                if (getFlexModel()[fieldName] !== undefined && getFlexModel()[fieldName] !== null) {
+                const fieldValue = getFlexModel()[fieldName];
+                if (
+                    fieldValue !== undefined &&
+                    fieldValue !== null &&
+                    !(Array.isArray(fieldValue) && fieldValue.length === 0) &&
+                    !(typeof fieldValue === 'string' && fieldValue === '')
+                ) {
                     showToast(`Field "${getFlexFieldTitle(fieldName)}" already exists`, "error");
                     return;
                 }
 
                 // Initialize the field with an empty value or an empty array
                 const currentFlexmodel = getFlexModel()
-                currentFlexmodel[fieldName] = "default value";
+                currentFlexmodel[fieldName] = "Not Set";
                 setFlexModel(currentFlexmodel)
 
-                const card = document.getElementById(`${fieldName}-control`);
-                setActiveCard(card);
+                setTimeout(() => {
+                    const card = document.getElementById(`${fieldName}-control`);
+                    setActiveCard(card);
+                    card.classList.add('border-on-click'); // Add border class to the card
+                    renderFlexInputOptions();
+                    renderSelectInfoCards(fieldName);
+                }, 500);
+
+
             }
 
             function setCardSensor(sensorId) {
@@ -717,27 +729,6 @@
 
                 card.onclick = function () {
                     if (card.classList.contains('border-on-click')) {
-                        if (event.target.closest('.card-close-icon')) {
-                            // trigger the close icon's onclick function
-                            if (activeCard() && activeCard().id === card.id) {
-                                setActiveCard(null); // Deselect if the same card is clicked again
-                                setSelectedIndex(null); // Reset selected index
-                                card.classList.remove('border-on-click'); // Remove the border class
-                            }
-                            card.remove(); // Remove the card from the DOM
-                            const flexModel = getFlexModel();
-                            if (Array.isArray(flexModel[name])) {
-                                flexModel[name] = [];
-                            } else {
-                                flexModel[name] = null;
-                            }
-
-                            setFlexModel(flexModel); // Update the state
-                            renderFlexFieldOptions(assetFlexModelSchema, getFlexModel()); // Re-render the select options
-                            showToast(`Field "${getFlexFieldTitle(name)}" has been unset`, "success");
-                            return;
-                        }
-
                         if (activeCard() && activeCard().id === card.id) {
                             if (selectedIndex() === null && !FlexModelFieldValidTypes[name].includes(Array)) {
                                 setActiveCard(null); // Deselect if the same card is clicked again
@@ -765,24 +756,53 @@
                     value !== null &&
                     !Array.isArray(value) && // Exclude arrays
                     Object.keys(value).length > 0;
-                card.innerHTML = `
-                    <div class="card-highlight">
-                        <div class="d-flex justify-content-between">
-                            <h5 class="card-title">${getFlexFieldTitle(name)}</h5>
-                            <i class="fa fa-times card-close-icon"
-                                onclick=""
-                                data-bs-toggle="tooltip"
-                                data-bs-placement="top"
-                                title="Unset this field"
-                                style="cursor: pointer;"
-                            ></i>
-                        </div>
 
-                        ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
-                        ${isBool ? `<i>${String(value).charAt(0).toUpperCase() + String(value).slice(1)} </i>` : ''}
-                        ${isNumber || isString ? `<p class="card-text fs-4">${value}</p>` : ''}
-                    </div>
+                const highlightCard = document.createElement('div');
+                highlightCard.className = 'card-highlight';
+                card.appendChild(highlightCard);
+                const titleContainer = document.createElement('div');
+                titleContainer.className = 'd-flex justify-content-between align-items-center';
+                const title = document.createElement('h5');
+                title.className = 'card-title';
+                title.textContent = getFlexFieldTitle(name);
+                titleContainer.appendChild(title);
+                const closeIcon = document.createElement('i');
+                closeIcon.className = 'fa fa-times card-close-icon';
+                closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+                closeIcon.setAttribute('data-bs-placement', 'top');
+                closeIcon.setAttribute('title', 'Unset this field');
+                closeIcon.style.cursor = 'pointer';
+                closeIcon.onclick = function () {
+                    // Remove this field
+                    if (activeCard() && activeCard().id === card.id) {
+                        setActiveCard(null); // Deselect if the same card is clicked again
+                        setSelectedIndex(null); // Reset selected index
+                        card.classList.remove('border-on-click'); // Remove the border class
+                    }
+
+                    card.remove(); // Remove the card from the DOM
+                    const flexModel = getFlexModel();
+                    if (Array.isArray(flexModel[name])) {
+                        flexModel[name] = [];
+                    } else {
+                        flexModel[name] = null;
+                    }
+
+                    // Update the flex model
+                    setFlexModel(flexModel);
+                    updateFlexModel();
+                }
+                titleContainer.appendChild(closeIcon);
+                highlightCard.appendChild(titleContainer);
+
+                const contentContainer = document.createElement('div');
+                contentContainer.innerHTML = `
+                    ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
+                    ${isBool ? `<i>${String(value).charAt(0).toUpperCase() + String(value).slice(1)} </i>` : ''}
+                    ${isNumber || isString ? `<p class="card-text fs-4">${value}</p>` : ''}
                 `;
+
+                highlightCard.appendChild(contentContainer);
 
                 if (isArray) {
                     const carouselCards = await renderCarouselCards(name, value);
@@ -1040,7 +1060,7 @@
                 for (const [key, value] of Object.entries(assetFlexModel)) {
                     if (value !== null && (!Array.isArray(value) || value.length > 0)) {
                         const card = await renderFlexModelFieldCard(key, value);
-                    } else if (value === "default value") {
+                    } else if (value === "Not Set") {
                         if (FlexModelFieldValidTypes[key].includes(Array)) {
                             const card = await renderFlexModelFieldCard(key, []);
                         } else {
@@ -1065,11 +1085,10 @@
     </script>
 
     <script type="text/javascript">
-
         // create map
         var assetMap = L
-            .map('mapid', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10})
-        .on('popupopen', function () {
+            .map('mapid', { center: ["{{ asset.latitude | replace('None', 10) }}", "{{ asset.longitude | replace('None', 10) }}"], zoom: 10 })
+            .on('popupopen', function () {
                 $(function () {
                     $('[data-toggle="tooltip"]').tooltip();
                 });
@@ -1086,9 +1105,9 @@
         });
         var marker = L
             .marker(
-                [{{ asset.latitude | replace("None", 10) }}, { { asset.longitude | replace("None", 10) } }],
-        { icon: asset_icon }
-        ).addTo(assetMap);
+                ["{{ asset.latitude | replace('None', 10) }}", "{{ asset.longitude | replace('None', 10) }}"],
+                { icon: asset_icon }
+            ).addTo(assetMap);
 
         assetMap.on('click', function (e) {
             $("#latitude").val(e.latlng.lat.toFixed(4));
