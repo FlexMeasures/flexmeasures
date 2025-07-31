@@ -7,7 +7,7 @@ import json
 from flask import current_app
 from flask_security import current_user
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func, text
@@ -877,30 +877,48 @@ def get_bounding_box_of_assets(
     user: User | None,
 ) -> tuple[tuple[float, float], tuple[float, float]]:
     """
-    Find the bounding box covering all assets of the user's account.
+    Compute the bounding box covering all assets of the user's account,
+    correctly handling antimeridian crossings.
     """
-    query = (
-        "select"
-        " min(latitude) as min_latitude,"
-        " max(latitude) as max_latitude,"
-        " min(longitude) as min_longitude,"
-        " max(longitude) as max_longitude"
-        " from generic_asset"
-    )
     if user is None:
         user = current_user
-    query += f" where generic_asset.account_id = {user.account_id}"
-    bounding_box: list[Row] = db.session.execute(text(query + ";")).fetchall()
-    if (
-        len(bounding_box) == 0
-        or bounding_box[0].min_latitude is None
-        or bounding_box[0].min_longitude is None
-    ):
-        return (52.366, 4.904), (52.366, 4.904)  # Amsterdam, NL
-    return [
-        [bounding_box[0].min_latitude, bounding_box[0].min_longitude],
-        [bounding_box[0].max_latitude, bounding_box[0].max_longitude],
-    ]
+
+    # ORM query to fetch all lat/lng values
+    stmt = select(GenericAsset.latitude, GenericAsset.longitude).where(
+        and_(
+            GenericAsset.account_id == user.account_id,
+            GenericAsset.latitude.isnot(None),
+            GenericAsset.longitude.isnot(None),
+        )
+    )
+
+    results = db.session.execute(stmt).all()
+    if not results:
+        return (52.366, 4.904), (52.366, 4.904)  # Amsterdam fallback
+
+    def normalize_lng(lng: float) -> float:
+        """Wrap longitude to [-180, 180)"""
+        return ((lng + 180) % 360) - 180
+
+    lats = [row.latitude for row in results]
+    lngs = [normalize_lng(row.longitude) for row in results]
+
+    min_lat, max_lat = min(lats), max(lats)
+
+    sorted_lngs = sorted(lngs)
+    normal_span = sorted_lngs[-1] - sorted_lngs[0]
+    wrap_span = (sorted_lngs[0] + 360) - sorted_lngs[-1]
+
+    if wrap_span < normal_span:
+        # Wrapping eastward is shorter
+        min_lng, max_lng = sorted_lngs[-1], sorted_lngs[0] + 360
+    else:
+        min_lng, max_lng = sorted_lngs[0], sorted_lngs[-1]
+
+    return (
+        (min_lat, normalize_lng(min_lng)),
+        (max_lat, normalize_lng(max_lng)),
+    )
 
 
 def get_center_location_of_assets(user: User | None) -> tuple[float, float]:
