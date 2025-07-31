@@ -6,16 +6,17 @@ Security aspects
 Data
 -------
 
-There are two types of data on FlexMeasures servers - files (e.g. source code, images) and data in a database (e.g. user data and time series for energy consumption/generation or weather).
+A FlexMeasures server handles two types of data in its Postgres database - structural data (e.g. information about sites, assets, users) and time series data for energy consumption/generation, prices or weather. Read more on :ref:`datamodel`. There is also a Redis database with information about ongoing forecasting and scheduling jobs (stored in a queueing system).
 
-* Files are stored on EBS volumes on Amazon Web Services. These are shared with other customers of Amazon, but protected from them by Linux's chroot system -- each user can see only the files in their own section of the disk.
+How these Postgres and Redis databases are set up and protected is up to the host. 
 
-* Database data is stored in PostgresDB instances which are not shared with other Amazon customers. They are password-protected.
+More crucial to this documentation is that each FlexMeasures server connects to the Postgres database according to strict authentication and authorization rules, for reading and writing data. The remainder of this page describes how this is implemented.
 
-* Finally, The application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via ``http://``.
+Finally, when sending data back and forth between clients (e.g. browsers) and the server, the FlexMeasures application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via ``http://``.
 
 
 .. _authentication:
+
 
 Authentication 
 ----------------
