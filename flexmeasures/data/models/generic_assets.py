@@ -894,7 +894,7 @@ def get_bounding_box_of_assets(
 
     results = db.session.execute(stmt).all()
     if not results:
-        return (52.366, 4.904), (52.366, 4.904)  # Amsterdam fallback
+        return (54, 2), (50.732, 7.808)  # NL fallback
 
     def normalize_lng(lng: float) -> float:
         """Wrap longitude to [-180, 180)"""
