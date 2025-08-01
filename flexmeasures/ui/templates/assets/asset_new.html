@@ -128,7 +128,7 @@
     var marker = L
         .marker(
             [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}],
-    { icon: location_icon }
+            { icon: location_icon }
         ).addTo(assetMap);
     {% else %}
     // dummy location somewhere else
