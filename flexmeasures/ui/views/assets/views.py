@@ -105,6 +105,11 @@ class AssetCrudUI(FlaskView):
             map_center = get_center_location_of_assets(user=current_user)
             bounding_box = get_bounding_box_of_assets(user=current_user)
 
+            # If the bounding box is the server default, prompt the user to share their location
+            prompt_user_for_location = False
+            if bounding_box == current_app.config["FLEXMEASURES_DEFAULT_BOUNDING_BOX"]:
+                prompt_user_for_location = True
+
             parent_asset_name = ""
             account = None
             if account_id:
@@ -139,6 +144,7 @@ class AssetCrudUI(FlaskView):
                 msg="",
                 map_center=map_center,
                 bounding_box=bounding_box,
+                prompt_user_for_location=prompt_user_for_location,
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 parent_asset_name=parent_asset_name,
                 parent_asset_id=parent_asset_id,
