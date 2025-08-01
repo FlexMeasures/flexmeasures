@@ -284,6 +284,16 @@ The default DataSource of the resulting data from `DataGeneration` classes.
 Default: ``"FlexMeasures"``
 
 
+.. _bounding_box_config:
+
+FLEXMEASURES_DEFAULT_BOUNDING_BOX
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The default bounding box of maps if the user has no geolocated assets yet.
+
+Default: ``(54, 2), (50.732, 7.808)`` (`The Netherlands after the oceans drop 50 meters <https://what-if.xkcd.com/53/>`_)
+
+
 .. _planning_horizon_config:
 
 FLEXMEASURES_PLANNING_HORIZON
