@@ -631,7 +631,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         return chart_specs
 
-    def search_beliefs(
+    def search_beliefs(  # noqa: C901
         self,
         sensors: list["Sensor"] | None = None,  # noqa F821
         event_starts_after: datetime | None = None,
@@ -691,11 +691,14 @@ class GenericAsset(db.Model, AuthModelMixin):
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
-                minimum_resampling_resolution = determine_minimum_resampling_resolution(
-                    [bdf.event_resolution for bdf in bdf_dict.values()]
-                )
                 if resolution is not None:
                     minimum_resampling_resolution = resolution
+                else:
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
                 df_dict = {}
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
@@ -716,9 +719,13 @@ class GenericAsset(db.Model, AuthModelMixin):
                         ),
                         append=True,
                     )
+
                     df["sensor"] = sensor  # or some JSONifiable representation
+                    df["sensor_unit"] = sensor.unit
                     df["scale_factor"] = factors[sensor.unit]
-                    df = df.set_index(["sensor"], append=True)
+                    df = df.set_index(
+                        ["sensor"], append=True
+                    )  # Use sensor_id instead of sensor object
                     df_dict[sensor.id] = df
                 df = pd.concat(df_dict.values())
             else:
@@ -739,20 +746,73 @@ class GenericAsset(db.Model, AuthModelMixin):
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
-            df["sensor_unit"] = df["sensor"].apply(lambda x: x["sensor_unit"])
-            df["event_value"] = df.apply(
-                lambda row: (
-                    pd.to_datetime(row["event_value"], unit="s", origin="unix")
-                    .tz_localize("UTC")
-                    .tz_convert(self.timezone)
-                    if row["sensor_unit"] == "s" and pd.notnull(row["event_value"])
-                    else row["event_value"]
-                ),
-                axis=1,
-            )
-            return df.to_json(orient="records")
+
+            if "sensor" in df.columns and not df.empty:
+                # Get unique sensors to avoid repeated conversions
+                unique_sensors = df["sensor"].unique()
+                sensor_dict_map = {}
+
+                # Convert each unique sensor to dict only once
+                for sensor in unique_sensors:
+                    if hasattr(sensor, "to_dict"):
+                        sensor_dict_map[sensor] = sensor.to_dict()
+                    else:
+                        sensor_dict_map[sensor] = {
+                            "name": str(sensor),
+                            "unit": getattr(sensor, "unit", None),
+                        }
+
+                # Map all sensors to their dictionaries (vectorized operation)
+                df["sensor"] = df["sensor"].map(sensor_dict_map)
+
+            # FIXED: Handle source objects efficiently
+            if "source" in df.columns and not df.empty:
+                # Pre-compute source dictionaries to avoid repeated .apply() calls
+                unique_sources = df["source"].unique()
+                source_dict_map = {}
+                for source in unique_sources:
+                    if hasattr(source, "to_dict"):
+                        source_dict_map[source] = source.to_dict()
+                    else:
+                        source_dict_map[source] = str(source)
+                df["source"] = df["source"].map(source_dict_map)
+
+            # FIXED: Handle datetime conversion more efficiently
+            if "event_value" in df.columns and not df.empty:
+                # Use vectorized operations instead of .apply()
+                time_mask = (df["sensor_unit"] == "s") & df["event_value"].notna()
+                if time_mask.any():
+                    time_values = df.loc[time_mask, "event_value"]
+                    converted_times = (
+                        pd.to_datetime(time_values, unit="s", origin="unix")
+                        .dt.tz_localize("UTC")
+                        .dt.tz_convert(self.timezone)
+                        .dt.strftime(
+                            "%Y-%m-%dT%H:%M:%S%z"
+                        )  # Convert to string for JSON
+                    )
+                    df.loc[time_mask, "event_value"] = converted_times
+            records = df.to_dict("records")
+
+            # Clean up any remaining problematic types
+            for record in records:
+                for key, value in record.items():
+                    if pd.isna(value):
+                        record[key] = None
+                    elif isinstance(value, pd.Timestamp):
+                        record[key] = value.isoformat()
+                    elif isinstance(value, (pd.Timedelta, timedelta)):
+                        record[key] = str(value)  # Convert timedelta to string
+                    elif hasattr(value, "item"):  # numpy types
+                        record[key] = value.item()
+                    elif hasattr(
+                        value, "total_seconds"
+                    ):  # other timedelta-like objects
+                        record[key] = value.total_seconds()
+
+            final_response = json.dumps(records)
+            return final_response
+
         return bdf_dict
 
     @property
