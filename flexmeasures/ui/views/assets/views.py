@@ -277,11 +277,13 @@ class AssetCrudUI(FlaskView):
                 # Display the errors
                 error_msg = asset_form.errors
                 msg = "Cannot create asset. " + str(error_msg)
+                bounding_box = get_bounding_box_of_assets(user=current_user)
                 return render_flexmeasures_template(
                     "assets/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
                     parent_asset_id=asset_form.parent_asset_id.data or "",
+                    bounding_box=bounding_box,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
 
