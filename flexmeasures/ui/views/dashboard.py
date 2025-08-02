@@ -11,7 +11,6 @@ from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, clear
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     get_bounding_box_of_assets,
-    get_center_location_of_assets,
 )
 from flexmeasures.data.services.asset_grouping import (
     AssetGroup,
@@ -57,7 +56,6 @@ def dashboard_view():
         gat.name for gat in db.session.scalars(select(GenericAssetType)).all()
     ]
 
-    map_center = get_center_location_of_assets(user=current_user)
     bounding_box = get_bounding_box_of_assets(user=current_user)
 
     # If the bounding box is the server default, prompt the user to share their location
@@ -69,7 +67,6 @@ def dashboard_view():
         "dashboard.html",
         message=msg,
         mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-        map_center=map_center,
         bounding_box=bounding_box,
         prompt_user_for_location=prompt_user_for_location,
         known_asset_types=known_asset_types,

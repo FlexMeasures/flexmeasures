@@ -208,7 +208,7 @@
 
     // create Map with tiles
     var assetMap = L
-        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6 })
+        .map('mapid')
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();

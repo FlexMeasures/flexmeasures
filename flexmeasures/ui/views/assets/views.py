@@ -12,7 +12,6 @@ from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     get_bounding_box_of_assets,
-    get_center_location_of_assets,
 )
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
@@ -102,7 +101,6 @@ class AssetCrudUI(FlaskView):
 
             asset_form = NewAssetForm()
             asset_form.with_options()
-            map_center = get_center_location_of_assets(user=current_user)
             bounding_box = get_bounding_box_of_assets(user=current_user)
 
             # If the bounding box is the server default, prompt the user to share their location
@@ -130,7 +128,6 @@ class AssetCrudUI(FlaskView):
                 if parent_asset.latitude and parent_asset.longitude:
                     asset_form.latitude.data = parent_asset.latitude
                     asset_form.longitude.data = parent_asset.longitude
-                    map_center = parent_asset.latitude, parent_asset.longitude
 
             if account and not user_can_create_assets(account=account):
                 return unauthorized_handler(None, [])
@@ -142,7 +139,6 @@ class AssetCrudUI(FlaskView):
                 "assets/asset_new.html",
                 asset_form=asset_form,
                 msg="",
-                map_center=map_center,
                 bounding_box=bounding_box,
                 prompt_user_for_location=prompt_user_for_location,
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
@@ -281,16 +277,11 @@ class AssetCrudUI(FlaskView):
                 # Display the errors
                 error_msg = asset_form.errors
                 msg = "Cannot create asset. " + str(error_msg)
-                if asset_form.latitude.data and asset_form.longitude.data:
-                    map_center = asset_form.latitude.data, asset_form.longitude.data
-                else:
-                    map_center = get_center_location_of_assets(user=current_user)
                 return render_flexmeasures_template(
                     "assets/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
                     parent_asset_id=asset_form.parent_asset_id.data or "",
-                    map_center=map_center,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
 
