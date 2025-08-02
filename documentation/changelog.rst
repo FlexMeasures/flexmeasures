@@ -8,6 +8,7 @@ v0.28.0 | September XX, 2025
 
 New features
 -------------
+* Maps auto-zoom to cover the asset portfolio visible to the user, with fresh users prompted to pan to their own location when adding their first asset [see `PR #1644 <https://www.github.com/FlexMeasures/flexmeasures/pull/1644>`_]
 
 Infrastructure / Support
 ----------------------
