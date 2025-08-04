@@ -282,8 +282,11 @@
                                     Here, you can edit the flexibility model for this asset. This describes what
                                     schedulers need to take into account when optimizing what this asset should do. This
                                     includes constraints, set points, or efficiency parameters, but also additional
-                                    information like where to look up relevant data (e.g. usage). You can read more in
-                                    the documentation.
+                                    information like where to look up relevant data (e.g. usage). You can read more <a
+                                        href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-models-corresponding-schedulers">
+                                        in
+                                        the documentation.
+                                    </a>
                                 </p>
 
                                 <p>
@@ -389,9 +392,8 @@
             "soc-min": null,
             "soc-max": null,
             "soc-minima": null,
-            // "soc-maxima": null,
-            // "soc-targets": null,
-            // "state-of-charge": null,
+            "soc-maxima": null,
+            "soc-targets": null,
             "soc-gain": [],
             "soc-usage": [],
             // "roundtrip-efficiency": null,
@@ -400,9 +402,9 @@
             // "storage-efficiency": null,
             "prefer-charging-sooner": null,
             "prefer-curtailing-later": null,
-            // "power-capacity": null,
-            // "consumption-capacity": null,
-            // "production-capacity": null,
+            "power-capacity": null,
+            "consumption-capacity": null,
+            "production-capacity": null,
         }
 
         const FlexModelFieldValidTypes = {
@@ -411,7 +413,6 @@
             "soc-minima": typeTwo,
             "soc-maxima": typeTwo,
             "soc-targets": typeTwo,
-            "state-of-charge": typeOne,
             "soc-gain": typeFour,
             "soc-usage": typeFour,
             "roundtrip-efficiency": typeThree,
@@ -429,20 +430,19 @@
             "soc-min": "A constant lower boundary for all values in the schedule (defaults to 0).",
             "soc-max": "A constant upper boundary for all values in the schedule (defaults to max soc target, if provided).",
             "soc-minima": "Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).",
-            "soc-maxima": null,
-            "soc-targets": null,
-            "state-of-charge": null,
-            "soc-gain": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero).",
-            "soc-usage": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero).",
-            "roundtrip-efficiency": null,
-            "charging-efficiency": null,
-            "discharging-efficiency": null,
-            "storage-efficiency": null,
+            "soc-maxima": "Set points that form upper boundaries at certain times (defaults to NaN values).",
+            "soc-targets": "Exact set point(s) that the scheduler needs to realize (defaults to NaN values).",
+            "soc-gain": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field is an array whose values can be a string or a sensor.",
+            "soc-usage": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field is an array whose values can be a string or a sensor",
+            "roundtrip-efficiency": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio [0,1] (defaults to 100%).",
+            "charging-efficiency": "Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).",
+            "discharging-efficiency": "Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).",
+            "storage-efficiency": "This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read 11 about applying this value per time step across longer time spans.",
             "prefer-charging-sooner": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.",
             "prefer-curtailing-later": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.",
-            "power-capacity": null,
-            "consumption-capacity": null,
-            "production-capacity": null,
+            "power-capacity": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute capacity_in_mw). ",
+            "consumption-capacity": "Device-level power constraint on consumption. How much power can be drawn by this asset. ",
+            "production-capacity": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment, set this to reference your sensor containing PV power forecasts.",
         }
 
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
@@ -450,6 +450,8 @@
         let availableUnitsRawJSON = "{{ available_units | safe }}";
         availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
         const availableUnits = JSON.parse(availableUnitsRawJSON);
+        let hasInitialized = false;
+
 
         document.addEventListener('DOMContentLoaded', async function () {
             const flexOptionsContainer = document.getElementById('flexOptionsContainer');
@@ -457,8 +459,9 @@
             const flexInfoContainer = document.getElementById('flexInfoContainer');
             const addModelFieldbtn = document.getElementById('addModelFieldbtn');
             const flexModelModal = document.getElementById('flexModelModal');
+            const flexSelect = document.getElementById('flexSelect');
 
-            const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, renderFlexModelForm);
+            const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, reRenderForm);
             const [activeCard, setActiveCard] = createReactiveState(null);
             const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
 
@@ -490,8 +493,18 @@
                 });
             }
 
+            function reRenderForm() {
+                // Skip on first init. This code prevents the access to teh variable 'getFlexmodel'
+                // on initial run of the script as its not available at that point
+                if (!hasInitialized) {
+                    hasInitialized = true;
+                } else {
+                    renderFlexModelForm();
+                }
+            }
+
+
             addModelFieldbtn.onclick = async function () {
-                const flexSelect = document.getElementById('flexSelect');
                 const fieldName = flexSelect.value; // value from the select dropdown
                 if (fieldName === "blank") {
                     showToast("Please select a field to add", "error");
@@ -628,8 +641,9 @@
                     const asset = await getAsset("{{ asset.id }}", false);
                     const previousFlexContext = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, '"{{ asset_flexmodel | safe}}"'));
                     setFlexModel(previousFlexContext);
-                    renderFlexModelForm();
+                    reRenderForm();
                 } else {
+                    renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
                     showToast("Flex model updated successfully", "success");
                 }
             }
@@ -653,10 +667,13 @@
 
             async function renderCarouselCards(fieldName, cardValues) {
                 const scrollContainer = document.createElement('div');
-                scrollContainer.className = 'row flex-row flex-nowrap';
+                scrollContainer.id = `${fieldName}-carousel-container`;
+                scrollContainer.className = 'row flex-row flex-nowrap card-carousel-contianer';
                 scrollContainer.style.overflowY = 'auto';
 
-                cardValues.forEach(async (value, index) => {
+                console.log("cardValues: ", cardValues);
+
+                for (const [index, value] of cardValues.entries()) {
                     const isFixed = typeof value === "string"
                     const isKeyValueObject = typeof value === "object" &&
                         value !== null &&
@@ -717,7 +734,7 @@
 
                     card.appendChild(cardHighlight);
                     scrollContainer.appendChild(card);
-                });
+                };
 
                 return scrollContainer;
             }
@@ -765,7 +782,32 @@
                 const title = document.createElement('h5');
                 title.className = 'card-title';
                 title.textContent = getFlexFieldTitle(name);
-                titleContainer.appendChild(title);
+                const titleSubContainer = document.createElement('div');
+                titleSubContainer.className = 'd-flex'
+                titleSubContainer.appendChild(title);
+
+                if (isArray) {
+                    const plusIcon = document.createElement('i');
+                    plusIcon.className = 'fa fa-solid fa-plus ps-1';
+                    plusIcon.style = 'cursor: pointer;';
+                    plusIcon.onclick = async function (event) {
+                        event.preventDefault();
+
+                        // add new empty item to array
+                        value.push('Not Set');
+
+                        let carouselCards = document.getElementById(`${name}-carousel-container`);
+                        carouselCards.innerHTML = '';
+                        carouselCards = await renderCarouselCards(name, value);
+                        card.querySelector('.card-highlight').appendChild(carouselCards);
+                    };
+                    titleSubContainer.appendChild(plusIcon)
+                }
+
+                titleContainer.appendChild(titleSubContainer);
+
+
+
                 const closeIcon = document.createElement('i');
                 closeIcon.className = 'fa fa-times card-close-icon';
                 closeIcon.setAttribute('data-bs-toggle', 'tooltip');
@@ -842,23 +884,13 @@
                 tab.className = 'nav-item';
                 tab.setAttribute('role', 'presentation');
                 const btn = document.createElement('button');
-                btn.className = `nav-link ${activeTab ? "active" : ""}`;
+                btn.className = `nav-link flex-nav ${activeTab ? "active" : ""}`;
                 btn.setAttribute('data-bs-toggle', 'pill');
                 btn.setAttribute('data-bs-target', `#pills-${tabType}`);
                 btn.setAttribute('type', 'button');
                 btn.setAttribute('role', 'tab');
                 btn.setAttribute('aria-controls', `pills-${tabType}`);
                 btn.setAttribute('aria-selected', activeTab ? "true" : "false");
-                btn.style.borderBottomColor = 'transparent';
-
-                // if (activeTab) {
-                //     // remove backhground color and bottome boirder color
-                //     btn.style.borderBottomColor = 'transparent';
-                //     btn.style.backgroundColor = "#fff";
-                // } else {
-                //     btn.style.borderBottomColor = 'transparent';
-                //     // btn.style.borderBottom = "1px solid #0000002d"; // Add border to inactive tabs
-                // }
 
                 // Add tab to the tab list
                 tab.appendChild(btn);
@@ -961,20 +993,34 @@
                         updateFlexModel();
                     };
 
-                    tabContent.innerHTML = `
-                        <div class="flex-input-group mb-1 p-2">
-                            <label for="fixed-value" class="form-label">Value for <b>${getFlexFieldTitle(name)} ${isArrayField ? '| Item ' + (selectedIndex() + 1) : ''}</b>
-                                <i class="fa fa-info-circle ps-2"
-                                    data-bs-toggle="tooltip"
-                                    data-bs-placement="bottom"
-                                    title="Set a fixed value for this field. If the field is a boolean, it will be set to true or false."
-                                ></i>
-                            </label>
-                            <input type="text" class="form-control" id="flexStringInput" value="${typeof value === 'string' ? value : ''}" />
-                        </div>
-                    `;
+                    const flexInputGroup = document.createElement('div');
+                    flexInputGroup.className = 'flex-input-group mb-1 p-2';
+                    const inputLabel = document.createElement('label');
+                    inputLabel.setAttribute('for', 'fixed-value');
+                    inputLabel.className = 'form-label';
+                    inputLabel.innerHTML = `Value for <b>${getFlexFieldTitle(name)} ${isArrayField ? '| Item ' + (selectedIndex() + 1) : ''}</b>
+                        <i class="fa fa-info-circle ps-2"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="bottom"
+                            title="Set a fixed value for this field. If the field is a boolean, it will be set to true or false."
+                        ></i>`;
+                    flexInputGroup.appendChild(inputLabel);
 
-                    tabContent.querySelector('.flex-input-group').appendChild(stringTabContentSaveBtn);
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'form-control';
+                    input.id = 'flexStringInput';
+                    input.placeholder = 'Enter a value';
+                    input.value = `${typeof value === 'string' ? value : ''}`;
+                    input.onkeydown = function (event) {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            stringTabContentSaveBtn.click();
+                        }
+                    };
+                    flexInputGroup.appendChild(input);
+                    flexInputGroup.appendChild(stringTabContentSaveBtn);
+                    tabContent.appendChild(flexInputGroup);
                 } else {
                     return [null, null];
                 }
@@ -1081,6 +1127,11 @@
                 updateFlexModel();
             });
 
+            flexSelect.addEventListener('change', (event) => {
+                const selectedKey = event.target.value;
+                renderSelectInfoCards(selectedKey);
+            });
+
         });
     </script>
 
@@ -1093,7 +1144,7 @@
                     $('[data-toggle="tooltip"]').tooltip();
                 });
             });
-        addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+        addTileLayer(assetMap, '{ { mapboxAccessToken } }');
 
         // create marker
         var asset_icon = new L.DivIcon({

@@ -83,7 +83,10 @@ export function renderFlexFieldOptions(schema, options) {
     flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
     for (const [key, value] of Object.entries(assetFlexModel)) {
         if (value === null || value.length === 0) {
-            flexSelect.innerHTML += `<option value="${key}">${getFlexFieldTitle(key)}</option>`;
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = getFlexFieldTitle(key);
+            flexSelect.appendChild(option);
         }
     }
 }
