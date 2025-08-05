@@ -699,64 +699,13 @@ class GenericAsset(db.Model, AuthModelMixin):
                             [bdf.event_resolution for bdf in bdf_dict.values()]
                         )
                     )
-                df_dict = {}
-                for sensor, bdf in bdf_dict.items():
-                    if bdf.event_resolution > timedelta(0):
-                        bdf = bdf.resample_events(minimum_resampling_resolution)
-                    bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
-                    df = simplify_index(
-                        bdf,
-                        index_levels_to_columns=(
-                            ["source"]
-                            if most_recent_beliefs_only
-                            else ["belief_time", "source"]
-                        ),
-                    ).set_index(
-                        (
-                            ["source"]
-                            if most_recent_beliefs_only
-                            else ["belief_time", "source"]
-                        ),
-                        append=True,
-                    )
-                    df["sensor"] = sensor  # or some JSONifiable representation
-                    df["sensor_unit"] = sensor.unit
-                    df["scale_factor"] = factors[sensor.unit]
-                    df = df.set_index(
-                        ["sensor"], append=True
-                    )  # Use sensor_id instead of sensor object
-                    df_dict[sensor.id] = df
-                df = pd.concat(df_dict.values())
-            else:
-                df = simplify_index(
-                    BeliefsDataFrame(),
-                    index_levels_to_columns=(
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"]
-                    ),
-                ).set_index(
-                    (
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"]
-                    ),
-                    append=True,
-                )
-                df["sensor"] = {}  # ensure the same columns as a non-empty frame
-            df = df.reset_index()
 
-            if not df.empty:
-                # Get unique sensors and sources to avoid repeated conversions
-                unique_sensors = df["sensor"].unique()
-                unique_sources = df["source"].unique()
-
-                # Build lookup tables
+                # Build metadata lookup tables first
                 sensors_metadata = {}
                 sources_metadata = {}
+                all_records = []
 
-                # Convert each unique sensor to dict only once
-                for sensor in unique_sensors:
+                for sensor, bdf in bdf_dict.items():
                     if hasattr(sensor, "to_dict"):
                         sensor_dict = sensor.to_dict()
                         sensors_metadata[sensor.id] = {
@@ -779,97 +728,114 @@ class GenericAsset(db.Model, AuthModelMixin):
                             "asset_description": "",
                         }
 
-                # Convert each unique source to dict only once
-                for source in unique_sources:
-                    if hasattr(source, "to_dict"):
-                        source_dict = source.to_dict()
-                        sources_metadata[source.id] = {
-                            "name": source_dict.get("name", ""),
-                            "model": source_dict.get("model", ""),
-                            "type": source_dict.get("type", "other"),
-                            "description": source_dict.get("description", ""),
+                    if bdf.event_resolution > timedelta(0):
+                        bdf = bdf.resample_events(minimum_resampling_resolution)
+                    bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
+                    df = simplify_index(
+                        bdf,
+                        index_levels_to_columns=(
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
+                    ).set_index(
+                        (
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
+                        append=True,
+                    )
+
+                    df = df.reset_index()
+
+                    # Handle datetime conversion for time unit sensors
+                    if sensor.unit == "s" and "event_value" in df.columns:
+                        time_mask = df["event_value"].notna()
+                        if time_mask.any():
+                            time_values = df.loc[time_mask, "event_value"]
+                            converted_times = (
+                                pd.to_datetime(time_values, unit="s", origin="unix")
+                                .dt.tz_localize("UTC")
+                                .dt.tz_convert(self.timezone)
+                                .dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+                            )
+                            df.loc[time_mask, "event_value"] = converted_times
+
+                    # Process each row in the dataframe
+                    for _, row in df.iterrows():
+                        source_obj = row.get("source")
+
+                        # Build source metadata if not already built
+                        if (
+                            source_obj
+                            and hasattr(source_obj, "id")
+                            and source_obj.id not in sources_metadata
+                        ):
+                            if hasattr(source_obj, "to_dict"):
+                                source_dict = source_obj.to_dict()
+                                sources_metadata[source_obj.id] = {
+                                    "name": source_dict.get("name", ""),
+                                    "model": source_dict.get("model", ""),
+                                    "type": source_dict.get("type", "other"),
+                                    "description": source_dict.get("description", ""),
+                                }
+                            else:
+                                sources_metadata[source_obj.id] = {
+                                    "name": str(source_obj),
+                                    "model": "",
+                                    "type": "other",
+                                    "description": "",
+                                }
+
+                        # Build record with reference IDs only
+                        record = {
+                            "ts": int(row["event_start"].timestamp() * 1000),
+                            "sid": sensor.id,
+                            "val": row["event_value"],
+                            "sf": factors.get(sensor.unit, 1.0),
                         }
-                    else:
-                        sources_metadata[source.id] = {
-                            "name": str(source),
-                            "model": "",
-                            "type": "other",
-                            "description": "",
-                        }
 
-                # Handle datetime conversion more efficiently BEFORE building records
-                if "sensor_unit" in df.columns:
-                    time_mask = (df["sensor_unit"] == "s") & df["event_value"].notna()
-                    if time_mask.any():
-                        time_values = df.loc[time_mask, "event_value"]
-                        converted_times = (
-                            pd.to_datetime(time_values, unit="s", origin="unix")
-                            .dt.tz_localize("UTC")
-                            .dt.tz_convert(self.timezone)
-                            .dt.strftime("%Y-%m-%dT%H:%M:%S%z")
-                        )
-                        df.loc[time_mask, "event_value"] = converted_times
+                        # Add optional fields
+                        if source_obj and hasattr(source_obj, "id"):
+                            record["src"] = source_obj.id
 
-                # Build records with the correct field names that frontend expects
-                records = []
-                for _, row in df.iterrows():
-                    sensor_obj = row["sensor"]
-                    source_obj = row["source"]
+                        if "belief_horizon" in row and pd.notnull(
+                            row["belief_horizon"]
+                        ):
+                            record["bh"] = int(row["belief_horizon"].total_seconds())
 
-                    record = {
-                        "ts": int(row["event_start"].timestamp() * 1000),  # timestamp
-                        "sid": (
-                            sensor_obj.id if hasattr(sensor_obj, "id") else None
-                        ),  # sensor id
-                        "val": row["event_value"],  # value
-                        "sf": (
-                            row["scale_factor"]
-                            if "scale_factor" in row
-                            else factors.get(getattr(sensor_obj, "unit", ""), 1.0)
-                        ),  # scale factor
-                    }
+                        if (
+                            not most_recent_beliefs_only
+                            and "belief_time" in row
+                            and pd.notnull(row["belief_time"])
+                        ):
+                            record["bt"] = int(row["belief_time"].timestamp() * 1000)
 
-                    # Add optional fields only if they exist
-                    if source_obj and hasattr(source_obj, "id"):
-                        record["src"] = source_obj.id  # source id
+                        # Clean up any problematic types
+                        for key, value in record.items():
+                            if pd.isna(value):
+                                record[key] = None
+                            elif isinstance(value, pd.Timestamp):
+                                record[key] = value.isoformat()
+                            elif isinstance(value, (pd.Timedelta, timedelta)):
+                                record[key] = str(value)
+                            elif hasattr(value, "item"):  # numpy types
+                                record[key] = value.item()
+                            elif hasattr(value, "total_seconds"):
+                                record[key] = value.total_seconds()
 
-                    if "belief_horizon" in row and pd.notnull(row["belief_horizon"]):
-                        # if isinstance(row["belief_horizon"], pd.Timedelta):
-                        record["bh"] = int(row["belief_horizon"].total_seconds())
-                    # else:
-                    # record["bh"] = int(row["belief_horizon"])  # belief horizon
-
-                    if (
-                        not most_recent_beliefs_only
-                        and "belief_time" in row
-                        and pd.notnull(row["belief_time"])
-                    ):
-                        record["bt"] = int(
-                            row["belief_time"].timestamp() * 1000
-                        )  # belief time
-
-                    # Clean up problematic types
-                    for key, value in record.items():
-                        if pd.isna(value):
-                            record[key] = None
-                        elif isinstance(value, pd.Timestamp):
-                            record[key] = value.isoformat()
-                        elif isinstance(value, (pd.Timedelta, timedelta)):
-                            record[key] = str(value)
-                        elif hasattr(value, "item"):  # numpy types
-                            record[key] = value.item()
-                        elif hasattr(value, "total_seconds"):
-                            record[key] = value.total_seconds()
-
-                    records.append(record)
-
+                        all_records.append(record)
                 return json.dumps(
                     {
-                        "data": records,
+                        "data": all_records,
                         "sensors": sensors_metadata,
                         "sources": sources_metadata,
                     }
                 )
+
+            else:
+                return json.dumps({"data": [], "sensors": {}, "sources": {}})
 
         return bdf_dict
 
