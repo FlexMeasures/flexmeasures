@@ -366,7 +366,7 @@
      * @returns {Object[]} - The adapted data in the old format.
      */
     function adaptChartData(responseData) {
-        // Check if it's the new reference-based format
+        // Check if it's the new compressed reference-based format, if so: decompress
         if (responseData.data && responseData.sensors && responseData.sources) {
             // Convert new format to old format
             return responseData.data.map(point => {
