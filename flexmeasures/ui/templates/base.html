@@ -365,24 +365,24 @@
      * @param {Object} responseData - The data from the sensor data API.
      * @returns {Object[]} - The adapted data in the old format.
      */
-    function adaptChartData(responseData) {
+    function decompressChartData(responseData) {
         // Check if it's the new compressed reference-based format, if so: decompress
         if (responseData.data && responseData.sensors && responseData.sources) {
-            return responseData.data.map(point => {
-                const sensor = responseData.sensors[point.sid] || {};
-                const source = responseData.sources[point.src] || {};
+            return responseData.data.map(belief => {
+                const sensor = responseData.sensors[belief.sid] || {};
+                const source = responseData.sources[belief.src] || {};
                 
                 return {
                     // Map shortened field names back to original names
-                    event_start: point.ts,
-                    event_value: point.val,
-                    belief_horizon: point.bh,
-                    scale_factor: point.sf,
-                    belief_time: point.bt,
+                    event_start: belief.ts,
+                    event_value: belief.val,
+                    belief_horizon: belief.bh,
+                    scale_factor: belief.sf,
+                    belief_time: belief.bt,
                     
                     // Reconstruct full sensor and source objects
                     sensor: {
-                        id: point.sid,
+                        id: belief.sid,
                         name: sensor.name || '',
                         sensor_unit: sensor.unit || '',
                         unit: sensor.unit || '',
@@ -391,7 +391,7 @@
                         asset_description: sensor.asset_description || ''
                     },
                     source: {
-                        id: point.src,
+                        id: belief.src,
                         name: source.name || '',
                         model: source.model || '',
                         type: source.type || 'other',
@@ -702,7 +702,7 @@
                     signal: signal,
                 })
                 .then(function(response) { return response.json(); })
-                .then(data => adaptChartData(data));
+                .then(data => decompressChartData(data));
                 let fetchedInitialData = await Promise.all([
                     initialData,
                     embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
@@ -853,7 +853,7 @@
                 signal: signal,
             })
             .then(function(response) { return response.json(); })
-            .then(data => adaptChartData(data)),
+            .then(data => decompressChartData(data)),
         ]).then(function(result) {
             previousPlaybackResult = result[0];
             replayBeliefsData(result[0]);
@@ -952,7 +952,7 @@
                     signal: signal,
             })
             .then(response => response.json())
-            .then(data => adaptChartData(data));
+            .then(data => decompressChartData(data));
         }
     }
     
