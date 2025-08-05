@@ -1,12 +1,10 @@
 from __future__ import annotations
-from typing import Optional, Dict
 
 import json
 from flask import url_for
 from flask_security import current_user
 from werkzeug.exceptions import NotFound
 from sqlalchemy import select
-from sqlalchemy.sql.expression import or_
 
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
@@ -14,12 +12,6 @@ from flexmeasures import Asset
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.ui.views.api_wrapper import InternalApi
-from flexmeasures.utils.unit_utils import (
-    is_energy_price_unit,
-    is_energy_unit,
-    is_power_unit,
-)
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
 
@@ -31,73 +23,6 @@ def get_asset_by_id_or_raise_notfound(asset_id: str) -> GenericAsset:
     if asset is None:
         raise NotFound
     return asset
-
-
-def get_allowed_price_sensor_data(account_id: Optional[int]) -> Dict[int, str]:
-    """
-    Return a list of sensors which the user can add
-    as consumption_price_sensor_id or production_price_sensor_id.
-    For each sensor we get data as sensor_id: asset_name:sensor_name.
-
-    # todo: this function seem obsolete
-    """
-    if not account_id:
-        assets = db.session.scalars(
-            select(GenericAsset).filter(GenericAsset.account_id.is_(None))
-        ).all()
-    else:
-        assets = db.session.scalars(
-            select(GenericAsset).filter(
-                or_(
-                    GenericAsset.account_id == account_id,
-                    GenericAsset.account_id.is_(None),
-                )
-            )
-        ).all()
-
-    sensors_data = list()
-    for asset in assets:
-        sensors_data += [
-            (sensor.id, asset.name, sensor.name, sensor.unit)
-            for sensor in asset.sensors
-        ]
-
-    return {
-        sensor_id: f"{asset_name}:{sensor_name}"
-        for sensor_id, asset_name, sensor_name, sensor_unit in sensors_data
-        if is_energy_price_unit(sensor_unit)
-    }
-
-
-def get_allowed_inflexible_sensor_data(account_id: Optional[int]) -> Dict[int, str]:
-    """
-    Return a list of sensors which the user can add
-    as inflexible device sensors.
-    This list is built using sensors with energy or power units
-    within the current account (or among public assets when account_id argument is not specified).
-    For each sensor we get data as sensor_id: asset_name:sensor_name.
-
-    # todo: this function seem obsolete
-    """
-    query = None
-    if not account_id:
-        query = select(GenericAsset).filter(GenericAsset.account_id.is_(None))
-    else:
-        query = select(GenericAsset).filter(GenericAsset.account_id == account_id)
-    assets = db.session.scalars(query).all()
-
-    sensors_data = list()
-    for asset in assets:
-        sensors_data += [
-            (sensor.id, asset.name, sensor.name, sensor.unit)
-            for sensor in asset.sensors
-        ]
-
-    return {
-        sensor_id: f"{asset_name}:{sensor_name}"
-        for sensor_id, asset_name, sensor_name, sensor_unit in sensors_data
-        if is_energy_unit(sensor_unit) or is_power_unit(sensor_unit)
-    }
 
 
 def process_internal_api_response(
@@ -213,19 +138,6 @@ def user_can_update(asset: GenericAsset) -> bool:
     except Exception:
         return False
     return True
-
-
-def get_assets_by_account(account_id: int | str | None) -> list[GenericAsset]:
-    if account_id is not None:
-        get_assets_response = InternalApi().get(
-            url_for("AssetAPI:index"), query={"account_id": account_id}
-        )
-    else:
-        get_assets_response = InternalApi().get(url_for("AssetAPI:public"))
-    return [
-        process_internal_api_response(ad, make_obj=True)
-        for ad in get_assets_response.json()
-    ]
 
 
 def serialize_asset(asset: Asset, is_head=False) -> dict:
