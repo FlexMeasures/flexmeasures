@@ -549,6 +549,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             + (f" ({parent_asset.name})" if parent_asset is not None else ""),
         )
 
+    def to_dict(self) -> dict:
+        return self.as_dict
+
     @classmethod
     def find_closest(
         cls, generic_asset_type_name: str, sensor_name: str, n: int = 1, **kwargs

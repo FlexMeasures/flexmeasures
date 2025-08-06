@@ -366,6 +366,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             description=self.description,
         )
 
+    def to_dict(self) -> dict:
+        return self.as_dict
+
     @staticmethod
     def hash_attributes(attributes: dict) -> str:
         return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
