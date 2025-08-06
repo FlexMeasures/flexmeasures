@@ -835,6 +835,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 )
 
             else:
+                # if there is no data, return empty 
                 return json.dumps({"data": [], "sensors": {}, "sources": {}})
 
         return bdf_dict
