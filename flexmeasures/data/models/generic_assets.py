@@ -707,6 +707,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
                 for sensor, bdf in bdf_dict.items():
                     if hasattr(sensor, "to_dict"):
+                        # Build metadata lookup table for this sensor
                         sensor_dict = sensor.to_dict()
                         sensors_metadata[sensor.id] = {
                             "name": sensor_dict.get("name", ""),
@@ -790,7 +791,9 @@ class GenericAsset(db.Model, AuthModelMixin):
 
                         # Build record with reference IDs only
                         record = {
-                            "ts": int(row["event_start"].timestamp() * 1000),
+                            "ts": int(
+                                row["event_start"].timestamp() * 1000
+                            ),  # Convert from seconds to milliseconds for JavaScript compatibility
                             "sid": sensor.id,
                             "val": row["event_value"],
                             "sf": factors.get(sensor.unit, 1.0),
@@ -810,7 +813,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                             and "belief_time" in row
                             and pd.notnull(row["belief_time"])
                         ):
-                            record["bt"] = int(row["belief_time"].timestamp() * 1000)
+                            record["bt"] = int(
+                                row["belief_time"].timestamp() * 1000
+                            )  # Convert from seconds to milliseconds for JavaScript compatibility
 
                         # Clean up any problematic types
                         for key, value in record.items():
