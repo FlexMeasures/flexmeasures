@@ -43,10 +43,11 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
+from flexmeasures.utils.temp_coding_utils import OrderByIdMixin
 from flexmeasures.utils.geo_utils import parse_lat_lng
 
 
-class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
+class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     """A sensor measures events."""
 
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
