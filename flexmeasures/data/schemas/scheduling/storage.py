@@ -329,12 +329,18 @@ class DBStorageFlexModelSchema(Schema):
         value_validator=validate.Range(min=0),
     )
 
-    prefer_charging_sooner = fields.Bool(
-        data_key="prefer-charging-sooner", load_default=True
+    soc_maxima = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-maxima",
+        required=False,
+        value_validator=validate.Range(min=0),
     )
 
-    prefer_curtailing_later = fields.Bool(
-        data_key="prefer-curtailing-later", load_default=True
+    soc_targets = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-targets",
+        required=False,
+        value_validator=validate.Range(min=0),
     )
 
     soc_gain = fields.List(
@@ -349,6 +355,35 @@ class DBStorageFlexModelSchema(Schema):
         data_key="soc-usage",
         required=False,
         validate=validate.Length(min=1),
+    )
+
+    prefer_charging_sooner = fields.Bool(
+        data_key="prefer-charging-sooner", load_default=True
+    )
+
+    prefer_curtailing_later = fields.Bool(
+        data_key="prefer-curtailing-later", load_default=True
+    )
+
+    power_capacity = VariableQuantityField(
+        to_unit="MW",
+        data_key="power-capacity",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
+    consumption_capacity = VariableQuantityField(
+        to_unit="MW",
+        data_key="consumption-capacity",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
+    production_capacity = VariableQuantityField(
+        to_unit="MW",
+        data_key="production-capacity",
+        required=False,
+        value_validator=validate.Range(min=0),
     )
 
     mapped_schema_keys: dict
