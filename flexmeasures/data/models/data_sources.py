@@ -427,19 +427,18 @@ def keep_latest_version(
         event_column = "event_end"
 
     # Add source-related columns using vectorized operations for clarity
-    bdf[["source.name", "source.type", "source.model", "source.version"]] = bdf[
-        "source"
-    ].apply(
-        lambda s: pd.Series(
-            {
-                "source.name": s.name,
-                "source.type": s.type,
-                "source.model": s.model,
-                "source.version": Version(
-                    s.version if s.version is not None else "0.0.0"
-                ),
-            }
-        )
+    source_to_fields = {
+        s: {
+            "source.name": s.name,
+            "source.type": s.type,
+            "source.model": s.model,
+            "source.version": Version(s.version or "0.0.0"),
+        }
+        for s in bdf["source"].unique()
+    }
+    source_expanded = bdf["source"].map(source_to_fields)
+    bdf[["source.name", "source.type", "source.model", "source.version"]] = (
+        pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     )
 
     # Sort by event_start and version, keeping only the latest version
