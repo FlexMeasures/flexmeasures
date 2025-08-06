@@ -566,6 +566,12 @@
             {% endif %}
 
             endDate.setDate(endDate.getDate() + 1);
+
+            // Update current url without reloading the page
+            var base_url = window.location.href.split("?")[0];
+            var new_url = `${base_url}?start_time=${encodeURIComponent(toIsoString(startDate))}&end_time=${encodeURIComponent(toIsoString(endDate))}`;
+            window.history.pushState({}, null, new_url);
+
             storeStartDate = startDate;
             storeEndDate = endDate;
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
