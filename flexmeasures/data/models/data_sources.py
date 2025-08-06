@@ -347,7 +347,8 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     def __str__(self) -> str:
         return self.description
 
-    def to_dict(self) -> dict:
+    @property
+    def as_dict(self) -> dict:
         model_incl_version = self.model if self.model else ""
         if self.model and self.version:
             model_incl_version += f" (v{self.version})"

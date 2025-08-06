@@ -401,8 +401,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         if as_json:
             df = bdf.reset_index()
             df["sensor"] = self
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
+            df["sensor"] = df["sensor"].apply(lambda x: x.as_dict)
+            df["source"] = df["source"].apply(lambda x: x.as_dict)
             return df.to_json(orient="records")
         return bdf
 
@@ -534,7 +534,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def __str__(self) -> str:
         return self.name
 
-    def to_dict(self) -> dict:
+    @property
+    def as_dict(self) -> dict:
         parent_asset = db.session.execute(
             select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
         ).scalar_one_or_none()

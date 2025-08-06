@@ -739,8 +739,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+            df["source"] = df["source"].apply(lambda x: x.as_dict)
+            df["sensor"] = df["sensor"].apply(lambda x: x.as_dict)
             df["sensor_unit"] = df["sensor"].apply(lambda x: x["sensor_unit"])
             df["event_value"] = df.apply(
                 lambda row: (
