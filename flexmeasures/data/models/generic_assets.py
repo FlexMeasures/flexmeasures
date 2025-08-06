@@ -700,7 +700,6 @@ class GenericAsset(db.Model, AuthModelMixin):
                         )
                     )
 
-                # Build metadata lookup tables first
                 sensors_metadata = {}
                 sources_metadata = {}
                 all_records = []
