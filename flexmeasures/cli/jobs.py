@@ -31,6 +31,7 @@ from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 REGISTRY_MAP = dict(
@@ -46,6 +47,26 @@ REGISTRY_MAP = dict(
 @click.group("jobs")
 def fm_jobs():
     """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("run-job")
+@with_appcontext
+@click.option(
+    "--job",
+    "job_id",
+    required=True,
+    help="Job UUID of the job you want to run.",
+)
+def run_job(job_id: str):
+    """
+    Run a single job.
+
+    We use the app context to find out which redis queues to use.
+    """
+    connection = app.queues["scheduling"].connection
+    job = Job.fetch(job_id, connection=connection)
+    result = job.func(**job.kwargs)
+    click.echo(f"Job {job_id} finished with: {result}")
 
 
 @fm_jobs.command("run-worker")
@@ -200,7 +221,7 @@ def save_last(
     available_queues = app.queues
     if queue_name not in available_queues.keys():
         click.secho(
-            f"Unknown queue '{queue_name}'. Available queues: {available_queues.keys()}",
+            f"Unknown queue '{queue_name}'. Available queues: {join_words_into_a_list(list(available_queues.keys()))}",
             **MsgStyle.ERROR,
         )
         raise click.Abort()

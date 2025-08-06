@@ -68,12 +68,19 @@ class AccountCrudUI(FlaskView):
         except (Forbidden, Unauthorized):
             user_can_update_account = False
 
+        user_can_create_children = True
+        try:
+            check_access(account, "create-children")
+        except (Forbidden, Unauthorized):
+            user_can_create_children = False
+
         return render_flexmeasures_template(
             "accounts/account.html",
             account=account,
             accounts=accounts,
             include_inactive=include_inactive,
             user_can_update_account=user_can_update_account,
+            user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
         )
 

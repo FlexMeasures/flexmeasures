@@ -7,23 +7,15 @@
 {% block divs %}
 
 <div class="container-fluid">
-    <div class="row">
-        <div class="col-md-12">
-            <button class="btn btn-sm btn-responsive btn-info" type="submit">
-                <a href="../../assets">Go to asset overview</a>
-            </button>
-        </div>
-        <div class="col-md-10">
-        </div>
-    </div>
+    
+    <h3>Creating a new asset {% if parent_asset_name %} under asset <a href="/assets/{{parent_asset_id}}">{{ parent_asset_name }}</a> {% endif %}</h3>
+    
     <form class="new-asset-form form-horizontal" method="POST" action="/assets/create">
         {{ asset_form.csrf_token }}
         {{ asset_form.hidden_tag() }}
         <fieldset>
             <div class="row">
                 <div class="col-md-6">
-
-                    <h2>Creating a new asset {% if parent_asset_name %} for {{ parent_asset_name }} {% endif %}</h2>
                     <input type="hidden" name="parent_asset_id" value="{{ parent_asset_id }}">
                     <div class="form-group">
                         {{ asset_form.name.label(class="col-md-6 control-label") }}
@@ -43,6 +35,7 @@
                             {% endfor %}
                         </div>
                     </div>
+                    {% if asset_form.account_id %}
                     <div class="form-group">
                         {{ asset_form.account_id.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">
@@ -51,7 +44,7 @@
                             <script>
                                 document.addEventListener("DOMContentLoaded", function() {
                                     var accountID = document.querySelector("select[name='account_id']");
-                                    accountID.value = "{{ account }}";
+                                    accountID.value = "{{ account.id }}";
                                     accountID.style.pointerEvents = "none";
                                     accountID.style.backgroundColor = "#f0f0f0";
                                 });
@@ -62,6 +55,7 @@
                             {% endfor %}
                         </div>
                     </div>
+                    {% endif %}
                     <div class="form-group">
                         {{ asset_form.latitude.label(class="col-md-6 control-label") }}
                         <div class="col-md-6">
@@ -112,7 +106,7 @@
 
     // create map
     var assetMap = L
-        .map('mapid', { center: [{{ map_center[0] }}, {{ map_center[1] }}], zoom: 10})
+        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6})
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
@@ -129,13 +123,22 @@
         popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
     });
 
+    {% if asset_form.latitude.data %}
+    // create marker for parent asset's location
+    var marker = L
+        .marker(
+            [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}],
+    { icon: location_icon }
+        ).addTo(assetMap);
+    {% else %}
     // dummy location somewhere else
-    var newMarker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    {% endif %}
 
     assetMap.on('click', function (e) {
         $("#latitude").val(e.latlng.lat.toFixed(4));
         $("#longitude").val(e.latlng.lng.toFixed(4));
-        newMarker.setLatLng(e.latlng);
+        marker.setLatLng(e.latlng);
     });
 
 </script>

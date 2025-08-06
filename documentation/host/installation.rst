@@ -376,7 +376,7 @@ Turn it on in the settings:
 
         .. code-block:: bash
 
-            $ export SECURITY_TWO_FACTOR=True}
+            $ export SECURITY_TWO_FACTOR=True
 
         (on Windows, use ``set`` instead of ``export``\ )
 
@@ -429,4 +429,4 @@ If your data structure is good, you should think about (continually) adding meas
 
 Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`tut_forecasting_scheduling`.
 
-One more consideration is to run FlexMeasures in a more professional ways as a we service. Head on to :ref:`deployment`.
+One more consideration is to run FlexMeasures in a more professional way as a web service. Head on to :ref:`deployment`.

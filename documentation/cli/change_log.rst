@@ -4,7 +4,12 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.27.0 | August XX, 2025
+since v0.27.0 | September XX, 2025
+=================================
+* Removed command ``flexmeasures db-ops save`` and ``flexmeasures db-ops load`` for folder&file - base backup management.
+
+
+since v0.27.0 | July 20, 2025
 =================================
 * Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account.
 
