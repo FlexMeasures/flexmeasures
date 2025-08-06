@@ -367,6 +367,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         )
 
     def to_dict(self) -> dict:
+        current_app.logger.warning(
+            "DataSource().to_dict() is deprecated since v0.28.0 and should be replaced by the DataSource().as_dict property."
+        )
         return self.as_dict
 
     @staticmethod

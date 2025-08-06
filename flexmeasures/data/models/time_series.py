@@ -550,6 +550,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         )
 
     def to_dict(self) -> dict:
+        current_app.logger.warning(
+            "Sensor().to_dict() is deprecated since v0.28.0 and should be replaced by the Sensor().as_dict property."
+        )
         return self.as_dict
 
     @classmethod
