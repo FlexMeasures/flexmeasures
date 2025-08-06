@@ -700,7 +700,6 @@ class GenericAsset(db.Model, AuthModelMixin):
                         )
                     )
 
-                # Build metadata lookup tables first
                 sensors_metadata = {}
                 sources_metadata = {}
                 all_records = []
@@ -840,6 +839,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 )
 
             else:
+                # if there is no data, return empty 
                 return json.dumps({"data": [], "sensors": {}, "sources": {}})
 
         return bdf_dict
