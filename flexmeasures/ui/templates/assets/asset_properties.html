@@ -415,10 +415,10 @@
             "soc-targets": typeTwo,
             "soc-gain": typeFour,
             "soc-usage": typeFour,
-            "roundtrip-efficiency": typeThree,
-            "charging-efficiency": typeThree,
-            "discharging-efficiency": typeThree,
-            "storage-efficiency": typeThree,
+            // "roundtrip-efficiency": typeThree,
+            // "charging-efficiency": typeThree,
+            // "discharging-efficiency": typeThree,
+            // "storage-efficiency": typeThree,
             "prefer-charging-sooner": typeOne,
             "prefer-curtailing-later": typeOne,
             "power-capacity": typeThree,
@@ -524,7 +524,14 @@
 
                 // Initialize the field with an empty value or an empty array
                 const currentFlexmodel = getFlexModel()
-                currentFlexmodel[fieldName] = "Not Set";
+
+                if (FlexModelFieldValidTypes[fieldName].includes(Array)) {
+                    currentFlexmodel[fieldName] = ["Not Set"];
+                } else if (FlexModelFieldValidTypes[fieldName].includes(Boolean)) {
+                    currentFlexmodel[fieldName] = false;
+                } else {
+                    currentFlexmodel[fieldName] = "Not Set";
+                }
                 setFlexModel(currentFlexmodel)
 
                 setTimeout(() => {
@@ -554,7 +561,8 @@
                 if (FlexModelFieldValidTypes[name].includes(Array)) {
                     const valueIndex = selectedIndex()
                     const fieldValues = flexModel[name];
-                    fieldValues[valueIndex] = { "sensor": sensorId };
+                    fieldValues[valueIndex]= { "sensor": sensorId };
+                    flexModel[name] = fieldValues;
                 } else {
                     const value = flexModel[name];
                     flexModel[name] = { "sensor": sensorId };
@@ -670,8 +678,6 @@
                 scrollContainer.id = `${fieldName}-carousel-container`;
                 scrollContainer.className = 'row flex-row flex-nowrap card-carousel-contianer';
                 scrollContainer.style.overflowY = 'auto';
-
-                console.log("cardValues: ", cardValues);
 
                 for (const [index, value] of cardValues.entries()) {
                     const isFixed = typeof value === "string"
