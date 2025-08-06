@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
+from functools import cached_property
 import json
 from packaging.version import Version
 from flask import current_app
@@ -534,7 +535,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def __str__(self) -> str:
         return self.name
 
-    @property
+    @cached_property
     def as_dict(self) -> dict:
         parent_asset = db.session.execute(
             select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)

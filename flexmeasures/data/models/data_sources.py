@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
 
@@ -347,7 +348,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     def __str__(self) -> str:
         return self.description
 
-    @property
+    @cached_property
     def as_dict(self) -> dict:
         model_incl_version = self.model if self.model else ""
         if self.model and self.version:
