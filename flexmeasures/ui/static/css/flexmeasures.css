@@ -2035,3 +2035,7 @@ body.touched [title]:hover:after {
   border-bottom-color: #fff;
   background-color: #fff;
 }
+
+.fa-md::before{
+    font-size: 16px !important;
+}

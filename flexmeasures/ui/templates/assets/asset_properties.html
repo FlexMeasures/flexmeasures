@@ -388,6 +388,15 @@
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         const senSearchResEle = document.getElementById("sensorsSearchResults")
 
+        const iconMap = {
+            "sensor": "fa fa-microchip",
+            "string": "fa fa-solid fa-lock",
+            "boolean": "fa fa-solid fa-flag",
+            "array": "fa fa-solid fa-list-ul",
+            "efficiency": "fa fa-solid fa-cogs",
+            "default": "fa fa-solid fa-question-circle",
+        }
+
         const assetFlexModelSchema = {
             "soc-min": null,
             "soc-max": null,
@@ -561,7 +570,7 @@
                 if (FlexModelFieldValidTypes[name].includes(Array)) {
                     const valueIndex = selectedIndex()
                     const fieldValues = flexModel[name];
-                    fieldValues[valueIndex]= { "sensor": sensorId };
+                    fieldValues[valueIndex] = { "sensor": sensorId };
                     flexModel[name] = fieldValues;
                 } else {
                     const value = flexModel[name];
@@ -792,6 +801,7 @@
                 titleSubContainer.className = 'd-flex'
                 titleSubContainer.appendChild(title);
 
+
                 if (isArray) {
                     const plusIcon = document.createElement('i');
                     plusIcon.className = 'fa fa-solid fa-plus ps-1';
@@ -810,14 +820,39 @@
                     titleSubContainer.appendChild(plusIcon)
                 }
 
-                titleContainer.appendChild(titleSubContainer);
 
+                const iconSubContainer = document.createElement('div');
+                iconSubContainer.className = 'd-flex column-gap-2 justify-content-between align-items-center';
 
+                let fieldIconClass = '';
+                let fieldIconTitle = '';
+                if (isKeyValueObject) {
+                    fieldIconClass = iconMap["sensor"];
+                    fieldIconTitle = "A Sensor. " + (assetFlexModelFieldDesc[name] || "This field is linked to a sensor.");
+                } else if (isBool) {
+                    fieldIconClass = iconMap["boolean"];
+                    fieldIconTitle = "A Boolean. " + (assetFlexModelFieldDesc[name] || "This field is a boolean value.");
+                } else if (isNumber || isString) {
+                    fieldIconClass = iconMap["string"];
+                    fieldIconTitle = "A String. " + (assetFlexModelFieldDesc[name] || "This field is a fixed value.");
+                } else if (isArray) {
+                    fieldIconClass = iconMap["array"];
+                    fieldIconTitle = "An Array. " + (assetFlexModelFieldDesc[name] || "This field is an array of values.");
+                } else {
+                    fieldIconClass = iconMap["default"];
+                    fieldIconTitle = "Unknown. " + (assetFlexModelFieldDesc[name] || "This field has an unknown type.");
+                }
+
+                const identityIcon = document.createElement('i');
+                identityIcon.className = `${fieldIconClass} ps-1 fa-md`;
+                identityIcon.setAttribute('data-bs-toggle', 'tooltip');
+                identityIcon.setAttribute('data-bs-html', 'true');
+                identityIcon.setAttribute('title', fieldIconTitle);
+                identityIcon.style.cursor = 'pointer';
 
                 const closeIcon = document.createElement('i');
                 closeIcon.className = 'fa fa-times card-close-icon';
                 closeIcon.setAttribute('data-bs-toggle', 'tooltip');
-                closeIcon.setAttribute('data-bs-placement', 'top');
                 closeIcon.setAttribute('title', 'Unset this field');
                 closeIcon.style.cursor = 'pointer';
                 closeIcon.onclick = function () {
@@ -840,7 +875,12 @@
                     setFlexModel(flexModel);
                     updateFlexModel();
                 }
-                titleContainer.appendChild(closeIcon);
+
+
+                iconSubContainer.appendChild(identityIcon);
+                iconSubContainer.appendChild(closeIcon);
+                titleContainer.appendChild(titleSubContainer);
+                titleContainer.appendChild(iconSubContainer);
                 highlightCard.appendChild(titleContainer);
 
                 const contentContainer = document.createElement('div');
