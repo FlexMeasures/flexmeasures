@@ -331,7 +331,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
         return to_annotation_frame(annotations) if as_frame else annotations
 
-    def search_beliefs(
+    def search_beliefs(  # noqa: C901
         self,
         event_starts_after: datetime_type | None = None,
         event_ends_before: datetime_type | None = None,
@@ -400,10 +400,107 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         )
         if as_json:
             df = bdf.reset_index()
-            df["sensor"] = self
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
-            return df.to_json(orient="records")
+
+            # Build metadata dictionaries
+            sensors_metadata = {}
+            sources_metadata = {}
+            all_records = []
+
+            if hasattr(self, "to_dict"):
+                # Build sensor metadata
+                sensor_dict = self.to_dict()
+                sensors_metadata[self.id] = {
+                    "name": sensor_dict.get("name", ""),
+                    "unit": sensor_dict.get("sensor_unit", self.unit),
+                    "description": sensor_dict.get("description", ""),
+                    "asset_id": sensor_dict.get(
+                        "asset_id", getattr(self, "generic_asset_id", None)
+                    ),
+                    "asset_description": sensor_dict.get("asset_description", ""),
+                }
+            else:
+                sensors_metadata[self.id] = {
+                    "name": str(self),
+                    "unit": getattr(self, "unit", None),
+                    "description": "",
+                    "asset_id": getattr(self, "generic_asset_id", None),
+                    "asset_description": "",
+                }
+
+            # Process each row in the dataframe
+            for _, row in df.iterrows():
+                source_obj = row.get("source")
+
+                if (
+                    source_obj
+                    and hasattr(source_obj, "id")
+                    and source_obj.id not in sources_metadata
+                ):
+
+                    if hasattr(source_obj, "to_dict"):
+                        source_dict = source_obj.to_dict()
+                        sources_metadata[source_obj.id] = {
+                            "name": source_dict.get("name", ""),
+                            "model": source_dict.get("model", ""),
+                            "type": source_dict.get("type", "other"),
+                            "description": source_dict.get("description", ""),
+                        }
+                    else:
+                        sources_metadata[source_obj.id] = {
+                            "name": str(source_obj),
+                            "model": "",
+                            "type": "other",
+                            "description": "",
+                        }
+
+                # Build the data record with reference IDs instead of full objects
+                record = {
+                    "ts": int(
+                        row["event_start"].timestamp() * 1000
+                    ),  # timestamp in milliseconds for JavaScript compatibility
+                    "sid": self.id,  # sensor ID reference
+                    "val": row["event_value"],
+                }
+
+                # Add optional fields
+                if source_obj and hasattr(source_obj, "id"):
+                    record["src"] = source_obj.id  # source ID reference
+
+                if "belief_time" in row and pd.notnull(row["belief_time"]):
+                    record["bt"] = int(
+                        row["belief_time"].timestamp() * 1000
+                    )  # timestamp in milliseconds for JavaScript compatibility
+
+                if "belief_horizon" in row and pd.notnull(row["belief_horizon"]):
+                    record["bh"] = int(row["belief_horizon"].total_seconds())
+
+                if "cumulative_probability" in row and pd.notnull(
+                    row["cumulative_probability"]
+                ):
+                    record["cp"] = row["cumulative_probability"]
+
+                # Clean up any problematic types
+                for key, value in record.items():
+                    if pd.isna(value):
+                        record[key] = None
+                    elif isinstance(value, pd.Timestamp):
+                        record[key] = int(
+                            value.timestamp() * 1000
+                        )  # timestamp in milliseconds for JavaScript compatibility
+                    elif isinstance(value, (pd.Timedelta, timedelta)):
+                        record[key] = int(value.total_seconds())
+                    elif hasattr(value, "item"):  # numpy types
+                        record[key] = value.item()
+
+                all_records.append(record)
+
+            # Return in the new structured format
+            result = {
+                "data": all_records,
+                "sensors": sensors_metadata,
+                "sources": sources_metadata,
+            }
+            return json.dumps(result)
         return bdf
 
     def chart(
