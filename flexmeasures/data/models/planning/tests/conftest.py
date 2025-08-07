@@ -165,6 +165,7 @@ def inflexible_devices(db, building) -> dict[str, Sensor]:
         attributes={"capacity_in_mw": 2},
     )
     db.session.add(residual_demand_sensor)
+    db.session.flush()  # assign IDs
     return {
         pv_sensor.name: pv_sensor,
         residual_demand_sensor.name: residual_demand_sensor,
