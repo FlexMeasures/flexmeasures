@@ -21,6 +21,10 @@ class OrderByIdMixin:
         """
         if not isinstance(other, self.__class__):
             return NotImplemented
+        if self.id is None or other.id is None:
+            raise ValueError(
+                f"Cannot compare {self} and {other}: one or both have no ID."
+            )
         return self.id == other.id
 
     def __lt__(self, other):
@@ -32,6 +36,10 @@ class OrderByIdMixin:
         """
         if not isinstance(other, self.__class__):
             return NotImplemented
+        if self.id is None or other.id is None:
+            raise ValueError(
+                f"Cannot compare {self} and {other}: one or both have no ID."
+            )
         return self.id < other.id
 
     def __hash__(self):
@@ -42,4 +50,8 @@ class OrderByIdMixin:
 
         :return: Hash value.
         """
+        if self.id is None:
+            raise TypeError(
+                f"Unhashable object: {self} has no ID. Consider calling `db.session.flush()` before sensor objects in sets and as dictionary keys."
+            )
         return hash(self.id)
