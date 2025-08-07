@@ -765,6 +765,15 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
         custom_join_targets = [] if parsed_sources else [DataSource]
 
+        # Consolidate the two most-recent-X approaches
+        if most_recent_only:
+            most_recent_filters = dict(most_recent_only=most_recent_only)
+        else:
+            most_recent_filters = dict(
+                most_recent_beliefs_only=most_recent_beliefs_only,
+                most_recent_events_only=most_recent_events_only,
+            )
+
         bdf_dict = {}
         for sensor in sensors:
             bdf = cls.search_session(
@@ -778,9 +787,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=parsed_sources,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                most_recent_events_only=most_recent_events_only,
-                most_recent_only=most_recent_only,
+                **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
             )

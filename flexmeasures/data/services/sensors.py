@@ -77,7 +77,6 @@ def _get_sensor_bdfs_by_source_type(
         bdf = TimedBelief.search(
             sensors=sensor,
             most_recent_only=True,
-            most_recent_beliefs_only=False,
             source_types=[source_type],
             **staleness_search,
         )
