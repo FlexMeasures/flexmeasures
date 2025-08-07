@@ -925,12 +925,13 @@
                                 <b>Asset:</b> ${Asset.name},
                                 <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                             </div>
-                            <i class="fa fa-times"
-                                onclick="removeFlexContextSensorValue('${fieldName}', ${sensorData.id})"
+                            <i class="fa fa-times remove-icon"
                                 data-bs-toggle="tooltip"
                                 data-bs-placement="top"
                                 title="Remove Sensor"
                                 style="cursor: pointer;"
+                                data-field-name="${fieldName}"
+                                data-sensor-id="${sensorData.id}"
                             ></i>
                         </div>
                     </div>`;
@@ -951,7 +952,7 @@
                 </div>
 
                 ${isKeyValueObject || isArray ? `
-                <div>
+                <div id="inflexible-device-sensors-container">
                     ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this field. Add sensors by selecting them from the right.</div>`}
                 </div>
                 ` : ""}
@@ -964,6 +965,17 @@
             </div>
         `;
     }
+
+    flexContextFormEle.addEventListener("click", function (event) {
+        const removeIcon = event.target.closest('.remove-icon');
+
+        if (removeIcon) {
+            const fieldName = removeIcon.getAttribute('data-field-name');
+            const sensorId = removeIcon.getAttribute('data-sensor-id');
+
+            removeFlexContextSensorValue(fieldName, parseInt(sensorId, 10));
+        }
+    });
 
     async function renderFlexContextForm() {
         flexContextFormEle.innerHTML = "";
