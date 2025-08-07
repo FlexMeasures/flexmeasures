@@ -155,6 +155,7 @@ def test_sensors_to_show_as_kpis_json(
         follow_redirects=True,
         data=mock_api_data_as_form_input(ma_copy),
     )
+    # how the UI works is that the page reloads with 200 but there is a an error message string that checks if the editing was successful or not
     assert response.status_code == 200
     assert b"Cannot edit asset:" in response.data
     assert b"Invalid JSON" in response.data

@@ -27,9 +27,6 @@ Bugfixes
 v0.27.1 | July XX, 2025
 ============================
 
-New features
--------------
-
 Bugfixes
 -----------
 * Flex-context price sensors can have any shared unit [see `PR #1628 <https://github.com/FlexMeasures/flexmeasures/pull/1628>`_]
