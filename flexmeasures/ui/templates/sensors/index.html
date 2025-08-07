@@ -216,19 +216,6 @@ The event_value should be a numeric value."
                                 ':' + pad(Math.abs(tzo) % 60);
                         }
 
-                        $(window).ready(() => {
-                            picker.on('selected', (startDate, endDate) => {
-                                startDate = encodeURIComponent(toIsoString(startDate.toJSDate()));
-                                endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
-                                var base_url = window.location.href.split("?")[0];
-                                var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
-
-                                // change current url without reloading the page
-                                window.history.pushState({}, null, new_url);
-                            });
-
-                        });
-
                         function copyUrl(event) {
                             event.preventDefault();
 
