@@ -12,7 +12,7 @@ v0.28.0 | September XX, 2025
 New features
 -------------
 
-* Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_ and `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_]
+* Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_, `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_ and `PR #1656 <https://github.com/FlexMeasures/flexmeasures/pull/1656>`_]
 
 Infrastructure / Support
 ----------------------
