@@ -398,6 +398,13 @@
             "default": "fa fa-solid fa-question-circle",
         }
 
+        const flexModelAllowedUnits = {
+            "power": ["MW", "kW"],
+            "energy": ["MWh", "kWh"],
+            "boolean": ["Boolean"],
+            "efficiency": ["%"],
+        }
+
         const assetFlexModelSchema = {
             "soc-min": null,
             "soc-max": null,
@@ -437,22 +444,26 @@
         };
 
         const assetFlexModelFieldDesc = {
-            "soc-min": "A constant lower boundary for all values in the schedule (defaults to 0).",
-            "soc-max": "A constant upper boundary for all values in the schedule (defaults to max soc target, if provided).",
-            "soc-minima": "Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).",
-            "soc-maxima": "Set points that form upper boundaries at certain times (defaults to NaN values).",
-            "soc-targets": "Exact set point(s) that the scheduler needs to realize (defaults to NaN values).",
-            "soc-gain": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field is an array whose values can be a string or a sensor.",
-            "soc-usage": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field is an array whose values can be a string or a sensor",
-            "roundtrip-efficiency": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio [0,1] (defaults to 100%).",
-            "charging-efficiency": "Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).",
-            "discharging-efficiency": "Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).",
-            "storage-efficiency": "This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read 11 about applying this value per time step across longer time spans.",
-            "prefer-charging-sooner": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.",
-            "prefer-curtailing-later": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.",
-            "power-capacity": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute capacity_in_mw). ",
-            "consumption-capacity": "Device-level power constraint on consumption. How much power can be drawn by this asset. ",
-            "production-capacity": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment, set this to reference your sensor containing PV power forecasts.",
+            "soc-min": { "units": flexModelAllowedUnits.energy, "desc": "A constant lower boundary for all values in the schedule (defaults to 0).", "types": "Fixed value or Sensor." },
+            "soc-max": { "units": flexModelAllowedUnits.energy, "desc": "A constant upper boundary for all values in the schedule (defaults to max soc target, if provided).", "types": "Fixed value or Sensor." },
+            "soc-minima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).", "types": "Fixed value or Sensor." },
+            "soc-maxima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form upper boundaries at certain times (defaults to NaN values).", "types": "Fixed value or Sensor." },
+            "soc-targets": { "units": flexModelAllowedUnits.energy, "desc": "Exact set point(s) that the scheduler needs to realize (defaults to NaN values).", "types": "Fixed value or Sensor." },
+            "soc-gain": { "units": flexModelAllowedUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field is an array whose values can be a string or a sensor.", "types": "An array of Fixed value or Sensor." },
+            "soc-usage": { "units": flexModelAllowedUnits.power, "desc": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field is an array whose values can be a string or a sensor.", "types": "An array of Fixed value or Sensor." },
+            "roundtrip-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio [0,1] (defaults to 100%).", "types": "Fixed value only." },
+            "charging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).", "types": "Fixed value only." },
+            "discharging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).", "types": "Fixed value only." },
+            "storage-efficiency": {
+                "units": flexModelAllowedUnits.efficiency,
+                "desc": "This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865",
+                "types": "Fixed value only."
+            },
+            "prefer-charging-sooner": { "units": flexModelAllowedUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later.", "types": "Boolean option only." },
+            "prefer-curtailing-later": { "units": flexModelAllowedUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True).", "types": "Boolean option only." },
+            "power-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute capacity_in_mw).", "types": "Fixed value or Sensor." },
+            "consumption-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on consumption. How much power can be drawn by this asset.", "types": "Fixed value or Sensor." },
+            "production-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment, set this to reference your sensor containing PV power forecasts.", "types": "Fixed value or Sensor." },
         }
 
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
@@ -667,14 +678,19 @@
                 }
             }
 
-            async function renderSelectInfoCards(modelKey) {
+            async function renderSelectInfoCards(modelKey, allowedUnits = []) {
                 if (modelKey) {
                     flexInfoContainer.innerHTML = `
                     <div>
                         <div class="alert alert-info" role="alert">
                             <b> About ${getFlexFieldTitle(modelKey)}
                             <div class="pt-2 fw-normal">
-                                ${assetFlexModelFieldDesc[modelKey] || "No description available."}
+                                ${assetFlexModelFieldDesc[modelKey]["desc"] || "No description available."}
+                            </div>
+
+                             <div class="pt-2 fw-bold"> 
+                                Possible Types: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["types"] || "No types available."} </span> <br/>
+                                Example Units: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["units"].join(", ")} </span>
                             </div>
                         </div>
                     </div>
@@ -830,19 +846,19 @@
                 let fieldIconTitle = '';
                 if (isKeyValueObject) {
                     fieldIconClass = iconMap["sensor"];
-                    fieldIconTitle = "A Sensor. " + (assetFlexModelFieldDesc[name] || "This field is linked to a sensor.");
+                    fieldIconTitle = "A Sensor";
                 } else if (isBool) {
                     fieldIconClass = iconMap["boolean"];
-                    fieldIconTitle = "A Boolean. " + (assetFlexModelFieldDesc[name] || "This field is a boolean value.");
+                    fieldIconTitle = "A Boolean";
                 } else if (isNumber || isString) {
                     fieldIconClass = iconMap["string"];
-                    fieldIconTitle = "A String. " + (assetFlexModelFieldDesc[name] || "This field is a fixed value.");
+                    fieldIconTitle = "A Fixed Value";
                 } else if (isArray) {
                     fieldIconClass = iconMap["array"];
-                    fieldIconTitle = "An Array. " + (assetFlexModelFieldDesc[name] || "This field is an array of values.");
+                    fieldIconTitle = "An Array";
                 } else {
                     fieldIconClass = iconMap["default"];
-                    fieldIconTitle = "Unknown. " + (assetFlexModelFieldDesc[name] || "This field has an unknown type.");
+                    fieldIconTitle = "Unknown";
                 }
 
                 const identityIcon = document.createElement('i');
