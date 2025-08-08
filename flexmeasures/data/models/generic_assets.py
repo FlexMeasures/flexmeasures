@@ -723,9 +723,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                     df["sensor"] = sensor  # or some JSONifiable representation
                     df["sensor_unit"] = sensor.unit
                     df["scale_factor"] = factors[sensor.unit]
-                    df = df.set_index(
-                        ["sensor"], append=True
-                    )  # Use sensor_id instead of sensor object
+                    df = df.set_index(["sensor"], append=True)
+                    # Use sensor_id instead of sensor object
                     df_dict[sensor.id] = df
                 df = pd.concat(df_dict.values())
             else:
@@ -765,7 +764,6 @@ class GenericAsset(db.Model, AuthModelMixin):
                 # Map all sensors to their dictionaries (vectorized operation)
                 df["sensor"] = df["sensor"].map(sensor_dict_map)
 
-            # FIXED: Handle source objects efficiently
             if "source" in df.columns and not df.empty:
                 # Pre-compute source dictionaries to avoid repeated .apply() calls
                 unique_sources = df["source"].unique()
@@ -777,9 +775,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                         source_dict_map[source] = str(source)
                 df["source"] = df["source"].map(source_dict_map)
 
-            # FIXED: Handle datetime conversion more efficiently
             if "event_value" in df.columns and not df.empty:
-                # Use vectorized operations instead of .apply()
+                # Use vectorized operations instead of .apply() for efficiency
                 time_mask = (df["sensor_unit"] == "s") & df["event_value"].notna()
                 if time_mask.any():
                     time_values = df.loc[time_mask, "event_value"]
