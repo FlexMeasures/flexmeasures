@@ -163,9 +163,7 @@ class MetaStorageScheduler(Scheduler):
         up_deviation_prices = get_continuous_series_sensor_or_quantity(
             variable_quantity=consumption_price,
             actuator=asset,
-            unit=FlexContextSchema()
-            .declared_fields["consumption_price"]
-            ._get_unit(consumption_price),
+            unit=self.flex_context["shared_currency_unit"] + "/MWh",
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
@@ -175,9 +173,7 @@ class MetaStorageScheduler(Scheduler):
         down_deviation_prices = get_continuous_series_sensor_or_quantity(
             variable_quantity=production_price,
             actuator=asset,
-            unit=FlexContextSchema()
-            .declared_fields["production_price"]
-            ._get_unit(production_price),
+            unit=self.flex_context["shared_currency_unit"] + "/MWh",
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
@@ -276,9 +272,7 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_consumption_price,
                 actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_peak_consumption_price"]
-                ._get_unit(ems_peak_consumption_price),
+                unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -312,9 +306,7 @@ class MetaStorageScheduler(Scheduler):
             ems_peak_production_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_production_price,
                 actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_peak_production_price"]
-                ._get_unit(ems_peak_production_price),
+                unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -350,9 +342,7 @@ class MetaStorageScheduler(Scheduler):
             any_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
                 actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_consumption_breach_price"]
-                ._get_unit(ems_consumption_breach_price),
+                unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -361,10 +351,8 @@ class MetaStorageScheduler(Scheduler):
             all_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
                 actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_consumption_breach_price"]
-                ._get_unit(ems_consumption_breach_price)
-                + "*h",  # from EUR/MWh to EUR/MW/resolution
+                unit=self.flex_context["shared_currency_unit"]
+                + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -404,9 +392,7 @@ class MetaStorageScheduler(Scheduler):
             any_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
                 actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_production_breach_price"]
-                ._get_unit(ems_production_breach_price),
+                unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -415,10 +401,8 @@ class MetaStorageScheduler(Scheduler):
             all_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
                 actuator=asset,
-                unit=FlexContextSchema()
-                .declared_fields["ems_production_breach_price"]
-                ._get_unit(ems_production_breach_price)
-                + "*h",  # from EUR/MWh to EUR/MW/resolution
+                unit=self.flex_context["shared_currency_unit"]
+                + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
@@ -525,9 +509,7 @@ class MetaStorageScheduler(Scheduler):
                 any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
                     actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_minima_breach_price"]
-                    ._get_unit(soc_minima_breach_price),
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -537,10 +519,8 @@ class MetaStorageScheduler(Scheduler):
                 all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
                     actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_minima_breach_price"]
-                    ._get_unit(soc_minima_breach_price)
-                    + "*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -609,9 +589,7 @@ class MetaStorageScheduler(Scheduler):
                 any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
                     actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_maxima_breach_price"]
-                    ._get_unit(soc_maxima_breach_price),
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -621,10 +599,8 @@ class MetaStorageScheduler(Scheduler):
                 all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
                     actuator=asset,
-                    unit=FlexContextSchema()
-                    .declared_fields["soc_maxima_breach_price"]
-                    ._get_unit(soc_maxima_breach_price)
-                    + "*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
@@ -730,9 +706,7 @@ class MetaStorageScheduler(Scheduler):
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=production_breach_price,
                             actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["production_breach_price"]
-                            ._get_unit(production_breach_price),
+                            unit=self.flex_context["shared_currency_unit"] + "/MW",
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
@@ -744,10 +718,8 @@ class MetaStorageScheduler(Scheduler):
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=production_breach_price,
                             actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["production_breach_price"]
-                            ._get_unit(production_breach_price)
-                            + "*h",  # from EUR/MWh to EUR/MW/resolution
+                            unit=self.flex_context["shared_currency_unit"]
+                            + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
@@ -806,9 +778,7 @@ class MetaStorageScheduler(Scheduler):
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=consumption_breach_price,
                             actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["consumption_breach_price"]
-                            ._get_unit(consumption_breach_price),
+                            unit=self.flex_context["shared_currency_unit"] + "/MW",
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
@@ -820,10 +790,8 @@ class MetaStorageScheduler(Scheduler):
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=consumption_breach_price,
                             actuator=asset,
-                            unit=FlexContextSchema()
-                            .declared_fields["consumption_breach_price"]
-                            ._get_unit(consumption_breach_price)
-                            + "*h",  # from EUR/MWh to EUR/MW/resolution
+                            unit=self.flex_context["shared_currency_unit"]
+                            + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,

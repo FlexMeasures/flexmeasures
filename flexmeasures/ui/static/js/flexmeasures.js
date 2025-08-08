@@ -257,11 +257,6 @@ function ready() {
     })
 
 
-    // Security messages styling
-
-    $('.flashes').addClass('alert alert-info');
-
-
     // Check button behaviour
 
     $("#control-check-expected-value-offshore").click(function (data) {

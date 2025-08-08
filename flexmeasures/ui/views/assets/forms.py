@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 
 from flask import current_app
 from flask_security import current_user
@@ -8,11 +9,13 @@ from flask_wtf import FlaskForm
 from sqlalchemy import select
 from wtforms import StringField, DecimalField, SelectField, IntegerField
 from wtforms.validators import DataRequired, optional
+from marshmallow import ValidationError
 
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.schemas.generic_assets import SensorsToShowAsKPIsSchema
 
 
 class AssetForm(FlaskForm):
@@ -35,6 +38,10 @@ class AssetForm(FlaskForm):
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
+    sensors_to_show_as_kpis = StringField(
+        "Sensors to show as KPIs (JSON)",
+        default="[]",
+    )
 
     def validate_on_submit(self):
         if (
@@ -44,10 +51,27 @@ class AssetForm(FlaskForm):
             self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
-        if hasattr(self, "account_id") and self.account_id.data == -1:
-            del self.account_id  # asset will be public
+
         result = super().validate_on_submit()
         return result
+
+    # Custom validator using Marshmallow
+    def validate_sensors_to_show_as_kpis(self, field):
+        try:
+            # First, try to parse the input as JSON
+            value = json.loads(field.data)
+        except json.JSONDecodeError:
+            field.errors.append("Invalid JSON string.")
+            return
+
+        # Now, use Marshmallow schema to validate the structure of the data
+        schema = SensorsToShowAsKPIsSchema()
+        try:
+            # Validate the parsed JSON data using the schema
+            schema.load({"sensors_to_show_as_kpis": value})
+        except ValidationError as e:
+            field.errors.append(str(e))
+            return
 
     def to_json(self) -> dict:
         """turn form data into a JSON we can POST to our internal API"""
@@ -103,10 +127,8 @@ class NewAssetForm(AssetForm):
     generic_asset_type_id = SelectField(
         "Asset type", coerce=int, validators=[DataRequired()]
     )
-    account_id = SelectField("Account", coerce=int)
-    parent_asset_id = IntegerField(
-        "Parent Asset Id", validators=[optional()]
-    )  # Add parent_id field
+    account_id = SelectField("Account", coerce=int, validators=[optional()])
+    parent_asset_id = IntegerField("Parent Asset Id", validators=[optional()])
 
     def set_account(self) -> tuple[Account | None, str | None]:
         """Set an account for the to-be-created asset.
@@ -114,7 +136,7 @@ class NewAssetForm(AssetForm):
 
         account_error = None
 
-        if self.account_id.data == -1:
+        if self.account_id.data == -1 or self.account_id.data is None:
             if user_has_admin_access(current_user, "update"):
                 return None, None  # Account can be None (public asset)
             else:

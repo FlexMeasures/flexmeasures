@@ -87,6 +87,13 @@
                                 </div>
 
                                 <div class="form-group">
+                                    {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
+                                    <div class="col-md-3">
+                                        {{ asset_form.sensors_to_show_as_kpis(class_="form-control") }}
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
                                     <label class="control-label">Location</label>
                                     <small>(Click map to edit latitude and longitude in form)</small>
                                     <div id="mapid"></div>

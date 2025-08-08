@@ -112,12 +112,6 @@ def register_at(app: Flask):
 
     ops_register_at(app)
 
-    # Load API endpoints for play mode
-    if app.config.get("FLEXMEASURES_MODE", "") == "play":
-        from flexmeasures.api.play import register_at as play_register_at
-
-        play_register_at(app)
-
     # Load all versions of the API functionality
     from flexmeasures.api.v3_0 import register_at as v3_0_register_at
     from flexmeasures.api.dev import register_at as dev_register_at
