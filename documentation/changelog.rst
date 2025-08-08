@@ -22,6 +22,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 
 
 v0.27.1 | July XX, 2025
