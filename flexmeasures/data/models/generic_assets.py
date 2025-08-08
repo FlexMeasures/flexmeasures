@@ -631,7 +631,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         return chart_specs
 
-    def search_beliefs(
+    def search_beliefs(  # noqa C901
         self,
         sensors: list["Sensor"] | None = None,  # noqa F821
         event_starts_after: datetime | None = None,
@@ -691,13 +691,43 @@ class GenericAsset(db.Model, AuthModelMixin):
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
-                minimum_resampling_resolution = determine_minimum_resampling_resolution(
-                    [bdf.event_resolution for bdf in bdf_dict.values()]
-                )
                 if resolution is not None:
                     minimum_resampling_resolution = resolution
-                df_dict = {}
+                else:
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
+
+                sensors_metadata = {}
+                sources_metadata = {}
+                all_records = []
+
                 for sensor, bdf in bdf_dict.items():
+                    if hasattr(sensor, "to_dict"):
+                        # Build metadata lookup table for this sensor
+                        sensor_dict = sensor.to_dict()
+                        sensors_metadata[sensor.id] = {
+                            "name": sensor_dict.get("name", ""),
+                            "unit": sensor_dict.get("unit", sensor.unit),
+                            "description": sensor_dict.get("description", ""),
+                            "asset_id": sensor_dict.get(
+                                "asset_id", getattr(sensor, "generic_asset_id", None)
+                            ),
+                            "asset_description": sensor_dict.get(
+                                "asset_description", ""
+                            ),
+                        }
+                    else:
+                        sensors_metadata[sensor.id] = {
+                            "name": str(sensor),
+                            "unit": getattr(sensor, "unit", None),
+                            "description": "",
+                            "asset_id": getattr(sensor, "generic_asset_id", None),
+                            "asset_description": "",
+                        }
+
                     if bdf.event_resolution > timedelta(0):
                         bdf = bdf.resample_events(minimum_resampling_resolution)
                     bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
@@ -716,43 +746,102 @@ class GenericAsset(db.Model, AuthModelMixin):
                         ),
                         append=True,
                     )
-                    df["sensor"] = sensor  # or some JSONifiable representation
-                    df["scale_factor"] = factors[sensor.unit]
-                    df = df.set_index(["sensor"], append=True)
-                    df_dict[sensor.id] = df
-                df = pd.concat(df_dict.values())
-            else:
-                df = simplify_index(
-                    BeliefsDataFrame(),
-                    index_levels_to_columns=(
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"]
-                    ),
-                ).set_index(
-                    (
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"]
-                    ),
-                    append=True,
+
+                    df = df.reset_index()
+
+                    # Handle datetime conversion for time unit sensors
+                    if sensor.unit == "s" and "event_value" in df.columns:
+                        time_mask = df["event_value"].notna()
+                        if time_mask.any():
+                            time_values = df.loc[time_mask, "event_value"]
+                            converted_times = (
+                                pd.to_datetime(time_values, unit="s", origin="unix")
+                                .dt.tz_localize("UTC")
+                                .dt.tz_convert(self.timezone)
+                                .dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+                            )
+                            df.loc[time_mask, "event_value"] = converted_times
+
+                    # Process each row in the dataframe
+                    for _, row in df.iterrows():
+                        source_obj = row.get("source")
+
+                        # Build source metadata if not already built
+                        if (
+                            source_obj
+                            and hasattr(source_obj, "id")
+                            and source_obj.id not in sources_metadata
+                        ):
+                            if hasattr(source_obj, "to_dict"):
+                                source_dict = source_obj.to_dict()
+                                sources_metadata[source_obj.id] = {
+                                    "name": source_dict.get("name", ""),
+                                    "model": source_dict.get("model", ""),
+                                    "type": source_dict.get("type", "other"),
+                                    "description": source_dict.get("description", ""),
+                                }
+                            else:
+                                sources_metadata[source_obj.id] = {
+                                    "name": str(source_obj),
+                                    "model": "",
+                                    "type": "other",
+                                    "description": "",
+                                }
+
+                        # Build record with reference IDs only
+                        record = {
+                            "ts": int(
+                                row["event_start"].timestamp() * 1000
+                            ),  # Convert from seconds to milliseconds for JavaScript compatibility
+                            "sid": sensor.id,
+                            "val": row["event_value"],
+                            "sf": factors.get(sensor.unit, 1.0),
+                        }
+
+                        # Add optional fields
+                        if source_obj and hasattr(source_obj, "id"):
+                            record["src"] = source_obj.id
+
+                        if "belief_horizon" in row and pd.notnull(
+                            row["belief_horizon"]
+                        ):
+                            record["bh"] = int(row["belief_horizon"].total_seconds())
+
+                        if (
+                            not most_recent_beliefs_only
+                            and "belief_time" in row
+                            and pd.notnull(row["belief_time"])
+                        ):
+                            record["bt"] = int(
+                                row["belief_time"].timestamp() * 1000
+                            )  # Convert from seconds to milliseconds for JavaScript compatibility
+
+                        # Clean up any problematic types
+                        for key, value in record.items():
+                            if pd.isna(value):
+                                record[key] = None
+                            elif isinstance(value, pd.Timestamp):
+                                record[key] = value.isoformat()
+                            elif isinstance(value, (pd.Timedelta, timedelta)):
+                                record[key] = str(value)
+                            elif hasattr(value, "item"):  # numpy types
+                                record[key] = value.item()
+                            elif hasattr(value, "total_seconds"):
+                                record[key] = value.total_seconds()
+
+                        all_records.append(record)
+                return json.dumps(
+                    {
+                        "data": all_records,
+                        "sensors": sensors_metadata,
+                        "sources": sources_metadata,
+                    }
                 )
-                df["sensor"] = {}  # ensure the same columns as a non-empty frame
-            df = df.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
-            df["sensor_unit"] = df["sensor"].apply(lambda x: x["sensor_unit"])
-            df["event_value"] = df.apply(
-                lambda row: (
-                    pd.to_datetime(row["event_value"], unit="s", origin="unix")
-                    .tz_localize("UTC")
-                    .tz_convert(self.timezone)
-                    if row["sensor_unit"] == "s" and pd.notnull(row["event_value"])
-                    else row["event_value"]
-                ),
-                axis=1,
-            )
-            return df.to_json(orient="records")
+
+            else:
+                # if there is no data, return empty 
+                return json.dumps({"data": [], "sensors": {}, "sources": {}})
+
         return bdf_dict
 
     @property
