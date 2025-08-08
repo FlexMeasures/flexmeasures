@@ -384,6 +384,8 @@
         const typeTwo = [Object];
         const typeThree = [String, Object];
         const typeFour = [Array];
+        const typeFive = [String];
+
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         const senSearchResEle = document.getElementById("sensorsSearchResults")
@@ -393,7 +395,6 @@
             "string": "fa fa-solid fa-lock",
             "boolean": "fa fa-solid fa-flag",
             "array": "fa fa-solid fa-list-ul",
-            "efficiency": "fa fa-solid fa-cogs",
             "default": "fa fa-solid fa-question-circle",
         }
 
@@ -405,10 +406,10 @@
             "soc-targets": null,
             "soc-gain": [],
             "soc-usage": [],
-            // "roundtrip-efficiency": null,
-            // "charging-efficiency": null,
-            // "discharging-efficiency": null,
-            // "storage-efficiency": null,
+            "roundtrip-efficiency": null,
+            "charging-efficiency": null,
+            "discharging-efficiency": null,
+            "storage-efficiency": null,
             "prefer-charging-sooner": null,
             "prefer-curtailing-later": null,
             "power-capacity": null,
@@ -424,10 +425,10 @@
             "soc-targets": typeTwo,
             "soc-gain": typeFour,
             "soc-usage": typeFour,
-            // "roundtrip-efficiency": typeThree,
-            // "charging-efficiency": typeThree,
-            // "discharging-efficiency": typeThree,
-            // "storage-efficiency": typeThree,
+            "roundtrip-efficiency": typeFive,
+            "charging-efficiency": typeThree,
+            "discharging-efficiency": typeThree,
+            "storage-efficiency": typeThree,
             "prefer-charging-sooner": typeOne,
             "prefer-curtailing-later": typeOne,
             "power-capacity": typeThree,

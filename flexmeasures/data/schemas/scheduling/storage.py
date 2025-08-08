@@ -357,6 +357,20 @@ class DBStorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
     )
 
+    roundtrip_efficiency = EfficiencyField(
+        data_key="roundtrip-efficiency", required=False
+    )
+
+    charging_efficiency = EfficiencyField(
+        data_key="charging-efficiency", required=False
+    )
+
+    discharging_efficiency = EfficiencyField(
+        data_key="discharging-efficiency", required=False
+    )
+
+    storage_efficiency = EfficiencyField(data_key="storage-efficiency", required=False)
+
     prefer_charging_sooner = fields.Bool(
         data_key="prefer-charging-sooner", load_default=True
     )
