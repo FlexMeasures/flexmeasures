@@ -2030,3 +2030,12 @@ body.touched [title]:hover:after {
   text-align: center;
   border-radius: 0.275rem;
 }
+
+.flex-nav.nav-link.active {
+  border-bottom-color: #fff;
+  background-color: #fff;
+}
+
+.fa-md::before{
+    font-size: 16px !important;
+}
