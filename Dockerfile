@@ -5,7 +5,9 @@ ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
 # pre-requisites
-RUN apt-get update && apt-get install --no-install-recommends -y --upgrade python3 python3-pip git curl gunicorn coinor-cbc postgresql-client && apt-get clean
+RUN apt-get update && apt-get install --no-install-recommends -y --upgrade \
+    python3 python3-pip git curl gunicorn coinor-cbc postgresql-client libgomp1 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 # requirements - doing this earlier, so we don't install them each time. Use --no-cache to refresh them.
@@ -37,4 +39,4 @@ CMD [ \
     # another request is taking a long time to complete.
     "--workers", "2", "--threads", "4", \
     "wsgi:application" \
-    ]
+]
