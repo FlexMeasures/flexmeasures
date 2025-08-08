@@ -472,7 +472,7 @@
             const flexSelect = document.getElementById('flexSelect');
 
             const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, reRenderForm);
-            const [activeCard, setActiveCard] = createReactiveState(null);
+            const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
             const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
 
             function initializeSensorsForm() {
@@ -1078,7 +1078,7 @@
 
             async function renderFlexInputOptions() {
                 const card = activeCard();
-                if (!card) {
+                if (!card && !hasInitialized) {
                     showToast(`Cant render input options without a selcted Field`, "info");
                     return;
                 }
