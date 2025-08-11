@@ -5,7 +5,7 @@ FlexMeasures Changelog
 
 
 
-v0.27.1 | July XX, 2025
+v0.27.1 | August 11, 2025
 ============================
 
 Bugfixes
@@ -13,6 +13,10 @@ Bugfixes
 * Flex-context price sensors can have any shared unit [see `PR #1628 <https://github.com/FlexMeasures/flexmeasures/pull/1628>`_]
 * Fix a few UI grievances in asset creation, esp. child assets [see `PR #1629 <https://github.com/FlexMeasures/flexmeasures/pull/1629>`_]
 * Fix updating the URL query parameters upon date selection in the UI of servers in play mode [see `PR #1649 <https://github.com/FlexMeasures/flexmeasures/pull/1649>`_]
+
+Infrastructure / Support
+----------------------
+* Automate release process to PyPI [see `PR #1657 <https://github.com/FlexMeasures/flexmeasures/pull/1657>`_]
 
 
 v0.27.0 | July 20, 2025
