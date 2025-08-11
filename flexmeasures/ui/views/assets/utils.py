@@ -130,6 +130,7 @@ def process_internal_api_response(
                 **asset_data,
                 **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
                 **{"flex_context": json.loads(asset_data.get("flex_context", "{}"))},
+                **{"flex_model": json.loads(asset_data.get("flex_model", "{}"))},
                 **{
                     "sensors_to_show": json.loads(
                         asset_data.get("sensors_to_show", "[]")
