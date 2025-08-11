@@ -392,7 +392,7 @@
 
         const iconMap = {
             "sensor": "fa fa-microchip",
-            "string": "fa fa-solid fa-lock",
+            "string": "fa fa-solid fa-lock fa-lg",
             "boolean": "fa fa-solid fa-flag",
             "array": "fa fa-solid fa-list-ul",
             "default": "fa fa-solid fa-question-circle",
@@ -444,13 +444,13 @@
         };
 
         const assetFlexModelFieldDesc = {
-            "soc-min": { "units": flexModelAllowedUnits.energy, "desc": "A constant lower boundary for all values in the schedule (defaults to 0).", "types": "Fixed value or Sensor." },
-            "soc-max": { "units": flexModelAllowedUnits.energy, "desc": "A constant upper boundary for all values in the schedule (defaults to max soc target, if provided).", "types": "Fixed value or Sensor." },
-            "soc-minima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).", "types": "Fixed value or Sensor." },
-            "soc-maxima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form upper boundaries at certain times (defaults to NaN values).", "types": "Fixed value or Sensor." },
-            "soc-targets": { "units": flexModelAllowedUnits.energy, "desc": "Exact set point(s) that the scheduler needs to realize (defaults to NaN values).", "types": "Fixed value or Sensor." },
-            "soc-gain": { "units": flexModelAllowedUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field is an array whose values can be a string or a sensor.", "types": "An array of Fixed value or Sensor." },
-            "soc-usage": { "units": flexModelAllowedUnits.power, "desc": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field is an array whose values can be a string or a sensor.", "types": "An array of Fixed value or Sensor." },
+            "soc-min": { "units": flexModelAllowedUnits.energy, "desc": "A constant lower boundary for all values in the schedule (defaults to 0).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "soc-max": { "units": flexModelAllowedUnits.energy, "desc": "A constant upper boundary for all values in the schedule (defaults to max soc target, if provided).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "soc-minima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "soc-maxima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form upper boundaries at certain times (defaults to NaN values).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "soc-targets": { "units": flexModelAllowedUnits.energy, "desc": "Exact set point(s) that the scheduler needs to realize (defaults to NaN values).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "soc-gain": { "units": flexModelAllowedUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field is an array whose values can be a string or a sensor.", "types": "An array of One fixed value or a dynamic signal (via a sensor)." },
+            "soc-usage": { "units": flexModelAllowedUnits.power, "desc": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field is an array whose values can be a string or a sensor.", "types": "An array of One fixed value or a dynamic signal (via a sensor)." },
             "roundtrip-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio [0,1] (defaults to 100%).", "types": "Fixed value only." },
             "charging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).", "types": "Fixed value only." },
             "discharging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).", "types": "Fixed value only." },
@@ -461,9 +461,9 @@
             },
             "prefer-charging-sooner": { "units": flexModelAllowedUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later.", "types": "Boolean option only." },
             "prefer-curtailing-later": { "units": flexModelAllowedUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True).", "types": "Boolean option only." },
-            "power-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute capacity_in_mw).", "types": "Fixed value or Sensor." },
-            "consumption-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on consumption. How much power can be drawn by this asset.", "types": "Fixed value or Sensor." },
-            "production-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment, set this to reference your sensor containing PV power forecasts.", "types": "Fixed value or Sensor." },
+            "power-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute capacity_in_mw).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "consumption-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on consumption. How much power can be drawn by this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "production-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment, set this to reference your sensor containing PV power forecasts.", "types": "One fixed value or a dynamic signal (via a sensor)." },
         }
 
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
@@ -749,7 +749,7 @@
                     }
 
                     const closeIcon = document.createElement('i');
-                    closeIcon.className = 'fa fa-times';
+                    closeIcon.className = 'fa fa-times fa-lg';
                     closeIcon.setAttribute('data-bs-toggle', 'tooltip');
                     closeIcon.setAttribute('data-bs-placement', 'top');
                     closeIcon.setAttribute('title', 'Remove');
@@ -816,31 +816,8 @@
                 title.className = 'card-title';
                 title.textContent = getFlexFieldTitle(name);
                 const titleSubContainer = document.createElement('div');
-                titleSubContainer.className = 'd-flex'
+                titleSubContainer.className = 'd-flex justify-content-between align-items-center';
                 titleSubContainer.appendChild(title);
-
-
-                if (isArray) {
-                    const plusIcon = document.createElement('i');
-                    plusIcon.className = 'fa fa-solid fa-plus ps-1';
-                    plusIcon.style = 'cursor: pointer;';
-                    plusIcon.onclick = async function (event) {
-                        event.preventDefault();
-
-                        // add new empty item to array
-                        value.push('Not Set');
-
-                        let carouselCards = document.getElementById(`${name}-carousel-container`);
-                        carouselCards.innerHTML = '';
-                        carouselCards = await renderCarouselCards(name, value);
-                        card.querySelector('.card-highlight').appendChild(carouselCards);
-                    };
-                    titleSubContainer.appendChild(plusIcon)
-                }
-
-
-                const iconSubContainer = document.createElement('div');
-                iconSubContainer.className = 'd-flex column-gap-2 justify-content-between align-items-center';
 
                 let fieldIconClass = '';
                 let fieldIconTitle = '';
@@ -862,14 +839,39 @@
                 }
 
                 const identityIcon = document.createElement('i');
-                identityIcon.className = `${fieldIconClass} ps-1 fa-md`;
+                identityIcon.className = `${fieldIconClass} ps-1 fa-md float-end`;
                 identityIcon.setAttribute('data-bs-toggle', 'tooltip');
                 identityIcon.setAttribute('data-bs-html', 'true');
                 identityIcon.setAttribute('title', fieldIconTitle);
                 identityIcon.style.cursor = 'pointer';
 
+                if (isArray) {
+                    const plusIcon = document.createElement('i');
+                    plusIcon.className = 'fa fa-solid fa-plus ps-1 fa-lg';
+                    plusIcon.style = 'cursor: pointer;';
+                    plusIcon.setAttribute('data-bs-toggle', 'tooltip');
+                    plusIcon.setAttribute('title', 'Add a new item');
+                    plusIcon.onclick = async function (event) {
+                        event.preventDefault();
+
+                        // add new empty item to array
+                        value.push('Not Set');
+
+                        // This re render is for when an extra item is added to the array
+                        // without this when you add a new item the carousel does not update
+                        let carouselCards = document.getElementById(`${name}-carousel-container`);
+                        carouselCards.innerHTML = '';
+                        carouselCards = await renderCarouselCards(name, value);
+                        card.querySelector('.card-highlight').appendChild(carouselCards);
+                    };
+                    titleSubContainer.appendChild(plusIcon)
+                }
+
+                const iconSubContainer = document.createElement('div');
+                iconSubContainer.className = 'd-flex column-gap-4 justify-content-between align-items-center';
+
                 const closeIcon = document.createElement('i');
-                closeIcon.className = 'fa fa-times card-close-icon';
+                closeIcon.className = 'fa fa-times card-close-icon fa-lg';
                 closeIcon.setAttribute('data-bs-toggle', 'tooltip');
                 closeIcon.setAttribute('title', 'Unset this field');
                 closeIcon.style.cursor = 'pointer';
@@ -895,7 +897,6 @@
                 }
 
 
-                iconSubContainer.appendChild(identityIcon);
                 iconSubContainer.appendChild(closeIcon);
                 titleContainer.appendChild(titleSubContainer);
                 titleContainer.appendChild(iconSubContainer);
@@ -909,10 +910,13 @@
                 `;
 
                 highlightCard.appendChild(contentContainer);
+                highlightCard.appendChild(identityIcon);
 
                 if (isArray) {
                     const carouselCards = await renderCarouselCards(name, value);
                     card.querySelector('.card-highlight').appendChild(carouselCards);
+                    // this re renders the icon right beneath the carousel cards
+                    card.querySelector('.card-highlight').appendChild(identityIcon);
                 }
                 flexmodelContainer.appendChild(card);
                 return card;
