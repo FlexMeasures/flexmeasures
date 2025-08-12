@@ -5,6 +5,14 @@ FlexMeasures Changelog
 
 
 
+v0.27.2 | August XX, 2025
+============================
+
+Bugfixes
+-----------
+* Resolve issue where concatenating sensor data from updated reporters leads to a NaN source and crashing the asset chart page [see `PR #1660 <https://github.com/FlexMeasures/flexmeasures/pull/1660>`_]
+
+
 v0.27.1 | August 11, 2025
 ============================
 
