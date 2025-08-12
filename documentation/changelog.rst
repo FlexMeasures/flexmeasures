@@ -25,7 +25,7 @@ Bugfixes
 * Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 
 
-v0.27.2 | August XX, 2025
+v0.27.2 | August 13, 2025
 ============================
 
 Bugfixes
