@@ -30,6 +30,7 @@ v0.27.2 | August XX, 2025
 
 Bugfixes
 -----------
+* Modify a query to speed up a data availability check for forecasting [see `PR #1658 <https://github.com/FlexMeasures/flexmeasures/pull/1658>`_]
 * Resolve issue where concatenating sensor data from updated reporters leads to a NaN source and crashing the asset chart page [see `PR #1660 <https://github.com/FlexMeasures/flexmeasures/pull/1660>`_]
 
 
