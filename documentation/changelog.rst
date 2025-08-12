@@ -13,6 +13,7 @@ New features
 -------------
 
 * Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_ and `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_]
+* Faster data loading for the UI [see `PR #1647 <https://www.github.com/FlexMeasures/flexmeasures/pull/1647>`_]
 
 Infrastructure / Support
 ----------------------
