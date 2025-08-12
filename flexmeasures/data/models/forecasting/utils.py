@@ -20,6 +20,7 @@ def check_data_availability(
     """Check if enough data is available in the database in the first place,
     for training window and lagged variables. Otherwise, suggest new forecast period.
     TODO: we could also check regressor data, if we get regressor specs passed in here.
+    TODO: The join is probably not needed, should be removed. The speed impactof join is negligible
     """
     from sqlalchemy import func
     # Use aggregate MIN and MAX queries in the database, matching O(n) approach
