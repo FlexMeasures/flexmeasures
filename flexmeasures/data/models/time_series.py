@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
+from functools import cached_property
 import json
 from packaging.version import Version
 from flask import current_app
@@ -401,8 +402,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         if as_json:
             df = bdf.reset_index()
             df["sensor"] = self
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
+            df["sensor"] = df["sensor"].apply(lambda x: x.as_dict)
+            df["source"] = df["source"].apply(lambda x: x.as_dict)
             return df.to_json(orient="records")
         return bdf
 
@@ -534,7 +535,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def __str__(self) -> str:
         return self.name
 
-    def to_dict(self) -> dict:
+    @cached_property
+    def as_dict(self) -> dict:
         parent_asset = db.session.execute(
             select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
         ).scalar_one_or_none()
@@ -547,6 +549,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             asset_description=f"{self.generic_asset.name}"
             + (f" ({parent_asset.name})" if parent_asset is not None else ""),
         )
+
+    def to_dict(self) -> dict:
+        current_app.logger.warning(
+            "Sensor().to_dict() is deprecated since v0.28.0 and should be replaced by the Sensor().as_dict property."
+        )
+        return self.as_dict
 
     @classmethod
     def find_closest(

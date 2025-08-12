@@ -3,6 +3,27 @@
 FlexMeasures Changelog
 **********************
 
+v0.28.0 | September XX, 2025
+============================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+
+New features
+-------------
+
+* Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_ and `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_]
+* Faster data loading for the UI [see `PR #1647 <https://www.github.com/FlexMeasures/flexmeasures/pull/1647>`_]
+
+Infrastructure / Support
+----------------------
+* Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_]
+* Removed support for Python3.8 [see `PR #1615 <https://www.github.com/FlexMeasures/flexmeasures/pull/1615>`_]
+* Removed obsolete API blueprint for play mode and underlying backup file-based functionality [see `PR #1622 <https://www.github.com/FlexMeasures/flexmeasures/pull/1622>`_ and `PR #1630 <https://www.github.com/FlexMeasures/flexmeasures/pull/1630>`_]
+
+Bugfixes
+-----------
+* Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 
 
 v0.27.2 | August XX, 2025
@@ -34,6 +55,8 @@ Infrastructure / Support
 v0.27.0 | July 20, 2025
 ============================
 
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v027-multi-asset-and-2fa/>`_.
+
 .. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
@@ -61,6 +84,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+
 * Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_, `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_ and `PR #1567 <https://www.github.com/FlexMeasures/flexmeasures/pull/1567>`_, `PR #1611 <https://www.github.com/FlexMeasures/flexmeasures/pull/1611>`_ and `PR #1613 <https://www.github.com/FlexMeasures/flexmeasures/pull/1613>`_]
 * Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
 * In authorization, prevent accidental errors by not matching empty principals [see `PR #1556 <https://github.com/FlexMeasures/flexmeasures/pull/1556>`_]
