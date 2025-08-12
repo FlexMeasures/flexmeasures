@@ -131,8 +131,9 @@ def test_post_sensor_data_bad_auth(
     Attempt to post sensor data with insufficient or missing auth.
     """
     post_data = make_sensor_data_request_for_gas_sensor()
+    sensor = setup_api_test_data["some gas sensor"]
     post_data_response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print("Server responded with:\n%s" % post_data_response.data)
@@ -149,7 +150,6 @@ def test_post_sensor_data_bad_auth(
             "_schema",
             "Resolution of 0:05:00 is incompatible",
         ),  # downsampling not supported
-        ("sensor", "ea1.2021-01.io.flexmeasures:fm1.666", "sensor", "doesn't exist"),
         ("unit", "m", "_schema", "Required unit"),
         ("type", "GetSensorDataRequest", "type", "Must be one of"),
     ],
@@ -171,22 +171,25 @@ def test_post_invalid_sensor_data(
     requesting_user,
 ):
     post_data = make_sensor_data_request_for_gas_sensor()
+    sensor = setup_api_test_data["some gas sensor"]
     post_data[request_field] = new_value
 
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
     assert response.status_code == 422
-    assert error_text in response.json["message"]["json"][error_field][0]
+    assert error_text in response.json["message"]["path_and_json"][error_field][0]
 
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
 def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db):
-    post_data = make_sensor_data_request_for_gas_sensor()
+    sensor_name = "some gas sensor"
+    sensor = setup_api_test_data[sensor_name]
+    post_data = make_sensor_data_request_for_gas_sensor(sensor_name=sensor_name)
 
     @event.listens_for(Engine, "handle_error")
     def receive_handle_error(exception_context):
@@ -200,7 +203,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
 
     # Check that 1st time posting the data succeeds
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
@@ -208,7 +211,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
 
     # Check that 2nd time posting the same data succeeds informatively
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
@@ -218,7 +221,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
     # Check that replacing data fails informatively
     post_data["values"][0] = 100
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
@@ -264,13 +267,13 @@ def test_post_sensor_instantaneous_data(
 
     # Check that 1st time posting the data succeeds
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
 
     assert response.status_code == status_code
     if status_code == 422:
-        assert response.json["message"]["json"]["_schema"][0] == message
+        assert response.json["message"]["path_and_json"]["_schema"][0] == message
     else:
         assert response.json["message"] == message
 
