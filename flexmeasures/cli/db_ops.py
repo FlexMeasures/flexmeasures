@@ -10,8 +10,6 @@ import click
 
 from flexmeasures.cli.utils import MsgStyle
 
-BACKUP_PATH: str = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")  # type: ignore
-
 
 @click.group("db-ops")
 def fm_db_ops():
@@ -39,67 +37,28 @@ def reset():
 
 @fm_db_ops.command()
 @with_appcontext
-@click.option("--name", help="Unique name for saving the backup.")
-@click.option("--dir", default=BACKUP_PATH, help="Directory for saving backups.")
-@click.option(
-    "--structure/--no-structure",
-    default=True,
-    help="Save structural data like asset (types), market (types),"
-    " weather (sensors), users, roles.",
-)
-@click.option(
-    "--data/--no-data",
-    default=False,
-    help="Save (time series) data to a backup. Only do this for small data sets!",
-)
-def save(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False):
-    """Backup db content to files."""
-    if name:
-        from flexmeasures.data.scripts.data_gen import save_tables
-
-        save_tables(app.db, name, structure=structure, data=data, backup_path=dir)
-    else:
-        click.secho(
-            "You must specify a unique name for the backup: --name <unique name>",
-            **MsgStyle.ERROR,
-        )
-
-
-@fm_db_ops.command()
-@with_appcontext
-@click.option("--name", help="Name of the backup.")
-@click.option("--dir", default=BACKUP_PATH, help="Directory for loading backups.")
-@click.option(
-    "--structure/--no-structure",
-    default=True,
-    help="Load structural data like asset (types), market (types),"
-    " weather (sensors), users, roles.",
-)
-@click.option("--data/--no-data", default=False, help="Load (time series) data.")
-def load(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False):
-    """Load backed-up contents (see `db-ops save`), run `reset` first."""
-    if name:
-        from flexmeasures.data.scripts.data_gen import load_tables
-
-        load_tables(app.db, name, structure=structure, data=data, backup_path=dir)
-    else:
-        click.secho(
-            "You must specify the name of the backup: --name <unique name>",
-            **MsgStyle.ERROR,
-        )
-
-
-@fm_db_ops.command()
-@with_appcontext
 def dump():
-    """Create a dump of all current data (using `pg_dump`)."""
+    """
+    Create a dump of all current data (using `pg_dump`).
+
+    If you have a version mismatch between server and client, here is an alternative:
+
+
+    $ docker run --pull=always -it postgres:15.7 bash  # use server version here
+
+    $ docker exec -it <container> <the pg_dump command (see code)>
+
+    $ docker cp <container>:<your-dump-filename> .
+
+    $ docker stop <container>; docker rm <container>
+    """
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Backing up {db_host_and_db_name} database")
     db_name = db_host_and_db_name.split("/")[-1]
     time_of_saving = datetime.now().strftime("%F-%H%M")
     dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
-    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
+    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} '{db_uri}'"
     try:
         subprocess.check_output(command_for_dumping, shell=True)
         click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)

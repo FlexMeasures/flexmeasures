@@ -30,7 +30,15 @@ class Annotation(db.Model):
         backref=db.backref("annotations", lazy=True),
     )
     type = db.Column(
-        db.Enum("alert", "holiday", "label", "feedback", name="annotation_type"),
+        db.Enum(
+            "alert",
+            "holiday",
+            "label",
+            "feedback",
+            "warning",
+            "error",
+            name="annotation_type",
+        ),
         nullable=False,
     )
     content = db.Column(db.String(1024), nullable=False)
@@ -134,8 +142,10 @@ class AccountAnnotationRelationship(db.Model):
     __tablename__ = "annotations_accounts"
 
     id = db.Column(db.Integer(), primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey("account.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    account_id = db.Column(db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"))
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE")
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",
@@ -151,8 +161,12 @@ class GenericAssetAnnotationRelationship(db.Model):
     __tablename__ = "annotations_assets"
 
     id = db.Column(db.Integer(), primary_key=True)
-    generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    generic_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE")
+    )
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE")
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",
@@ -168,8 +182,10 @@ class SensorAnnotationRelationship(db.Model):
     __tablename__ = "annotations_sensors"
 
     id = db.Column(db.Integer(), primary_key=True)
-    sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id", ondelete="CASCADE"))
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE")
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",

@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% set active_page = "sensors" %}
+
+{% block title %} Sensor data {% endblock %}
+
+{% block divs %}
+
+    {% block breadcrumbs %} {{ super() }} {% endblock %}
+    
+      <div class="sensor-data charts text-center">
+          <div class="row on-top-md">
+              <div class="col-md-2">
+                  <div class="sidepanel-container">
+                      <div class="left-sidepanel-label">Select dates</div>
+                      <div class="sidepanel left-sidepanel">
+                          <div id="datepicker"></div>
+                      </div>
+                  </div>
+                  <div id="chart-type-picker" class="leftside-dropdown dropdown">
+                      <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                          Select chart
+                      </button>
+                      <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                          <li><a class="dropdown-item" href="#" data-chart-type="bar_chart">Bar chart</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="histogram">Histogram</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="daily_heatmap">Daily heatmap</a></li>
+                          <li><a class="dropdown-item" href="#" data-chart-type="weekly_heatmap">Weekly heatmap</a></li>
+                      </ul>
+                  </div>
+
+                  {% if user_can_update_sensor %}
+                    <div class="sidepanel-container">
+                      <div class="left-sidepanel-label">Edit sensor</div>
+                        <div class="sidepanel left-sidepanel" style="text-align: left;">
+                            <fieldset>
+                                <h3>Edit {{ sensor.name }}</h3>
+                                <small>Parent asset: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset.id }} )</small>
+                                <form class="form-horizontal" method="POST">
+                                
+                                    <div class="form-group">
+                                        <label for="name" class="form-label">Name</label>
+                                        <input type="text" class="form-control" id="name" name="name" placeholder="e.g power" value="{{sensor.name}}" required />
+                                    </div>
+                                
+                                    <button class="btn btn-sm btn-responsive btn-success create-button" type="submit" onclick="updateSensor(event)"
+                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                        Save
+                                    </button>
+                                </form>
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <div class="sidepanel-container">
+                        <div class="left-sidepanel-label">Upload data</div>
+                        <div class="sidepanel left-sidepanel" style="text-align: left;">
+                            <fieldset>
+                                <h3>Upload {{ sensor.name }} data</h3>
+                                <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
+                                <form id="uploadForm" enctype="multipart/form-data" method="post" class="form-horizontal">
+                                    <div class="form-group">
+                                        <label class="custom-uploader" for="file">
+                                            Choose data file
+                                            <i
+                                                class="fa fa-info-circle"
+                                                title="Formats accepted: csv and xlsx.
+The file should have columns for a timestamp (event_start) and a value (event_value).
+The timestamp should be in ISO 8601 format. If the timezone offset is not provided the sensor timezone will be used.
+The event_value should be a numeric value."
+                                                style="margin-left: 5px; color: white;"
+                                            >
+                                            </i>
+                                            <a href="{{ url_for('flexmeasures_ui.static', filename='examples/sensors-data.xlsx') }}" download>
+                                                <i class="fa fa-download"
+                                                    style="margin-left: 5px; color: white;"
+                                                    title="Download example file"
+                                                    >
+                                                </i>
+                                            </a>
+                                        </label>
+                                        <!-- Accept on CSV and Excel files -->
+                                        <input id="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" name="uploaded-files" type="file" multiple="multiple" />
+                                    </div>
+                                    <!-- Checkbox for setting the record as measured instantly -->
+                                    <div class="form-group mt-3">
+                                        <input type="checkbox" id="belief-time-measured-instantly" name="belief-time-measured-instantly" {% if FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% else %} unchecked {% endif %}>
+                                        <label for="belief-time-measured-instantly">
+                                            Measured instantly
+                                            <i
+                                                class="fa fa-info-circle"
+                                                title="If checked, each data point will be recorded as if it had been measured immediately after the event. Otherwise, FlexMeasures will assume the data was not known prior to the time of upload."
+                                                style="margin-left: 5px; color: white;"
+                                            >
+                                            </i>
+                                        </label>
+                                    </div>
+                                    <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
+                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                        Upload file
+                                    </button>
+                                    <div id="spinner-upload-sensor-data" class="d-none spinner spinner-bottom-right">
+                                        <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+                                        <span class="sr-only">Loading...</span>
+                                    </div>
+                                </form>
+                            </fieldset>
+                        </div>
+                    </div>
+                  {% endif %}
+
+                <div class="header-action-button">
+                    {% if user_can_delete_sensor %}
+                    <div>
+                        <button id="delete-sensor-button" class="btn btn-sm btn-responsive btn-danger">
+                            Delete this sensor
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+
+              </div>
+              <div class="col-sm-8">
+                  <div id="sensorchart" class="card" style="width: 100%;"></div>
+                  <div id="spinner" class="spinner">
+                      <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+                      <span class="sr-only">Loading...</span>
+                  </div>
+                  <div class="row">
+                      <div class="card col-lg-5">
+
+                          <h5>Properties</h5>
+
+                          <table class="table table-striped">
+                              <tr>
+                                  <th>Name</th>
+                                  <td>{{ sensor.name }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Unit</th>
+                                  <td>{{ sensor.unit }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Event resolution</th>
+                                  <td>{{ sensor.event_resolution }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Timezone</th>
+                                  <td>{{ sensor.timezone }}</td>
+                              </tr>
+                              <tr>
+                                  <th>Knowledge horizon type</th>
+                                  <td>{{ sensor.knowledge_horizon_fnc }}</td>
+                              </tr>
+                          </table>
+                      </div>
+                      <div class="card col-lg-5" id="statsContainer" style="align-items: center;">
+                        <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        <h5 id="statsHeader">Statistics</h5>
+                        <table id="statsTable" class="table table-striped">
+                            <tbody id="statsTableBody">
+                            </tbody>
+                        </table>
+                        <!-- Dropdown for sourceKey -->
+                        <div class="dropdown mb-3 d-none" id="sourceKeyDropdownContainer">
+                            <small class="text-muted">Select source for statistics</small>
+                            <button class="btn btn-secondary dropdown-toggle" type="button" id="sourceKeyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                Select Source
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="sourceKeyDropdown" id="sourceKeyDropdownMenu">
+                            </ul>
+                        </div>
+                        <!-- Checkbox to show stats for all time or selected time range -->
+                        <div class="form-check form-switch" id="toggleStatsCheckboxContainer">
+                            <label for="toggleStatsCheckbox" class="form-check-label d-flex">
+                                <small class="text-muted">Show stats for selected duration</small>
+                                <input class="form-check-input me-2" style="margin-left: 5px;" type="checkbox" id="toggleStatsCheckbox">
+                            </label>
+                        </div>
+                        <!-- Alert for no data -->
+                        <div class="alert alert-warning d-none" id="noDataWarning">
+                            There is no data for this sensor yet.
+                        </div>
+                        <!-- Alert for errors -->
+                        <div class="alert alert-danger d-none" id="fetchError">
+                            There was a problem fetching statistics for this sensor's data.
+                        </div>
+                      </div>
+                  </div>
+              </div>
+              <div class="col-sm-2">
+                  <div class="replay-container">
+                    <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
+                    <div id="replay-time"></div>
+                  </div>
+              </div>
+          </div>
+          <div class="row justify-content-center">
+            <div class="col-md-8 offset-md-1">
+                <div class="copy-url" title="Click to copy the URL to the current time range to clipboard.">
+                    <script>
+                        function toIsoString(date) {
+                            var tzo = -date.getTimezoneOffset(),
+                                dif = tzo >= 0 ? '+' : '-',
+                                pad = function(num) {
+                                    return (num < 10 ? '0' : '') + num;
+                                };
+
+                            return date.getFullYear() +
+                                '-' + pad(date.getMonth() + 1) +
+                                '-' + pad(date.getDate()) +
+                                'T' + pad(date.getHours()) +
+                                ':' + pad(date.getMinutes()) +
+                                ':' + pad(date.getSeconds()) +
+                                dif + pad(Math.floor(Math.abs(tzo) / 60)) +
+                                ':' + pad(Math.abs(tzo) % 60);
+                        }
+
+                        function copyUrl(event) {
+                            event.preventDefault();
+
+                            if (!window.getSelection) {
+                                alert('Please copy the URL from the location bar.');
+                                return;
+                            }
+                            const dummy = document.createElement('p');
+
+                            var startDate = encodeURIComponent(toIsoString(picker.getStartDate().toJSDate()));
+                            // add 1 day to end date as datepicker does not include the end date day
+                            var endDate = picker.getEndDate();
+                            endDate.setDate(endDate.getDate() + 1);
+                            endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
+                            var base_url = window.location.href.split("?")[0];
+                            dummy.textContent = `${base_url}?start_time=${startDate}&end_time=${endDate}`
+                            document.body.appendChild(dummy);
+
+                            const range = document.createRange();
+                            range.setStartBefore(dummy);
+                            range.setEndAfter(dummy);
+
+                            const selection = window.getSelection();
+                            // First clear, in case the user already selected some other text
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+
+                            document.execCommand('copy');
+                            document.body.removeChild(dummy);
+
+                            $("#message").show().delay(1000).fadeOut();
+                        }
+                    </script>
+                    <a href="#" onclick="copyUrl(event)" style="display: block; text-align: center;">
+                        <i class="fa fa-link"></i>
+                    </a>
+                    <div id="message" style="display: none; text-align: center;">The URL to the time range currently shown has been copied to your clipboard.</div>
+                </div>
+            </div>
+          </div>
+          <hr>
+      </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+
+<script>
+    const apiBasePath = window.location.origin;
+    const parentAssetId = "{{sensor.generic_asset.id}}"
+
+    async function updateSensor(event) {
+        event.preventDefault();
+
+        const name = document.getElementById("name").value;
+
+        if (!name) {
+            showToast("Please fill in all fields.", "error");
+            return;
+        }
+
+        const data = { name: name }
+
+        const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}", {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+            const responseData = await response.json();
+            const sensorId = responseData.id;
+            document.getElementById("name").value = "";
+            showToast("Sensor updated successfully.", "success");
+            await new Promise(resolve => setTimeout(resolve, 500));
+            showToast("Reloading page...", "info");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            window.location.reload();
+        } else {
+            const errorData = await response.json();
+            let errorMessage = response.statusText; // Default to statusText
+
+            const messageUnitError = errorData?.message?.json?.unit?.[0];
+            if (messageUnitError) {
+                errorMessage = messageUnitError;
+            } else if (errorData?.message) {
+                errorMessage = errorData.message;
+            } else if (errorData?.error) {
+                errorMessage = errorData.error;
+            }
+            showToast("Error: " + errorMessage, "error");
+        }
+    }
+
+    async function deleteSensor() {
+        const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}", {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+
+        if (response.status === 204) {
+            showToast("Sensor deleted successfully.", "success");
+            // delay for one second to show toast message
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            window.location.href = apiBasePath + "/assets/" + parentAssetId;
+        } else {
+            const errorData = await response.json();
+            let errorMessage = response.statusText; // Default to statusText
+
+            const messageUnitError = errorData?.message?.json?.unit?.[0];
+            if (messageUnitError) {
+                errorMessage = messageUnitError;
+            } else if (errorData?.message) {
+                errorMessage = errorData.message;
+            } else if (errorData?.error) {
+                errorMessage = errorData.error;
+            }
+            showToast("Error: " + errorMessage, "error");
+        }
+    }
+
+    $("#delete-sensor-button").click(function () {
+        let result = confirm("Are you sure you want to delete this sensor and all time series data associated with it?");
+        if (result) {
+            deleteSensor();
+        }
+    });
+</script>
+
+    {% block leftsidepanel %} {{ super() }} {% endblock %}
+    {% block sensorChartSetup %} {{ super() }} {% endblock %}
+
+{% endblock %}

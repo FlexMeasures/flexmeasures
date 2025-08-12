@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% set active_page = "accounts" %}
+
+{% block title %} Account {{ account.name }} actions history {% endblock %}
+
+{% block divs %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="sensors-asset card">
+            <h3>History of actions for account <a href="/accounts/{{ account.id }}">{{ account.name }}</a></h3>
+            <div class="table-responsive">
+            <table id="account_audit_log" class="table table-striped paginate nav-on-click">
+                <thead>
+                    <tr>
+                        <th style="display:none;">Event Timestamp</th><!-- Hidden UTC Timestamp column for sorting, Keep at position zero -->
+                        <th>Event Datetime</th>
+                        <th>Event Name</th>
+                        <th>Active user id</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for audit_log in audit_logs: %}
+                    <tr>
+                        <td style="display:none;">
+                            {{ audit_log.event_datetime | to_utc_timestamp }} <!-- Hidden UTC Timestamp column for sorting, Keep at position zero -->
+                        </td>
+                        <td>
+                            {{ audit_log.event_datetime }}
+                        </td>
+                        <td>
+                            {{ audit_log.event }}
+                        </td>
+                        <td>
+                            {{ audit_log.active_user_id }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        $('#account_audit_log').DataTable({
+            "order": [[ 0, "desc" ]], //Default sort by "Event Datetime" column
+            "columnDefs": [
+            { 
+                "targets": 1,  // Target the visible "Event Datetime" column
+                "orderData": 0  // Use data from the first column (UTC Timestamp) for sorting
+            }
+        ]
+    });
+});
+</script>
+
+{% endblock %}

@@ -3,18 +3,320 @@
 FlexMeasures Changelog
 **********************
 
-v0.22.0 | June XX, 2024
+v0.28.0 | September XX, 2025
 ============================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+
+New features
+-------------
+
+* Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_ and `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_]
+
+Infrastructure / Support
+----------------------
+* Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_]
+* Removed support for Python3.8 [see `PR #1615 <https://www.github.com/FlexMeasures/flexmeasures/pull/1615>`_]
+* Removed obsolete API blueprint for play mode and underlying backup file-based functionality [see `PR #1622 <https://www.github.com/FlexMeasures/flexmeasures/pull/1622>`_ and `PR #1630 <https://www.github.com/FlexMeasures/flexmeasures/pull/1630>`_]
+
+Bugfixes
+-----------
+* Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
+
+
+v0.27.1 | August 11, 2025
+============================
+
+Bugfixes
+-----------
+* Flex-context price sensors can have any shared unit [see `PR #1628 <https://github.com/FlexMeasures/flexmeasures/pull/1628>`_]
+* Fix a few UI grievances in asset creation, esp. child assets [see `PR #1629 <https://github.com/FlexMeasures/flexmeasures/pull/1629>`_]
+* Fix updating the URL query parameters upon date selection in the UI of servers in play mode [see `PR #1649 <https://github.com/FlexMeasures/flexmeasures/pull/1649>`_]
+
+Infrastructure / Support
+----------------------
+* Automate release process to PyPI [see `PR #1657 <https://github.com/FlexMeasures/flexmeasures/pull/1657>`_]
+
+
+v0.27.0 | July 20, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v027-multi-asset-and-2fa/>`_.
+
+.. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+
+New features
+-------------
+
+* New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices [see `PR #1065 <https://github.com/FlexMeasures/flexmeasures/pull/1065/>`_]
+* Add form to upload sensor data to the database [see `PR #1481 <https://github.com/FlexMeasures/flexmeasures/pull/1481>`_, `PR #1573 <https://github.com/FlexMeasures/flexmeasures/pull/1573>`_, `PR #1583 <https://github.com/FlexMeasures/flexmeasures/pull/1583>`_, `PR #1585 <https://github.com/FlexMeasures/flexmeasures/pull/1585>`_, `PR #1588 <https://github.com/FlexMeasures/flexmeasures/pull/1588>`_ and `PR #1590 <https://github.com/FlexMeasures/flexmeasures/pull/1590>`_]
+* Improved the UX for creating child-assets and sensors in the UI [see `PR #1605 <https://github.com/FlexMeasures/flexmeasures/pull/1605>`_]
+* Added :abbr:`2FA (two-factor authentication)` support for email and one time recovery, and also added ``_macros.html`` for UI components [see `PR #1555 <https://github.com/FlexMeasures/flexmeasures/pull/1555>`_, `PR #1564 <https://github.com/FlexMeasures/flexmeasures/pull/1564>`_ and `PR #1562 <https://github.com/FlexMeasures/flexmeasures/pull/1562>`_]
+* Give consultants more permissions, so they can edit their client's accounts, assets and sensors. Also add test cases to check if these permissions work as expected [see `PR #1539 <https://github.com/FlexMeasures/flexmeasures/pull/1539>`_ and `PR #1550 <https://github.com/FlexMeasures/flexmeasures/pull/1550>`_]
+* Allow editing users in the UI [see `PR #1502 <https://github.com/FlexMeasures/flexmeasures/pull/1502>`_]
+* Scheduling job descriptions on the tasks page (RQ Dashboard) shows the whole flex-model and flex-context, including any server-side configuration of e.g. capacities [see `PR #1579 <https://github.com/FlexMeasures/flexmeasures/pull/1579>`_ and `PR #1601 <https://github.com/FlexMeasures/flexmeasures/pull/1601>`_]
+* Smarter date range navigation [see `PR #1531 <https://github.com/FlexMeasures/flexmeasures/pull/1531>`_]
+* Smarter toast notifications [see `PR #1530 <https://github.com/FlexMeasures/flexmeasures/pull/1530>`_]
+* Move various warnings to toast notifications [see `PR #1529 <https://github.com/FlexMeasures/flexmeasures/pull/1529>`_]
+* Document how to set a parent asset when creating an asset through the API, and show parent assets in ``flexmeasures show account`` [see `PR #1533 <https://github.com/FlexMeasures/flexmeasures/pull/1533>`_ and `PR #974 <https://github.com/FlexMeasures/flexmeasures/pull/974>`_]
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account [see `PR #1536 <https://github.com/FlexMeasures/flexmeasures/pull/1536>`_]
+* Add ``flexmeasures jobs run-job`` CLI command to run a single job [see `PR #1602 <https://github.com/FlexMeasures/flexmeasures/pull/1602>`_]
+* Add toggle to show sensor statistics based on selected date range [see `PR #1535 <https://github.com/FlexMeasures/flexmeasures/pull/1535>`_, `PR #1543 <https://github.com/FlexMeasures/flexmeasures/pull/1543>`_ and `PR #1589 <https://github.com/FlexMeasures/flexmeasures/pull/1589>`_]
+* Scale sensor data to the lowest unit on graphs with multiple sensors and same dimension. [see `PR #1534 <https://github.com/FlexMeasures/flexmeasures/pull/1534>`_ and `PR #1544 <https://github.com/FlexMeasures/flexmeasures/pull/1544>`_]
+* Group statistics on the UI's sensor page by data source ID, and show the description and ID of each data source [see `PR #1548 <https://github.com/FlexMeasures/flexmeasures/pull/1548>`_]
+
+Infrastructure / Support
+----------------------
+
+* Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_, `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_ and `PR #1567 <https://www.github.com/FlexMeasures/flexmeasures/pull/1567>`_, `PR #1611 <https://www.github.com/FlexMeasures/flexmeasures/pull/1611>`_ and `PR #1613 <https://www.github.com/FlexMeasures/flexmeasures/pull/1613>`_]
+* Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
+* In authorization, prevent accidental errors by not matching empty principals [see `PR #1556 <https://github.com/FlexMeasures/flexmeasures/pull/1556>`_]
+* Tests: guarantee a clean db upon creating the test db [see `PR #1518 <https://github.com/FlexMeasures/flexmeasures/pull/1518>`_]
+* Stopped testing Python3.8 in our GitHub Actions CI [see `PR #1541 <https://github.com/FlexMeasures/flexmeasures/pull/1541>`_]
+* Stopped auto-deploying to Seita's staging server on commits to main. Kept scripts and documentation how to do it. Added short description of the two existing CI workflows [see `PR #1552 <https://github.com/FlexMeasures/flexmeasures/pull/1552>`_]
+* Explain white-labeling in documentation [see `PR #1587 <https://github.com/FlexMeasures/flexmeasures/pull/1587>`_]
+* Changed example ``docker-compose.yaml`` to persist database on local volume [see `PR #1584 <https://github.com/FlexMeasures/flexmeasures/pull/1584>`_]
+
+Bugfixes
+-----------
+* Prevent redundant second call to fetch chart data on page load and start replay button [see `PR #1586 <https://github.com/FlexMeasures/flexmeasures/pull/1586>`_ and `PR #1596 <https://github.com/FlexMeasures/flexmeasures/pull/1596>`_]
+* On the asset context page, send the highest ancestor as site_asset (then the asset context view uses this to look up sensors for the flex-context) [see `PR #1581 <https://www.github.com/FlexMeasures/flexmeasures/pull/1581>`_]
+* Fix support for using 3-digit hex colors in account color scheme [see `PR #1569 <https://github.com/FlexMeasures/flexmeasures/pull/1569>`_]
+* Fix deletion of sensors in the UI, also move the delete button for assets & sensors to the bottom of the page [see `PR #1597 <https://github.com/FlexMeasures/flexmeasures/pull/1597>`_]
+
+
+v0.26.1 | June 09, 2025
+============================
+
+Bugfixes
+-----------
+* Fixed backwards compatibility for users still using deprecated flex-context fields [see `PR #1528 <https://github.com/FlexMeasures/flexmeasures/pull/1528>`_]
+* Show job information again on the job page on rq-dashboard [see `PR #1526 <https://github.com/FlexMeasures/flexmeasures/pull/1526>`_]
+
+
+v0.26.0 | June 03, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v026-relaxed-scheduling-cleaner-asset-pages/>`_.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
+
+* Support saving the scheduled :abbr:`SoC (state of charge)` by referencing an appropriate sensor in the ``flex-model`` field ``state-of-charge`` [see `PR #1392 <https://github.com/FlexMeasures/flexmeasures/pull/1392>`_ and `PR #1406 <https://github.com/FlexMeasures/flexmeasures/pull/1406>`_]
+* Allow relaxing :abbr:`SoC (state of charge)` minima and maxima, by setting penalties for not meeting these constraints, using two new ``flex-context`` fields [see `PR #1300 <https://github.com/FlexMeasures/flexmeasures/pull/1300>`_]
+* Allow relaxing device-level power constraints, by setting penalties for not meeting these constraints, using two new ``flex-context`` fields [see `PR #1405 <https://github.com/FlexMeasures/flexmeasures/pull/1405>`_]
+* Add flex-context fields to toggle on/off relaxation of various constraints [see `PR #1511 <https://github.com/FlexMeasures/flexmeasures/pull/1511>`_]
+* Add sensor attribute (``frequency``) to align incoming measurements to a specified time interval [see `PR #1461 <https://github.com/FlexMeasures/flexmeasures/pull/1461>`_]
+* Save changes in asset flex-context form right away [see `PR #1390 <https://github.com/FlexMeasures/flexmeasures/pull/1390>`_]
+* Extending sensor CRUD functionality to the UI [see `PR #1394 <https://github.com/FlexMeasures/flexmeasures/pull/1394>`_ and `PR #1413 <https://github.com/FlexMeasures/flexmeasures/pull/1413>`_]
+* Marker clusters on the dashboard map expand in a tree to show the hierarchical relationship of the assets they represent [see `PR #1410 <https://github.com/FlexMeasures/flexmeasures/pull/1410>`_]
+* Load the sensors individually on the Sensors status page. Reload the jobs table using Ajax calls. Improve page performance and avoid timeouts. [see `PR #1425 <https://github.com/FlexMeasures/flexmeasures/pull/1425>`_ and `PR #1466 <https://github.com/FlexMeasures/flexmeasures/pull/1466>`_]
+* New pages for `Properties`, `Graphs`, `Context`, `Status` and `Audit Log`. Simplified the main asset page. [see `PR #1416 <https://github.com/FlexMeasures/flexmeasures/pull/1416>`_, `PR #1387 <https://github.com/FlexMeasures/flexmeasures/pull/1387>`_, `PR #1442 <https://github.com/FlexMeasures/flexmeasures/pull/1442>`_, `PR #1470 <https://github.com/FlexMeasures/flexmeasures/pull/1470>`_, `PR #1473 <https://github.com/FlexMeasures/flexmeasures/pull/1473>`_, `PR #1478 <https://github.com/FlexMeasures/flexmeasures/pull/1478>`_, `PR #1480<https://github.com/FlexMeasures/flexmeasures/pull/1480>`_ and `PR #1482 <https://github.com/FlexMeasures/flexmeasures/pull/1482>`_]
+* Only show important sensors statuses (flex-context and graph sensors) on the status page [see `PR #1439 <https://github.com/FlexMeasures/flexmeasures/pull/1439>`_]
+* Let the user interact with the breadcrumbs on asset graphs page when the graphs are loading [see `PR #1472 <https://github.com/FlexMeasures/flexmeasures/pull/1472>`_]
+* Added DB migrations to apply server defaults to ``generic_asset`` and ``data_sources`` tables [see `PR #1488 <https://github.com/FlexMeasures/flexmeasures/pull/1488>`_]
+* Show visually distinct siblings and children in the assets dropdown [see `PR #1504 <https://github.com/FlexMeasures/flexmeasures/pull/1504>`_]
+* Add resolution back to the CLI belief plotting [see `PR #1500 <https://github.com/FlexMeasures/flexmeasures/pull/1500>`_]
+* Improved permission validation for user role updates. [see `PR #1465 <https://github.com/FlexMeasures/flexmeasures/pull/1465>`_]
+* Statistics shown in the UI default to that of the freshest source [see `PR #1399 <https://github.com/FlexMeasures/flexmeasures/pull/1399/>`_]
+
+Infrastructure / Support
+----------------------
+* Move to using a ``pyproject.toml`` [see `PR #1419 <https://www.github.com/FlexMeasures/flexmeasures/pull/1419>`_]
+* Upgraded dependencies [see `PR #1400 <https://www.github.com/FlexMeasures/flexmeasures/pull/1400>`_, `PR #1444 <https://www.github.com/FlexMeasures/flexmeasures/pull/1444>`_, `PR #1448 <https://www.github.com/FlexMeasures/flexmeasures/pull/1448>`_, `PR #1484 <https://www.github.com/FlexMeasures/flexmeasures/pull/1484>`_, `PR #1490 <https://www.github.com/FlexMeasures/flexmeasures/pull/1490>`_ and `PR #1497 <https://www.github.com/FlexMeasures/flexmeasures/pull/1497>`_]
+* Save last N jobs from any queue and registry to a file, and support filtering by asset ID or sensor ID [see `PR #1411 <https://github.com/FlexMeasures/flexmeasures/pull/1411>`_]
+* Prevent accidentally still logging a warning in case a reporter already stopped using the ``use_latest_version_only`` argument [see `PR #1510 <https://github.com/FlexMeasures/flexmeasures/pull/1510>`_]
+* Describe four supported user roles explicitly (docs and code) [see `PR #1451 <https://github.com/FlexMeasures/flexmeasures/pull/1451>`_]
+* Updated the directory structure for crud operations for assets, sensors, users and accounts [see `PR #1467 <https://github.com/FlexMeasures/flexmeasures/pull/1467>`_ and `PR #1471 <https://github.com/FlexMeasures/flexmeasures/pull/1471>`_]
+* Docs: Add tutorial scripts [see `PR #1505 <https://github.com/FlexMeasures/flexmeasures/pull/1505>`_]
+* Docs: fix graphs page for assets in toy tutorial, display plotted sensors when CLI shows asset info [see `PR #1501 <https://github.com/FlexMeasures/flexmeasures/pull/1501>`_]
+
+Bugfixes
+-----------
+* Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field [see `PR #1433 <https://github.com/FlexMeasures/flexmeasures/pull/1433>`_]
+* Fix the preference to delay curtailment of any device [see `PR #1498 <https://github.com/FlexMeasures/flexmeasures/pull/1498>`_ and `PR #1499 <https://github.com/FlexMeasures/flexmeasures/pull/1499>`_]
+* The data dashboard now supports overlapping sensors with instantaneous and non-instantaneous resolutions [see `PR #1407 <https://github.com/FlexMeasures/flexmeasures/pull/1407>`_]
+* Fix map not loading when editing an asset [see `PR #1414 <https://github.com/FlexMeasures/flexmeasures/pull/1414>`_]
+* Fix ``flexmeasures add schedule for-storage`` after flex-context database migration [see `PR #1417 <https://github.com/FlexMeasures/flexmeasures/pull/1417>`_ and `PR #1449 <https://github.com/FlexMeasures/flexmeasures/pull/1449>`_]
+* Fix overriding of flex-context when asset is edited on the UI [see `PR #1469 <https://github.com/FlexMeasures/flexmeasures/pull/1469>`_]
+* Support entering audit log entries by detached user instances [see `PR #1483 <https://github.com/FlexMeasures/flexmeasures/pull/1483>`_]
+* Make flex context usage safer against this field being `None` [see `PR #1503 <https://github.com/FlexMeasures/flexmeasures/pull/1503>`_]
+
+
+v0.25.0 | April 01, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v025-flex-context-fully-editable-nicer-status-page/>`_.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
+* Added form modal to edit an asset's ``flex_context`` [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_, `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_ and `PR #1364 <https://github.com/FlexMeasures/flexmeasures/pull/1364>`_]
+* Improve asset status page - distinguish better by data source type [see `PR #1022 <https://github.com/FlexMeasures/flexmeasures/pull/1022/>`_]
+* Better y-axis titles for charts that show multiple sensors with a shared unit [see `PR #1346 <https://github.com/FlexMeasures/flexmeasures/pull/1346>`_]
+* Add CLI command ``flexmeasures jobs save-last-failed`` (since v0.26: ``flexmeasures jobs save-last``) for saving the last failed jobs [see `PR #1342 <https://www.github.com/FlexMeasures/flexmeasures/pull/1342>`_ and `PR #1359 <https://github.com/FlexMeasures/flexmeasures/pull/1359>`_]
+* Add CLI command ``flexmeasures jobs delete-queue`` for deleting an obsolete queue [see `PR #1351 <https://www.github.com/FlexMeasures/flexmeasures/pull/1351>`_]
+
+Infrastructure / Support
+----------------------
+* Support multi-asset scheduling in the ``StorageScheduler`` and job queueing - functionality for (plugin) developers (incl. prep work for future API endpoint for multi-asset scheduling) [see `PR #1313 <https://github.com/FlexMeasures/flexmeasures/pull/1313>`_]
+* Support PV curtailment in the ``StorageScheduler`` [see `PR #1395 <https://github.com/FlexMeasures/flexmeasures/pull/1395>`_]
+* Validate shared units are used in time series segments of flex-context prices [see `PR #1396 <https://github.com/FlexMeasures/flexmeasures/pull/1396>`_]
+* Migrate data for the ``flex-context`` of an asset to a dedicated column in the database table for assets [see `PR #1293 <https://github.com/FlexMeasures/flexmeasures/pull/1293>`_, `PR #1354 <https://github.com/FlexMeasures/flexmeasures/pull/1354>`_ and `PR #1380 <https://github.com/FlexMeasures/flexmeasures/pull/1380>`_]
+* Enhance reporting infrastructure by ensuring that all ``Sensor.search_beliefs`` filters can be used as report parameters [see `PR #1318 <https://github.com/FlexMeasures/flexmeasures/pull/1318>`_]
+* Improve searching for multi-sourced data by returning data from only the latest version of a data generator (e.g. forecaster or scheduler) by default, when using ``Sensor.search_beliefs`` [see `PR #1306 <https://github.com/FlexMeasures/flexmeasures/pull/1306>`_]
+* Extra reporter tests [see `PR #1317 <https://github.com/FlexMeasures/flexmeasures/pull/1317>`_]
+* Catch invalid time windows passed to ``flexmeasures add report`` [see `PR #1324 <https://github.com/FlexMeasures/flexmeasures/pull/1324>`_]
+* Test utility function for device scheduling in a multi-asset setting (sequential and simultaneous) [see `PR #1341 <https://github.com/FlexMeasures/flexmeasures/pull/1341>`_]
+* Add utils doctests to our CI pipeline [see `PR #1347 <https://github.com/FlexMeasures/flexmeasures/pull/1347>`_]
+* Clarify default limitations to concurrent connections [see `PR #1391 <https://github.com/FlexMeasures/flexmeasures/pull/1391>`_]
+
+
+v0.24.1 | February 27, 2025
+============================
+
+Infrastructure / Support
+----------------------
+* Update cache and Ubuntu versions used for testing in GitHub Actions [see `PR #1329 <https://github.com/FlexMeasures/flexmeasures/pull/1329>`_]
+
+Bugfixes
+-----------
+* Fix map not loading when editing an asset [see `PR #1310 <https://github.com/FlexMeasures/flexmeasures/pull/1310>`_]
+* Add missing support for fallback attribute for the ``soc-usage`` and ``soc-gain`` fields of the ``flex-model`` [see `PR #1340 <https://github.com/FlexMeasures/flexmeasures/pull/1340>`_]
+
+
+v0.24.0 | January 7, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/024-more-expressive-congestion-modeling-data-dashboards/>`_.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
+* Allow scheduling against energy contracts, capacity contracts and peak contracts simultaneously, using various new ``flex-context`` fields [see `PR #1144 <https://github.com/FlexMeasures/flexmeasures/pull/1144>`_]
+* Allow using numeric values for ``flex-model`` fields accepting dimensionless quantities [see `PR #1144 <https://github.com/FlexMeasures/flexmeasures/pull/1299>`_]
+* The data chart on the asset page splits up its color-coded sensor legend when showing more than 7 sensors, becoming a legend per subplot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_ and `PR #1193 <https://github.com/FlexMeasures/flexmeasures/pull/1193>`_]
+* Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
+* X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]
+* Enhanced API for listing sensors: Added filtering and pagination on sensor index endpoint and created new endpoint to get all sensors under an asset [see `PR #1191 <https://github.com/FlexMeasures/flexmeasures/pull/1191>`_ and `PR #1219 <https://github.com/FlexMeasures/flexmeasures/pull/1219>`_]
+* Speed up loading the accounts page by making the pagination backend-based and adding support for that in the API [see `PR #1196 <https://github.com/FlexMeasures/flexmeasures/pull/1196>`_]
+* Speed up loading the account detail page by by switching to server-side pagination for assets, replacing client-side pagination [see `PR #1202 <https://github.com/FlexMeasures/flexmeasures/pull/1202>`_]
+* Added form to edit an asset's sensors_to_show data directly from the UI [see `PR #1212 <https://github.com/FlexMeasures/flexmeasures/pull/1212>`_]
+* Speed up loading on audit log tables page by switching to server-side pagination, replacing client-side pagination [see `PR #1274 <https://github.com/FlexMeasures/flexmeasures/pull/1274>`_ and `PR #1272 <https://github.com/FlexMeasures/flexmeasures/pull/1272>`_]
+* Simplify and globalize UI messages, using Toast [see `PR #1207 <https://github.com/FlexMeasures/flexmeasures/pull/1207>`_]
+* Power sensors created through the CLI no longer require a capacity attribute to be set [see `PR #1234 <https://github.com/FlexMeasures/flexmeasures/pull/1234>`_]
+
+Infrastructure / Support
+----------------------
+* The breadcrumbs on asset and sensor pages can now be customized [see `PR #1257 <https://github.com/FlexMeasures/flexmeasures/pull/1257>`_]
+* The monitoring command to check for users who have been absent too long now can be used to keep data volume low and be more effective [see `PR #1268 <https://github.com/FlexMeasures/flexmeasures/pull/1268>`_]
+* Speed up status page by choosing for a faster query (only latest belief needed) [see `PR #1142 <https://github.com/FlexMeasures/flexmeasures/pull/1142>`_]
+* Speed up user page (for users with many assets) [see `PR #1286 <https://github.com/FlexMeasures/flexmeasures/pull/1286>`_]
+* For MacOS developers, install HiGHS solver automatically [see `PR #1187 <https://github.com/FlexMeasures/flexmeasures/pull/1187>`_]
+* Migrate data for the ``sensors_to_show`` asset attribute to a dedicated column in the database table for assets [see `PR #1200 <https://github.com/FlexMeasures/flexmeasures/pull/1200>`_ and `PR #1282 <https://github.com/FlexMeasures/flexmeasures/pull/1282>`_]
+* Add support for installing FlexMeasures under Python 3.12 [see `PR #1233 <https://github.com/FlexMeasures/flexmeasures/pull/1233>`_]
+* Better error handling in UI, for example, in case of a forgotten ``flexmeasures db upgrade`` [see `PR #1302 <https://github.com/FlexMeasures/flexmeasures/pull/1302>`_]
+
+Bugfixes
+-----------
+* Fix table sorting on the assets, accounts and users page (regression from `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_) [see `PR #1239 <https://github.com/FlexMeasures/flexmeasures/pull/1239>`_, `PR #1242 <https://github.com/FlexMeasures/flexmeasures/pull/1242>`_, `PR #1248 <https://github.com/FlexMeasures/flexmeasures/pull/1248>`_, `PR #1247 <https://github.com/FlexMeasures/flexmeasures/pull/1247>`_ and `PR #1272 <https://github.com/FlexMeasures/flexmeasures/pull/1272>`_]
+* Fix ``flexmeasures delete measurements`` and ``flexmeasures delete prognoses`` which had an error in counting affected rows after SQLAlchemy2.0 upgrade [see `PR #1095 <https://github.com/FlexMeasures/flexmeasures/pull/1095>`_ and `PR #1303 <https://github.com/FlexMeasures/flexmeasures/pull/1303>`_]
+* Fix asset count on the user page, which showed 0 assets after (de)activating a user or resetting their password [see `PR #1251 <https://github.com/FlexMeasures/flexmeasures/pull/1251>`_]
+* The UI footer now stays at the bottom even on pages with little content [see `PR #1204 <https://github.com/FlexMeasures/flexmeasures/pull/1204>`_]
+* Correct stroke dash (based on source type) for forecasts made by forecasters included in FlexMeasures [see `PR #1211 <https://www.github.com/FlexMeasures/flexmeasures/pull/1211>`_]
+* Show the correct :abbr:`UTC (Coordinated Universal Time)` offset for the data's time span as shown under sensor stats in the UI [see `PR #1213 <https://github.com/FlexMeasures/flexmeasures/pull/1213>`_]
+* Fixed issue where audit log buttons are visible to users without the necessary permissions. [see `PR #1228 <https://github.com/FlexMeasures/flexmeasures/pull/1228>`_]
+* Fix issue with displaying ``deactivate user`` and ``reset password`` buttons for non admin users [see `PR #1220 <https://github.com/FlexMeasures/flexmeasures/pull/1220>`_]
+* Resolve overlapping time series segments in several flex-model and flex-context fields in a way befitting their nature [see `PR #1223 <https://github.com/FlexMeasures/flexmeasures/pull/1223>`_]
+
+
+v0.23.2 | December 16, 2024
+============================
+
+Bugfixes
+-----------
+* Correct source filters on reporter input, and support piping additional transformations in the ``PandasReporter`` [see `PR #1284 <https://github.com/FlexMeasures/flexmeasures/pull/1284>`_]
+
+
+v0.23.1 | November 12, 2024
+============================
+
+Bugfixes
+-----------
+* Correct unit conversion of reporter output to output sensor [see `PR #1238 <https://github.com/FlexMeasures/flexmeasures/pull/1238>`_]
+
+
+v0.23.0 | September 18, 2024
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/023-data-insights-and-white-labelling/>`_.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
+* New chart type on sensor page: histogram [see `PR #1143 <https://github.com/FlexMeasures/flexmeasures/pull/1143>`_]
+* Add basic sensor info to sensor page [see `PR #1115 <https://github.com/FlexMeasures/flexmeasures/pull/1115>`_]
+* Add `Statistics` table on the sensor page and also add `api/v3_0/sensors/<id>/stats` endpoint to get sensor statistics [see `PR #1116 <https://github.com/FlexMeasures/flexmeasures/pull/1116>`_]
+* Support adding custom titles to the graphs on the asset page, by extending the ``sensors_to_show`` format [see `PR #1125 <https://github.com/FlexMeasures/flexmeasures/pull/1125>`_ and `PR #1177 <https://github.com/FlexMeasures/flexmeasures/pull/1177>`_]
+* Support zoom-in action on the asset and sensor charts [see `PR #1130 <https://github.com/FlexMeasures/flexmeasures/pull/1130>`_]
+* Speed up loading the assets page, by making the pagination backend-based and adding support for that in the API, and by enabling to query all accounts one can see in a single call (for admins and consultants) [see `PR #988 <https://github.com/FlexMeasures/flexmeasures/pull/988>`_]
+* Added Primary and Secondary colors to account for white-labelled UI themes [see `PR #1137 <https://github.com/FlexMeasures/flexmeasures/pull/1137>`_]
+* Added Logo URL to account for white-labelled UI themes [see `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
+* Added PopUp form to edit account details [see `PR #1152 <https://github.com/FlexMeasures/flexmeasures/pull/1152>`_]
+* When listing past jobs on the `Tasks` page, show the most recent jobs first [see `PR #1163 <https://github.com/FlexMeasures/flexmeasures/pull/1163>`_]
+* Introduce the ``VariableQuantityField`` to allow three ways of passing a variable quantity in most of the ``flex-model`` and ``flex-context`` fields [see `PR #1127 <https://github.com/FlexMeasures/flexmeasures/pull/1127>`_ and `PR #1138 <https://github.com/FlexMeasures/flexmeasures/pull/1138>`_]
+* Support directly passing a fixed price in the ``flex-context`` using the new fields ``consumption-price`` and ``production-price``, which are meant to replace the ``consumption-price-sensor`` and ``production-price-sensor`` fields, respectively [see `PR #1028 <https://github.com/FlexMeasures/flexmeasures/pull/1028>`_]
+
+Infrastructure / Support
+----------------------
+* Save beliefs faster by bulk saving [see `PR #1159 <https://github.com/FlexMeasures/flexmeasures/pull/1159>`_]
+* Support new single-belief fast track (looking up only one belief) [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
+* Add new annotation types: ``"error"`` and ``"warning"`` [see `PR #1131 <https://github.com/FlexMeasures/flexmeasures/pull/1131>`_ and `PR #1150 <https://github.com/FlexMeasures/flexmeasures/pull/1150>`_]
+* When deleting a sensor, asset or account, delete any annotations that belong to them [see `PR #1151 <https://github.com/FlexMeasures/flexmeasures/pull/1151>`_]
+* Removed deprecated ``app.schedulers`` and ``app.forecasters`` (use ``app.data_generators["scheduler"]`` and ``app.data_generators["forecaster"]`` instead) [see `PR #1098 <https://github.com/FlexMeasures/flexmeasures/pull/1098/>`_]
+* Save beliefs faster by bulk saving [see `PR #1159 <https://github.com/FlexMeasures/flexmeasures/pull/1159>`_]
+* Introduced dynamic, JavaScript-generated toast notifications. [see `PR #1152 <https://github.com/FlexMeasures/flexmeasures/pull/1152>`_]
+
+Bugfixes
+-----------
+* Fix string length exceeding the 255-character limit in the `event` field of `AssetAuditLog` by truncating long updates and logging each field or attribute change individually. [see `PR #1162 <https://github.com/FlexMeasures/flexmeasures/pull/1162>`_]
+* Fix image carousel on the login page [see `PR #1154 <https://github.com/FlexMeasures/flexmeasures/pull/1154>`_]
+* Fix styling for User and Documentation menu items [see `PR #1140 <https://github.com/FlexMeasures/flexmeasures/pull/1140>`_]
+* Fix styling of sensor page, especially the graph chart dropdown [see `PR #1148 <https://github.com/FlexMeasures/flexmeasures/pull/1148>`_]
+* Fix posting a single instantaneous belief [see `PR #1129 <https://github.com/FlexMeasures/flexmeasures/pull/1129>`_]
+* Allow reassigning a public asset to private ownership using the ``flexmeasures edit transfer-ownership`` CLI command [see `PR #1123 <https://github.com/FlexMeasures/flexmeasures/pull/1123>`_]
+* Fix missing value on spring :abbr:`DST (Daylight Saving Time)` transition for ``PandasReporter`` using daily sensor as input [see `PR #1122 <https://github.com/FlexMeasures/flexmeasures/pull/1122>`_]
+* Fix date range persistence on session across different pages [see `PR #1165 <https://github.com/FlexMeasures/flexmeasures/pull/1165>`_]
+* Fix issue with account creation failing when the ``--logo-url`` option is omitted. [see related PRs `PR #1167 <https://github.com/FlexMeasures/flexmeasures/pull/1167>`_ and `PR #1145 <https://github.com/FlexMeasures/flexmeasures/pull/1145>`_]
+* Fix ordering of audit logs (asset, account) and job list on status page [see `PR #1179 <https://github.com/FlexMeasures/flexmeasures/pull/1179>_` and `PR #1183 <https://github.com/FlexMeasures/flexmeasures/pull/1183>`_]
+
+
+v0.22.0 | June 29, 2024
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/022-editing-flex-context/>`_.
 
 New features
 -------------
 * Add `asset/<id>/auditlog` to view asset related actions [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
-* On the asset page, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
+* On the `/sensor/id` page, allow to link to it with a date range and to copy current view as URL [see `PR #1094 <https://github.com/FlexMeasures/flexmeasures/pull/1094>`_]
 * Flex-context (price sensors and inflexible device sensors) can now be set on the asset page (and are part of GenericAsset model) [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
 * On the asset page's default view, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
+* Add flex-context sensors to status page [see `PR #1102 <https://github.com/FlexMeasures/flexmeasures/pull/1102>`_]
+* Show tooltips on (mobile) touch screen [see `PR #1062 <https://github.com/FlexMeasures/flexmeasures/pull/1062>`_]
 
 Infrastructure / Support
 ----------------------
+* Add MailHog to docker-compose stack for testing email functionality [see `PR #1112 <https://github.com/FlexMeasures/flexmeasures/pull/1112>`_]
 * Allow installing dependencies in docker-compose worker [see `PR #1057 <https://github.com/FlexMeasures/flexmeasures/pull/1057/>`_]
 * Add unit conversion to the input and output data of the ``PandasReporter`` [see `PR #1044 <https://github.com/FlexMeasures/flexmeasures/pull/1044/>`_]
 * Add option ``droplevels`` to the ``PandasReporter`` to drop all the levels except the ``event_start`` and ``event_value`` [see `PR #1043 <https://github.com/FlexMeasures/flexmeasures/pull/1043/>`_]
@@ -22,6 +324,11 @@ Infrastructure / Support
 * ``flexmeasures show beliefs`` uses the entity path (`<Account>/../<Sensor>`) in case of duplicated sensors [see `PR #1026 <https://github.com/FlexMeasures/flexmeasures/pull/1026/>`_]
 * Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions [see `PR #1007 <https://github.com/FlexMeasures/flexmeasures/pull/1007/>`_]
 * Add ``FLEXMEASURES_JSON_COMPACT`` config setting and deprecate ``JSONIFY_PRETTYPRINT_REGULAR`` setting [see `PR #1090 <https://github.com/FlexMeasures/flexmeasures/pull/1090/>`_]
+
+Bugfixes
+-----------
+* Fix ordering of jobs on the asset status page [see `PR #1106 <https://github.com/FlexMeasures/flexmeasures/pull/1106>`_]
+* Relax max staleness for status page using 2 * event_resolution as default instead of immediate staleness [see `PR #1108 <https://github.com/FlexMeasures/flexmeasures/pull/1108>`_]
 
 
 v0.21.0 | May 16, 2024
@@ -217,7 +524,7 @@ v0.16.1 | October 2, 2023
 
 Bugfixes
 -----------
-* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+* Fix infeasible problem due to incorrect parsing of :abbr:`SoC (state of charge)` units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
 
 
 v0.16.0 | September 27, 2023
@@ -251,7 +558,7 @@ v0.15.2 | October 2, 2023
 
 Bugfixes
 -----------
-* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+* Fix infeasible problem due to incorrect parsing of :abbr:`SoC (state of charge)` units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
 
 
 v0.15.1 | August 28, 2023
@@ -283,7 +590,7 @@ New features
 * Add ``ProcessScheduler`` class to optimize the starting time of processes one of the policies developed (``INFLEXIBLE``, ``SHIFTABLE`` and ``BREAKABLE``), accessible via the CLI command ``flexmeasures add schedule for-process`` [see `PR #729 <https://www.github.com/FlexMeasures/flexmeasures/pull/729>`_ and `PR #768 <https://www.github.com/FlexMeasures/flexmeasures/pull/768>`_]
 * Users can select a new chart type (daily heatmap) on the sensor page of the UI, showing how sensor values are distributed over the time of day [see `PR #715 <https://www.github.com/FlexMeasures/flexmeasures/pull/715>`_]
 * Added API endpoints `/sensors/<id>` (GET) for fetching a single sensor, `/sensors` (POST) for adding a sensor, `/sensors/<id>` (PATCH) for updating a sensor and `/sensors/<id>` (DELETE) for deleting a sensor [see `PR #759 <https://www.github.com/FlexMeasures/flexmeasures/pull/759>`_] and [see `PR #767 <https://www.github.com/FlexMeasures/flexmeasures/pull/767>`_] and [see `PR #773 <https://www.github.com/FlexMeasures/flexmeasures/pull/773>`_] and [see `PR #784 <https://www.github.com/FlexMeasures/flexmeasures/pull/784>`_]
-* Users are warned in the UI on when the data they are seeing includes one or more Daylight Saving Time (DST) transitions, and heatmaps (see previous feature) visualize these transitions intuitively [see `PR #723 <https://www.github.com/FlexMeasures/flexmeasures/pull/723>`_]
+* Users are warned in the UI on when the data they are seeing includes one or more :abbr:`DST (Daylight Saving Time)` transitions, and heatmaps (see previous feature) visualize these transitions intuitively [see `PR #723 <https://www.github.com/FlexMeasures/flexmeasures/pull/723>`_]
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times [see `PR #734 <https://www.github.com/FlexMeasures/flexmeasures/pull/734>`_]
 * Make it a lot easier to read off the color legend on the asset page, especially when showing many sensors, as they will now be ordered from top to bottom in the same order as they appear in the chart (as defined in the ``sensors_to_show`` attribute), rather than alphabetically [see `PR #742 <https://www.github.com/FlexMeasures/flexmeasures/pull/742>`_]
 * Users on FlexMeasures servers in play mode (``FLEXMEASURES_MODE = "play"``) can use the ``sensors_to_show`` attribute to show any sensor on their asset pages, rather than only sensors registered to assets in their own account or to public assets [see `PR #740 <https://www.github.com/FlexMeasures/flexmeasures/pull/740>`_]
@@ -313,7 +620,7 @@ v0.14.3 | October 2, 2023
 
 Bugfixes
 -----------
-* Fix infeasible problem due to incorrect parsing of soc units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
+* Fix infeasible problem due to incorrect parsing of :abbr:`SoC (state of charge)` units of the ``soc-minima`` and ``soc-maxima`` fields within the ``flex-model`` field [see `PR #864 <https://github.com/FlexMeasures/flexmeasures/pull/864>`_]
 
 
 v0.14.2 | July 25, 2023

@@ -1,3 +1,5 @@
+import pytest
+
 from datetime import datetime
 
 from pytz import utc
@@ -224,3 +226,104 @@ def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
     assert (
         result_output_w.event_value.values == result_kw.event_value.values * 0.001
     ).all()
+
+
+@pytest.mark.parametrize("shortcut", [True, False])
+def test_pandas_reporter_valid_range(app, setup_dummy_data, shortcut):
+    """
+    Check that we can select a valid range of values, where values outside the range are dropped.
+
+    If shortcut=True, we test a shorter approach (fewer transformations) using pd.eval.
+    """
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+
+    range = [3, 7]
+
+    if shortcut:
+        transformations = [
+            {
+                "df_input": "any values",
+                "method": "eval",
+                "args": [f"event_value > {range[0]} & event_value < {range[1]}"],
+                "df_output": "mask",
+            },
+            {
+                "df_input": "any values",
+                "method": "where",
+                "args": ["@mask"],
+                "df_output": "ranged values",
+            },
+            {
+                # "df_input": "ranged values",  # redundant: defaults to previous df_output
+                "method": "dropna",
+                # "df_output": "ranged values",  # redundant: defaults to current df_input
+            },
+        ]
+    else:
+        transformations = [
+            {
+                "df_input": "any values",
+                "method": "gt",
+                "args": [range[0]],
+                "df_output": "gt_value",
+            },
+            {
+                "df_input": "any values",
+                "method": "lt",
+                "args": [range[1]],
+                "df_output": "lt_value",
+            },
+            {
+                "df_input": "any values",
+                "method": "where",
+                "args": ["@gt_value"],
+                "df_output": "ranged values",
+            },
+            {
+                # "df_input": "ranged values",  # redundant: defaults to previous df_output
+                "method": "where",
+                "args": ["@lt_value"],
+                # "df_output": "ranged values",  # redundant: defaults to current df_input
+            },
+            {
+                # "df_input": "ranged values",  # redundant: defaults to previous df_output
+                "method": "dropna",
+                # "df_output": "ranged values",  # redundant: defaults to current df_input
+            },
+        ]
+
+    reporter_config = dict(
+        required_input=[
+            {"name": "any values"},
+        ],
+        required_output=[
+            {"name": "ranged values"},
+        ],
+        transformations=transformations,
+    )
+
+    reporter = PandasReporter(config=reporter_config)
+
+    start = datetime(2023, 4, 10, tzinfo=utc)
+    end = datetime(2023, 4, 11, tzinfo=utc)
+    input = [
+        dict(name="any values", sensor=s1),
+    ]
+    output = [
+        dict(name="ranged values", sensor=s1),
+    ]
+
+    report = reporter.compute(start=start, end=end, input=input, output=output)
+    result = report[0]["data"]
+
+    # Check that some values were originally outside the range
+    original_values = s1.search_beliefs(
+        event_starts_after=start,
+        event_ends_before=end,
+    )
+    assert not (original_values.event_value.values > range[0]).all()
+    assert not (original_values.event_value.values < range[-1]).all()
+
+    # Check that all values are now inside the range
+    assert (result.event_value.values > range[0]).all()
+    assert (result.event_value.values < range[1]).all()

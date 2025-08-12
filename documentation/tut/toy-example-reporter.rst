@@ -3,9 +3,6 @@
 Toy example IV: Computing reports
 =====================================
 
-.. warning::
-    The reporting functionality is still in an early development stage. Beware that major changes might be introduced.
-    
 So far, we have worked on scheduling batteries and processes. Now, we are moving to one of the other three pillars of FlexMeasures: reporting. 
 
 In essence, reporters apply arbitrary transformations to data coming from some sensors (multiple inputs) and save the results to other sensors (multiple outputs). In practice, this allows to compute KPIs (such as profit and total daily energy production), to apply operations to beliefs (e.g. changing the sign of a power sensor for some time period), among other things.
@@ -18,12 +15,14 @@ In essence, reporters apply arbitrary transformations to data coming from some s
 
     Moreover, it's possible to implement your custom reporters in plugins. Instructions for this to come.
 
-Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitOrLossReporter`. In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time. In the second part, we'll use the `ProfitOrLossReporter` to compute the costs of operating the process of Tut. Part III in the different policies.
+Now, coming back to the tutorial, we are going to use the `AggregatorReporter` and the `ProfitOrLossReporter`.
+In the first part, we'll use the `AggregatorReporter` to compute the (discharge) headroom of the battery in :ref:`tut_toy_schedule_expanded`. That way, we can verify the maximum power at which the battery can discharge at any point of time.
+In the second part, we'll use the `ProfitOrLossReporter` to compute the costs of operating the process of Tut. Part III in the different policies.
 
 Before getting to the meat of the tutorial, we need to set up up all the entities. Instead of having to do that manually (e.g. using commands such as ``flexmeasures add sensor``), we have prepared a command that does that automatically.
 
 Setup
-.....
+-----
 
 Just as in previous sections, we need to run the command ``flexmeasures add toy-account``, but this time with a different value for *kind*:
 
@@ -32,14 +31,16 @@ Just as in previous sections, we need to run the command ``flexmeasures add toy-
     $ flexmeasures add toy-account --kind reporter
 
 Under the hood, this command is adding the following entities:
-    - A yearly sensor that stores the capacity of the grid connection.
+    - A sensor that stores the capacity of the grid connection (with a resolution of one year, so storing just one value:) ).
     - A power sensor, `headroom`, to store the remaining capacity for the battery. This is where we'll store the report.
     - A `ProfitOrLossReporter` configured to use the prices that we set up in Tut. Part II.
     - Three sensors to register the profits/losses from running the three different processes of Tut. Part III.
 
+.. note:: The above command should also print out the IDs of these sensors. We will use these IDs verbatim in this tutorial.
+
 Let's check it out! 
 
-Run the command below to show the values for the `grid connection capacity`:
+Run the command below to show the values for our newly-created `grid connection capacity`:
 
 .. code-block:: bash
 
@@ -47,29 +48,29 @@ Run the command below to show the values for the `grid connection capacity`:
     $ flexmeasures show beliefs --sensor 7 --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
       
       Beliefs for Sensor 'grid connection capacity' (ID 7).
-        Data spans a day and starts at 2023-08-14 00:00:00+02:00.
-        The time resolution (x-axis) is an hour.
-        ┌────────────────────────────────────────────────────────────┐
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 1.0MW
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│ 0.5MW
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ 0.0MW
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ 
-        │                                                            │ -0.5MW
-        └────────────────────────────────────────────────────────────┘
-                5            10            15           20
-                        ██ grid connection capacity
+      Data spans a day and starts at 2025-06-13 00:00:00+02:00.
+      The time resolution (x-axis) is an hour.
+    ┌────────────────────────────────────────────────────────────┐
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │                                                            │ 1.0MW
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│ 0.5MW
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ 0.0MW
+    │                                                            │
+    │                                                            │
+    │                                                            │
+    │                                                            │ -0.5MW
+    └────────────────────────────────────────────────────────────┘
+                       06:00           12:00           18:00
+              ██ grid connection capacity (toy-building)
 
 
 Moreover, we can check the freshly created source `<Source id=6>`, which defines the `ProfitOrLossReporter` with the required configuration.
@@ -78,23 +79,28 @@ That's because reporters belong to a bigger category of classes that also contai
 
 .. code-block:: bash
 
-    $ flexmeasures show data-sources --show-attributes --id 5
+    $ flexmeasures show data-sources --show-attributes --id 6
 
-         ID  Name          Type      User ID    Model           Version    Attributes                                  
-       ----  ------------  --------  ---------  --------------  ---------  -----------------------------------------   
-          6  FlexMeasures  reporter             ProfitOrLossReporter           {                                            
-                                                                               "data_generator": {                      
-                                                                                   "config": {                          
-                                                                                       "consumption_price_sensor": 1     
-                                                                                   }                                     
-                                                                               }                                          
-                                                                           }                                             
+    type: reporter
+    ========
+
+     ID  Name          User ID    Model                 Version    Attributes
+   ----  ------------  ---------  --------------------  ---------  ------------------------------------------
+      6  FlexMeasures             ProfitOrLossReporter             {
+                                                                       "data_generator": {
+                                                                           "config": {
+                                                                               "consumption_price_sensor": 1,
+                                                                               "loss_is_positive": true
+                                                                           }
+                                                                       }
+                                                                   }
 
 
 Compute headroom
 -------------------
 
-In this case, the discharge headroom is nothing but the difference between the grid connection capacity and the PV power. To compute that quantity, we can use the `AggregatorReporter` using the weights to make the PV to subtract the grid connection capacity.
+In this case, the discharge headroom is nothing but the difference between the grid connection capacity and the PV power.
+To compute that quantity, we can use the `AggregatorReporter` using the weights to make the PV to subtract the grid connection capacity.
 
 In practice, we need to create the `config` and `parameters`:
 
@@ -118,18 +124,18 @@ In practice, we need to create the `config` and `parameters`:
     $     'output' : [{'sensor' : 8}]
     $ }" > headroom-parameters.json
 
+The output sensor (ID: 8) is actually the one created just to store that information - the headroom our battery has when considering solar production.
 
-Finally, we can create the reporter with the following command:
+Finally, we can create the report with the following command:
 
 .. code-block:: bash
 
-    $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ flexmeasures add report --reporter AggregatorReporter \
        --parameters headroom-parameters.json --config headroom-config.json \
        --start-offset DB,1D --end-offset DB,2D \
        --resolution PT15M
 
-Now we can visualize the headroom in the following `link <http://localhost:5000/sensor/8/>`_, which should resemble the following image.
+Now we can visualize the diminished headroom in the following `link <http://localhost:5000/sensors/8/graphs>`_, which should resemble the following image:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom.png
     :align: center
@@ -184,7 +190,7 @@ Create report:
        --start-offset DB,1D --end-offset DB,2D
 
 
-Check the results `here <http://localhost:5000/sensor/9/>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/9>`_. The image should be similar to the one below.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-inflexible.png
     :align: center
@@ -211,7 +217,7 @@ Create report:
        --parameters breakable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
-Check the results `here <http://localhost:5000/sensor/10/>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/10>`_. The image should be similar to the one below.
 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-breakable.png
@@ -239,7 +245,7 @@ Create report:
        --parameters shiftable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
-Check the results `here <http://localhost:5000/sensor/11/>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/11>`_. The image should be similar to the one below.
 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-shiftable.png

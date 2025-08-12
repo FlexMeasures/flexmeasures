@@ -40,8 +40,16 @@ def create(  # noqa C901
     """
 
     from flexmeasures.utils import config_defaults
-    from flexmeasures.utils.config_utils import read_config, configure_logging
-    from flexmeasures.utils.app_utils import set_secret_key, init_sentry
+    from flexmeasures.utils.config_utils import (
+        read_config,
+        configure_logging,
+        get_flexmeasures_env,
+    )
+    from flexmeasures.utils.app_utils import (
+        set_secret_key,
+        set_totp_secrets,
+        init_sentry,
+    )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
     # Create app
@@ -107,6 +115,12 @@ def create(  # noqa C901
     # Some basic security measures
 
     set_secret_key(app)
+    if app.config.get("SECURITY_TWO_FACTOR", False):
+        set_totp_secrets(app)
+    elif get_flexmeasures_env(app) == "production":
+        app.logger.warning(
+            "SECURITY_TWO_FACTOR is False. We advise to set it to True in a production environment."
+        )
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
@@ -141,18 +155,6 @@ def create(  # noqa C901
         reporters
     )  # use copy to avoid mutating app.reporters
     app.data_generators["scheduler"] = schedulers
-
-    # deprecated: app.reporters and app.schedulers
-    app.reporters = reporters
-    app.schedulers = schedulers
-
-    def get_reporters():
-        app.logger.warning(
-            '`app.reporters` is deprecated. Use `app.data_generators["reporter"]` instead.'
-        )
-        return app.data_generators["reporter"]
-
-    setattr(app, "reporters", get_reporters())
 
     # add auth policy
 
@@ -231,7 +233,7 @@ def create(  # noqa C901
                 if not hasattr(g, "profiler"):
                     return app
                 g.profiler.stop()
-                output_html = g.profiler.output_html(timeline=True)
+                output_html = g.profiler.output_html()
                 endpoint = request.endpoint
                 if endpoint is None:
                     endpoint = "unknown"

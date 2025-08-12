@@ -92,12 +92,6 @@ Default: ``[]``
 .. note:: This setting is also recognized as environment variable (since v0.14, which is also the version required to pass this setting as a string).
 
 
-FLEXMEASURES_DB_BACKUP_PATH
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Relative path to the folder where database backups are stored if that feature is being used.
-
-Default: ``"migrations/dumps"``
 
 FLEXMEASURES_PROFILE_REQUESTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -402,6 +396,20 @@ You can also set this in a file (which some Flask tutorials advise).
 
 Default: ``None``
 
+
+.. _security_totp_secrets:
+
+SECURITY_TOTP_SECRETS
+^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary with secrets used to sign :abbr:`TOTP (time-based one-time password)` tokens.
+For example, ``{"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}``.
+
+Default: ``None``
+
+.. note:: Leave this setting set to ``None`` to get more instructions when you attempt to run FlexMeasures.
+          This setting is also recognized as environment variable.
+
 SECURITY_PASSWORD_SALT
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -543,7 +551,7 @@ Password of mail system user.
 Default: ``None``
 
 
-.. _monitoring
+.. _monitoring:
 
 Monitoring
 -----------

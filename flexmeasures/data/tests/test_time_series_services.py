@@ -27,7 +27,7 @@ def test_drop_unchanged_beliefs(setup_beliefs, db):
 
     # See what happens when storing all beliefs with their belief time updated
     bdf = tb_utils.replace_multi_index_level(
-        bdf, "belief_time", bdf.belief_times + pd.Timedelta("1H")
+        bdf, "belief_time", bdf.belief_times + pd.Timedelta("1h")
     )
     save_to_db(bdf)
 
@@ -86,7 +86,7 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs, db):
         old_belief, "cumulative_probability", pd.Index([0.3, 0.5])
     )
     new_belief = tb_utils.replace_multi_index_level(
-        new_belief, "belief_time", new_belief.belief_times + pd.Timedelta("1H")
+        new_belief, "belief_time", new_belief.belief_times + pd.Timedelta("1h")
     )
     save_to_db(new_belief)
 

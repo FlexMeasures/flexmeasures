@@ -3,24 +3,26 @@ Tooling & docs for implementing our auth policy
 """
 
 from __future__ import annotations
-
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
 
-PERMISSIONS = ["create-children", "read", "read-children", "update", "delete"]
+PERMISSIONS = ["create-children", "read", "update", "delete"]
 
 ADMIN_ROLE = "admin"
 ADMIN_READER_ROLE = "admin-reader"
+ACCOUNT_ADMIN_ROLE = "account-admin"
+CONSULTANT_ROLE = "consultant"
 
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
-
 # todo: Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-PRINCIPALS_TYPE = Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
+PRINCIPALS_TYPE = Optional[
+    Union[str, Tuple[str], List[Optional[Union[str, Tuple[str]]]]]
+]
 
 
 class AuthModelMixin(object):
@@ -64,6 +66,9 @@ class AuthModelMixin(object):
         Iterable principal descriptors should be treated as follows:
         - a list contains OR-connected items, which can be principal or tuples of principals (one of the items in the list is sufficient to grant the permission)
         - a tuple contains AND-connected strings (you need all of the items in the list to grant the permission).
+
+        Empty principals (e.g. None, an empty list, tuple or string) will not match and the user will not be given the permission.
+        We want to prevent accidental bugs this way. If you provide access, do it explicitly.
 
         # Row-level authorization
 
@@ -136,6 +141,8 @@ def user_matches_principals(user, principals: PRINCIPALS_TYPE) -> bool:
     if not isinstance(principals, list):
         principals = [principals]  # now we handle a list of str or Tuple[str]
     for matchable_principals in principals:
+        if matchable_principals is None or len(matchable_principals) == 0:
+            continue  # these cases will not evaluate to True, rather use the explicit case (see below)
         if isinstance(matchable_principals, str):
             matchable_principals = (
                 matchable_principals,
@@ -194,4 +201,45 @@ def check_account_role(user, principal: str) -> bool:
         account_role = principal.split("account-role:")[1]
         if user.account.has_role(account_role):
             return True
+    return False
+
+
+def can_modify_role(
+    user,
+    roles_to_modify,
+    modified_user,
+) -> bool:
+    """For a set of supported roles, check if the current user can modify the roles.
+
+    :param user: The current attempting to modify a role.
+    :param roles_to_modify: A list of roles to modify - can be a Role or a role ID.
+    :param modified_user: The user whose roles are being modified.
+    :return: True if the user can modify the roles, False otherwise.
+
+    The roles are:
+    - admin: can only be changed in CLI / directly in the DB, so not here
+    - admin-reader: can be added and removed by admins
+    - account-admin: can be added and removed by admins and consultants (in consultancy account)
+    - consultant: can be added and removed by admins and account-admins (in same account)
+
+    """
+
+    for role in roles_to_modify:
+        if isinstance(role, int):
+            from flexmeasures.data.models.user import Role
+
+            role = current_app.db.session.get(Role, role)
+
+    if role is not None:
+        if role.name != ADMIN_ROLE and user.has_role(ADMIN_ROLE):
+            return True  # admin can do all changes, aside from admin status
+        if role.name == ACCOUNT_ADMIN_ROLE and user.has_role(CONSULTANT_ROLE):
+            if modified_user.account.consultancy_account is not None:
+                if user.account.id == modified_user.account.consultancy_account.id:
+                    return True
+        if role.name == CONSULTANT_ROLE and user.has_role(ACCOUNT_ADMIN_ROLE):
+            if user.account.id and modified_user.account.id:
+                if user.account.id == modified_user.account.id:
+                    return True
+
     return False

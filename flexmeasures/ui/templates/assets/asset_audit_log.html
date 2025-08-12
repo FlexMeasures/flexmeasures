@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} {{asset.name}} {% endblock %}
+
+{% block divs %}
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="asset auditlog card">
+            <h3>History of actions for asset <a href="/assets/{{ asset.id }}">{{ asset.name }}</a></h3>
+            <table id="assetAuditLog" class="table table-striped paginate nav-on-click" title="View data">
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function AuditLog(event_datetime, event, acting_user_name) {
+        this.event_datetime = event_datetime;
+        this.event = event;
+        this.acting_user_name = acting_user_name;
+    }
+
+    $(document).ready(function() {
+    $('#assetAuditLog').DataTable({
+        "order": [[ 0, "desc" ]],  // Default sort by the hidden UTC Timestamp column
+        serverSide: true,
+        columns: [
+            { data: "event_datetime", title: "Event Datetime", orderable: true },
+            { data: "event", title: "Event Name", orderable: false, width: "80%" },
+            { data: "acting_user_name", title: "Acting User", orderable: false },
+        ],
+
+        ajax: function (data, callback, settings) {
+            const basePath = window.location.origin;
+            let filter = data["search"]["value"];
+            let orderColumnIndex = data["order"][0]["column"];
+            let orderDirection = data["order"][0]["dir"];
+            let orderColumnName = data["columns"][orderColumnIndex]["data"];
+            let url = `${basePath}/api/v3_0/assets/{{ asset.id }}/auditlog?page=${Math.floor(data["start"] / data["length"]) + 1}&per_page=${data["length"]}`;
+            if (filter.length > 0) {
+                url = `${url}&filter=${filter}`;
+            }
+    
+            if (orderColumnName){
+                url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+            }
+
+            $.ajax({
+                type: "get",
+                url: url,
+                success: function(response, text) {
+                    let clean_response = [];
+                    response["data"].forEach( (element) => clean_response.push(
+                        new AuditLog(element["event_datetime"], element["event"], `${element["active_user_name"]} (Id: ${element["active_user_id"]})`)
+                    ));
+                    callback({"data": clean_response, "recordsTotal": response["num-records"], "recordsFiltered": response["filtered-records"]});
+                },
+                error: function (request, status, error) {
+                    console.log("Error: ", error)
+                }
+            });
+        }
+    });
+});
+</script>
+
+{% endblock %}

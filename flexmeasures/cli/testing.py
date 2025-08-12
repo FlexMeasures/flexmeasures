@@ -30,6 +30,7 @@ functionality.
 They are not registered as app command per default, as we don't need to show them to users. 
 """
 
+
 # un-comment to use as CLI function
 # @app.cli.command()
 def test_making_forecasts():

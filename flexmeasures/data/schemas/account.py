@@ -1,6 +1,6 @@
 from flask.cli import with_appcontext
 from flexmeasures.data import ma
-from marshmallow import fields
+from marshmallow import fields, validates
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import (
@@ -8,6 +8,7 @@ from flexmeasures.data.models.user import (
     AccountRole as AccountRoleModel,
 )
 from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
+from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 
 
 class AccountRoleSchema(ma.SQLAlchemySchema):
@@ -29,8 +30,32 @@ class AccountSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field(dump_only=True)
     name = ma.auto_field(required=True)
+    primary_color = ma.auto_field(required=False)
+    secondary_color = ma.auto_field(required=False)
+    logo_url = ma.auto_field(required=False)
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
+
+    @validates("primary_color")
+    def validate_primary_color(self, value, **kwargs):
+        try:
+            validate_color_hex(value)
+        except ValueError as e:
+            raise FMValidationError(str(e))
+
+    @validates("secondary_color")
+    def validate_secondary_color(self, value, **kwargs):
+        try:
+            validate_color_hex(value)
+        except ValueError as e:
+            raise FMValidationError(str(e))
+
+    @validates("logo_url")
+    def validate_logo_url(self, value, **kwargs):
+        try:
+            validate_url(value)
+        except ValueError as e:
+            raise FMValidationError(str(e))
 
 
 class AccountIdField(fields.Int, MarshmallowClickMixin):

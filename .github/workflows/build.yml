@@ -33,6 +33,8 @@ jobs:
       - name: Generate random secret key
         run: echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
           >> .env
+      - name: Generate random totp secret
+        run: echo "SECURITY_TOTP_SECRETS={\"1\":\"$(python3 -c 'import secrets; print(secrets.token_hex(24))')\"}" >> .env
       - name: Export SQLALCHEMY_DATABASE_URI
         run: echo "SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test"
           >> .env
@@ -56,6 +58,5 @@ jobs:
           >> $GITHUB_ENV
       - name: Add schedule
         run: docker exec --env-file .env fm-container flexmeasures
-          add schedule for-storage --sensor 2 --consumption-price-sensor 1 
-          --start ${TOMORROW}T07:00+01:00 --duration PT12H 
-          --soc-at-start 50% --roundtrip-efficiency 90%
+          add schedule for-storage --sensor 2 --start ${TOMORROW}T07:00+01:00 
+          --duration PT12H --soc-at-start 50% --roundtrip-efficiency 90%

@@ -12,6 +12,7 @@ Furthermore, we discuss several guidelines and best practices.
     :local:
     :depth: 1
 
+|
 .. note:: Are you implementing code based on FlexMeasures, you're probably interested in :ref:`datamodel`.
 
 
@@ -78,11 +79,12 @@ Configuration
 
 Most configuration happens in a config file, see :ref:`configuration` on where it can live and all supported settings.
 
-For now, we let it live in your home directory and we add the first required setting: a secret key:
+For now, we let it live in your home directory and we add the first two required settings: a secret key and a totp secrets:
 
 .. code-block:: bash
 
    echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
+   echo "SECURITY_TOTP_SECRETS={\"1\":\"$(python3 -c 'import secrets; print(secrets.token_hex(24))')\"}" >> ~/.flexmeasures.cfg
 
    
 Also, we add some env settings in an `.env` file. Create that file in the `flexmeasures` directory (from where you'll run flexmeasures) and enter:
@@ -127,14 +129,6 @@ Now, to start the web application, you can run:
 
     $ flexmeasures run
 
-
-Or:
-
-.. code-block:: bash
-
-    $ python run-local.py
-
-
 And access the server at http://localhost:5000
 
 If you added a toy account, you could log in with `toy-user@flexmeasures.io`, password `toy-password`.
@@ -148,6 +142,8 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 
 (The `account` you need in the 2nd command is printed by the 1st)
 
+
+.. include:: ../notes/macOS-port-note.rst
 
 .. note::
 
@@ -165,6 +161,18 @@ A rolling log file handler is used, so if ``flexmeasures.log`` gets to a few meg
 
 The default logging level is ``WARNING``. To see more, you can update this with the config setting ``LOGGING_LEVEL``, e.g. to ``INFO`` or ``DEBUG``
 
+
+Mocking an Email Server for Development
+--------------------------------
+
+To handle emails locally during development, you can use MailHog. Follow these steps to set it up:
+
+.. code-block:: bash
+
+   $ docker run -p 8025:8025 -p 1025:1025 --name mailhog mailhog/mailhog
+   $ export MAIL_PORT=1025  # You can also add this to your local flexmeasures.cfg
+
+Now, emails (e.g., password-reset) are being sent via this local server. Go to http://localhost:8025 to see all sent emails in a web UI.
 
 Tests
 -----
@@ -304,3 +312,4 @@ I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and h
 
 
 .. note:: All paths depend on your local environment, of course.
+

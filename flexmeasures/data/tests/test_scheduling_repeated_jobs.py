@@ -214,7 +214,7 @@ def test_scheduling_multiple_triggers(
         soc_targets = [dict(datetime=target_datetime.isoformat(), value=target_soc)]
 
         job = create_scheduling_job(
-            sensor=charging_station,
+            asset_or_sensor=charging_station,
             start=start,
             end=end,
             belief_time=start,
