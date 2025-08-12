@@ -13,7 +13,6 @@ New features
 -------------
 
 * Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_ and `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_]
-* Faster data loading for the UI [see `PR #1647 <https://www.github.com/FlexMeasures/flexmeasures/pull/1647>`_]
 
 Infrastructure / Support
 ----------------------
@@ -26,7 +25,7 @@ Bugfixes
 * Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 
 
-v0.27.2 | August XX, 2025
+v0.27.2 | August 13, 2025
 ============================
 
 Bugfixes
@@ -35,6 +34,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Faster data loading for the UI by caching dictionary representations of sources and sensors [see `PR #1647 <https://www.github.com/FlexMeasures/flexmeasures/pull/1647>`_]
 * Modify a query to speed up a data availability check for forecasting [see `PR #1658 <https://github.com/FlexMeasures/flexmeasures/pull/1658>`_]
 
 
