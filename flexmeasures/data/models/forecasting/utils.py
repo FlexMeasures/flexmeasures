@@ -23,6 +23,7 @@ def check_data_availability(
     TODO: The join is probably not needed, should be removed. The speed impactof join is negligible
     """
     from sqlalchemy import func
+
     # Use aggregate MIN and MAX queries in the database, matching O(n) approach
     first_q = (
         select(func.min(old_time_series_data_model.event_start))
