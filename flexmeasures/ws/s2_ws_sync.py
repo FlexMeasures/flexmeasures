@@ -9,6 +9,7 @@ import uuid
 from typing import Any, Callable, Dict, Optional, Type
 
 from flask import Flask
+from flask_security import auth_required
 from flask_sock import ConnectionClosed, Sock
 
 from s2python.common import (
@@ -19,7 +20,7 @@ from s2python.common import (
     ReceptionStatus,
     ReceptionStatusValues,
     SelectControlType,
-    ResourceManagerDetails
+    ResourceManagerDetails,
 )
 from s2python.message import S2Message
 from s2python.s2_parser import S2Parser
@@ -32,6 +33,7 @@ logger = logging.getLogger("S2FlaskWSServerSync")
 
 class MessageHandlersSync:
     """Class to manage sync message handlers for different message types."""
+
     handlers: Dict[Type[S2Message], Callable]
 
     def __init__(self) -> None:
@@ -72,7 +74,9 @@ class MessageHandlersSync:
                 type(msg),
             )
 
-    def register_handler(self, msg_type: Type[S2Message], handler: Callable[..., Any]) -> None:
+    def register_handler(
+        self, msg_type: Type[S2Message], handler: Callable[..., Any]
+    ) -> None:
         self.handlers[msg_type] = handler
 
 
@@ -107,6 +111,7 @@ class S2FlaskWSServerSync:
         except Exception as e:
             self.app.logger.error("Error in websocket handler: %s", e)
 
+    @auth_required()
     def _handle_websocket_connection(self, websocket: Sock) -> None:
         client_id = str(uuid.uuid4())
         self.app.logger.info("Client %s connected (sync).", client_id)
@@ -116,10 +121,15 @@ class S2FlaskWSServerSync:
                 message = websocket.receive()
                 try:
                     s2_msg = self.s2_parser.parse_as_any_message(message)
-                    self.app.logger.info("Received message in _handle_websocket_connection: %s", s2_msg.to_json())
+                    self.app.logger.info(
+                        "Received message in _handle_websocket_connection: %s",
+                        s2_msg.to_json(),
+                    )
                 except json.JSONDecodeError:
                     self.respond_with_reception_status(
-                        subject_message_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+                        subject_message_id=uuid.UUID(
+                            "00000000-0000-0000-0000-000000000000"
+                        ),
                         status=ReceptionStatusValues.INVALID_DATA,
                         diagnostic_label="Not valid json.",
                         websocket=websocket,
@@ -127,7 +137,7 @@ class S2FlaskWSServerSync:
                     continue
                 try:
                     if not isinstance(s2_msg, ReceptionStatus):
-                        
+
                         self.respond_with_reception_status(
                             subject_message_id=s2_msg.message_id,
                             status=ReceptionStatusValues.OK,
@@ -137,7 +147,9 @@ class S2FlaskWSServerSync:
                     self._handlers.handle_message(self, s2_msg, websocket)
                 except json.JSONDecodeError:
                     self.respond_with_reception_status(
-                        subject_message_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+                        subject_message_id=uuid.UUID(
+                            "00000000-0000-0000-0000-000000000000"
+                        ),
                         status=ReceptionStatusValues.INVALID_DATA,
                         diagnostic_label="Not valid json.",
                         websocket=websocket,
@@ -154,7 +166,9 @@ class S2FlaskWSServerSync:
                         )
                     else:
                         self.respond_with_reception_status(
-                            subject_message_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+                            subject_message_id=uuid.UUID(
+                                "00000000-0000-0000-0000-000000000000"
+                            ),
                             status=ReceptionStatusValues.INVALID_DATA,
                             diagnostic_label="Message appears valid json but could not find a message_id field.",
                             websocket=websocket,
@@ -181,11 +195,17 @@ class S2FlaskWSServerSync:
             status=status,
             diagnostic_label=diagnostic_label,
         )
-        self.app.logger.info("Sending reception status %s for message %s (sync)", status, subject_message_id)
+        self.app.logger.info(
+            "Sending reception status %s for message %s (sync)",
+            status,
+            subject_message_id,
+        )
         try:
             websocket.send(response.to_json())
         except ConnectionClosed:
-            self.app.logger.warning("Connection closed while sending reception status (sync)")
+            self.app.logger.warning(
+                "Connection closed while sending reception status (sync)"
+            )
 
     def _send_and_forget(self, s2_msg: S2Message, websocket: Sock) -> None:
         try:
@@ -193,11 +213,13 @@ class S2FlaskWSServerSync:
         except ConnectionClosed:
             self.app.logger.warning("Connection closed while sending message (sync)")
 
-    def handle_handshake(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
+    def handle_handshake(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
         if not isinstance(message, Handshake):
             return
         self.app.logger.info("Received Handshake (sync): %s", message.to_json())
-        
+
         handshake_response = HandshakeResponse(
             message_id=message.message_id,
             selected_protocol_version="1.0.0",
@@ -214,14 +236,18 @@ class S2FlaskWSServerSync:
             self._send_and_forget(select_control_type, websocket)
             self.app.logger.info("SelectControlType sent (sync)")
 
-    def handle_reception_status(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
+    def handle_reception_status(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
         if not isinstance(message, ReceptionStatus):
             return
         self.app.logger.info("Received ReceptionStatus (sync): %s", message.to_json())
 
-    def handle_ResourceManagerDetails(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
+    def handle_ResourceManagerDetails(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
         if not isinstance(message, ResourceManagerDetails):
             return
-        self.app.logger.info("Received ResourceManagerDetails (sync): %s", message.to_json())
-
-
+        self.app.logger.info(
+            "Received ResourceManagerDetails (sync): %s", message.to_json()
+        )
