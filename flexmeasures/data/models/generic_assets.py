@@ -78,6 +78,9 @@ class GenericAsset(db.Model, AuthModelMixin):
     flex_context = db.Column(
         MutableDict.as_mutable(db.JSON), nullable=False, default={}
     )
+    sensors_to_show_as_kpis = db.Column(
+        MutableList.as_mutable(db.JSON), nullable=False, default=[]
+    )
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
@@ -717,7 +720,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     df["scale_factor"] = factors[sensor.unit]
                     df = df.set_index(["sensor"], append=True)
                     df_dict[sensor.id] = df
-                df = pd.concat(df_dict.values())
+                df = pd.concat([df.reset_index() for df in df_dict.values()]).set_index(
+                    ["event_start", "source", "sensor"]
+                )
             else:
                 df = simplify_index(
                     BeliefsDataFrame(),
@@ -736,8 +741,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+            df["source"] = df["source"].apply(lambda x: x.as_dict)
+            df["sensor"] = df["sensor"].apply(lambda x: x.as_dict)
             df["sensor_unit"] = df["sensor"].apply(lambda x: x["sensor_unit"])
             df["event_value"] = df.apply(
                 lambda row: (

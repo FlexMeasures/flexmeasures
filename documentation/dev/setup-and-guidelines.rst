@@ -129,14 +129,6 @@ Now, to start the web application, you can run:
 
     $ flexmeasures run
 
-
-Or:
-
-.. code-block:: bash
-
-    $ python run-local.py
-
-
 And access the server at http://localhost:5000
 
 If you added a toy account, you could log in with `toy-user@flexmeasures.io`, password `toy-password`.
