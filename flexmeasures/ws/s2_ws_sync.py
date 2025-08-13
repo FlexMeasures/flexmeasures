@@ -252,3 +252,18 @@ class S2FlaskWSServerSync:
         self.app.logger.info(
             "Received ResourceManagerDetails (sync): %s", message.to_json()
         )
+
+        # todo: we need to look up the asset that has as its attribute the resource-id matching the resource-id in the message
+        scheduler_class = self.app.data_generators["scheduler"]["S2Scheduler"]
+        from flexmeasures import Asset
+        from flexmeasures.data import db
+        asset = db.session.get(Asset, 1)  # temporary workaround
+
+        scheduler = scheduler_class(asset, return_multiple=True)
+        schedule = scheduler.compute()
+        for entry in schedule:
+            if isinstance(entry, Instruction):
+                websocket.send(entry)
+            elif isinstance(entry, dict) and "sensor" in entry:
+                # todo: save entry["data"] to sensor (see the code block starting in data/services/scheduling/make_schedule line 598)
+                pass
