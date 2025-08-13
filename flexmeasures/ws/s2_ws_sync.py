@@ -102,6 +102,9 @@ class S2FlaskWSServerSync:
     def _register_default_handlers(self) -> None:
         self._handlers.register_handler(Handshake, self.handle_handshake)
         self._handlers.register_handler(ReceptionStatus, self.handle_reception_status)
+        self._handlers.register_handler(
+            ResourceManagerDetails, self.handle_ResourceManagerDetails
+        )
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
