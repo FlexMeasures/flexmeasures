@@ -242,17 +242,26 @@ def create(  # noqa C901
                     f.write(output_html)
 
     @app.before_request
-    def ws_handshake_auth():
-        # Check if this is the WS handshake route
-        is_ws_handshake = (
+    def ws_connection_auth():
+        # Check if this is the S2 WS connection route
+        is_ws_connection = (
             request.path == s2_ws.ws_path
             and request.headers.get("Upgrade", "").lower() == "websocket"
         )
-        if is_ws_handshake and not current_user.is_authenticated:
-            app.logger.info(
-                "Unauthorized WS handshake attempt from %s", request.remote_addr
-            )
-            # Send clean 401 without stack trace noise
-            return Response("Unauthorized", status=401)
+
+        if not is_ws_connection or current_user.is_authenticated:
+            return  # Let other before_request hooks handle it
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header.removeprefix("Bearer ").strip()
+            if token == app.config.get("WEBSOCKET_BEARER_TOKEN", None):
+                return  # Let other before_request hooks handle it
+
+        app.logger.info(
+            "Unauthorized WS handshake attempt from %s", request.remote_addr
+        )
+        # Send clean 401 without stack trace noise
+        return Response("Unauthorized", status=401)
 
     return app
