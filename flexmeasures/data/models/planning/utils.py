@@ -375,12 +375,7 @@ def get_series_from_quantity_or_sensor(
         )
         if as_instantaneous_events:
             bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
-        time_series = simplify_index(bdf).reindex(index)
-        time_series = pd.Series(
-            data=time_series.iloc[:, 0].values,
-            index=time_series.index,
-            name=time_series.columns[0],
-        )
+        time_series = simplify_index(bdf).reindex(index).squeeze(axis=1)
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution
         )
