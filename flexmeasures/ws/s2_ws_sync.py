@@ -8,8 +8,7 @@ import traceback
 import uuid
 from typing import Any, Callable, Dict, Optional, Type
 
-from flask import Flask, request, abort
-from flask_security import current_user
+from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
 from s2python.common import (
@@ -105,12 +104,6 @@ class S2FlaskWSServerSync:
         self._handlers.register_handler(ReceptionStatus, self.handle_reception_status)
 
     def _ws_handler(self, ws: Sock) -> None:
-        # Auth check
-        if not current_user.is_authenticated:
-            self.app.logger.warning(
-                "Unauthorized WS connection attempt from %s", request.remote_addr
-            )
-            abort(401)
         try:
             self.app.logger.info("Received connection from client")
             self._handle_websocket_connection(ws)
