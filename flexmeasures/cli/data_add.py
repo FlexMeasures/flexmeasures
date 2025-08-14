@@ -998,9 +998,9 @@ def add_holidays(
 
 @fm_add_data.command("forecasts")
 @click.option(
-    "--sensors",
+    "--sensor",
     required=True,
-    help='JSON string of sensor names and IDs, e.g., \'{"Heating_demand": 2092, "Ambient_temp": 2093}\'',
+    help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--regressors",
@@ -1010,7 +1010,6 @@ def add_holidays(
     "--future-regressors",
     help="Comma-separated list of the sensor names to be used as future regressors. future regressors need to be included in '--regressors' too. To set past regressors, use just the '--regressors' option .",
 )
-@click.option("--target", required=True, help="Name of the target sensor")
 @click.option(
     "--start-date",
     required=True,
