@@ -748,32 +748,26 @@ class GenericAsset(db.Model, AuthModelMixin):
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
 
-            # Map all sensors to their dictionary representations
-            if "sensor" in df.columns and not df.empty:
-                df["sensor"] = df["sensor"].map(
-                    {sensor: sensor.as_dict for sensor in df["sensor"].unique()}
-                )
+            # Map all sources and sensors to their dictionary representations
+            df["sensor"] = df["sensor"].map(
+                {sensor: sensor.as_dict for sensor in df["sensor"].unique()}
+            )
+            df["source"] = df["source"].map(
+                {source: source.as_dict for source in df["source"].unique()}
+            )
 
-            # Map all sources to their dictionary representations
-            if "source" in df.columns and not df.empty:
-                df["source"] = df["source"].map(
-                    {source: source.as_dict for source in df["source"].unique()}
+            # Use vectorized operations instead of .apply() for efficiency
+            time_mask = (df["sensor_unit"] == "s") & df["event_value"].notna()
+            if time_mask.any():
+                time_values = df.loc[time_mask, "event_value"]
+                converted_times = (
+                    pd.to_datetime(time_values, unit="s", origin="unix")
+                    .dt.tz_localize("UTC")
+                    .dt.tz_convert(self.timezone)
+                    .dt.strftime("%Y-%m-%dT%H:%M:%S%z")  # Convert to string for JSON
                 )
+                df.loc[time_mask, "event_value"] = converted_times
 
-            if "event_value" in df.columns and not df.empty:
-                # Use vectorized operations instead of .apply() for efficiency
-                time_mask = (df["sensor_unit"] == "s") & df["event_value"].notna()
-                if time_mask.any():
-                    time_values = df.loc[time_mask, "event_value"]
-                    converted_times = (
-                        pd.to_datetime(time_values, unit="s", origin="unix")
-                        .dt.tz_localize("UTC")
-                        .dt.tz_convert(self.timezone)
-                        .dt.strftime(
-                            "%Y-%m-%dT%H:%M:%S%z"
-                        )  # Convert to string for JSON
-                    )
-                    df.loc[time_mask, "event_value"] = converted_times
             records = df.to_dict("records")
 
             # Clean up any remaining problematic types
