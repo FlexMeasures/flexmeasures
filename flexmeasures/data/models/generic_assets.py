@@ -748,34 +748,17 @@ class GenericAsset(db.Model, AuthModelMixin):
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
 
+            # Map all sensors to their dictionary representations
             if "sensor" in df.columns and not df.empty:
-                # Get unique sensors to avoid repeated conversions
-                unique_sensors = df["sensor"].unique()
-                sensor_dict_map = {}
+                df["sensor"] = df["sensor"].map(
+                    {sensor: sensor.as_dict for sensor in df["sensor"].unique()}
+                )
 
-                # Convert each unique sensor to dict only once
-                for sensor in unique_sensors:
-                    if hasattr(sensor, "as_dict"):
-                        sensor_dict_map[sensor] = sensor.as_dict
-                    else:
-                        sensor_dict_map[sensor] = {
-                            "name": str(sensor),
-                            "unit": getattr(sensor, "unit", None),
-                        }
-
-                # Map all sensors to their dictionaries (vectorized operation)
-                df["sensor"] = df["sensor"].map(sensor_dict_map)
-
+            # Map all sources to their dictionary representations
             if "source" in df.columns and not df.empty:
-                # Pre-compute source dictionaries to avoid repeated .apply() calls
-                unique_sources = df["source"].unique()
-                source_dict_map = {}
-                for source in unique_sources:
-                    if hasattr(source, "as_dict"):
-                        source_dict_map[source] = source.as_dict
-                    else:
-                        source_dict_map[source] = str(source)
-                df["source"] = df["source"].map(source_dict_map)
+                df["source"] = df["source"].map(
+                    {source: source.as_dict for source in df["source"].unique()}
+                )
 
             if "event_value" in df.columns and not df.empty:
                 # Use vectorized operations instead of .apply() for efficiency
