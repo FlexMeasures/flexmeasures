@@ -1036,7 +1036,8 @@ def add_holidays(
     help="Number of days to predict into the future in each cycle. After each cycle, the prediction window will move forward by this number of days."
 )
 @click.option(
-    "--start-predict-date",
+    "--from-date",
+    "start_predict_date",
     default=None,
     required=False,
     help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM)",
