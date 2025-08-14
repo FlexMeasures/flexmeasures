@@ -1066,7 +1066,7 @@ def add_holidays(
     "--sensor-to-save",
     default=None,
     type=SensorIdField(),
-    help="Sensor ID to save the predictions into.",
+    help="Sensor ID to save forecasts into a specific sensor. By default, forecasts are saved to the target sensor.",
 )
 @click.option(
     "--as-job",
