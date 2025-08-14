@@ -726,7 +726,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     df = df.set_index(["sensor"], append=True)
                     # Use sensor_id instead of sensor object
                     df_dict[sensor.id] = df
-                df = pd.concat(df_dict.values())
+                df = pd.concat([df.reset_index() for df in df_dict.values()]).set_index(
+                    ["event_start", "source", "sensor"]
+                )
             else:
                 df = simplify_index(
                     BeliefsDataFrame(),
@@ -753,8 +755,8 @@ class GenericAsset(db.Model, AuthModelMixin):
 
                 # Convert each unique sensor to dict only once
                 for sensor in unique_sensors:
-                    if hasattr(sensor, "to_dict"):
-                        sensor_dict_map[sensor] = sensor.to_dict()
+                    if hasattr(sensor, "as_dict"):
+                        sensor_dict_map[sensor] = sensor.as_dict
                     else:
                         sensor_dict_map[sensor] = {
                             "name": str(sensor),
@@ -769,8 +771,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 unique_sources = df["source"].unique()
                 source_dict_map = {}
                 for source in unique_sources:
-                    if hasattr(source, "to_dict"):
-                        source_dict_map[source] = source.to_dict()
+                    if hasattr(source, "as_dict"):
+                        source_dict_map[source] = source.as_dict
                     else:
                         source_dict_map[source] = str(source)
                 df["source"] = df["source"].map(source_dict_map)
