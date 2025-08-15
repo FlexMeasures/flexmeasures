@@ -724,7 +724,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                     df["sensor_unit"] = sensor.unit
                     df["scale_factor"] = factors[sensor.unit]
                     dfs.append(df.reset_index())
-                df = pd.concat(dfs).set_index(["event_start", "source", "sensor"])
+                df = pd.concat(dfs)
             else:
                 df = simplify_index(
                     BeliefsDataFrame(),
