@@ -748,7 +748,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
 
-            # Map all sources and sensors to their dictionary representations
+            # Map all sensors and sources to their dictionary representations
             df["sensor"] = df["sensor"].map(
                 {sensor: sensor.as_dict for sensor in df["sensor"].unique()}
             )
@@ -756,7 +756,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 {source: source.as_dict for source in df["source"].unique()}
             )
 
-            # Use vectorized operations instead of .apply() for efficiency
+            # Convert event values recording seconds to datetimes
             time_mask = (df["sensor_unit"] == "s") & df["event_value"].notna()
             if time_mask.any():
                 time_values = df.loc[time_mask, "event_value"]
