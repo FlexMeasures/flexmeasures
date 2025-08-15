@@ -699,7 +699,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                             [bdf.event_resolution for bdf in bdf_dict.values()]
                         )
                     )
-                df_dict = {}
+                dfs = []
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
                         bdf = bdf.resample_events(minimum_resampling_resolution)
@@ -724,9 +724,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                     df["sensor_unit"] = sensor.unit
                     df["scale_factor"] = factors[sensor.unit]
                     df = df.set_index(["sensor"], append=True)
-                    # Use sensor_id instead of sensor object
-                    df_dict[sensor.id] = df
-                df = pd.concat([df.reset_index() for df in df_dict.values()]).set_index(
+                    dfs.append(df)
+                df = pd.concat([df.reset_index() for df in dfs]).set_index(
                     ["event_start", "source", "sensor"]
                 )
             else:
