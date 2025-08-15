@@ -353,6 +353,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         one_deterministic_belief_per_event: bool = False,
         one_deterministic_belief_per_event_per_source: bool = False,
         as_json: bool = False,
+        use_lookups: bool = False,
         resolution: str | timedelta | None = None,
     ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
@@ -376,6 +377,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param use_lookups: return beliefs, sensors and sources as separate datasets to be used for lookups
         :param resolution: optionally set the resolution of data being displayed
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """

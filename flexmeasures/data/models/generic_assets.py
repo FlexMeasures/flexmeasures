@@ -646,6 +646,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
+        use_lookups: bool = False,
         resolution: timedelta | None = None,
     ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
@@ -662,6 +663,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param use_lookups: return beliefs, sensors and sources as separate datasets to be used for lookups
         :param resolution: optionally set the resolution of data being displayed
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
@@ -687,7 +689,73 @@ class GenericAsset(db.Model, AuthModelMixin):
                 one_deterministic_belief_per_event_per_source=True,
                 resolution=resolution,
             )
-        if as_json:
+        if as_json and not use_lookups:
+            from flexmeasures.data.services.time_series import simplify_index
+
+            if sensors:
+                if resolution is not None:
+                    minimum_resampling_resolution = resolution
+                else:
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
+                dfs = []
+                for sensor, bdf in bdf_dict.items():
+                    if bdf.event_resolution > timedelta(0):
+                        bdf = bdf.resample_events(minimum_resampling_resolution)
+                    bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
+                    df = simplify_index(
+                        bdf,
+                        index_levels_to_columns=(
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
+                    )
+
+                    # Convert event values recording seconds to datetimes
+                    # todo: invalid assumption for sensors measuring durations
+                    if sensor.unit == "s":
+                        time_mask = df["event_value"].notna()
+                        time_values = df.loc[time_mask, "event_value"]
+                        df["event_value"] = df["event_value"].astype(
+                            f"datetime64[ns, {self.timezone}]"
+                        )
+                        df.loc[time_mask, "event_value"] = (
+                            pd.to_datetime(time_values, unit="s", origin="unix")
+                            .dt.tz_localize("UTC")
+                            .dt.tz_convert(self.timezone)
+                        )
+
+                    df["sensor"] = sensor  # or some JSONifiable representation
+                    df["sensor_unit"] = sensor.unit
+                    df["scale_factor"] = factors[sensor.unit]
+                    dfs.append(df.reset_index())
+                df = pd.concat(dfs)
+            else:
+                df = simplify_index(
+                    BeliefsDataFrame(),
+                    index_levels_to_columns=(
+                        ["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"]
+                    ),
+                )
+                df["sensor"] = {}  # ensure the same columns as a non-empty frame
+            df = df.reset_index()
+
+            # Map all sensors and sources to their dictionary representations
+            df["sensor"] = df["sensor"].map(
+                {sensor: sensor.as_dict for sensor in df["sensor"].unique()}
+            )
+            df["source"] = df["source"].map(
+                {source: source.as_dict for source in df["source"].unique()}
+            )
+
+            return df.to_json(orient="records")
+        elif as_json and use_lookups:
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
