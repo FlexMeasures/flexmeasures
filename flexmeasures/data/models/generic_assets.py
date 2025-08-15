@@ -757,6 +757,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
 
             # Convert event values recording seconds to datetimes
+            # todo: invalid assumption for sensors measuring durations
             time_mask = (df["sensor_unit"] == "s") & df["event_value"].notna()
             if time_mask.any():
                 time_values = df.loc[time_mask, "event_value"]
