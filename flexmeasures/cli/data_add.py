@@ -1084,7 +1084,7 @@ def train_predict_pipeline(
     \b
     Example
       flexmeasures add forecasts --sensor 2092 --regressors 2093
-        --start-date 2023-01-01T00:00:00+01:00 --to-date 2025-10-15T00:00:00+01:00
+        --start-date 2025-01-01T00:00:00+01:00 --to-date 2025-10-15T00:00:00+01:00
 
     \b
     Workflow
