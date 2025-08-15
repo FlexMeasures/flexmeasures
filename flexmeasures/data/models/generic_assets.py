@@ -718,6 +718,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     if sensor.unit == "s":
                         time_mask = df["event_value"].notna()
                         time_values = df.loc[time_mask, "event_value"]
+                        df["event_value"] = df["event_value"].astype(
+                            f"datetime64[ns, {self.timezone}]"
+                        )
                         df.loc[time_mask, "event_value"] = (
                             pd.to_datetime(time_values, unit="s", origin="unix")
                             .dt.tz_localize("UTC")
