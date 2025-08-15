@@ -1081,28 +1081,27 @@ def train_predict_pipeline(
     """
     Generate forecasts for a target sensor.
 
-    Example:
+    \b
+    Example
+      flexmeasures add forecasts --sensor 2092 --regressors 2093
+        --start-date 2023-01-01T00:00:00+01:00 --to-date 2025-10-15T00:00:00+01:00
 
-        flexmeasures add forecasts \n
-            --sensors '{"Heating_demand": 2092, "Ambient_temp": 2093}' \n
-            --regressors Ambient_temp \n
-            --target Heating_demand \n
-            --start-date 2023-01-01T00:00:00+01:00 \n
-            --end-date 2023-01-15T00:00:00+01:00 \n
-            --train-period 5 \n
-            --predict-period 7 \n
-            --forecast-frequency 6 \n
-            --max-forecast-horizon 48 \n
-            --as-job
+    \b
+    Workflow
+      - Training window: defaults from --start-date until the CLI execution time.
+      - Prediction window: defaults from CLI execution time until --to-date.
+      - max-forecast-horizon: defaults to the length of the prediction window.
+      - Forecasts are computed immediately; use --as-job to enqueue them.
+      - Sensor 2093 is used as a regressor in this example.
 
-    This will:
-    - Generate forecasts 48 hour forecasts each 6 hours for the next 7 days starting from 2023-01-06T00:00:00+01:00.
-    - Enqueue the forecasting jobs to be run on forecasting queues.
-    - Use Ambient_temp as a regressor for Heating_demand.
+    \b
     Notes:
-
-    - Use `--start-predict-date` or `--start-train-date`  to explicitly separate training and prediction periods.
-    - Use `--sensor-to-save` to save forecasts into a specific sensor by default forecasts are saved on the target sensor.
+    - Use --from-date to explicitly set when the forecasts will start.
+    - Use --train-period to set the training window, which will grow each cycle
+        until the specified --to-date is reached.
+    - Use --predict-period to set the prediction window. It rolls forward by the
+        forecast period each cycle, similar to the training window, but its size
+        does not grow.
     """
 
     # Load input by passing it through our Marshmallow schema
