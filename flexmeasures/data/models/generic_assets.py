@@ -765,7 +765,6 @@ class GenericAsset(db.Model, AuthModelMixin):
                     pd.to_datetime(time_values, unit="s", origin="unix")
                     .dt.tz_localize("UTC")
                     .dt.tz_convert(self.timezone)
-                    .dt.strftime("%Y-%m-%dT%H:%M:%S%z")  # Convert to string for JSON
                 )
                 df.loc[time_mask, "event_value"] = converted_times
 
