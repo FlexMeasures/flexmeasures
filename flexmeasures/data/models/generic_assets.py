@@ -713,6 +713,18 @@ class GenericAsset(db.Model, AuthModelMixin):
                         ),
                     )
 
+                    # Convert event values recording seconds to datetimes
+                    # todo: invalid assumption for sensors measuring durations
+                    time_mask = df["event_value"].notna()
+                    if sensor.unit == "s" and time_mask.any():
+                        time_values = df.loc[time_mask, "event_value"]
+                        converted_times = (
+                            pd.to_datetime(time_values, unit="s", origin="unix")
+                            .dt.tz_localize("UTC")
+                            .dt.tz_convert(self.timezone)
+                        )
+                        df.loc[time_mask, "event_value"] = converted_times
+
                     df["sensor"] = sensor  # or some JSONifiable representation
                     df["sensor_unit"] = sensor.unit
                     df["scale_factor"] = factors[sensor.unit]
@@ -737,18 +749,6 @@ class GenericAsset(db.Model, AuthModelMixin):
             df["source"] = df["source"].map(
                 {source: source.as_dict for source in df["source"].unique()}
             )
-
-            # Convert event values recording seconds to datetimes
-            # todo: invalid assumption for sensors measuring durations
-            time_mask = (df["sensor_unit"] == "s") & df["event_value"].notna()
-            if time_mask.any():
-                time_values = df.loc[time_mask, "event_value"]
-                converted_times = (
-                    pd.to_datetime(time_values, unit="s", origin="unix")
-                    .dt.tz_localize("UTC")
-                    .dt.tz_convert(self.timezone)
-                )
-                df.loc[time_mask, "event_value"] = converted_times
 
             return df.to_json(orient="records")
 
