@@ -769,26 +769,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 )
                 df.loc[time_mask, "event_value"] = converted_times
 
-            records = df.to_dict("records")
-
-            # Clean up any remaining problematic types
-            for record in records:
-                for key, value in record.items():
-                    if pd.isna(value):
-                        record[key] = None
-                    elif isinstance(value, pd.Timestamp):
-                        record[key] = value.isoformat()
-                    elif isinstance(value, (pd.Timedelta, timedelta)):
-                        record[key] = str(value)  # Convert timedelta to string
-                    elif hasattr(value, "item"):  # numpy types
-                        record[key] = value.item()
-                    elif hasattr(
-                        value, "total_seconds"
-                    ):  # other timedelta-like objects
-                        record[key] = value.total_seconds()
-
-            final_response = json.dumps(records)
-            return final_response
+            return df.to_json(orient="records")
 
         return bdf_dict
 
