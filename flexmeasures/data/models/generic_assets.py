@@ -715,15 +715,14 @@ class GenericAsset(db.Model, AuthModelMixin):
 
                     # Convert event values recording seconds to datetimes
                     # todo: invalid assumption for sensors measuring durations
-                    time_mask = df["event_value"].notna()
-                    if sensor.unit == "s" and time_mask.any():
+                    if sensor.unit == "s":
+                        time_mask = df["event_value"].notna()
                         time_values = df.loc[time_mask, "event_value"]
-                        converted_times = (
+                        df.loc[time_mask, "event_value"] = (
                             pd.to_datetime(time_values, unit="s", origin="unix")
                             .dt.tz_localize("UTC")
                             .dt.tz_convert(self.timezone)
                         )
-                        df.loc[time_mask, "event_value"] = converted_times
 
                     df["sensor"] = sensor  # or some JSONifiable representation
                     df["sensor_unit"] = sensor.unit
