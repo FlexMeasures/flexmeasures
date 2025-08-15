@@ -711,13 +711,6 @@ class GenericAsset(db.Model, AuthModelMixin):
                             if most_recent_beliefs_only
                             else ["belief_time", "source"]
                         ),
-                    ).set_index(
-                        (
-                            ["source"]
-                            if most_recent_beliefs_only
-                            else ["belief_time", "source"]
-                        ),
-                        append=True,
                     )
 
                     df["sensor"] = sensor  # or some JSONifiable representation
@@ -733,13 +726,6 @@ class GenericAsset(db.Model, AuthModelMixin):
                         if most_recent_beliefs_only
                         else ["belief_time", "source"]
                     ),
-                ).set_index(
-                    (
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"]
-                    ),
-                    append=True,
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
