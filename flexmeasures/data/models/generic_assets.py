@@ -631,7 +631,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         return chart_specs
 
-    def search_beliefs(  # noqa: C901
+    def search_beliefs(
         self,
         sensors: list["Sensor"] | None = None,  # noqa F821
         event_starts_after: datetime | None = None,
