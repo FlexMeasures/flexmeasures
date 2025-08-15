@@ -48,7 +48,7 @@ class Scheduler:
 
     round_to_decimals: int
 
-    flex_model: dict | None = None
+    flex_model: list[dict] | dict | None = None
     flex_context: dict | None = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
@@ -71,7 +71,7 @@ class Scheduler:
         belief_time: datetime | None = None,
         asset_or_sensor: Asset | Sensor | None = None,
         round_to_decimals: int | None = 6,
-        flex_model: dict | None = None,
+        flex_model: list[dict] | dict | None = None,
         flex_context: dict | None = None,
         return_multiple: bool = False,
     ):
