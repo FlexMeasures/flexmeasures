@@ -691,12 +691,15 @@ class GenericAsset(db.Model, AuthModelMixin):
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
-                minimum_resampling_resolution = determine_minimum_resampling_resolution(
-                    [bdf.event_resolution for bdf in bdf_dict.values()]
-                )
                 if resolution is not None:
                     minimum_resampling_resolution = resolution
-                df_dict = {}
+                else:
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
+                dfs = []
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
                         bdf = bdf.resample_events(minimum_resampling_resolution)
@@ -708,21 +711,27 @@ class GenericAsset(db.Model, AuthModelMixin):
                             if most_recent_beliefs_only
                             else ["belief_time", "source"]
                         ),
-                    ).set_index(
-                        (
-                            ["source"]
-                            if most_recent_beliefs_only
-                            else ["belief_time", "source"]
-                        ),
-                        append=True,
                     )
+
+                    # Convert event values recording seconds to datetimes
+                    # todo: invalid assumption for sensors measuring durations
+                    if sensor.unit == "s":
+                        time_mask = df["event_value"].notna()
+                        time_values = df.loc[time_mask, "event_value"]
+                        df["event_value"] = df["event_value"].astype(
+                            f"datetime64[ns, {self.timezone}]"
+                        )
+                        df.loc[time_mask, "event_value"] = (
+                            pd.to_datetime(time_values, unit="s", origin="unix")
+                            .dt.tz_localize("UTC")
+                            .dt.tz_convert(self.timezone)
+                        )
+
                     df["sensor"] = sensor  # or some JSONifiable representation
+                    df["sensor_unit"] = sensor.unit
                     df["scale_factor"] = factors[sensor.unit]
-                    df = df.set_index(["sensor"], append=True)
-                    df_dict[sensor.id] = df
-                df = pd.concat([df.reset_index() for df in df_dict.values()]).set_index(
-                    ["event_start", "source", "sensor"]
-                )
+                    dfs.append(df.reset_index())
+                df = pd.concat(dfs)
             else:
                 df = simplify_index(
                     BeliefsDataFrame(),
@@ -731,30 +740,20 @@ class GenericAsset(db.Model, AuthModelMixin):
                         if most_recent_beliefs_only
                         else ["belief_time", "source"]
                     ),
-                ).set_index(
-                    (
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"]
-                    ),
-                    append=True,
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.as_dict)
-            df["sensor"] = df["sensor"].apply(lambda x: x.as_dict)
-            df["sensor_unit"] = df["sensor"].apply(lambda x: x["sensor_unit"])
-            df["event_value"] = df.apply(
-                lambda row: (
-                    pd.to_datetime(row["event_value"], unit="s", origin="unix")
-                    .tz_localize("UTC")
-                    .tz_convert(self.timezone)
-                    if row["sensor_unit"] == "s" and pd.notnull(row["event_value"])
-                    else row["event_value"]
-                ),
-                axis=1,
+
+            # Map all sensors and sources to their dictionary representations
+            df["sensor"] = df["sensor"].map(
+                {sensor: sensor.as_dict for sensor in df["sensor"].unique()}
             )
+            df["source"] = df["source"].map(
+                {source: source.as_dict for source in df["source"].unique()}
+            )
+
             return df.to_json(orient="records")
+
         return bdf_dict
 
     @property

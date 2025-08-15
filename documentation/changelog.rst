@@ -20,6 +20,7 @@ Infrastructure / Support
 * Removed support for Python3.8 [see `PR #1615 <https://www.github.com/FlexMeasures/flexmeasures/pull/1615>`_]
 * Removed obsolete API blueprint for play mode and underlying backup file-based functionality [see `PR #1622 <https://www.github.com/FlexMeasures/flexmeasures/pull/1622>`_ and `PR #1630 <https://www.github.com/FlexMeasures/flexmeasures/pull/1630>`_]
 * Improved timestamp on sensor detail page to be more friendly [see `PR #1632 <https://www.github.com/FlexMeasures/flexmeasures/pull/1632>`_]
+* Faster data loading for the UI by vectorization of dictionary representations of sources and sensors, and of epoch conversion [see `PR #1641 <https://www.github.com/FlexMeasures/flexmeasures/pull/1641>`_]
 
 Bugfixes
 -----------
