@@ -13,6 +13,22 @@ from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_asset_types(
+    client, setup_api_test_data, setup_roles_users, requesting_user
+):
+    get_asset_types_response = client.get(url_for("AssetTypesAPI:index"))
+    print("Server responded with:\n%s" % get_asset_types_response.json)
+    assert get_asset_types_response.status_code == 200
+    assert isinstance(get_asset_types_response.json, list)
+    assert len(get_asset_types_response.json) > 0
+    assert isinstance(get_asset_types_response.json[0], dict)
+    for key in ("id", "name", "description"):
+        assert key in get_asset_types_response.json[0].keys()
+
+
+@pytest.mark.parametrize(
     "requesting_user, status_code",
     [
         (None, 401),  # the case without auth: authentication will fail
