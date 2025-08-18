@@ -699,7 +699,7 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
-                {% if active_subpage == "asset_graph" %}
+                {% if active_subpage == "asset_graph" and has_kpis %}
                     getAssetKPIs();
                 {% endif %}
                 const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
@@ -949,7 +949,7 @@
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()){
             return Promise.resolve(previousResult.data);
         } else {
-            {% if active_subpage == "asset_graph" %}
+            {% if active_subpage == "asset_graph" and has_kpis %}
                 getAssetKPIs();
             {% endif %}
             return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
@@ -962,7 +962,7 @@
         }
     }
     
-    {% if active_subpage == "asset_graph" %}
+    {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs() {
         const pickerStartDate = picker.getStartDate().toJSDate();
         const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
