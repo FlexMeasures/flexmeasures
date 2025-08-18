@@ -52,6 +52,8 @@ Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
 marshmallow>=3
+# See GH#1450 (failing tests on older Python versions)
+marshmallow~=3.0; python_version < "3.11"
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs
