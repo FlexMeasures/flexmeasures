@@ -15,7 +15,6 @@ from marshmallow import (
     validates,
     validates_schema,
 )
-from marshmallow.experimental.context import Context
 import marshmallow.validate as validate
 from pandas.api.types import is_numeric_dtype
 import timely_beliefs as tb
@@ -192,7 +191,12 @@ class SensorContext(typing.TypedDict):
 
 
 # Create the Context wrapper for Sensor schema
-SensorSchemaContext = Context[SensorContext]
+try:
+    from marshmallow.experimental.context import Context
+
+    SensorSchemaContext = Context[SensorContext]
+except ImportError:
+    pass
 
 
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
@@ -211,10 +215,13 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
             )
 
         # Store the validated generic asset in the context
-        with SensorSchemaContext({"generic_asset": generic_asset}):
-            # Now the generic asset is stored in context and can be accessed later
-            # There's no need to call dump here; we just store the asset in context
-            pass
+        if hasattr(self, "context"):
+            self.context["generic_asset"] = generic_asset
+        else:
+            with SensorSchemaContext({"generic_asset": generic_asset}):
+                # Now the generic asset is stored in context and can be accessed later
+                # There's no need to call dump here; we just store the asset in context
+                pass
 
     class Meta:
         model = Sensor

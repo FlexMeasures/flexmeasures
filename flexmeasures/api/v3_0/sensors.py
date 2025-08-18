@@ -47,7 +47,6 @@ from flexmeasures.data.schemas.sensors import (
     SensorSchema,
     SensorIdField,
     SensorDataFileSchema,
-    SensorSchemaContext,
 )
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.utils import path_and_files
@@ -888,10 +887,18 @@ class SensorAPI(FlaskView):
         db.session.add(sensor)
         db.session.commit()
 
-        with SensorSchemaContext({"generic_asset": sensor.generic_asset}):
+        if hasattr(sensor_schema, "context"):
+            asset = sensor_schema.context["generic_asset"]
             AssetAuditLog.add_record(
-                sensor.generic_asset, f"Created sensor '{sensor.name}': {sensor.id}"
+                asset, f"Created sensor '{sensor.name}': {sensor.id}"
             )
+        else:
+            from flexmeasures.data.schemas.sensors import SensorSchemaContext
+
+            with SensorSchemaContext({"generic_asset": sensor.generic_asset}):
+                AssetAuditLog.add_record(
+                    sensor.generic_asset, f"Created sensor '{sensor.name}': {sensor.id}"
+                )
 
         return sensor_schema.dump(sensor), 201
 
