@@ -90,6 +90,9 @@
                                     {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
                                     <div class="col-md-3">
                                         {{ asset_form.sensors_to_show_as_kpis(class_="form-control") }}
+                                        {% for error in asset_form.errors.sensors_to_show_as_kpis %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
                                     </div>
                                 </div>
 

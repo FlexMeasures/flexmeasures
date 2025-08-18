@@ -156,7 +156,9 @@ class SensorsToShowSchema(fields.Field):
 class SensorKPIFieldSchema(ma.SQLAlchemySchema):
     title = fields.Str(required=True)
     sensor = SensorIdField(required=True)
-    function = fields.Str(required=False, validate=OneOf(["sum", "min", "max", "mean"]))
+    default_function = fields.Str(
+        required=False, validate=OneOf(["sum", "min", "max", "mean"])
+    )
 
     @validates("sensor")
     def validate_sensor(self, value):
