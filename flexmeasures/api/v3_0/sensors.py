@@ -888,11 +888,13 @@ class SensorAPI(FlaskView):
         db.session.commit()
 
         if hasattr(sensor_schema, "context"):
+            # Marshmallow 3.x
             asset = sensor_schema.context["generic_asset"]
             AssetAuditLog.add_record(
                 asset, f"Created sensor '{sensor.name}': {sensor.id}"
             )
         else:
+            # Marshmallow 4.x
             from flexmeasures.data.schemas.sensors import SensorSchemaContext
 
             with SensorSchemaContext({"generic_asset": sensor.generic_asset}):

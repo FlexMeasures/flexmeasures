@@ -216,8 +216,10 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 
         # Store the validated generic asset in the context
         if hasattr(self, "context"):
+            # Marshmallow 3.x
             self.context["generic_asset"] = generic_asset
         else:
+            # Marshmallow 4.x
             with SensorSchemaContext({"generic_asset": generic_asset}):
                 # Now the generic asset is stored in context and can be accessed later
                 # There's no need to call dump here; we just store the asset in context
