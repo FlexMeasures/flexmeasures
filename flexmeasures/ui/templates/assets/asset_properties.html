@@ -662,15 +662,10 @@
                     body: requestBody,
                 });
 
-                if (!response.ok) {
+                if (response.status !== 200) {
                     const errorData = await response.json();
                     const errorMessage = errorData?.message || errorData?.error || response.statusText;
                     showToast(`Failed to update the flex model: ${errorMessage}`, "error");
-
-                    // Revert to previous state
-                    const asset = await getAsset("{{ asset.id }}", false);
-                    const previousFlexContext = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, '"{{ asset_flexmodel | safe}}"'));
-                    setFlexModel(previousFlexContext);
                     reRenderForm();
                 } else {
                     renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
@@ -1101,7 +1096,10 @@
                 if (!card && !hasInitialized) {
                     showToast(`Cant render input options without a selected field.`, "info");
                     return;
+                } else if (!card && hasInitialized) {
+                    return;
                 }
+
 
                 const name = card.id.replace('-control', '');
                 const fieldDataTypes = FlexModelFieldValidTypes[name];
