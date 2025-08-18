@@ -441,8 +441,11 @@ def process_time_series_segments(
                 value = convert_units(
                     value.magnitude, str(value.units), unit, resolution
                 )
-        start = pd.Timestamp(event["start"]).tz_convert(timezone)
-        end = pd.Timestamp(event["end"]).tz_convert(timezone)
+        start = event["start"]
+        end = event["end"]
+        if start.tz is not None and end.tz is not None:
+            start = pd.Timestamp(start).tz_convert(timezone)
+            end = pd.Timestamp(end).tz_convert(timezone)
         # Assign the value to the corresponding segment in the DataFrame
         time_series_segments.loc[start : end - resolution, segment] = value
 
