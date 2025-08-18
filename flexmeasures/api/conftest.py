@@ -1,5 +1,5 @@
 import pytest
-
+from pytest_mock import MockerFixture
 from flask_login import login_user, logout_user
 
 from flexmeasures.api.tests.utils import UserContext
@@ -37,3 +37,10 @@ def requesting_user(request):
             logout_user()
     else:
         yield
+
+
+@pytest.fixture
+def mock_get_statuses(mocker: MockerFixture):
+    return mocker.patch(
+        "flexmeasures.data.services.sensors.get_statuses", autospec=True
+    )

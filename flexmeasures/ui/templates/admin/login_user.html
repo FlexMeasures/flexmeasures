@@ -10,94 +10,49 @@
 {% block divs %}
 
 <div class="container-fluid">
-    <div class="row">
+    <div class="row" style="text-align: center; padding-bottom: 30px;">
         <div class="col-md-12">
-            {% include "security/_messages.html" %}
-        </div>
-        <div class="login-form col-md-4">
-            <h1>{{ _fsdomain('Login') }}</h1>
-            <form action="{{ url_for_security('login') }}" method="POST" name="login_user_form">
-                {{ login_user_form.hidden_tag() }}
-                {{ render_field_with_errors(login_user_form.email) }}
-                {{ render_field_with_errors(login_user_form.password) }}
-                {{ render_field_with_errors(login_user_form.remember) }}
-                {{ render_field(login_user_form.submit) }}
-            </form>
-            <form action="/reset" method="get">
-                <button class="btn btn-sm btn-responsive btn-link" type="submit">Forgot password?</button>
-            </form>
-            {% if FLEXMEASURES_MODE == "demo" and FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS %}
-            <div class="alert alert-info col-md-8">
-                <h2>Interested in a demo?</h2>
-                <p>
-                    Simply log in as our demo user.
-                <ul>
-                    <li>Email: {{ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS[0] }}</li>
-                    <li>Password: {{ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS[1] }}</li>
-                </ul>
-                </p>
-            </div>
-            {% endif %}
-        </div>
-        <div class="col-md-8">
-            {% block teaser %}
+            {% block platform_title %}
             <h1>The FlexMeasures Platform</h1>
-            <div class="carousel-container">
-                <div id="myCarousel" class="carousel slide" data-ride="carousel">
-
-                    <!-- Indicators -->
-                    <ol class="carousel-indicators">
-                        <li data-target="#myCarousel" data-slide-to="0" class="active"></li>
-                        <li data-target="#myCarousel" data-slide-to="1"></li>
-                        <li data-target="#myCarousel" data-slide-to="2"></li>
-                    </ol>
-
-                    <!-- Wrapper for slides -->
-                    <div class="carousel-inner">
-                        <div class="item active">
-                            <img src="ui/static/images/flexmeasures-preview.jpg"      
-                                alt="The FlexMeasures platform on a laptop."
-                                title="FlexMeasures provides in-depth analytics of flexibility in your portfolio."
-                            >
-                            <div class="carousel-caption">
-                                In-depth analytics of flexibility in your portfolio.
-                            </div>
-                        </div>
-
-                        <div class="item">
-                            <img src="ui/static/images/tj-k-349056-unsplash.jpg" 
-                                 alt="A landscape with wind farms."
-                                 title="FlexMeasures helps to forecast costs and revenues with precision."
-                            >
-                            <div class="carousel-caption">
-                                Costs and revenues forecast with precision.
-                            </div>
-                        </div>
-
-                        <div class="item">
-                            <img src="ui/static/images/chase-lewis-506404-unsplash.jpg"
-                                 alt="A tesla charging station."
-                                 title="FlexMeasures provides charging strategies that help balance the grid."
-                            >
-                            <div class="carousel-caption">
-                                Charging strategies that help balance the grid.
-                            </div>
-                        </div>
+            {% endblock platform_title %}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="login-form">
+                    <h1>{{ _fsdomain('Login') }}</h1>
+                    <form action="{{ url_for_security('login') }}" method="POST" name="login_user_form">
+                        {{ login_user_form.hidden_tag() }}
+                        {{ render_field_with_errors(login_user_form.email) }}
+                        {{ render_field_with_errors(login_user_form.password) }}
+                        {{ render_field_with_errors(login_user_form.remember) }}
+                        {{ render_field(login_user_form.submit) }}
+                    </form>
+                    <form action="/reset" method="get">
+                        <button class="btn btn-sm btn-responsive btn-link" type="submit">Forgot password?</button>
+                    </form>
+                    {% if FLEXMEASURES_MODE == "demo" and FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS %}
+                    <div class="alert alert-info col-md-8">
+                        <h2>Interested in a demo?</h2>
+                        <p>
+                            Simply log in as our demo user.
+                        <ul>
+                            <li>Email: {{ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS[0] }}</li>
+                            <li>Password: {{ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS[1] }}</li>
+                        </ul>
+                        </p>
                     </div>
-
-                    <!-- Left and right controls -->
-                    <a class="left carousel-control" href="#myCarousel" data-slide="prev">
-                        <span class="glyphicon glyphicon-chevron-left"></span>
-                        <span class="sr-only">Previous</span>
-                    </a>
-                    <a class="right carousel-control" href="#myCarousel" data-slide="next">
-                        <span class="glyphicon glyphicon-chevron-right"></span>
-                        <span class="sr-only">Next</span>
-                    </a>
+                    {% endif %}
                 </div>
             </div>
-            {% endblock teaser %}
         </div>
+        <div class="col-lg-4">
+            <div class="card">
+{% include 'teaser.html' %}
+            </div>
+        </div>
+        <div class="col-lg-4"></div>
     </div>
 </div>
 

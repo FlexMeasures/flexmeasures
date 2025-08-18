@@ -6,20 +6,63 @@ Notation
 This page helps you to construct messages to the FlexMeasures API. Please consult the endpoint documentation first. Here we dive into topics useful across endpoints.
 
 
-Singular vs plural keys
+.. _variable_quantities:
+
+Variable quantities
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Throughout this document, keys are written in singular if a single value is listed, and written in plural if multiple values are listed, for example:
+Many API fields deal with variable quantities, for example, :ref:`flex-model <flex_models_and_schedulers>` and :ref:`flex-context <flex_context>` fields.
+Unless stated otherwise, values of such fields can take one of the following forms:
 
-.. code-block:: json
+- A fixed quantity, to describe steady constraints such as a physical power capacity.
+  For example:
 
-    {
-        "keyToValue": "this is a single value",
-        "keyToValues": ["this is a value", "and this is a second value"]
-    }
+  .. code-block:: json
 
-The API, however, does not distinguish between singular and plural key notation.
+     {
+         "power-capacity": "15 kW"
+     }
 
+- A variable quantity defined at specific moments in time, to describe dynamic constraints/preferences such as target states of charge.
+
+  .. code-block:: json
+
+     {
+         "soc-targets": [
+             {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
+             ...
+             {"datetime": "2024-02-05T13:00:00+01:00", "value": "2.2 kWh"}
+         ]
+     }
+
+- A variable quantity defined for specific time ranges, to describe dynamic constraints/preferences such as usage forecasts.
+
+  .. code-block:: json
+
+     {
+         "soc-usage": [
+             {"start": "2024-02-05T08:00:00+01:00", "duration": "PT2H", "value": "10.1 kW"},
+             ...
+             {"start": "2024-02-05T13:00:00+01:00", "end": "2024-02-05T13:15:00+01:00", "value": "10.3 kW"}
+         ]
+     }
+
+  Note the two distinct ways of specifying a time period (``"end"`` in combination with ``"duration"`` also works).
+
+  .. note:: In case a field defines partially overlapping time periods, FlexMeasures automatically resolves this.
+            By default, time periods that are defined earlier in the list take precedence.
+            Fields that deviate from this policy will note so explicitly.
+            (For example, for fields dealing with capacities, the minimum is selected instead.)
+
+- A reference to a sensor that records a variable quantity, which allows cross-referencing to dynamic contexts that are already recorded as sensor data in FlexMeasures. For instance, a site's contracted consumption capacity that changes over time.
+
+  .. code-block:: json
+
+     {
+         "site-consumption-capacity": {"sensor": 55}
+     }
+
+  The unit of the data is specified on the sensor.
 
 Sensors and entity addresses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

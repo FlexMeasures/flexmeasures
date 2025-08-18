@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import isodate
 from datetime import datetime, timedelta
 
+from flexmeasures.data.services.sensors import (
+    serialize_sensor_status_data,
+)
+
+from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
-import isodate
+from flask_security import auth_required, current_user
 from marshmallow import fields, ValidationError
+import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
-from timely_beliefs import BeliefsDataFrame
+import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete
+from sqlalchemy import delete, select, or_
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -29,6 +35,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
+from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -36,14 +43,23 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
-from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
+from flexmeasures.data.schemas.sensors import (
+    SensorSchema,
+    SensorIdField,
+    SensorDataFileSchema,
+)
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.services.sensors import get_sensors
+from flexmeasures.data.schemas.utils import path_and_files
+from flexmeasures.data.schemas import AssetIdField
+from flexmeasures.api.common.schemas.search import SearchFilterField
+from flexmeasures.api.common.schemas.sensors import UnitField
+from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
 from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
@@ -62,22 +78,59 @@ class SensorAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(
-                data_key="account_id", load_default=AccountIdField.load_current
+            "account": AccountIdField(data_key="account_id", required=False),
+            "asset": AssetIdField(data_key="asset_id", required=False),
+            "include_consultancy_clients": fields.Boolean(
+                required=False, load_default=False
             ),
+            "include_public_assets": fields.Boolean(required=False, load_default=False),
+            "page": fields.Int(required=False, validate=validate.Range(min=1)),
+            "per_page": fields.Int(
+                required=False, validate=validate.Range(min=1), load_default=10
+            ),
+            "filter": SearchFilterField(required=False),
+            "unit": UnitField(required=False),
         },
         location="query",
     )
-    @permission_required_for_context("read", ctx_arg_name="account")
     @as_json
-    def index(self, account: Account):
+    def index(
+        self,
+        account: Account | None = None,
+        asset: GenericAsset | None = None,
+        include_consultancy_clients: bool = False,
+        include_public_assets: bool = False,
+        page: int | None = None,
+        per_page: int | None = None,
+        filter: list[str] | None = None,
+        unit: str | None = None,
+    ):
         """API endpoint to list all sensors of an account.
 
-        .. :quickref: Sensor; Download sensor list
+        .. :quickref: Sensor; Get list of sensors
 
         This endpoint returns all accessible sensors.
-        Accessible sensors are sensors in the same account as the current user.
+        By default, "accessible sensors" means all sensors in the same account as the current user (if they have read permission to the account).
+
+        You can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the
+        specified account will be retrieved, and the sensors associated with these assets will be returned.
+
+        Alternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified
+        asset and its sub-assets are retrieved, provided the user has read access to the asset.
+
+        NOTE: You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is
+        part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).
+
+        Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.
+        This is only possible if the user has the role of a consultant.
+
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
+
+        The `filter` parameter allows you to search for sensors by name or account name.
+        The `unit` parameter allows you to filter by unit.
+
+        For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
+        pagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.
 
         **Example response**
 
@@ -85,17 +138,23 @@ class SensorAPI(FlaskView):
 
         .. sourcecode:: json
 
-            [
-                {
-                    "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
-                    "event_resolution": PT15M,
-                    "generic_asset_id": 1,
-                    "name": "Gas demand",
-                    "timezone": "Europe/Amsterdam",
-                    "unit": "m\u00b3/h"
-                    "id": 2
-                }
-            ]
+            {
+                "data" : [
+                    {
+                        "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
+                        "event_resolution": PT15M,
+                        "generic_asset_id": 1,
+                        "name": "Gas demand",
+                        "timezone": "Europe/Amsterdam",
+                        "unit": "m\u00b3/h"
+                        "id": 2
+                    }
+                ],
+                "num-records" : 1,
+                "filtered-records" : 1
+            }
+
+        If no pagination is requested, the response only consists of the list under the "data" key.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -106,8 +165,160 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        sensors = get_sensors(account=account)
-        return sensors_schema.dump(sensors), 200
+        if account is None and asset is None:
+            if current_user.is_anonymous:
+                raise Unauthorized
+            account = current_user.account
+
+        if account is not None and asset is not None:
+            if asset.account_id != account.id:
+                return {
+                    "message": "Please provide either an account or an asset ID, not both"
+                }, 422
+            else:
+                account = None
+
+        if asset is not None:
+            check_access(asset, "read")
+
+            asset_tree = (
+                db.session.query(GenericAsset.id, GenericAsset.parent_asset_id)
+                .filter(GenericAsset.id == asset.id)
+                .cte(name="asset_tree", recursive=True)
+            )
+
+            recursive_part = db.session.query(
+                GenericAsset.id, GenericAsset.parent_asset_id
+            ).join(asset_tree, GenericAsset.parent_asset_id == asset_tree.c.id)
+
+            asset_tree = asset_tree.union(recursive_part)
+
+            child_assets = db.session.query(asset_tree).all()
+
+            filter_statement = GenericAsset.id.in_(
+                [asset.id] + [a.id for a in child_assets]
+            )
+        elif account is not None:
+            check_access(account, "read")
+
+            account_ids: list = [account.id]
+
+            if include_consultancy_clients:
+                if current_user.has_role("consultant"):
+                    consultancy_accounts = (
+                        db.session.query(Account)
+                        .filter(Account.consultancy_account_id == account.id)
+                        .all()
+                    )
+                    account_ids.extend([acc.id for acc in consultancy_accounts])
+
+            filter_statement = GenericAsset.account_id.in_(account_ids)
+        else:
+            filter_statement = None
+
+        if include_public_assets:
+            filter_statement = or_(
+                filter_statement,
+                GenericAsset.account_id.is_(None),
+            )
+
+        sensor_query = (
+            select(Sensor)
+            .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
+            .outerjoin(Account, GenericAsset.owner)
+            .filter(filter_statement)
+        )
+
+        if filter is not None:
+            sensor_query = sensor_query.filter(
+                or_(
+                    *(
+                        or_(
+                            Sensor.name.ilike(f"%{term}%"),
+                            Account.name.ilike(f"%{term}%"),
+                            GenericAsset.name.ilike(f"%{term}%"),
+                        )
+                        for term in filter
+                    )
+                )
+            )
+
+        if unit:
+            sensor_query = sensor_query.filter(Sensor.unit == unit)
+
+        sensors = (
+            db.session.scalars(sensor_query).all()
+            if page is None
+            else db.paginate(sensor_query, per_page=per_page, page=page).items
+        )
+
+        sensors = [sensor for sensor in sensors if check_access(sensor, "read") is None]
+
+        sensors_response = sensors_schema.dump(sensors)
+
+        # Return appropriate response for paginated or non-paginated data
+        if page is None:
+            return sensors_response, 200
+        else:
+            num_records = len(db.session.execute(sensor_query).scalars().all())
+            select_pagination = db.paginate(sensor_query, per_page=per_page, page=page)
+            response = {
+                "data": sensors_response,
+                "num-records": num_records,
+                "filtered-records": select_pagination.total,
+            }
+            return response, 200
+
+    @route("<id>/data/upload", methods=["POST"])
+    @path_and_files(SensorDataFileSchema)
+    @permission_required_for_context(
+        "create-children",
+        ctx_arg_name="data",
+        ctx_loader=lambda data: data[0].sensor if data else None,
+        pass_ctx_to_loader=True,
+    )
+    def upload_data(
+        self, data: list[tb.BeliefsDataFrame], filenames: list[str], **kwargs
+    ):
+        """
+        Post sensor data to FlexMeasures by file upload.
+
+        .. :quickref: Data; Upload sensor data by file
+
+        ** Example request **
+
+        .. code-block:: json
+
+            {
+                "data": [
+                    {
+                        "uploaded-files": "[\"file1.csv\", \"file2.csv\"]"
+                    }
+                ]
+            }
+
+        The file should have columns for a timestamp (event_start) and a value (event_value).
+        The timestamp should be in ISO 8601 format.
+        The value should be a numeric value.
+
+        The unit has to be convertible to the sensor's unit.
+        The resolution of the data has to match the sensor's required resolution, but
+        FlexMeasures will attempt to upsample lower resolutions.
+        The list of values may include null values.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: multipart/form-data
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        """
+        sensor = data[0].sensor
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}",
+        )
+        response, code = save_and_enqueue(data)
+        return response, code
 
     @route("/data", methods=["POST"])
     @use_args(
@@ -120,7 +331,7 @@ class SensorAPI(FlaskView):
         ctx_loader=lambda bdf: bdf.sensor,
         pass_ctx_to_loader=True,
     )
-    def post_data(self, bdf: BeliefsDataFrame):
+    def post_data(self, bdf: tb.BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
 
@@ -239,9 +450,9 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
-        Trigger FlexMeasures to create a schedule.
+        Trigger FlexMeasures to create a schedule for a single flexible device, possibly taking into account inflexible devices.
 
-        .. :quickref: Schedule; Trigger scheduling job
+        .. :quickref: Schedule; Trigger scheduling job for one device
 
         Trigger FlexMeasures to create a schedule for this sensor.
         The assumption is that this sensor is the power sensor on a flexible asset.
@@ -255,9 +466,8 @@ class SensorAPI(FlaskView):
         For details on flexibility model and context, see :ref:`describing_flexibility`.
         Below, we'll also list some examples.
 
-        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
-                  See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
-                  (considering already scheduled sensors as inflexible).
+        .. note:: To schedule an EMS with multiple flexible sensors at once,
+                  use `this endpoint <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ instead.
 
         The length of the schedule can be set explicitly through the 'duration' field.
         Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
@@ -279,8 +489,7 @@ class SensorAPI(FlaskView):
             {
                 "start": "2015-06-02T10:00:00+00:00",
                 "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh"
+                    "soc-at-start": "12.1 kWh"
                 }
             }
 
@@ -296,12 +505,21 @@ class SensorAPI(FlaskView):
         Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
         Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
-        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
-        (plus the flexible sensor being optimized, of course).
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+        and the power sensor of the flexible device being optimized (referenced in the endpoint URL).
 
 
         The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
-        Finally, the site consumption capacity is limited by sensor 32.
+
+        Finally, the (contractual and physical) situation of the site is part of the flex-context.
+        The site has a physical power capacity of 100 kVA, but the production capacity is limited to 80 kW,
+        while the consumption capacity is limited by a dynamic capacity contract whose values are recorded under sensor 32.
+        Breaching either capacity is penalized heavily in the optimization problem, with a price of 1000 EUR/kW.
+        Finally, peaks over 50 kW in either direction are penalized with a price of 260 EUR/MW.
+        These penalties can be used to steer the schedule into a certain behaviour (e.g. avoiding breaches and peaks),
+        even if no direct financial impacts are expected at the given prices in the real world.
+        For example, site owners may be requested by their network operators to reduce stress on the grid,
+        be it explicitly or under a social contract.
 
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
@@ -311,17 +529,17 @@ class SensorAPI(FlaskView):
                 "start": "2015-06-02T10:00:00+00:00",
                 "duration": "PT24H",
                 "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh",
+                    "soc-at-start": "12.1 kWh",
+                    "state-of-charge" : {"sensor" : 24},
                     "soc-targets": [
                         {
-                            "value": 25,
+                            "value": "25 kWh",
                             "datetime": "2015-06-02T16:00:00+00:00"
                         },
                     ],
                     "soc-minima": {"sensor" : 300},
-                    "soc-min": 10,
-                    "soc-max": 25,
+                    "soc-min": "10 kWh",
+                    "soc-max": "25 kWh",
                     "charging-efficiency": "120%",
                     "discharging-efficiency": {"sensor": 98},
                     "storage-efficiency": 0.9999,
@@ -330,12 +548,18 @@ class SensorAPI(FlaskView):
                     "production-capacity" : "30 kW"
                 },
                 "flex-context": {
-                    "consumption-price-sensor": 9,
-                    "production-price-sensor": 10,
+                    "consumption-price": {"sensor": 9},
+                    "production-price": {"sensor": 10},
                     "inflexible-device-sensors": [13, 14, 15],
-                    "site-power-capacity": "100kW",
-                    "site-production-capacity": "80kW",
-                    "site-consumption-capacity": {"sensor": 32}
+                    "site-power-capacity": "100 kVA",
+                    "site-production-capacity": "80 kW",
+                    "site-consumption-capacity": {"sensor": 32},
+                    "site-production-breach-price": "1000 EUR/kW",
+                    "site-consumption-breach-price": "1000 EUR/kW",
+                    "site-peak-consumption": "50 kW",
+                    "site-peak-production": "50 kW",
+                    "site-peak-consumption-price": "260 EUR/MW",
+                    "site-peak-production-price": "260 EUR/MW"
                 }
             }
 
@@ -366,7 +590,7 @@ class SensorAPI(FlaskView):
         """
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
-            sensor=sensor,
+            asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
@@ -409,7 +633,7 @@ class SensorAPI(FlaskView):
     ):
         """Get a schedule from FlexMeasures.
 
-        .. :quickref: Schedule; Download schedule from the platform
+        .. :quickref: Schedule; Download schedule for one device
 
         **Optional fields**
 
@@ -469,7 +693,6 @@ class SensorAPI(FlaskView):
                 )
                 return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
-        scheduler_info_msg = ""
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
         scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
 
@@ -542,7 +765,9 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.get_attribute("consumption_is_positive", True):
+        if sensor.measures_power and sensor.get_attribute(
+            "consumption_is_positive", True
+        ):
             sign = -1
 
         # For consumption schedules, positive values denote consumption. For the db, consumption is negative
@@ -769,3 +994,138 @@ class SensorAPI(FlaskView):
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
+
+    @route("/<id>/data", methods=["DELETE"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @as_json
+    def delete_data(self, id: int, sensor: Sensor):
+        """Delete all data for a sensor.
+
+        .. :quickref: Sensor; Delete sensor data
+
+        This endpoint deletes all data for a sensor.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 204: DELETED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+        db.session.commit()
+
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Deleted data for sensor '{sensor.name}': {sensor.id}",
+        )
+
+        return {}, 204
+
+    @route("/<id>/stats", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "sort_keys": fields.Boolean(data_key="sort", load_default=True),
+            "event_start_time": fields.Str(load_default=None),
+            "event_end_time": fields.Str(load_default=None),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    @as_json
+    def get_stats(
+        self,
+        id,
+        sensor: Sensor,
+        event_start_time: str,
+        event_end_time: str,
+        sort_keys: bool,
+    ):
+        """Fetch stats for a given sensor.
+
+        .. :quickref: Sensor; Get sensor stats
+
+        This endpoint fetches sensor stats for all the historical data.
+
+        Example response
+
+        .. sourcecode:: json
+
+            {
+                "some data source": {
+                    "First event start": "2015-06-02T10:00:00+00:00",
+                    "Last event end": "2015-10-02T10:00:00+00:00",
+                    "Last recorded": "2015-10-02T10:01:12+00:00",
+                    "Min value": 0.0,
+                    "Max value": 100.0,
+                    "Mean value": 50.0,
+                    "Sum over values": 500.0,
+                    "Number of values": 10
+                }
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        return (
+            get_sensor_stats(sensor, event_start_time, event_end_time, sort_keys),
+            200,
+        )
+
+    @route("/<id>/status", methods=["GET"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    @as_json
+    def get_status(self, id, sensor):
+        """
+        Fetch the current status for a given sensor.
+
+        .. :quickref: Sensor; Get sensor status
+
+        This endpoint fetches the current status data for the specified sensor.
+        The status includes information about the sensor's status, staleness and resolution.
+
+        Example response:
+
+        .. sourcecode:: json
+
+            [
+                {
+                    'staleness': None,
+                    'stale': True,
+                    'staleness_since': None,
+                    'reason': 'no data recorded',
+                    'source_type': None,
+                    'id': 64906,
+                    'name': 'power',
+                    'resolution': '15 minutes',
+                    'asset_name': 'Location 1',
+                    'relation': 'sensor belongs to this asset'
+                }
+            ]
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 404: ASSET_NOT_FOUND
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+
+        status_data = serialize_sensor_status_data(sensor=sensor)
+
+        return {"sensors_data": status_data}, 200

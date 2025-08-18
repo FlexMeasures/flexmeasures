@@ -5,13 +5,10 @@ HIGHS_DIR = "../HiGHS"
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
 
 
 # ---- Development ---
-
-run-local:
-	python run-local.py
 
 test:
 	make install-for-test
@@ -25,14 +22,14 @@ update-docs:
 	@echo "Creating docs environment ..."
 	make install-docs-dependencies
 	@echo "Creating documentation ..."
-	export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
+	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
 
 update-docs-pdf:
 	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
-	@echo "NOTE: Currently, the docs require some pictures which are not in the git repo atm. Ask the devs."
-	make install-sphinx-tools
-
-	export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
+	@echo "Creating docs environment ..."
+	make install-docs-dependencies
+	@echo "Creating documentation ..."
+	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
 
 # ---- Installation ---
 
@@ -43,6 +40,10 @@ install-for-dev:
 	make ensure-deps-folder
 	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
 	make install-flexmeasures
+# Locally install HiGHS on macOS
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		make install-highs-macos; \
+	fi
 
 install-for-test:
 	make install-pip-tools
@@ -50,19 +51,16 @@ install-for-test:
 ifneq ($(pinned), no)
 	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
 else
-	# cutting off the -c inter-layer dependency (that's pip-tools specific)
-	tail -n +3 requirements/test.in >> temp-test.in
-	pip install --upgrade -r requirements/app.in -r temp-test.in
-	rm temp-test.in
+	pip install --upgrade -r requirements/app.in -r requirements/test.in
 endif
 	make install-flexmeasures
-# Locally install HiGS on macOS
-	if [ "$(shell uname)" = "Darwin" ]; then \
+# Locally install HiGHS on macOS
+	@if [ "$(shell uname)" = "Darwin" ]; then \
 		make install-highs-macos; \
 	fi
 
 $(HIGHS_DIR):
-	if [ ! -d $(HIGHS_DIR) ]; then \
+	@if [ ! -d $(HIGHS_DIR) ]; then \
 		git clone https://github.com/ERGO-Code/HiGHS.git $(HIGHS_DIR); \
 	fi
 	brew install cmake;

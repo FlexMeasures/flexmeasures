@@ -1,26 +1,35 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timedelta
 
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
-    join_words_into_a_list,
 )
 from flexmeasures.utils.coding_utils import flatten_unique
-from flexmeasures.utils.unit_utils import (
-    is_power_unit,
-    is_energy_unit,
-    is_energy_price_unit,
-)
+from flexmeasures.utils.unit_utils import find_smallest_common_unit, get_unit_dimension
 
 
-def bar_chart(
+def create_bar_chart_or_histogram_specs(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
+    chart_type: str = "bar_chart",
     **override_chart_specs: dict,
 ):
+    """
+    This function generates the specifications required to visualize sensor data either as a bar chart or a histogram.
+    The chart type (bar_chart or histogram) can be specified, and various field definitions are set up based on the sensor attributes and
+    event time range. The resulting specifications can be customized further through additional keyword arguments.
+
+    The function handles the following:
+    - Determines unit and formats for the sensor data.
+    - Configures event value and event start field definitions.
+    - Sets the appropriate mark type and interpolation based on sensor attributes.
+    - Defines chart specifications for both bar charts and histograms, including titles, axis configurations, and tooltips.
+    - Merges any additional specifications provided through keyword arguments into the final chart specifications.
+    """
     unit = sensor.unit if sensor.unit else "a.u."
     event_value_field_definition = dict(
         title=f"{capitalize(sensor.sensor_type)} ({unit})",
@@ -50,9 +59,31 @@ def bar_chart(
     if sensor.event_resolution == timedelta(0) and sensor.has_attribute("interpolate"):
         mark_type = "area"
         mark_interpolate = sensor.get_attribute("interpolate")
+    replay_ruler = REPLAY_RULER.copy()
+    if chart_type == "histogram":
+        description = "A histogram showing the distribution of sensor data."
+        x = {
+            **event_value_field_definition,
+            "bin": True,
+        }
+        y = {
+            "aggregate": "count",
+            "title": "Count",
+        }
+        replay_ruler["encoding"] = {
+            "detail": {
+                "field": "belief_time",
+                "type": "temporal",
+                "title": None,
+            },
+        }
+    else:
+        description = (f"A simple {mark_type} chart showing sensor data.",)
+        x = event_start_field_definition
+        y = event_value_field_definition
+
     chart_specs = {
-        "description": f"A simple {mark_type} chart showing sensor data.",
-        # the sensor type is already shown as the y-axis title (avoid redundant info)
+        "description": description,
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "layer": [
             {
@@ -63,13 +94,17 @@ def bar_chart(
                     "width": {"band": 0.999},
                 },
                 "encoding": {
-                    "x": event_start_field_definition,
-                    "y": event_value_field_definition,
+                    "x": x,
+                    "y": y,
                     "color": FIELD_DEFINITIONS["source_name"],
                     "detail": FIELD_DEFINITIONS["source"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
-                        FIELD_DEFINITIONS["full_date"],
+                        (
+                            FIELD_DEFINITIONS["full_date"]
+                            if chart_type != "histogram"
+                            else None
+                        ),
                         {
                             **event_value_field_definition,
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
@@ -84,12 +119,57 @@ def bar_chart(
                         "as": "source_name_and_id",
                     },
                 ],
+                "selection": {
+                    "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+                },
             },
-            REPLAY_RULER,
+            replay_ruler,
         ],
     }
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
+    return chart_specs
+
+
+def histogram(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    """
+    Generates specifications for a histogram chart using sensor data. This function leverages
+    the `create_bar_chart_or_histogram_specs` helper function, specifying `chart_type` as 'histogram'.
+    """
+
+    chart_type = "histogram"
+    chart_specs = create_bar_chart_or_histogram_specs(
+        sensor,
+        event_starts_after,
+        event_ends_before,
+        chart_type,
+        **override_chart_specs,
+    )
+    return chart_specs
+
+
+def bar_chart(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    **override_chart_specs: dict,
+):
+    """
+    Generates specifications for a bar chart using sensor data. This function leverages
+    the `create_bar_chart_or_histogram_specs` helper function to create the specifications.
+    """
+
+    chart_specs = create_bar_chart_or_histogram_specs(
+        sensor,
+        event_starts_after,
+        event_ends_before,
+        **override_chart_specs,
+    )
     return chart_specs
 
 
@@ -395,9 +475,10 @@ def create_fall_dst_transition_layer(
 
 
 def chart_for_multiple_sensors(
-    sensors_to_show: list["Sensor", list["Sensor"]],  # noqa F821
+    sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
     event_starts_after: datetime | None = None,
     event_ends_before: datetime | None = None,
+    combine_legend: bool = True,
     **override_chart_specs: dict,
 ):
     # Determine the shared data resolution
@@ -424,19 +505,20 @@ def chart_for_multiple_sensors(
             ]
         }
 
-    # Set up field definition for sensor descriptions
-    sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
-    sensor_field_definition["scale"] = dict(
-        domain=[sensor.to_dict()["description"] for sensor in all_shown_sensors]
-    )
-
     sensors_specs = []
-    for s in sensors_to_show:
+    for entry in sensors_to_show:
+        title = entry.get("title")
+        if title == "Charge Point sessions":
+            continue
+        sensors = entry.get("sensors")
         # List the sensors that go into one row
-        if isinstance(s, list):
-            row_sensors: list["Sensor"] = s  # noqa F821
-        else:
-            row_sensors: list["Sensor"] = [s]  # noqa F821
+        row_sensors: list["Sensor"] = sensors  # noqa F821
+
+        # Set up field definition for sensor descriptions
+        sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+        sensor_field_definition["scale"] = dict(
+            domain=[sensor.as_dict["description"] for sensor in row_sensors]
+        )
 
         # Derive the unit that should be shown
         unit = determine_shared_unit(row_sensors)
@@ -490,6 +572,7 @@ def chart_for_multiple_sensors(
                 event_start_field_definition,
                 event_value_field_definition,
                 sensor_field_definition,
+                combine_legend=combine_legend,
             )
         ]
 
@@ -519,14 +602,7 @@ def chart_for_multiple_sensors(
 
         # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
         sensor_specs = {
-            "title": join_words_into_a_list(
-                [
-                    f"{capitalize(sensor.name)}"
-                    for sensor in row_sensors
-                    # the sensor type is already shown as the y-axis title (avoid redundant info)
-                    if sensor.name != sensor.sensor_type
-                ]
-            ),
+            "title": f"{capitalize(title)}" if title else None,
             "transform": [
                 {
                     "filter": {
@@ -550,14 +626,15 @@ def chart_for_multiple_sensors(
                 "as": "source_name_and_id",
             },
         ],
-        spacing=100,
-        bounds="flush",
     )
     chart_specs["config"] = {
         "view": {"continuousWidth": 800, "continuousHeight": 150},
         "autosize": {"type": "fit-x", "contains": "padding"},
     }
-    chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    if combine_legend is True:
+        chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    else:
+        chart_specs["resolve"] = {"scale": {"color": "independent"}}
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs
@@ -565,9 +642,7 @@ def chart_for_multiple_sensors(
 
 def determine_shared_unit(sensors: list["Sensor"]) -> str:  # noqa F821
     units = list(set([sensor.unit for sensor in sensors if sensor.unit]))
-
-    # Replace with 'a.u.' in case of mixing units
-    shared_unit = units[0] if len(units) == 1 else "a.u."
+    shared_unit, _ = find_smallest_common_unit(units)
 
     # Replace with 'dimensionless' in case of empty unit
     return shared_unit if shared_unit else "dimensionless"
@@ -582,13 +657,7 @@ def determine_shared_sensor_type(sensors: list["Sensor"]) -> str:  # noqa F821
 
     # Check the units for common cases
     shared_unit = determine_shared_unit(sensors)
-    if is_power_unit(shared_unit):
-        return "power"
-    elif is_energy_unit(shared_unit):
-        return "energy"
-    elif is_energy_price_unit(shared_unit):
-        return "energy price"
-    return "value"
+    return get_unit_dimension(shared_unit)
 
 
 def create_line_layer(
@@ -596,24 +665,44 @@ def create_line_layer(
     event_start_field_definition: dict,
     event_value_field_definition: dict,
     sensor_field_definition: dict,
+    combine_legend: bool,
 ):
-    event_resolutions = list(set([sensor.event_resolution for sensor in sensors]))
-    assert all(res == timedelta(0) for res in event_resolutions) or all(
-        res != timedelta(0) for res in event_resolutions
-    ), "Sensors shown within one row must all be instantaneous (zero event resolution) or all be non-instantatneous (non-zero event resolution)."
-    event_resolution = event_resolutions[0]
+    scale_values = False
+    if len(sensors) > 1:
+        shared_unit = determine_shared_unit(sensors)
+        if shared_unit != "a.u.":
+            scale_values = True
+
+    # Use linear interpolation if any of the sensors shown within one row is instantaneous; otherwise, use step-after
+    if any(sensor.event_resolution == timedelta(0) for sensor in sensors):
+        interpolate = "linear"
+    else:
+        interpolate = "step-after"
+
+    scaled_event_value_field_definition = event_value_field_definition.copy()
+    scaled_event_value_field_definition["field"] = "scaled_event_value"
+
     line_layer = {
         "mark": {
             "type": "line",
-            "interpolate": "step-after"
-            if event_resolution != timedelta(0)
-            else "linear",
+            "interpolate": interpolate,
             "clip": True,
         },
         "encoding": {
             "x": event_start_field_definition,
-            "y": event_value_field_definition,
-            "color": sensor_field_definition,
+            "y": scaled_event_value_field_definition,
+            "color": (
+                sensor_field_definition
+                if combine_legend
+                else {
+                    **sensor_field_definition,
+                    "legend": {
+                        "orient": "right",
+                        "columns": 1,
+                        "direction": "vertical",
+                    },
+                }
+            ),
             "strokeDash": {
                 "scale": {
                     # Distinguish forecasters and schedulers by line stroke
@@ -628,6 +717,19 @@ def create_line_layer(
             },
             "detail": [FIELD_DEFINITIONS["source"]],
         },
+        "selection": {
+            "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+        },
+        "transform": [
+            {
+                "calculate": (
+                    "datum.event_value"
+                    if not scale_values
+                    else "datum.event_value * datum.scale_factor"
+                ),
+                "as": "scaled_event_value",
+            }
+        ],
     }
     return line_layer
 
@@ -639,6 +741,18 @@ def create_circle_layer(
     sensor_field_definition: dict,
     shared_tooltip: list,
 ):
+    scale_values = False
+    if len(sensors) > 1:
+        shared_unit = determine_shared_unit(sensors)
+        if shared_unit != "a.u.":
+            scale_values = True
+
+    scaled_event_value_field_definition = event_value_field_definition.copy()
+    scaled_event_value_field_definition["field"] = "scaled_event_value"
+    scaled_shared_tooltip: list[dict] = deepcopy(
+        shared_tooltip
+    )  # deepcopy so the next line doesn't update the dicts
+    scaled_shared_tooltip[1]["field"] = "scaled_event_value"
     params = [
         {
             "name": "hover_x_brush",
@@ -675,15 +789,25 @@ def create_circle_layer(
         },
         "encoding": {
             "x": event_start_field_definition,
-            "y": event_value_field_definition,
+            "y": scaled_event_value_field_definition,
             "color": sensor_field_definition,
             "size": {
                 "condition": {"value": "200", "test": {"or": or_conditions}},
                 "value": "0",
             },
-            "tooltip": shared_tooltip,
+            "tooltip": scaled_shared_tooltip,
         },
         "params": params,
+        "transform": [
+            {
+                "calculate": (
+                    "datum.event_value"
+                    if not scale_values
+                    else "datum.event_value * datum.scale_factor"
+                ),
+                "as": "scaled_event_value",
+            }
+        ],
     }
     return circle_layer
 
@@ -712,3 +836,392 @@ def create_rect_layer(
         },
     }
     return rect_layer
+
+
+def chart_for_chargepoint_sessions(
+    sensors_to_show,
+    event_starts_after=None,
+    event_ends_before=None,
+    combine_legend=True,
+    **override_chart_specs,
+) -> dict:
+
+    all_sensors = []
+    sensors_to_show_copy = sensors_to_show.copy()
+    for entry in sensors_to_show_copy:
+        sensors = entry.get("sensors")
+        all_sensors.extend(
+            [
+                s
+                for s in sensors
+                if s.unit == "s"
+                and s.name
+                in [
+                    "arrival",
+                    "departure",
+                    "start charging",
+                    "stop charging",
+                    "plug in",
+                    "plug out",
+                ]
+            ]
+        )
+
+    sensor_ids = [s.id for s in all_sensors]
+
+    cp_chart = {
+        "title": "Charge Point sessions",
+        "width": "container",
+        "height": 300,
+        "selection": {
+            "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
+        },
+        "transform": [
+            {"filter": {"field": "sensor.id", "oneOf": sensor_ids}},
+            {"calculate": "datum.sensor.name", "as": "sensor_name"},
+            {"calculate": "datum.sensor.asset_id", "as": "asset_id"},
+            {"calculate": "datum.sensor.asset_description", "as": "asset"},
+        ],
+        "layer": [
+            # --- Dotted Line: Arrival to Departure ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'arrival' || datum.sensor_name == 'departure'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {"filter": {"selection": "arr_dep"}},
+                ],
+                "selection": {
+                    "scroll": {
+                        "type": "interval",
+                        "bind": "scales",
+                        "encodings": ["x"],
+                    },
+                    "arr_dep": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    },
+                },
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 1,
+                    "strokeDash": [4, 4],
+                },
+                "encoding": {
+                    "x": {
+                        "field": "arrival",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "departure",
+                        "type": "temporal",
+                        "title": None,
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": {"selection": "arr_dep", "field": "asset_id"}
+                        },
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {"selection": "arr_dep", "field": "session_id"}
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                            "labelLimit": 200,
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "arrival",
+                            "type": "temporal",
+                            "title": "Arrival",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "departure",
+                            "type": "temporal",
+                            "title": "Departure",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+            # --- Solid Line: Plug-in to Plug-out ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'plug in' || datum.sensor_name == 'plug out'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": [
+                            "session_id",
+                            "asset",
+                            "asset_id",
+                        ],
+                    },
+                    {"filter": {"selection": "plugin_plugout"}},
+                ],
+                "selection": {
+                    "plugin_plugout": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    }
+                },
+                "mark": {
+                    "type": "rule",
+                    "strokeWidth": 2,
+                },
+                "encoding": {
+                    "x": {
+                        "field": "plug in",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "plug out",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": {
+                                "selection": "plugin_plugout",
+                                "field": "asset_id",
+                            }
+                        },
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {
+                                "selection": "plugin_plugout",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "title": "Asset",
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                            "labelLimit": 200,
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "plug in",
+                            "type": "temporal",
+                            "title": "Plug-in",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "plug out",
+                            "type": "temporal",
+                            "title": "Plug-Out",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+            # ---  Thick line: Start to Stop Charging ---
+            {
+                "transform": [
+                    {
+                        "calculate": "datum.asset_id + '_' + timeFormat(datum.event_start, '%Y-%m-%dT%H:%M:%S')",
+                        "as": "session_id",
+                    },
+                    {
+                        "filter": "datum.sensor_name == 'start charging' || datum.sensor_name == 'stop charging'"
+                    },
+                    {
+                        "pivot": "sensor_name",
+                        "value": "event_value",
+                        "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {"filter": {"selection": "start_stop_charging"}},
+                ],
+                "selection": {
+                    "start_stop_charging": {
+                        "type": "multi",
+                        "encodings": ["color"],
+                        "fields": ["asset"],
+                        "bind": "legend",
+                        "toggle": "event.ctrlKey",
+                    }
+                },
+                "mark": {"type": "rule", "strokeWidth": 6},
+                "encoding": {
+                    "x": {
+                        "field": "start charging",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "x2": {
+                        "field": "stop charging",
+                        "type": "temporal",
+                        "scale": {
+                            "domain": [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                        },
+                    },
+                    "y": {
+                        "field": "asset_id",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "asset_id",
+                            }
+                        },
+                        "title": "Sessions",
+                        "axis": {"labels": False, "ticks": False, "domain": False},
+                    },
+                    "yOffset": {
+                        "field": "session_id",
+                        "type": "nominal",
+                        "bandPosition": 0.5,
+                        "scale": {
+                            "domain": {
+                                "selection": "start_stop_charging",
+                                "field": "session_id",
+                            }
+                        },
+                    },
+                    "color": {
+                        "field": "asset",
+                        "type": "nominal",
+                        "legend": {
+                            "orient": "right",
+                            "columns": 1,
+                            "direction": "vertical",
+                            "labelLimit": 200,
+                        },
+                    },
+                    "tooltip": [
+                        {
+                            "field": "start charging",
+                            "type": "temporal",
+                            "title": "Start Charging",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "stop charging",
+                            "type": "temporal",
+                            "title": "Stop Charging",
+                            "format": "%Y-%m-%d %H:%M:%S",
+                        },
+                        {
+                            "field": "asset_id",
+                            "type": "nominal",
+                            "title": "Asset ID",
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+    for idx, entry in enumerate(sensors_to_show_copy):
+        title = entry.get("title")
+        if title == "Power flow by type":
+            sensors_to_show_copy[idx]["sensors"] = [
+                sensor
+                for sensor in entry["sensors"]
+                if sensor.name == "charge points power"
+            ]
+    chart_specs = chart_for_multiple_sensors(
+        sensors_to_show_copy,
+        event_starts_after,
+        event_ends_before,
+        combine_legend,
+        **override_chart_specs,
+    )
+    chart_specs["vconcat"] = [
+        chart
+        for chart in chart_specs["vconcat"]
+        if chart["title"] in ["Prices", "Power flow by type"]
+    ]
+    chart_specs["vconcat"].insert(0, cp_chart)
+    return chart_specs

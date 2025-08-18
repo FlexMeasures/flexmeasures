@@ -2,6 +2,7 @@
 Convenience functions and class for accessing generic assets in groups.
 For example, group by asset type or by location.
 """
+
 from __future__ import annotations
 
 import inflect

@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type
+from typing import Type, Dict, Any
 import isodate
 import json
 import yaml
@@ -62,7 +62,7 @@ from flexmeasures.data.schemas import (
     LongitudeField,
     SensorIdField,
     TimeIntervalField,
-    QuantityOrSensor,
+    VariableQuantityField,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
@@ -83,6 +83,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
+from flexmeasures.cli.utils import validate_color_cli, validate_url_cli
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
@@ -147,7 +148,10 @@ def new_account_role(name: str, description: str):
     if role is not None:
         click.secho(f"Account role '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
-    role = AccountRole(name=name, description=description)
+    role = AccountRole(
+        name=name,
+        description=description,
+    )
     db.session.add(role)
     db.session.commit()
     click.secho(
@@ -161,12 +165,34 @@ def new_account_role(name: str, description: str):
 @click.option("--name", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
+    "--primary-color",
+    callback=validate_color_cli,
+    help="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)",
+)
+@click.option(
+    "--secondary-color",
+    callback=validate_color_cli,
+    help="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)",
+)
+@click.option(
+    "--logo-url",
+    callback=validate_url_cli,
+    help="Logo URL to use in UI. Defaults to FlexMeasures' logo URL",
+)
+@click.option(
     "--consultancy",
     "consultancy_account",
     type=AccountIdField(required=False),
     help="ID of the consultancy account, whose consultants will have read access to this account",
 )
-def new_account(name: str, roles: str, consultancy_account: Account | None):
+def new_account(
+    name: str,
+    roles: str,
+    consultancy_account: Account | None,
+    primary_color: str | None,
+    secondary_color: str | None,
+    logo_url: str | None,
+):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
@@ -176,7 +202,36 @@ def new_account(name: str, roles: str, consultancy_account: Account | None):
     if account is not None:
         click.secho(f"Account '{name}' already exists.", **MsgStyle.ERROR)
         raise click.Abort()
-    account = Account(name=name, consultancy_account=consultancy_account)
+
+    # make sure both colors or none are given
+    if (primary_color and not secondary_color) or (
+        not primary_color and secondary_color
+    ):
+        click.secho(
+            "Please provide both primary_color and secondary_color, or leave both fields blank.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    # Add '#' if color is given and doesn't already start with it
+    primary_color = (
+        f"#{primary_color}"
+        if primary_color and not primary_color.startswith("#")
+        else primary_color
+    )
+    secondary_color = (
+        f"#{secondary_color}"
+        if secondary_color and not secondary_color.startswith("#")
+        else secondary_color
+    )
+
+    account = Account(
+        name=name,
+        consultancy_account=consultancy_account,
+        primary_color=primary_color,
+        secondary_color=secondary_color,
+        logo_url=logo_url,
+    )
     db.session.add(account)
     if roles:
         for role_name in roles.split(","):
@@ -327,13 +382,6 @@ def add_sensor(**args):
         click.secho("Attributes should be a dict.", **MsgStyle.ERROR)
         raise click.Abort()
     sensor.attributes = attributes
-    if sensor.measures_power:
-        if "capacity_in_mw" not in sensor.attributes:
-            click.secho(
-                "A sensor which measures power needs a capacity (see --attributes).",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
     db.session.add(sensor)
     db.session.commit()
     click.secho(f"Successfully created sensor with ID {sensor.id}", **MsgStyle.SUCCESS)
@@ -659,7 +707,6 @@ def add_beliefs(
 
     # Set up optional parameters for read_csv
     if file.split(".")[-1].lower() == "csv":
-        kwargs["infer_datetime_format"] = True
         kwargs["delimiter"] = delimiter
         kwargs["decimal"] = decimal
         kwargs["thousands"] = thousands
@@ -687,9 +734,9 @@ def add_beliefs(
         header=None,
         skiprows=skiprows,
         nrows=nrows,
-        usecols=[datecol, valuecol]
-        if beliefcol is None
-        else [datecol, beliefcol, valuecol],
+        usecols=(
+            [datecol, valuecol] if beliefcol is None else [datecol, beliefcol, valuecol]
+        ),
         parse_dates=True,
         na_values=na_values,
         keep_default_na=keep_default_na,
@@ -1123,7 +1170,7 @@ def create_schedule(ctx):
 @click.option(
     "--site-power-capacity",
     "site_power_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Site consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1133,7 +1180,7 @@ def create_schedule(ctx):
 @click.option(
     "--site-consumption-capacity",
     "site_consumption_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Site consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1143,7 +1190,7 @@ def create_schedule(ctx):
 @click.option(
     "--site-production-capacity",
     "site_production_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Site production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1153,7 +1200,7 @@ def create_schedule(ctx):
 @click.option(
     "--start",
     "start",
-    type=AwareDateTimeField(format="iso"),
+    type=AwareDateTimeField(),
     required=True,
     help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -1170,6 +1217,14 @@ def create_schedule(ctx):
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=True,
     help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
+)
+@click.option(
+    "--state-of-charge",
+    "state_of_charge",
+    type=SensorIdField(unit="MWh"),
+    help="State of charge sensor.",
+    required=False,
+    default=None,
 )
 @click.option(
     "--soc-target",
@@ -1208,7 +1263,7 @@ def create_schedule(ctx):
 @click.option(
     "--charging-efficiency",
     "charging_efficiency",
-    type=QuantityOrSensor("%"),
+    type=VariableQuantityField("%"),
     required=False,
     default=None,
     help="Storage charging efficiency to use for the schedule."
@@ -1218,7 +1273,7 @@ def create_schedule(ctx):
 @click.option(
     "--discharging-efficiency",
     "discharging_efficiency",
-    type=QuantityOrSensor("%"),
+    type=VariableQuantityField("%"),
     required=False,
     default=None,
     help="Storage discharging efficiency to use for the schedule."
@@ -1228,7 +1283,7 @@ def create_schedule(ctx):
 @click.option(
     "--soc-gain",
     "soc_gain",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Specify the State of Charge (SoC) gain as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1238,7 +1293,7 @@ def create_schedule(ctx):
 @click.option(
     "--soc-usage",
     "soc_usage",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Specify the State of Charge (SoC) usage as a quantity in power units (e.g. 1 MW or 1000 kW) "
@@ -1248,7 +1303,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-power-capacity",
     "storage_power_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1258,7 +1313,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-consumption-capacity",
     "storage_consumption_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Storage consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1268,7 +1323,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-production-capacity",
     "storage_production_capacity",
-    type=QuantityOrSensor("MW"),
+    type=VariableQuantityField("MW"),
     required=False,
     default=None,
     help="Storage production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
@@ -1278,7 +1333,7 @@ def create_schedule(ctx):
 @click.option(
     "--storage-efficiency",
     "storage_efficiency",
-    type=QuantityOrSensor("%", default_src_unit="dimensionless"),
+    type=VariableQuantityField("%", default_src_unit="dimensionless"),
     required=False,
     default="100%",
     help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
@@ -1317,6 +1372,7 @@ def add_schedule_for_storage(  # noqa C901
     soc_max: ur.Quantity | None = None,
     roundtrip_efficiency: ur.Quantity | None = None,
     storage_efficiency: ur.Quantity | Sensor | None = None,
+    state_of_charge: Sensor | None = None,
     as_job: bool = False,
 ):
     """Create a new schedule for a storage asset.
@@ -1332,6 +1388,7 @@ def add_schedule_for_storage(  # noqa C901
         optimization_context_sensor,
         "consumption-price-sensor",
         consumption_price_sensor,
+        required_argument=False,
     )
 
     # Parse input and required sensor attributes
@@ -1341,7 +1398,7 @@ def add_schedule_for_storage(  # noqa C901
             **MsgStyle.ERROR,
         )
         raise click.Abort()
-    if production_price_sensor is None:
+    if production_price_sensor is None and consumption_price_sensor is not None:
         production_price_sensor = consumption_price_sensor
     end = start + duration
 
@@ -1389,11 +1446,29 @@ def add_schedule_for_storage(  # noqa C901
             "roundtrip-efficiency": roundtrip_efficiency,
         },
         flex_context={
-            "consumption-price-sensor": consumption_price_sensor.id,
-            "production-price-sensor": production_price_sensor.id,
+            "consumption-price": (
+                {"sensor": consumption_price_sensor.id}
+                if consumption_price_sensor
+                else None
+            ),
+            "production-price": (
+                {"sensor": production_price_sensor.id}
+                if production_price_sensor
+                else None
+            ),
             "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
         },
     )
+
+    # remove None value from flex_context
+    scheduling_kwargs["flex_context"] = {
+        k: v for k, v in scheduling_kwargs["flex_context"].items() if v is not None
+    }
+
+    if state_of_charge is not None:
+        scheduling_kwargs["flex_model"]["state-of-charge"] = {
+            "sensor": state_of_charge.id
+        }
 
     quantity_or_sensor_vars = {
         "flex_model": {
@@ -1421,9 +1496,9 @@ def add_schedule_for_storage(  # noqa C901
                 else:
                     unit = "MW"
 
-                scheduling_kwargs[key][field_name] = QuantityOrSensor(unit)._serialize(
-                    value, None, None
-                )
+                scheduling_kwargs[key][field_name] = VariableQuantityField(
+                    unit
+                )._serialize(value, None, None)
 
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
@@ -1464,7 +1539,7 @@ def add_schedule_for_storage(  # noqa C901
 @click.option(
     "--start",
     "start",
-    type=AwareDateTimeField(format="iso"),
+    type=AwareDateTimeField(),
     required=True,
     help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -1560,7 +1635,7 @@ def add_schedule_process(
 
     if consumption_price_sensor is not None:
         scheduling_kwargs["flex_context"] = {
-            "consumption-price-sensor": consumption_price_sensor.id,
+            "consumption-price": {"sensor": consumption_price_sensor.id},
         }
 
     if as_job:
@@ -1613,7 +1688,7 @@ def add_schedule_process(
 @click.option(
     "--start",
     "start",
-    type=AwareDateTimeField(format="iso"),
+    type=AwareDateTimeField(),
     required=False,
     help="Report start time. `--start-offset` can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -1634,14 +1709,14 @@ def add_schedule_process(
 @click.option(
     "--end",
     "end",
-    type=AwareDateTimeField(format="iso"),
+    type=AwareDateTimeField(),
     required=False,
     help="Report end time. `--end-offset` can be used instead. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--resolution",
     "resolution",
-    type=DurationField(format="iso"),
+    type=DurationField(),
     required=False,
     help="Time resolution of the input time series to employ for the calculations. Follow up with a ISO 8601 duration string",
 )
@@ -1788,6 +1863,12 @@ def add_report(  # noqa: C901
         end = now
 
     click.echo(f"Report scope:\n\tstart: {start}\n\tend:   {end}")
+    if end < start:
+        click.secho(
+            "Invalid report period (end must not precede start).",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     if source is None:
         click.echo(
@@ -1862,7 +1943,7 @@ def add_report(  # noqa: C901
         # save the report if it's not running in dry mode
         if not dry_run:
             click.echo(f"Saving report for sensor `{sensor}` to the database...")
-            save_to_db(data.dropna())
+            save_to_db(data)
             db.session.commit()
             click.secho(
                 f"Success. The report for sensor `{sensor}` has been saved to the database.",
@@ -2006,11 +2087,14 @@ def add_toy_account(kind: str, name: str):
         sensor_name: str,
         unit: str = "MW",
         parent_asset_id: int | None = None,
+        flex_context: dict | None = None,
         **asset_attributes,
     ):
-        asset_kwargs = dict()
+        asset_kwargs: Dict[str, Any] = {}
         if parent_asset_id is not None:
             asset_kwargs["parent_asset_id"] = parent_asset_id
+        if flex_context is not None:
+            asset_kwargs["flex_context"] = flex_context
 
         asset = get_or_create_model(
             GenericAsset,
@@ -2021,6 +2105,8 @@ def add_toy_account(kind: str, name: str):
             longitude=location[1],
             **asset_kwargs,
         )
+        if asset.flex_context is None:
+            asset.flex_context = {}
         if len(asset_attributes) > 0:
             asset.attributes = asset_attributes
 
@@ -2055,7 +2141,8 @@ def add_toy_account(kind: str, name: str):
             "battery",
             "discharging",
             parent_asset_id=building_asset.id,
-            capacity_in_mw=0.5,
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
+            capacity_in_mw="500 kVA",
             min_soc_in_mwh=0.05,
             max_soc_in_mwh=0.45,
         )
@@ -2068,12 +2155,12 @@ def add_toy_account(kind: str, name: str):
         # add day-ahead price sensor and PV production sensor to show on the battery's asset page
         db.session.flush()
         battery = discharging_sensor.generic_asset
-        battery.attributes["sensors_to_show"] = [
-            day_ahead_sensor.id,
-            [
-                production_sensor.id,
-                discharging_sensor.id,
-            ],
+        battery.sensors_to_show = [
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {
+                "title": "Power flows",
+                "sensors": [production_sensor.id, discharging_sensor.id],
+            },
         ]
 
         db.session.commit()
@@ -2091,28 +2178,31 @@ def add_toy_account(kind: str, name: str):
             "toy-process",
             "process",
             "Power (Inflexible)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         breakable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Breakable)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         shiftable_power = create_asset_with_one_sensor(
             "toy-process",
             "process",
             "Power (Shiftable)",
+            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
         )
 
         db.session.flush()
 
         process = shiftable_power.generic_asset
-        process.attributes["sensors_to_show"] = [
-            day_ahead_sensor.id,
-            inflexible_power.id,
-            breakable_power.id,
-            shiftable_power.id,
+        process.sensors_to_show = [
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {"title": "Inflexible", "sensor": inflexible_power.id},
+            {"title": "Breakable", "sensor": breakable_power.id},
+            {"title": "Shiftable", "sensor": shiftable_power.id},
         ]
 
         db.session.commit()

@@ -4,6 +4,7 @@ from altair.utils.html import spec_to_html
 from flask import current_app, request
 from flask_classful import FlaskView, route
 from flask_security import auth_required, login_required
+from werkzeug.exceptions import NotFound
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
@@ -15,6 +16,10 @@ from flexmeasures import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.utils.chart_defaults import chart_options
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
+from flexmeasures.ui.views.assets.utils import (
+    user_can_delete,
+    user_can_update,
+)
 
 
 class SensorUI(FlaskView):
@@ -76,11 +81,16 @@ class SensorUI(FlaskView):
          - start_time: minimum time of the events to be shown
          - end_time: maximum time of the events to be shown
         """
+        sensor = db.session.get(Sensor, id)
+        if sensor is None:
+            raise NotFound
         return render_flexmeasures_template(
-            "views/sensors.html",
-            sensor_id=id,
+            "sensors/index.html",
+            sensor=sensor,
+            user_can_update_sensor=user_can_update(sensor),
+            user_can_delete_sensor=user_can_delete(sensor),
             msg="",
-            breadcrumb_info=get_breadcrumb_info(db.session.get(Sensor, id)),
+            breadcrumb_info=get_breadcrumb_info(sensor),
             event_starts_after=request.args.get("start_time"),
             event_ends_before=request.args.get("end_time"),
         )

@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% set active_page = "dashboard" %}
+
+{% block title %} Dashboard {% endblock %}
+
+{% block divs %}
+
+<style>
+    .leaflet-marker-popup a {
+        text-decoration: none;
+        color: white;
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-12">
+
+            <div id="mapid"></div>
+
+            <table class="table" style="font-size: 100%;">
+                <thead>
+                    <tr>
+                        <th></th>
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
+                        <th {% if asset_groups[asset_group_name].hover_label %}
+                            title="{{ asset_groups[asset_group_name].hover_label | capitalize }}" {% endif %}
+                            class="text-center{% if asset_group_name in aggregate_type_groups %} agg-group{% endif %}">
+                                {{ asset_group_name | capitalize }}
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if not group_by_accounts %}
+                    <!-- Asset type icons -->
+                    <tr>
+                        <td></td>
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        <td class="text-center{% if asset_group_name in aggregate_type_groups %} agg-group{% endif %}">
+                            <div style="min-height: 20px; padding:15px;">
+                                <i class="{{ asset_group_name | asset_icon }} center-icon"></i>
+                            </div>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td>
+                            {% if user_has_admin_reader_rights %}
+                                {{ FLEXMEASURES_PLATFORM_NAME }} total:
+                            {% else %}
+                                My assets:
+                            {% endif %}
+                        </td>
+
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        <td class="text-center{% if asset_group_name in aggregate_type_groups %} agg-group{% endif %}">
+                            {{ asset_groups[asset_group_name].count }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+            {% if user_has_admin_reader_rights %}
+            <div class="row">
+                <form class="col-sm-12 text-right form-inline" role="form" target="" method="get" id="dashboard-grouping-options">
+                    Group by account:
+                    <label class="switch">
+                        <input name="group_by_accounts" {% if group_by_accounts %} checked{% endif %} type="checkbox" data-toggle="toggle">
+                        <span class="slider"></span>
+                    </label>
+                </form>
+            </div>
+            <script type="text/javascript">
+                $(document).on('change', '#dashboard-grouping-options input[name="group_by_accounts"]', function () {
+                    $(this).closest('form').submit();
+                })
+            </script>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+
+<!-- Initialise the map -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@{{ js_versions.leaflet }}/dist/leaflet-src.min.js"></script>
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}?v={{ flexmeasures_version }}"></script>
+<script src="https://unpkg.com/leaflet.markercluster@{{ js_versions.leafletmarkercluster }}/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster.layersupport@{{ js_versions.leafletmarkerclusterlayersupport }}/dist/leaflet.markercluster.layersupport.js"></script>
+
+<script type="text/javascript">
+
+    // Make an icon for each known asset type
+    {% for asset_type_name in known_asset_types %}
+
+    var {{ asset_type_name | parameterize | pluralize }}_icon = new L.DivIcon({
+        className: 'map-icon',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset_type_name | asset_icon }}"></i>',
+        iconSize: [100, 100], // size of the icon
+        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+    });
+
+    /*
+    var {{ asset_type_name | parameterize | pluralize }}_opportunity_icon = new L.DivIcon({
+        className: 'map-icon opportunity',
+        html: '<i class="{{ asset_type_name | asset_icon }}"></i>',
+        iconSize: [24, 24], // size of the icon
+        iconAnchor: [12, 12], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -12] // point from which the popup should open relative to the iconAnchor
+    });
+    */
+    {% endfor %}
+
+    // create markers, keep them in separate lists (by asset type) to be put into layers
+
+    {% for asset_group_name in asset_groups %}
+        var {{ asset_groups[asset_group_name].parameterized_name }}_markers = [];
+    
+    {% for asset in asset_groups[asset_group_name].assets if asset.location %}
+
+                if (typeof marker_for_{{ (asset.id) }} == 'undefined') {
+        var marker_for_{{ (asset.id)
+    }} = L
+        .marker(
+            [{{ asset.location[0] }}, {{ asset.location[1] }}],
+            { icon: {{ asset.generic_asset_type.name | parameterize | pluralize }}_icon, id: {{ asset.id }}, parentId: {% if asset.parent_asset_id is none %}null{% else %}{{ asset.parent_asset_id }}{% endif %} }
+    )
+        .bindPopup(`
+            <div class="leaflet-marker-popup">
+                <div class="row">
+                    <div class="col-sm-9">
+                        <h4>{{ asset.name }} </h4>
+                        {% if user_has_admin_reader_rights %} <small>Account: {{ asset.owner.name }} </small> {% endif %}
+                    </div>
+                </div>
+                <div class="row top-buffer">
+                    <div class="col-sm-12">
+                        <!-- Add d-flex to make buttons appear in a row horizontally -->
+                        <div class="d-flex justify-content-start">
+                            <button class="btn btn-sm" style="margin-right: 5px;">
+                                <a href="assets/{{ asset.id }}">Context</a>
+                            </button>
+                            <button class="btn btn-sm" style="margin-right: 5px;">
+                                <a href="assets/{{ asset.id }}/graphs">Graphs</a>
+                            </button>
+                            <button class="btn btn-sm" style="margin-right: 5px;">
+                                <a href="assets/{{ asset.id }}/properties">Properties</a>
+                            </button>
+                            <button class="btn btn-sm" style="margin-right: 5px;">
+                                <a href="assets/{{ asset.id }}/status">Status</a>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `
+        )
+        .on('mouseover', function () {
+            $(this._icon).addClass('over');
+        })
+        .on('mouseout', function () {
+            $(this._icon).delay(3000).queue(function (next) {
+                $(this).removeClass('over');
+                next();
+            });
+        })
+        .bindTooltip({% if user_has_admin_reader_rights %}"{{ asset.name }} ({{ asset.owner.name }})"{% else %}"{{ asset.name }}" {% endif %},
+        {
+            permanent: false,
+            direction: 'right'
+        })
+        .on('click', clickPan)
+    // .openPopup();
+    {{ asset_groups[asset_group_name].parameterized_name }}_markers.push(marker_for_{{ (asset.id) }});
+                }
+    {% endfor %}
+    {% endfor %}
+
+    // Monkeypatch spiderfy
+    const originalSpiderfy = L.MarkerCluster.prototype.spiderfy;
+    L.MarkerCluster.include({
+        spiderfy: function () {
+            // Send spiderfyShapePositions the markers themselves, rather than just the number of markers
+            passMarkersToSpiderfyShapePositions(this)
+            return originalSpiderfy.call(this);
+        }
+    });
+
+    // Monkeypatch _animationSpiderfy
+    const originalAnimationSpiderfy = L.MarkerCluster.prototype._animationSpiderfy;
+    L.MarkerCluster.include({
+        _animationSpiderfy: _animationTreeSpiderfy,
+    });
+
+    // Monkeypatch unspiderfy
+    const originalUnspiderfy = L.MarkerCluster.prototype.unspiderfy;
+    L.MarkerCluster.include({
+        unspiderfy: function () {
+            // Remove spider legs straight away (the default animation does not suit a tree view)
+            removeSpiderLegs(this);
+            return originalUnspiderfy.call(this);
+        }
+    });
+
+
+    // create Map with tiles
+    var assetMap = L
+        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6 })
+        .on('popupopen', function () {
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+    var mcgLayerSupportGroup = L.markerClusterGroup.layerSupport({
+        spiderfyShapePositionsWithMarkers: computeCenteredTreeLayout
+    });
+
+    var control = L.control.layers(null, null, { collapsed: true });
+
+    // add a layer for each asset type
+    {% for asset_group_name in asset_groups %}
+    {% if asset_groups[asset_group_name].count > 0 %}
+    var {{ asset_groups[asset_group_name].parameterized_name }}_layer = new L.LayerGroup({{ asset_groups[asset_group_name].parameterized_name }}_markers);
+    mcgLayerSupportGroup.checkIn({{ asset_groups[asset_group_name].parameterized_name }}_layer);
+    control.addOverlay({{ asset_groups[asset_group_name].parameterized_name }}_layer, "{{ asset_group_name | capitalize }}")
+    {{ asset_groups[asset_group_name].parameterized_name }}_layer.addTo(assetMap);
+    {% endif %}
+    {% endfor %}
+    mcgLayerSupportGroup.addTo(assetMap);
+    control.addTo(assetMap);
+
+</script>
+
+
+{% endblock %}

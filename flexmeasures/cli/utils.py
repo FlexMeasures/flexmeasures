@@ -8,10 +8,12 @@ from typing import Any
 from datetime import datetime, timedelta
 
 import click
+from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
 
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
+from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures import Sensor
 
 
@@ -154,7 +156,7 @@ def get_timerange_from_flag(
     last_7_days: bool = False,
     last_month: bool = False,
     last_year: bool = False,
-    timezone: pytz.BaseTzInfo = get_timezone(),
+    timezone: pytz.BaseTzInfo | None = None,
 ) -> tuple[datetime, datetime]:
     """This function returns a time range [start,end] of the last-X period.
     See input parameters for more details.
@@ -167,6 +169,9 @@ def get_timerange_from_flag(
     :param timezone: timezone object to represent
     :returns: start:datetime, end:datetime
     """
+
+    if timezone is None:
+        timezone = get_timezone()
 
     current_hour = get_most_recent_hour().astimezone(timezone)
 
@@ -298,3 +303,64 @@ def get_sensor_aliases(
     }
 
     return aliases
+
+
+def validate_color_cli(ctx, param, value):
+    """
+    Optional parameter validation
+
+    Validates that a given value is a valid hex color code.
+
+    Parameters:
+    :param ctx:     Click context.
+    :param param:   Click parameter name.
+    :param value:   The color code to validate.
+    """
+
+    try:
+        validate_color_hex(value)
+    except ValueError as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
+
+
+def validate_url_cli(ctx, param, value):
+    """
+    Optional parameter validation
+
+    Validates that a given value is a valid URL format using regex.
+
+    Parameters:
+    :param ctx:     Click context.
+    :param param:   Click parameter name.
+    :param value:   The URL to validate.
+    """
+
+    try:
+        validate_url(value)
+    except ValueError as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
+
+
+def tabulate_account_assets(assets):
+    """
+    Print a tabulated representation of the given assets.
+
+    Args:
+        assets: an iterable of GenericAsset objects
+
+    """
+    asset_data = [
+        (
+            asset.id,
+            asset.name,
+            asset.generic_asset_type.name,
+            asset.parent_asset_id,
+            asset.location,
+        )
+        for asset in assets
+    ]
+    click.echo(
+        tabulate(asset_data, headers=["ID", "Name", "Type", "Parent ID", "Location"])
+    )

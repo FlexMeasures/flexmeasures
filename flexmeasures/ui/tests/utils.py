@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import copy
+import json
+from sqlalchemy import select
 
 from flask import url_for
+
+from flexmeasures.data.models.time_series import Sensor
 
 
 def login(the_client, email, password):
@@ -20,15 +24,19 @@ def logout(client):
 
 
 def mock_asset_response(
-    asset_id: int = 1,
+    asset_id: int = 2,
     account_id: int = 1,
     as_list: bool = True,
     multiple: bool = False,
 ) -> dict | list[dict]:
+    """
+    Mock response from asset API.
+    Does not mock output of paginated assets endpoint!
+    """
     asset = dict(
         id=asset_id,
         name="TestAsset",
-        generic_asset_type_id=1,
+        generic_asset_type={"id": 1, "name": "battery"},
         account_id=int(account_id),
         latitude=70.4,
         longitude=30.9,
@@ -38,8 +46,45 @@ def mock_asset_response(
         if multiple:
             asset2 = copy.deepcopy(asset)
             asset2["name"] = "TestAsset2"
+            asset2["id"] += 1
             asset_list.append(asset2)
         return asset_list
+    return asset
+
+
+def mock_asset_response_with_kpis(
+    db,
+    asset_id: int = 1,
+    account_id: int = 1,
+    as_list: bool = True,
+    multiple: bool = False,
+) -> dict | list[dict]:
+    asset = mock_asset_response(
+        asset_id=asset_id, account_id=account_id, as_list=as_list, multiple=multiple
+    )
+    sensor: Sensor = db.session.execute(
+        select(Sensor).filter_by(event_resolution="PT24H")
+    ).scalar_one_or_none()
+
+    if not sensor:
+        # Create a sensor first with PT24H
+        sensor = Sensor(
+            name="KPI sensor",
+            generic_asset_id=asset["id"],
+            event_resolution="PT24H",
+            unit="kWh",
+            attributes={},
+        )
+        db.session.add(sensor)
+        db.session.flush()
+    sensors_to_show_as_kpis = [
+        {
+            "title": "My KPIs",
+            "sensor": sensor.id,
+            "function": "sum",
+        }
+    ]
+    asset["sensors_to_show_as_kpis"] = json.dumps(sensors_to_show_as_kpis)
     return asset
 
 
@@ -59,6 +104,7 @@ def mock_user_response(
         password="secret",
         flexmeasures_roles=[1],
         last_login_at="2021-05-14T20:00:00+02:00",
+        account_id=1,
     )
     if as_list:
         user_list = [user]

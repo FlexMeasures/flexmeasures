@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from flask_security import current_user
+from flask_security.core import AnonymousUser
 from sqlalchemy import DateTime, Column, Integer, String, ForeignKey
 
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -13,11 +14,7 @@ from flexmeasures.utils.time_utils import server_now
 
 def get_current_user_id_name():
     current_user_id, current_user_name = None, None
-    if (
-        current_user
-        and hasattr(current_user, "is_authenticated")
-        and current_user.is_authenticated
-    ):
+    if current_user and not isinstance(current_user, AnonymousUser):
         current_user_id, current_user_name = current_user.id, current_user.username
     return current_user_id, current_user_name
 
@@ -67,8 +64,11 @@ class AuditLog(db.Model, AuthModelMixin):
                 return {
                     "read": [
                         f"user:{self.user_id}",
-                        (f"account:{self.account_id}", "role:account-admin"),
-                        (f"account:{self.consultancy_account_id}", "role:consultant"),
+                        (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                        (
+                            f"account:{self.consultancy_account_id}",
+                            f"role:{CONSULTANT_ROLE}",
+                        ),
                     ],
                 }
 
@@ -95,8 +95,11 @@ class AuditLog(db.Model, AuthModelMixin):
                     return {}
                 return {
                     "read": [
-                        (f"account:{self.account_id}", "role:account-admin"),
-                        (f"account:{self.consultancy_account_id}", "role:consultant"),
+                        (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                        (
+                            f"account:{self.consultancy_account_id}",
+                            f"role:{CONSULTANT_ROLE}",
+                        ),
                     ],
                 }
 
@@ -142,16 +145,18 @@ class AssetAuditLog(db.Model, AuthModelMixin):
 
         old_value = asset_or_sensor.attributes.get(attribute_key)
         if entity_type == "sensor":
-            event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id} "
+            event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = (asset_or_sensor.generic_asset_id,)
         else:
-            event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id} "
+            event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = asset_or_sensor.id
-        event += f"attribute '{attribute_key}' to {attribute_value} from {old_value}"
+        event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
         audit_log = cls(
             event_datetime=server_now(),
-            event=event,
+            event=truncate_string(
+                event, 255
+            ),  # we truncate the event string if it 255 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=affected_asset_id,
@@ -170,11 +175,22 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         :param event: event to log
         """
         current_user_id, current_user_name = get_current_user_id_name()
+
         audit_log = AssetAuditLog(
             event_datetime=server_now(),
-            event=event,
+            event=truncate_string(
+                event, 255
+            ),  # we truncate the event string if it exceeds 255 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=asset.id,
         )
         db.session.add(audit_log)
+
+
+def truncate_string(value: str, max_length: int) -> str:
+    """Truncate a string and add ellipses in the middle if it exceeds max_length."""
+    if len(value) <= max_length:
+        return value
+    half_length = (max_length - 5) // 2
+    return f"{value[:half_length]} ... {value[-half_length:]}"

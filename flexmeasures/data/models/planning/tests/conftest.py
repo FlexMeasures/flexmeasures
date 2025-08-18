@@ -11,6 +11,7 @@ from sqlalchemy import select
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.fixture(params=["appsi_highs", "cbc"])
@@ -108,10 +109,10 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
         name="building",
         generic_asset_type=building_type,
         owner=setup_accounts["Prosumer"],
-        attributes=dict(
-            market_id=setup_markets["epex_da"].id,
-            capacity_in_mw=2,
-        ),
+        flex_context={
+            "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
+        },
     )
     db.session.add(building)
     return building
@@ -181,7 +182,7 @@ def add_inflexible_device_forecasts(
     time_slots = initialize_index(
         start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
         end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
-        resolution="15T",
+        resolution="15min",
     )
 
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
@@ -277,7 +278,10 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
 
     battery = add_battery_assets["Test battery"]
-    capacity = battery.get_attribute("capacity_in_mw")
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    )
     sensors = {}
     sensor_specs = [
         ("delta fails", timedelta(minutes=15), capacity * 1.2),

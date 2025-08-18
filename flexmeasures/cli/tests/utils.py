@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 from typing import Callable
+from traceback import print_tb
 
 from click.core import Command as ClickCommand
+
+
+def check_command_ran_without_error(result):
+    print(result)
+    assert result.exit_code == 0, print_tb(
+        result.exc_info[2]
+    )  # run command without errors
 
 
 def to_flags(cli_input: dict) -> list:

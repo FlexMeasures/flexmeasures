@@ -1,7 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 
-import pytz
 from flask import request, current_app
 from flask_json import as_json
 from sqlalchemy import exc as sqla_exc, select
@@ -91,7 +90,7 @@ def post_task_run():
     task_name = request.form.get("name", "")
     if task_name == "":
         return {"status": "ERROR", "reason": "No task name given."}, 400
-    date_time = request.form.get("datetime", datetime.utcnow().replace(tzinfo=pytz.utc))
+    date_time = request.form.get("datetime", datetime.now(timezone.utc))
     status = request.form.get("status", "True") == "True"
     try:
         task_run = db.session.execute(
@@ -103,5 +102,6 @@ def post_task_run():
         task_run.datetime = date_time
         task_run.status = status
     except Exception as e:
-        return {"status": "ERROR", "reason": str(e)}, 500
+        current_app.logger.error(f"Exception in /postLatestTaskRun endpoint: {e}")
+        return {"status": "ERROR", "reason": "An internal error has occurred."}, 500
     return {"status": "OK"}, 200
