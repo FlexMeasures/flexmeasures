@@ -401,7 +401,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
             resolution=resolution,
         )
-        if as_json:
+        if as_json and not use_lookups:
+            df = bdf.reset_index()
+            df["sensor"] = self
+            df["sensor"] = df["sensor"].apply(lambda x: x.as_dict)
+            df["source"] = df["source"].apply(lambda x: x.as_dict)
+            return df.to_json(orient="records")
+        elif as_json and use_lookups:
             df = bdf.reset_index()
 
             # Build metadata dictionaries
