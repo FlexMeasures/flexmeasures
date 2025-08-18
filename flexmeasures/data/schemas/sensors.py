@@ -190,7 +190,7 @@ class SensorContext(typing.TypedDict):
     generic_asset: "GenericAsset"  # Storing the generic asset in context
 
 
-# Create the Context wrapper for Sensor schema
+# Create the Context wrapper for Sensor schema (Marshmallow 4.x)
 try:
     from marshmallow.experimental.context import Context
 
