@@ -135,11 +135,6 @@ def process_internal_api_response(
                         asset_data.get("sensors_to_show", "[]")
                     )
                 },
-                **{
-                    "sensors_to_show_as_kpis": json.loads(
-                        asset_data.get("sensors_to_show_as_kpis", "[]")
-                    )
-                },
             }
         )  # TODO: use schema?
         if "generic_asset_type_id" in asset_data:

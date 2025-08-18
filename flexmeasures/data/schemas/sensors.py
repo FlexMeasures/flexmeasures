@@ -238,7 +238,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         sensor = db.session.get(Sensor, value)
 
         if sensor is None:
-            raise FMValidationError(f"No sensor found with ID {value}.")
+            raise FMValidationError(f"No sensor found with id {value}.")
 
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset

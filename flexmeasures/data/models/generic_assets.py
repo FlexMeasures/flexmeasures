@@ -78,9 +78,6 @@ class GenericAsset(db.Model, AuthModelMixin):
     flex_context = db.Column(
         MutableDict.as_mutable(db.JSON), nullable=False, default={}
     )
-    sensors_to_show_as_kpis = db.Column(
-        MutableList.as_mutable(db.JSON), nullable=False, default=[]
-    )
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True

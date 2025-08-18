@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from datetime import timedelta
 import json
 from http import HTTPStatus
 
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
-from marshmallow.validate import OneOf
 from flask_security import current_user
 from sqlalchemy import select
 
@@ -15,7 +13,6 @@ from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
-from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -153,26 +150,6 @@ class SensorsToShowSchema(fields.Field):
         return list(dict.fromkeys(all_objects).keys())
 
 
-class SensorKPIFieldSchema(ma.SQLAlchemySchema):
-    title = fields.Str(required=True)
-    sensor = SensorIdField(required=True)
-    default_function = fields.Str(
-        required=False, validate=OneOf(["sum", "min", "max", "mean"])
-    )
-
-    @validates("sensor")
-    def validate_sensor(self, value):
-        if value.event_resolution != timedelta(days=1):
-            raise ValidationError(f"Sensor with ID {value} is not a daily sensor.")
-        return value
-
-
-class SensorsToShowAsKPIsSchema(ma.SQLAlchemySchema):
-    sensors_to_show_as_kpis = fields.List(
-        fields.Nested(SensorKPIFieldSchema), required=True
-    )
-
-
 class GenericAssetSchema(ma.SQLAlchemySchema):
     """
     GenericAsset schema, with validations.
@@ -199,7 +176,6 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
     sensors_to_show = JSON(required=False)
     flex_context = JSON(required=False)
-    sensors_to_show_as_kpis = JSON(required=False)
 
     class Meta:
         model = GenericAsset

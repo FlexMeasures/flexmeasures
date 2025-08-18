@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 
 {% set active_page = "assets" %}
-{% set active_subpage = "asset_graph" %}
 
 {% block title %} {{asset.name}} {% endblock %}
 
@@ -17,9 +16,9 @@
             <div class="header-action-button">
                 <div>
                     <button class="btn btn-primary" type="button" data-bs-toggle="modal"
-                        data-bs-target="#sensorsToShowModal">
-                        Edit Graphs
-                    </button>
+                                        data-bs-target="#sensorsToShowModal">
+                                        Edit Graphs
+                                    </button>
                 </div>
             </div>
             <div class="sidepanel-container ">
@@ -70,24 +69,6 @@
                 <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                 <span class="sr-only">Loading...</span>
             </div>
-            {% if has_kpis %}
-            <div class="row">
-                <div class="col-md-12">
-                    <div id="kpi-cards" class="row">
-                        {% for kpi in asset_kpis %}
-                        <div class="col-md-3">
-                            <div class="card">
-                                <div class="card-body">
-                                    <h5 class="card-title">{{ kpi.title }}</h5>
-                                    <p class="card-text">Loading...</p>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
             <div id="sensorchart" class="card" style="width: 100%;"></div>
             <div class="row">
                 <div class="copy-url" title="Click to copy the URL to the current time range to clipboard.">
@@ -824,7 +805,6 @@
             renderApiSensors([], undefined);
         }
     });
-
 
     // ============== Page Events ============== //
 </script>
