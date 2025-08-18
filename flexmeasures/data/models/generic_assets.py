@@ -646,7 +646,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
-        use_lookups: bool = False,
+        compress_json: bool = False,
         resolution: timedelta | None = None,
     ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
@@ -663,7 +663,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
-        :param use_lookups: return beliefs, sensors and sources as separate datasets to be used for lookups
+        :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
         :param resolution: optionally set the resolution of data being displayed
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
@@ -689,7 +689,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 one_deterministic_belief_per_event_per_source=True,
                 resolution=resolution,
             )
-        if as_json and not use_lookups:
+        if as_json and not compress_json:
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
@@ -755,7 +755,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
 
             return df.to_json(orient="records")
-        elif as_json and use_lookups:
+        elif as_json and compress_json:
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
