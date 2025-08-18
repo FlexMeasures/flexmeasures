@@ -492,7 +492,7 @@
                 const flexUnitsSelect = document.getElementById('flexUnitsSelect');
 
                 const elementsToInitialize = [
-                    { element: flexCheckBox, id: 'flexCheckBox' },
+                    { element: flexCheckBox, id: 'flexCheckBox', eventType: 'change', handler: searchSensors },
                     { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
                     { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
                 ];
@@ -606,6 +606,7 @@
                 }
 
                 if (flexCheckBox.checked) {
+                    console.log("Triggered...")
                     params.append('include_public_assets', true);
                 }
 
