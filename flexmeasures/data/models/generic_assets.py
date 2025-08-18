@@ -864,7 +864,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                             if pd.isna(value):
                                 record[key] = None
                             elif isinstance(value, pd.Timestamp):
-                                record[key] = value.isoformat()
+                                record[key] = value.timestamp() * 1000
                             elif isinstance(value, (pd.Timedelta, timedelta)):
                                 record[key] = str(value)
                             elif hasattr(value, "item"):  # numpy types
