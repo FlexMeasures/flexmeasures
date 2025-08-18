@@ -322,6 +322,12 @@
     availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
     const availableUnits = JSON.parse(availableUnitsRawJSON);
 
+    const iconMap = {
+        "sensor": "fa fa-microchip",
+        "string": "fa fa-solid fa-lock fa-lg",
+        "default": "fa fa-solid fa-question-circle",
+    }
+
     const assetFlexContextSchema = {
         "consumption-price": null,
         "production-price": null,
@@ -541,8 +547,11 @@
         }
 
         const card = document.createElement("div");
-        card.classList.add("row", "g-2", "my-1", "card-highlight", "p-1", isString ? "bg-fixed-val" : "bg-dynamic-val");
+        card.className = 'card m-1 p-2 card-highlight';
         card.id = `${fieldName}-control`;
+
+        const highlightCard = document.createElement('div');
+        card.appendChild(highlightCard);
 
         const titleContainer = document.createElement('div');
         titleContainer.className = 'd-flex justify-content-between align-items-center';
@@ -559,27 +568,48 @@
         titleContainer.appendChild(title);
         titleContainer.appendChild(closeIcon);
 
-        card.appendChild(titleContainer);
+        let fieldIconClass = '';
+        let fieldIconTitle = '';
+        if (isKeyValueObject || isArray) {
+            fieldIconClass = iconMap["sensor"];
+            fieldIconTitle = "A dynamic signal (via a sensor)";
+        } else if (isString) {
+            fieldIconClass = iconMap["string"];
+            fieldIconTitle = "A Fixed Value";
+        } else {
+            fieldIconClass = iconMap["default"];
+            fieldIconTitle = "Unknown";
+        }
+
+        const identityIcon = document.createElement('i');
+        identityIcon.className = `${fieldIconClass} ps-1 fa-md float-end`;
+        identityIcon.setAttribute('data-bs-toggle', 'tooltip');
+        identityIcon.setAttribute('data-bs-html', 'true');
+        identityIcon.setAttribute('title', fieldIconTitle);
+        identityIcon.style.cursor = 'pointer';
+
+        highlightCard.appendChild(titleContainer);
 
         if (isKeyValueObject || isArray) {
             const sensorsContainer = document.createElement('div');
             sensorsContainer.id = `inflexible-device-sensors-container`;
-            sensorsContainer.className = 'shadow-sm pb-2 px-2';
+            sensorsContainer.className = 'pb-2';
             // sensorsContainer.appendChild(...sensorsContent);
             sensorsContent.forEach(sensorItem => {
                 sensorsContainer.appendChild(sensorItem);
             });
-            card.appendChild(sensorsContainer);
+            highlightCard.appendChild(sensorsContainer);
         } else if (isString) {
             const valueContainer = document.createElement('div');
-            valueContainer.className = 'shadow-sm pb-2 px-2';
+            valueContainer.className = 'pb-2';
             const valueSpan = document.createElement('span');
             valueSpan.className = 'fw-light fs-4';
             valueSpan.innerHTML = newFieldValue ? newFieldValue : "<i>Not Set</i>";
             valueContainer.appendChild(valueSpan);
-            card.appendChild(valueContainer);
+            highlightCard.appendChild(valueContainer);
         }
 
+        highlightCard.appendChild(identityIcon);
         return card;
     }
 
@@ -682,7 +712,7 @@
             li.setAttribute("role", "presentation");
 
             const button = document.createElement("button");
-            button.className = "nav-link active bg-dynamic-val";
+            button.className = "nav-link active";
             button.id = "pills-dynamic-tab";
             button.setAttribute("data-bs-toggle", "pill");
             button.setAttribute("data-bs-target", "#pills-dynamic");
@@ -701,7 +731,7 @@
             liFixed.setAttribute("role", "presentation");
 
             const buttonFixed = document.createElement("button");
-            buttonFixed.className = "nav-link active bg-fixed-val";
+            buttonFixed.className = "nav-link flex-nav active";
             buttonFixed.id = "pills-homfixed";
             buttonFixed.setAttribute("data-bs-toggle", "pill");
             buttonFixed.setAttribute("data-bs-target", "#pills-fixed");
@@ -720,7 +750,7 @@
             liDynamic.setAttribute("role", "presentation");
 
             const buttonDynamic = document.createElement("button");
-            buttonDynamic.className = "nav-link bg-dynamic-val";
+            buttonDynamic.className = "nav-link flex-nav";
             buttonDynamic.id = "pills-dynamic-tab";
             buttonDynamic.setAttribute("data-bs-toggle", "pill");
             buttonDynamic.setAttribute("data-bs-target", "#pills-dynamic");
@@ -833,11 +863,13 @@
         const tabContent = document.createElement("div");
         tabContent.className = "tab-content";
         tabContent.id = "pills-tabContent";
+        tabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
+        tabContent.style.border = '1px solid #0000002d';
 
         if (sensorsOnly) {
             // Dynamic tab only
             const dynamicPane = document.createElement("div");
-            dynamicPane.className = "tab-pane fade show active bg-dynamic-val rounded-bottom";
+            dynamicPane.className = "tab-pane fade show active rounded-bottom";
             dynamicPane.id = "pills-dynamic";
             dynamicPane.setAttribute("role", "tabpanel");
             dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
@@ -848,7 +880,7 @@
         } else {
             // Fixed value pane
             const fixedPane = document.createElement("div");
-            fixedPane.className = "tab-pane fade show active bg-fixed-val rounded-bottom";
+            fixedPane.className = "tab-pane fade show active rounded-bottom";
             fixedPane.id = "pills-fixed";
             fixedPane.setAttribute("role", "tabpanel");
             fixedPane.setAttribute("aria-labelledby", "pills-fixed-tab");
@@ -891,7 +923,7 @@
 
             // Dynamic value pane
             const dynamicPane = document.createElement("div");
-            dynamicPane.className = "tab-pane fade bg-dynamic-val rounded-bottom";
+            dynamicPane.className = "tab-pane fade rounded-bottom";
             dynamicPane.id = "pills-dynamic";
             dynamicPane.setAttribute("role", "tabpanel");
             dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
