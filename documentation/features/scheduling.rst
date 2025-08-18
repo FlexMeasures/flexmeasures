@@ -209,11 +209,11 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``soc-min``
      - ``"2.5 kWh"``
      - A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0).
-       If used, this is regarded as a physical boundary which is infeasible to breach. [#quantity_field]_
+       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
    * - ``soc-max``
      - ``"7 kWh"``
      - A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided).
-       If used, this is regarded as a physical boundary which is infeasible to breach. [#quantity_field]_
+       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
    * - ``soc-minima``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
      - Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
