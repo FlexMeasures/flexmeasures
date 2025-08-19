@@ -188,9 +188,6 @@ class ForecastingPipelineSchema(Schema):
             if predict_period_in_hours < 1:
                 raise click.BadParameter("--predict-period must be at least 1 hour")
 
-        if "autoregressive" in regressors:
-            sensors = {target: sensors[target]}
-
         max_horizon = data.get("max_forecast_horizon")
         freq = data.get("forecast_frequency")
 
