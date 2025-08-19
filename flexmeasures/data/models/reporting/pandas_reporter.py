@@ -336,6 +336,11 @@ class PandasReporter(Reporter):
             kwargs = self._process_pandas_kwargs(
                 transformation.get("kwargs", {}), method
             )
-            self.data[df_output] = getattr(self.data[df_input], method)(*args, **kwargs)
+            try:
+                self.data[df_output] = getattr(self.data[df_input], method)(
+                    *args, **kwargs
+                )
+            except TypeError:
+                self.data[df_output] = getattr(self.data[df_input], method)
 
             previous_df = df_output
