@@ -27,6 +27,14 @@ Bugfixes
 * Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 
 
+v0.27.4 | August XX, 2025
+============================
+
+Bugfixes
+-----------
+* Show job information again on the job page on rq-dashboard, for scheduling jobs that set a specific ``belief_time`` and/or ``resolution`` [see `PR #1670 <https://github.com/FlexMeasures/flexmeasures/pull/1670>`_]
+
+
 v0.27.3 | August 19, 2025
 ============================
 
