@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
+from functools import cached_property
 import json
 from packaging.version import Version
 from flask import current_app
@@ -371,7 +372,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start). Defaults to False.
-        :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one. Defaults to False. To use, also set most_recent_beliefs_only=False. Use with care when data uses cumulative probability (more than one belief per event_start and horizon).
+        :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one. Defaults to False. Setting this to True will turn off usage of most_recent_beliefs_only and most_recent_events_only. Use with care when data uses cumulative probability (more than one belief per event_start and horizon).
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
@@ -401,8 +402,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         if as_json:
             df = bdf.reset_index()
             df["sensor"] = self
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
+            df["sensor"] = df["sensor"].apply(lambda x: x.as_dict)
+            df["source"] = df["source"].apply(lambda x: x.as_dict)
             return df.to_json(orient="records")
         return bdf
 
@@ -534,7 +535,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def __str__(self) -> str:
         return self.name
 
-    def to_dict(self) -> dict:
+    @cached_property
+    def as_dict(self) -> dict:
         parent_asset = db.session.execute(
             select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
         ).scalar_one_or_none()
@@ -547,6 +549,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             asset_description=f"{self.generic_asset.name}"
             + (f" ({parent_asset.name})" if parent_asset is not None else ""),
         )
+
+    def to_dict(self) -> dict:
+        current_app.logger.warning(
+            "Sensor().to_dict() is deprecated since v0.28.0 and should be replaced by the Sensor().as_dict property."
+        )
+        return self.as_dict
 
     @classmethod
     def find_closest(
@@ -765,6 +773,15 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
         custom_join_targets = [] if parsed_sources else [DataSource]
 
+        # Consolidate the two most-recent-X approaches
+        if most_recent_only:
+            most_recent_filters = dict(most_recent_only=most_recent_only)
+        else:
+            most_recent_filters = dict(
+                most_recent_beliefs_only=most_recent_beliefs_only,
+                most_recent_events_only=most_recent_events_only,
+            )
+
         bdf_dict = {}
         for sensor in sensors:
             bdf = cls.search_session(
@@ -778,9 +795,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=parsed_sources,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                most_recent_events_only=most_recent_events_only,
-                most_recent_only=most_recent_only,
+                **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
             )

@@ -5,9 +5,16 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+
+v3.0-25 | 2025-07-24
+""""""""""""""""""""
+- Removed /play blueprint with endpoint `PUT /restoreData`.
+
+
 v3.0-24 | 2025-06-10
 """"""""""""""""""""
 - New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices.
+- Introduce new ``relax-constraints`` field in the ``flex-context`` to relax all eligible constraints with default breach prices.
 - Updated message for 404 Not Found on endpoints for managing assets: `/assets` (GET, POST) and `/assets/<id>` (GET, PATCH, DELETE).
 
 

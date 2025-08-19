@@ -1,7 +1,8 @@
 pyyaml
 altair
 pandas
-pint>=0.19.1
+# <0.25 due to misbehaving floating point errors in doctest, see https://github.com/FlexMeasures/flexmeasures/pull/1668
+pint>=0.19.1,<0.25
 py-moneyed
 iso8601
 xlrd
@@ -34,19 +35,17 @@ pyomo>=5.6,<6.9
 tabulate
 timetomodel>=0.7.3
 # 3.0.2: significantly faster db queries, incl. bulk saving, 3.1: numpy/pandas upgrade
-timely-beliefs[forecast]>=3.2
+timely-beliefs[forecast]>=3.2.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
 # see GH#607 for issue on this pin
 sqlalchemy>=2.0
 Flask-SSLify
-# use <0.4 if not compatible with Flask2.2 yet
 Flask_JSON
 Flask-Migrate
 Flask-WTF
 Flask-Mail
-# <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
 Flask-Security-Too[fsqla,mfa]>=5.0
 Flask-Login
 Flask-Classful>=0.16

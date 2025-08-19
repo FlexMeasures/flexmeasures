@@ -19,6 +19,7 @@ from sqlalchemy import select, delete, func, or_
 
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
+    get_sensor_stats,
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -43,7 +44,9 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.utils.coding_utils import flatten_unique
+from flexmeasures.utils.coding_utils import (
+    flatten_unique,
+)
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
@@ -51,6 +54,7 @@ from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
+from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
@@ -90,21 +94,17 @@ class AssetAPI(FlaskView):
             "include_public": fields.Bool(
                 data_key="include_public", load_default=False
             ),
-            "page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=None
-            ),
+            "page": fields.Int(required=False, validate=validate.Range(min=1)),
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
             "sort_by": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["id", "name", "owner"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["asc", "desc"]),
             ),
         },
@@ -233,15 +233,13 @@ class AssetAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), dump_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
             "sort_by": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["id", "name", "resolution"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["asc", "desc"]),
             ),
         },
@@ -687,15 +685,13 @@ class AssetAPI(FlaskView):
             "per_page": fields.Int(
                 required=False, validate=validate.Range(min=1), load_default=10
             ),
-            "filter": SearchFilterField(required=False, load_default=None),
+            "filter": SearchFilterField(required=False),
             "sort_by": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["event_datetime"]),
             ),
             "sort_dir": fields.Str(
                 required=False,
-                load_default=None,
                 validate=validate.OneOf(["asc", "desc"]),
             ),
         },
@@ -1070,3 +1066,91 @@ class AssetAPI(FlaskView):
         response = dict(schedule=job.id)
         d, s = request_processed()
         return dict(**response, **d), s
+
+    @route("/<id>/kpis", methods=["GET"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "start": AwareDateTimeField(required=True),
+            "end": AwareDateTimeField(required=True),
+        },
+        location="query",
+    )
+    def get_kpis(self, id: int, asset: GenericAsset, start, end):
+        """API endpoint to get KPIs for an asset.
+
+        .. :quickref: Asset; Get asset KPIs
+
+        Gets statistics for sensors for the given time range. The sensors are expected to have a daily resolution, suitable for KPIs.
+        Each sensor has a preferred function to downsample the daily values to the KPI value.
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "start": "2015-06-02T00:00:00+00:00",
+                "end": "2015-06-09T00:00:00+00:00"
+            }
+
+        **Example response**
+
+        .. sourcecode:: json
+
+            {
+                "data": [
+                    {
+                        "sensor": 145046,
+                        "title": "My KPI",
+                        "unit": "MW",
+                        "downsample_value": 0,
+                        "downsample_function": "sum",
+                    },
+                    {
+                        "sensor": 141053,
+                        "title": "Raw PowerKPI",
+                        "unit": "kW",
+                        "downsample_value": 816.67,
+                        "downsample_function": "sum",
+                    }
+                ]
+            }
+
+        This endpoint returns a list of kpis for the asset.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_DATA
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 405: INVALID_METHOD
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        check_access(asset, "read")
+        asset_kpis = asset.sensors_to_show_as_kpis
+        kpis = []
+        for kpi in asset_kpis:
+            sensor = Sensor.query.get(kpi["sensor"])
+            sensor_stats = get_sensor_stats(sensor, start, end, sort_keys=False)
+
+            downsample_function, downsample_value = get_downsample_function_and_value(
+                kpi, sensor, sensor_stats
+            )
+            kpi_dict = {
+                "title": kpi["title"],
+                "unit": sensor.unit,
+                "sensor": sensor.id,
+                "downsample_value": round(float(downsample_value), 2),
+                "downsample_function": downsample_function,
+            }
+            kpis.append(kpi_dict)
+        return dict(data=kpis), 200
