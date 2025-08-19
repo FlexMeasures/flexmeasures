@@ -22,7 +22,7 @@ DEFAULT_SKIP_SIGNATURE_METHODS = {"get_attribute", "sensor"}
 
 # Helper: ensure args/kwargs are "primitive-only" (no callables/objects)
 def _is_primitive(x) -> bool:
-    return isinstance(x, (str, int, float, bool, type(None)))
+    return isinstance(x, (str, int, float, bool, tuple, type(None)))
 
 
 def _validate_primitive_payload(args, kwargs):
@@ -93,7 +93,13 @@ class PandasMethodCall(Schema):
                     raise ValidationError(
                         "get_attribute requires a single non-empty string argument."
                     )
-                disallowed_keys = set(kwargs) - {"default"}
+                disallowed_keys = set(kwargs) - {
+                    "default",
+                    "level",
+                    "axis",
+                    "on",
+                    "suffixes",
+                }
                 if disallowed_keys:
                     raise ValidationError(
                         f"get_attribute does not accept kwargs: {sorted(disallowed_keys)}"
