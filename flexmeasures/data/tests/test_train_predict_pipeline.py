@@ -43,7 +43,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "forecast_frequency": 1,
                 "probabilistic": False,
             },
-            False,
+            None,
         ),
         # (
         #     {
