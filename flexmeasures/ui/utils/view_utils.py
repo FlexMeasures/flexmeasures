@@ -57,12 +57,18 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
     # Use event_starts_after and event_ends_before from session if not given
     # and resolve url encoding issue for timezone offsets with plus sign
-    variables["event_starts_after"] = (
-        variables.get("event_starts_after") or session.get("event_starts_after")
-    ).replace(" ", "+")
-    variables["event_ends_before"] = (
-        variables.get("event_ends_before") or session.get("event_ends_before")
-    ).replace(" ", "+")
+    event_starts_after = variables.get("event_starts_after") or session.get(
+        "event_starts_after"
+    )
+    event_ends_before = variables.get("event_ends_before") or session.get(
+        "event_ends_before"
+    )
+    if isinstance(event_starts_after, str):
+        event_starts_after = event_starts_after.replace(" ", "+")
+    if isinstance(event_ends_before, str):
+        event_ends_before = event_ends_before.replace(" ", "+")
+    variables["event_starts_after"] = event_starts_after
+    variables["event_ends_before"] = event_ends_before
 
     variables["chart_type"] = session.get("chart_type", "bar_chart")
 
