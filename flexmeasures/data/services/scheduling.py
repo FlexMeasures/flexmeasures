@@ -125,6 +125,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
         scheduler_kwargs = job.meta["scheduler_kwargs"]
 
         # Deserialize start, end, resolution and belief_time
+        # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
         timezone = "UTC"
         if hasattr(asset_or_sensor, "timezone"):
             timezone = asset_or_sensor.timezone
@@ -272,6 +273,7 @@ def create_scheduling_job(
     job.meta["scheduler_kwargs"] = scheduler_kwargs
 
     # Serialize start, end, resolution and belief_time
+    # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
     job.meta["scheduler_kwargs"]["start"] = job.meta["scheduler_kwargs"][
         "start"
     ].isoformat()
