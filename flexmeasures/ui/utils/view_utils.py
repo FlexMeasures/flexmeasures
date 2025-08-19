@@ -55,7 +55,8 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ):
         variables["documentation_exists"] = True
 
-    # use event_starts_after and event_ends_before from session if not given
+    # Use event_starts_after and event_ends_before from session if not given
+    # and resolve url encoding issue for timezone offsets with plus sign
     variables["event_starts_after"] = (
         variables.get("event_starts_after") or session.get("event_starts_after")
     ).replace(" ", "+")
