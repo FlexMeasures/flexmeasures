@@ -48,30 +48,30 @@ class ForecastingPipelineSchema(Schema):
 
         if start_date >= end_date:
             raise ValidationError(
-                "--start-date must be before --end-date", field_name="start_date"
+                "start-date must be before end-date", field_name="start_date"
             )
 
         if predict_start:
             if predict_start < start_date:
                 raise ValidationError(
-                    "--start-predict-date cannot be before --start-date",
+                    "start-predict-date cannot be before start-date",
                     field_name="start_predict_date",
                 )
             if predict_start >= end_date:
                 raise ValidationError(
-                    "--start-predict-date must be before --end-date",
+                    "start-predict-date must be before end-date",
                     field_name="start_predict_date",
                 )
 
         if train_period is not None and train_period < 2:
             raise ValidationError(
-                "--train-period must be at least 2 days (48 hours)",
+                "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
             )
 
         if predict_period is not None and predict_period <= 0:
             raise ValidationError(
-                "--predict-period must be greater than 0", field_name="predict_period"
+                "predict-period must be greater than 0", field_name="predict_period"
             )
 
     def _parse_comma_list(self, text: str | None) -> list[str]:
