@@ -77,9 +77,17 @@ class ForecastingPipelineSchema(Schema):
             )
 
     def _parse_comma_list(self, text: str | None) -> list[str]:
-        return (
-            [item.strip() for item in text.split(",") if item.strip()] if text else []
-        )
+        if not text:
+            return []
+        sensors_names = []
+        for idx, sensor_id in enumerate(text.split(","), start=1):
+            sensor_id = sensor_id.strip()
+            if sensor_id:
+                sensor = Sensor.query.get(int(sensor_id))
+                if sensor is None:
+                    raise ValidationError(f"Sensor id {sensor_id} not found in DB.")
+                sensors_names.append(f"{sensor.name}_regressor{idx}")
+        return sensors_names
 
     def _parse_json_dict(self, text: str) -> dict:
         try:
