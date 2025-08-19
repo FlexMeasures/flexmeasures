@@ -678,7 +678,7 @@ Default: ``None`` (defaults are set internally for each sunset API version, e.g.
 Reporters
 ---------
 
-PANDAS_REPORTER_VALIDATION_SKIP_METHODS
+FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Type: list of strings or comma-separated string

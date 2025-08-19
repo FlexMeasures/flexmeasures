@@ -69,7 +69,7 @@ class PandasMethodCall(Schema):
         skip_sig = set(DEFAULT_SKIP_SIGNATURE_METHODS)
 
         user_defined_methods = app.config.get(
-            "PANDAS_REPORTER_VALIDATION_SKIP_METHODS", []
+            "FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS", []
         )
         if isinstance(user_defined_methods, str):
             user_defined_methods = user_defined_methods.split(",")
