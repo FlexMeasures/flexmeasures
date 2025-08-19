@@ -27,7 +27,8 @@ class ForecastingPipelineSchema(Schema):
     )  # expects comma-separated Sensor id's
     future_regressors = fields.Str(
         required=False, allow_none=True
-    )  # expects comma-separated string
+    )  # expects comma-separated Sensor id's
+
     target = fields.Str(required=True)
     model_save_dir = fields.Str(required=True)
     output_path = fields.Str(required=False, allow_none=True)
