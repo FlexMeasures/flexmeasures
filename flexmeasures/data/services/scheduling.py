@@ -124,7 +124,8 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 
         scheduler_kwargs = job.meta["scheduler_kwargs"]
 
-        # Deserialize start and end
+        # Deserialize start, end, resolution and belief_time
+        # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
         timezone = "UTC"
         if hasattr(asset_or_sensor, "timezone"):
             timezone = asset_or_sensor.timezone
@@ -134,6 +135,14 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
         scheduler_kwargs["end"] = pd.Timestamp(scheduler_kwargs["end"]).tz_convert(
             timezone
         )
+        if isinstance(scheduler_kwargs.get("belief_time"), str):
+            scheduler_kwargs["belief_time"] = pd.Timestamp(
+                scheduler_kwargs["belief_time"]
+            ).tz_convert(timezone)
+        if isinstance(scheduler_kwargs.get("resolution"), str):
+            scheduler_kwargs["resolution"] = pd.Timedelta(
+                scheduler_kwargs["resolution"]
+            )
 
         if ("scheduler_specs" in job.kwargs) and (
             job.kwargs["scheduler_specs"] is not None
@@ -264,18 +273,19 @@ def create_scheduling_job(
     job.meta["scheduler_kwargs"] = scheduler_kwargs
 
     # Serialize start, end, resolution and belief_time
+    # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
     job.meta["scheduler_kwargs"]["start"] = job.meta["scheduler_kwargs"][
         "start"
     ].isoformat()
     job.meta["scheduler_kwargs"]["end"] = job.meta["scheduler_kwargs"][
         "end"
     ].isoformat()
-    if job.meta.get("belief_time") is not None:
+    if job.meta["scheduler_kwargs"].get("belief_time") is not None:
         job.meta["scheduler_kwargs"]["belief_time"] = job.meta["scheduler_kwargs"][
             "belief_time"
         ].isoformat()
 
-    if job.meta.get("resolution") is not None:
+    if job.meta["scheduler_kwargs"].get("resolution") is not None:
         job.meta["scheduler_kwargs"]["resolution"] = duration_isoformat(
             job.meta["scheduler_kwargs"]["resolution"]
         )
