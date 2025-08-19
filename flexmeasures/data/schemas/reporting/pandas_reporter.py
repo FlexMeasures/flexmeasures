@@ -1,6 +1,6 @@
 from marshmallow import Schema, fields, ValidationError, validates_schema, validate
 from inspect import signature
-
+from flask.app import current_app as app
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.reporting import (
     ReporterConfigSchema,
@@ -13,6 +13,28 @@ from timely_beliefs import BeliefsDataFrame, BeliefsSeries
 
 from pandas.core.resample import Resampler
 from pandas.core.groupby.grouper import Grouper
+
+
+# Methods whose Python signature we choose NOT to bind against.
+# We’ll do our own strict payload checks instead.
+DEFAULT_SKIP_SIGNATURE_METHODS = {"get_attribute", "sensor"}
+
+
+# Helper: ensure args/kwargs are "primitive-only" (no callables/objects)
+def _is_primitive(x) -> bool:
+    return isinstance(x, (str, int, float, bool, type(None)))
+
+
+def _validate_primitive_payload(args, kwargs):
+    if not isinstance(args, list) or not isinstance(kwargs, dict):
+        raise ValidationError("args must be a list and kwargs must be a dict.")
+    if not all(_is_primitive(a) for a in args):
+        raise ValidationError("Only primitive values are allowed in args.")
+    for k, v in kwargs.items():
+        if not isinstance(k, str) or not _is_primitive(v):
+            raise ValidationError(
+                "Only string keys and primitive values allowed in kwargs."
+            )
 
 
 class PandasMethodCall(Schema):
@@ -44,51 +66,77 @@ class PandasMethodCall(Schema):
         """
 
         method = data["method"]
-        is_callable = []
-        bad_arguments = True
+        skip_sig = set(DEFAULT_SKIP_SIGNATURE_METHODS)
 
-        # Iterate through the base classes to validate the method
+        user_defined_methods = app.config.get(
+            "PANDAS_REPORTER_VALIDATION_SKIP_METHODS", []
+        )
+        if isinstance(user_defined_methods, str):
+            user_defined_methods = user_defined_methods.split(",")
+            user_defined_methods = [method.strip() for method in user_defined_methods]
+
+        user_defined_methods = set(user_defined_methods)
+        skip_sig.update(user_defined_methods)
+
+        # Enforce primitive-only payload always
+        args = data.get("args", []).copy()
+        kwargs = data.get("kwargs", {}).copy()
+        _validate_primitive_payload(args, kwargs)
+
+        # If this method is in the "skip-signature" list, do custom validation and stop
+        if method in skip_sig:
+            # Example: strict, explicit schema for get_attribute
+            # - args: exactly 1 string attribute name
+            # - kwargs: only {"default": <primitive>} allowed
+            if method == "get_attribute":
+                if len(args) != 1 or not isinstance(args[0], str) or not args[0]:
+                    raise ValidationError(
+                        "get_attribute requires a single non-empty string argument."
+                    )
+                disallowed_keys = set(kwargs) - {"default"}
+                if disallowed_keys:
+                    raise ValidationError(
+                        f"get_attribute does not accept kwargs: {sorted(disallowed_keys)}"
+                    )
+            return  # skip Python signature binding entirely
+
+        # For all other methods, verify existence and argument binding
+        is_callable_somewhere = False
+        bad_arguments_everywhere = True
+
         for base_class in [BeliefsSeries, BeliefsDataFrame, Resampler, Grouper]:
-
-            # Check if the method exists in the base class
             method_callable = getattr(base_class, method, None)
             if method_callable is None:
-                # Method does not exist in this base class
-                is_callable.append(False)
                 continue
 
             # Check if the found method is callable
-            is_callable.append(callable(method_callable))
+            if callable(method_callable):
+                is_callable_somewhere = True
+                try:
+                    # Retrieve the method's signature for argument validation
+                    sig = signature(method_callable)
 
-            # Retrieve the method's signature for argument validation
-            method_signature = signature(method_callable)
+                    # Insert the base class as the first argument to the method (self/cls context)
+                    args.insert(0, BeliefsDataFrame)
 
-            try:
-                # Copy `args` and `kwargs` to avoid modifying the input data
-                args = data.get("args", []).copy()
-                _kwargs = data.get("kwargs", {}).copy()
-
-                # Insert the base class as the first argument to the method (self/cls context)
-                args.insert(0, BeliefsDataFrame)
-
-                # Bind the arguments to the method's signature for validation
-                method_signature.bind(*args, **_kwargs)
-                bad_arguments = False  # Arguments are valid if binding succeeds
-            except TypeError:
-                # If binding raises a TypeError, the arguments are invalid
-                pass
-
-        # Raise an error if all arguments are invalid across all base classes
-        if bad_arguments:
-            raise ValidationError(
-                f"Bad arguments or keyword arguments for method {method}"
-            )
+                    # Bind the arguments to the method's signature for validation
+                    sig.bind(*args, **kwargs)
+                    bad_arguments_everywhere = (
+                        False  # Arguments are valid if binding succeeds
+                    )
+                    break
+                except TypeError:
+                    # If binding raises a TypeError, the arguments are invalid
+                    pass
 
         # Raise an error if the method is not callable in any of the base classes
-        if not any(is_callable):
+        if not is_callable_somewhere:
             raise ValidationError(
-                f"Method {method} is not a valid BeliefsSeries, BeliefsDataFrame, Resampler or Grouper method."
+                f"Method '{method}' not found on BeliefsSeries/BeliefsDataFrame/Resampler/Grouper."
             )
+        # Raise an error if all arguments are invalid across all base classes
+        if bad_arguments_everywhere:
+            raise ValidationError(f"Bad arguments for method '{method}'.")
 
 
 class PandasReporterConfigSchema(ReporterConfigSchema):
