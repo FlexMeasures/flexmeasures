@@ -26,7 +26,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "forecast_frequency": 1,
                 "probabilistic": False,
             },
-            (ValidationError, "--predict-period must be greater than 0"),
+            (ValidationError, "predict-period must be greater than 0"),
         ),
         (
             {
