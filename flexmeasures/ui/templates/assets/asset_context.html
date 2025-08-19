@@ -307,8 +307,8 @@
 
 <script type="module">
     import {
-        getFlexFieldTitle, renderSensor, getAsset, createReactiveState, renderSensorSearchResults,
-        getAccount, getSensor, apiBasePath, processResourceRawJSON, convertHtmlToElement
+        getFlexFieldTitle, renderSensor, getAsset, createReactiveState,
+        apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
     let hasInitialized = false;
@@ -346,7 +346,6 @@
     let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
     assetFlexContextRawJSON = Object.assign({}, assetFlexContextSchema, processResourceRawJSON(assetFlexContextSchema, assetFlexContextRawJSON));
 
-    const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
@@ -363,6 +362,7 @@
         }
     }
 
+    // ============= Add Field/Card Action Button START ============== //
     const addFieldBtn = document.getElementById("addFieldBtn");
     addFieldBtn.onclick = async function () {
         const fieldName = flexSelect.value;
@@ -373,11 +373,10 @@
         const assetFlexContext = getFlexContext();
         assetFlexContext[fieldName] = "";
         flexOptionsContainer.innerHTML = "";
-        await renderFlexContextForm(); // I'm rendring here so the card with the 'border-on-click' class is updated/exists
-        const card = document.getElementById(`${fieldName}-control`);
-        selectFlexField(card);
+        setActiveCard(document.getElementById(`${fieldName}-control`));
         setFlexContext(assetFlexContext);
     }
+    // ============== Add Field/Card Action Button END ============== //
 
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
@@ -414,7 +413,6 @@
             showToast("Flex context updated successfully", "success");
         }
     }
-
 
     /* This search function is tied to the FlexContext Form */
     async function searchSensorsFlexContextForm() {
@@ -489,7 +487,7 @@
         await renderFlexContextForm();
     }
 
-    async function renderFlexContextInputField(fieldName) {
+    async function renderFlexContextCard(fieldName) {
         const assetFlexContext = getFlexContext();
         senSearchResEle.innerHTML = "";
         let fieldValue = assetFlexContext[fieldName]
@@ -549,6 +547,28 @@
         const card = document.createElement("div");
         card.className = 'card m-1 p-2 card-highlight';
         card.id = `${fieldName}-control`;
+
+        card.onclick = function () {
+            if (card.classList.contains('border-on-click')) {
+                if (activeCard() && activeCard().id === card.id) {
+                    setActiveCard(null); // Deselect if the same card is clicked again
+                    card.classList.remove('border-on-click'); // Remove the border class
+                    flexOptionsContainer.innerHTML = ""; // Clear options container
+                    senSearchResEle.innerHTML = ""; // Clear sensor search results
+                    handleFlexSelectChange(null); // Clear the info container
+                }
+                return;
+            }
+
+            flexOptionsContainer.innerHTML = "";
+            senSearchResEle.innerHTML = "";
+
+            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
+            card.classList.add("border-on-click"); // Add border to the clicked card
+            handleFlexSelectChange(fieldName);
+            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isKeyValueObject || isArray)));
+            setActiveCard(card);
+        }
 
         const highlightCard = document.createElement('div');
         card.appendChild(highlightCard);
@@ -618,13 +638,13 @@
 
         for (const [key, value] of Object.entries(getFlexContext())) {
             if (value !== null) {
-                const fieldCard = await renderFlexContextInputField(key);
+                const fieldCard = await renderFlexContextCard(key);
                 flexContextFormEle.appendChild(fieldCard);
             }
         }
 
         renderFlexSelectOptions();
-        selectFlexField();
+        setActiveCard(null);
         renderSelectInfoCards();
     }
 
@@ -666,9 +686,9 @@
             }
         }
 
-        highlightedCard = await renderFlexContextInputField(flexId);
+        highlightedCard = await renderFlexContextCard(flexId);
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
-        await selectFlexField(document.getElementById(`${flexId}-control`));
+        await setActiveCard(document.getElementById(`${flexId}-control`));
         await setFlexContext(assetFlexContext);
 
         // Update FlexContext
@@ -770,7 +790,7 @@
         function createSensorSearchBlock() {
             const group = document.createElement("div");
             group.id = "select-sensor-input";
-            group.className = "flex-input-group mb-4 p-2";
+            group.className = "flex-input-group p-2";
 
             // Label
             const label = document.createElement("label");
@@ -861,7 +881,7 @@
 
         // Create the main tab-content wrapper
         const tabContent = document.createElement("div");
-        tabContent.className = "tab-content";
+        tabContent.className = "tab-content rounded-bottom";
         tabContent.id = "pills-tabContent";
         tabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
         tabContent.style.border = '1px solid #0000002d';
@@ -869,7 +889,7 @@
         if (sensorsOnly) {
             // Dynamic tab only
             const dynamicPane = document.createElement("div");
-            dynamicPane.className = "tab-pane fade show active rounded-bottom";
+            dynamicPane.className = "tab-pane fade show active";
             dynamicPane.id = "pills-dynamic";
             dynamicPane.setAttribute("role", "tabpanel");
             dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
@@ -880,13 +900,13 @@
         } else {
             // Fixed value pane
             const fixedPane = document.createElement("div");
-            fixedPane.className = "tab-pane fade show active rounded-bottom";
+            fixedPane.className = "tab-pane fade show active";
             fixedPane.id = "pills-fixed";
             fixedPane.setAttribute("role", "tabpanel");
             fixedPane.setAttribute("aria-labelledby", "pills-fixed-tab");
 
             const fixedGroup = document.createElement("div");
-            fixedGroup.className = "flex-input-group mb-4 p-2";
+            fixedGroup.className = "flex-input-group p-2";
 
             const fixedLabel = document.createElement("label");
             fixedLabel.htmlFor = "fixed-value";
@@ -939,32 +959,6 @@
         tabsContainer.appendChild(tabContent);
         return tabsContainer;
     }
-
-    function selectFlexField(highlightedCard) {
-        if (highlightedCard) {
-            if (highlightedCard.classList.contains("border-on-click")) {
-                // Pass
-            } else {
-                document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-                flexOptionsContainer.innerHTML = "";
-                highlightedCard.classList.add("border-on-click");
-                const cardLabel = highlightedCard.querySelector("label");
-                if (cardLabel) {
-                    // remove "-label" at the end leaing the flexcontext key
-                    const flexKey = cardLabel.id.slice(0, -6);
-                    handleFlexSelectChange(flexKey);
-                    if (flexKey === "inflexible-device-sensors" || flexKey === "consumption-price" || flexKey === "production-price") {
-                        flexOptionsContainer.appendChild(renderFlexInputOptions(flexKey, true));
-                    } else {
-                        flexOptionsContainer.appendChild(renderFlexInputOptions(flexKey));
-                    }
-                }
-            }
-        } else {
-            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-            flexOptionsContainer.innerHTML = "";
-        }
-    }
     // ============== Flex Context Management END ============== //
 
 
@@ -977,36 +971,6 @@
 
     flexContexFormModal.addEventListener('hidden.bs.modal', function () {
         updateFlexContext();
-    });
-
-    document.addEventListener("click", function (event) {
-        /**
-        The logic in this block is majorly to remove the border on click of the card and add it to the selected card
-        but as this event is added to the document, it will be triggered on any click event on the page
-        so the if statements are used to check if the click event is on the card or not
-        */
-        const card = event.target.closest(".card-highlight");
-        const sensorCard = event.target.closest(".sensor-card");
-        const searchInput = event.target.id === "searchInput";
-        const cardBody = event.target.closest(".card-body");
-        const editTitleBtn = event.target.id === "editTitleBtn";
-        const saveTitleBtn = event.target.id === "saveTitleBtn";
-        const unSetBtn = event.target.id === "unSetFlexField";
-
-        if (card) {
-            if (!card.classList.contains("border-on-click")) {
-                selectFlexField(card)
-            }
-        } else if (
-            cardBody !== null && cardBody !== undefined ||
-            sensorCard !== null && sensorCard !== undefined ||
-            searchInput !== null && searchInput !== undefined
-        ) {
-            // Pass
-        } else {
-            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-            renderApiSensors([], undefined);
-        }
     });
 
     function renderSelectInfoCards(contextKey, description, allowedUnits, isArray = false) {
@@ -1033,6 +997,10 @@
 
     function handleFlexSelectChange(selectedOption) {
         flexInfoContainer.innerHTML = "";
+        if (!selectedOption) {
+            return; // No option selected, do nothing
+        }
+
         const alertStyle = "alert alert-light";
         if (selectedOption === "consumption-price") {
             const description = "Set the sensor that represents the consumption price of the site. This value will be used in the optimization";
