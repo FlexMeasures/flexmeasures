@@ -96,8 +96,8 @@ def find_smallest_common_unit(units: list[str]) -> tuple[str, dict[str, float]]:
     ('W', {'MW': 1000000.0, 'kW': 1000.0, 'W': 1.0})
     >>> find_smallest_common_unit(["kEUR", "EUR"])
     ('EUR', {'kEUR': 1000.0, 'EUR': 1.0})
-    >>> find_smallest_common_unit(["cEUR/kWh", "EUR/MWh"])  # NB: has a floating point error
-    ('EUR/MWh', {'cEUR/kWh': 10.000000000000002, 'EUR/MWh': 1.0})
+    >>> find_smallest_common_unit(["cEUR/kWh", "EUR/MWh"])
+    ('EUR/MWh', {'cEUR/kWh': 10.0, 'EUR/MWh': 1.0})
     >>> find_smallest_common_unit(["%", "dimensionless"])
     ('%', {'%': 1.0, 'dimensionless': 100.0})
     >>> find_smallest_common_unit(["%", ""])
