@@ -71,7 +71,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         # )
     ],
 )
-def test_bad_timing_params(
+def test_train_predict_pipeline(
     setup_fresh_test_forecast_data,
     kwargs,
     expected_error: bool | tuple[type[BaseException], str],
