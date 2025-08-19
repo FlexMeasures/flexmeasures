@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-import json
 from marshmallow import ValidationError
 
 from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSchema
@@ -14,9 +13,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
     [
         (
             {
-                "sensors": {"PV": 1},
-                "regressors": "autoregressive",
-                "target": "PV",
+                "sensor": 1,
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
                 "start_date": "2025-01-01T00:00+02:00",
@@ -33,9 +30,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         ),
         (
             {
-                "sensors": {"PV": 1},
-                "regressors": "autoregressive",
-                "target": "PV",
+                "sensor": 1,
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
                 "start_date": "2025-01-01T00:00+02:00",
@@ -52,9 +47,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         ),
         # (
         #     {
-        #         "sensors": {"PV": 1},
-        #         "regressors": "autoregressive",
-        #         "target": "PV",
+        #         "sensor": 1,
         #         "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
         #         "output_path": None,
         #         "start_date": "2025-07-01T00:00+02:00",
@@ -78,10 +71,7 @@ def test_train_predict_pipeline(
 ):
     sensor = setup_fresh_test_forecast_data["solar-sensor"]
     sensor_id = sensor.id
-    kwargs["sensors"]["PV"] = sensor_id
-    kwargs["sensors"] = json.dumps(
-        kwargs["sensors"]
-    )  # schema expects to load serialized kwargs
+    kwargs["sensor"] = sensor_id
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
             kwargs = ForecastingPipelineSchema().load(kwargs)
