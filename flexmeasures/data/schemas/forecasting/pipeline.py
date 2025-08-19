@@ -16,9 +16,9 @@ from flexmeasures.utils.time_utils import server_now
 
 class ForecastingPipelineSchema(Schema):
 
-    sensors = fields.Str(
+    sensor = fields.Int(
         required=True
-    )  # expects JSON string like '{"target": 123, "Ta": 456}'
+    )  # expects Sensor id
     regressors = fields.Str(
         required=False, allow_none=True
     )  # expects comma-separated string like "target,Ta"
