@@ -270,12 +270,12 @@ def create_scheduling_job(
     job.meta["scheduler_kwargs"]["end"] = job.meta["scheduler_kwargs"][
         "end"
     ].isoformat()
-    if job.meta.get("belief_time") is not None:
+    if job.meta["scheduler_kwargs"].get("belief_time") is not None:
         job.meta["scheduler_kwargs"]["belief_time"] = job.meta["scheduler_kwargs"][
             "belief_time"
         ].isoformat()
 
-    if job.meta.get("resolution") is not None:
+    if job.meta["scheduler_kwargs"].get("resolution") is not None:
         job.meta["scheduler_kwargs"]["resolution"] = duration_isoformat(
             job.meta["scheduler_kwargs"]["resolution"]
         )
