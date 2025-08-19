@@ -41,7 +41,7 @@ v0.27.2 | August 13, 2025
 
 Bugfixes
 -----------
-* Resolve issue where concatenating sensor data from updated reporters leads to a NaN source and crashing the asset chart page [see `PR #1660 <https://github.com/FlexMeasures/flexmeasures/pull/1660>`_]
+* Resolve issue where concatenating sensor data from updated reporters leads to a :abbr:`NaN (not a number)` source and crashing the asset graphs page [see `PR #1660 <https://github.com/FlexMeasures/flexmeasures/pull/1660>`_]
 
 Infrastructure / Support
 ----------------------
