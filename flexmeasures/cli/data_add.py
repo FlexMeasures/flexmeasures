@@ -1004,11 +1004,19 @@ def add_holidays(
 )
 @click.option(
     "--regressors",
-    help="Comma-separated list of the sensor id's to be used as regressors, default is 'autoregressive' to use the AR forecasting",
+    help="Comma-separated list of sensor IDs to be used as regressors. "
+    "This is the full set of regressors and can include both past (realizations) "
+    "and future (forecasts). Default is 'autoregressive', which uses the target sensor's own history.",
 )
 @click.option(
     "--future-regressors",
-    help="Comma-separated list of the sensor id's to be used as future regressors. future regressors need to be included in '--regressors' too. To set past regressors, use just the '--regressors' option .",
+    help="Comma-separated list of sensor IDs to be treated as future regressors. "
+    "Future regressors are assumed to have forecasts only.",
+)
+@click.option(
+    "--past-regressors",
+    help="Comma-separated list of sensor IDs to be treated as past regressors. "
+    "Past regressors are assumed to have realizations only.",
 )
 @click.option(
     "--train-start",
