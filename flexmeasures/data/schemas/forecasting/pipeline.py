@@ -120,10 +120,17 @@ class ForecastingPipelineSchema(Schema):
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
-        sensors = self._parse_json_dict(data["sensors"])
+
         regressors = self._parse_comma_list(data.get("regressors", ""))
         future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
-        target = data["target"]
+        past_regressors = self._parse_comma_list(data.get("past_regressors", ""))
+        sensors = self._build_sensors_dict(
+            data["sensor"],
+            data.get("regressors", ""),
+            data.get("future_regressors", ""),
+            data.get("past_regressors", ""),
+        )
+        target = data["sensor"]
 
         if not regressors and not future_regressors:
             regressors = ["autoregressive"]
