@@ -134,11 +134,11 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
         scheduler_kwargs["end"] = pd.Timestamp(scheduler_kwargs["end"]).tz_convert(
             timezone
         )
-        if "belief_time" in scheduler_kwargs:
+        if isinstance(scheduler_kwargs.get("belief_time"), str):
             scheduler_kwargs["belief_time"] = pd.Timestamp(
                 scheduler_kwargs["belief_time"]
             ).tz_convert(timezone)
-        if "resolution" in scheduler_kwargs:
+        if isinstance(scheduler_kwargs.get("resolution"), str):
             scheduler_kwargs["resolution"] = pd.Timedelta(
                 scheduler_kwargs["resolution"]
             )
