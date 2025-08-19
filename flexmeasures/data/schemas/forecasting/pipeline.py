@@ -16,9 +16,7 @@ from flexmeasures.utils.time_utils import server_now
 
 class ForecastingPipelineSchema(Schema):
 
-    sensor = fields.Int(
-        required=True
-    )  # expects Sensor id
+    sensor = fields.Int(required=True)  # expects Sensor id
     regressors = fields.Str(
         required=False, allow_none=True
     )  # expects comma-separated Sensor id's like "2092,2093"
@@ -98,7 +96,13 @@ class ForecastingPipelineSchema(Schema):
                 field_name="sensors",
             )
 
-    def _build_sensors_dict(self, sensors: int, regressors: str, future_regressors: str, past_regressors: str) -> dict:
+    def _build_sensors_dict(
+        self,
+        sensors: int,
+        regressors: str,
+        future_regressors: str,
+        past_regressors: str,
+    ) -> dict:
 
         sensors_dict = {"target": sensors}
 
@@ -107,14 +111,20 @@ class ForecastingPipelineSchema(Schema):
         if regressors:
             all_ids.update(int(x.strip()) for x in regressors.split(",") if x.strip())
         if future_regressors:
-            all_ids.update(int(x.strip()) for x in future_regressors.split(",") if x.strip())
+            all_ids.update(
+                int(x.strip()) for x in future_regressors.split(",") if x.strip()
+            )
         if past_regressors:
-            all_ids.update(int(x.strip()) for x in past_regressors.split(",") if x.strip())
+            all_ids.update(
+                int(x.strip()) for x in past_regressors.split(",") if x.strip()
+            )
 
         # Add them to the dict with unique keys
         for idx, sensor_id in enumerate(sorted(all_ids), start=1):
             if sensor_id != sensors:  # avoid overwriting the target
-                sensors_dict[f"{Sensor.query.get(sensor_id).name}_regressor{idx}"] = sensor_id
+                sensors_dict[f"{Sensor.query.get(sensor_id).name}_regressor{idx}"] = (
+                    sensor_id
+                )
 
         return sensors_dict
 
