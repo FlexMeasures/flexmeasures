@@ -1,7 +1,8 @@
 pyyaml
 altair
 pandas
-pint>=0.19.1
+# <0.25 due to misbehaving floating point errors in doctest, see https://github.com/FlexMeasures/flexmeasures/pull/1668
+pint>=0.19.1,<0.25
 py-moneyed
 iso8601
 xlrd
