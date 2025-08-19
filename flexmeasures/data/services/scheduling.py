@@ -124,7 +124,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 
         scheduler_kwargs = job.meta["scheduler_kwargs"]
 
-        # Deserialize start and end
+        # Deserialize start, end, resolution and belief_time
         timezone = "UTC"
         if hasattr(asset_or_sensor, "timezone"):
             timezone = asset_or_sensor.timezone
