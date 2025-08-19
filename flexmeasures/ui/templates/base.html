@@ -562,6 +562,12 @@
             {% endif %}
 
             endDate.setDate(endDate.getDate() + 1);
+
+            // Update current url without reloading the page
+            var base_url = window.location.href.split("?")[0];
+            var new_url = `${base_url}?start_time=${toIsoString(startDate)}&end_time=${toIsoString(endDate)}`;
+            window.history.pushState({}, null, new_url);
+
             storeStartDate = startDate;
             storeEndDate = endDate;
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
@@ -643,7 +649,7 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
-                {% if active_subpage == "asset_graph" %}
+                {% if active_subpage == "asset_graph" and has_kpis %}
                     getAssetKPIs();
                 {% endif %}
                 const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
@@ -891,7 +897,7 @@
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()){
             return Promise.resolve(previousResult.data);
         } else {
-            {% if active_subpage == "asset_graph" %}
+            {% if active_subpage == "asset_graph" and has_kpis %}
                 getAssetKPIs();
             {% endif %}
             return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
@@ -902,7 +908,7 @@
         }
     }
     
-    {% if active_subpage == "asset_graph" %}
+    {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs() {
         const pickerStartDate = picker.getStartDate().toJSDate();
         const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
@@ -935,7 +941,7 @@
                         <h5 class="card-title">${kpi.title}</h5>
                         <h5 class="card-text">
                             <strong>
-                                ${label}: ${kpi.downsample_value}
+                                ${label}: ${kpi.downsample_value} ${kpi.unit}
                                 <small>${kpi.downsample_function}</small>
                             </strong>
                         </h5>

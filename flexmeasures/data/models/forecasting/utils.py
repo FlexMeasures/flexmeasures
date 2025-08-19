@@ -25,24 +25,29 @@ def check_data_availability(
     """Check if enough data is available in the database in the first place,
     for training window and lagged variables. Otherwise, suggest new forecast period.
     TODO: we could also check regressor data, if we get regressor specs passed in here.
+    TODO: The join is probably not needed, should be removed. The speed impactof join is negligible
     """
-    q = (
-        select(old_time_series_data_model)
+    from sqlalchemy import func
+
+    # Use aggregate MIN and MAX queries in the database, matching O(n) approach
+    first_q = (
+        select(func.min(old_time_series_data_model.event_start))
         .join(old_sensor_model.__class__)
-        .filter(old_sensor_model.__class__.name == old_sensor_model.name)
+        .filter(old_sensor_model.__class__.id == old_sensor_model.id)
     )
-    first_value = db.session.scalars(
-        q.order_by(old_time_series_data_model.event_start.asc()).limit(1)
-    ).first()
-    last_value = db.session.scalars(
-        q.order_by(old_time_series_data_model.event_start.desc()).limit(1)
-    ).first()
-    if first_value is None:
+    last_q = (
+        select(func.max(old_time_series_data_model.event_start))
+        .join(old_sensor_model.__class__)
+        .filter(old_sensor_model.__class__.id == old_sensor_model.id)
+    )
+    first_event_start = db.session.execute(first_q).scalar()
+    last_event_start = db.session.execute(last_q).scalar()
+    if first_event_start is None or last_event_start is None:
         raise NotEnoughDataException(
             "No data available at all. Forecasting impossible."
         )
-    first = as_server_time(first_value.event_start)
-    last = as_server_time(last_value.event_start)
+    first = as_server_time(first_event_start)
+    last = as_server_time(last_event_start)
     if query_window[0] < first:
         suggested_start = forecast_start + (first - query_window[0])
         raise NotEnoughDataException(
