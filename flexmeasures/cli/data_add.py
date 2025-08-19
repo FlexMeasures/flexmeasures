@@ -1011,9 +1011,12 @@ def add_holidays(
     help="Comma-separated list of the sensor id's to be used as future regressors. future regressors need to be included in '--regressors' too. To set past regressors, use just the '--regressors' option .",
 )
 @click.option(
+    "--train-start",
     "--start-date",
+    "start_date",
     required=True,
-    help="Start date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM)",
+    help="Start date for running the pipeline, i.e. when training begins "
+    "(format: YYYY-MM-DDTHH:MM:SS±HH:MM).",
 )
 @click.option(
     "--to-date",
