@@ -38,7 +38,7 @@ class TrainPredictPipeline:
         self.sensors = sensors
         self.regressors = regressors
         self.future_regressors = future_regressors
-        self.target = target
+        self.target = "target"
         self.model_save_dir = model_save_dir
         self.output_path = output_path
         self.start_date = start_date
