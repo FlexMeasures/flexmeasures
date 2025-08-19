@@ -5,7 +5,7 @@ ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
 # pre-requisites
-# libgomp1 is required by lightgmb to open a shared object file
+# libgomp1 is required by lightgmb to open a shared object file for parallel computation
 RUN apt-get update && apt-get install --no-install-recommends -y --upgrade \
     python3 python3-pip git curl gunicorn coinor-cbc postgresql-client libgomp1 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
