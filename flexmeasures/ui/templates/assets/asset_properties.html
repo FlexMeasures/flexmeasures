@@ -1101,6 +1101,8 @@
                 if (!card && !hasInitialized) {
                     showToast(`Cant render input options without a selected field.`, "info");
                     return;
+                } else if (!card && hasInitialized) {
+                    return;
                 }
 
                 const name = card.id.replace('-control', '');
