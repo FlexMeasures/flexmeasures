@@ -132,22 +132,14 @@ class ForecastingPipelineSchema(Schema):
         )
         target = data["sensor"]
 
-        if not regressors and not future_regressors:
+        if not regressors and not future_regressors and not past_regressors:
             regressors = ["autoregressive"]
         elif not regressors and future_regressors:
             regressors = future_regressors.copy()
+        elif not regressors and past_regressors:
+            regressors = past_regressors.copy()
 
-        if "autoregressive" not in regressors:
-            for key in regressors + [target]:
-                if key not in sensors:
-                    raise click.BadParameter(f"Sensor '{key}' not found in --sensors")
-
-        if missing := set(future_regressors) - set(regressors):
-            raise click.BadParameter(
-                f"--future-regressors contains entries not found in --regressors: {missing}"
-            )
-
-        target_sensor = Sensor.query.get(sensors[target])
+        target_sensor = Sensor.query.get(sensors["target"])
         if not target_sensor:
             raise click.BadParameter(f"Target sensor '{target}' not found in DB.")
 
