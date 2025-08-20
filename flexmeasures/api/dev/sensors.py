@@ -20,6 +20,9 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.ui.utils.view_utils import set_session_variables
+from flexmeasures.utils.validation_utils import (
+    validate_timed_belief_min_v,
+)
 
 
 class SensorAPI(FlaskView):
@@ -90,6 +93,7 @@ class SensorAPI(FlaskView):
             "most_recent_beliefs_only": fields.Boolean(
                 required=False, load_default=True
             ),
+            "use_materialized_view": fields.Boolean(required=False, load_default=True),
         },
         location="query",
     )
@@ -110,6 +114,7 @@ class SensorAPI(FlaskView):
         - "resolution" (see :ref:`resolutions`)
         - "most_recent_beliefs_only" (if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
         """
+        kwargs["timed_belief_min_v"] = validate_timed_belief_min_v(db.session)
         return sensor.search_beliefs(as_json=True, **kwargs)
 
     @route("/<id>/chart_annotations", strict_slashes=False)

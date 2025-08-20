@@ -18,6 +18,8 @@ def test_input_schema():
     # These arguments are not mapped to a field at all (state a reason)
     excluded_arg_names = [
         "as_json",  # used in Sensor.search_beliefs but not in TimedBelief.search
+        "timed_belief_min_v",  # used in Sensor.search_beliefs but not in TimedBelief.search
+        "use_materialized_view",  # used in Sensor.search_beliefs but not in
     ]
 
     arg_names_without_associated_fields = [

@@ -1,4 +1,6 @@
 import re
+from sqlalchemy import MetaData, Table, Column, Integer, DateTime, Interval
+from sqlalchemy.sql import text
 
 
 def validate_color_hex(value):
@@ -51,3 +53,36 @@ def validate_url(value):
         )
 
     return value
+
+
+def validate_timed_belief_min_v(session) -> Table | None:
+    """Define the structure of the timed_belief_min_v materialized view if it exists."""
+    # Check if materialized view exists
+    result = session.execute(
+        text(
+            """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'timed_belief_min_v'
+                AND table_schema = 'public'
+            );
+        """
+        )
+    )
+
+    exists = result.scalar()
+    if not exists:
+        return None
+    print("Using timed_belief_min_v materialized view for optimized queries.")
+
+    # Only create the table definition if it exists
+    metadata = MetaData()
+    timed_belief_min_v = Table(
+        "timed_belief_min_v",
+        metadata,
+        Column("sensor_id", Integer),
+        Column("event_start", DateTime),
+        Column("source_id", Integer),
+        Column("most_recent_belief_horizon", Interval),
+    )
+    return timed_belief_min_v

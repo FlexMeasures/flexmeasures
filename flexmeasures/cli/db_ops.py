@@ -9,6 +9,7 @@ import flask_migrate as migrate
 import click
 
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.data import db
 
 
 @click.group("db-ops")
@@ -93,6 +94,34 @@ def restore(file: str):
     except Exception as e:
         click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+
+
+@fm_db_ops.command("refresh-materialized-views")
+@with_appcontext
+@click.option("--concurrent", is_flag=True, default=False)
+def refresh_materialized_views(concurrent: bool):
+    """Refresh materialized views for better query performance."""
+    from sqlalchemy import text
+
+    refresh_type = "CONCURRENTLY" if concurrent else ""
+    import time
+
+    start_time = time.time()
+    click.echo(
+        f"Refreshing materialized views {'CONCURRENTLY' if concurrent else 'without concurrency'}..."
+    )
+    try:
+        db.session.execute(
+            text(f"REFRESH MATERIALIZED {refresh_type} VIEW timed_belief_min_v;")
+        )
+        db.session.commit()
+        elapsed_time = time.time() - start_time
+        click.echo(
+            f"✓ Materialized views refreshed successfully in {elapsed_time:.2f} seconds"
+        )
+    except Exception as e:
+        db.session.rollback()
+        click.echo(f"✗ Error refreshing materialized views: {e}")
 
 
 app.cli.add_command(fm_db_ops)
