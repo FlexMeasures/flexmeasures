@@ -16,7 +16,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_]
+* Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_, `PR #1672 <https://www.github.com/FlexMeasures/flexmeasures/pull/1672>`_ and `PR #1668 <https://www.github.com/FlexMeasures/flexmeasures/pull/1668>`_]
 * Removed support for Python3.8 [see `PR #1615 <https://www.github.com/FlexMeasures/flexmeasures/pull/1615>`_]
 * Removed obsolete API blueprint for play mode and underlying backup file-based functionality [see `PR #1622 <https://www.github.com/FlexMeasures/flexmeasures/pull/1622>`_ and `PR #1630 <https://www.github.com/FlexMeasures/flexmeasures/pull/1630>`_]
 * Improved timestamp on sensor detail page to be more friendly [see `PR #1632 <https://www.github.com/FlexMeasures/flexmeasures/pull/1632>`_]
@@ -28,11 +28,20 @@ Bugfixes
 * Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 
 
-v0.27.3 | August XX, 2025
+v0.27.4 | August XX, 2025
 ============================
 
 Bugfixes
 -----------
+* Show job information again on the job page on rq-dashboard, for scheduling jobs that set a specific ``belief_time`` and/or ``resolution`` [see `PR #1670 <https://github.com/FlexMeasures/flexmeasures/pull/1670>`_]
+
+
+v0.27.3 | August 19, 2025
+============================
+
+Bugfixes
+-----------
+* Fix the time window in the UI from being replaced with :abbr:`NaN (not a number)` values when refreshing the asset graphs page [see `PR #1667 <https://github.com/FlexMeasures/flexmeasures/pull/1667>`_]
 * Fix scheduling storage devices within a single time step [see `PR #1619 <https://github.com/FlexMeasures/flexmeasures/pull/1619>`_]
 
 
@@ -41,7 +50,7 @@ v0.27.2 | August 13, 2025
 
 Bugfixes
 -----------
-* Resolve issue where concatenating sensor data from updated reporters leads to a NaN source and crashing the asset chart page [see `PR #1660 <https://github.com/FlexMeasures/flexmeasures/pull/1660>`_]
+* Resolve issue where concatenating sensor data from updated reporters leads to a :abbr:`NaN (not a number)` source and crashing the asset graphs page [see `PR #1660 <https://github.com/FlexMeasures/flexmeasures/pull/1660>`_]
 
 Infrastructure / Support
 ----------------------
