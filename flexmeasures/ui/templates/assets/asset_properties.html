@@ -456,7 +456,7 @@
             "discharging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip. Defaults to 100% (no loss).", "types": "Fixed value only." },
             "storage-efficiency": {
                 "units": flexModelAllowedUnits.efficiency,
-                "desc": "This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865",
+                "desc": "This can encode losses over time, so each time step the energy is held longer leads to higher losses. For example 95% (or 0.95) means a loss of 5% each step. Defaults to 100% (no loss). Note that the storage efficiency to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent  per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865",
                 "types": "Fixed value only."
             },
             "prefer-charging-sooner": { "units": flexModelAllowedUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later.", "types": "Boolean option only." },
