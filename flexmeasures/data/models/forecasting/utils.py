@@ -170,8 +170,11 @@ def data_to_bdf(
     ----------
     data : pd.DataFrame
         DataFrame containing predictions for different forecast horizons.
+        If probabilistic forecasts are generated, `data` includes a
+        `component` column that encodes which quantile (cumulative probability)
+        the row corresponds to.
     horizon : int
-        Maximum forecast horizon in timesteps relative to the sensor's resolution. For example, if the sensor resolution is 1 hour, a horizon of 48 represents a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes, a horizon of 4*48 represents a forecast horizon of 48 hours.
+        Maximum forecast horizon in time-steps relative to the sensor's resolution. For example, if the sensor resolution is 1 hour, a horizon of 48 represents a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes, a horizon of 4*48 represents a forecast horizon of 48 hours.
     probabilistic : bool
         Whether the forecasts are probabilistic or deterministic.
     sensors : dict[str, int]
