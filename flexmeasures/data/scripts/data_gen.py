@@ -39,13 +39,13 @@ def add_default_data_sources(db: SQLAlchemy):
         ("Seita", "forecaster"),
         ("Seita", "scheduler"),
     ):
-        source = db.session.execute(
+        sources = db.session.execute(
             select(DataSource).filter(
                 and_(DataSource.name == source_name, DataSource.type == source_type)
             )
-        ).scalar_one_or_none()
-        if source:
-            click.echo(f"Source {source_name} ({source_type}) already exists.")
+        ).scalar()
+        if sources:
+            click.echo(f"A source {source_name} ({source_type}) already exists.")
         else:
             db.session.add(DataSource(name=source_name, type=source_type))
 
@@ -101,7 +101,7 @@ def add_default_user_roles(db: SQLAlchemy):
             select(Role).filter_by(name=role_name)
         ).scalar_one_or_none()
         if role:
-            click.echo(f"Role {role_name} already exists.")
+            click.echo(f"User role {role_name} already exists.")
         else:
             db.session.add(Role(name=role_name, description=role_description))
 
