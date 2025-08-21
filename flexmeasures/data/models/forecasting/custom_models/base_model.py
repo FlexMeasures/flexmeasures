@@ -34,6 +34,7 @@ class BaseModel(ABC):
         auto_regressive: bool,
         use_past_covariates: bool,
         use_future_covariates: bool,
+        ensure_positive: bool = False,
     ) -> None:
         self.models = []
         self.max_forecast_horizon = max_forecast_horizon
@@ -41,6 +42,7 @@ class BaseModel(ABC):
         self.auto_regressive = auto_regressive
         self.use_past_covariates = use_past_covariates
         self.use_future_covariates = use_future_covariates
+        self.ensure_positive = ensure_positive
         self._setup()
 
     @abstractmethod
@@ -92,7 +94,8 @@ class BaseModel(ABC):
                 future_covariates=future_covariates,
                 **optional_params,
             )
-            y_pred = y_pred.map(negative_to_zero)
+            if self.ensure_positive:
+                y_pred = y_pred.map(negative_to_zero)
             if i == 0:
                 y_preds = y_pred
             else:
