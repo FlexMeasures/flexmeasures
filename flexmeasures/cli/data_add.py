@@ -549,7 +549,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     type=str,
     help="Unit of the data, for conversion to the sensor unit, if possible (a string unit such as 'kW' or 'm³/h'). "
     "Measurements of time itself that are formatted as a 'datetime' or 'timedelta' can be converted to a sensor unit representing time (such as 's' or 'h'), "
-    "where datetimes are represented as a duration with respect to the UNIX epoch."
+    "where datetimes are represented as a duration with respect to the UNIX epoch. "
     "Hint: to switch the sign of the data, prepend a minus sign. "
     "For example, when assigning kW consumption data to a kW production sensor, use '-kW'.",
 )
