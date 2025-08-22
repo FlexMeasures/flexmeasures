@@ -83,10 +83,9 @@ class ForecastingPipelineSchema(Schema):
                     f"max-forecast-horizon must be a multiple of the sensor resolution ({sensor.event_resolution})"
                 )
             else:
-                # todo: temporarily convert back to integer number of hours
-                data["max_forecast_horizon"] = data[
-                    "max_forecast_horizon"
-                ] // timedelta(hours=1)
+                data["max_forecast_horizon"] = (
+                    data["max_forecast_horizon"] // sensor.event_resolution
+                )
 
     def _parse_comma_list(self, text: str | None) -> list[str]:
         if not text:
@@ -201,12 +200,14 @@ class ForecastingPipelineSchema(Schema):
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
 
+        multiplier = timedelta(hours=1) // data["sensor"].event_resolution
         if max_forecast_horizon is None and forecast_frequency is None:
-            max_forecast_horizon = forecast_frequency = predict_period_in_hours
+            max_forecast_horizon = predict_period_in_hours * multiplier
+            forecast_frequency = predict_period_in_hours
         elif max_forecast_horizon is None:
-            max_forecast_horizon = forecast_frequency
+            max_forecast_horizon = forecast_frequency * multiplier
         elif forecast_frequency is None:
-            forecast_frequency = max_forecast_horizon
+            forecast_frequency = max_forecast_horizon / multiplier
 
         if data.get("sensor_to_save") is None:
             sensor_to_save = target_sensor

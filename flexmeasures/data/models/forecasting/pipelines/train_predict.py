@@ -81,7 +81,7 @@ class TrainPredictPipeline:
             target=self.target,
             model_save_dir=self.model_save_dir,
             n_hours_to_predict=self.train_period_in_hours * multiplier,
-            max_forecast_horizon=self.max_forecast_horizon * multiplier,
+            max_forecast_horizon=self.max_forecast_horizon,
             event_starts_after=train_start,
             event_ends_before=train_end,
             probabilistic=self.probabilistic,
@@ -115,7 +115,7 @@ class TrainPredictPipeline:
                 else None
             ),
             n_hours_to_predict=self.predict_period_in_hours * multiplier,
-            max_forecast_horizon=self.max_forecast_horizon * multiplier,
+            max_forecast_horizon=self.max_forecast_horizon,
             forecast_frequency=self.forecast_frequency * multiplier,
             probabilistic=self.probabilistic,
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
