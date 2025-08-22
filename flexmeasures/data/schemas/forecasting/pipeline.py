@@ -17,7 +17,7 @@ from flexmeasures.utils.time_utils import server_now
 
 class ForecastingPipelineSchema(Schema):
 
-    sensor = fields.Int(required=True)  # expects Sensor id
+    sensor = SensorIdField(required=True)
     regressors = fields.Str(
         required=False, allow_none=True
     )  # expects comma-separated Sensor id's like "2092,2093"
@@ -149,12 +149,12 @@ class ForecastingPipelineSchema(Schema):
         future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
         past_regressors = self._parse_comma_list(data.get("past_regressors", ""))
         sensors = self._build_sensors_dict(
-            target_sensor_id=data["sensor"],
+            target_sensor_id=data["sensor"].id,
             regressors=data.get("regressors", ""),
             future_regressors=data.get("future_regressors", ""),
             past_regressors=data.get("past_regressors", ""),
         )
-        target = data["sensor"]
+        target = data["sensor"].id
 
         if not regressors and not future_regressors and not past_regressors:
             regressors = ["autoregressive"]
