@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import timedelta
+
 from marshmallow import ValidationError
 
 from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSchema
@@ -83,12 +85,16 @@ def test_train_predict_pipeline(
         pipeline = TrainPredictPipeline(**kwargs)
         pipeline.run()
         forecasts = sensor.search_beliefs(source="forecaster")
+        n_cycles = (kwargs["end_date"] - kwargs["predict_start"]) / (
+            kwargs["forecast_frequency"] * timedelta(hours=1)
+        )
+        n_horizons = kwargs["max_forecast_horizon"]
         assert (
-            len(forecasts) == 24
-        ), "we expect 1 forecast (max_forecast_horizon = 1) for each cycle within the prediction window, and 24 cycles"
+            len(forecasts) == n_cycles * n_horizons
+        ), f"we expect 1 forecast per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_horizons} horizons"
         assert (
-            forecasts.lineage.number_of_belief_times == 24
-        ), "we expect 1 belief time per cycle, and 24 cycles"
+            forecasts.lineage.number_of_belief_times == n_cycles
+        ), f"we expect 1 belief time per cycle, and {n_cycles} cycles"
         assert "CustomLGBM" in str(
             forecasts.lineage.sources[0]
         ), "string representation of Source should mention the used model"
