@@ -20,6 +20,7 @@ class TrainPredictPipeline:
         self,
         sensors: dict[str, int],
         regressors: list[str],
+        past_regressors: list[str],
         future_regressors: list[str],
         target: str,
         model_save_dir: str,
@@ -37,6 +38,7 @@ class TrainPredictPipeline:
     ):
         self.sensors = sensors
         self.regressors = regressors
+        self.past_regressors = past_regressors
         self.future_regressors = future_regressors
         self.target = "target"
         self.model_save_dir = model_save_dir
@@ -74,6 +76,7 @@ class TrainPredictPipeline:
         train_pipeline = TrainPipeline(
             sensors=self.sensors,
             regressors=self.regressors,
+            past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
             target=self.target,
             model_save_dir=self.model_save_dir,
@@ -96,6 +99,7 @@ class TrainPredictPipeline:
         predict_pipeline = PredictPipeline(
             sensors=self.sensors,
             regressors=self.regressors,
+            past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
             target=self.target,
             model_path=os.path.join(
