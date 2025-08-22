@@ -25,7 +25,7 @@ class TrainPipeline(BasePipeline):
         future_regressors: list[str],
         target: str,
         model_save_dir: str,
-        n_hours_to_predict: int,
+        n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int = 1,
         event_starts_after: datetime | None = None,
@@ -39,7 +39,7 @@ class TrainPipeline(BasePipeline):
         :param regressors: List of custom regressor names.
         :param target: Custom target name.
         :param model_save_dir: Directory where the trained model will be saved.
-        :param n_hours_to_predict: Number of steps of 1 resolution to predict into the future.
+        :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
         :param max_forecast_horizon: Maximum forecast horizon in steps of 1 resolution.
         :param event_starts_after: Only consider events starting after this time.
         :param event_ends_before: Only consider events ending before this time.
@@ -57,7 +57,7 @@ class TrainPipeline(BasePipeline):
             past_regressors=past_regressors,
             future_regressors=future_regressors,
             target=target,
-            n_hours_to_predict=n_hours_to_predict,
+            n_steps_to_predict=n_steps_to_predict,
             max_forecast_horizon=max_forecast_horizon,
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,

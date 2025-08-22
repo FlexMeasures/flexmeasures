@@ -80,7 +80,7 @@ class TrainPredictPipeline:
             future_regressors=self.future_regressors,
             target=self.target,
             model_save_dir=self.model_save_dir,
-            n_hours_to_predict=self.train_period_in_hours * multiplier,
+            n_steps_to_predict=self.train_period_in_hours * multiplier,
             max_forecast_horizon=self.max_forecast_horizon,
             event_starts_after=train_start,
             event_ends_before=train_end,
@@ -114,7 +114,7 @@ class TrainPredictPipeline:
                 if self.output_path
                 else None
             ),
-            n_hours_to_predict=self.predict_period_in_hours * multiplier,
+            n_steps_to_predict=self.predict_period_in_hours * multiplier,
             max_forecast_horizon=self.max_forecast_horizon,
             forecast_frequency=self.forecast_frequency,
             probabilistic=self.probabilistic,
@@ -165,7 +165,7 @@ class TrainPredictPipeline:
             ).event_resolution
             multiplier = int(
                 timedelta(hours=1) / sensor_resolution
-            )  # multiplier used to adapt n_hours_to_predict to hours from sensor resolution e,g  15 min sensor resolution will have 7*24*4 = 168 predicitons to predict a week
+            )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution e,g  15 min sensor resolution will have 7*24*4 = 168 predicitons to predict a week
 
             cumulative_cycles_runtime = 0  # To track the cumulative runtime of TrainPredictPipeline cycles when not running as a job.
             cycles_job_params = []

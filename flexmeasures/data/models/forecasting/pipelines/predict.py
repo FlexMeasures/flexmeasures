@@ -28,7 +28,7 @@ class PredictPipeline(BasePipeline):
         target: str,
         model_path: str,
         output_path: str,
-        n_hours_to_predict: int,
+        n_steps_to_predict: int,
         max_forecast_horizon: int,
         sensor_to_save: Sensor,
         forecast_frequency: int = 1,
@@ -47,7 +47,7 @@ class PredictPipeline(BasePipeline):
         :param target: Custom target name.
         :param model_path: Path to the model file.
         :param output_path: Path where predictions will be saved.
-        :param n_hours_to_predict: Number of steps of 1 resolution to predict into the future.
+        :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
         :param max_forecast_horizon: Maximum forecast horizon in steps of 1 resolution.
         :param quantiles: Optional list of quantiles to predict for probabilistic forecasts. If None, predictions are deterministic.
         :param event_starts_after: Only consider events starting after this time.
@@ -62,7 +62,7 @@ class PredictPipeline(BasePipeline):
             past_regressors=past_regressors,
             future_regressors=future_regressors,
             target=target,
-            n_hours_to_predict=n_hours_to_predict,
+            n_steps_to_predict=n_steps_to_predict,
             max_forecast_horizon=max_forecast_horizon,
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,
@@ -191,7 +191,7 @@ class PredictPipeline(BasePipeline):
 
             """ For each single-horizon forecast, past_covariates
             start from the beginning of the training dataset and
-            end before the last `n_hours_to_predict` time steps that are yet to be predicted,
+            end before the last `n_steps_to_predict` time steps that are yet to be predicted,
             while also shifting by `time_offset` after each horizon.
             and discarding the additional period at the end which extends a period of max_forecast_horizon meant for future_covariates
             """
@@ -199,7 +199,7 @@ class PredictPipeline(BasePipeline):
                 past_covariates = past_covariates
             """ For each single-horizon forecast, future covariates
              start from the forecasted horizon
-             extend the last `n_hours_to_predict` time steps that are yet to be predicted,
+             extend the last `n_steps_to_predict` time steps that are yet to be predicted,
              and the additional period at the end for the last forecasted horizon of the predict_period
              While also shifting by `time_offset` after each horizon.
             """
@@ -247,11 +247,11 @@ class PredictPipeline(BasePipeline):
                 f"Starting to generate predictions for up to {self.max_forecast_horizon} ({self.readable_resolution}) intervals e,g ({self.total_forecast_hours} hours)."
             )
 
-            n_hours_can_predict = self.n_hours_to_predict
+            n_steps_can_predict = self.n_steps_to_predict
             forecast_frequency = self.forecast_frequency
             # We make predictions up to the last hour in the predict_period
             y_pred_dfs = list()
-            for i in range(0, n_hours_can_predict, forecast_frequency):
+            for i in range(0, n_steps_can_predict, forecast_frequency):
                 future_covariates = (
                     future_covariates_list[i] if future_covariates_list else None
                 )
@@ -261,7 +261,7 @@ class PredictPipeline(BasePipeline):
                 y = y_list[i]
                 belief_timestamp = belief_timestamps_list[i]
                 logging.debug(
-                    f"Making prediction for {self.readable_resolution} offset {i + 1}/{n_hours_can_predict}"
+                    f"Making prediction for {self.readable_resolution} offset {i + 1}/{n_steps_can_predict}"
                 )
                 y_pred_df = self.make_single_horizon_prediction(
                     model, future_covariates, past_covariates, y, i, belief_timestamp

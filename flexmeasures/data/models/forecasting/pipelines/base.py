@@ -26,7 +26,7 @@ class BasePipeline:
     - sensors (dict[str, int]): Dictionary mapping sensor names to sensor IDs.
     - regressors (list[str]): Names of sensors used as features.
     - target (str): Name of the target sensor.
-    - n_hours_to_predict: Number of steps of 1 resolution to predict into the future.
+    - n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
     - max_forecast_horizon (int): Max forecasting horizon in steps of 1 resolution.
     - event_starts_after (datetime | None): Earliest event_start to include.
     - event_ends_before (datetime | None): Latest event_start to include.
@@ -38,7 +38,7 @@ class BasePipeline:
         regressors: list[str],
         future_regressors: list[str],
         target: str,
-        n_hours_to_predict: int,
+        n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int,
         past_regressors: list[str] | None = None,
@@ -52,7 +52,7 @@ class BasePipeline:
         self.past_regressors = past_regressors
         self.future_regressors = future_regressors
         self.target = target
-        self.n_hours_to_predict = n_hours_to_predict
+        self.n_steps_to_predict = n_steps_to_predict
         self.max_forecast_horizon = max_forecast_horizon
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
@@ -225,7 +225,7 @@ class BasePipeline:
                 past_covariates_list = []
                 future_covariates_list = []
 
-                end_for_loop = self.n_hours_to_predict if is_predict_pipeline else 1
+                end_for_loop = self.n_steps_to_predict if is_predict_pipeline else 1
                 belief_timestamps_list = []
 
                 for index_offset in range(0, end_for_loop):
