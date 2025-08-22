@@ -81,7 +81,6 @@ def test_train_predict_pipeline(
     else:
         kwargs = ForecastingPipelineSchema().load(kwargs)
         pipeline = TrainPredictPipeline(**kwargs)
-        beliefs_before = len(sensor.search_beliefs())
         pipeline.run()
-        beliefs_after = len(sensor.search_beliefs())
-        assert beliefs_after > beliefs_before
+        forecasts = sensor.search_beliefs(source="forecaster")
+        assert len(forecasts) == 24
