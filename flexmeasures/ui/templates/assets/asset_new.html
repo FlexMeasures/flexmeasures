@@ -106,7 +106,7 @@
 
     // create map
     var assetMap = L
-        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6})
+        .map('mapid')
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
@@ -125,14 +125,20 @@
 
     {% if asset_form.latitude.data %}
     // create marker for parent asset's location
-    var marker = L
-        .marker(
-            [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}],
-    { icon: location_icon }
-        ).addTo(assetMap);
+    parentLocation = [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}]
+    var marker = L.marker(parentLocation, { icon: location_icon }).addTo(assetMap);
+    assetMap.flyTo(parentLocation, zoom=6);
     {% else %}
     // dummy location somewhere else
     var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    // zoom to cover pre-existing asset portfolio (so only if there is no parent asset)
+    assetMap.fitBounds({{ bounding_box | tojson }});
+        {% if prompt_user_for_location %}
+            const flyToPosition = (position) => {
+                assetMap.flyTo([position.coords.latitude, position.coords.longitude], zoom=9);
+            }
+            navigator.geolocation.getCurrentPosition(flyToPosition);
+        {% endif %}
     {% endif %}
 
     assetMap.on('click', function (e) {
