@@ -27,7 +27,7 @@ class BasePipeline:
     - regressors (list[str]): Names of sensors used as features.
     - target (str): Name of the target sensor.
     - n_hours_to_predict: Number of hours to predict into the future.
-    - max_forecast_horizon (int): Max forecasting horizon.
+    - max_forecast_horizon (int): Max forecasting horizon in steps of 1 resolution.
     - event_starts_after (datetime | None): Earliest event_start to include.
     - event_ends_before (datetime | None): Latest event_start to include.
     """
