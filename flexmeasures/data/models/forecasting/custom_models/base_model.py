@@ -13,15 +13,28 @@ class BaseModel(ABC):
     Base model for multi-horizon forecasting.
 
     This class serves as a foundation for forecasting models that predict multiple time steps into the future.
-    It supports probabilistic forecasting and ensures that no negative values are returned in the predictions.
+    It supports probabilistic forecasting.
+
+    Design principles for forecasting pipeline:
+    - This design follows the *fixed viewpoint forecasting* paradigm: each forecasting cycle retrains
+      the model(s) on an extended training window, then generates predictions.
+    - A **cycle** consists of training on a chosen window of historical data (the train period),
+      followed by generating forecasts over the **predict period**.
+    - `self.models` typically stores one model per forecast horizon, so that each step into the future
+      can be predicted independently. This is why a dependency exists between `self.max_forecast_horizon`
+      and the number of models.
+    - Each model must implement both `fit()` and `predict()`.
+    - `self._setup()` is called during initialization to prepare these models (subclasses must implement it).
+    - Parameters are validated by `ForecastingPipelineSchema`, which is also a good place to learn more
+      about configuration and expected inputs.
 
     Attributes:
         max_forecast_horizon (int): Maximum forecast horizon, indicating the number of steps ahead to predict.
         probabilistic (bool): Whether the model produces probabilistic forecasts.
 
     Note:
-        Predictions from this model (or its subclasses) will never yield negative values, as any negative
-        predictions are automatically set to zero.
+        Predictions from this model (or its subclasses) will never yield negative values if
+        `ensure_positive=True`, as any negative predictions are automatically set to zero.
     """
 
     max_forecast_horizon: int
@@ -48,8 +61,11 @@ class BaseModel(ABC):
     @abstractmethod
     def _setup(self) -> None:
         """
-        Set up the model. This method should be implemented by subclasses to perform any additional
-        initialization or configuration specific to the model.
+        Set up the forecasting models.
+
+        Subclasses must implement this method to populate `self.models`.
+        Typically, one model is created per forecast horizon (up to `self.max_forecast_horizon`).
+        These models must provide `fit()` and `predict()` methods compatible with darts TimeSeries.
         """
         pass
 
