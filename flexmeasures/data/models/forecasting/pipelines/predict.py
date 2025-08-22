@@ -23,6 +23,7 @@ class PredictPipeline(BasePipeline):
         self,
         sensors: dict[str, int],
         regressors: list[str],
+        past_regressors: list[str],
         future_regressors: list[str],
         target: str,
         model_path: str,
@@ -58,6 +59,7 @@ class PredictPipeline(BasePipeline):
         super().__init__(
             sensors=sensors,
             regressors=regressors,
+            past_regressors=past_regressors,
             future_regressors=future_regressors,
             target=target,
             n_hours_to_predict=n_hours_to_predict,

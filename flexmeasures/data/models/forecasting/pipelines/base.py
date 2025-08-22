@@ -41,6 +41,7 @@ class BasePipeline:
         n_hours_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int,
+        past_regressors: list[str] | None = None,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
         predict_start: datetime | None = None,
