@@ -163,27 +163,30 @@ def new_account_role(name: str, description: str):
 @fm_add_data.command("account")
 @with_appcontext
 @click.option("--name", required=True)
-@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+@click.option(
+    "--roles",
+    help="Comma-separated list of account roles, e.g. 'anonymous,Prosumer,CPO'.",
+)
 @click.option(
     "--primary-color",
     callback=validate_color_cli,
-    help="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)",
+    help="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443).",
 )
 @click.option(
     "--secondary-color",
     callback=validate_color_cli,
-    help="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)",
+    help="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122).",
 )
 @click.option(
     "--logo-url",
     callback=validate_url_cli,
-    help="Logo URL to use in UI. Defaults to FlexMeasures' logo URL",
+    help="Logo URL to use in UI. Defaults to FlexMeasures' logo URL.",
 )
 @click.option(
     "--consultancy",
     "consultancy_account",
     type=AccountIdField(required=False),
-    help="ID of the consultancy account, whose consultants will have read access to this account",
+    help="ID of the consultancy account, whose consultants will have read access to this account.",
 )
 def new_account(
     name: str,
@@ -266,11 +269,13 @@ def new_account(
     preferred="--account",
     help="Add user to this account. Follow up with the account's ID.",
 )
-@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+@click.option(
+    "--roles", help="Comma-separated list of user roles, e.g. 'anonymous,Prosumer,CPO'."
+)
 @click.option(
     "--timezone",
     "timezone_optional",
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to the FLEXMEASURES_TIMEZONE config setting).",
 )
 def new_user(
     username: str,
@@ -323,17 +328,19 @@ def new_user(
 @fm_add_data.command("sensor", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option("--name", required=True)
-@click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
+@click.option(
+    "--unit", required=True, help="Unit of the recorded data, e.g. °C, m/s, or kW/m²."
+)
 @click.option(
     "--event-resolution",
     required=True,
     type=str,
-    help="Expected resolution of the data in ISO8601 duration string",
+    help="Expected resolution of the data in ISO8601 duration string.",
 )
 @click.option(
     "--timezone",
     required=True,
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'.",
 )
 @click.option(
     "--asset",
@@ -344,7 +351,7 @@ def new_user(
     cls=DeprecatedOption,
     deprecated=["--asset-id"],
     preferred="--asset",
-    help="Generic asset to assign this sensor to",
+    help="Generic asset to assign this sensor to.",
 )
 @click.option(
     "--attributes",
@@ -418,12 +425,12 @@ def add_asset_type(**kwargs):
 @click.option(
     "--latitude",
     type=LatitudeField(),
-    help="Latitude of the asset's location",
+    help="Latitude of the asset's location.",
 )
 @click.option(
     "--longitude",
     type=LongitudeField(),
-    help="Longitude of the asset's location",
+    help="Longitude of the asset's location.",
 )
 @click.option(
     "--account",
@@ -445,7 +452,7 @@ def add_asset_type(**kwargs):
     cls=DeprecatedOption,
     deprecated=["--asset-type-id"],
     preferred="--asset-type",
-    help="Asset type to assign to this asset",
+    help="Asset type to assign to this asset.",
 )
 @click.option(
     "--parent-asset",
@@ -484,7 +491,7 @@ def add_initial_structure():
     "--name",
     required=True,
     type=str,
-    help="Name of the source (usually an organization)",
+    help="Name of the source (usually an organization).",
 )
 @click.option(
     "--model",
@@ -496,7 +503,7 @@ def add_initial_structure():
     "--version",
     required=False,
     type=str,
-    help="Optionally, specify a version (for example, '1.0'.",
+    help="Optionally, specify a version (for example, '1.0').",
 )
 @click.option(
     "--type",
@@ -528,7 +535,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
-    help="Record the beliefs under this sensor. Follow up with the sensor's ID. ",
+    help="Record the beliefs under this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
     "--source",
@@ -568,7 +575,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "--allow-overwrite/--do-not-allow-overwrite",
     default=False,
     help="Allow overwriting possibly already existing data.\n"
-    "Not allowing overwriting can be much more efficient",
+    "Not allowing overwriting can be much more efficient.",
 )
 @click.option(
     "--skiprows",
@@ -600,14 +607,14 @@ def add_source(name: str, model: str, version: str, source_type: str):
     required=False,
     default=0,
     type=int,
-    help="Column number with datetimes (0 is 1st column, the default)",
+    help="Column number with datetimes (0 is 1st column, the default).",
 )
 @click.option(
     "--valuecol",
     required=False,
     default=1,
     type=int,
-    help="Column number with values (1 is 2nd column, the default)",
+    help="Column number with values (1 is 2nd column, the default).",
 )
 @click.option(
     "--beliefcol",
@@ -907,7 +914,7 @@ def add_annotation(
 @click.option(
     "--year",
     type=click.INT,
-    help="The year for which to look up holidays",
+    help="The year for which to look up holidays.",
 )
 @click.option(
     "--country",
@@ -1718,7 +1725,7 @@ def add_schedule_process(
     "resolution",
     type=DurationField(),
     required=False,
-    help="Time resolution of the input time series to employ for the calculations. Follow up with a ISO 8601 duration string",
+    help="Time resolution of the input time series to employ for the calculations. Follow up with a ISO 8601 duration string.",
 )
 @click.option(
     "--output-file",
