@@ -191,46 +191,39 @@ def data_to_bdf(
         A formatted BeliefsDataFrame ready for database insertion.
     """
     sensor = Sensor.query.get(sensors[target_sensor])
-    test_df = pd.DataFrame()
     df = data.copy()
     df.reset_index(inplace=True)
     df.pop("component")
 
-    # First, rename target to '0h' for consistency
+    # Rename target to '0h'
     df = df.rename(columns={target_sensor: "0h"})
     df["event_start"] = pd.to_datetime(df["event_start"])
     df["belief_time"] = pd.to_datetime(df["belief_time"])
-    datetime_column = []
-    belief_column = []
-    forecasts_column = []
-    probabilistic_column = []
+
+    # Probabilities
     probabilistic_values = (
         [float(x.rsplit("_", 1)[-1]) for x in data.index.get_level_values("component")]
         if probabilistic
-        else [0.5] * len(df["event_start"])
+        else [0.5] * len(df)
     )
 
-    for i in range(len(df["event_start"])):
-        date = df["event_start"][i]
-        preds_timestamps = (
-            []
-        )  # timestamps for the event_start of the forecasts for each horizon
-        forecasts = []
-        for h in range(1, horizon + 1):
-            time_add = (
-                sensor.event_resolution * h
-            )  # Calculate the time increment for each forecast horizon based on the sensor's event resolution.
-            preds_timestamps.append(date + time_add)
-            forecasts.append(df[f"{h}h"][i])
+    # Build horizons
+    horizons = pd.Series(range(1, horizon + 1), name="h")
+    expanded = pd.concat([df.assign(h=h) for h in horizons], ignore_index=True)
 
-        forecasts_column.extend(forecasts)
-        datetime_column.extend(preds_timestamps)
-        belief_column.extend([df["belief_time"][i]] * h)
-        probabilistic_column.extend([probabilistic_values[i]] * h)
+    # Add shifted event_starts
+    expanded["event_start"] = expanded["event_start"] + expanded["h"].apply(
+        lambda h: sensor.event_resolution * h
+    )
 
-    test_df["event_start"] = datetime_column
-    test_df["belief_time"] = belief_column
-    test_df["forecasts"] = forecasts_column
+    # Forecast values
+    expanded["forecasts"] = expanded.apply(lambda r: r[f"{r.h}h"], axis=1)
+
+    # Probabilities (repeat original values across horizons)
+    expanded["cumulative_probability"] = np.repeat(probabilistic_values, horizon)
+
+    # Cleanup
+    test_df = expanded[["event_start", "belief_time", "forecasts", "cumulative_probability"]]
     test_df["event_start"] = (
         test_df["event_start"].dt.tz_localize("UTC").dt.tz_convert(sensor.timezone)
     )
@@ -238,17 +231,14 @@ def data_to_bdf(
         test_df["belief_time"].dt.tz_localize("UTC").dt.tz_convert(sensor.timezone)
     )
 
-    test_df["cumulative_probability"] = probabilistic_column
-
-    bdf = test_df.copy()
-
+    # Build forecast DataFrame
     forecast_df = pd.DataFrame(
         {
-            "forecasts": bdf["forecasts"].values,
-            "cumulative_probability": bdf["cumulative_probability"].values,
+            "forecasts": test_df["forecasts"].values,
+            "cumulative_probability": test_df["cumulative_probability"].values,
         },
         index=pd.MultiIndex.from_arrays(
-            [bdf["event_start"], bdf["belief_time"]],
+            [test_df["event_start"], test_df["belief_time"]],
             names=["event_start", "belief_time"],
         ),
     )
@@ -277,6 +267,7 @@ def data_to_bdf(
         attributes={"regressors": regressors_attribute},
     )
 
+    # Convert to TimedBelief list
     ts_value_forecasts = [
         TimedBelief(
             event_start=event_start,
@@ -289,9 +280,7 @@ def data_to_bdf(
         for (event_start, belief_time), row in forecast_df.iterrows()
     ]
 
-    bdf = tb.BeliefsDataFrame(ts_value_forecasts)
-
-    return bdf
+    return tb.BeliefsDataFrame(ts_value_forecasts)
 
 
 def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
