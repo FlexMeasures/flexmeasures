@@ -88,12 +88,12 @@ def test_train_predict_pipeline(
         n_cycles = (kwargs["end_date"] - kwargs["predict_start"]) / (
             kwargs["forecast_frequency"] * timedelta(hours=1)
         )
-        n_horizons = kwargs["max_forecast_horizon"]
         # 1 hour of forecasts is saved over 4 15-minute resolution events
         n_events_per_horizon = timedelta(hours=1) / kwargs["target"].event_resolution
+        n_hourly_horizons = kwargs["max_forecast_horizon"] // n_events_per_horizon
         assert (
-            len(forecasts) == n_cycles * n_horizons * n_events_per_horizon
-        ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_horizons} horizons"
+            len(forecasts) == n_cycles * n_hourly_horizons * n_events_per_horizon
+        ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_hourly_horizons} hourly horizons"
         assert (
             forecasts.lineage.number_of_belief_times == n_cycles
         ), f"we expect 1 belief time per cycle, and {n_cycles} cycles"
