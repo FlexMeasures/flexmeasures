@@ -140,11 +140,13 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
             "unit": "kW/m²",
             "multiplier": 600,
             "horizon": timedelta(hours=6),
+            "resolution": timedelta(minutes=60),
         },
         "solar-sensor": {
             "unit": "kW",
             "multiplier": 1000,
             "horizon": timedelta(hours=1),
+            "resolution": timedelta(minutes=15),
         },
     }
 
@@ -159,7 +161,7 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
             name=name,
             generic_asset=asset,
             unit=config["unit"],
-            event_resolution=timedelta(minutes=60),
+            event_resolution=config["resolution"],
         )
         db.session.add(sensor)
 
