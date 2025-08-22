@@ -104,7 +104,8 @@ class BasePipeline:
                     ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
                 )
                 try:
-                    # Custom resample
+                    # We resample regressors to the target sensor’s resolution so they align in time.
+                    # This ensures the resulting DataFrame can be used directly for predictions.
                     df = tb_utils.replace_multi_index_level(
                         df,
                         "event_start",
