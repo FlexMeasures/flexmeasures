@@ -1024,15 +1024,14 @@ def add_holidays(
     "--start-date",
     "start_date",
     required=True,
-    help="Start date for running the pipeline, i.e. when training begins "
-    "(format: YYYY-MM-DDTHH:MM:SS±HH:MM).",
+    help="Start date for running the pipeline, i.e. when training begins (YYYY-MM-DDTHH:MM:SS±HH:MM).",
 )
 @click.option(
     "--to-date",
     "--end-date",
     "end_date",
     required=True,
-    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM)",
+    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
 )
 @click.option(
     "--train-period",
@@ -1053,10 +1052,10 @@ def add_holidays(
     "start_predict_date",
     default=None,
     required=False,
-    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM)",
+    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM).",
 )
 @click.option(
-    "--max-forecast-horizon", required=False, help="Maximum forecast horizon in hours"
+    "--max-forecast-horizon", required=False, help="Maximum forecast horizon in hours."
 )
 @click.option(
     "--forecast-frequency",
@@ -1066,13 +1065,13 @@ def add_holidays(
 @click.option(
     "--model-save-dir",
     default="flexmeasures/data/models/forecasting/artifacts/models",
-    help="Directory to save the trained model",
+    help="Directory to save the trained model.",
 )
 @click.option(
     "--output-path",
-    help="Directory to save prediction outputs",
+    help="Directory to save prediction outputs.",
 )
-@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions")
+@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions.")
 @click.option(
     "--sensor-to-save",
     default=None,
