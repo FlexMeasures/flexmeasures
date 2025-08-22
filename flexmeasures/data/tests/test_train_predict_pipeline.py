@@ -83,5 +83,9 @@ def test_train_predict_pipeline(
         pipeline = TrainPredictPipeline(**kwargs)
         pipeline.run()
         forecasts = sensor.search_beliefs(source="forecaster")
-        assert len(forecasts) == 24
-        assert forecasts.lineage.number_of_belief_times == 24
+        assert (
+            len(forecasts) == 24
+        ), "we expect 1 forecast (max_forecast_horizon = 1) for each cycle within the prediction window, and 24 cycles"
+        assert (
+            forecasts.lineage.number_of_belief_times == 24
+        ), "we expect 1 belief time per cycle, and 24 cycles"
