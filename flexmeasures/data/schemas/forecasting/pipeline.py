@@ -8,7 +8,8 @@ from datetime import timedelta
 
 from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
 
-from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField
+from flexmeasures.data.schemas import SensorIdField
+from flexmeasures.data.schemas.times import AwareDateTimeOrDateField
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
@@ -28,10 +29,10 @@ class ForecastingPipelineSchema(Schema):
     )  # expects comma-separated Sensor id's
     model_save_dir = fields.Str(required=True)
     output_path = fields.Str(required=False, allow_none=True)
-    start_date = AwareDateTimeField(required=True)
-    end_date = AwareDateTimeField(required=True)
+    start_date = AwareDateTimeOrDateField(required=True)
+    end_date = AwareDateTimeOrDateField(required=True)
     train_period = fields.Int(required=False, allow_none=True)
-    start_predict_date = AwareDateTimeField(required=False, allow_none=True)
+    start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     predict_period = fields.Int(required=False, allow_none=True)
     max_forecast_horizon = fields.Int(required=False, allow_none=True)
     forecast_frequency = fields.Int(required=False, allow_none=True)
