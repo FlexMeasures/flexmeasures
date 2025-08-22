@@ -1055,7 +1055,9 @@ def add_holidays(
     help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM).",
 )
 @click.option(
-    "--max-forecast-horizon", required=False, help="Maximum forecast horizon in hours."
+    "--max-forecast-horizon",
+    required=False,
+    help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H').",
 )
 @click.option(
     "--forecast-frequency",

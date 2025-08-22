@@ -9,7 +9,7 @@ from datetime import timedelta
 from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
 
 from flexmeasures.data.schemas import SensorIdField
-from flexmeasures.data.schemas.times import AwareDateTimeOrDateField
+from flexmeasures.data.schemas.times import AwareDateTimeOrDateField, DurationField
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
@@ -34,7 +34,7 @@ class ForecastingPipelineSchema(Schema):
     train_period = fields.Int(required=False, allow_none=True)
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     predict_period = fields.Int(required=False, allow_none=True)
-    max_forecast_horizon = fields.Int(required=False, allow_none=True)
+    max_forecast_horizon = DurationField(required=False, allow_none=True)
     forecast_frequency = fields.Int(required=False, allow_none=True)
     probabilistic = fields.Bool(required=True)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
@@ -46,6 +46,8 @@ class ForecastingPipelineSchema(Schema):
         predict_start = data.get("start_predict_date", None)
         train_period = data.get("train_period")
         predict_period = data.get("predict_period")
+        max_forecast_horizon = data.get("max_forecast_horizon")
+        sensor = data.get("sensor")
 
         if start_date >= end_date:
             raise ValidationError(
@@ -74,6 +76,17 @@ class ForecastingPipelineSchema(Schema):
             raise ValidationError(
                 "predict-period must be greater than 0", field_name="predict_period"
             )
+
+        if max_forecast_horizon is not None:
+            if max_forecast_horizon % sensor.event_resolution != timedelta(0):
+                raise ValidationError(
+                    f"max-forecast-horizon must be a multiple of the sensor resolution ({sensor.event_resolution})"
+                )
+            else:
+                # todo: temporarily convert back to integer number of hours
+                data["max_forecast_horizon"] = data[
+                    "max_forecast_horizon"
+                ] // timedelta(hours=1)
 
     def _parse_comma_list(self, text: str | None) -> list[str]:
         if not text:

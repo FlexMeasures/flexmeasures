@@ -24,7 +24,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "sensor_to_save": None,
                 "start_predict_date": "2025-01-02T00:00+02:00",
                 "predict_period": 0,  # 0 days
-                "max_forecast_horizon": 1,
+                "max_forecast_horizon": "PT1H",
                 "forecast_frequency": 1,
                 "probabilistic": False,
             },
@@ -41,7 +41,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "sensor_to_save": None,
                 "start_predict_date": "2025-01-02T00:00+02:00",
                 "predict_period": 1,
-                "max_forecast_horizon": 1,
+                "max_forecast_horizon": "PT1H",
                 "forecast_frequency": 1,
                 "probabilistic": False,
             },
