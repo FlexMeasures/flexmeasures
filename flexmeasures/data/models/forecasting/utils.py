@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.data_sources import get_or_create_source
 
 from datetime import datetime, timedelta
@@ -223,7 +223,9 @@ def data_to_bdf(
     expanded["cumulative_probability"] = np.repeat(probabilistic_values, horizon)
 
     # Cleanup
-    test_df = expanded[["event_start", "belief_time", "forecasts", "cumulative_probability"]]
+    test_df = expanded[
+        ["event_start", "belief_time", "forecasts", "cumulative_probability"]
+    ]
     test_df["event_start"] = (
         test_df["event_start"].dt.tz_localize("UTC").dt.tz_convert(sensor.timezone)
     )
@@ -267,20 +269,13 @@ def data_to_bdf(
         attributes={"regressors": regressors_attribute},
     )
 
-    # Convert to TimedBelief list
-    ts_value_forecasts = [
-        TimedBelief(
-            event_start=event_start,
-            belief_time=belief_time,
-            event_value=row["forecasts"],
-            cumulative_probability=row["cumulative_probability"],
-            sensor=sensor_to_save,
-            source=data_source,
-        )
-        for (event_start, belief_time), row in forecast_df.iterrows()
-    ]
-
-    return tb.BeliefsDataFrame(ts_value_forecasts)
+    # Convert to BeliefsDataFrame
+    bdf = tb.BeliefsDataFrame(
+        forecast_df.reset_index().rename(columns={"forecasts": "event_value"}),
+        source=data_source,
+        sensor=sensor_to_save,
+    )
+    return bdf
 
 
 def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
