@@ -645,21 +645,23 @@ def add_source(name: str, model: str, version: str, source_type: str):
     required=True,
     type=str,
     default=",",
-    help="[For CSV files] Character to delimit columns per row, defaults to comma",
+    help="[For CSV files] Character to delimit columns per row, defaults to comma.",
 )
 @click.option(
     "--decimal",
     required=False,
     default=".",
     type=str,
-    help="[For CSV files] decimal character, e.g. '.' for 10.5",
+    help="[For CSV files] the decimal character for interpreting values such as '10.501', "
+    "where the '.' can alternatively be interpreted as a thousands separator.",
 )
 @click.option(
     "--thousands",
     required=False,
     default=None,
     type=str,
-    help="[For CSV files] thousands separator, e.g. '.' for 10.035,2",
+    help="[For CSV files] thousands separator for interpreting values such as '10,501', "
+    "where the ',' can alternatively be interpreted as a decimal character.",
 )
 @click.option(
     "--sheet_number",
