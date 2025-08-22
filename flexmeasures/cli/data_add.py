@@ -1084,6 +1084,19 @@ def add_holidays(
     help="Whether to queue a forecasting job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
+@click.option(
+    "--resolution",
+    type=int,
+    help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
+)
+@click.option(
+    "--horizon",
+    "horizons_as_hours",
+    multiple=True,
+    type=click.Choice(["1", "6", "24", "48"]),
+    default=["1", "6", "24", "48"],
+    help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
+)
 @with_appcontext
 def train_predict_pipeline(
     as_job,
@@ -1114,6 +1127,18 @@ def train_predict_pipeline(
         forecast period each cycle, similar to the training window, but its size
         does not grow.
     """
+
+    # Deprecation warnings for CLI options specific to rolling viewpoint predictions
+    if "horizon" in kwargs:
+        click.secho(
+            "The --horizon option is deprecated since v0.28.0. Use the max-forecast-horizon option instead.",
+            **MsgStyle.WARN,
+        )
+    if "resolution" in kwargs:
+        click.secho(
+            "The --resolution option is deprecated since v0.28.0. The resolution of the target sensor is used instead.",
+            **MsgStyle.WARN,
+        )
 
     # Load input by passing it through our Marshmallow schema
     kwargs = ForecastingPipelineSchema().load(kwargs)
