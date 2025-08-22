@@ -90,7 +90,7 @@ def test_train_predict_pipeline(
         )
         n_horizons = kwargs["max_forecast_horizon"]
         # 1 hour of forecasts is saved over 4 15-minute resolution events
-        n_events_per_horizon = timedelta(hours=1) / kwargs["sensor"].event_resolution
+        n_events_per_horizon = timedelta(hours=1) / kwargs["target"].event_resolution
         assert (
             len(forecasts) == n_cycles * n_horizons * n_events_per_horizon
         ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_horizons} horizons"
