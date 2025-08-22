@@ -116,7 +116,7 @@ class TrainPredictPipeline:
             ),
             n_hours_to_predict=self.predict_period_in_hours * multiplier,
             max_forecast_horizon=self.max_forecast_horizon,
-            forecast_frequency=self.forecast_frequency * multiplier,
+            forecast_frequency=self.forecast_frequency,
             probabilistic=self.probabilistic,
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
             event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period

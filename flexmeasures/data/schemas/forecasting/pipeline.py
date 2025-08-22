@@ -35,7 +35,7 @@ class ForecastingPipelineSchema(Schema):
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     predict_period = fields.Int(required=False, allow_none=True)
     max_forecast_horizon = DurationField(required=False, allow_none=True)
-    forecast_frequency = fields.Int(required=False, allow_none=True)
+    forecast_frequency = DurationField(required=False, allow_none=True)
     probabilistic = fields.Bool(required=True)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
 
@@ -47,6 +47,7 @@ class ForecastingPipelineSchema(Schema):
         train_period = data.get("train_period")
         predict_period = data.get("predict_period")
         max_forecast_horizon = data.get("max_forecast_horizon")
+        forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
 
         if start_date >= end_date:
@@ -85,6 +86,16 @@ class ForecastingPipelineSchema(Schema):
             else:
                 data["max_forecast_horizon"] = (
                     data["max_forecast_horizon"] // sensor.event_resolution
+                )
+
+        if forecast_frequency is not None:
+            if forecast_frequency % sensor.event_resolution != timedelta(0):
+                raise ValidationError(
+                    f"forecast-frequency must be a multiple of the sensor resolution ({sensor.event_resolution})"
+                )
+            else:
+                data["forecast_frequency"] = (
+                    data["forecast_frequency"] // sensor.event_resolution
                 )
 
     def _parse_comma_list(self, text: str | None) -> list[str]:
@@ -200,14 +211,14 @@ class ForecastingPipelineSchema(Schema):
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
 
-        multiplier = timedelta(hours=1) // data["sensor"].event_resolution
         if max_forecast_horizon is None and forecast_frequency is None:
+            multiplier = timedelta(hours=1) // data["sensor"].event_resolution
             max_forecast_horizon = predict_period_in_hours * multiplier
-            forecast_frequency = predict_period_in_hours
+            forecast_frequency = predict_period_in_hours * multiplier
         elif max_forecast_horizon is None:
-            max_forecast_horizon = forecast_frequency * multiplier
+            max_forecast_horizon = forecast_frequency
         elif forecast_frequency is None:
-            forecast_frequency = max_forecast_horizon / multiplier
+            forecast_frequency = max_forecast_horizon
 
         if data.get("sensor_to_save") is None:
             sensor_to_save = target_sensor

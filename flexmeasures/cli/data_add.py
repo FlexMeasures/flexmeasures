@@ -1061,8 +1061,7 @@ def add_holidays(
 )
 @click.option(
     "--forecast-frequency",
-    type=int,
-    help="Forecast frequency in hours, i.e. how often to recompute forecasts.",
+    help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts.",
 )
 @click.option(
     "--model-save-dir",
