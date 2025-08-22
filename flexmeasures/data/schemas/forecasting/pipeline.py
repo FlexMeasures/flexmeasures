@@ -112,13 +112,13 @@ class ForecastingPipelineSchema(Schema):
 
     def _build_sensors_dict(
         self,
-        sensors: int,
+        target_sensor_id: int,
         regressors: str,
         future_regressors: str,
         past_regressors: str,
     ) -> dict:
 
-        sensors_dict = {"target": sensors}
+        sensors_dict = {"target": target_sensor_id}
 
         # Split both regressors and future_regressors and merge them
         all_ids = set()
@@ -135,7 +135,7 @@ class ForecastingPipelineSchema(Schema):
 
         # Add them to the dict with unique keys
         for idx, sensor_id in enumerate(sorted(all_ids), start=1):
-            if sensor_id != sensors:  # avoid overwriting the target
+            if sensor_id != target_sensor_id:  # avoid overwriting the target
                 sensors_dict[f"{Sensor.query.get(sensor_id).name}_regressor{idx}"] = (
                     sensor_id
                 )
@@ -149,10 +149,10 @@ class ForecastingPipelineSchema(Schema):
         future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
         past_regressors = self._parse_comma_list(data.get("past_regressors", ""))
         sensors = self._build_sensors_dict(
-            data["sensor"],
-            data.get("regressors", ""),
-            data.get("future_regressors", ""),
-            data.get("past_regressors", ""),
+            target_sensor_id=data["sensor"],
+            regressors=data.get("regressors", ""),
+            future_regressors=data.get("future_regressors", ""),
+            past_regressors=data.get("past_regressors", ""),
         )
         target = data["sensor"]
 
