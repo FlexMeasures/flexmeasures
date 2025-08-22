@@ -89,3 +89,6 @@ def test_train_predict_pipeline(
         assert (
             forecasts.lineage.number_of_belief_times == 24
         ), "we expect 1 belief time per cycle, and 24 cycles"
+        assert "CustomLGBM" in str(
+            forecasts.lineage.sources[0]
+        ), "string representation of Source should mention the used model"
