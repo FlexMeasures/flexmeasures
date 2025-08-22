@@ -47,7 +47,7 @@ class PredictPipeline(BasePipeline):
         :param target: Custom target name.
         :param model_path: Path to the model file.
         :param output_path: Path where predictions will be saved.
-        :param n_hours_to_predict: Number of hours to predict into the future.
+        :param n_hours_to_predict: Number of steps of 1 resolution to predict into the future.
         :param max_forecast_horizon: Maximum forecast horizon in steps of 1 resolution.
         :param quantiles: Optional list of quantiles to predict for probabilistic forecasts. If None, predictions are deterministic.
         :param event_starts_after: Only consider events starting after this time.
