@@ -422,7 +422,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     required=False,
     type=int,
     default=200,
-    help="Height of the image in pixels..",
+    help="Height of the image in pixels.",
 )
 @click.option(
     "--width",
