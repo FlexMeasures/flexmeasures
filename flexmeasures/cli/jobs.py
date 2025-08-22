@@ -81,7 +81,7 @@ def run_job(job_id: str):
     "--name",
     default=None,
     required=False,
-    help="Give your worker a recognizable name. Defaults to random string. Defaults to fm-worker-<randomstring>",
+    help="Give your worker a recognizable name. Defaults to random string. Defaults to 'fm-worker-<randomstring>'.",
 )
 def run_worker(queue: str, name: str | None):
     """

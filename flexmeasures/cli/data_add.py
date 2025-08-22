@@ -620,13 +620,13 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "--beliefcol",
     required=False,
     type=int,
-    help="Column number with datetimes",
+    help="Column number with datetimes.",
 )
 @click.option(
     "--timezone",
     required=False,
     default=None,
-    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="Timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'.",
 )
 @click.option(
     "--filter-column",
@@ -667,7 +667,7 @@ def add_source(name: str, model: str, version: str, source_type: str):
     "--sheet_number",
     required=False,
     type=int,
-    help="[For xls or xlsx files] Sheet number with the data (0 is 1st sheet)",
+    help="[For xls or xlsx files] Sheet number with the data (0 is 1st sheet).",
 )
 def add_beliefs(
     file: str,
