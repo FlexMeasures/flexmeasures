@@ -22,7 +22,7 @@ class TrainPredictPipeline:
         regressors: list[str],
         past_regressors: list[str],
         future_regressors: list[str],
-        target: str,
+        target: Sensor,
         model_save_dir: str,
         output_path: str,
         start_date: datetime,

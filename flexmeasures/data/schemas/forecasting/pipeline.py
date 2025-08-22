@@ -154,7 +154,7 @@ class ForecastingPipelineSchema(Schema):
             future_regressors=data.get("future_regressors", ""),
             past_regressors=data.get("past_regressors", ""),
         )
-        target = data["sensor"].id
+        target_sensor = data["sensor"]
 
         if not regressors and not future_regressors and not past_regressors:
             regressors = ["autoregressive"]
@@ -162,10 +162,6 @@ class ForecastingPipelineSchema(Schema):
             regressors = future_regressors.copy()
         elif not regressors and past_regressors:
             regressors = past_regressors.copy()
-
-        target_sensor = Sensor.query.get(sensors["target"])
-        if not target_sensor:
-            raise click.BadParameter(f"Target sensor '{target}' not found in DB.")
 
         resolution = target_sensor.event_resolution
 
@@ -226,7 +222,7 @@ class ForecastingPipelineSchema(Schema):
             regressors=regressors,
             past_regressors=past_regressors,
             future_regressors=future_regressors,
-            target=target,
+            target=target_sensor,
             model_save_dir=data["model_save_dir"],
             output_path=output_path,
             start_date=data["start_date"],
