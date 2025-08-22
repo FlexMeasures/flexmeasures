@@ -48,6 +48,7 @@ class BasePipeline:
     ) -> None:
         self.sensors = sensors
         self.regressors = regressors
+        self.past_regressors = past_regressors
         self.future_regressors = future_regressors
         self.target = target
         self.n_hours_to_predict = n_hours_to_predict
@@ -86,7 +87,7 @@ class BasePipeline:
 
                 most_recent_beliefs_only = True
                 # Extend time range for future regressors
-                if name in self.future_regressors:
+                if name in self.future_regressors or self.regressors:
                     sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
                         hours=self.max_forecast_horizon_in_hours
                     )
