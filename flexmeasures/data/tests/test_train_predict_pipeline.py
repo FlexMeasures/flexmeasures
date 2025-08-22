@@ -84,3 +84,4 @@ def test_train_predict_pipeline(
         pipeline.run()
         forecasts = sensor.search_beliefs(source="forecaster")
         assert len(forecasts) == 24
+        assert forecasts.lineage.number_of_belief_times == 24
