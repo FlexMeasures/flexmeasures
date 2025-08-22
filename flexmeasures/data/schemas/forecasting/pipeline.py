@@ -210,6 +210,7 @@ class ForecastingPipelineSchema(Schema):
         return dict(
             sensors=sensors,
             regressors=regressors,
+            past_regressors=past_regressors,
             future_regressors=future_regressors,
             target=target,
             model_save_dir=data["model_save_dir"],
