@@ -189,15 +189,15 @@ class ForecastingPipelineSchema(Schema):
             if predict_period_in_hours < 1:
                 raise click.BadParameter("--predict-period must be at least 1 hour")
 
-        max_horizon = data.get("max_forecast_horizon")
-        freq = data.get("forecast_frequency")
+        max_forecast_horizon = data.get("max_forecast_horizon")
+        forecast_frequency = data.get("forecast_frequency")
 
-        if max_horizon is None and freq is None:
-            max_horizon = freq = predict_period_in_hours
-        elif max_horizon is None:
-            max_horizon = freq
-        elif freq is None:
-            freq = max_horizon
+        if max_forecast_horizon is None and forecast_frequency is None:
+            max_forecast_horizon = forecast_frequency = predict_period_in_hours
+        elif max_forecast_horizon is None:
+            max_forecast_horizon = forecast_frequency
+        elif forecast_frequency is None:
+            forecast_frequency = max_forecast_horizon
 
         if data.get("sensor_to_save") is None:
             sensor_to_save = target_sensor
@@ -221,8 +221,8 @@ class ForecastingPipelineSchema(Schema):
             train_period_in_hours=train_period_in_hours,
             predict_start=predict_start,
             predict_period_in_hours=predict_period_in_hours,
-            max_forecast_horizon=max_horizon,
-            forecast_frequency=freq,
+            max_forecast_horizon=max_forecast_horizon,
+            forecast_frequency=forecast_frequency,
             probabilistic=data["probabilistic"],
             sensor_to_save=sensor_to_save,
         )
