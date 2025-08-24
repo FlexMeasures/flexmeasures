@@ -7,6 +7,7 @@ from webargs.multidictproxy import MultiDictProxy
 from werkzeug.datastructures import MultiDict
 from click import get_current_context
 from flask import Request
+from flask_json import JsonError
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
@@ -109,6 +110,49 @@ def load_data_from_path_and_files(request: Request, schema):
     return MultiDictProxy(data, schema)
 
 
+@parser.location_loader("path_and_json")
+def load_data_from_path_and_json(request: Request, schema):
+    """
+    Custom webargs location loader to extract data from both path parameters and json body.
+
+    It is being used for posting and getting sensors data, where the sensor ID is on the URL,
+    and the other schema descriptions are in the JSON body.
+
+    This loader combines variables from the request URL path (`request.view_args`) and
+    uploaded json data (`request.json`) into a single MultiDict, which is then passed to
+    webargs for validation and deserialization.
+
+    Note:
+        If any keys are present in both `request.view_args` and `request.json`,
+        the json data will overwrite the path data for those keys.
+
+    Parameters:
+        request (Request): The incoming Flask request object.
+        schema: The webargs schema used to validate and deserialize the extracted data.
+
+    Returns:
+        MultiDictProxy: A proxy object wrapping the merged data from path parameters
+                        and uploaded json.
+    """
+    data = MultiDict(request.view_args)
+    data.update(request.args)
+    try:
+        data.update(request.json)
+    except JsonError:
+        pass
+
+    data["sensor"] = data["id"]
+    del data["id"]
+
+    # here, we make sure values are stored as one list
+    # MultiDict interprets multiple values per key as competing and accessing the field only gives the first value
+    if "values" in data:
+        data["values"] = request.json["values"]
+
+    return MultiDictProxy(data, schema)
+
+
 query = functools.partial(use_kwargs, location="query")
 body = functools.partial(use_kwargs, location="json")
 path_and_files = functools.partial(use_kwargs, location="path_and_files")
+path_and_json = functools.partial(use_kwargs, location="path_and_json")
