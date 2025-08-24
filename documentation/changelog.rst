@@ -11,7 +11,6 @@ v0.28.0 | September XX, 2025
 
 New features
 -------------
-
 * Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_, `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_ and `PR #1656 <https://github.com/FlexMeasures/flexmeasures/pull/1656>`_]
 
 Infrastructure / Support
@@ -26,6 +25,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
+* Fix editing of public assets in the UI [see `PR #1636 <https://www.github.com/FlexMeasures/flexmeasures/pull/1636>`_]
 
 
 v0.27.4 | August XX, 2025
