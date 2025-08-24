@@ -210,3 +210,9 @@ export function renderSensorSearchResults(sensors, resultContainer, actionFunc) 
         resultContainer.appendChild(col);
     });
 }
+
+export function convertHtmlToElement(htmlString) {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlString.trim();
+    return tempDiv.firstChild;
+}
