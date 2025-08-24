@@ -8,7 +8,15 @@
     <div class="col-md-1"></div>
     <div class="col-md-9">
       <div class="card">
-        <h3 id="usersTableTitle">All users</h3>
+
+        <div class="d-flex justify-content-between align-items-center">
+          <h3 id="usersTableTitle">All users</h3>
+        
+          <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
+            data-bs-target="#createUserModal">
+            Create User
+          </a>
+        </div>
 
         <div class="form-check form-check-inline">
           <label class="form-check-label">
@@ -32,6 +40,87 @@
     </div>
   </div>
 </div>
+
+
+ <!-- Create User Modal -->
+<div class="modal fade " id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title pe-2">Create User</h5>
+        <div class="dropdown" data-bs-auto-close="outside">
+          <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+            rel="tooltip" aria-hidden="true" tabindex="0" data-bs-placement="right" data-bs-toggle="tooltip"></span>
+
+          <div class="dropdown-menu p-3" style="width: 400px;">
+            <div>
+              <strong>Help</strong>
+              <p class="mb-2 pt-2">
+                This modal allows you to create a new user.
+              </p>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="createUserForm">
+          <div class="mb-3">
+            <label for="account" class="form-label">Account</label>
+            <select class="form-select" id="account" name="account">
+              <option value="">Select an account</option>
+              {% for account in accounts %}
+                <option value="{{ account.id }}">{{ account.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" name="username" required>
+          </div>
+          <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" name="email" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="text/javascript">
+  $(document).ready(function () {
+    // Handle form submission
+    $("#createUserForm").submit(function (event) {
+      event.preventDefault(); // Prevent the default form submission
+
+      const username = $("#username").val();
+      const email = $("#email").val();
+      const accountId = $("#account").val();
+
+      $.ajax({
+        type: "POST",
+        url: "/api/v3_0/users",
+        data: JSON.stringify({ username, email, accountId }),
+        contentType: "application/json",
+        success: function (response) {
+          // Close the modal and reset the form
+          $("#createUserModal").modal("hide");
+          $("#createUserForm")[0].reset();
+          // $("#usersTable").DataTable().ajax.reload();
+        },
+        error: function (xhr, status, error) {
+          console.error("Error creating user:", error);
+          showToast(
+            "Failed to create user. Please try again.", 'error'
+          );
+        }
+      });
+    });
+  });
+</script>
 
 <script>
    function User(
