@@ -12,19 +12,21 @@ from flexmeasures.data.models.time_series import TimedBelief
 
 
 @pytest.mark.parametrize(
-    "num_values, expected_num_values, unit, include_a_null, expected_value, expected_status",
+    "num_values, expected_num_values, unit, include_a_null, expected_value, use_oldstyle_endpoint, expected_status",
     [
-        (6, 6, "m³/h", False, -11.28, 200),
-        (6, 5, "m³/h", True, -11.28, 200),  # NaN value does not enter database
-        (6, 6, "m³", False, 6 * -11.28, 200),  # 6 * 10-min intervals per hour
-        (6, 6, "l/h", False, -11.28 / 1000, 200),  # 1 m³ = 1000 l
-        (3, 6, "m³/h", False, -11.28, 200),  # upsample from 20-min intervals
+        (6, 6, "m³/h", False, -11.28, False, 200),
+        (6, 6, "m³/h", False, -11.28, True, 200),
+        (6, 5, "m³/h", True, -11.28, False, 200),  # NaN value does not enter database
+        (6, 6, "m³", False, 6 * -11.28, False, 200),  # 6 * 10-min intervals per hour
+        (6, 6, "l/h", False, -11.28 / 1000, False, 200),  # 1 m³ = 1000 l
+        (3, 6, "m³/h", False, -11.28, False, 200),  # upsample from 20-min intervals
         (
             1,
             6,
             "m³/h",
             False,
             -11.28,
+            False,
             200,
         ),  # upsample from single value for 1-hour interval, sent as float rather than list of floats
         (
@@ -33,6 +35,7 @@ from flexmeasures.data.models.time_series import TimedBelief
             "m³/h",
             False,
             None,
+            False,
             422,
         ),  # failed to resample from 15-min intervals to 10-min intervals
         (
@@ -41,6 +44,7 @@ from flexmeasures.data.models.time_series import TimedBelief
             "m³/h",
             False,
             None,
+            False,
             422,
         ),  # failed to resample from 6-min intervals to 10-min intervals
     ],
@@ -56,6 +60,7 @@ def test_post_sensor_data(
     unit,
     include_a_null,
     expected_value,
+    use_oldstyle_endpoint,
     expected_status,
     requesting_user,
     db,
@@ -72,10 +77,12 @@ def test_post_sensor_data(
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
-    response = client.post(
-        url_for("SensorAPI:post_data", id=sensor.id),
-        json=post_data,
-    )
+    if use_oldstyle_endpoint:  # remove this when we remove those endpoints one day
+        post_data["sensor"] = f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}"
+        url = url_for("SensorAPI:post_data_deprecated")
+    else:
+        url = url_for("SensorAPI:post_data", id=sensor.id)
+    response = client.post(url, json=post_data)
     print(response.json)
     assert response.status_code == expected_status
     beliefs = db.session.scalars(select(TimedBelief).filter(*filters)).all()

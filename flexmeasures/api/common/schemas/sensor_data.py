@@ -12,7 +12,7 @@ import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.api.common.schemas.sensors import SensorField
+from flexmeasures.api.common.schemas.sensors import SensorField, SensorIdField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
@@ -73,9 +73,7 @@ class SensorDataDescriptionSchema(ma.Schema):
     Schema describing sensor data (specifically, the sensor and the timing of the data).
     """
 
-    # TODO: transition to SensorIdField
-    # The sensor field relies on entity addresses which are going to be faded out.
-    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
+    sensor = SensorIdField(required=True)
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
     horizon = DurationField(required=False)
@@ -215,6 +213,12 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         )
 
         return response
+
+
+class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
 
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):
@@ -397,3 +401,9 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             sensor=sensor_data["sensor"],
             **belief_timing,
         )
+
+
+class PostSensorDataSchemaEntityAddress(PostSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")

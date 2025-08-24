@@ -180,7 +180,6 @@ def permission_required_for_context(
                 context_from_args = kwargs[ctx_arg_name]
             elif len(args) > 0:
                 context_from_args = args[0]
-            print(context_from_args)
 
             # if a loader is given, use that, otherwise fall back to context_from_args
             if ctx_loader is not None:

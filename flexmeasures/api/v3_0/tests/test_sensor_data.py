@@ -21,7 +21,6 @@ def test_get_no_sensor_data(
     """Check the /sensors/data endpoint for fetching data for a period without any data."""
     sensor = setup_api_test_data["some gas sensor"]
     message = {
-        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "start": "1921-05-02T00:00:00+02:00",  # we have loaded no test data for this year
         "duration": "PT1H20M",
         "horizon": "PT0H",
@@ -29,7 +28,7 @@ def test_get_no_sensor_data(
         "resolution": "PT20M",
     }
     response = client.get(
-        url_for("SensorAPI:get_data"),
+        url_for("SensorAPI:get_data", id=sensor.id),
         query_string=message,
     )
     print("Server responded with:\n%s" % response.json)
@@ -39,6 +38,7 @@ def test_get_no_sensor_data(
     assert all(a == b for a, b in zip(values, [None, None, None, None]))
 
 
+@pytest.mark.parametrize("use_oldstyle_endpoint", [True, False])
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
@@ -46,6 +46,7 @@ def test_get_sensor_data(
     client,
     setup_api_test_data: dict[str, Sensor],
     setup_roles_users: dict[str, User],
+    use_oldstyle_endpoint,
     requesting_user,
     db,
 ):
@@ -56,7 +57,6 @@ def test_get_sensor_data(
     ).data_source[0]
     assert sensor.event_resolution == timedelta(minutes=10)
     message = {
-        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "start": "2021-05-02T00:00:00+02:00",
         "duration": "PT1H20M",
         "horizon": "PT0H",
@@ -64,10 +64,12 @@ def test_get_sensor_data(
         "source": source.id,
         "resolution": "PT20M",
     }
-    response = client.get(
-        url_for("SensorAPI:get_data"),
-        query_string=message,
-    )
+    if use_oldstyle_endpoint:  # remove this when we remove those endpoints one day
+        message["sensor"] = f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}"
+        url = url_for("SensorAPI:get_data_deprecated")
+    else:
+        url = url_for("SensorAPI:get_data", id=sensor.id)
+    response = client.get(url, query_string=message)
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
@@ -93,7 +95,6 @@ def test_get_instantaneous_sensor_data(
     ).data_source[0]
     assert sensor.event_resolution == timedelta(minutes=0)
     message = {
-        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "start": "2021-05-02T00:00:00+02:00",
         "duration": "PT1H20M",
         "horizon": "PT0H",
@@ -102,7 +103,7 @@ def test_get_instantaneous_sensor_data(
         "resolution": "PT20M",
     }
     response = client.get(
-        url_for("SensorAPI:get_data"),
+        url_for("SensorAPI:get_data", id=sensor.id),
         query_string=message,
     )
     print("Server responded with:\n%s" % response.json)

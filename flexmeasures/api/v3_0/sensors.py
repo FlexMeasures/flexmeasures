@@ -31,7 +31,9 @@ from flexmeasures.api.common.utils.validators import (
 )
 from flexmeasures.api.common.schemas.sensor_data import (
     GetSensorDataSchema,
+    GetSensorDataSchemaEntityAddress,
     PostSensorDataSchema,
+    PostSensorDataSchemaEntityAddress,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
@@ -63,8 +65,8 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
-get_sensor_schema = GetSensorDataSchema()
-post_sensor_schema = PostSensorDataSchema()
+get_sensor_schema_ea = GetSensorDataSchemaEntityAddress()
+post_sensor_schema_ea = PostSensorDataSchemaEntityAddress()
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
@@ -367,7 +369,7 @@ class SensorAPI(FlaskView):
 
     @route("/data", methods=["POST"])
     @use_args(
-        post_sensor_schema,
+        post_sensor_schema_ea,
         location="json",
     )
     @permission_required_for_context(
@@ -384,52 +386,19 @@ class SensorAPI(FlaskView):
         .. :quickref: Data; Post sensor data (DEPRECATED)
 
         This endpoint is deprecated. Post to /sensors/(id)/data instead.
-
-        **Example request**
-
-        .. code-block:: json
-
-            {
-                "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
-                "values": [-11.28, -11.28, -11.28, -11.28],
-                "start": "2021-06-07T00:00:00+02:00",
-                "duration": "PT1H",
-                "unit": "m³/h"
-            }
-
-        The above request posts four values for a duration of one hour, where the first
-        event start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.
-
-        The sensor is the one with ID=1.
-        The unit has to be convertible to the sensor's unit.
-        The resolution of the data has to match the sensor's required resolution, but
-        FlexMeasures will attempt to upsample lower resolutions.
-        The list of values may include null values.
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
         """
         bdf = data.get("bdf")
         sensor_id = bdf.sensor.id if bdf is not None else "<id>"
         current_app.logger.warning(
-            f"Usage of deprecated endpoint /sensors/data for sensor {sensor_id}. Should start using /sensors/{sensor_id}/data."
+            f"User {current_user} called the deprecated endpoint /sensors/data for sensor {sensor_id}. Should start using /sensors/{sensor_id}/data."
         )
         response, code = save_and_enqueue(bdf)
         return response, code
 
-    @route("/data", methods=["GET"])
-    @use_args(
-        get_sensor_schema,
-        location="query",
-    )
-    @permission_required_for_context("read", ctx_arg_pos=1, ctx_arg_name="sensor")
-    def get_data(self, sensor_data_description: dict):
+    @route("/<id>/data", methods=["GET"])
+    @path_and_json(GetSensorDataSchema)  # merge sensor ID from path into the JSON
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    def get_data(self, id: int, **sensor_data_description: dict):
         """Get sensor data from FlexMeasures.
 
         .. :quickref: Data; Download sensor data
@@ -439,7 +408,6 @@ class SensorAPI(FlaskView):
         .. code-block:: json
 
             {
-                "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
                 "start": "2021-06-07T00:00:00+02:00",
                 "duration": "PT1H",
                 "resolution": "PT15M",
@@ -464,6 +432,29 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        response = GetSensorDataSchema.load_data_and_make_response(
+            sensor_data_description
+        )
+        d, s = request_processed()
+        return dict(**response, **d), s
+
+    @route("/data", methods=["GET"])
+    @use_args(
+        get_sensor_schema_ea,
+        location="query",
+    )
+    @permission_required_for_context("read", ctx_arg_pos=1, ctx_arg_name="sensor")
+    def get_data_deprecated(self, sensor_data_description: dict):
+        """Get sensor data from FlexMeasures.
+
+        .. :quickref: Data; Download sensor data (DEPRECATED)
+
+        This endpoint is deprecated. Get from /sensors/(id)/data instead.
+        """
+        sensor = sensor_data_description["sensor"]
+        current_app.logger.warning(
+            f"User {current_user} called the deprecated endpoint GET /sensors/data for sensor {sensor.id}. Should start using /sensors/{sensor.id}/data."
+        )
         response = GetSensorDataSchema.load_data_and_make_response(
             sensor_data_description
         )

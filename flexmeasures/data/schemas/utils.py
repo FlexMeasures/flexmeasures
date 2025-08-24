@@ -7,6 +7,7 @@ from webargs.multidictproxy import MultiDictProxy
 from werkzeug.datastructures import MultiDict
 from click import get_current_context
 from flask import Request
+from flask_json import JsonError
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
@@ -134,15 +135,19 @@ def load_data_from_path_and_json(request: Request, schema):
                         and uploaded json.
     """
     data = MultiDict(request.view_args)
-    data.update(request.json)
-    # until we sunset the entity-address part of the schema, we fake one
-    # this should then change to simply be the sensor ID
-    data["sensor"] = f"ea1.1000-01.required-but-unused-field:fm1.{data['id']}"
+    data.update(request.args)
+    try:
+        data.update(request.json)
+    except JsonError:
+        pass
+
+    data["sensor"] = data["id"]
     del data["id"]
 
     # here, we make sure values are stored as one list
     # MultiDict interprets multiple values per key as competing and accessing the field only gives the first value
-    data["values"] = request.json["values"]
+    if "values" in data:
+        data["values"] = request.json["values"]
 
     return MultiDictProxy(data, schema)
 
