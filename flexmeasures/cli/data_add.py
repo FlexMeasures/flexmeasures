@@ -1086,15 +1086,10 @@ def add_holidays(
 )
 @click.option(
     "--resolution",
-    type=int,
     help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
 )
 @click.option(
     "--horizon",
-    "horizons_as_hours",
-    multiple=True,
-    type=click.Choice(["1", "6", "24", "48"]),
-    default=["1", "6", "24", "48"],
     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
 )
 @with_appcontext
@@ -1129,16 +1124,18 @@ def train_predict_pipeline(
     """
 
     # Deprecation warnings for CLI options specific to rolling viewpoint predictions
-    if "horizon" in kwargs:
+    if kwargs.get("horizon") is not None:
         click.secho(
             "The --horizon option is deprecated since v0.28.0. Use the max-forecast-horizon option instead.",
             **MsgStyle.WARN,
         )
-    if "resolution" in kwargs:
+    del kwargs["horizon"]
+    if kwargs.get("resolution") is not None:
         click.secho(
             "The --resolution option is deprecated since v0.28.0. The resolution of the target sensor is used instead.",
             **MsgStyle.WARN,
         )
+    del kwargs["resolution"]
 
     # Load input by passing it through our Marshmallow schema
     kwargs = ForecastingPipelineSchema().load(kwargs)
