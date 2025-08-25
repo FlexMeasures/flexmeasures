@@ -108,3 +108,7 @@ def test_train_predict_pipeline(
         assert "CustomLGBM" in str(
             forecasts.lineage.sources[0]
         ), "string representation of Source should mention the used model"
+        assert (
+            f"{regressor.name}: {regressor.id}"
+            in forecasts.lineage.sources[0].attributes["regressors"]
+        )
