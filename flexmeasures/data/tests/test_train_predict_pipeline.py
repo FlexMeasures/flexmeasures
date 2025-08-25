@@ -33,6 +33,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         (
             {
                 "sensor": 1,
+                "future_regressors": 2,
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
                 "start_date": "2025-01-01T00:00+02:00",
@@ -72,8 +73,9 @@ def test_train_predict_pipeline(
     expected_error: bool | tuple[type[BaseException], str],
 ):
     sensor = setup_fresh_test_forecast_data["solar-sensor"]
-    sensor_id = sensor.id
-    kwargs["sensor"] = sensor_id
+    regressor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    kwargs["sensor"] = sensor.id
+    kwargs["future_regressors"] = f"{regressor.id}"
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
             kwargs = ForecastingPipelineSchema().load(kwargs)
