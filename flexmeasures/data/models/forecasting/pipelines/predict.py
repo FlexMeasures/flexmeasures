@@ -131,7 +131,7 @@ class PredictPipeline(BasePipeline):
                 y_pred_df = y_pred.pd_dataframe().T
 
             y_pred_df.columns = [
-                f"{i}h" for i in range(1, self.max_forecast_horizon + 1)
+                f"{h}h" for h in range(1, self.max_forecast_horizon + 1)
             ]
             y_pred_df.reset_index(inplace=True)
             # Insert forecasts event_start timestamps
@@ -246,20 +246,20 @@ class PredictPipeline(BasePipeline):
             n_steps_can_predict = self.n_steps_to_predict
             # We make predictions up to the last hour in the predict_period
             y_pred_dfs = list()
-            for i in self.horizons:
+            for h in self.horizons:
                 future_covariates = (
-                    future_covariates_list[i] if future_covariates_list else None
+                    future_covariates_list[h] if future_covariates_list else None
                 )
                 past_covariates = (
-                    past_covariates_list[i] if past_covariates_list else None
+                    past_covariates_list[h] if past_covariates_list else None
                 )
-                y = y_list[i]
-                belief_timestamp = belief_timestamps_list[i]
+                y = y_list[h]
+                belief_timestamp = belief_timestamps_list[h]
                 logging.debug(
-                    f"Making prediction for {self.readable_resolution} offset {i + 1}/{n_steps_can_predict}"
+                    f"Making prediction for {self.readable_resolution} offset {h + 1}/{n_steps_can_predict}"
                 )
                 y_pred_df = self.make_single_horizon_prediction(
-                    model, future_covariates, past_covariates, y, i, belief_timestamp
+                    model, future_covariates, past_covariates, y, h, belief_timestamp
                 )
                 y_pred_dfs.append(y_pred_df)
             df_res = pd.concat(y_pred_dfs)
