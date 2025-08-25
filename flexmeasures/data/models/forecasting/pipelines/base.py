@@ -154,7 +154,12 @@ class BasePipeline:
 
     def split_data_all_beliefs(
         self, df: pd.DataFrame, is_predict_pipeline: bool = False
-    ) -> tuple:
+    ) -> tuple[
+        list[TimeSeries] | None,
+        list[TimeSeries] | None,
+        list[TimeSeries],
+        list[pd.Timestamp],
+    ]:
         """
         Splits the input DataFrame into past covariates, future covariates, and target series
         for each prediction belief_time.
@@ -178,7 +183,11 @@ class BasePipeline:
         try:
             logging.debug("Splitting data target and covariates.")
 
-            def _generate_splits(X_past_regressors_df, X_future_regressors_df, y):
+            def _generate_splits(
+                X_past_regressors_df: pd.DataFrame | None,
+                X_future_regressors_df: pd.DataFrame | None,
+                y: pd.DataFrame,
+            ):
                 """
                 Generates past covariates, future covariates, and target series for multiple prediction belief times.
 
@@ -468,14 +477,14 @@ class BasePipeline:
 
     def _split_covariates_data(
         self,
-        X_past_regressors_df,
-        X_future_regressors_df,
-        target_dataframe,
-        split_timestamp,
-        target_start,
-        target_end,
-        forecast_end,
-    ) -> list[TimeSeries]:
+        X_past_regressors_df: pd.DataFrame | None,
+        X_future_regressors_df: pd.DataFrame | None,
+        target_dataframe: pd.DataFrame,
+        split_timestamp: pd.Timestamp,
+        target_start: pd.Timestamp,
+        target_end: pd.Timestamp,
+        forecast_end: pd.Timestamp,
+    ) -> tuple[TimeSeries | None, TimeSeries | None, TimeSeries]:
         """
         Splits past covariates, future covariates, and target data at a given timestamp.
 
@@ -505,7 +514,7 @@ class BasePipeline:
 
         """
 
-        def _filter_past_covariates(df):
+        def _filter_past_covariates(df: pd.DataFrame | None):
             if df is None:
                 return None
 
@@ -539,7 +548,7 @@ class BasePipeline:
             )
             return past_covariates
 
-        def _filter_future_covariates(df):
+        def _filter_future_covariates(df: pd.DataFrame | None):
             if df is None:
                 return None
 

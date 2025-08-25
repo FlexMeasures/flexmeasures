@@ -159,11 +159,11 @@ class PredictPipeline(BasePipeline):
     def make_single_horizon_prediction(
         self,
         model,
-        future_covariates,
-        past_covariates,
-        y,
-        horizon,
-        belief_timestamp,
+        future_covariates: TimeSeries,
+        past_covariates: TimeSeries,
+        y: TimeSeries,
+        horizon: int,
+        belief_timestamp: pd.Timestamp,
     ) -> pd.DataFrame:
         """
         Make a single prediction for the given horizon, which represents an integer number of steps of the sensor resolution.
@@ -226,10 +226,10 @@ class PredictPipeline(BasePipeline):
     def make_multi_horizon_predictions(
         self,
         model,
-        future_covariates_list,
-        past_covariates_list,
-        y_list,
-        belief_timestamps_list,
+        future_covariates_list: list[TimeSeries],
+        past_covariates_list: list[TimeSeries],
+        y_list: list[TimeSeries],
+        belief_timestamps_list: list[pd.Timestamp],
     ) -> pd.DataFrame:
         """
         Make multiple predictions for the given model, X, and y.
