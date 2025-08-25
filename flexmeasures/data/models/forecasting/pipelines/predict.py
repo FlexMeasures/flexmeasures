@@ -223,7 +223,7 @@ class PredictPipeline(BasePipeline):
             return y_pred_df
         except Exception as e:
             raise CustomException(
-                f"Error predicting for {self.readable_resolution} offset {time_offset}: {e}",
+                f"Error predicting for {self.readable_resolution} offset {time_offset + 1}: {e}",
                 sys,
             )
 
