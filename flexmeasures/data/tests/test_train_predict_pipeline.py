@@ -85,6 +85,12 @@ def test_train_predict_pipeline(
     else:
         kwargs = ForecastingPipelineSchema().load(kwargs)
         pipeline = TrainPredictPipeline(**kwargs)
+
+        # Check pipeline properties
+        for attr in ("regressors", "past_regressors", "future_regressors"):
+            if kwargs.get(attr):
+                assert hasattr(pipeline, attr)
+
         pipeline.run()
         forecasts = sensor.search_beliefs(source="forecaster")
         n_cycles = (kwargs["end_date"] - kwargs["predict_start"]) / (
