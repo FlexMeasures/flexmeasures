@@ -21,6 +21,13 @@ from s2python.common import (
     SelectControlType,
     ResourceManagerDetails,
 )
+from s2python.frbc import (
+    FRBCSystemDescription,
+    FRBCFillLevelTargetProfile,
+    FRBCStorageStatus,
+    FRBCActuatorStatus,
+    FRBCInstruction,
+)
 from s2python.message import S2Message
 from s2python.s2_parser import S2Parser
 from s2python.s2_validation_error import S2ValidationError
@@ -28,6 +35,26 @@ from s2python.s2_validation_error import S2ValidationError
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("S2FlaskWSServerSync")
+
+
+class FRBCDeviceData:
+    """Class to store FRBC device data received from Resource Manager."""
+    
+    def __init__(self):
+        self.system_description: Optional[FRBCSystemDescription] = None
+        self.fill_level_target_profile: Optional[FRBCFillLevelTargetProfile] = None
+        self.storage_status: Optional[FRBCStorageStatus] = None
+        self.actuator_status: Optional[FRBCActuatorStatus] = None
+        self.resource_id: Optional[str] = None
+    
+    def is_complete(self) -> bool:
+        """Check if we have received all necessary data to generate instructions."""
+        return (
+            self.system_description is not None
+            and self.fill_level_target_profile is not None
+            and self.storage_status is not None
+            and self.actuator_status is not None
+        )
 
 
 class MessageHandlersSync:
@@ -96,6 +123,8 @@ class S2FlaskWSServerSync:
         self._handlers = MessageHandlersSync()
         self.s2_parser = S2Parser()
         self._connections: Dict[str, Sock] = {}
+        self._device_data: Dict[str, FRBCDeviceData] = {}  # Store device data by resource_id
+        self._websocket_to_resource: Dict[Sock, str] = {}  # Map websocket to resource_id
         self._register_default_handlers()
         self.sock.route(self.ws_path)(self._ws_handler)
 
@@ -105,6 +134,11 @@ class S2FlaskWSServerSync:
         self._handlers.register_handler(
             ResourceManagerDetails, self.handle_ResourceManagerDetails
         )
+        # Register FRBC message handlers
+        self._handlers.register_handler(FRBCSystemDescription, self.handle_frbc_system_description)
+        self._handlers.register_handler(FRBCFillLevelTargetProfile, self.handle_frbc_fill_level_target_profile)
+        self._handlers.register_handler(FRBCStorageStatus, self.handle_frbc_storage_status)
+        self._handlers.register_handler(FRBCActuatorStatus, self.handle_frbc_actuator_status)
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
@@ -182,6 +216,9 @@ class S2FlaskWSServerSync:
         finally:
             if client_id in self._connections:
                 del self._connections[client_id]
+            # Clean up websocket to resource mapping
+            if websocket in self._websocket_to_resource:
+                del self._websocket_to_resource[websocket]
             self.app.logger.info("Client %s disconnected (sync)", client_id)
 
     def respond_with_reception_status(
@@ -253,17 +290,119 @@ class S2FlaskWSServerSync:
             "Received ResourceManagerDetails (sync): %s", message.to_json()
         )
 
-        # todo: we need to look up the asset that has as its attribute the resource-id matching the resource-id in the message
-        scheduler_class = self.app.data_generators["scheduler"]["S2Scheduler"]
-        from flexmeasures import Asset
-        from flexmeasures.data import db
-        asset = db.session.get(Asset, 1)  # temporary workaround
+        # Store the resource_id from ResourceManagerDetails for device identification
+        resource_id = str(message.resource_id)
+        self._websocket_to_resource[websocket] = resource_id
+        
+        if resource_id not in self._device_data:
+            self._device_data[resource_id] = FRBCDeviceData()
+        self._device_data[resource_id].resource_id = resource_id
 
-        scheduler = scheduler_class(asset, return_multiple=True)
-        schedule = scheduler.compute()
-        for entry in schedule:
-            if isinstance(entry, Instruction):
-                websocket.send(entry)
-            elif isinstance(entry, dict) and "sensor" in entry:
-                # todo: save entry["data"] to sensor (see the code block starting in data/services/scheduling/make_schedule line 598)
-                pass
+    def handle_frbc_system_description(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, FRBCSystemDescription):
+            return
+        self.app.logger.info("Received FRBCSystemDescription: %s", message.to_json())
+        
+        # Get resource_id from websocket mapping
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
+        if resource_id not in self._device_data:
+            self._device_data[resource_id] = FRBCDeviceData()
+        
+        self._device_data[resource_id].system_description = message
+        self._check_and_generate_instructions(resource_id, websocket)
+
+    def handle_frbc_fill_level_target_profile(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, FRBCFillLevelTargetProfile):
+            return
+        self.app.logger.info("Received FRBCFillLevelTargetProfile: %s", message.to_json())
+        
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
+        if resource_id not in self._device_data:
+            self._device_data[resource_id] = FRBCDeviceData()
+        
+        self._device_data[resource_id].fill_level_target_profile = message
+        self._check_and_generate_instructions(resource_id, websocket)
+
+    def handle_frbc_storage_status(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, FRBCStorageStatus):
+            return
+        self.app.logger.info("Received FRBCStorageStatus: %s", message.to_json())
+        
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
+        if resource_id not in self._device_data:
+            self._device_data[resource_id] = FRBCDeviceData()
+        
+        self._device_data[resource_id].storage_status = message
+        self._check_and_generate_instructions(resource_id, websocket)
+
+    def handle_frbc_actuator_status(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, FRBCActuatorStatus):
+            return
+        self.app.logger.info("Received FRBCActuatorStatus: %s", message.to_json())
+        
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
+        if resource_id not in self._device_data:
+            self._device_data[resource_id] = FRBCDeviceData()
+        
+        self._device_data[resource_id].actuator_status = message
+        self._check_and_generate_instructions(resource_id, websocket)
+
+    def _check_and_generate_instructions(self, resource_id: str, websocket: Sock) -> None:
+        """Check if we have all required data and generate instructions if so."""
+        device_data = self._device_data.get(resource_id)
+        if device_data is None or not device_data.is_complete():
+            self.app.logger.info(f"Waiting for more data from device {resource_id}")
+            return
+        
+        self.app.logger.info(f"All data received for device {resource_id}, generating instructions")
+        
+        try:
+            # Get scheduler and generate instructions
+            scheduler_class = self.app.data_generators["scheduler"]["S2Scheduler"]
+            from flexmeasures import Asset
+            from flexmeasures.data import db
+            
+            # Try to get asset from database, fallback to mock if DB unavailable
+            try:
+                asset = db.session.get(Asset, 1)
+                if asset is None:
+                    self.app.logger.warning("No asset found with ID 1, using mock asset")
+                    asset = self._create_mock_asset()
+            except Exception as db_error:
+                self.app.logger.warning(f"Database unavailable ({db_error}), using mock asset")
+                asset = self._create_mock_asset()
+
+            # Create scheduler with device data
+            scheduler = scheduler_class(asset, return_multiple=True)
+            
+            # Pass the device data to the scheduler
+            scheduler.frbc_device_data = device_data
+            
+            schedule = scheduler.compute()
+            for entry in schedule:
+                if isinstance(entry, FRBCInstruction):
+                    self._send_and_forget(entry, websocket)
+                elif isinstance(entry, dict) and "sensor" in entry:
+                    # todo: save entry["data"] to sensor (see the code block starting in data/services/scheduling/make_schedule line 598)
+                    pass
+                    
+        except Exception as e:
+            self.app.logger.error(f"Error generating instructions for device {resource_id}: {e}")
+            # Continue processing other devices
+    
+    def _create_mock_asset(self):
+        """Create a mock asset for testing when database is unavailable."""
+        class MockAsset:
+            def __init__(self):
+                self.id = 1
+                self.name = "Mock Asset"
+                
+        return MockAsset()

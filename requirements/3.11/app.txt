@@ -24,6 +24,8 @@ babel==2.17.0
     # via py-moneyed
 bcrypt==4.0.1
     # via -r requirements/app.in
+binapy==0.8.0
+    # via jwskate
 blinker==1.9.0
     # via
     #   flask
@@ -35,7 +37,9 @@ certifi==2025.4.26
     #   requests
     #   sentry-sdk
 cffi==1.17.1
-    # via argon2-cffi-bindings
+    # via
+    #   argon2-cffi-bindings
+    #   cryptography
 charset-normalizer==3.4.2
     # via requests
 click==8.1.8
@@ -44,12 +48,15 @@ click==8.1.8
     #   click-default-group
     #   flask
     #   rq
+    #   s2-python
 click-default-group==1.2.4
     # via -r requirements/app.in
 contourpy==1.3.2
     # via matplotlib
 convertdate==2.4.0
     # via workalendar
+cryptography==45.0.6
+    # via jwskate
 cycler==0.12.1
     # via matplotlib
 dill==0.4.0
@@ -74,6 +81,7 @@ flask==3.1.1
     #   flask-migrate
     #   flask-principal
     #   flask-security-too
+    #   flask-sock
     #   flask-sqlalchemy
     #   flask-sslify
     #   flask-wtf
@@ -99,6 +107,8 @@ flask-principal==0.4.0
     # via flask-security-too
 flask-security-too==5.6.2
     # via -r requirements/app.in
+flask-sock==0.7.0
+    # via -r requirements/app.in
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
@@ -117,6 +127,8 @@ fonttools==4.58.2
     # via matplotlib
 greenlet==3.2.3
     # via sqlalchemy
+h11==0.16.0
+    # via wsproto
 humanize==4.12.3
     # via -r requirements/app.in
 idna==3.10
@@ -156,6 +168,8 @@ jsonschema==4.24.0
     # via altair
 jsonschema-specifications==2025.4.1
     # via jsonschema
+jwskate==0.12.2
+    # via s2-python
 kiwisolver==1.4.8
     # via matplotlib
 lunardate==0.2.2
@@ -246,7 +260,9 @@ py-moneyed==3.0
 pycparser==2.22
     # via cffi
 pydantic==2.11.5
-    # via -r requirements/app.in
+    # via
+    #   -r requirements/app.in
+    #   s2-python
 pydantic-core==2.33.2
     # via pydantic
 pyluach==2.2.0
@@ -270,6 +286,7 @@ pytz==2025.2
     # via
     #   -r requirements/app.in
     #   pandas
+    #   s2-python
     #   timely-beliefs
     #   timetomodel
 pyyaml==6.0.2
@@ -291,6 +308,7 @@ referencing==0.36.2
 requests==2.32.4
     # via
     #   requests-file
+    #   s2-python
     #   tldextract
 requests-file==2.1.0
     # via tldextract
@@ -303,6 +321,8 @@ rq==2.3.3
     #   -r requirements/app.in
     #   rq-dashboard
 rq-dashboard==0.8.3.2
+    # via -r requirements/app.in
+s2-python[ws] @ git+https://github.com/flexiblepower/s2-python.git@feat/flask_server
     # via -r requirements/app.in
 scikit-base==0.12.3
     # via sktime
@@ -320,6 +340,8 @@ scipy==1.15.3
     #   timetomodel
 sentry-sdk[flask]==2.29.1
     # via -r requirements/app.in
+simple-websocket==1.1.0
+    # via flask-sock
 six==1.17.0
     # via python-dateutil
 sktime==0.37.0
@@ -352,8 +374,10 @@ typing-extensions==4.14.0
     # via
     #   alembic
     #   altair
+    #   binapy
     #   flexcache
     #   flexparser
+    #   jwskate
     #   pint
     #   py-moneyed
     #   pydantic
@@ -376,6 +400,8 @@ vl-convert-python==1.8.0
     # via -r requirements/app.in
 webargs==8.7.0
     # via -r requirements/app.in
+websockets==13.1
+    # via s2-python
 werkzeug==3.1.3
     # via
     #   -r requirements/app.in
@@ -384,6 +410,8 @@ werkzeug==3.1.3
     #   flask-login
 workalendar==17.0.0
     # via -r requirements/app.in
+wsproto==1.2.0
+    # via simple-websocket
 wtforms==3.2.1
     # via
     #   flask-security-too
