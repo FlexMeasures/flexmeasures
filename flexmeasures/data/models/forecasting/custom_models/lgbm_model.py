@@ -80,7 +80,7 @@ class CustomLGBM(BaseModel):
             ):
                 lags = [-1, -24]
             elif horizon % 24 == 23:
-                lags = [-1, -2]  # noqa F841
+                lags = [-1, -2]
 
             model_params["lags"] = lags
             if self.use_past_covariates:
