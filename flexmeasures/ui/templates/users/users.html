@@ -82,6 +82,9 @@
           <div class="mb-3">
             <label for="email" class="form-label">Email</label>
             <input type="email" class="form-control" id="email" name="email" required>
+            <small class="text-muted">
+              Your email will be used as the initial password. The user can change it after logging in.
+            </small>
           </div>
 
           <button type="submit" class="btn btn-primary">Save</button>
@@ -94,22 +97,26 @@
   $(document).ready(function () {
     // Handle form submission
     $("#createUserForm").submit(function (event) {
-      event.preventDefault(); // Prevent the default form submission
+      event.preventDefault();
 
       const username = $("#username").val();
       const email = $("#email").val();
-      const accountId = $("#account").val();
+      const account_id = $("#account").val();
 
       $.ajax({
         type: "POST",
         url: "/api/v3_0/users",
-        data: JSON.stringify({ username, email, accountId }),
+        data: JSON.stringify({ username, email, account_id }),
         contentType: "application/json",
         success: function (response) {
-          // Close the modal and reset the form
           $("#createUserModal").modal("hide");
           $("#createUserForm")[0].reset();
-          // $("#usersTable").DataTable().ajax.reload();
+          $("#usersTable").DataTable().ajax.reload();
+
+          showToast(
+            `User <i class='fw-bold'>${username}</i> created successfully!`,
+            'success'
+          );
         },
         error: function (xhr, status, error) {
           console.error("Error creating user:", error);

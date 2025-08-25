@@ -5,7 +5,7 @@ import marshmallow.validate as validate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, select, func, or_
 from flask_sqlalchemy.pagination import SelectPagination
-from webargs.flaskparser import use_kwargs
+from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
@@ -189,6 +189,60 @@ class UserAPI(FlaskView):
             ]
 
         return response, 200
+
+    @route("", methods=["POST"])
+    @permission_required_for_context(
+        "create-children", ctx_loader=AccountIdField.load_current
+    )
+    @use_args(
+        {
+            "email": fields.Email(required=True),
+            "username": fields.Str(required=True),
+            "account_id": AccountIdField(required=True, data_key="account_id"),
+        }
+    )
+    def post(self, user_data):
+        """Create new user
+
+        .. :quickref: User; Create a new user
+
+        This endpoint creates a new user.
+
+        The following fields are required:
+         - email
+         - username
+         - account_id
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "email": "test_prosumer@seita.nl",
+                "username": "Test Prosumer User",
+                "account_id": 1
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 201: CREATED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        from flexmeasures.data.services.users import create_user
+
+        created_user = create_user(
+            username=user_data["username"],
+            email=user_data["email"],
+            account_name=user_data["account_id"].name,
+            password=user_data["email"],
+            user_roles=[],
+        )
+        db.session.commit()
+        return user_schema.dump(created_user), 201
 
     @route("/<id>")
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
