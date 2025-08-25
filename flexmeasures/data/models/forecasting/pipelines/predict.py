@@ -109,7 +109,7 @@ class PredictPipeline(BasePipeline):
         y_pred: TimeSeries,
         belief_horizon,
         value_at_belief_horizon,
-        time_offset,
+        horizon,
         belief_timestamp,
     ):
         """
@@ -118,7 +118,7 @@ class PredictPipeline(BasePipeline):
         """
         try:
             logging.debug(
-                f"Preparing DataFrame for predictions: {self.readable_resolution} intervals at offset {time_offset + 1}."
+                f"Preparing DataFrame for predictions: {self.readable_resolution} intervals at offset {horizon + 1}."
             )
 
             if self.probabilistic:
@@ -150,7 +150,7 @@ class PredictPipeline(BasePipeline):
                 )
 
             logging.debug(
-                f"DataFrame prepared for predictions: {self.readable_resolution} intervals at offset {time_offset + 1}."
+                f"DataFrame prepared for predictions: {self.readable_resolution} intervals at offset {horizon + 1}."
             )
             return y_pred_df
         except Exception as e:
@@ -162,16 +162,16 @@ class PredictPipeline(BasePipeline):
         future_covariates,
         past_covariates,
         y,
-        time_offset,
+        horizon,
         belief_timestamp,
     ) -> pd.DataFrame:
         """
-        Make a single prediction for the given time offset, which represents an integer number of steps of the sensor resolution.
-        The time offset increments the belief horizon and event time in the training data.
+        Make a single prediction for the given horizon, which represents an integer number of steps of the sensor resolution.
+        The horizon increments the belief horizon and event time in the training data.
         """
         try:
             logging.debug(
-                f"Predicting for {self.readable_resolution} offset {time_offset + 1}, forecasting up to ({self.total_forecast_hours} hours) ahead."
+                f"Predicting for {self.readable_resolution} offset {horizon + 1}, forecasting up to ({self.total_forecast_hours} hours) ahead."
             )
 
             current_y = y
@@ -184,7 +184,7 @@ class PredictPipeline(BasePipeline):
             """ For each single-horizon forecast, past_covariates
             start from the beginning of the training dataset and
             end before the last `n_steps_to_predict` time steps that are yet to be predicted,
-            while also shifting by `time_offset` after each horizon.
+            while also shifting by `horizon` after each horizon.
             and discarding the additional period at the end which extends a period of max_forecast_horizon meant for future_covariates
             """
             if past_covariates is not None:
@@ -193,7 +193,7 @@ class PredictPipeline(BasePipeline):
              start from the forecasted horizon
              extend the last `n_steps_to_predict` time steps that are yet to be predicted,
              and the additional period at the end for the last forecasted horizon of the predict_period
-             While also shifting by `time_offset` after each horizon.
+             While also shifting by `horizon` after each horizon.
             """
             if future_covariates is not None:
                 future_covariates = future_covariates
@@ -210,16 +210,16 @@ class PredictPipeline(BasePipeline):
                 y_pred=y_pred,
                 belief_horizon=belief_horizon,
                 value_at_belief_horizon=value_at_belief_horizon,
-                time_offset=time_offset,
+                horizon=horizon,
                 belief_timestamp=belief_timestamp,
             )
             logging.debug(
-                f"Prediction for {self.readable_resolution} offset {time_offset + 1} completed."
+                f"Prediction for {self.readable_resolution} offset {horizon + 1} completed."
             )
             return y_pred_df
         except Exception as e:
             raise CustomException(
-                f"Error predicting for {self.readable_resolution} offset {time_offset + 1}: {e}",
+                f"Error predicting for {self.readable_resolution} offset {horizon + 1}: {e}",
                 sys,
             )
 
@@ -259,7 +259,7 @@ class PredictPipeline(BasePipeline):
                     future_covariates=future_covariates,
                     past_covariates=past_covariates,
                     y=y,
-                    time_offset=h,
+                    horizon=h,
                     belief_timestamp=belief_timestamp,
                 )
                 y_pred_dfs.append(y_pred_df)
