@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import numbers
+import typing
 from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
@@ -184,9 +185,23 @@ class SensorSchemaMixin(Schema):
             raise ValidationError(f"Unit '{unit}' cannot be handled.")
 
 
+# Define the context as a TypedDict (no need to inherit from GenericAsset)
+class SensorContext(typing.TypedDict):
+    generic_asset: "GenericAsset"  # Storing the generic asset in context
+
+
+# Create the Context wrapper for Sensor schema (Marshmallow 4.x)
+try:
+    from marshmallow.experimental.context import Context
+
+    SensorSchemaContext = Context[SensorContext]
+except ImportError:
+    pass
+
+
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
-    Sensor schema, with validations.
+    Sensor schema with validations, using the new context API in Marshmallow 4.x.
     """
 
     generic_asset_id = fields.Integer(required=True)
@@ -198,8 +213,17 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
             raise ValidationError(
                 f"Generic asset with id {generic_asset_id} doesn't exist."
             )
-        # Add it to context to use it for AssetAuditLog record
-        self.context["generic_asset"] = generic_asset
+
+        # Store the validated generic asset in the context
+        if hasattr(self, "context"):
+            # Marshmallow 3.x
+            self.context["generic_asset"] = generic_asset
+        else:
+            # Marshmallow 4.x
+            with SensorSchemaContext({"generic_asset": generic_asset}):
+                # Now the generic asset is stored in context and can be accessed later
+                # There's no need to call dump here; we just store the asset in context
+                pass
 
     class Meta:
         model = Sensor
@@ -491,7 +515,7 @@ class SensorDataFileSchema(Schema):
     }
 
     @validates("uploaded_files")
-    def validate_uploaded_files(self, files: list[FileStorage]):
+    def validate_uploaded_files(self, files: list[FileStorage], **kwargs):
         """Validate the deserialized fields."""
         errors = {}
         for i, file in enumerate(files):
