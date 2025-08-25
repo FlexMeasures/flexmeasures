@@ -8,7 +8,7 @@ from packaging.version import Version
 from flask import current_app
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import select, Table
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -355,6 +355,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         as_json: bool = False,
         compress_json: bool = False,
         resolution: str | timedelta | None = None,
+        use_materialized_view: bool = True,
+        timed_belief_min_v: Table | None = None,
     ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
 
@@ -400,6 +402,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             one_deterministic_belief_per_event=one_deterministic_belief_per_event,
             one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
             resolution=resolution,
+            use_materialized_view=use_materialized_view,
+            timed_belief_min_v=timed_belief_min_v,
         )
         if as_json and not compress_json:
             df = bdf.reset_index()
@@ -803,6 +807,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         one_deterministic_belief_per_event_per_source: bool = False,
         resolution: str | timedelta = None,
         sum_multiple: bool = True,
+        use_materialized_view: bool = True,
+        timed_belief_min_v: Table | None = None,
     ) -> tb.BeliefsDataFrame | dict[str, tb.BeliefsDataFrame]:
         """Search all beliefs about events for the given sensors.
 
@@ -886,6 +892,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
+                use_materialized_view=use_materialized_view,
+                timed_belief_min_v=timed_belief_min_v,
             )
             if use_latest_version_per_event:
                 bdf = keep_latest_version(
