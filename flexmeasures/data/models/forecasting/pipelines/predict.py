@@ -166,9 +166,8 @@ class PredictPipeline(BasePipeline):
         belief_timestamp,
     ) -> pd.DataFrame:
         """
-        Make a single prediction for the given time offset, which can represent minutes or hours
-        based on the sensor resolution. The time offset increments the belief horizon and event time
-        in the training data.
+        Make a single prediction for the given time offset, which represents an integer number of steps of the sensor resolution.
+        The time offset increments the belief horizon and event time in the training data.
         """
         try:
             logging.debug(
