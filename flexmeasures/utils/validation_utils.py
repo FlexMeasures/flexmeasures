@@ -54,7 +54,7 @@ def validate_url(value):
     return value
 
 
-def get_timed_belief_min_v() -> Table | None:
+def get_timed_belief_min_v() -> Table:
     """Define the structure of the timed_belief_min_v materialized view."""
 
     # Only create the table definition if it exists
