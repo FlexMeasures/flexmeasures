@@ -182,7 +182,7 @@ def data_to_bdf(
     target_sensor : str
         The name of the target sensor.
     regressors : list[str]
-        List of regressor names.
+        List of regressor names, used to create unique sources for different sets of regressors.
     sensor_to_save : Sensor
         The sensor object to save the forecasts to.
     Returns:
