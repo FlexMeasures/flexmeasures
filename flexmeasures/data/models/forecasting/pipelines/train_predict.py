@@ -189,6 +189,7 @@ class TrainPredictPipeline:
                     cycles_job_params.append(train_predict_params)
 
                 # Move forward to the next cycle one prediction period later
+                # todo: rename prediction period to retraining frequency?
                 cycle_frequency = timedelta(hours=self.predict_period_in_hours)
                 train_end += cycle_frequency
                 predict_start += cycle_frequency
