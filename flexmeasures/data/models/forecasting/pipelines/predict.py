@@ -9,13 +9,14 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from darts import TimeSeries
+from isodate import duration_isoformat
+
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.utils import save_to_db
-
 from flexmeasures.data.models.forecasting.utils import data_to_bdf
 from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.utils import save_to_db
 
 
 class PredictPipeline(BasePipeline):
@@ -87,13 +88,7 @@ class PredictPipeline(BasePipeline):
         self.sensor_resolution = Sensor.query.get(
             self.sensors[self.target]
         ).event_resolution
-        hours, remainder = divmod(self.sensor_resolution.total_seconds(), 3600)
-        minutes = remainder // 60
-        self.readable_resolution = (
-            f"{int(hours)} hour"
-            if hours == 1
-            else f"{int(hours)} hours" if hours > 1 else f"{int(minutes)} mins"
-        )
+        self.readable_resolution = duration_isoformat(self.sensor_resolution)
         self.total_forecast_hours = (
             self.max_forecast_horizon * self.sensor_resolution.total_seconds() / 3600
         )
@@ -184,9 +179,10 @@ class PredictPipeline(BasePipeline):
             )
 
             current_y = y
-            # CHECK THIS DIAGRAM : https://cloud.seita.nl/index.php/s/FYRgJwE3ER8kTLk
+            # CHECK THIS DIAGRAM : https://cloud.seita.nl/index.php/s/FYRgJwE3ER8kTLk aka 20250210_123637.png
             """past covariates and future_covariates data is loaded initially to extend
             from the beginning of the train_period up to the end of the predict_period PLUS max_forecast_horizon.
+            The end of this time period for data loading corresponds to the future_covariates data needed for the last forecast.
             Check load_data in base_pipeline."""
 
             """ For each single-horizon forecast, past_covariates
