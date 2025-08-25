@@ -74,9 +74,7 @@ class PredictPipeline(BasePipeline):
         self.model_path = model_path
         self.output_path = output_path
         self.probabilistic = probabilistic
-        self.quantiles = (
-            [0.1, 0.5, 0.9] if not quantiles and probabilistic else quantiles
-        )
+        self.quantiles = tuple(quantiles) if quantiles else None
         self.forecast_horizon = np.arange(1, max_forecast_horizon + 1)
         self.forecast_frequency = forecast_frequency
         self.sensor_to_save = sensor_to_save
@@ -123,8 +121,9 @@ class PredictPipeline(BasePipeline):
                 f"Preparing DataFrame for predictions: {self.readable_resolution} intervals at offset {time_offset + 1}."
             )
 
-            if self.quantiles:
-                y_pred_df = y_pred.quantiles_df((self.quantiles)).T
+            if self.probabilistic:
+                q_kwargs = dict(quantiles=self.quantiles) if self.quantiles else dict()
+                y_pred_df = y_pred.quantiles_df(**q_kwargs).T
             else:
                 y_pred_df = y_pred.pd_dataframe().T
 
