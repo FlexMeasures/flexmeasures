@@ -33,7 +33,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         (
             {
                 "sensor": 1,
-                "future_regressors": 2,
+                "future_regressors": ["irradiance-sensor"],
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
                 "start_date": "2025-01-01T00:00+02:00",
@@ -73,9 +73,15 @@ def test_train_predict_pipeline(
     expected_error: bool | tuple[type[BaseException], str],
 ):
     sensor = setup_fresh_test_forecast_data["solar-sensor"]
-    regressor = setup_fresh_test_forecast_data["irradiance-sensor"]
     kwargs["sensor"] = sensor.id
-    kwargs["future_regressors"] = f"{regressor.id}"
+    regressors = [
+        setup_fresh_test_forecast_data[regressor_name]
+        for regressor_name in kwargs.get("future_regressors", [])
+    ]
+    if regressors:
+        kwargs["future_regressors"] = ",".join(
+            [str(regressor.id) for regressor in regressors]
+        )
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
             kwargs = ForecastingPipelineSchema().load(kwargs)
@@ -108,7 +114,8 @@ def test_train_predict_pipeline(
         assert "CustomLGBM" in str(
             forecasts.lineage.sources[0]
         ), "string representation of Source should mention the used model"
-        assert (
-            f"{regressor.name}: {regressor.id}"
-            in forecasts.lineage.sources[0].attributes["regressors"]
-        )
+        for regressor in regressors:
+            assert (
+                f"{regressor.name}: {regressor.id}"
+                in forecasts.lineage.sources[0].attributes["regressors"]
+            )
