@@ -115,7 +115,7 @@ class SensorAPI(FlaskView):
         - "resolution" (see :ref:`resolutions`)
         - "most_recent_beliefs_only" (if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
         """
-        kwargs["timed_belief_min_v"] = get_timed_belief_min_v(db.session)
+        kwargs["timed_belief_min_v"] = get_timed_belief_min_v()
         return sensor.search_beliefs(as_json=True, **kwargs)
 
     @route("/<id>/chart_annotations", strict_slashes=False)

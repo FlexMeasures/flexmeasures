@@ -58,6 +58,14 @@ def upgrade():
     """
     )
 
+    # Create a unique index to allow concurrent refreshes
+    op.execute(
+        """
+        CREATE UNIQUE INDEX idx_timed_belief_min_v_unique
+        ON timed_belief_min_v(sensor_id, event_start, source_id);
+    """
+    )
+
 
 def downgrade():
     op.execute("DROP MATERIALIZED VIEW IF EXISTS timed_belief_min_v CASCADE;")

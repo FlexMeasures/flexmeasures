@@ -19,7 +19,7 @@ def test_input_schema():
     excluded_arg_names = [
         "as_json",  # used in Sensor.search_beliefs but not in TimedBelief.search
         "timed_belief_min_v",  # used in Sensor.search_beliefs but not in TimedBelief.search
-        "use_materialized_view",  # used in Sensor.search_beliefs but not in
+        "use_materialized_view",  # used in Sensor.search_beliefs as well as in TimedBelief.search
         "compress_json",  # used in Sensor.search_beliefs but not in TimedBelief.search
     ]
 
