@@ -94,6 +94,7 @@ class SensorAPI(FlaskView):
                 required=False, load_default=True
             ),
             "use_materialized_view": fields.Boolean(required=False, load_default=True),
+            "compress_json": fields.Boolean(required=False),
         },
         location="query",
     )

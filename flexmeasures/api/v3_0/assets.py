@@ -661,6 +661,7 @@ class AssetAPI(FlaskView):
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "most_recent_beliefs_only": fields.Boolean(required=False),
             "use_materialized_view": fields.Boolean(required=False, load_default=True),
+            "compress_json": fields.Boolean(required=False),
         },
         location="query",
     )
