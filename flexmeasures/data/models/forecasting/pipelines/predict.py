@@ -211,11 +211,11 @@ class PredictPipeline(BasePipeline):
             belief_horizon = current_y.end_time()
             value_at_belief_horizon = current_y.last_value()
             y_pred_df = self._prepare_df_single_horizon_prediction(
-                y_pred,
-                belief_horizon,
-                value_at_belief_horizon,
-                time_offset,
-                belief_timestamp,
+                y_pred=y_pred,
+                belief_horizon=belief_horizon,
+                value_at_belief_horizon=value_at_belief_horizon,
+                time_offset=time_offset,
+                belief_timestamp=belief_timestamp,
             )
             logging.debug(
                 f"Prediction for {self.readable_resolution} offset {time_offset + 1} completed."
@@ -259,7 +259,12 @@ class PredictPipeline(BasePipeline):
                     f"Making prediction for {self.readable_resolution} offset {h + 1}/{n_steps_can_predict}"
                 )
                 y_pred_df = self.make_single_horizon_prediction(
-                    model, future_covariates, past_covariates, y, h, belief_timestamp
+                    model=model,
+                    future_covariates=future_covariates,
+                    past_covariates=past_covariates,
+                    y=y,
+                    time_offset=h,
+                    belief_timestamp=belief_timestamp,
                 )
                 y_pred_dfs.append(y_pred_df)
             df_res = pd.concat(y_pred_dfs)
@@ -299,10 +304,10 @@ class PredictPipeline(BasePipeline):
             logging.debug("Model loaded")
             df_pred = self.make_multi_horizon_predictions(
                 model,
-                future_covariates_list,
-                past_covariates_list,
-                y_list,
-                belief_timestamps_list,
+                future_covariates_list=future_covariates_list,
+                past_covariates_list=past_covariates_list,
+                y_list=y_list,
+                belief_timestamps_list=belief_timestamps_list,
             )
             logging.debug("Predictions ready to be saved")
 

@@ -249,13 +249,13 @@ class BasePipeline:
                     )
                     past_covariates, future_covariates, y_split = (
                         self._split_covariates_data(
-                            X_past_regressors_df,
-                            X_future_regressors_df,
-                            y,
-                            split_timestamp,
-                            target_start,
-                            target_end,
-                            forecast_end,
+                            X_past_regressors_df=X_past_regressors_df,
+                            X_future_regressors_df=X_future_regressors_df,
+                            target_dataframe=y,
+                            split_timestamp=split_timestamp,
+                            target_start=target_start,
+                            target_end=target_end,
+                            forecast_end=forecast_end,
                         )
                     )
 
