@@ -66,7 +66,7 @@ class CustomLGBM(BaseModel):
             # Lag features are dynamically set based on the forecast horizon
             lag = (
                 24
-                - (  # temporaray make the adaptation to the sensor resolution  , To do: inlude a list of seasonal lags to include, given as pf.timedelta objects
+                - (  # temporarily make the adaptation to the sensor resolution; To do: inlude a list of seasonal lags to include, given as pd.timedelta objects
                     horizon % 24
                 )
             )  # Adjust to repeat the lag structure every 24 hours
