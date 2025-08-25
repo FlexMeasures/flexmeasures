@@ -77,8 +77,6 @@ class PredictPipeline(BasePipeline):
         self.quantiles = (
             [0.1, 0.5, 0.9] if not quantiles and probabilistic else quantiles
         )
-        self.model = None
-        self.predictions: pd.DataFrame = None
         self.forecast_horizon = np.arange(1, max_forecast_horizon + 1)
         self.forecast_frequency = forecast_frequency
         self.sensor_to_save = sensor_to_save
