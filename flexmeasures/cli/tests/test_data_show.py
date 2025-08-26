@@ -93,6 +93,17 @@ def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
 
 
 @pytest.mark.skip_github
+def test_show_forecasters(app, db):
+    from flexmeasures.cli.data_show import list_forecasters
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(list_forecasters)
+
+    assert "CustomLGBM" in result.output
+    check_command_ran_without_error(result)
+
+
+@pytest.mark.skip_github
 def test_show_reporters(app, db):
     from flexmeasures.cli.data_show import list_reporters
 
