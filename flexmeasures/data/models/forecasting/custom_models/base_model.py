@@ -4,11 +4,13 @@ from abc import ABC, abstractmethod
 
 from darts import TimeSeries
 
+from flexmeasures.data.models.data_sources import DataGenerator
 from flexmeasures.data.models.forecasting.utils import negative_to_zero
 from flexmeasures.data.models.forecasting.exceptions import CustomException
+from flexmeasures.data.schemas.forecasting import ForecasterConfigSchema
 
 
-class BaseModel(ABC):
+class BaseModel(DataGenerator, ABC):
     """
     Base model for multi-horizon forecasting.
 
@@ -41,6 +43,8 @@ class BaseModel(ABC):
     __author__ = None
     __data_generator_base__ = "forecaster"
 
+    _config_schema = ForecasterConfigSchema()
+
     max_forecast_horizon: int
     probabilistic: bool
 
@@ -52,7 +56,10 @@ class BaseModel(ABC):
         use_past_covariates: bool,
         use_future_covariates: bool,
         ensure_positive: bool = False,
+        *args,
+        **kwargs,
     ) -> None:
+        super().__init__(*args, **kwargs)
         self.models = []
         self.max_forecast_horizon = max_forecast_horizon
         self.probabilistic = probabilistic
