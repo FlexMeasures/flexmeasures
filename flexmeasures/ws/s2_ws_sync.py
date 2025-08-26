@@ -432,13 +432,29 @@ class S2FlaskWSServerSync:
         # Create a minimal scheduler instance by bypassing the constructor validation
         scheduler = scheduler_class.__new__(scheduler_class)
         
-        # Set minimal required attributes
+        # Create properly aligned start time based on 15-minute intervals
+        # This ensures the timestamps align with the timestep duration
+        now = datetime.now().replace(tzinfo=datetime.now().astimezone().tzinfo)
+        resolution = timedelta(minutes=15)
+        
+        # Align start time to the nearest 15-minute boundary
+        minutes_offset = now.minute % 15
+        seconds_offset = now.second
+        microseconds_offset = now.microsecond
+        
+        start_aligned = now.replace(
+            minute=now.minute - minutes_offset,
+            second=0,
+            microsecond=0
+        )
+        
+        # Set minimal required attributes with aligned timestamps
         scheduler.sensor = None
         scheduler.asset = None
-        scheduler.start = datetime.now()
-        scheduler.end = datetime.now() + timedelta(hours=1)
-        scheduler.resolution = timedelta(minutes=15)
-        scheduler.belief_time = datetime.now()
+        scheduler.start = start_aligned
+        scheduler.end = start_aligned + timedelta(hours=1)
+        scheduler.resolution = resolution
+        scheduler.belief_time = start_aligned
         scheduler.round_to_decimals = 6
         scheduler.flex_model = {}
         scheduler.flex_context = {}
