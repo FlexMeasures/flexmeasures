@@ -18,6 +18,9 @@ class CustomLGBM(BaseModel):
         models (List): List to hold multiple LGBM models.
     """
 
+    __version__ = "1"
+    __author__ = "Seita"
+
     def __init__(
         self,
         max_forecast_horizon=48,
@@ -82,6 +85,7 @@ class CustomLGBM(BaseModel):
             elif horizon % 24 == 23:
                 lags = [-1, -2]
 
+            lags = list(range(-1, -25, -1))
             model_params["lags"] = lags
             if self.use_past_covariates:
                 model_params["lags_past_covariates"] = lags
