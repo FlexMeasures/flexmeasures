@@ -21,7 +21,7 @@ from s2python.common import (
     ReceptionStatusValues,
     SelectControlType,
 )
-from s2python.communication.reception_status_awaiter import ReceptionStatusAwaiter
+from s2python.reception_status_awaiter import ReceptionStatusAwaiter
 from s2python.message import S2Message
 from s2python.s2_parser import S2Parser
 from s2python.s2_validation_error import S2ValidationError

@@ -380,8 +380,8 @@ class S2FlaskWSServerSync:
                 self.app.logger.warning(f"Database unavailable ({db_error}), using mock asset")
                 asset = self._create_mock_asset()
 
-            # Create and configure S2Scheduler directly with minimal setup
-            scheduler = self._create_s2_scheduler_with_frbc_data(device_data)
+            # Create and configure S2Scheduler with the fixed logic from flexmeasures_s2
+            scheduler = self._create_fixed_s2_scheduler_with_frbc_data(device_data)
             
             schedule = scheduler.compute()
             for entry in schedule:
@@ -465,5 +465,57 @@ class S2FlaskWSServerSync:
         
         # Set the FRBC device data
         scheduler.frbc_device_data = device_data
+        
+        return scheduler
+
+    def _create_fixed_s2_scheduler_with_frbc_data(self, device_data):
+        """Create S2Scheduler with the fixed logic from flexmeasures_s2 project."""
+        from datetime import datetime, timedelta, timezone
+        
+        # Import the fixed S2Scheduler directly from flexmeasures_s2
+        scheduler_class = self.app.data_generators["scheduler"]["S2Scheduler"]
+        
+        # Create a minimal scheduler instance by bypassing the constructor validation
+        scheduler = scheduler_class.__new__(scheduler_class)
+        
+        # Create properly aligned start time based on 15-minute intervals
+        # This ensures the timestamps align with the timestep duration
+        now = datetime.now().replace(tzinfo=timezone.utc)
+        resolution = timedelta(minutes=15)
+        
+        # Align start time to the nearest 15-minute boundary
+        minutes_offset = now.minute % 15
+        start_aligned = now.replace(
+            minute=now.minute - minutes_offset,
+            second=0,
+            microsecond=0
+        )
+        
+        # Set minimal required attributes with aligned timestamps
+        scheduler.sensor = None
+        scheduler.asset = None
+        scheduler.start = start_aligned
+        scheduler.end = start_aligned + timedelta(hours=1)
+        scheduler.resolution = resolution
+        scheduler.belief_time = start_aligned
+        scheduler.round_to_decimals = 6
+        scheduler.flex_model = {}
+        scheduler.flex_context = {}
+        scheduler.fallback_scheduler_class = None
+        scheduler.info = {"scheduler": "S2Scheduler"}
+        scheduler.config_deserialized = True  # Skip config deserialization
+        scheduler.return_multiple = True
+        
+        # Convert device_data to the format expected by the fixed scheduler
+        class MockFRBCDeviceData:
+            def __init__(self, data):
+                self.resource_id = data.resource_id
+                self.system_description = data.system_description
+                self.fill_level_target_profile = data.fill_level_target_profile
+                self.storage_status = data.storage_status
+                self.actuator_status = data.actuator_status
+        
+        # Set the FRBC device data
+        scheduler.frbc_device_data = MockFRBCDeviceData(device_data)
         
         return scheduler
