@@ -66,7 +66,7 @@ def test_get_sensor_data(
     }
     if use_oldstyle_endpoint:  # remove this when we remove those endpoints one day
         message["sensor"] = f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}"
-        url = url_for("SensorAPI:get_data_deprecated")
+        url = url_for("SensorEntityAddressAPI:get_data_deprecated")
     else:
         url = url_for("SensorAPI:get_data", id=sensor.id)
     response = client.get(url, query_string=message)

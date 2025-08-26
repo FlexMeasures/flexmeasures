@@ -10,6 +10,7 @@ from flexmeasures.api.v3_0.users import UserAPI
 from flexmeasures.api.v3_0.assets import AssetAPI
 from flexmeasures.api.v3_0.health import HealthAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
+from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
 
 
 def register_at(app: Flask):
@@ -23,3 +24,5 @@ def register_at(app: Flask):
     AssetAPI.register(app, route_prefix=v3_0_api_prefix)
     HealthAPI.register(app, route_prefix=v3_0_api_prefix)
     ServicesAPI.register(app)
+
+    SensorEntityAddressAPI.register(app, route_prefix=v3_0_api_prefix)

@@ -12,7 +12,10 @@ import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.api.common.schemas.sensors import SensorField, SensorIdField
+from flexmeasures.api.common.schemas.sensors import (
+    SensorEntityAddressField,
+    SensorIdField,
+)
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
@@ -215,12 +218,6 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         return response
 
 
-class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
-    """DEPRECATED, only here to support deprecated endpoints"""
-
-    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
-
-
 class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
     This schema includes data, so it can be used for POST requests
@@ -402,7 +399,17 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         )
 
 
+class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorEntityAddressField(
+        required=True, entity_type="sensor", fm_scheme="fm1"
+    )
+
+
 class PostSensorDataSchemaEntityAddress(PostSensorDataSchema):
     """DEPRECATED, only here to support deprecated endpoints"""
 
-    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
+    sensor = SensorEntityAddressField(
+        required=True, entity_type="sensor", fm_scheme="fm1"
+    )

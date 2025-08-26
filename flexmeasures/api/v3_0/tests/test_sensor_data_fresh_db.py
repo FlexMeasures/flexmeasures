@@ -79,7 +79,7 @@ def test_post_sensor_data(
 
     if use_oldstyle_endpoint:  # remove this when we remove those endpoints one day
         post_data["sensor"] = f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}"
-        url = url_for("SensorAPI:post_data_deprecated")
+        url = url_for("SensorEntityAddressAPI:post_data_deprecated")
     else:
         url = url_for("SensorAPI:post_data", id=sensor.id)
     response = client.post(url, json=post_data)

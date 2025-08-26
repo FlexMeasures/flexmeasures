@@ -31,9 +31,7 @@ from flexmeasures.api.common.utils.validators import (
 )
 from flexmeasures.api.common.schemas.sensor_data import (
     GetSensorDataSchema,
-    GetSensorDataSchemaEntityAddress,
     PostSensorDataSchema,
-    PostSensorDataSchemaEntityAddress,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
@@ -64,8 +62,6 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
-get_sensor_schema_ea = GetSensorDataSchemaEntityAddress()
-post_sensor_schema_ea = PostSensorDataSchemaEntityAddress()
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
@@ -271,7 +267,6 @@ class SensorAPI(FlaskView):
             return response, 200
 
     @route("<id>/data/upload", methods=["POST"])
-    # @combined_sensor_data_upload(SensorDataFileSchema)
     @use_args(
         SensorDataFileSchema(), location="combined_sensor_data_upload", as_kwargs=True
     )
@@ -325,7 +320,6 @@ class SensorAPI(FlaskView):
         return response, code
 
     @route("/<id>/data", methods=["POST"])
-    # @combined_sensor_data_description(PostSensorDataSchema)
     @use_args(
         PostSensorDataSchema(),
         location="combined_sensor_data_description",
@@ -374,36 +368,7 @@ class SensorAPI(FlaskView):
         response, code = save_and_enqueue(bdf)
         return response, code
 
-    @route("/data", methods=["POST"])
-    @use_args(
-        post_sensor_schema_ea,
-        location="json",
-    )
-    @permission_required_for_context(
-        "create-children",
-        ctx_arg_pos=1,
-        ctx_arg_name="bdf",
-        ctx_loader=lambda bdf: bdf.sensor,
-        pass_ctx_to_loader=True,
-    )
-    def post_data_deprecated(self, data: dict):
-        """
-        Post sensor data to FlexMeasures.
-
-        .. :quickref: Data; Post sensor data (DEPRECATED)
-
-        This endpoint is deprecated. Post to /sensors/(id)/data instead.
-        """
-        bdf = data.get("bdf")
-        sensor_id = bdf.sensor.id if bdf is not None else "<id>"
-        current_app.logger.warning(
-            f"User {current_user} called the deprecated endpoint /sensors/data for sensor {sensor_id}. Should start using /sensors/{sensor_id}/data."
-        )
-        response, code = save_and_enqueue(bdf)
-        return response, code
-
     @route("/<id>/data", methods=["GET"])
-    # @combined_sensor_data_description(GetSensorDataSchema)
     @use_args(
         GetSensorDataSchema(),
         location="combined_sensor_data_description",
@@ -444,29 +409,6 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        response = GetSensorDataSchema.load_data_and_make_response(
-            sensor_data_description
-        )
-        d, s = request_processed()
-        return dict(**response, **d), s
-
-    @route("/data", methods=["GET"])
-    @use_args(
-        get_sensor_schema_ea,
-        location="query",
-    )
-    @permission_required_for_context("read", ctx_arg_pos=1, ctx_arg_name="sensor")
-    def get_data_deprecated(self, sensor_data_description: dict):
-        """Get sensor data from FlexMeasures.
-
-        .. :quickref: Data; Download sensor data (DEPRECATED)
-
-        This endpoint is deprecated. Get from /sensors/(id)/data instead.
-        """
-        sensor = sensor_data_description["sensor"]
-        current_app.logger.warning(
-            f"User {current_user} called the deprecated endpoint GET /sensors/data for sensor {sensor.id}. Should start using /sensors/{sensor.id}/data."
-        )
         response = GetSensorDataSchema.load_data_and_make_response(
             sensor_data_description
         )
