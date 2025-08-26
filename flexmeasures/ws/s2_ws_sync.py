@@ -380,11 +380,8 @@ class S2FlaskWSServerSync:
                 self.app.logger.warning(f"Database unavailable ({db_error}), using mock asset")
                 asset = self._create_mock_asset()
 
-            # Create scheduler with device data
-            scheduler = scheduler_class(asset, return_multiple=True)
-            
-            # Pass the device data to the scheduler
-            scheduler.frbc_device_data = device_data
+            # Create and configure S2Scheduler directly with minimal setup
+            scheduler = self._create_s2_scheduler_with_frbc_data(device_data)
             
             schedule = scheduler.compute()
             for entry in schedule:
@@ -400,9 +397,57 @@ class S2FlaskWSServerSync:
     
     def _create_mock_asset(self):
         """Create a mock asset for testing when database is unavailable."""
+        from datetime import datetime, timedelta
+        
+        # Create a simple mock object that has the minimum attributes expected by S2Scheduler
         class MockAsset:
             def __init__(self):
                 self.id = 1
-                self.name = "Mock Asset"
+                self.name = "Mock S2 Asset"
+                # Important: S2Scheduler.deserialize_config() accesses asset.attributes
+                self.attributes = {
+                    "flex-model": {},
+                    "custom-scheduler": {
+                        "module": "flexmeasures_s2.scheduler.schedulers",
+                        "class": "S2Scheduler",
+                    }
+                }
+                # Create minimal mock asset type to satisfy isinstance checks
+                self.generic_asset_type_id = 1
+                self.generic_asset_type = type('MockAssetType', (), {
+                    'id': 1,
+                    'name': 'S2Device'
+                })()
                 
         return MockAsset()
+    
+    
+    def _create_s2_scheduler_with_frbc_data(self, device_data):
+        """Create S2Scheduler directly with minimal setup, bypassing FlexMeasures validation."""
+        from datetime import datetime, timedelta
+        
+        # Import S2Scheduler directly
+        scheduler_class = self.app.data_generators["scheduler"]["S2Scheduler"]
+        
+        # Create a minimal scheduler instance by bypassing the constructor validation
+        scheduler = scheduler_class.__new__(scheduler_class)
+        
+        # Set minimal required attributes
+        scheduler.sensor = None
+        scheduler.asset = None
+        scheduler.start = datetime.now()
+        scheduler.end = datetime.now() + timedelta(hours=1)
+        scheduler.resolution = timedelta(minutes=15)
+        scheduler.belief_time = datetime.now()
+        scheduler.round_to_decimals = 6
+        scheduler.flex_model = {}
+        scheduler.flex_context = {}
+        scheduler.fallback_scheduler_class = None
+        scheduler.info = {"scheduler": "S2Scheduler"}
+        scheduler.config_deserialized = True  # Skip config deserialization
+        scheduler.return_multiple = True
+        
+        # Set the FRBC device data
+        scheduler.frbc_device_data = device_data
+        
+        return scheduler
