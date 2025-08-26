@@ -443,7 +443,7 @@ def process_time_series_segments(
                 )
         start = event["start"]
         end = event["end"]
-        if getattr(start, "tz", None) and getattr(end, "tz", None):
+        if start.tz is not None and end.tz is not None:
             start = pd.Timestamp(start).tz_convert(timezone)
             end = pd.Timestamp(end).tz_convert(timezone)
         # Assign the value to the corresponding segment in the DataFrame
