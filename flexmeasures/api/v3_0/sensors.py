@@ -51,7 +51,6 @@ from flexmeasures.data.schemas.sensors import (
     SensorDataFileSchema,
 )
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.schemas.utils import path_and_files, path_and_json
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
@@ -272,7 +271,10 @@ class SensorAPI(FlaskView):
             return response, 200
 
     @route("<id>/data/upload", methods=["POST"])
-    @path_and_files(SensorDataFileSchema)
+    # @combined_sensor_data_upload(SensorDataFileSchema)
+    @use_args(
+        SensorDataFileSchema(), location="combined_sensor_data_upload", as_kwargs=True
+    )
     @permission_required_for_context(
         "create-children",
         ctx_arg_name="data",
@@ -323,7 +325,12 @@ class SensorAPI(FlaskView):
         return response, code
 
     @route("/<id>/data", methods=["POST"])
-    @path_and_json(PostSensorDataSchema)  # merge sensor ID from path into the JSON
+    # @combined_sensor_data_description(PostSensorDataSchema)
+    @use_args(
+        PostSensorDataSchema(),
+        location="combined_sensor_data_description",
+        as_kwargs=True,
+    )
     @permission_required_for_context(
         "create-children",
         ctx_arg_name="bdf",
@@ -396,7 +403,12 @@ class SensorAPI(FlaskView):
         return response, code
 
     @route("/<id>/data", methods=["GET"])
-    @path_and_json(GetSensorDataSchema)  # merge sensor ID from path into the JSON
+    # @combined_sensor_data_description(GetSensorDataSchema)
+    @use_args(
+        GetSensorDataSchema(),
+        location="combined_sensor_data_description",
+        as_kwargs=True,
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_data(self, id: int, **sensor_data_description: dict):
         """Get sensor data from FlexMeasures.

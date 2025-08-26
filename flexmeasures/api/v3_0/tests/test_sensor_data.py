@@ -181,7 +181,10 @@ def test_post_invalid_sensor_data(
     )
     print(response.json)
     assert response.status_code == 422
-    assert error_text in response.json["message"]["path_and_json"][error_field][0]
+    assert (
+        error_text
+        in response.json["message"]["combined_sensor_data_description"][error_field][0]
+    )
 
 
 @pytest.mark.parametrize(
@@ -274,7 +277,10 @@ def test_post_sensor_instantaneous_data(
 
     assert response.status_code == status_code
     if status_code == 422:
-        assert response.json["message"]["path_and_json"]["_schema"][0] == message
+        assert (
+            response.json["message"]["combined_sensor_data_description"]["_schema"][0]
+            == message
+        )
     else:
         assert response.json["message"] == message
 

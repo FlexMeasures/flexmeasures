@@ -319,7 +319,6 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         # return bdf
         # Returning a dict with our value wrapped in there, as that is expected
         # (not sure why using location_loader leads to this expectation ...)
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         return dict(bdf=bdf)
 
     @staticmethod
