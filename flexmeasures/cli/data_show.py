@@ -771,7 +771,7 @@ def list_items(item_type):
                     item_class.__author__,
                     item_class.__module__,
                 )
-                for item_name, item_class in getattr(app, item_type).items()
+                for item_name, item_class in app.data_generators[item_type].items()
             ],
             headers=["name", "version", "author", "module"],
         )
@@ -786,7 +786,7 @@ def list_reporters():
     """
 
     with app.app_context():
-        list_items("reporters")
+        list_items("reporter")
 
 
 @fm_show_data.command("schedulers")
@@ -797,7 +797,7 @@ def list_schedulers():
     """
 
     with app.app_context():
-        list_items("schedulers")
+        list_items("scheduler")
 
 
 app.cli.add_command(fm_show_data)
