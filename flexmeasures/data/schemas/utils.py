@@ -1,8 +1,5 @@
-import functools
-
 import click
 import marshmallow as ma
-from webargs.flaskparser import use_kwargs
 from click import get_current_context
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
@@ -76,7 +73,3 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         raise FMValidationError(
             f"Cannot convert value '{value}' to a valid quantity. {e}"
         )
-
-
-query = functools.partial(use_kwargs, location="query")
-body = functools.partial(use_kwargs, location="json")
