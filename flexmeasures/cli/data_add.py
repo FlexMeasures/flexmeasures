@@ -348,7 +348,7 @@ def new_user(
     "asset",
     type=GenericAssetIdField(),
     required=True,
-    help="Id of the asset to assign this sensor to",
+    help="ID of the asset to assign this sensor to",
 )
 @click.option(
     "--attributes",
@@ -357,7 +357,7 @@ def new_user(
     default="{}",
     help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measure power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
 )
-def add_sensor(asset, **args):
+def add_sensor(asset: GenericAsset, **args):
     """Add a sensor."""
     check_timezone(args["timezone"])
     try:
