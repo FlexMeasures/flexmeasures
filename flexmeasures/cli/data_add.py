@@ -367,7 +367,7 @@ def add_sensor(**args):
     del args["attributes"]  # not part of schema
     if args["event_resolution"].isdigit():
         click.secho(
-            "DeprecationWarning: Use ISO8601 duration string for event-resolution, minutes in int will be depricated from v0.16.0",
+            "DeprecationWarning: Use ISO8601 duration string for event-resolution, minutes in int will be deprecated from v0.16.0",
             **MsgStyle.WARN,
         )
         timedelta_event_resolution = timedelta(minutes=int(args["event_resolution"]))
@@ -385,10 +385,6 @@ def add_sensor(**args):
     db.session.add(sensor)
     db.session.commit()
     click.secho(f"Successfully created sensor with ID {sensor.id}", **MsgStyle.SUCCESS)
-    click.secho(
-        f"You can access it at its entity address {sensor.entity_address}",
-        **MsgStyle.SUCCESS,
-    )
 
 
 @fm_add_data.command("asset-type")
