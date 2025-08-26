@@ -323,7 +323,6 @@ def get_series_from_quantity_or_sensor(
     as_instantaneous_events: bool = True,
     resolve_overlaps: str = "first",
     fill_sides: bool = False,
-    timezone: str = "utc",
 ) -> pd.Series:
     """
     Get a time series given a quantity or sensor defined on a time window.
@@ -346,7 +345,6 @@ def get_series_from_quantity_or_sensor(
     :param fill_sides               If True, values are extended to the edges of the query window:
                                     - The first available value serves as a naive backcast.
                                     - The last available value serves as a naive forecast.
-    :param timezone                 Timezone to convert the time series to.
     :return:                        Pandas Series with the requested time series data.
     """
 
@@ -389,7 +387,6 @@ def get_series_from_quantity_or_sensor(
             resolution=resolution if not as_instantaneous_events else timedelta(0),
             resolve_overlaps=resolve_overlaps,
             fill_sides=fill_sides,
-            timezone=timezone,
         )
     else:
         raise TypeError(
@@ -406,7 +403,6 @@ def process_time_series_segments(
     resolution: timedelta,
     resolve_overlaps: str,
     fill_sides: bool = False,
-    timezone: str = "utc",
 ) -> pd.Series:
     """
     Process a time series defined by a list of dicts, while resolving overlapping segments.
@@ -421,7 +417,6 @@ def process_time_series_segments(
         resolution:         The resolution to subtract from the 'end' to avoid overlap.
         resolve_overlaps:   How to handle overlaps (e.g., 'first', 'last', 'mean', etc.).
         fill_sides:         Whether to extend values to cover the whole index.
-        timezone:           Timezone to convert the time series to.
 
     Returns:                A time series with resolved event values.
     """
@@ -441,8 +436,8 @@ def process_time_series_segments(
                 value = convert_units(
                     value.magnitude, str(value.units), unit, resolution
                 )
-        start = pd.Timestamp(event["start"]).tz_convert(timezone)
-        end = pd.Timestamp(event["end"]).tz_convert(timezone)
+        start = event["start"]
+        end = event["end"]
         # Assign the value to the corresponding segment in the DataFrame
         time_series_segments.loc[start : end - resolution, segment] = value
 
@@ -520,7 +515,6 @@ def get_continuous_series_sensor_or_quantity(
         as_instantaneous_events=as_instantaneous_events,
         resolve_overlaps=resolve_overlaps,
         fill_sides=fill_sides,
-        timezone=actuator.timezone if hasattr(actuator, "timezone") else "utc",
     )
 
     # Apply upper limit
