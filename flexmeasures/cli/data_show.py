@@ -778,6 +778,17 @@ def list_data_generators(generator_type: str):
     )
 
 
+@fm_show_data.command("forecasters")
+@with_appcontext
+def list_forecasters():
+    """
+    Show available forecasters.
+    """
+
+    with app.app_context():
+        list_data_generators("forecaster")
+
+
 @fm_show_data.command("reporters")
 @with_appcontext
 def list_reporters():

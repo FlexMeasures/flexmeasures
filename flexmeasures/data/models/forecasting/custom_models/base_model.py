@@ -37,6 +37,10 @@ class BaseModel(ABC):
         `ensure_positive=True`, as any negative predictions are automatically set to zero.
     """
 
+    __version__ = None
+    __author__ = None
+    __data_generator_base__ = "forecaster"
+
     max_forecast_horizon: int
     probabilistic: bool
 

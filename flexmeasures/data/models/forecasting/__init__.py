@@ -4,6 +4,9 @@ from typing import Callable
 
 from timetomodel import ModelSpecs
 
+from flexmeasures.data.models.forecasting.custom_models.base_model import (  # noqa: F401
+    BaseModel,
+)
 from flexmeasures.data.models.forecasting.model_specs.naive import (
     naive_specs_configurator as naive_specs,
 )
