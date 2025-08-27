@@ -37,11 +37,9 @@ def test_deprecated_decorator(caplog, app):
 def test_unhashable_entities_as_dict_keys(db):
     asset_type = AssetType(name="foo")
     asset = Asset(name="bar", generic_asset_type=asset_type)
-    sensor_a = Sensor(name="A", unit="m", event_resolution="PT15M", generic_asset=asset)
-    sensor_b = Sensor(name="B", unit="m", event_resolution="PT15M", generic_asset=asset)
-    db.session.add(sensor_a)
-    db.session.add(sensor_b)
-    sensors = [sensor_a, sensor_b]
+    sensors = [Sensor(name=name, generic_asset=asset) for name in ["A", "B"]]
+    for sensor in sensors:
+        db.session.add(sensor)
     with pytest.raises(TypeError) as exc_info:
         sensor_dict = {s: s.name for s in sensors}  # noqa: F841
     assert (
