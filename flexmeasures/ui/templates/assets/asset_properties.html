@@ -464,7 +464,7 @@
             "prefer-curtailing-later": { "units": flexModelAllowedUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True).", "types": "Boolean option only." },
             "power-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint. How much power can be applied to this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
             "consumption-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on consumption. How much power can be drawn by this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
-            "production-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment, set this to reference your sensor containing PV power forecasts.", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "production-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment (staying within promised output), set this to reference a sensor containing PV power forecasts.", "types": "One fixed value or a dynamic signal (via a sensor)." },
         }
 
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
