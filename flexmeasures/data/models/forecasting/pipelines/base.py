@@ -36,7 +36,6 @@ class BasePipeline:
     def __init__(
         self,
         sensors: dict[str, int],
-        regressors: list[str],
         future_regressors: list[str],
         target: str,
         n_steps_to_predict: int,
