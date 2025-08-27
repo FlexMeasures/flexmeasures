@@ -358,6 +358,56 @@
         }
     });
 
+    /**
+     * Convert data from the new (>= FM v0.28) compressed reference-based format
+     * back to the old format, for backward compatibility.
+     *
+     * @param {Object} responseData - The data from the sensor data API.
+     * @returns {Object[]} - The adapted data in the old format.
+     */
+    function decompressChartData(responseData) {
+        // Check if it's the new compressed reference-based format, if so: decompress
+        if (responseData.data && responseData.sensors && responseData.sources) {
+            return responseData.data.map(belief => {
+                const sensor = responseData.sensors[belief.sid] || {};
+                const source = responseData.sources[belief.src] || {};
+
+                return {
+                    // Map shortened field names back to original names
+                    event_start: belief.ts,
+                    event_value: belief.val,
+                    belief_horizon: belief.bh,
+                    scale_factor: belief.sf,
+                    belief_time: belief.bt,
+
+                    // Reconstruct full sensor and source objects
+                    sensor: {
+                        id: belief.sid,
+                        name: sensor.name || '',
+                        sensor_unit: sensor.unit || '',
+                        unit: sensor.unit || '',
+                        description: sensor.description || '',
+                        asset_id: sensor.asset_id,
+                        asset_description: sensor.asset_description || ''
+                    },
+                    source: {
+                        id: belief.src,
+                        name: source.name || '',
+                        model: source.model || '',
+                        type: source.type || 'other',
+                        description: source.description || ''
+                    },
+
+                    // Keep sensor_unit at root level for backward compatibility
+                    sensor_unit: sensor.unit || ''
+                };
+            });
+        }
+
+        // If it's already in the old format, return as-is
+        return responseData;
+    }
+
     function checkDSTTransitions(startDate, endDate) {
         var numDSTTransitions = countDSTTransitions(startDate, endDate, 90)
         if (numDSTTransitions == 1) {
@@ -562,6 +612,12 @@
             {% endif %}
 
             endDate.setDate(endDate.getDate() + 1);
+
+            // Update current url without reloading the page
+            var base_url = window.location.href.split("?")[0];
+            var new_url = `${base_url}?start_time=${toIsoString(startDate)}&end_time=${toIsoString(endDate)}`;
+            window.history.pushState({}, null, new_url);
+
             storeStartDate = startDate;
             storeEndDate = endDate;
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
@@ -643,13 +699,16 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
-                getAssetKPIs();
-                const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
+                {% if active_subpage == "asset_graph" and has_kpis %}
+                    getAssetKPIs();
+                {% endif %}
+                const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
                     method: "GET",
                     headers: {"Content-Type": "application/json"},
                     signal: signal,
                 })
-                .then(function(response) { return response.json(); });
+                .then(function(response) { return response.json(); })
+                .then(data => decompressChartData(data));
                 let fetchedInitialData = await Promise.all([
                     initialData,
                     embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
@@ -794,12 +853,13 @@
         Promise.all([
             playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
             // Fetch time series data (all data, not only the most recent beliefs)
-            fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
+            fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false&compress_json=true', {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
                 signal: signal,
             })
-            .then(function(response) { return response.json(); }),
+            .then(function(response) { return response.json(); })
+            .then(data => decompressChartData(data)),
         ]).then(function(result) {
             previousPlaybackResult = result[0];
             replayBeliefsData(result[0]);
@@ -889,18 +949,20 @@
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()){
             return Promise.resolve(previousResult.data);
         } else {
-            {% if active_subpage == "asset_graph" %}
+            {% if active_subpage == "asset_graph" and has_kpis %}
                 getAssetKPIs();
             {% endif %}
-            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
                     method: "GET",
                     headers: { "Content-Type": "application/json" },
                     signal: signal,
-            }).then(response => response.json());
+            })
+            .then(response => response.json())
+            .then(data => decompressChartData(data));
         }
     }
-    
-    {% if active_subpage == "asset_graph" %}
+
+    {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs() {
         const pickerStartDate = picker.getStartDate().toJSDate();
         const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
@@ -916,7 +978,7 @@
         })
         .then(response => response.json())
         .then(response => {
-            
+
             // Create card for each KPI object
             const data = response.data;
             // Set kpiCards to empty
@@ -933,7 +995,7 @@
                         <h5 class="card-title">${kpi.title}</h5>
                         <h5 class="card-text">
                             <strong>
-                                ${label}: ${kpi.downsample_value}
+                                ${label}: ${kpi.downsample_value} ${kpi.unit}
                                 <small>${kpi.downsample_function}</small>
                             </strong>
                         </h5>
@@ -951,7 +1013,7 @@
             return []; // Return an empty array if there's an error
         });
     }
-    
+
     {% endif %}
     </script>
 

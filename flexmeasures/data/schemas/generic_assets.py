@@ -156,9 +156,7 @@ class SensorsToShowSchema(fields.Field):
 class SensorKPIFieldSchema(ma.SQLAlchemySchema):
     title = fields.Str(required=True)
     sensor = SensorIdField(required=True)
-    default_function = fields.Str(
-        required=False, validate=OneOf(["sum", "min", "max", "mean"])
-    )
+    function = fields.Str(required=False, validate=OneOf(["sum", "min", "max", "mean"]))
 
     @validates("sensor")
     def validate_sensor(self, value):
@@ -206,24 +204,24 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_under_parent(self, data, **kwargs):
-        if "name" in data:
-
+        """
+        Validate that name is unique among siblings.
+        This is also checked by a db constraint.
+        Here, we can only check if we have all information (a full form),
+        which usually is at creation time.
+        """
+        if "name" in data and "parent_asset_id" in data:
             asset = db.session.scalars(
                 select(GenericAsset)
                 .filter_by(
                     name=data["name"],
                     parent_asset_id=data.get("parent_asset_id"),
-                    account_id=data.get("account_id"),
                 )
                 .limit(1)
             ).first()
 
             if asset:
-                err_msg = f"An asset with the name '{data['name']}' already exists in account {data.get('account_id')}"
-                if data.get("parent_asset_id"):
-                    err_msg += (
-                        f" under the parent asset with id={data.get('parent_asset_id')}"
-                    )
+                err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
                 raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")

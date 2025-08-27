@@ -46,7 +46,6 @@ from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import (
     flatten_unique,
-    get_downsample_function_and_value,
 )
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
@@ -55,6 +54,7 @@ from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
+from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
@@ -657,6 +657,7 @@ class AssetAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "most_recent_beliefs_only": fields.Boolean(required=False),
+            "compress_json": fields.Boolean(required=False),
         },
         location="query",
     )
@@ -1096,8 +1097,8 @@ class AssetAPI(FlaskView):
         .. sourcecode:: json
 
             {
-                "start": "2015-06-02T10:00:00+00:00",
-                "end": "2015-06-02T12:00:00+00:00"
+                "start": "2015-06-02T00:00:00+00:00",
+                "end": "2015-06-09T00:00:00+00:00"
             }
 
         **Example response**

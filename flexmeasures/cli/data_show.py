@@ -756,12 +756,12 @@ def find_duplicates(_list: list, attr: str | None = None) -> list:
     return [item for item in set(_list) if _list.count(item) > 1]
 
 
-def list_items(item_type):
+def list_data_generators(generator_type: str):
     """
-    Show available items of a specific type.
+    Show available data generators of a specific type.
     """
 
-    click.echo(f"{item_type.capitalize()}:\n")
+    click.echo(f"{generator_type.capitalize()}:\n")
     click.echo(
         tabulate(
             [
@@ -771,7 +771,7 @@ def list_items(item_type):
                     item_class.__author__,
                     item_class.__module__,
                 )
-                for item_name, item_class in getattr(app, item_type).items()
+                for item_name, item_class in app.data_generators[generator_type].items()
             ],
             headers=["name", "version", "author", "module"],
         )
@@ -786,7 +786,7 @@ def list_reporters():
     """
 
     with app.app_context():
-        list_items("reporters")
+        list_data_generators("reporter")
 
 
 @fm_show_data.command("schedulers")
@@ -797,7 +797,7 @@ def list_schedulers():
     """
 
     with app.app_context():
-        list_items("schedulers")
+        list_data_generators("scheduler")
 
 
 app.cli.add_command(fm_show_data)
