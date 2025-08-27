@@ -164,11 +164,7 @@ class ForecastingPipelineSchema(Schema):
         target_sensor = data["sensor"]
 
         if not regressors and not future_regressors and not past_regressors:
-            regressors = ["autoregressive"]
-        elif not regressors and future_regressors:
-            regressors = future_regressors.copy()
-        elif not regressors and past_regressors:
-            regressors = past_regressors.copy()
+            regressors = []
 
         resolution = target_sensor.event_resolution
 
