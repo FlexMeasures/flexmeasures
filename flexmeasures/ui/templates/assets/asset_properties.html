@@ -14,27 +14,6 @@
     <div class="row">
 
         <div class="col-md-2 on-top-md">
-            <div class="header-action-button">
-                {% if user_can_delete_asset %}
-                <div>
-                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this asset
-                        </button>
-                    </form>
-                    <script>
-                        $("#delete-asset-button").click(function () {
-                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-                                return true;
-                            }
-                            else {
-                                return false;
-                            }
-                        });
-                    </script>
-                </div>
-                {% endif %}
-            </div>
             <div class="sidepanel-container d-none d-md-block">
                 <div class="left-sidepanel-label">Select dates</div>
                 <div class="sidepanel left-sidepanel">
@@ -133,6 +112,28 @@
                 </div>
             </div>
             {% endif %}
+      
+            <div class="header-action-button">
+                {% if user_can_delete_asset %}
+                <div>
+                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">Delete this
+                            asset
+                        </button>
+                    </form>
+                    <script>
+                        $("#delete-asset-button").click(function () {
+                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
+                                return true;
+                            }
+                            else {
+                                return false;
+                            }
+                        });
+                    </script>
+                </div>
+                {% endif %}
+            </div>
         </div>
 
         <div class="col-md-8">
@@ -376,7 +377,7 @@
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
             createReactiveState, processResourceRawJSON, getAsset,
-            getAccount, apiBasePath, renderSensorSearchResults
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 
@@ -433,8 +434,8 @@
             "soc-gain": typeFour,
             "soc-usage": typeFour,
             "roundtrip-efficiency": typeFive,
-            "charging-efficiency": typeFive,
-            "discharging-efficiency": typeFive,
+            "charging-efficiency": typeThree,
+            "discharging-efficiency": typeThree,
             "storage-efficiency": typeThree,
             "prefer-charging-sooner": typeOne,
             "prefer-curtailing-later": typeOne,
@@ -449,21 +450,21 @@
             "soc-minima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form lower boundaries, e.g. to target a full car battery in the morning", "types": "A sensor which records the set points as energy targets." },
             "soc-maxima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form upper boundaries at certain times.", "types": "A sensor which records the set points as energy targets." },
             "soc-targets": { "units": flexModelAllowedUnits.energy, "desc": "Exact set point(s) that the scheduler needs to realize.", "types": "A sensor which records the set points as energy targets." },
-            "soc-gain": { "units": flexModelAllowedUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated gain.", "types": Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
+            "soc-gain": { "units": flexModelAllowedUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated gain.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
             "soc-usage": { "units": flexModelAllowedUnits.power, "desc": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated usage.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
-            "roundtrip-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio [0,1]. Defaults to 100% (no loss).", "types": "Fixed value only." },
-            "charging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of charging, not across roundtrip. Defaults to 100% (no loss).", "types": "Fixed value only." },
-            "discharging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip. Defaults to 100% (no loss).", "types": "Fixed value only." },
+            "roundtrip-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
+            "charging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of charging, not across roundtrip. Can be percent or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
+            "discharging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip. Can be percent or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
             "storage-efficiency": {
                 "units": flexModelAllowedUnits.efficiency,
-                "desc": "This can encode losses over time, so each time step the energy is held longer leads to higher losses. For example 95% (or 0.95) means a loss of 5% each step. Defaults to 100% (no loss). Note that the storage efficiency to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent  per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865",
+                "desc": "This can encode losses over time, so each time step the energy is held longer leads to higher losses. For example 95% (or 0.95) means a loss of 5% each step. Defaults to 100% or 1.0 (no loss). Note that the storage efficiency to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent  per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865",
                 "types": "Fixed value only."
             },
             "prefer-charging-sooner": { "units": flexModelAllowedUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later.", "types": "Boolean option only." },
             "prefer-curtailing-later": { "units": flexModelAllowedUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True).", "types": "Boolean option only." },
-            "power-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute capacity_in_mw).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "power-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint. How much power can be applied to this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
             "consumption-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on consumption. How much power can be drawn by this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
-            "production-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment, set this to reference your sensor containing PV power forecasts.", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "production-capacity": { "units": flexModelAllowedUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment (staying within promised output), set this to reference a sensor containing PV power forecasts.", "types": "One fixed value or a dynamic signal (via a sensor)." },
         }
 
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
@@ -492,7 +493,7 @@
                 const flexUnitsSelect = document.getElementById('flexUnitsSelect');
 
                 const elementsToInitialize = [
-                    { element: flexCheckBox, id: 'flexCheckBox', eventType: 'change', handler: searchSensors },
+                    { element: flexCheckBox, id: 'flexCheckBox' },
                     { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
                     { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
                 ];
@@ -549,7 +550,7 @@
                 if (FlexModelFieldValidTypes[fieldName].includes(Array)) {
                     currentFlexmodel[fieldName] = ["Not Set"];
                 } else if (FlexModelFieldValidTypes[fieldName].includes(Boolean)) {
-                    currentFlexmodel[fieldName] = false;
+                    currentFlexmodel[fieldName] = true;
                 } else {
                     currentFlexmodel[fieldName] = "Not Set";
                 }
@@ -606,7 +607,6 @@
                 }
 
                 if (flexCheckBox.checked) {
-                    console.log("Triggered...")
                     params.append('include_public_assets', true);
                 }
 
@@ -835,7 +835,7 @@
                 }
 
                 const identityIcon = document.createElement('i');
-                identityIcon.className = `${fieldIconClass} ps-1 fa-md float-end`;
+                identityIcon.className = `${fieldIconClass} ps-1 fa-md float-end text-black-50`;
                 identityIcon.setAttribute('data-bs-toggle', 'tooltip');
                 identityIcon.setAttribute('data-bs-html', 'true');
                 identityIcon.setAttribute('title', fieldIconTitle);
@@ -893,8 +893,8 @@
                 }
 
 
-                titleContainer.appendChild(titleSubContainer);
                 iconSubContainer.appendChild(closeIcon);
+                titleContainer.appendChild(titleSubContainer);
                 titleContainer.appendChild(iconSubContainer);
                 highlightCard.appendChild(titleContainer);
 
@@ -1100,7 +1100,6 @@
                 } else if (!card && hasInitialized) {
                     return;
                 }
-
 
                 const name = card.id.replace('-control', '');
                 const fieldDataTypes = FlexModelFieldValidTypes[name];
