@@ -543,6 +543,7 @@ class AssetAPI(FlaskView):
             flex_context=DBFlexContextSchema,
             flex_model=DBStorageFlexModelSchema,
         )
+
         for k, v in asset_data.items():
             if getattr(db_asset, k) == v:
                 continue
