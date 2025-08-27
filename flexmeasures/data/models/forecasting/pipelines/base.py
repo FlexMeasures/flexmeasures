@@ -88,7 +88,7 @@ class BasePipeline:
 
                 most_recent_beliefs_only = True
                 # Extend time range for future regressors
-                if name in self.future_regressors or self.regressors:
+                if name in self.future_regressors:
                     sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
                         hours=self.max_forecast_horizon_in_hours
                     )
