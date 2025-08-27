@@ -377,7 +377,7 @@
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
             createReactiveState, processResourceRawJSON, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults
+            getAccount, apiBasePath, renderSensorSearchResults
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 
@@ -434,8 +434,8 @@
             "soc-gain": typeFour,
             "soc-usage": typeFour,
             "roundtrip-efficiency": typeFive,
-            "charging-efficiency": typeThree,
-            "discharging-efficiency": typeThree,
+            "charging-efficiency": typeFive,
+            "discharging-efficiency": typeFive,
             "storage-efficiency": typeThree,
             "prefer-charging-sooner": typeOne,
             "prefer-curtailing-later": typeOne,
@@ -493,7 +493,7 @@
                 const flexUnitsSelect = document.getElementById('flexUnitsSelect');
 
                 const elementsToInitialize = [
-                    { element: flexCheckBox, id: 'flexCheckBox' },
+                    { element: flexCheckBox, id: 'flexCheckBox', eventType: 'change', handler: searchSensors },
                     { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
                     { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
                 ];
@@ -607,6 +607,7 @@
                 }
 
                 if (flexCheckBox.checked) {
+                    console.log("Triggered...")
                     params.append('include_public_assets', true);
                 }
 
@@ -893,8 +894,8 @@
                 }
 
 
-                iconSubContainer.appendChild(closeIcon);
                 titleContainer.appendChild(titleSubContainer);
+                iconSubContainer.appendChild(closeIcon);
                 titleContainer.appendChild(iconSubContainer);
                 highlightCard.appendChild(titleContainer);
 
@@ -1100,6 +1101,7 @@
                 } else if (!card && hasInitialized) {
                     return;
                 }
+
 
                 const name = card.id.replace('-control', '');
                 const fieldDataTypes = FlexModelFieldValidTypes[name];
