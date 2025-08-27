@@ -228,6 +228,6 @@ class OrderByIdMixin:
         """
         if self.id is None:
             raise TypeError(
-                f"Unhashable object: {self} has no ID. Consider calling `db.session.flush()` before sensor objects in sets and as dictionary keys."
+                f"Unhashable object: {self} has no ID. Consider calling `db.session.flush()` before using {type(self)} objects in sets or as dictionary keys."
             )
         return hash(self.id)
