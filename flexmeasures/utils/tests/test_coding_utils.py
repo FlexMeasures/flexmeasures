@@ -35,6 +35,7 @@ def test_deprecated_decorator(caplog, app):
 
 
 def test_unhashable_entities_as_dict_keys(db):
+    """Check for a useful error message when using un-flushed sensors as dict keys."""
     asset_type = AssetType(name="foo")
     asset = Asset(name="bar", generic_asset_type=asset_type)
     sensors = [Sensor(name=name, generic_asset=asset) for name in ["A", "B"]]
