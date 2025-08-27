@@ -291,8 +291,8 @@ class BasePipeline:
                 )
 
             if (
-                "auto_regressive" in self.regressors
-                or "autoregressive" in self.regressors
+                not self.past_regressors
+                or not self.future_regressors
             ):
                 logging.info("Using autoregressive forecasting.")
 
