@@ -20,7 +20,6 @@ class TrainPipeline(BasePipeline):
     def __init__(
         self,
         sensors: dict[str, int],
-        regressors: list[str],
         past_regressors: list[str],
         future_regressors: list[str],
         target: str,
@@ -36,7 +35,8 @@ class TrainPipeline(BasePipeline):
         Initialize the TrainPipeline.
 
         :param sensors: Dictionary mapping custom regressor names to sensor IDs.
-        :param regressors: List of custom regressor names.
+        :param past_regressors: List of past regressor names.
+        :param future_regressors: List of future regressor names.
         :param target: Custom target name.
         :param model_save_dir: Directory where the trained model will be saved.
         :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
@@ -53,7 +53,6 @@ class TrainPipeline(BasePipeline):
         )
         super().__init__(
             sensors=sensors,
-            regressors=regressors,
             past_regressors=past_regressors,
             future_regressors=future_regressors,
             target=target,
