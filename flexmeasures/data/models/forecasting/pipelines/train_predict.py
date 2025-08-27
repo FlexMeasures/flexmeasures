@@ -226,4 +226,6 @@ class TrainPredictPipeline:
                     )
                 return jobs
         except Exception as e:
-            raise CustomException(f"Error running Train-Predict Pipeline: {e}", sys)
+            raise CustomException(
+                f"Error running Train-Predict Pipeline: {e}", sys
+            ) from e

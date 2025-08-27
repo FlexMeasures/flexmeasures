@@ -101,7 +101,7 @@ class PredictPipeline(BasePipeline):
             )
             return model
         except Exception as e:
-            raise CustomException(f"Error loading model and metadata: {e}", sys)
+            raise CustomException(f"Error loading model and metadata: {e}", sys) from e
 
     def _prepare_df_single_horizon_prediction(
         self,
@@ -153,7 +153,9 @@ class PredictPipeline(BasePipeline):
             )
             return y_pred_df
         except Exception as e:
-            raise CustomException(f"Error preparing prediction DataFrame: {e}", sys)
+            raise CustomException(
+                f"Error preparing prediction DataFrame: {e}", sys
+            ) from e
 
     def make_single_horizon_prediction(
         self,
@@ -217,7 +219,7 @@ class PredictPipeline(BasePipeline):
             raise CustomException(
                 f"Error predicting for {self.readable_resolution} offset {horizon + 1}: {e}",
                 sys,
-            )
+            ) from e
 
     def make_multi_horizon_predictions(
         self,
@@ -263,7 +265,7 @@ class PredictPipeline(BasePipeline):
             logging.debug("Finished generating predictions.")
             return df_res
         except Exception as e:
-            raise CustomException(f"Error generating predictions: {e}", sys)
+            raise CustomException(f"Error generating predictions: {e}", sys) from e
 
     def save_results_to_CSV(self, df_pred: pd.DataFrame):
         """
@@ -276,7 +278,7 @@ class PredictPipeline(BasePipeline):
             logging.debug("Successfully saved predictions to %s", self.output_path)
 
         except Exception as e:
-            raise CustomException(f"Error saving predictions: {e}", sys)
+            raise CustomException(f"Error saving predictions: {e}", sys) from e
 
     def run(self, delete_model: bool = False):
         """
@@ -327,4 +329,4 @@ class PredictPipeline(BasePipeline):
 
             logging.info("Prediction pipeline completed successfully.")
         except Exception as e:
-            raise CustomException(f"Error running pipeline: {e}", sys)
+            raise CustomException(f"Error running pipeline: {e}", sys) from e

@@ -82,7 +82,7 @@ class TrainPipeline(BasePipeline):
             logging.debug("Model trained successfully")
             return model
         except Exception as e:
-            raise CustomException(f"Error training model: {e}", sys)
+            raise CustomException(f"Error training model: {e}", sys) from e
 
     def save_model(self, model, model_name: str):
         """
@@ -96,7 +96,7 @@ class TrainPipeline(BasePipeline):
                 pickle.dump(model, file)
             logging.debug(f"Model and metadata saved successfully to {model_save_path}")
         except Exception as e:
-            raise CustomException(f"Error saving model and metadata: {e}", sys)
+            raise CustomException(f"Error saving model and metadata: {e}", sys) from e
 
     def run(self, counter: int):
         """
@@ -136,4 +136,4 @@ class TrainPipeline(BasePipeline):
                 self.save_model(trained_model, model_name)
 
         except Exception as e:
-            raise CustomException(f"Error running training pipeline: {e}", sys)
+            raise CustomException(f"Error running training pipeline: {e}", sys) from e
