@@ -25,7 +25,7 @@ class BasePipeline:
     Parameters:
     - sensors (dict[str, int]): Dictionary mapping sensor names to sensor IDs.
     - past_regressors: List of past regressor names.
-    - future_regressors: List of future regressor names.    
+    - future_regressors: List of future regressor names.
     - target (str): Name of the target sensor.
     - n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
     - max_forecast_horizon (int): Max forecasting horizon in steps of 1 resolution.
@@ -290,10 +290,7 @@ class BasePipeline:
                     belief_timestamps_list,
                 )
 
-            if (
-                not self.past_regressors
-                or not self.future_regressors
-            ):
+            if not self.past_regressors or not self.future_regressors:
                 logging.info("Using autoregressive forecasting.")
 
                 y = df[["event_start", "belief_time", self.target]].copy()
@@ -539,9 +536,7 @@ class BasePipeline:
 
             past_covariates = self.detect_and_fill_missing_values(
                 df=past_data,
-                sensor_names=[
-                    r for r in self.past_regressors
-                ],
+                sensor_names=[r for r in self.past_regressors],
                 start=target_start,
                 end=target_end,
             )

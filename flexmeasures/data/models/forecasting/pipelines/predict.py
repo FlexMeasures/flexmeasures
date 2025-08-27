@@ -183,14 +183,14 @@ class PredictPipeline(BasePipeline):
             """
             For each single-horizon forecast:
 
-            - Past covariates start from the beginning of the training dataset, 
-            end before the last `n_steps_to_predict` time steps that are yet to be predicted, 
-            and are shifted by `horizon` after each forecast. 
+            - Past covariates start from the beginning of the training dataset,
+            end before the last `n_steps_to_predict` time steps that are yet to be predicted,
+            and are shifted by `horizon` after each forecast.
             The additional period at the end, meant for `future_covariates` of max_forecast_horizon, is discarded.
 
-            - Future covariates start from the forecasted horizon, 
-            extend through the last `n_steps_to_predict` time steps that are yet to be predicted, 
-            and include the additional period at the end for the last forecasted horizon of the predict_period. 
+            - Future covariates start from the forecasted horizon,
+            extend through the last `n_steps_to_predict` time steps that are yet to be predicted,
+            and include the additional period at the end for the last forecasted horizon of the predict_period.
             These are also shifted by `horizon` after each forecast.
             """
 

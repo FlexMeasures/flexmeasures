@@ -145,7 +145,9 @@ class ForecastingPipelineSchema(Schema):
 
         # Add them to the dict with unique keys
         for idx, sensor_id in enumerate(sorted(all_ids), start=1):
-            sensors_dict[f"{Sensor.query.get(sensor_id).name}_regressor{idx}"] = sensor_id
+            sensors_dict[f"{Sensor.query.get(sensor_id).name}_regressor{idx}"] = (
+                sensor_id
+            )
 
         return sensors_dict
 

@@ -47,9 +47,7 @@ class TrainPipeline(BasePipeline):
         self.model_save_dir = model_save_dir
         self.probabilistic = probabilistic
         self.auto_regressive = (
-            True
-            if not past_regressors and not future_regressors
-            else False
+            True if not past_regressors and not future_regressors else False
         )
         super().__init__(
             sensors=sensors,
