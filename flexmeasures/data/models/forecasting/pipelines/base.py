@@ -309,9 +309,9 @@ class BasePipeline:
             X_past_regressors_df = (
                 df[
                     ["event_start", "source_y", "belief_time"]
-                    + [r for r in self.regressors if r not in self.future_regressors]
+                    + [r for r in self.past_regressors]
                 ]
-                if self.future_regressors != self.regressors
+                if self.past_regressors
                 else None
             )
             X_future_regressors_df = (
