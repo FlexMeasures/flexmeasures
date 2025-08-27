@@ -30,7 +30,7 @@ Bugfixes
 * Add audit log entries when creating sensors, assets and accounts via the CLI [see `PR #1623 <https://www.github.com/FlexMeasures/flexmeasures/pull/1623>`_]
 
 
-v0.27.4 | August XX, 2025
+v0.27.4 | August 27, 2025
 ============================
 
 Bugfixes
