@@ -181,19 +181,18 @@ class PredictPipeline(BasePipeline):
             The end of this time period for data loading corresponds to the future_covariates data needed for the last forecast.
             Check load_data in base_pipeline."""
 
-            """ For each single-horizon forecast, past_covariates
-            start from the beginning of the training dataset and
-            end before the last `n_steps_to_predict` time steps that are yet to be predicted,
-            while also shifting by `horizon` after each horizon.
-            and discarding the additional period at the end which extends a period of max_forecast_horizon meant for future_covariates
             """
-            if past_covariates is not None:
-                past_covariates = past_covariates
-            """ For each single-horizon forecast, future covariates
-             start from the forecasted horizon
-             extend the last `n_steps_to_predict` time steps that are yet to be predicted,
-             and the additional period at the end for the last forecasted horizon of the predict_period
-             While also shifting by `horizon` after each horizon.
+            For each single-horizon forecast:
+
+            - Past covariates start from the beginning of the training dataset, 
+            end before the last `n_steps_to_predict` time steps that are yet to be predicted, 
+            and are shifted by `horizon` after each forecast. 
+            The additional period at the end, meant for `future_covariates` of max_forecast_horizon, is discarded.
+
+            - Future covariates start from the forecasted horizon, 
+            extend through the last `n_steps_to_predict` time steps that are yet to be predicted, 
+            and include the additional period at the end for the last forecasted horizon of the predict_period. 
+            These are also shifted by `horizon` after each forecast.
             """
 
             y_pred = model.predict(
