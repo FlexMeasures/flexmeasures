@@ -48,7 +48,6 @@ class BasePipeline:
         predict_end: datetime | None = None,
     ) -> None:
         self.sensors = sensors
-        self.regressors = regressors
         self.past_regressors = past_regressors
         self.future_regressors = future_regressors
         self.target = target
