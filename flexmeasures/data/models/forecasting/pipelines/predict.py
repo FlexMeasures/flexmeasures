@@ -23,7 +23,6 @@ class PredictPipeline(BasePipeline):
     def __init__(
         self,
         sensors: dict[str, int],
-        regressors: list[str],
         past_regressors: list[str],
         future_regressors: list[str],
         target: str,
@@ -44,7 +43,8 @@ class PredictPipeline(BasePipeline):
         Initialize the PredictPipeline.
 
         :param sensors: Dictionary mapping custom regressor names to sensor IDs.
-        :param regressors: List of custom regressor names.
+        :param past_regressors: List of past regressor names.
+        :param future_regressors: List of future regressor names.
         :param target: Custom target name.
         :param model_path: Path to the model file.
         :param output_path: Path where predictions will be saved.
@@ -59,7 +59,6 @@ class PredictPipeline(BasePipeline):
         """
         super().__init__(
             sensors=sensors,
-            regressors=regressors,
             past_regressors=past_regressors,
             future_regressors=future_regressors,
             target=target,
