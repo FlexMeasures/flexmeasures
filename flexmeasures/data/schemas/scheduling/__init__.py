@@ -354,6 +354,10 @@ class DBFlexContextSchema(FlexContextSchema):
             "production_price",
         ]
         capacity_price_fields = [
+            "soc_minima_breach_price",
+            "soc_maxima_breach_price",
+            "consumption_breach_price",
+            "production_breach_price",
             "ems_consumption_breach_price",
             "ems_production_breach_price",
             "ems_peak_consumption_price",
