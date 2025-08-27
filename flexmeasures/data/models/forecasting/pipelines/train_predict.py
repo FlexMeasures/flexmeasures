@@ -19,7 +19,6 @@ class TrainPredictPipeline:
     def __init__(
         self,
         sensors: dict[str, int],
-        regressors: list[str],
         past_regressors: list[str],
         future_regressors: list[str],
         target: Sensor,
@@ -37,7 +36,6 @@ class TrainPredictPipeline:
         delete_model: bool = False,
     ):
         self.sensors = sensors
-        self.regressors = regressors
         self.past_regressors = past_regressors
         self.future_regressors = future_regressors
         self.target = "target"
@@ -75,7 +73,6 @@ class TrainPredictPipeline:
         # Train model
         train_pipeline = TrainPipeline(
             sensors=self.sensors,
-            regressors=self.regressors,
             past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
             target=self.target,
@@ -98,7 +95,6 @@ class TrainPredictPipeline:
         # Make predictions
         predict_pipeline = PredictPipeline(
             sensors=self.sensors,
-            regressors=self.regressors,
             past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
             target=self.target,
