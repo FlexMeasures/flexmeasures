@@ -93,7 +93,7 @@ def test_train_predict_pipeline(
         pipeline = TrainPredictPipeline(**kwargs)
 
         # Check pipeline properties
-        for attr in ("regressors", "past_regressors", "future_regressors"):
+        for attr in ("past_regressors", "future_regressors"):
             if kwargs.get(attr):
                 assert hasattr(pipeline, attr)
 
