@@ -195,8 +195,6 @@ class PredictPipeline(BasePipeline):
              and the additional period at the end for the last forecasted horizon of the predict_period
              While also shifting by `horizon` after each horizon.
             """
-            if future_covariates is not None:
-                future_covariates = future_covariates
 
             y_pred = model.predict(
                 current_y,
