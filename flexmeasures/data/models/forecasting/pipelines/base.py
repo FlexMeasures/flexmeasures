@@ -24,7 +24,8 @@ class BasePipeline:
 
     Parameters:
     - sensors (dict[str, int]): Dictionary mapping sensor names to sensor IDs.
-    - regressors (list[str]): Names of sensors used as features.
+    - past_regressors: List of past regressor names.
+    - future_regressors: List of future regressor names.    
     - target (str): Name of the target sensor.
     - n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
     - max_forecast_horizon (int): Max forecasting horizon in steps of 1 resolution.
