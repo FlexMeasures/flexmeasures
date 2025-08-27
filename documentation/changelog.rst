@@ -12,13 +12,14 @@ v0.28.0 | September XX, 2025
 New features
 -------------
 * Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_, `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_ and `PR #1656 <https://github.com/FlexMeasures/flexmeasures/pull/1656>`_]
+* Improved timestamp on sensor detail page to be more friendly [see `PR #1632 <https://www.github.com/FlexMeasures/flexmeasures/pull/1632>`_]
 
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_, `PR #1672 <https://www.github.com/FlexMeasures/flexmeasures/pull/1672>`_ and `PR #1668 <https://www.github.com/FlexMeasures/flexmeasures/pull/1668>`_]
 * Removed support for Python3.8 [see `PR #1615 <https://www.github.com/FlexMeasures/flexmeasures/pull/1615>`_]
+* Better support for using ``Sensor`` objects as dictionary keys [see `PR #1650 <https://www.github.com/FlexMeasures/flexmeasures/pull/1650>`_]
 * Removed obsolete API blueprint for play mode and underlying backup file-based functionality [see `PR #1622 <https://www.github.com/FlexMeasures/flexmeasures/pull/1622>`_ and `PR #1630 <https://www.github.com/FlexMeasures/flexmeasures/pull/1630>`_]
-* Improved timestamp on sensor detail page to be more friendly [see `PR #1632 <https://www.github.com/FlexMeasures/flexmeasures/pull/1632>`_]
 * Faster data loading for the UI by vectorization of dictionary representations of sources and sensors, and of epoch conversion [see `PR #1641 <https://www.github.com/FlexMeasures/flexmeasures/pull/1641>`_]
 * Compress chart data sent to the UI charts [see `PR #1645 <https://github.com/FlexMeasures/flexmeasures/pull/1645>`_]
 
@@ -26,13 +27,15 @@ Bugfixes
 -----------
 * Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 * Fix editing of public assets in the UI [see `PR #1636 <https://www.github.com/FlexMeasures/flexmeasures/pull/1636>`_]
+* Add audit log entries when creating sensors, assets and accounts via the CLI [see `PR #1623 <https://www.github.com/FlexMeasures/flexmeasures/pull/1623>`_]
 
 
-v0.27.4 | August XX, 2025
+v0.27.4 | August 27, 2025
 ============================
 
 Bugfixes
 -----------
+* Fix ``flexmeasures show reporters`` and ``flexmeasures show schedulers`` [see `PR #1674 <https://github.com/FlexMeasures/flexmeasures/pull/1674>`_]
 * Show job information again on the job page on rq-dashboard, for scheduling jobs that set a specific ``belief_time`` and/or ``resolution`` [see `PR #1670 <https://github.com/FlexMeasures/flexmeasures/pull/1670>`_]
 
 
