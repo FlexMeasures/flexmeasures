@@ -314,6 +314,31 @@ class FlexContextSchema(Schema):
         return currency
 
 
+UI_FLEX_CONTEXT_SCHEMA = {
+    "consumption-price": {
+        "default": None,
+        "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization",
+        "allowed-units": ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."],
+    },
+    # todo: ...
+    "production-price": None,
+    "site-power-capacity": None,
+    "site-production-capacity": None,
+    "site-consumption-capacity": None,
+    "soc-minima-breach-price": None,
+    "soc-maxima-breach-price": None,
+    "consumption-breach-price": None,
+    "production-breach-price": None,
+    "site-consumption-breach-price": None,
+    "site-production-breach-price": None,
+    "site-peak-consumption": None,
+    "site-peak-consumption-price": None,
+    "site-peak-production": None,
+    "site-peak-production-price": None,
+    "inflexible-device-sensors": [],
+}
+
+
 class DBFlexContextSchema(FlexContextSchema):
     mapped_schema_keys = {
         field: FlexContextSchema().declared_fields[field].data_key
