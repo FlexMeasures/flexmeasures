@@ -626,18 +626,22 @@ def test_post_an_asset_with_existing_name(
 
     post_data = get_asset_post_data()
 
-    def get_asset_with_name(asset_name):
+    def get_asset_by_name(asset_name):
         return db.session.execute(
             select(GenericAsset).filter_by(name=asset_name)
         ).scalar_one_or_none()
 
-    parent = get_asset_with_name(parent_name)
+    parent = None
+    if parent_name:
+        parent = get_asset_by_name(parent_name)
 
     post_data["name"] = child_name
     post_data["account_id"] = requesting_user.account_id
 
     if parent:
         post_data["parent_asset_id"] = parent.parent_asset_id
+    else:
+        post_data["parent_asset_id"] = None
 
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
