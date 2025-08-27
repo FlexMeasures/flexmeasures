@@ -9,48 +9,79 @@ from rq.job import Job
 
 from flask import current_app
 
+from flexmeasures.data.models.data_sources import DataGenerator
 from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
+from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSchema
 from flexmeasures.utils.flexmeasures_inflection import p
 
 
-class TrainPredictPipeline:
+class TrainPredictPipeline(DataGenerator):
+
+    __version__ = "1"
+    __author__ = "Seita"
+
+    __data_generator_base__ = "forecaster"
+
+    _config_schema = ForecastingPipelineSchema()
+
     def __init__(
         self,
-        sensors: dict[str, int],
-        past_regressors: list[str],
-        future_regressors: list[str],
-        target: Sensor,
+        sensor: int,
         model_save_dir: str,
         output_path: str,
-        start_date: datetime,
-        end_date: datetime,
-        train_period_in_hours: int,
-        sensor_to_save: Sensor,
-        predict_start: datetime,
-        predict_period_in_hours: int,
+        start_date: str,
+        end_date: str,
+        train_period: int,
+        sensor_to_save: int,
+        start_predict_date: str,
+        predict_period: int,
+        past_regressors: str = None,
+        future_regressors: str = None,
         max_forecast_horizon: int = 2 * 24,
         forecast_frequency: int = 1,
         probabilistic: bool = False,
         delete_model: bool = False,
     ):
-        self.sensors = sensors
-        self.past_regressors = past_regressors
-        self.future_regressors = future_regressors
+        config = dict(
+            sensor=sensor,
+            model_save_dir=model_save_dir,
+            output_path=output_path,
+            start_date=start_date,
+            end_date=end_date,
+            train_period=train_period,
+            sensor_to_save=sensor_to_save,
+            start_predict_date=start_predict_date,
+            predict_period=predict_period,
+            past_regressors=past_regressors,
+            future_regressors=future_regressors,
+            max_forecast_horizon=max_forecast_horizon,
+            forecast_frequency=forecast_frequency,
+            probabilistic=probabilistic,
+        )
+        super().__init__(config=config)
+        for k, v in self._config.items():
+            setattr(self, k, v)
+        config = self._config
+        self.sensors = config["sensors"]
+        self.past_regressors = config["past_regressors"]
+        self.future_regressors = config["future_regressors"]
         self.target = "target"
-        self.model_save_dir = model_save_dir
-        self.output_path = output_path
-        self.start_date = start_date
-        self.end_date = end_date
-        self.predict_start = predict_start
-        self.predict_end = predict_start + timedelta(hours=predict_period_in_hours)
-        self.predict_period_in_hours = predict_period_in_hours
-        self.train_period_in_hours = train_period_in_hours
-        self.max_forecast_horizon = max_forecast_horizon
-        self.forecast_frequency = forecast_frequency
-        self.probabilistic = probabilistic
-        self.sensor_to_save = sensor_to_save
+        self.model_save_dir = config["model_save_dir"]
+        self.output_path = config["output_path"]
+        self.start_date = config["start_date"]
+        self.end_date = config["end_date"]
+        self.predict_start = self._config["predict_start"]
+        self.predict_end = self._config["predict_start"] + timedelta(
+            hours=config["predict_period_in_hours"]
+        )
+        self.predict_period_in_hours = self._config["predict_period_in_hours"]
+        self.train_period_in_hours = self._config["train_period_in_hours"]
+        self.max_forecast_horizon = config["max_forecast_horizon"]
+        self.forecast_frequency = config["forecast_frequency"]
+        self.probabilistic = config["probabilistic"]
+        self.sensor_to_save = config["sensor_to_save"]
         self.delete_model = delete_model
 
     def run_cycle(
@@ -119,6 +150,7 @@ class TrainPredictPipeline:
             predict_start=predict_start,
             predict_end=predict_end,
             sensor_to_save=self.sensor_to_save,
+            data_source=self.data_source,
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."

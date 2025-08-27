@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.services.data_sources import get_or_create_source
 
 from datetime import datetime, timedelta
 from sqlalchemy import select
@@ -161,8 +161,8 @@ def data_to_bdf(
     probabilistic: bool,
     sensors: dict[str, int],
     target_sensor: str,
-    regressors: list[str],
     sensor_to_save: Sensor,
+    data_source: DataSource,
 ) -> tb.BeliefsDataFrame:
     """
     Converts a prediction DataFrame into a BeliefsDataFrame for saving to the database.
@@ -181,10 +181,10 @@ def data_to_bdf(
         Dictionary mapping sensor names to sensor IDs.
     target_sensor : str
         The name of the target sensor.
-    regressors : list[str]
-        List of regressor names, used to create unique sources for different sets of regressors.
     sensor_to_save : Sensor
         The sensor object to save the forecasts to.
+    source : DataSource
+        The source object to attribute the forecasts to.
     Returns:
     -------
     tb.BeliefsDataFrame
@@ -245,29 +245,21 @@ def data_to_bdf(
         ),
     )
 
-    # Set up forecaster regressors attributes to be saved on the datasource
-    # use sensor names from the database and id's in attribute
-    # use sensor names from cli command for model name
-
-    if "autoregressive" in regressors:
-        regressors_names = "autoregressive"
-        sensor = Sensor.query.get(sensors[target_sensor])
-        regressors_attribute = f"(autoregressive) {sensor.name}: {sensor.id}"
-    else:
-        regressor_pairs = []
-        for sensor_name, sensor_id in sensors.items():
-            if sensor_name in regressors:
-                sensor = Sensor.query.get(sensor_id)
-                regressor_pairs.append(f"{sensor.name}: {sensor.id}")
-        regressors_attribute = ", ".join(regressor_pairs)
-        regressors_names = ", ".join(regressors)
-
-    data_source = get_or_create_source(
-        source="forecaster",
-        model=f"CustomLGBM ({regressors_names})",
-        source_type="forecaster",
-        attributes={"regressors": regressors_attribute},
-    )
+    # # Set up forecaster regressors attributes to be saved on the datasource
+    # # use sensor names from the database and id's in attribute
+    # # use sensor names from cli command for model name
+    #
+    # if "autoregressive" in regressors:
+    #     regressors_names = "autoregressive"
+    # else:
+    #     regressors_names = ", ".join(regressors)
+    #
+    # data_source = get_or_create_source(
+    #     source="forecaster",
+    #     model=f"CustomLGBM ({regressors_names})",
+    #     source_type="forecaster",
+    #     attributes=self.data_source.attributes,
+    # )
 
     # Convert to BeliefsDataFrame
     bdf = tb.BeliefsDataFrame(

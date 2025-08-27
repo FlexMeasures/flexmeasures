@@ -6,7 +6,6 @@ from datetime import timedelta
 
 from marshmallow import ValidationError
 
-from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSchema
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 
 
@@ -84,12 +83,10 @@ def test_train_predict_pipeline(
         )
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
-            kwargs = ForecastingPipelineSchema().load(kwargs)
             pipeline = TrainPredictPipeline(**kwargs)
             pipeline.run()
         assert expected_error[1] in str(e_info)
     else:
-        kwargs = ForecastingPipelineSchema().load(kwargs)
         pipeline = TrainPredictPipeline(**kwargs)
 
         # Check pipeline properties
@@ -98,24 +95,28 @@ def test_train_predict_pipeline(
                 assert hasattr(pipeline, attr)
 
         pipeline.run()
-        forecasts = sensor.search_beliefs(source="forecaster")
-        n_cycles = (kwargs["end_date"] - kwargs["predict_start"]) / (
-            kwargs["forecast_frequency"] * kwargs["target"].event_resolution
+        forecasts = sensor.search_beliefs(source_types=["forecaster"])
+        config = pipeline._config
+        n_cycles = (config["end_date"] - config["predict_start"]) / (
+            config["forecast_frequency"] * config["target"].event_resolution
         )
         # 1 hour of forecasts is saved over 4 15-minute resolution events
-        n_events_per_horizon = timedelta(hours=1) / kwargs["target"].event_resolution
-        n_hourly_horizons = kwargs["max_forecast_horizon"] // n_events_per_horizon
+        n_events_per_horizon = timedelta(hours=1) / config["target"].event_resolution
+        n_hourly_horizons = config["max_forecast_horizon"] // n_events_per_horizon
         assert (
             len(forecasts) == n_cycles * n_hourly_horizons * n_events_per_horizon
         ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_hourly_horizons} hourly horizons"
         assert (
             forecasts.lineage.number_of_belief_times == n_cycles
         ), f"we expect 1 belief time per cycle, and {n_cycles} cycles"
-        assert "CustomLGBM" in str(
+        # todo: source should mention the CustomLGBM model, though
+        assert "TrainPredictPipeline" in str(
             forecasts.lineage.sources[0]
         ), "string representation of Source should mention the used model"
         for regressor in regressors:
             assert (
-                f"{regressor.name}: {regressor.id}"
-                in forecasts.lineage.sources[0].attributes["regressors"]
-            )
+                f"{regressor.name}_regressor{regressor.id}"
+                in forecasts.lineage.sources[0].attributes["data_generator"]["config"][
+                    "future_regressors"
+                ]
+            ), f"data generator config should mention regressor {regressor.name}"

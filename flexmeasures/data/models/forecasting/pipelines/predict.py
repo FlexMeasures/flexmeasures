@@ -38,6 +38,7 @@ class PredictPipeline(BasePipeline):
         event_ends_before: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
+        data_source: str = None,
     ) -> None:
         """
         Initialize the PredictPipeline.
@@ -56,6 +57,7 @@ class PredictPipeline(BasePipeline):
         :param predict_start: Only save events starting after this time.
         :param predict_end: Only save events ending before this time.
         :param forecast_frequency: Create a forecast every Nth interval.
+        :param data_source: Data source to attribute the forecasts to.
         """
         super().__init__(
             sensors=sensors,
@@ -87,6 +89,7 @@ class PredictPipeline(BasePipeline):
         self.total_forecast_hours = (
             self.max_forecast_horizon * self.sensor_resolution.total_seconds() / 3600
         )
+        self.data_source = data_source
 
     def load_model(self):
         """
@@ -292,6 +295,7 @@ class PredictPipeline(BasePipeline):
             )
             logging.debug("Predictions ready to be saved")
 
+            # todo: it looks like data_to_bdf should become a class method
             bdf = data_to_bdf(
                 data=df_pred,
                 horizon=self.max_forecast_horizon,
@@ -299,7 +303,7 @@ class PredictPipeline(BasePipeline):
                 sensors=self.sensors,
                 target_sensor=self.target,
                 sensor_to_save=self.sensor_to_save,
-                regressors=self.future_regressors,
+                data_source=self.data_source,
             )
             if self.output_path is not None:
                 self.save_results_to_CSV(bdf)

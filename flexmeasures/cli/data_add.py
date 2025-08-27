@@ -63,7 +63,6 @@ from flexmeasures.data.schemas import (
     TimeIntervalField,
     VariableQuantityField,
 )
-from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSchema
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
@@ -1156,9 +1155,6 @@ def train_predict_pipeline(
             **MsgStyle.WARN,
         )
     del kwargs["resolution"]
-
-    # Load input by passing it through our Marshmallow schema
-    kwargs = ForecastingPipelineSchema().load(kwargs)
 
     try:
         pipeline = TrainPredictPipeline(**kwargs)
