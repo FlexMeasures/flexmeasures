@@ -268,7 +268,7 @@ Account overview {% endblock %} {% block divs %}
       {% if can_view_account_auditlog %}
       <button
         class="btn p-3 btn-info border-0 mb-3 mt-3" type="button"
-        onclick="window.location.href='/users/auditlog/{{ account.id }}'"
+        onclick="window.location.href='/accounts/auditlog/{{ account.id }}'"
         title="View history of actions on this account.">
         Audit log
       </button>

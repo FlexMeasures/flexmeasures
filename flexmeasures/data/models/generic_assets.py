@@ -631,7 +631,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         return chart_specs
 
-    def search_beliefs(
+    def search_beliefs(  # noqa C901
         self,
         sensors: list["Sensor"] | None = None,  # noqa F821
         event_starts_after: datetime | None = None,
@@ -646,6 +646,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
+        compress_json: bool = False,
         resolution: timedelta | None = None,
     ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
@@ -662,6 +663,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
         :param resolution: optionally set the resolution of data being displayed
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
@@ -687,7 +689,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 one_deterministic_belief_per_event_per_source=True,
                 resolution=resolution,
             )
-        if as_json:
+        if as_json and not compress_json:
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
@@ -753,6 +755,135 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
 
             return df.to_json(orient="records")
+        elif as_json and compress_json:
+            from flexmeasures.data.services.time_series import simplify_index
+
+            if sensors:
+                if resolution is not None:
+                    minimum_resampling_resolution = resolution
+                else:
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
+
+                sensors_metadata = {}
+                sources_metadata = {}
+                all_records = []
+
+                for sensor, bdf in bdf_dict.items():
+                    # Build metadata lookup table for this sensor
+                    sensor_dict = sensor.as_dict
+                    sensors_metadata[sensor.id] = {
+                        "name": sensor_dict.get("name", ""),
+                        "unit": sensor_dict.get("unit", sensor.unit),
+                        "description": sensor_dict.get("description", ""),
+                        "asset_id": sensor_dict.get(
+                            "asset_id", getattr(sensor, "generic_asset_id", None)
+                        ),
+                        "asset_description": sensor_dict.get("asset_description", ""),
+                    }
+
+                    if bdf.event_resolution > timedelta(0):
+                        bdf = bdf.resample_events(minimum_resampling_resolution)
+                    bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
+                    df = simplify_index(
+                        bdf,
+                        index_levels_to_columns=(
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
+                    )
+
+                    df = df.reset_index()
+
+                    # Convert event values recording seconds to datetimes
+                    # todo: invalid assumption for sensors measuring durations
+                    if sensor.unit == "s":
+                        time_mask = df["event_value"].notna()
+                        time_values = df.loc[time_mask, "event_value"]
+                        df["event_value"] = df["event_value"].astype(
+                            f"datetime64[ns, {self.timezone}]"
+                        )
+                        df.loc[time_mask, "event_value"] = (
+                            pd.to_datetime(time_values, unit="s", origin="unix")
+                            .dt.tz_localize("UTC")
+                            .dt.tz_convert(self.timezone)
+                        )
+
+                    # Process each row in the dataframe
+                    for _, row in df.iterrows():
+                        source_obj = row.get("source")
+
+                        # Build source metadata if not already built
+                        if (
+                            source_obj
+                            and hasattr(source_obj, "id")
+                            and source_obj.id not in sources_metadata
+                        ):
+                            source_dict = source_obj.as_dict
+                            sources_metadata[source_obj.id] = {
+                                "name": source_dict.get("name", ""),
+                                "model": source_dict.get("model", ""),
+                                "type": source_dict.get("type", "other"),
+                                "description": source_dict.get("description", ""),
+                            }
+
+                        # Build record with reference IDs only
+                        record = {
+                            "ts": int(
+                                row["event_start"].timestamp() * 1000
+                            ),  # Convert from seconds to milliseconds for JavaScript compatibility
+                            "sid": sensor.id,
+                            "val": row["event_value"],
+                            "sf": factors.get(sensor.unit, 1.0),
+                        }
+
+                        # Add optional fields
+                        if source_obj and hasattr(source_obj, "id"):
+                            record["src"] = source_obj.id
+
+                        if "belief_horizon" in row and pd.notnull(
+                            row["belief_horizon"]
+                        ):
+                            record["bh"] = int(row["belief_horizon"].total_seconds())
+
+                        if (
+                            not most_recent_beliefs_only
+                            and "belief_time" in row
+                            and pd.notnull(row["belief_time"])
+                        ):
+                            record["bt"] = int(
+                                row["belief_time"].timestamp() * 1000
+                            )  # Convert from seconds to milliseconds for JavaScript compatibility
+
+                        # Clean up any problematic types
+                        for key, value in record.items():
+                            if pd.isna(value):
+                                record[key] = None
+                            elif isinstance(value, pd.Timestamp):
+                                record[key] = value.timestamp() * 1000
+                            elif isinstance(value, (pd.Timedelta, timedelta)):
+                                record[key] = str(value)
+                            elif hasattr(value, "item"):  # numpy types
+                                record[key] = value.item()
+                            elif hasattr(value, "total_seconds"):
+                                record[key] = value.total_seconds()
+
+                        all_records.append(record)
+                return json.dumps(
+                    {
+                        "data": all_records,
+                        "sensors": sensors_metadata,
+                        "sources": sources_metadata,
+                    }
+                )
+
+            else:
+                # if there is no data, return empty
+                return json.dumps({"data": [], "sensors": {}, "sources": {}})
 
         return bdf_dict
 
