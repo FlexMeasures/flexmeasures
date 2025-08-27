@@ -13,6 +13,7 @@ New features
 -------------
 
 * Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_ and `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_]
+* Asset types support: new API endpoint (`GET /assets/types`), better docs and fix CLI command `flexmeasures show asset-types` [see `PR #1663 <https://github.com/FlexMeasures/flexmeasures/pull/1663>`_]
 
 Infrastructure / Support
 ----------------------
