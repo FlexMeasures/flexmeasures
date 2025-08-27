@@ -48,7 +48,7 @@ class TrainPipeline(BasePipeline):
         self.probabilistic = probabilistic
         self.auto_regressive = (
             True
-            if "autoregressive" in regressors or "auto_regressive" in regressors
+            if not past_regressors and not future_regressors
             else False
         )
         super().__init__(
