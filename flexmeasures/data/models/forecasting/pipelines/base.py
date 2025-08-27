@@ -540,7 +540,7 @@ class BasePipeline:
             past_covariates = self.detect_and_fill_missing_values(
                 df=past_data,
                 sensor_names=[
-                    r for r in self.regressors if r not in self.future_regressors
+                    r for r in self.past_regressors
                 ],
                 start=target_start,
                 end=target_end,
@@ -625,7 +625,7 @@ class BasePipeline:
 
             realized_data_darts = self.detect_and_fill_missing_values(
                 df=realized_data,
-                sensor_names=[r for r in self.future_regressors],
+                sensor_names=[r for r in self.past_regressors],
                 start=target_start,
                 end=target_end,
             )
