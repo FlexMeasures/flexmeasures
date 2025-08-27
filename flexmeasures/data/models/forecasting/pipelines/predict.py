@@ -310,7 +310,7 @@ class PredictPipeline(BasePipeline):
                 sensors=self.sensors,
                 target_sensor=self.target,
                 sensor_to_save=self.sensor_to_save,
-                regressors=self.regressors,
+                regressors=self.future_regressors,
             )
             if self.output_path is not None:
                 self.save_results_to_CSV(bdf)
