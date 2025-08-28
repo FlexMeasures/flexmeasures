@@ -19,15 +19,12 @@ import timely_beliefs.utils as tb_utils
 
 from flexmeasures.auth.policy import AuthModelMixin, ACCOUNT_ADMIN_ROLE, CONSULTANT_ROLE
 from flexmeasures.data import db
-from flexmeasures.data.migrations.versions.f0ee99278f6f_added_flexmodel_to_generic_asset_model import (
-    upgrade_value,
-)
+from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.data.queries.utils import get_source_criteria
-from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.services.time_series import aggregate_values
 from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
@@ -105,6 +102,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         db.Model.__init__(self, **kwargs)
 
         # Backwards compatibility when setting attributes that served as flex-model fields
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
         for attribute in self.attributes:
             for field in DBStorageFlexModelSchema().fields.values():
                 if attribute == field.metadata.get("deprecated field"):

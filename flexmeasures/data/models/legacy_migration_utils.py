@@ -8,6 +8,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from flexmeasures.data import db
+from flexmeasures.utils.unit_utils import is_energy_unit, ur, is_power_unit
+
+
+class NonDowngradableValueError(ValueError):
+    pass
 
 
 def copy_old_sensor_attributes(
@@ -63,3 +68,51 @@ def get_old_model_type(
     else:
         old_sensor_type = kwargs[old_sensor_type_key]
     return old_sensor_type
+
+
+def upgrade_value(
+    old_field_name: str, old_value: int | float | dict | bool, sensor=None, asset=None
+) -> str | int | float | dict | bool:
+    """Depending on the old field name, some values still need to be turned into string quantities."""
+
+    # check if value is an int, bool, float or dict
+    if not isinstance(old_value, (int, float, dict, bool)):
+        if sensor:
+            raise Exception(
+                f"Invalid value for '{old_field_name}' in sensor {sensor.id}: {old_value}"
+            )
+        elif asset:
+            raise Exception(
+                f"Invalid value for '{old_field_name}' in asset {asset.id}: {old_value}"
+            )
+    if old_field_name[-6:] == "in_mwh" and isinstance(old_value, (float, int)):
+        # convert from float (in MWh) to string (in kWh)
+        value_in_kwh = old_value * 1000
+        return f"{value_in_kwh} kWh"
+    elif old_field_name[-6:] == "in_mw" and isinstance(old_value, (float, int)):
+        # convert from float (in MW) to string (in kW)
+        value_in_kw = old_value * 1000
+        return f"{value_in_kw} kW"
+    else:
+        # move as is
+        return old_value
+
+
+def downgrade_value(old_field_name: str, new_value) -> float | str | dict:
+    """Depending on the old field name, some values still need to be turned back into floats."""
+    if isinstance(new_value, str):
+        # Convert the value back to the original format
+        if old_field_name[-6:] == "in_mwh" and is_energy_unit(new_value):
+            value_in_mwh = ur.Quantity(new_value).to("MWh").magnitude
+            return value_in_mwh
+        elif old_field_name[-6:] == "in_mw" and is_power_unit(new_value):
+            value_in_mw = ur.Quantity(new_value).to("MW").magnitude
+            return value_in_mw
+        else:
+            # Return string quantity
+            return new_value
+    elif isinstance(new_value, dict):
+        # Return sensor reference
+        return new_value
+    else:
+        raise NonDowngradableValueError()

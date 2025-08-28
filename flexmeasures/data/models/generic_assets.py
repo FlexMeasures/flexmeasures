@@ -15,16 +15,13 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
-from flexmeasures.data.migrations.versions.f0ee99278f6f_added_flexmodel_to_generic_asset_model import (
-    upgrade_value,
-)
+from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
-from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.auth.policy import (
     AuthModelMixin,
@@ -122,6 +119,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             self.attributes = {}
 
         # Backwards compatibility when setting attributes that served as flex-model fields
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
         for attribute in self.attributes:
             for field in DBStorageFlexModelSchema().fields.values():
                 if attribute == field.metadata.get("deprecated field"):
