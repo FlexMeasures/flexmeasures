@@ -127,6 +127,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             for field in DBStorageFlexModelSchema().fields.values():
                 if attribute == field.metadata.get("deprecated field"):
                     # Move the attribute to the flex_model db column
+                    if field.data_key in self.flex_model:
+                        raise ValueError(
+                            f"Cannot move attribute {attribute} of asset {self.name} to its flex-model, because the {field.data_key} field is already set."
+                        )
                     self.flex_model[field.data_key] = upgrade_value(
                         attribute, self.attributes[attribute]
                     )
