@@ -19,11 +19,15 @@ import timely_beliefs.utils as tb_utils
 
 from flexmeasures.auth.policy import AuthModelMixin, ACCOUNT_ADMIN_ROLE, CONSULTANT_ROLE
 from flexmeasures.data import db
+from flexmeasures.data.migrations.versions.f0ee99278f6f_added_flexmodel_to_generic_asset_model import (
+    upgrade_value,
+)
 from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.data.queries.utils import get_source_criteria
+from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.services.time_series import aggregate_values
 from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
@@ -99,6 +103,25 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             # Otherwise, the attributes only default to {} when flushing/committing to the db
             kwargs["attributes"] = {}
         db.Model.__init__(self, **kwargs)
+
+        # Backwards compatibility when setting attributes that served as flex-model fields
+        for attribute in self.attributes:
+            for field in DBStorageFlexModelSchema().fields.values():
+                if attribute == field.metadata.get("deprecated field"):
+                    # Move the attribute to the flex_model db column
+                    if field.data_key in self.generic_asset.flex_model:
+                        raise ValueError(
+                            f"Cannot move attribute {attribute} of sensor {self.name} to its asset's flex-model, because the {field.data_key} field is already set."
+                        )
+                    self.generic_asset.flex_model[field.data_key] = upgrade_value(
+                        attribute, self.attributes[attribute]
+                    )
+                    # Remove the original attribute
+                    current_app.logger.warning(
+                        f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field"
+                    )
+                    # todo: comment this in
+                    # del self.attributes[attribute]
 
     __table_args__ = (
         UniqueConstraint(

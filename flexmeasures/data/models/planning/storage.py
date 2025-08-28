@@ -1081,15 +1081,11 @@ class MetaStorageScheduler(Scheduler):
             )
         return min_target, max_target
 
-    def get_min_max_soc_on_sensor(self) -> tuple[float | None, float | None]:
+    def get_min_max_soc_on_sensor(self) -> tuple[str | None, str | None]:
         """This happens before deserializing the flex-model."""
-        soc_min_sensor: float | None = self.sensor.get_attribute("min_soc_in_mwh")
-        soc_max_sensor: float | None = self.sensor.get_attribute("max_soc_in_mwh")
-        if soc_min_sensor and self.flex_model.get("soc-unit") == "kWh":
-            soc_min_sensor *= 1000  # later steps assume soc data is kWh
-        if soc_max_sensor and self.flex_model.get("soc-unit") == "kWh":
-            soc_max_sensor *= 1000
-        return soc_min_sensor, soc_max_sensor
+        return self.sensor.generic_asset.flex_model.get(
+            "soc-min"
+        ), self.sensor.generic_asset.flex_model.get("soc-max")
 
     def ensure_soc_min_max(self):
         """

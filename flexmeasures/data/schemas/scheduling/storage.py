@@ -313,6 +313,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="soc-min",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "min_soc_in_mwh"},
     )
 
     soc_max = VariableQuantityField(
@@ -320,6 +321,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="soc-max",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "max_soc_in_mwh"},
     )
 
     soc_minima = VariableQuantityField(

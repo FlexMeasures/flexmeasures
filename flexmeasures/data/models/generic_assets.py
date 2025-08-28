@@ -15,12 +15,16 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
+from flexmeasures.data.migrations.versions.f0ee99278f6f_added_flexmodel_to_generic_asset_model import (
+    upgrade_value,
+)
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
+from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.auth.policy import (
     AuthModelMixin,
@@ -112,8 +116,25 @@ class GenericAsset(db.Model, AuthModelMixin):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Otherwise, the attributes only default to {} when flushing/committing to the db
+        if self.flex_model is None:
+            self.flex_model = {}
         if self.attributes is None:
             self.attributes = {}
+
+        # Backwards compatibility when setting attributes that served as flex-model fields
+        for attribute in self.attributes:
+            for field in DBStorageFlexModelSchema().fields.values():
+                if attribute == field.metadata.get("deprecated field"):
+                    # Move the attribute to the flex_model db column
+                    self.flex_model[field.data_key] = upgrade_value(
+                        attribute, self.attributes[attribute]
+                    )
+                    # Remove the original attribute
+                    current_app.logger.warning(
+                        f"Attribute {attribute} of asset {self.name} was moved to its flex-model under the {field.data_key} field"
+                    )
+                    # todo: comment this in
+                    # del self.attributes[attribute]
 
     def __acl__(self):
         """
