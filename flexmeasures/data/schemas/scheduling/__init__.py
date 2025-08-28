@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict, Any
 
 from marshmallow import (
     Schema,
@@ -314,28 +315,92 @@ class FlexContextSchema(Schema):
         return currency
 
 
-UI_FLEX_CONTEXT_SCHEMA = {
+ALLOWED_UNITS_TYPES: Dict[str, list[str]] = {
+    "price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
+    "power": ["kW"],
+}
+
+UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "consumption-price": {
-        "default": None,
-        "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization",
-        "allowed-units": ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."],
+        "default": None,  # Refers to default value of the field
+        "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
     },
-    # todo: ...
-    "production-price": None,
-    "site-power-capacity": None,
-    "site-production-capacity": None,
-    "site-consumption-capacity": None,
-    "soc-minima-breach-price": None,
-    "soc-maxima-breach-price": None,
-    "consumption-breach-price": None,
-    "production-breach-price": None,
-    "site-consumption-breach-price": None,
-    "site-production-breach-price": None,
-    "site-peak-consumption": None,
-    "site-peak-consumption-price": None,
-    "site-peak-production": None,
-    "site-peak-production-price": None,
-    "inflexible-device-sensors": [],
+    "production-price": {
+        "default": None,
+        "description": "Set the sensor that represents the production price of the site. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "site-power-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["power"] + ["kVA", "MVA"],
+    },
+    "site-production-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can produce. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["power"],
+    },
+    "site-consumption-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can consume. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["power"],
+    },
+    "soc-minima-breach-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the state of charge of a battery goes below the minimum state of charge. This must share the same price and cannot be a negative price.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "soc-maxima-breach-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the state of charge of a battery goes above the maximum state of charge. This must share the same price and cannot be a negative price.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "consumption-breach-price": {
+        "default": None,
+        "description": "The price of breaching the <b>consumption-capacity</b> in the flex-model, useful to treat <b>consumption-capacity</b> as a soft constraint but still make the scheduler attempt to respect it.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "production-breach-price": {
+        "default": None,
+        "description": "The price of breaching the <b>production-capacity</b> in the flex-model, useful to treat <b>production-capacity</b> as a soft constraint but still make the scheduler attempt to respect it.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "site-consumption-breach-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "site-production-breach-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "site-peak-consumption": {
+        "default": None,
+        "description": "This value represents the peak consumption of the site. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["power"],
+    },
+    "site-peak-production": {
+        "default": None,
+        "description": "This value represents the peak production of the site. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["power"],
+    },
+    "site-peak-consumption-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "site-peak-production-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+    },
+    "inflexible-device-sensors": {
+        "default": [],
+        "description": "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization.",
+        "allowed-units": ALLOWED_UNITS_TYPES["power"],
+    },
 }
 
 

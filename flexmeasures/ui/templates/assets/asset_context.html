@@ -328,16 +328,21 @@
         "default": "fa fa-solid fa-question-circle",
     }
 
-    const assetFlexContextSchema = {{ flex_context_schema | safe }}
+    let schemaSpecs = "{{ flex_context_schema | safe }}".replace(/'/g, '"');
+    schemaSpecs = schemaSpecs.replace(/None/g, 'null');
+    schemaSpecs = JSON.parse(schemaSpecs);
 
-    let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
-    assetFlexContextRawJSON = Object.assign({}, assetFlexContextSchema, processResourceRawJSON(assetFlexContextSchema, assetFlexContextRawJSON));
+    const assetFlexContextSchema = {};
+    for (const [key, value] of Object.entries(schemaSpecs)) {
+        assetFlexContextSchema[key] = value["default"];
+    }
+    processResourceRawJSON(assetFlexContextSchema, "{{ asset.flex_context | safe }}");
 
     const spinnerElement = document.getElementById('spinnerElement');
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
     const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
-    const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
+    const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextSchema, reRenderForm);
 
     function reRenderForm() {
         // Skip on first init. This code prevents the access to teh variable 'getFlexcontext'
@@ -390,11 +395,6 @@
             const errorData = await response.json();
             const errorMessage = errorData?.message || errorData?.error || response.statusText;
             showToast(`Failed to update the flex context: ${errorMessage}`, "error");
-
-            // Revert to previous state
-            const asset = await getAsset("{{ asset.id }}", false);
-            const previousFlexContext = await processAssetRawFlexContextJSON(asset.flex_context);
-            setFlexContext(previousFlexContext);
         } else {
             setFlexContext(data);
             showToast("Flex context updated successfully", "success");
@@ -988,14 +988,12 @@
             return; // No option selected, do nothing
         }
 
+        const description = schemaSpecs[selectedOption]?.description || "No description available.";
+        const allowedUnits = schemaSpecs[selectedOption]["allowed-units"];
+        flexInfoContainer.innerHTML = renderSelectInfoCards(selectedOption, description, allowedUnits);
+
         const alertStyle = "alert alert-light";
-        {% for field, specs in flex_context_schema.items() %}
-          if (selectedOption === "{{ field }}" {
-            const description = "{{ specs["description"] }}" = ;
-            const allowedUnits = "{{ specs["allowed-units"] }}" = ;
-            flexInfoContainer.innerHTML = renderSelectInfoCards("{{ field }}", description, allowedUnits);
-          }
-        {% endfor %}
+
     }
     // ============== Page Events ============== //
 </script>
