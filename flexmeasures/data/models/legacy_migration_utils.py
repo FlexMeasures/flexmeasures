@@ -89,7 +89,7 @@ def upgrade_value(
         # convert from float (in MWh) to string (in kWh)
         value_in_kwh = old_value * 1000
         return f"{value_in_kwh} kWh"
-    elif old_field_name[-6:] == "in_mw" and isinstance(old_value, (float, int)):
+    elif old_field_name[-5:] == "in_mw" and isinstance(old_value, (float, int)):
         # convert from float (in MW) to string (in kW)
         value_in_kw = old_value * 1000
         return f"{value_in_kw} kW"
@@ -105,7 +105,7 @@ def downgrade_value(old_field_name: str, new_value) -> float | str | dict:
         if old_field_name[-6:] == "in_mwh" and is_energy_unit(new_value):
             value_in_mwh = ur.Quantity(new_value).to("MWh").magnitude
             return value_in_mwh
-        elif old_field_name[-6:] == "in_mw" and is_power_unit(new_value):
+        elif old_field_name[-5:] == "in_mw" and is_power_unit(new_value):
             value_in_mw = ur.Quantity(new_value).to("MW").magnitude
             return value_in_mw
         else:
