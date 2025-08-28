@@ -350,6 +350,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="soc-gain",
         required=False,
         validate=validate.Length(min=1),
+        metadata={"deprecated field": "soc-gain"},
     )
 
     soc_usage = fields.List(
@@ -357,21 +358,32 @@ class DBStorageFlexModelSchema(Schema):
         data_key="soc-usage",
         required=False,
         validate=validate.Length(min=1),
+        metadata={"deprecated field": "soc-usage"},
     )
 
     roundtrip_efficiency = EfficiencyField(
-        data_key="roundtrip-efficiency", required=False
+        data_key="roundtrip-efficiency",
+        required=False,
+        metadata={"deprecated field": "roundtrip_efficiency"},
     )
 
     charging_efficiency = EfficiencyField(
-        data_key="charging-efficiency", required=False
+        data_key="charging-efficiency",
+        required=False,
+        metadata={"deprecated field": "charging-efficiency"},
     )
 
     discharging_efficiency = EfficiencyField(
-        data_key="discharging-efficiency", required=False
+        data_key="discharging-efficiency",
+        required=False,
+        metadata={"deprecated field": "discharging-efficiency"},
     )
 
-    storage_efficiency = EfficiencyField(data_key="storage-efficiency", required=False)
+    storage_efficiency = EfficiencyField(
+        data_key="storage-efficiency",
+        required=False,
+        metadata={"deprecated field": "storage_efficiency"},
+    )
 
     prefer_charging_sooner = fields.Bool(
         data_key="prefer-charging-sooner", load_default=True
@@ -386,6 +398,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="power-capacity",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "capacity_in_mw"},
     )
 
     consumption_capacity = VariableQuantityField(
@@ -393,6 +406,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="consumption-capacity",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "consumption_capacity"},
     )
 
     production_capacity = VariableQuantityField(
@@ -400,6 +414,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="production-capacity",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "production_capacity"},
     )
 
     mapped_schema_keys: dict
