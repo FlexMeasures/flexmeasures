@@ -61,11 +61,6 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
-# Import the Sensor schema (Marshmallow 4.x)
-try:
-    from flexmeasures.data.schemas.sensors import SensorSchemaContext
-except ImportError:
-    pass
 
 # Instantiate schemas outside of endpoint logic to minimize response time
 get_sensor_schema = GetSensorDataSchema()
@@ -892,15 +887,9 @@ class SensorAPI(FlaskView):
         db.session.add(sensor)
         db.session.commit()
 
-        audit_log_message = f"Created sensor '{sensor.name}': {sensor.id}"
-        if hasattr(sensor_schema, "context"):
-            # Marshmallow 3.x
-            asset = sensor_schema.context["generic_asset"]
-        else:
-            # Marshmallow 4.x
-            with SensorSchemaContext({"generic_asset": sensor.generic_asset}):
-                asset = sensor.generic_asset
-        AssetAuditLog.add_record(asset, audit_log_message)
+        AssetAuditLog.add_record(
+            sensor.generic_asset, f"Created sensor '{sensor.name}': {sensor.id}"
+        )
 
         return sensor_schema.dump(sensor), 201
 
