@@ -114,13 +114,17 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                             GenericAsset, self.generic_asset_id
                         )
                     # Move the attribute to the flex_model db column
+                    new_value = upgrade_value(attribute, self.attributes[attribute])
                     if field.data_key in self.generic_asset.flex_model:
-                        raise ValueError(
-                            f"Cannot move attribute {attribute} of sensor {self.name} to its asset's flex-model, because the {field.data_key} field is already set."
-                        )
-                    self.generic_asset.flex_model[field.data_key] = upgrade_value(
-                        attribute, self.attributes[attribute]
-                    )
+                        if self.generic_asset.flex_model[field.data_key] == new_value:
+                            current_app.logger.warning(
+                                f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field, but note that it was already set to the same value."
+                            )
+                        else:
+                            raise ValueError(
+                                f"Cannot move attribute {attribute} of sensor {self.name} to its asset's flex-model, because the {field.data_key} field is already set to something else."
+                            )
+                    self.generic_asset.flex_model[field.data_key] = new_value
                     # Remove the original attribute
                     current_app.logger.warning(
                         f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field"
