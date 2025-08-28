@@ -13,6 +13,7 @@ New features
 -------------
 
 * Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_, `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_ and `PR #1656 <https://github.com/FlexMeasures/flexmeasures/pull/1656>`_]
+* Added a modal to create users from the UI [See `PR #1678 <https://github.com/FlexMeasures/flexmeasures/pull/1678>`_]
 
 Infrastructure / Support
 ----------------------
