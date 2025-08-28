@@ -2118,12 +2118,9 @@ def add_toy_account(kind: str, name: str):
             owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
+            attributes=asset_attributes,
             **asset_kwargs,
         )
-        if asset.flex_context is None:
-            asset.flex_context = {}
-        if len(asset_attributes) > 0:
-            asset.attributes = asset_attributes
 
         sensor_specs = dict(
             generic_asset=asset,
