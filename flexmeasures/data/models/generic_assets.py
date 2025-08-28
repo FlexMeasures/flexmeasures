@@ -141,9 +141,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                         f"Attribute {attribute} of asset {self.name} was moved to its flex-model under the {field.data_key} field."
                     )
                     to_delete.append(attribute)
-        # todo: comment this in
-        # for attr in to_delete:
-        #     del self.attributes[attr]
+        for attr in to_delete:
+            del self.attributes[attr]
 
     def __acl__(self):
         """
