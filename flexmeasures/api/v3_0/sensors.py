@@ -896,11 +896,11 @@ class SensorAPI(FlaskView):
         if hasattr(sensor_schema, "context"):
             # Marshmallow 3.x
             asset = sensor_schema.context["generic_asset"]
-            AssetAuditLog.add_record(asset, audit_log_message)
         else:
             # Marshmallow 4.x
             with SensorSchemaContext({"generic_asset": sensor.generic_asset}):
-                AssetAuditLog.add_record(sensor.generic_asset, audit_log_message)
+                asset = sensor.generic_asset
+        AssetAuditLog.add_record(asset, audit_log_message)
 
         return sensor_schema.dump(sensor), 201
 
