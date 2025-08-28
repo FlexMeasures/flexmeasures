@@ -296,14 +296,12 @@
         name,
         unit,
         resolution,
-        entity_address,
         active
     ) {
         this.id = id;
         this.name = name;
         this.unit = unit;
         this.resolution = resolution
-        this.entity_address = entity_address;
         this.url = `/sensors/${id}`;
     }
 
@@ -321,7 +319,6 @@
                 { data: "name", title: "Name", orderable: true },
                 { data: "unit", title: "Unit", orderable: false },
                 { data: "resolution", title: "Resolution", orderable: true },
-                { data: "entity_address", title: "Entity address", orderable: false },
                 { data: "url", title: "URL", className: "d-none" },
             ],
 
@@ -361,7 +358,6 @@
                                     element["name"],
                                     element["unit"],
                                     element["event_resolution"],
-                                    element["entity_address"],
                                     element["active"]
                                 )
                             )

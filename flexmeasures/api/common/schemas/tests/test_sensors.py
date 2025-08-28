@@ -1,7 +1,7 @@
 import pytest
 
 from flexmeasures.api.common.schemas.sensors import (
-    SensorField,
+    SensorEntityAddressField,
     EntityAddressValidationError,
 )
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -28,7 +28,7 @@ def test_sensor_field_straightforward(
     exp_deserialization_name,
 ):
     """Testing straightforward cases"""
-    sf = SensorField(entity_type, fm_scheme)
+    sf = SensorEntityAddressField(entity_type, fm_scheme)
     deser = sf.deserialize(entity_address, None, None)
     assert deser.name == exp_deserialization_name
     assert sf.serialize(entity_type, {entity_type: deser}) == entity_address
@@ -69,7 +69,7 @@ def test_sensor_field_straightforward(
     ],
 )
 def test_sensor_field_invalid(entity_address, entity_type, fm_scheme, error_msg):
-    sf = SensorField(entity_type, fm_scheme)
+    sf = SensorEntityAddressField(entity_type, fm_scheme)
     with pytest.raises(EntityAddressValidationError) as ve:
         sf.deserialize(entity_address, None, None)
     assert error_msg in str(ve)

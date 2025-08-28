@@ -1,8 +1,12 @@
 from flask import jsonify
-from flexmeasures.data.schemas.utils import FMValidationError
-from webargs.multidictproxy import MultiDictProxy
+from flask import Request
+from flask_json import JsonError
 from webargs import ValidationError
 from webargs.flaskparser import parser
+from webargs.multidictproxy import MultiDictProxy
+from werkzeug.datastructures import MultiDict
+
+from flexmeasures.data.schemas.utils import FMValidationError
 
 """
 Utils for argument parsing (we use webargs),
@@ -63,3 +67,77 @@ def load_data(request, schema):
                 )
         newdata.update(json_params)
     return MultiDictProxy(newdata, schema)
+
+
+@parser.location_loader("combined_sensor_data_upload")
+def combined_sensor_data_upload(request: Request, schema):
+    """
+    Custom webargs location loader to extract data from both path and form parameters, as well as uploaded files.
+    Useful for endpoints that accept a SensorDataFileSchema.
+
+    This loader combines variables from the request URL path (`request.view_args`) and
+    uploaded file data (`request.files`) into a single MultiDict, which is then passed to
+    webargs for validation and deserialization.
+
+    It also injects the field  "belief-time-measured-instantly" from the form data into the dict.
+
+    Note:
+        If any keys are present in both `request.view_args` and `request.files`,
+        the file data will overwrite the path data for those keys.
+
+    Parameters:
+        request (Request): The incoming Flask request object.
+        schema: The webargs schema used to validate and deserialize the extracted data.
+
+    Returns:
+        MultiDictProxy: A proxy object wrapping the merged data from path parameters
+                        and uploaded files.
+    """
+    data = MultiDict(request.view_args)
+    data.update(request.files)
+    belief_time = request.form.get("belief-time-measured-instantly")
+    data.update({"belief-time-measured-instantly": belief_time})
+    return MultiDictProxy(data, schema)
+
+
+@parser.location_loader("combined_sensor_data_description")
+def combined_sensor_data_description(request: Request, schema):
+    """
+    Custom webargs location loader for endpoints that accept a SensorDataDescriptionSchema,
+    but receive the sensor ID as part of the Rest-like URL.
+    It extracts path parameters and sets the sensor ID on the "sensor" field.
+
+    The other schema descriptions are found either in the JSON body or in the URL args.
+
+    The result is a single MultiDict, which is then passed to webargs for validation and deserialization.
+
+    Note:
+        If any keys are present in both `request.view_args` (path), `request.args` (url) and `request.json`,
+        the json data will overwrite all, and the args data will overwrite path values for those keys.
+
+    Parameters:
+        request (Request): The incoming Flask request object.
+        schema: The SensorDataDescriptionSchema (or subclass) used to validate and deserialize the extracted data.
+
+    Returns:
+        MultiDictProxy: A proxy object wrapping the merged data from path parameters, URL
+                        and/or uploaded json.
+    """
+    # combine data
+    data = MultiDict(request.view_args)
+    data.update(request.args)  # Url (GET)
+    try:
+        data.update(request.json)  # JSON (POST)
+    except JsonError:
+        pass
+
+    # set sensor ID in the right place
+    data["sensor"] = data["id"]
+    del data["id"]
+
+    # Fix: make sure posted values are stored as one list
+    # MultiDict interprets multiple values per key as competing and accessing the field only gives the first value
+    if "values" in data:
+        data["values"] = request.json["values"]
+
+    return MultiDictProxy(data, schema)

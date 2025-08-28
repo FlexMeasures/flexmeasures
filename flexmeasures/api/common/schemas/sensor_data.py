@@ -12,7 +12,10 @@ import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.api.common.schemas.sensors import SensorField
+from flexmeasures.api.common.schemas.sensors import (
+    SensorEntityAddressField,
+    SensorIdField,
+)
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
@@ -73,7 +76,7 @@ class SensorDataDescriptionSchema(ma.Schema):
     Schema describing sensor data (specifically, the sensor and the timing of the data).
     """
 
-    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
+    sensor = SensorIdField(required=True)
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
     horizon = DurationField(required=False)
@@ -310,7 +313,10 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             if any(h < timedelta(0) for h in bdf.belief_horizons):
                 raise ValidationError("Prognoses must lie in the future.")
 
-        return bdf
+        # return bdf
+        # Returning a dict with our value wrapped in there, as that is expected
+        # (not sure why using location_loader leads to this expectation ...)
+        return dict(bdf=bdf)
 
     @staticmethod
     def possibly_convert_units(data):
@@ -391,3 +397,19 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             sensor=sensor_data["sensor"],
             **belief_timing,
         )
+
+
+class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorEntityAddressField(
+        required=True, entity_type="sensor", fm_scheme="fm1"
+    )
+
+
+class PostSensorDataSchemaEntityAddress(PostSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorEntityAddressField(
+        required=True, entity_type="sensor", fm_scheme="fm1"
+    )
