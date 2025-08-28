@@ -136,7 +136,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                     )
                     # Remove the original attribute
                     current_app.logger.warning(
-                        f"Attribute {attribute} of asset {self.name} was moved to its flex-model under the {field.data_key} field"
+                        f"Attribute {attribute} of asset {self.name} was moved to its flex-model under the {field.data_key} field."
                     )
                     # todo: comment this in
                     # del self.attributes[attribute]

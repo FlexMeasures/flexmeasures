@@ -127,7 +127,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                     self.generic_asset.flex_model[field.data_key] = new_value
                     # Remove the original attribute
                     current_app.logger.warning(
-                        f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field"
+                        f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field."
                     )
                     # todo: comment this in
                     # del self.attributes[attribute]
