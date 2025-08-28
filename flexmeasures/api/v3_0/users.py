@@ -238,10 +238,11 @@ class UserAPI(FlaskView):
             username=user_data["username"],
             email=user_data["email"],
             account_name=user_data["account_id"].name,
-            password=user_data["email"],
+            password=set_random_password(),
             user_roles=[],
         )
         db.session.commit()
+        send_reset_password_instructions(created_user)
         return user_schema.dump(created_user), 201
 
     @route("/<id>")
