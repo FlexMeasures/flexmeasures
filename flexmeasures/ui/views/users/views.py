@@ -106,8 +106,9 @@ class UserCrudUI(FlaskView):
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
+        accounts = db.session.scalars(select(Account).order_by(Account.name)).all()
         return render_flexmeasures_template(
-            "users/users.html", include_inactive=include_inactive
+            "users/users.html", include_inactive=include_inactive, accounts=accounts
         )
 
     @login_required
