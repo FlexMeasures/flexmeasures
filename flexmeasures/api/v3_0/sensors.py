@@ -892,18 +892,15 @@ class SensorAPI(FlaskView):
         db.session.add(sensor)
         db.session.commit()
 
+        audit_log_message = f"Created sensor '{sensor.name}': {sensor.id}"
         if hasattr(sensor_schema, "context"):
             # Marshmallow 3.x
             asset = sensor_schema.context["generic_asset"]
-            AssetAuditLog.add_record(
-                asset, f"Created sensor '{sensor.name}': {sensor.id}"
-            )
+            AssetAuditLog.add_record(asset, audit_log_message)
         else:
             # Marshmallow 4.x
             with SensorSchemaContext({"generic_asset": sensor.generic_asset}):
-                AssetAuditLog.add_record(
-                    sensor.generic_asset, f"Created sensor '{sensor.name}': {sensor.id}"
-                )
+                AssetAuditLog.add_record(sensor.generic_asset, audit_log_message)
 
         return sensor_schema.dump(sensor), 201
 
