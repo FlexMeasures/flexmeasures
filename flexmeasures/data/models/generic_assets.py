@@ -118,7 +118,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         if self.attributes is None:
             self.attributes = {}
 
-        # Backwards compatibility when setting attributes that served as flex-model fields
+        # For backwards compatibility, when setting attributes that served as flex-model fields,
+        # move them to the flex_context (and don't store them as attributes)
         from flexmeasures.data.schemas.scheduling.storage import (
             DBStorageFlexModelSchema,
         )
