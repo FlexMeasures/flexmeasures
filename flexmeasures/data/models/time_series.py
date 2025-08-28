@@ -109,6 +109,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         for attribute in self.attributes:
             for field in DBStorageFlexModelSchema().fields.values():
                 if attribute == field.metadata.get("deprecated field"):
+                    if self.generic_asset is None:
+                        self.generic_asset = db.session.get(
+                            GenericAsset, self.generic_asset_id
+                        )
                     # Move the attribute to the flex_model db column
                     if field.data_key in self.generic_asset.flex_model:
                         raise ValueError(
