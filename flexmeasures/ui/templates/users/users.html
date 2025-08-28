@@ -103,10 +103,6 @@
       const email = $("#email").val();
       const account_id = $("#account").val();
 
-      if (!username || !email) {
-        showToast("Username and Email are required.", 'error');
-        return;
-      }
 
       $.ajax({
         type: "POST",
