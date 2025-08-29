@@ -389,12 +389,12 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "site-peak-consumption-price": {
         "default": None,
-        "description": "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization.",
+        "description": "This value represents the price paid for increasing the site peak consumption any further. It is used in the scheduling optimization to motivate peak shaving.",
         "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "site-peak-production-price": {
         "default": None,
-        "description": "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization.",
+        "description": "This value represents the price paid for increasing the site peak production any further. It is used in the scheduling optimization to motivate peak shaving.",
         "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "inflexible-device-sensors": {
