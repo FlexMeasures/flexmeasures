@@ -89,7 +89,7 @@ class BaseModel(ABC):
             logging.debug("Base model trained successfully")
         except Exception as e:
             raise CustomException(
-                f"Error training base model: {e}. Try decreasing the --start-date.", sys
+                f"Error training base model: {e}. Try decreasing the start-date.", sys
             )
 
     def predict(
