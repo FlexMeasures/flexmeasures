@@ -160,24 +160,38 @@ class BasePipeline:
         list[pd.Timestamp],
     ]:
         """
-        Splits the input DataFrame into past covariates, future covariates, and target series
-        for each prediction belief_time.
+        Split the loaded sensor DataFrame into past covariates, future covariates,
+        and target series across one or more simulated forecast times ("belief times").
 
-        This function ensures that:
-        - Past covariates contain realized (actual) and forecast data, based on the latest available beliefs before the prediction event_start, about events up to the prediction belief_time.
-        - Future covariates consist of:
-            - Forecasted values up to max_forecast_horizon with belief_time under the prediction belief_time.
-            - Realized data (i.e., data with the most recent belief_time) for event_starts that occur before the prediction belief_time.
-        - The target series is extracted for each prediction belief_time.
+        This is the main entry point for preparing model inputs. It:
+        - Handles the autoregressive case (no regressors).
+        - Or delegates to `_generate_splits`, which applies the sliding-window
+        logic to produce per-belief covariate/target slices.
 
-        Returns:
-            tuple:
-                - past_covariates_list (List[TimeSeries] or None): List of DataFrames, each containing past data up
-                to the corresponding prediction belief_time.
-                - future_covariates_list (List[TimeSeries] or None): List of DataFrames, each containing future data
-                up to the prediction belief_time.
-                - target_list (List[TimeSeries]): List of Series, each containing the target values up to the respective
-                prediction belief_time.
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The full sensor data (from `load_data_all_beliefs`), with columns
+            [event_start, belief_time, ...].
+        is_predict_pipeline : bool, default False
+            If True, generate splits for all prediction steps in `n_steps_to_predict`.
+            If False, only generate one split (used in training).
+
+        Returns
+        -------
+        past_covariates_list : list[TimeSeries] | None
+            Past regressors up to each belief_time, or None if not used.
+        future_covariates_list : list[TimeSeries] | None
+            Future regressors (realized + forecasted) up to each forecast_end, or None if not used.
+        target_list : list[TimeSeries]
+            Target series truncated at each belief_time.
+        belief_timestamps_list : list[pd.Timestamp]
+            The simulated "now" timestamps when forecasts are issued, used to as the forecasts belief_time when saving to db.
+
+        Notes
+        -----
+        The detailed semantics of how past/future covariates and targets
+        are constructed for each split are documented in `_generate_splits`.
         """
         try:
             logging.debug("Splitting data target and covariates.")
