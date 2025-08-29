@@ -132,9 +132,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                         f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field."
                     )
                     to_delete.append(attribute)
-        # todo: comment this in
-        # for attr in to_delete:
-        #     del self.attributes[attr]
+        for attr in to_delete:
+            del self.attributes[attr]
 
     __table_args__ = (
         UniqueConstraint(
