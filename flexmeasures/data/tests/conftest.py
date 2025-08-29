@@ -145,7 +145,7 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
         "solar-sensor": {
             "unit": "kW",
             "multiplier": 1000,
-            "horizon": timedelta(hours=1),
+            "horizon": timedelta(hours=0),
             "resolution": timedelta(minutes=15),
         },
     }
