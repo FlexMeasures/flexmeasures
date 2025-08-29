@@ -7,7 +7,7 @@ Summary
 -------
 
 .. qrefflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
+    :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.accounts, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
     :order: path
     :include-empty-docstring:
 
@@ -15,6 +15,6 @@ API Details
 -----------
 
 .. autoflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
+    :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.accounts, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
     :order: path
     :include-empty-docstring:
