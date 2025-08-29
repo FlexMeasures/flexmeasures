@@ -316,7 +316,8 @@ class FlexContextSchema(Schema):
 
 
 ALLOWED_UNITS_TYPES: Dict[str, list[str]] = {
-    "price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
+    "capacity-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
+    "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
     "power": ["kW"],
 }
 
@@ -324,12 +325,12 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "consumption-price": {
         "default": None,  # Refers to default value of the field
         "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
     },
     "production-price": {
         "default": None,
         "description": "Set the sensor that represents the production price of the site. This value will be used in the optimization.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
     },
     "site-power-capacity": {
         "default": None,
@@ -348,33 +349,33 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-minima-breach-price": {
         "default": None,
-        "description": "This value represents the price that will be paid if the state of charge of a battery goes below the minimum state of charge. This must use the same currency and cannot be a negative price.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "description": "This value represents the price paid for increasing the site peak consumption any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
     },
     "soc-maxima-breach-price": {
         "default": None,
-        "description": "This value represents the price that will be paid if the state of charge of a battery goes above the maximum state of charge. This must use the same currency and cannot be a negative price.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "description": "This value represents the price paid for increasing the site peak production any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
     },
     "consumption-breach-price": {
         "default": None,
         "description": "The price of breaching the <b>consumption-capacity</b> in the flex-model, useful to treat <b>consumption-capacity</b> as a soft constraint but still make the scheduler attempt to respect it.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "production-breach-price": {
         "default": None,
         "description": "The price of breaching the <b>production-capacity</b> in the flex-model, useful to treat <b>production-capacity</b> as a soft constraint but still make the scheduler attempt to respect it.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "site-consumption-breach-price": {
         "default": None,
         "description": "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "site-production-breach-price": {
         "default": None,
         "description": "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "site-peak-consumption": {
         "default": None,
@@ -389,12 +390,12 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "site-peak-consumption-price": {
         "default": None,
         "description": "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "site-peak-production-price": {
         "default": None,
         "description": "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization.",
-        "allowed-units": ALLOWED_UNITS_TYPES["price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "inflexible-device-sensors": {
         "default": [],
