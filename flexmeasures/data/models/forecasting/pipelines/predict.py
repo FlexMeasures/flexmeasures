@@ -179,28 +179,12 @@ class PredictPipeline(BasePipeline):
             logging.debug(
                 f"Predicting for {self.readable_resolution} offset {horizon + 1}, forecasting up to ({self.total_forecast_hours} hours) ahead."
             )
-
+            # Inputs (y, past_covariates, future_covariates) are pre-sliced for this
+            # belief time by BasePipeline._generate_splits. See BasePipeline docs and
             current_y = y
             # CHECK THIS DIAGRAM : https://cloud.seita.nl/index.php/s/FYRgJwE3ER8kTLk aka 20250210_123637.png
-            """past covariates and future_covariates data is loaded initially to extend
-            from the beginning of the train_period up to the end of the predict_period PLUS max_forecast_horizon.
-            The end of this time period for data loading corresponds to the future_covariates data needed for the last forecast.
-            Check load_data in base_pipeline."""
 
-            """
-            For each single-horizon forecast:
-
-            - Past covariates start from the beginning of the training dataset,
-            end before the last `n_steps_to_predict` time steps that are yet to be predicted,
-            and are shifted by `horizon` after each forecast.
-            The additional period at the end, meant for `future_covariates` of max_forecast_horizon, is discarded.
-
-            - Future covariates start from the forecasted horizon,
-            extend through the last `n_steps_to_predict` time steps that are yet to be predicted,
-            and include the additional period at the end for the last forecasted horizon of the predict_period.
-            These are also shifted by `horizon` after each forecast.
-            """
-
+            # Get time series of forecasts at a single horizon
             y_pred = model.predict(
                 current_y,
                 past_covariates=past_covariates,
