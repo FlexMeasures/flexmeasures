@@ -620,7 +620,7 @@ class BasePipeline:
 
             realized_data_darts = self.detect_and_fill_missing_values(
                 df=realized_data,
-                sensor_names=[r for r in self.past_regressors],
+                sensor_names=[r for r in self.future_regressors],
                 start=target_start,
                 end=target_end,
             )
