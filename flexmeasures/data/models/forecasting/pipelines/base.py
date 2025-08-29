@@ -248,11 +248,13 @@ class BasePipeline:
                         self.event_ends_before, utc=True
                     ).tz_localize(None)
 
+                # The forecast window ends at target_end + max_forecast_horizon (+ 1 resolution).
                 first_forecast_end = (
                     first_target_end
                     + pd.Timedelta(hours=self.max_forecast_horizon_in_hours)
                     + self.target_sensor.event_resolution
                 )
+                # Ensure the forecast_end is in UTC and has no timezone info
                 first_forecast_end = pd.to_datetime(
                     first_forecast_end, utc=True
                 ).tz_localize(None)
