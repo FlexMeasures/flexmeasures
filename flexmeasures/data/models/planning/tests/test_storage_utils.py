@@ -113,6 +113,36 @@ from flexmeasures.utils.unit_utils import ur
                 name="event_value",
             ),
         ),
+        # Test case 4: DST start (CET +01:00 -> CEST +02:00) — index in UTC, event in Europe/Amsterdam
+        (
+            pd.date_range(
+                "2024-03-30 23:00:00+00:00", periods=11, freq="15min", tz="UTC"
+            ),
+            [
+                {
+                    # Local event spans 00:00–00:30 Europe/Amsterdam on DST day.
+                    # In UTC, that is 23:00–23:15 the previous day.
+                    "value": 0.015,
+                    "start": pd.Timestamp(
+                        "2024-03-31 00:00:00+01:00", tz="Europe/Amsterdam"
+                    ),
+                    "end": pd.Timestamp(
+                        "2024-03-31 03:45:00+02:00", tz="Europe/Amsterdam"
+                    ),
+                }
+            ],
+            "dimensionless",
+            pd.Timedelta("15min"),
+            "first",
+            pd.Series(
+                # rest -> NaN
+                [0.015] * 11,
+                index=pd.date_range(
+                    "2024-03-30 23:00:00+00:00", periods=11, freq="15min", tz="UTC"
+                ),
+                name="event_value",
+            ),
+        ),
     ],
 )
 def test_process_time_series_segments(
