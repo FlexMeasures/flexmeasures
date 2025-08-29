@@ -263,10 +263,14 @@ class BasePipeline:
                 past_covariates_list = []
                 future_covariates_list = []
 
+                # Number of prediction iterations: all steps if predict pipeline, else just 1 (training)
                 end_for_loop = self.n_steps_to_predict if is_predict_pipeline else 1
                 belief_timestamps_list = []
 
+                # Loop through each simulated forecast step and increase the belief_time and target_end by 1 traget sensor resolution
                 for index_offset in range(0, end_for_loop):
+
+                    # Move belief_time and target_end forward one resolution per step
                     belief_time = first_belief_time + pd.Timedelta(
                         minutes=index_offset
                         * target_sensor_resolution.total_seconds()
@@ -283,6 +287,8 @@ class BasePipeline:
                         * target_sensor_resolution.total_seconds()
                         / 60
                     )
+
+                    # Split covariates and target series for this simulated forecast
                     past_covariates, future_covariates, y_split = (
                         self._split_covariates_data(
                             X_past_regressors_df=X_past_regressors_df,
