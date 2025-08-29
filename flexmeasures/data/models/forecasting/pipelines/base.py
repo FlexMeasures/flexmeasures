@@ -204,13 +204,13 @@ class BasePipeline:
                 ).tz_localize(None)
 
                 # target_end is the timestamp of the last event_start of realized data
-                # split_timestamp is the belief_time of the last realization to be used for forecasting.
+                # belief_time in this module is the belief_time of the last realization to be used for forecasting.
                 if self.predict_start:
                     first_target_end = pd.to_datetime(
                         self.predict_start - self.target_sensor.event_resolution,
                         utc=True,
                     ).tz_localize(None)
-                    first_split_timestamp = pd.to_datetime(
+                    first_belief_time = pd.to_datetime(
                         self.predict_start, utc=True
                     ).tz_localize(None)
                 else:
@@ -218,7 +218,7 @@ class BasePipeline:
                         self.event_ends_before - self.target_sensor.event_resolution,
                         utc=True,
                     ).tz_localize(None)
-                    first_split_timestamp = pd.to_datetime(
+                    first_belief_time = pd.to_datetime(
                         self.event_ends_before, utc=True
                     ).tz_localize(None)
 
@@ -239,7 +239,7 @@ class BasePipeline:
                 belief_timestamps_list = []
 
                 for index_offset in range(0, end_for_loop):
-                    split_timestamp = first_split_timestamp + pd.Timedelta(
+                    belief_time = first_belief_time + pd.Timedelta(
                         minutes=index_offset
                         * target_sensor_resolution.total_seconds()
                         / 60
@@ -260,7 +260,7 @@ class BasePipeline:
                             X_past_regressors_df=X_past_regressors_df,
                             X_future_regressors_df=X_future_regressors_df,
                             target_dataframe=y,
-                            split_timestamp=split_timestamp,
+                            belief_time=belief_time,
                             target_start=target_start,
                             target_end=target_end,
                             forecast_end=forecast_end,
@@ -270,7 +270,7 @@ class BasePipeline:
                     target_list.append(y_split)
                     past_covariates_list.append(past_covariates)
                     future_covariates_list.append(future_covariates)
-                    belief_timestamps_list.append(split_timestamp)
+                    belief_timestamps_list.append(belief_time)
 
                 future_covariates_list = (
                     future_covariates_list
@@ -476,7 +476,7 @@ class BasePipeline:
         X_past_regressors_df: pd.DataFrame | None,
         X_future_regressors_df: pd.DataFrame | None,
         target_dataframe: pd.DataFrame,
-        split_timestamp: pd.Timestamp,
+        belief_time: pd.Timestamp,
         target_start: pd.Timestamp,
         target_end: pd.Timestamp,
         forecast_end: pd.Timestamp,
@@ -484,24 +484,24 @@ class BasePipeline:
         """
         Splits past covariates, future covariates, and target data at a given timestamp.
 
-        - Past covariates include data available before `split_timestamp`.
-        - Future covariates include forecasted values available before `split_timestamp`
+        - Past covariates include data available before `belief_time`.
+        - Future covariates include forecasted values available before `belief_time`
         and extending up to `max_forecast_horizon_in_hours`.
-        - Target data includes values up to `split_timestamp` for model training.
+        - Target data includes values up to `belief_time` for model training.
 
         Notes:
         ------
         - **Past covariates** include only known historical values (i.e., belief time is after event time).
-        - **Future covariates** include forecasts made before `split_timestamp` and ensure that only
+        - **Future covariates** include forecasts made before `belief_time` and ensure that only
         the latest available belief is selected for each future event time.
 
         Example:
         --------
         Given:
-            - `split_timestamp = "2024-01-10 00:00:00"`
+            - `belief_time = "2024-01-10 00:00:00"`
             - Forecast horizon: `4 hours`
-            - Past covariates: Observed values before `split_timestamp`
-            - Future covariates: Forecasts made before `split_timestamp` for the next 4 hours
+            - Past covariates: Observed values before `belief_time`
+            - Future covariates: Forecasts made before `belief_time` for the next 4 hours
 
         The function returns:
             - **past_covariates** → Values before `2024-01-10 00:00:00`
@@ -574,7 +574,7 @@ class BasePipeline:
                     <= X_future_regressors_df["event_start"]
                 )  # this ensures we get forecasts
                 & (
-                    X_future_regressors_df["belief_time"] <= split_timestamp
+                    X_future_regressors_df["belief_time"] <= belief_time
                 )  # this ensures we get forecasts made before the point we make are making the prediction
             ].copy()
 
