@@ -890,8 +890,9 @@ class MetaStorageScheduler(Scheduler):
             )
 
             # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
-            if "roundtrip_efficiency" in flex_model[d] or sensor_d.has_attribute(
-                "roundtrip-efficiency"
+            if (
+                "roundtrip_efficiency" in flex_model[d]
+                or sensor_d.get_attribute("roundtrip-efficiency") is not None
             ):
                 charging_efficiency[d] = roundtrip_efficiency**0.5
                 discharging_efficiency[d] = roundtrip_efficiency**0.5
