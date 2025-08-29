@@ -167,8 +167,13 @@ class PredictPipeline(BasePipeline):
         belief_timestamp: pd.Timestamp,
     ) -> pd.DataFrame:
         """
-        Make a single prediction for the given horizon, which represents an integer number of steps of the sensor resolution.
-        The horizon increments the belief horizon and event time in the training data.
+        Make a single prediction for the given horizon (in steps of the sensor resolution),
+        using inputs already sliced for this belief time.
+        Notes
+        -----
+        The covariate/target windowing and belief semantics are documented in:
+        - `BasePipeline` class docstring (“Covariate semantics”)
+        - `BasePipeline.split_data_all_beliefs` → `_generate_splits`
         """
         try:
             logging.debug(
