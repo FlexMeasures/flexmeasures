@@ -188,12 +188,38 @@ class BasePipeline:
                 y: pd.DataFrame,
             ):
                 """
-                Generates past covariates, future covariates, and target series for multiple prediction belief times.
+                Generate past covariates, future covariates, and target series
+                for multiple simulated prediction times ("belief times").
 
-                This function:
-                - Extracts the relevant past and future covariates for each prediction belief time.
-                - Retrieves the target values dataframe corresponding to each prediction belief_time.
+                For each simulated belief_time:
+                - Past covariates contain realized regressor data up to `target_end`
+                (just before the predictions start).
+                - Future covariates include realized data up to `target_end`
+                and forecasts extending up to `forecast_end` (`target_end + max_forecast_horizon`).
+                - Target series (y) contain realized target values up to `target_end`
+                (the last event_start available for making forecasts).
+                - belief_time is the timestamp representing "when the forecast
+                would have been made." It coincides with the belief_time
+                of `target_end` — i.e., the last belief_time seen.
 
+                This function loops through `n_steps_to_predict` (if this class is used by the predict pipeline),
+                creating a sliding window of inputs for each prediction step.
+
+                Parameters
+                ----------
+                X_past_regressors_df : pd.DataFrame | None
+                    Past regressors (realized values before belief_time). None if not used.
+                X_future_regressors_df : pd.DataFrame | None
+                    Future regressors (realized + forecasted values). None if not used.
+                y : pd.DataFrame
+                    Target values, indexed by event_start and belief_time.
+
+                Returns
+                -------
+                past_covariates_list : list[TimeSeries] | None
+                future_covariates_list : list[TimeSeries] | None
+                target_list : list[TimeSeries]
+                belief_timestamps_list : list[pd.Timestamp]
                 """
 
                 target_sensor_resolution = self.target_sensor.event_resolution
