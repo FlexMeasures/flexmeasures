@@ -19,18 +19,42 @@ class BasePipeline:
     """
     Base class for Train and Predict pipelines.
 
-    This class handles loading and preprocessing time series data for training or prediction,
-    including missing value handling and splitting into regressors (X) and target (y).
+    This class handles loading and preprocessing time series data for training or
+    prediction, including missing value handling and splitting into regressors (X)
+    and target (y).
 
-    Parameters:
-    - sensors (dict[str, int]): Dictionary mapping sensor names to sensor IDs.
-    - past_regressors: List of past regressor names.
-    - future_regressors: List of future regressor names.
-    - target (str): Name of the target sensor.
-    - n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
-    - max_forecast_horizon (int): Max forecasting horizon in steps of 1 resolution.
-    - event_starts_after (datetime | None): Earliest event_start to include.
-    - event_ends_before (datetime | None): Latest event_start to include.
+    ## Covariate semantics
+    Data for `past_covariates` and `future_covariates` is loaded broadly enough to cover:
+    - from the beginning of the training/predict period,
+    - through the end of the predict period,
+    - plus `max_forecast_horizon` (needed for the last forecast step).
+
+    Later, `split_data_all_beliefs` and `_generate_splits` slice this superset into
+    per-horizon inputs:
+
+    - **Past covariates**: realized (historical) data aligned up to each split's `target_end`
+      (just before the predicted step), selecting the most recent belief per event_start.
+    - **Future covariates**: realized data up to `target_end` plus forecasts up to
+      `target_end + max_forecast_horizon`, selecting the most recent belief per event_start.
+    - **Target series**: realized target values from `target_start` through `target_end`
+      (the conditioning context for forecasting).
+
+    Parameters
+    ----------
+    sensors : dict[str, int]
+        Mapping of sensor names to sensor IDs.
+    past_regressors : list[str] | None
+        Sensor names used only as historical (past) covariates.
+    future_regressors : list[str]
+        Sensor names used as future covariates (with forecast data).
+    target : str
+        Name of the target sensor (key in `sensors`).
+    n_steps_to_predict : int
+        Number of forecast iterations (steps at target resolution).
+    max_forecast_horizon : int
+        Maximum look-ahead horizon, in steps of the target resolution.
+    event_starts_after / event_ends_before : datetime | None
+        Time boundaries for loading sensor events.
     """
 
     def __init__(
