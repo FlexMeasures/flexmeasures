@@ -230,7 +230,7 @@ class BasePipeline:
                 ).tz_localize(None)
 
                 # target_end is the timestamp of the last event_start of realized data
-                # belief_time in this module is the belief_time of the last realization to be used for forecasting.
+                # belief_time in this module is the belief_time of the last realization to be used for forecasting at each prediction step.
                 if self.predict_start:
                     first_target_end = pd.to_datetime(
                         self.predict_start - self.target_sensor.event_resolution,
