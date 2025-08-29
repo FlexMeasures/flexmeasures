@@ -162,7 +162,7 @@ class PredictPipeline(BasePipeline):
         model,
         future_covariates: TimeSeries,
         past_covariates: TimeSeries,
-        y: TimeSeries,
+        current_y: TimeSeries,
         horizon: int,
         belief_timestamp: pd.Timestamp,
     ) -> pd.DataFrame:
@@ -181,7 +181,6 @@ class PredictPipeline(BasePipeline):
             )
             # Inputs (y, past_covariates, future_covariates) are pre-sliced for this
             # belief time by BasePipeline._generate_splits. See BasePipeline docs and
-            current_y = y
             # CHECK THIS DIAGRAM : https://cloud.seita.nl/index.php/s/FYRgJwE3ER8kTLk aka 20250210_123637.png
 
             # Get time series of forecasts at a single horizon
@@ -245,7 +244,7 @@ class PredictPipeline(BasePipeline):
                     model=model,
                     future_covariates=future_covariates,
                     past_covariates=past_covariates,
-                    y=y,
+                    current_y=y,
                     horizon=h,
                     belief_timestamp=belief_timestamp,
                 )
