@@ -164,20 +164,27 @@ def test_battery_solver_day_2(
         battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
     )
 
+    db_soc_min_in_mwh = (
+        ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
+    )
+    db_soc_max_in_mwh = (
+        ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
+    )
+
     # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
     assert soc_schedule.iloc[-1] == max(
-        soc_min, battery.get_attribute("min_soc_in_mwh")
+        soc_min, db_soc_min_in_mwh
     )  # Battery sold out at the end of its planning horizon
 
     # As long as the efficiencies aren't too bad (I haven't computed the actual switch points)
     if roundtrip_efficiency > 0.9 and storage_efficiency > 0.9:
         np.testing.assert_approx_equal(
             soc_schedule.loc[start + timedelta(hours=8)],
-            max(soc_min, battery.get_attribute("min_soc_in_mwh")),
+            max(soc_min, db_soc_min_in_mwh),
             significant=3,
         )  # Sell what you begin with
         assert soc_schedule.loc[start + timedelta(hours=16)] == min(
-            soc_max, battery.get_attribute("max_soc_in_mwh")
+            soc_max, db_soc_max_in_mwh
         )  # Buy what you can to sell later
     elif storage_efficiency > 0.9:
         # If only the roundtrip efficiency is poor, best to stand idle (keep a high SoC as long as possible)
@@ -190,10 +197,10 @@ def test_battery_solver_day_2(
     else:
         # If the storage efficiency is poor, regardless of whether the roundtrip efficiency is poor, best to sell asap
         assert soc_schedule.loc[start + timedelta(hours=8)] == max(
-            soc_min, battery.get_attribute("min_soc_in_mwh")
+            soc_min, db_soc_min_in_mwh
         )
         assert soc_schedule.loc[start + timedelta(hours=16)] == max(
-            soc_min, battery.get_attribute("min_soc_in_mwh")
+            soc_min, db_soc_min_in_mwh
         )
 
 
@@ -210,9 +217,15 @@ def run_test_charge_discharge_sign(
     storage_efficiency = 1
     # Choose the SoC constraints and starting value such that the battery can fully charge or discharge in a single time step
     soc_min = 0
-    capacity = battery.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    capacity = (
+        ur.Quantity(
+            battery.get_attribute(
+                "power-capacity",
+                battery.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude,
     )
     soc_max = capacity
     soc_at_start = capacity
@@ -347,9 +360,15 @@ def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecast
     assert all(schedule_3[8:] <= 0)
 
     # discharge the whole battery in 1 time period
-    capacity = battery.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    capacity = (
+        ur.Quantity(
+            battery.get_attribute(
+                "power-capacity",
+                battery.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
     )
     assert np.isclose(
         schedule_3.min(),
@@ -389,11 +408,15 @@ def test_charging_station_solver_day_2(
 
     epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
-    capacity = charging_station.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(charging_station.get_attribute("site-power-capacity"))
+    capacity = (
+        ur.Quantity(
+            charging_station.get_attribute(
+                "power-capacity",
+                charging_station.get_attribute("site-power-capacity"),
+            )
+        )
         .to("MW")
-        .magnitude,
+        .magnitude
     )
     assert capacity == 2
     assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
@@ -411,16 +434,26 @@ def test_charging_station_solver_day_2(
         resolution,
         flex_model={
             "soc_at_start": soc_at_start,
-            "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
-            "soc_max": charging_station.get_attribute(
-                "max_soc_in_mwh", max(soc_targets.values)
-            ),
-            "roundtrip_efficiency": charging_station.get_attribute(
-                "roundtrip_efficiency", 1
-            ),
-            "storage_efficiency": charging_station.get_attribute(
-                "storage_efficiency", 1
-            ),
+            "soc_min": ur.Quantity(charging_station.get_attribute("soc-min", "0 kWh"))
+            .to("MWh")
+            .magnitude,
+            "soc_max": ur.Quantity(
+                charging_station.get_attribute(
+                    "soc-max", f"{max(soc_targets.values)} MWh"
+                )
+            )
+            .to("MWh")
+            .magnitude,
+            "roundtrip_efficiency": ur.Quantity(
+                charging_station.get_attribute("roundtrip-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
+            "storage_efficiency": ur.Quantity(
+                charging_station.get_attribute("storage-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
             "soc_targets": soc_targets,
         },
         flex_context={
@@ -473,11 +506,15 @@ def test_fallback_to_unsolvable_problem(
 
     epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
-    capacity = charging_station.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(charging_station.get_attribute("site-power-capacity"))
+    capacity = (
+        ur.Quantity(
+            charging_station.get_attribute(
+                "power-capacity",
+                charging_station.get_attribute("site-power-capacity"),
+            )
+        )
         .to("MW")
-        .magnitude,
+        .magnitude
     )
     assert capacity == 2
     assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
@@ -495,16 +532,26 @@ def test_fallback_to_unsolvable_problem(
         "resolution": resolution,
         "flex_model": {
             "soc_at_start": soc_at_start,
-            "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
-            "soc_max": charging_station.get_attribute(
-                "max_soc_in_mwh", max(soc_targets.values)
-            ),
-            "roundtrip_efficiency": charging_station.get_attribute(
-                "roundtrip_efficiency", 1
-            ),
-            "storage_efficiency": charging_station.get_attribute(
-                "storage_efficiency", 1
-            ),
+            "soc_min": ur.Quantity(charging_station.get_attribute("soc-min", "0 kWh"))
+            .to("MWh")
+            .magnitude,
+            "soc_max": ur.Quantity(
+                charging_station.get_attribute(
+                    "soc-max", f"{max(soc_targets.values)} MWh"
+                )
+            )
+            .to("MWh")
+            .magnitude,
+            "roundtrip_efficiency": ur.Quantity(
+                charging_station.get_attribute("roundtrip-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
+            "storage_efficiency": ur.Quantity(
+                charging_station.get_attribute("storage-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
             "soc_targets": soc_targets,
         },
         "flex_context": {
@@ -604,8 +651,16 @@ def test_building_solver_day_2(
             "soc_at_start": soc_at_start,
             "soc_min": soc_min,
             "soc_max": soc_max,
-            "roundtrip_efficiency": battery.get_attribute("roundtrip_efficiency", 1),
-            "storage_efficiency": battery.get_attribute("storage_efficiency", 1),
+            "roundtrip_efficiency": ur.Quantity(
+                battery.get_attribute("roundtrip-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
+            "storage_efficiency": ur.Quantity(
+                battery.get_attribute("storage-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
         },
         flex_context={
             "ems_power_capacity_in_mw": ur.Quantity("2 MVA"),
@@ -642,13 +697,19 @@ def test_building_solver_day_2(
     ).tail(
         -4 * 24
     )  # remove first 96 quarter-hours (the schedule is about the 2nd day)
-    building_capacity = building.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(building.get_attribute("site-power-capacity")).to("MW").magnitude,
+    building_capacity = (
+        ur.Quantity(
+            building.get_attribute(
+                "power-capacity",
+                building.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
     )
-    battery_capacity = battery.get_attribute(
-        "capacity_in_mw"
-    )  # actually a Sensor attribute
+    battery_capacity = (
+        ur.Quantity(battery.get_attribute("power-capacity")).to("MW").magnitude
+    )
     capacity["max"] = building_capacity
     capacity["min"] = -building_capacity
     capacity["production headroom"] = capacity["max"] - capacity["inflexible"]
@@ -670,8 +731,10 @@ def test_building_solver_day_2(
     assert (capacity["schedule"] <= capacity["battery consumption headroom"]).all()
 
     for soc in soc_schedule.values:
-        assert soc >= max(soc_min, battery.get_attribute("min_soc_in_mwh"))
-        assert soc <= battery.get_attribute("max_soc_in_mwh")
+        assert soc >= max(
+            soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
+        )
+        assert soc <= ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
 
     # Check whether the resulting soc schedule follows our expectations for.
     # To recap, in scenario 1 and 2, the schedule should mainly be influenced by:
@@ -682,21 +745,21 @@ def test_building_solver_day_2(
     # 1) Sell what you begin with
     # 2) The battery discharged as far as it could during the first 8 net-consumption hours
     assert soc_schedule.loc[start + timedelta(hours=8)] == max(
-        soc_min, battery.get_attribute("min_soc_in_mwh")
+        soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
     )
 
     # Result after second 8 hour-interval
     # 1) Buy what you can to sell later, when prices will be high again
     # 2) The battery charged with PV power as far as it could during the middle 8 net-production hours
     assert soc_schedule.loc[start + timedelta(hours=16)] == min(
-        soc_max, battery.get_attribute("max_soc_in_mwh")
+        soc_max, ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
     )
 
     # Result at end of day
     # 1) The battery sold out at the end of its planning horizon
     # 2) The battery discharged as far as it could during the last 8 net-consumption hours
     assert soc_schedule.iloc[-1] == max(
-        soc_min, battery.get_attribute("min_soc_in_mwh")
+        soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
     )
 
 
@@ -1073,11 +1136,15 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     charging_station = setup_planning_test_data[
         "Test charging station (bidirectional)"
     ].sensors[0]
-    capacity = charging_station.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(charging_station.get_attribute("site-power-capacity"))
+    capacity = (
+        ur.Quantity(
+            charging_station.get_attribute(
+                "power-capacity",
+                charging_station.get_attribute("site-power-capacity"),
+            )
+        )
         .to("MW")
-        .magnitude,
+        .magnitude
     )
     assert capacity == 2
     assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
@@ -1732,11 +1799,15 @@ def test_battery_stock_delta_sensor(
         stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
     else:
         stock_delta_sensor_obj = add_stock_delta["delta"]
-    capacity = stock_delta_sensor_obj.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(stock_delta_sensor_obj.get_attribute("site-power-capacity"))
+    capacity = (
+        ur.Quantity(
+            stock_delta_sensor_obj.get_attribute(
+                "power-capacity",
+                stock_delta_sensor_obj.get_attribute("site-power-capacity"),
+            )
+        )
         .to("MW")
-        .magnitude,
+        .magnitude
     )
     flex_model = {
         "soc-max": 2,

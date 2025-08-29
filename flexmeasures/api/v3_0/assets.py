@@ -54,6 +54,7 @@ from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
 
@@ -576,6 +577,11 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         audit_log_data = list()
+        schema_map = dict(
+            flex_context=DBFlexContextSchema,
+            flex_model=DBStorageFlexModelSchema,
+        )
+
         for k, v in asset_data.items():
             if getattr(db_asset, k) == v:
                 continue
@@ -587,12 +593,14 @@ class AssetAPI(FlaskView):
                             f"Updated Attr: {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}"
                         )
                 continue
-            if k == "flex_context":
+            if k in schema_map:
                 try:
-                    # Validate the flex context schema
-                    DBFlexContextSchema().load(v)
+                    # Validate against the given schema
+                    schema_map[k]().load(v)
                 except Exception as e:
                     return {"error": str(e)}, 422
+                # todo: add audit log entry for the updated fields, similar to when changing an attribute, because
+                #       the events have a 255 character limit, which may not be enough for the whole flex-model
 
             audit_log_data.append(
                 f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"

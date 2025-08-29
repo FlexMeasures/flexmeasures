@@ -40,18 +40,28 @@ def check_constraints(
     )
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
         print(soc_schedule)
-    capacity = sensor.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(sensor.get_attribute("site-power-capacity")).to("MW").magnitude,
+    capacity = (
+        ur.Quantity(
+            sensor.get_attribute(
+                "power-capacity",
+                sensor.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
     )
     assert min(schedule.values) >= capacity * -1 - tolerance
     assert max(schedule.values) <= capacity + tolerance
     for soc in soc_schedule.values:
         assert soc >= (
-            soc_min if soc_min is not None else sensor.get_attribute("min_soc_in_mwh")
+            soc_min
+            if soc_min is not None
+            else ur.Quantity(sensor.get_attribute("soc-min")).to("MWh").magnitude
         )
         assert soc <= (
-            soc_max if soc_max is not None else sensor.get_attribute("max_soc_in_mwh")
+            soc_max
+            if soc_max is not None
+            else ur.Quantity(sensor.get_attribute("soc-max")).to("MWh").magnitude
         )
     return soc_schedule
 
