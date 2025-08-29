@@ -349,12 +349,12 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-minima-breach-price": {
         "default": None,
-        "description": "This value represents the price paid for increasing the site peak consumption any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "description": "This value represents the price that will be paid if the state of charge of a battery goes below the minimum state of charge. This must use the same currency and cannot be a negative price.",
         "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
     },
     "soc-maxima-breach-price": {
         "default": None,
-        "description": "This value represents the price paid for increasing the site peak production any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "description": "This value represents the price that will be paid if the state of charge of a battery goes above the maximum state of charge. This must use the same currency and cannot be a negative price.",
         "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
     },
     "consumption-breach-price": {
