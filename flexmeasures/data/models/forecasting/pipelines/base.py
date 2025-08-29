@@ -290,7 +290,7 @@ class BasePipeline:
                     belief_timestamps_list,
                 )
 
-            if not self.past_regressors or not self.future_regressors:
+            if not self.past_regressors and not self.future_regressors:
                 logging.info("Using autoregressive forecasting.")
 
                 y = df[["event_start", "belief_time", self.target]].copy()
