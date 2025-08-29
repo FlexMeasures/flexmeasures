@@ -1419,13 +1419,14 @@ def add_schedule_for_storage(  # noqa C901
 
     # Convert SoC units (we ask for % in this CLI) to MWh, given the storage capacity
     try:
-        check_required_attributes(power_sensor, [("max_soc_in_mwh", float)])
+        check_required_attributes(power_sensor, [("soc-max", str)])
     except MissingAttributeException:
         click.secho(
-            f"Sensor {power_sensor} has no max_soc_in_mwh attribute.", **MsgStyle.ERROR
+            f"Asset {power_sensor.generic_asset} has no soc-max flex-model field.",
+            **MsgStyle.ERROR,
         )
         raise click.Abort()
-    capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
+    capacity_str = power_sensor.get_attribute("soc-max")
     soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
     soc_targets = []
     for soc_target_tuple in soc_target_strings:
