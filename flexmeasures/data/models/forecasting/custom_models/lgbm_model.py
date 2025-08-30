@@ -86,12 +86,12 @@ class CustomLGBM(BaseModel):
             if self.use_past_covariates:
                 model_params["lags_past_covariates"] = lags
 
-            if self.use_future_covariates:
-                # The one future covariate lag that is probably the most important is the one at the `horizon`,
-                # but here we pass all future lags up until `max_horizon`, and let the model figure it out.
-                # One future covariate that is of considerable importance is the cyclic time encoder, which contains information about the time at the `horizon`,
-                # i.e. the time of the event that we forecast, rather than the time at which the forecast is made, which would be at lag `0`.
-                model_params["lags_future_covariates"] = lags + [0]
+            # The one future covariate lag that is probably the most important is the one at the `horizon`,
+            # but here we pass all future lags up until `max_horizon`, and let the model figure it out.
+            # One future covariate that is of considerable importance is the cyclic time encoder, which contains information about the time at the `horizon`,
+            # i.e. the time of the event that we forecast, rather than the time at which the forecast is made, which would be at lag `0`.
+
+            model_params["lags_future_covariates"] = lags + [0]
 
             model = LightGBMModel(**model_params)
             self.models.append(model)
