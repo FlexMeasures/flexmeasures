@@ -123,12 +123,8 @@ from flexmeasures.utils.unit_utils import ur
                     # Local event spans 00:00–00:30 Europe/Amsterdam on DST day.
                     # In UTC, that is 23:00–23:15 the previous day.
                     "value": 0.015,
-                    "start": pd.Timestamp(
-                        "2024-03-31 00:00:00+01:00", tz="Europe/Amsterdam"
-                    ),
-                    "end": pd.Timestamp(
-                        "2024-03-31 03:45:00+02:00", tz="Europe/Amsterdam"
-                    ),
+                    "start": pd.Timestamp("2024-03-31 00:00:00+01:00"),
+                    "end": pd.Timestamp("2024-03-31 03:45:00+02:00"),
                 }
             ],
             "dimensionless",
