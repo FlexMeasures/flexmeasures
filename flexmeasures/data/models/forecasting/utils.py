@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import numpy as np
+import pandas as pd
+import timely_beliefs as tb
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.services.data_sources import get_or_create_source
+
 from datetime import datetime, timedelta
 from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import as_server_time
 
 
@@ -144,3 +149,136 @@ def set_training_and_testing_dates(
         return forecast_start - training_and_testing_period, forecast_start
     else:
         return training_and_testing_period
+
+
+def negative_to_zero(x: np.ndarray) -> np.ndarray:
+    return np.where(x < 0, 0, x)
+
+
+def data_to_bdf(
+    data: pd.DataFrame,
+    horizon: int,
+    probabilistic: bool,
+    sensors: dict[str, int],
+    target_sensor: str,
+    regressors: list[str],
+    sensor_to_save: Sensor,
+) -> tb.BeliefsDataFrame:
+    """
+    Converts a prediction DataFrame into a BeliefsDataFrame for saving to the database.
+    Parameters:
+    ----------
+    data : pd.DataFrame
+        DataFrame containing predictions for different forecast horizons.
+        If probabilistic forecasts are generated, `data` includes a
+        `component` column that encodes which quantile (cumulative probability)
+        the row corresponds to.
+    horizon : int
+        Maximum forecast horizon in time-steps relative to the sensor's resolution. For example, if the sensor resolution is 1 hour, a horizon of 48 represents a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes, a horizon of 4*48 represents a forecast horizon of 48 hours.
+    probabilistic : bool
+        Whether the forecasts are probabilistic or deterministic.
+    sensors : dict[str, int]
+        Dictionary mapping sensor names to sensor IDs.
+    target_sensor : str
+        The name of the target sensor.
+    regressors : list[str]
+        List of regressor names, used to create unique sources for different sets of regressors.
+    sensor_to_save : Sensor
+        The sensor object to save the forecasts to.
+    Returns:
+    -------
+    tb.BeliefsDataFrame
+        A formatted BeliefsDataFrame ready for database insertion.
+    """
+    sensor = Sensor.query.get(sensors[target_sensor])
+    df = data.copy()
+    df.reset_index(inplace=True)
+    df.pop("component")
+
+    # Rename target to '0h'
+    df = df.rename(columns={target_sensor: "0h"})
+    df["event_start"] = pd.to_datetime(df["event_start"])
+    df["belief_time"] = pd.to_datetime(df["belief_time"])
+
+    # Probabilities
+    probabilistic_values = (
+        [float(x.rsplit("_", 1)[-1]) for x in data.index.get_level_values("component")]
+        if probabilistic
+        else [0.5] * len(df)
+    )
+
+    # Build horizons
+    horizons = pd.Series(range(1, horizon + 1), name="h")
+    expanded = pd.concat([df.assign(h=h) for h in horizons], ignore_index=True)
+
+    # Add shifted event_starts
+    expanded["event_start"] = expanded["event_start"] + expanded["h"].apply(
+        lambda h: sensor.event_resolution * h
+    )
+
+    # Forecast values
+    expanded["forecasts"] = expanded.apply(lambda r: r[f"{r.h}h"], axis=1)
+
+    # Probabilities (repeat original values across horizons)
+    expanded["cumulative_probability"] = np.repeat(probabilistic_values, horizon)
+
+    # Cleanup
+    test_df = expanded[
+        ["event_start", "belief_time", "forecasts", "cumulative_probability"]
+    ]
+    test_df["event_start"] = (
+        test_df["event_start"].dt.tz_localize("UTC").dt.tz_convert(sensor.timezone)
+    )
+    test_df["belief_time"] = (
+        test_df["belief_time"].dt.tz_localize("UTC").dt.tz_convert(sensor.timezone)
+    )
+
+    # Build forecast DataFrame
+    forecast_df = pd.DataFrame(
+        {
+            "forecasts": test_df["forecasts"].values,
+            "cumulative_probability": test_df["cumulative_probability"].values,
+        },
+        index=pd.MultiIndex.from_arrays(
+            [test_df["event_start"], test_df["belief_time"]],
+            names=["event_start", "belief_time"],
+        ),
+    )
+
+    # Set up forecaster regressors attributes to be saved on the datasource
+    # use sensor names from the database and id's in attribute
+    # use sensor names from cli command for model name
+
+    if "autoregressive" in regressors:
+        regressors_names = "autoregressive"
+        sensor = Sensor.query.get(sensors[target_sensor])
+        regressors_attribute = f"(autoregressive) {sensor.name}: {sensor.id}"
+    else:
+        regressor_pairs = []
+        for sensor_name, sensor_id in sensors.items():
+            if sensor_name in regressors:
+                sensor = Sensor.query.get(sensor_id)
+                regressor_pairs.append(f"{sensor.name}: {sensor.id}")
+        regressors_attribute = ", ".join(regressor_pairs)
+        regressors_names = ", ".join(regressors)
+
+    data_source = get_or_create_source(
+        source="forecaster",
+        model=f"CustomLGBM ({regressors_names})",
+        source_type="forecaster",
+        attributes={"regressors": regressors_attribute},
+    )
+
+    # Convert to BeliefsDataFrame
+    bdf = tb.BeliefsDataFrame(
+        forecast_df.reset_index().rename(columns={"forecasts": "event_value"}),
+        source=data_source,
+        sensor=sensor_to_save,
+    )
+    return bdf
+
+
+def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+    delta_seconds = resolution.total_seconds()
+    floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
+    return datetime.fromtimestamp(floored, tz=dt.tzinfo)
