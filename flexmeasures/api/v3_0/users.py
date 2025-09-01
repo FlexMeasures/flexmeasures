@@ -9,7 +9,7 @@ from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.auth.policy import check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
@@ -191,9 +191,6 @@ class UserAPI(FlaskView):
         return response, 200
 
     @route("", methods=["POST"])
-    @permission_required_for_context(
-        "create-children", ctx_loader=AccountIdField.load_current
-    )
     @use_args(
         {
             "email": fields.Email(required=True),
@@ -234,10 +231,17 @@ class UserAPI(FlaskView):
         """
         from flexmeasures.data.services.users import create_user
 
+        account = user_data["account_id"]
+
+        try:
+            check_access(account, "create-children")
+        except (Forbidden, Unauthorized):
+            pass
+
         created_user = create_user(
             username=user_data["username"],
             email=user_data["email"],
-            account_name=user_data["account_id"].name,
+            account_name=account.name,
             password=set_random_password(),
             user_roles=[],
         )
