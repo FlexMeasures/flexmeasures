@@ -216,9 +216,19 @@ class S2FlaskWSServerSync:
         finally:
             if client_id in self._connections:
                 del self._connections[client_id]
-            # Clean up websocket to resource mapping
+            # Clean up websocket to resource mapping and device states
             if websocket in self._websocket_to_resource:
+                resource_id = self._websocket_to_resource[websocket]
                 del self._websocket_to_resource[websocket]
+                
+                # Clean up device data
+                if resource_id in self._device_data:
+                    del self._device_data[resource_id]
+                
+                # Clean up device state from scheduler if available
+                if hasattr(self, 's2_scheduler') and self.s2_scheduler is not None:
+                    self.s2_scheduler.remove_device_state(resource_id)
+                    
             self.app.logger.info("Client %s disconnected (sync)", client_id)
 
     def respond_with_reception_status(
@@ -365,157 +375,34 @@ class S2FlaskWSServerSync:
         self.app.logger.info(f"All data received for device {resource_id}, generating instructions")
         
         try:
-            # Get scheduler and generate instructions
-            scheduler_class = self.app.data_generators["scheduler"]["S2Scheduler"]
-            from flexmeasures import Asset
-            from flexmeasures.data import db
-            
-            # Try to get asset from database, fallback to mock if DB unavailable
-            try:
-                asset = db.session.get(Asset, 1)
-                if asset is None:
-                    self.app.logger.warning("No asset found with ID 1, using mock asset")
-                    asset = self._create_mock_asset()
-            except Exception as db_error:
-                self.app.logger.warning(f"Database unavailable ({db_error}), using mock asset")
-                asset = self._create_mock_asset()
-
-            # Create and configure S2Scheduler with the fixed logic from flexmeasures_s2
-            scheduler = self._create_fixed_s2_scheduler_with_frbc_data(device_data)
-            
-            schedule = scheduler.compute()
-            for entry in schedule:
-                if isinstance(entry, FRBCInstruction):
-                    self._send_and_forget(entry, websocket)
-                elif isinstance(entry, dict) and "sensor" in entry:
-                    # todo: save entry["data"] to sensor (see the code block starting in data/services/scheduling/make_schedule line 598)
-                    pass
+            # Use the S2Scheduler to create and store device state
+            if hasattr(self, 's2_scheduler') and self.s2_scheduler is not None:
+                # Create S2FrbcDeviceState from FRBC messages and store in scheduler
+                device_state = self.s2_scheduler.create_device_state_from_frbc_messages(
+                    resource_id=resource_id,
+                    system_description=device_data.system_description,
+                    fill_level_target_profile=device_data.fill_level_target_profile,
+                    storage_status=device_data.storage_status,
+                    actuator_status=device_data.actuator_status
+                )
+                
+                # Generate instructions using the scheduler
+                schedule_results = self.s2_scheduler.compute()
+                
+                # Send generated instructions
+                for result in schedule_results:
+                    if isinstance(result, FRBCInstruction):
+                        self._send_and_forget(result, websocket)
+                        self.app.logger.info(f"Sent FRBC instruction: {result.to_json()}")
+                    elif isinstance(result, dict) and "sensor" in result:
+                        # TODO: save result["data"] to sensor if needed for FlexMeasures
+                        pass
+            else:
+                # Scheduler not available - log warning and skip instruction generation
+                self.app.logger.warning(f"S2Scheduler not available for device {resource_id}, cannot generate instructions")
                     
         except Exception as e:
             self.app.logger.error(f"Error generating instructions for device {resource_id}: {e}")
+            import traceback
+            self.app.logger.error(f"Traceback: {traceback.format_exc()}")
             # Continue processing other devices
-    
-    def _create_mock_asset(self):
-        """Create a mock asset for testing when database is unavailable."""
-        from datetime import datetime, timedelta
-        
-        # Create a simple mock object that has the minimum attributes expected by S2Scheduler
-        class MockAsset:
-            def __init__(self):
-                self.id = 1
-                self.name = "Mock S2 Asset"
-                # Important: S2Scheduler.deserialize_config() accesses asset.attributes
-                self.attributes = {
-                    "flex-model": {},
-                    "custom-scheduler": {
-                        "module": "flexmeasures_s2.scheduler.schedulers",
-                        "class": "S2Scheduler",
-                    }
-                }
-                # Create minimal mock asset type to satisfy isinstance checks
-                self.generic_asset_type_id = 1
-                self.generic_asset_type = type('MockAssetType', (), {
-                    'id': 1,
-                    'name': 'S2Device'
-                })()
-                
-        return MockAsset()
-    
-    
-    def _create_s2_scheduler_with_frbc_data(self, device_data):
-        """Create S2Scheduler directly with minimal setup, bypassing FlexMeasures validation."""
-        from datetime import datetime, timedelta
-        
-        # Import S2Scheduler directly
-        scheduler_class = self.app.data_generators["scheduler"]["S2Scheduler"]
-        
-        # Create a minimal scheduler instance by bypassing the constructor validation
-        scheduler = scheduler_class.__new__(scheduler_class)
-        
-        # Create properly aligned start time based on 15-minute intervals
-        # This ensures the timestamps align with the timestep duration
-        now = datetime.now().replace(tzinfo=datetime.now().astimezone().tzinfo)
-        resolution = timedelta(minutes=15)
-        
-        # Align start time to the nearest 15-minute boundary
-        minutes_offset = now.minute % 15
-        seconds_offset = now.second
-        microseconds_offset = now.microsecond
-        
-        start_aligned = now.replace(
-            minute=now.minute - minutes_offset,
-            second=0,
-            microsecond=0
-        )
-        
-        # Set minimal required attributes with aligned timestamps
-        scheduler.sensor = None
-        scheduler.asset = None
-        scheduler.start = start_aligned
-        scheduler.end = start_aligned + timedelta(hours=1)
-        scheduler.resolution = resolution
-        scheduler.belief_time = start_aligned
-        scheduler.round_to_decimals = 6
-        scheduler.flex_model = {}
-        scheduler.flex_context = {}
-        scheduler.fallback_scheduler_class = None
-        scheduler.info = {"scheduler": "S2Scheduler"}
-        scheduler.config_deserialized = True  # Skip config deserialization
-        scheduler.return_multiple = True
-        
-        # Set the FRBC device data
-        scheduler.frbc_device_data = device_data
-        
-        return scheduler
-
-    def _create_fixed_s2_scheduler_with_frbc_data(self, device_data):
-        """Create S2Scheduler with the fixed logic from flexmeasures_s2 project."""
-        from datetime import datetime, timedelta, timezone
-        
-        # Import the fixed S2Scheduler directly from flexmeasures_s2
-        scheduler_class = self.app.data_generators["scheduler"]["S2Scheduler"]
-        
-        # Create a minimal scheduler instance by bypassing the constructor validation
-        scheduler = scheduler_class.__new__(scheduler_class)
-        
-        # Create properly aligned start time based on 15-minute intervals
-        # This ensures the timestamps align with the timestep duration
-        now = datetime.now().replace(tzinfo=timezone.utc)
-        resolution = timedelta(minutes=15)
-        
-        # Align start time to the nearest 15-minute boundary
-        minutes_offset = now.minute % 15
-        start_aligned = now.replace(
-            minute=now.minute - minutes_offset,
-            second=0,
-            microsecond=0
-        )
-        
-        # Set minimal required attributes with aligned timestamps
-        scheduler.sensor = None
-        scheduler.asset = None
-        scheduler.start = start_aligned
-        scheduler.end = start_aligned + timedelta(hours=1)
-        scheduler.resolution = resolution
-        scheduler.belief_time = start_aligned
-        scheduler.round_to_decimals = 6
-        scheduler.flex_model = {}
-        scheduler.flex_context = {}
-        scheduler.fallback_scheduler_class = None
-        scheduler.info = {"scheduler": "S2Scheduler"}
-        scheduler.config_deserialized = True  # Skip config deserialization
-        scheduler.return_multiple = True
-        
-        # Convert device_data to the format expected by the fixed scheduler
-        class MockFRBCDeviceData:
-            def __init__(self, data):
-                self.resource_id = data.resource_id
-                self.system_description = data.system_description
-                self.fill_level_target_profile = data.fill_level_target_profile
-                self.storage_status = data.storage_status
-                self.actuator_status = data.actuator_status
-        
-        # Set the FRBC device data
-        scheduler.frbc_device_data = MockFRBCDeviceData(device_data)
-        
-        return scheduler

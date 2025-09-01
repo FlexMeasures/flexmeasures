@@ -256,6 +256,50 @@ def create(  # noqa C901
         if auth_header.startswith("Bearer "):
             token = auth_header.removeprefix("Bearer ").strip()
             if token == app.config.get("WEBSOCKET_BEARER_TOKEN", None):
+                # Initialize S2Scheduler for this WebSocket connection if not already done
+                if not hasattr(s2_ws, 's2_scheduler'):
+                    from datetime import datetime, timedelta, timezone
+                    
+                    # Get S2Scheduler class from registered schedulers
+                    scheduler_class = app.data_generators["scheduler"]["S2Scheduler"]
+                    
+                    # Create scheduler instance with minimal setup for WebSocket usage
+                    scheduler = scheduler_class.__new__(scheduler_class)
+                    
+                    # Set basic time parameters
+                    now = datetime.now(timezone.utc)
+                    resolution = timedelta(minutes=5)  # Match example_schedule_frbc.py resolution
+                    
+                    # Align to 5-minute boundary
+                    minutes_offset = now.minute % 5
+                    start_aligned = now.replace(
+                        minute=now.minute - minutes_offset,
+                        second=0,
+                        microsecond=0
+                    )
+                    
+                    # Set required attributes for scheduler
+                    scheduler.sensor = None
+                    scheduler.asset = None
+                    scheduler.start = start_aligned
+                    scheduler.end = start_aligned + timedelta(hours=24)  # 24-hour planning window
+                    scheduler.resolution = resolution
+                    scheduler.belief_time = start_aligned
+                    scheduler.round_to_decimals = 6
+                    scheduler.flex_model = {}
+                    scheduler.flex_context = {}
+                    scheduler.fallback_scheduler_class = None
+                    scheduler.info = {"scheduler": "S2Scheduler"}
+                    scheduler.config_deserialized = True
+                    scheduler.return_multiple = True
+                    
+                    # Initialize device states storage
+                    scheduler.device_states = {}
+                    
+                    # Attach scheduler to WebSocket server
+                    s2_ws.s2_scheduler = scheduler
+                    app.logger.info("S2Scheduler initialized for WebSocket connections")
+                
                 return  # Let other before_request hooks handle it
 
         app.logger.info(
