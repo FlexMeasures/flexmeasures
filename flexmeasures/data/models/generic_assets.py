@@ -449,7 +449,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         flex_model = []
         if self.flex_model:
-            flex_model.append(self.flex_model.copy())
+            flex_model.append(dict(asset=self.id, **self.flex_model))
         for child in self.child_assets:
             flex_model.extend(child.get_flex_model())
         return flex_model
