@@ -316,7 +316,7 @@ class FlexContextSchema(Schema):
 
 
 ALLOWED_UNITS_TYPES: Dict[str, list[str]] = {
-    "capacity-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
+    "energy-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
     "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
     "power": ["kW"],
 }
@@ -325,12 +325,12 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "consumption-price": {
         "default": None,  # Refers to default value of the field
         "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization.",
-        "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["energy-price"],
     },
     "production-price": {
         "default": None,
         "description": "Set the sensor that represents the production price of the site. This value will be used in the optimization.",
-        "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["energy-price"],
     },
     "site-power-capacity": {
         "default": None,
@@ -350,12 +350,12 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "soc-minima-breach-price": {
         "default": None,
         "description": "This value represents the price that will be paid if the state of charge of a battery goes below the minimum state of charge. This must use the same currency and cannot be a negative price.",
-        "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["energy-price"],
     },
     "soc-maxima-breach-price": {
         "default": None,
         "description": "This value represents the price that will be paid if the state of charge of a battery goes above the maximum state of charge. This must use the same currency and cannot be a negative price.",
-        "allowed-units": ALLOWED_UNITS_TYPES["capacity-price"],
+        "allowed-units": ALLOWED_UNITS_TYPES["energy-price"],
     },
     "consumption-breach-price": {
         "default": None,
