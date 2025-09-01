@@ -96,7 +96,8 @@ class MetaStorageScheduler(Scheduler):
                 flex_model_d.get("sensor") for flex_model_d in self.flex_model
             ]
             assets: list[Asset | None] = [  # noqa: F841
-                s.asset if s is not None else None for s in sensors
+                s.asset if s is not None else flex_model_d.get("asset")
+                for s, flex_model_d in zip(sensors, self.flex_model)
             ]
             resolution = determine_minimum_resampling_resolution(
                 [s.event_resolution for s in sensors if s is not None]
