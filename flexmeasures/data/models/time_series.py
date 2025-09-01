@@ -192,6 +192,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         }
 
     @property
+    def asset(self) -> GenericAsset:
+        return self.generic_asset
+
+    @property
     def entity_address(self) -> str:
         try:
             return build_entity_address(dict(sensor_id=self.id), "sensor")
