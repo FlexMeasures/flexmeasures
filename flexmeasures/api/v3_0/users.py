@@ -210,6 +210,8 @@ class UserAPI(FlaskView):
          - username
          - account_id
 
+        Other attributes/fields such as password and roles can be assigned or reset later.
+
         **Example request**
 
         .. sourcecode:: json
