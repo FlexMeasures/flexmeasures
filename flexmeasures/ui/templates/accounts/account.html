@@ -310,8 +310,7 @@ Account overview {% endblock %} {% block divs %}
         <form id="createUserForm">
           <div class="mb-3">
             <label for="account" class="form-label">Account</label>
-            <select class="form-select" id="account" name="account">
-              <option value="">Select an account</option>
+            <select class="form-select" id="account" name="account" disabled>
               <option value="{{ account.id }}">{{ account.name }}</option>
             </select>
           </div>
@@ -361,10 +360,12 @@ Account overview {% endblock %} {% block divs %}
           );
         },
         error: function (xhr, status, error) {
-          console.error("Error creating user:", error);
-          showToast(
-            "Failed to create user. Please try again.", 'error'
-          );
+          const response = JSON.parse(xhr.responseText);
+          const toastMessage = xhr.status === 403
+            ? "You do not have permission to create users for this account."
+            : response.message || "Something went wrong!";
+
+          showToast(toastMessage, 'error');
         }
       });
     });
