@@ -232,21 +232,21 @@ class UserAPI(FlaskView):
         from flexmeasures.data.services.users import create_user
 
         account = user_data["account_id"]
-
         try:
             check_access(account, "create-children")
         except (Forbidden, Unauthorized):
-            pass
+            raise Forbidden(
+                "You are not allowed to create users for this account."
+            ) from None
 
         created_user = create_user(
             username=user_data["username"],
             email=user_data["email"],
             account_name=account.name,
-            password=set_random_password(),
+            password=user_data["email"],  # temporary password
             user_roles=[],
         )
         db.session.commit()
-        send_reset_password_instructions(created_user)
         return user_schema.dump(created_user), 201
 
     @route("/<id>")
