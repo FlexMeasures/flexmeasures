@@ -686,7 +686,9 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
             device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
 
-            if sensor_d.get_attribute("is_strictly_non_positive"):
+            if sensor_d is not None and sensor_d.get_attribute(
+                "is_strictly_non_positive"
+            ):
                 device_constraints[d]["derivative min"] = 0
             else:
                 production_capacity_d = get_continuous_series_sensor_or_quantity(
@@ -758,7 +760,9 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     # consumption-capacity will become a hard constraint
                     device_constraints[d]["derivative min"] = -production_capacity_d
-            if sensor_d.get_attribute("is_strictly_non_negative"):
+            if sensor_d is not None and sensor_d.get_attribute(
+                "is_strictly_non_negative"
+            ):
                 device_constraints[d]["derivative max"] = 0
             else:
                 consumption_capacity_d = get_continuous_series_sensor_or_quantity(
@@ -893,13 +897,13 @@ class MetaStorageScheduler(Scheduler):
 
             roundtrip_efficiency = flex_model[d].get(
                 "roundtrip_efficiency",
-                sensor_d.generic_asset.flex_model.get("roundtrip-efficiency", 1),
+                asset_d.flex_model.get("roundtrip-efficiency", 1),
             )
 
             # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
             if (
                 "roundtrip_efficiency" in flex_model[d]
-                or sensor_d.get_attribute("roundtrip-efficiency") is not None
+                or asset_d.flex_model.get("roundtrip-efficiency") is not None
             ):
                 charging_efficiency[d] = roundtrip_efficiency**0.5
                 discharging_efficiency[d] = roundtrip_efficiency**0.5
