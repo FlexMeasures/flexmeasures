@@ -482,12 +482,13 @@ class MetaStorageScheduler(Scheduler):
         # Create the device constraints for all the flexible devices
         for d in range(num_flexible_devices):
             sensor_d = sensors[d]
+            asset_d = assets[d]
 
             # fetch SOC constraints from sensors
             if isinstance(soc_targets[d], Sensor):
                 soc_targets[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_targets[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -499,7 +500,7 @@ class MetaStorageScheduler(Scheduler):
             if isinstance(soc_minima[d], Sensor):
                 soc_minima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -537,7 +538,7 @@ class MetaStorageScheduler(Scheduler):
                 # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_minima_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -579,7 +580,7 @@ class MetaStorageScheduler(Scheduler):
             if isinstance(soc_maxima[d], Sensor):
                 soc_maxima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -617,7 +618,7 @@ class MetaStorageScheduler(Scheduler):
                 # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_maxima_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -674,7 +675,7 @@ class MetaStorageScheduler(Scheduler):
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
-                actuator=sensor_d,
+                actuator=asset_d,
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -690,7 +691,7 @@ class MetaStorageScheduler(Scheduler):
             else:
                 production_capacity_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=production_capacity[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="MW",
                     query_window=(start, end),
                     resolution=resolution,
@@ -762,7 +763,7 @@ class MetaStorageScheduler(Scheduler):
             else:
                 consumption_capacity_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=consumption_capacity[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="MW",
                     query_window=(start, end),
                     resolution=resolution,
@@ -838,7 +839,7 @@ class MetaStorageScheduler(Scheduler):
                 for component in soc_delta:
                     stock_delta_series = get_continuous_series_sensor_or_quantity(
                         variable_quantity=component,
-                        actuator=sensor_d,
+                        actuator=asset_d,
                         unit="MW",
                         query_window=(start, end),
                         resolution=resolution,
@@ -866,7 +867,7 @@ class MetaStorageScheduler(Scheduler):
             charging_efficiency[d] = (
                 get_continuous_series_sensor_or_quantity(
                     variable_quantity=charging_efficiency[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="dimensionless",
                     query_window=(start, end),
                     resolution=resolution,
@@ -879,7 +880,7 @@ class MetaStorageScheduler(Scheduler):
             discharging_efficiency[d] = (
                 get_continuous_series_sensor_or_quantity(
                     variable_quantity=discharging_efficiency[d],
-                    actuator=sensor_d,
+                    actuator=asset_d,
                     unit="dimensionless",
                     query_window=(start, end),
                     resolution=resolution,
@@ -915,7 +916,7 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["efficiency"] = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=storage_efficiency[d],
-                        actuator=sensor_d,
+                        actuator=asset_d,
                         unit="dimensionless",
                         query_window=(start, end),
                         resolution=resolution,
