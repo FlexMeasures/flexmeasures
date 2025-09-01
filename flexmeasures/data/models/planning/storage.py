@@ -163,7 +163,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Fetch the device's power capacity (required Sensor attribute)
-        power_capacity_in_mw = self._get_device_power_capacity(flex_model, sensors)
+        power_capacity_in_mw = self._get_device_power_capacity(flex_model, assets)
 
         # Check for known prices or price forecasts
         up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -1117,7 +1117,7 @@ class MetaStorageScheduler(Scheduler):
                     )
 
     def _get_device_power_capacity(
-        self, flex_model: list[dict], sensors: list[Sensor]
+        self, flex_model: list[dict], assets: list[Asset]
     ) -> list[ur.Quantity]:
         """The device power capacity for each device must be known for the optimization problem to stay bounded.
 
@@ -1127,12 +1127,12 @@ class MetaStorageScheduler(Scheduler):
         3. Look for the site-power-capacity attribute of the asset.
         """
         power_capacities = []
-        for flex_model_d, sensor in zip(flex_model, sensors):
+        for flex_model_d, asset in zip(flex_model, assets):
 
             # 1 and 2
             power_capacity_in_mw = flex_model_d.get(
                 "power_capacity_in_mw",
-                sensor.generic_asset.flex_model.get("power-capacity"),
+                asset.flex_model.get("power-capacity"),
             )
             if power_capacity_in_mw is not None:
                 power_capacities.append(
@@ -1141,12 +1141,10 @@ class MetaStorageScheduler(Scheduler):
                 continue
 
             # 3
-            site_power_capacity = sensor.generic_asset.get_attribute(
-                "site-power-capacity"
-            )
+            site_power_capacity = asset.get_attribute("site-power-capacity")
             if site_power_capacity is not None:
                 current_app.logger.warning(
-                    f"Missing 'power-capacity' on power sensor {sensor.id}. Using site-power-capacity instead."
+                    f"Missing 'power-capacity' on asset {asset.id}. Using site-power-capacity instead."
                 )
                 power_capacities.append(
                     self._ensure_variable_quantity(site_power_capacity, "MW")
