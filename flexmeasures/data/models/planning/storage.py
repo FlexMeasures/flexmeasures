@@ -1281,12 +1281,17 @@ class StorageScheduler(MetaStorageScheduler):
             raise InfeasibleProblemException()
 
         # Obtain the storage schedule from all device schedules within the EMS
-        storage_schedule = {sensor: ems_schedule[d] for d, sensor in enumerate(sensors)}
+        storage_schedule = {
+            sensor: ems_schedule[d]
+            for d, sensor in enumerate(sensors)
+            if sensor is not None
+        }
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
             sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
             for sensor in sensors
+            if sensor is not None
         }
 
         flex_model = self.flex_model
@@ -1323,6 +1328,7 @@ class StorageScheduler(MetaStorageScheduler):
                 .resample(sensor.event_resolution)
                 .mean()
                 for sensor in sensors
+                if sensor is not None
             }
 
         # Round schedule
@@ -1330,6 +1336,7 @@ class StorageScheduler(MetaStorageScheduler):
             storage_schedule = {
                 sensor: storage_schedule[sensor].round(self.round_to_decimals)
                 for sensor in sensors
+                if sensor is not None
             }
             soc_schedule = {
                 sensor: soc_schedule[sensor].round(self.round_to_decimals)
@@ -1345,6 +1352,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": sensor.unit,
                 }
                 for sensor in sensors
+                if sensor is not None
             ]
             commitment_costs = [
                 {
