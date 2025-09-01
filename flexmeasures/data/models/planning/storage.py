@@ -10,7 +10,7 @@ import numpy as np
 from flask import current_app
 
 
-from flexmeasures import Sensor
+from flexmeasures import Asset, Sensor
 from flexmeasures.data.models.planning import (
     FlowCommitment,
     Scheduler,
@@ -92,15 +92,21 @@ class MetaStorageScheduler(Scheduler):
 
         # List the asset and sensor(s) being scheduled
         if self.asset is not None:
-            sensors = [flex_model_d["sensor"] for flex_model_d in self.flex_model]
+            sensors: list[Sensor | None] = [
+                flex_model_d.get("sensor") for flex_model_d in self.flex_model
+            ]
+            assets: list[Asset | None] = [  # noqa: F841
+                s.asset if s is not None else None for s in sensors
+            ]
             resolution = determine_minimum_resampling_resolution(
-                [s.event_resolution for s in sensors]
+                [s.event_resolution for s in sensors if s is not None]
             )
             asset = self.asset
         else:
             # For backwards compatibility with the single asset scheduler
             sensors = [self.sensor]
             asset = self.sensor.generic_asset
+            assets = [asset]  # noqa: F841
 
         # For backwards compatibility with the single asset scheduler
         flex_model = self.flex_model
@@ -1198,12 +1204,14 @@ class StorageFallbackScheduler(MetaStorageScheduler):
                 sensor, device_constraints[d], start, end, resolution
             )
             for d, sensor in enumerate(sensors)
+            if sensor is not None
         }
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
             sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
             for sensor in sensors
+            if sensor is not None
         }
 
         # Round schedule
@@ -1211,6 +1219,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             storage_schedule = {
                 sensor: storage_schedule[sensor].round(self.round_to_decimals)
                 for sensor in sensors
+                if sensor is not None
             }
 
         if self.return_multiple:
@@ -1221,6 +1230,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
                     "data": storage_schedule[sensor],
                 }
                 for sensor in sensors
+                if sensor is not None
             ]
         else:
             return storage_schedule[sensors[0]]
