@@ -90,7 +90,7 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
 
-        # List the asset and sensor(s) being scheduled
+        # List the asset(s) and sensor(s) being scheduled
         if self.asset is not None:
             sensors: list[Sensor | None] = [
                 flex_model_d.get("sensor") for flex_model_d in self.flex_model
