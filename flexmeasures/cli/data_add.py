@@ -1023,8 +1023,13 @@ def add_holidays(
     "--train-start",
     "--start-date",
     "start_date",
-    required=True,
-    help="Start date for running the pipeline, i.e. when training begins (YYYY-MM-DDTHH:MM:SS±HH:MM).",
+    required=False,
+    help=(
+        "Timestamp marking when training data begins. "
+        "Format: YYYY-MM-DDTHH:MM:SS±HH:MM. "
+        "If not provided, it defaults to a period equal to the training duration "
+        "ending at --from-date."
+    ),
 )
 @click.option(
     "--to-date",
