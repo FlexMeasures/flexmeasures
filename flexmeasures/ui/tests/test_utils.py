@@ -57,6 +57,14 @@ def test_get_ancestry(app, db):
 
 
 def test_ui_flexcontext_schema():
+    """
+    This test ensures that all fields in the FlexContextDBschema (except some exclusions)
+    are also in the UI schema.
+
+    This is important to keep in mind when updating either schema. We want to avoid a situation
+    where a field is added to the DB schema but not to the UI schema, as that would lead to
+    inconsistencies and potential bugs in the application.
+    """
     ui_flexcontext_schema_fields = [
         key for key, value in UI_FLEX_CONTEXT_SCHEMA.items()
     ]
