@@ -4,13 +4,11 @@ from abc import ABC, abstractmethod
 
 from darts import TimeSeries
 
-from flexmeasures.data.models.data_sources import DataGenerator
 from flexmeasures.data.models.forecasting.utils import negative_to_zero
 from flexmeasures.data.models.forecasting.exceptions import CustomException
-from flexmeasures.data.schemas.forecasting import ForecasterConfigSchema
 
 
-class BaseModel(DataGenerator, ABC):
+class BaseModel(ABC):
     """
     Base model for multi-horizon forecasting.
 
@@ -38,12 +36,6 @@ class BaseModel(DataGenerator, ABC):
         Predictions from this model (or its subclasses) will never yield negative values if
         `ensure_positive=True`, as any negative predictions are automatically set to zero.
     """
-
-    __version__ = None
-    __author__ = None
-    __data_generator_base__ = "forecaster"
-
-    _config_schema = ForecasterConfigSchema()
 
     max_forecast_horizon: int
     probabilistic: bool
