@@ -112,7 +112,7 @@ def test_train_predict_pipeline(
         # todo: source should mention the CustomLGBM model, though
         assert "TrainPredictPipeline" in str(
             forecasts.lineage.sources[0]
-        ), "string representation of Source should mention the used model"
+        ), "string representation of the Forecaster (DataSource) should mention the used model"
         for regressor in regressors:
             assert (
                 f"{regressor.name}_regressor{regressor.id}"
