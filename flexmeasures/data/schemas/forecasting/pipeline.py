@@ -214,6 +214,8 @@ class ForecastingPipelineSchema(Schema):
 
         if data["start_date"] is None:
             start_date = predict_start - timedelta(hours=train_period_in_hours)
+        else:
+            start_date = data["start_date"]
 
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
