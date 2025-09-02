@@ -225,7 +225,6 @@ class PredictPipeline(BasePipeline):
                 f"Starting to generate predictions for up to {self.max_forecast_horizon} ({self.readable_resolution}) intervals e,g ({self.total_forecast_hours} hours)."
             )
 
-            n_steps_can_predict = self.n_steps_to_predict
             # We make predictions up to the last hour in the predict_period
             y_pred_dfs = list()
             for h in self.horizons:
@@ -238,7 +237,7 @@ class PredictPipeline(BasePipeline):
                 y = y_list[h]
                 belief_timestamp = belief_timestamps_list[h]
                 logging.debug(
-                    f"Making prediction for {self.readable_resolution} offset {h + 1}/{n_steps_can_predict}"
+                    f"Making prediction for {self.readable_resolution} offset {h + 1}/{self.n_steps_to_predict}"
                 )
                 y_pred_df = self.make_single_horizon_prediction(
                     model=model,
