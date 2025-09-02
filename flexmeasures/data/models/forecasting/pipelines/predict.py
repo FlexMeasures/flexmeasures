@@ -223,7 +223,7 @@ class PredictPipeline(BasePipeline):
         """
         try:
             logging.debug(
-                f"Starting to generate predictions for up to {self.max_forecast_horizon} ({self.readable_resolution}) intervals e,g ({self.total_forecast_hours} hours)."
+                f"Starting to generate predictions for up to {self.max_forecast_horizon} ({self.readable_resolution}) intervals (i.e. {self.total_forecast_hours} hours)."
             )
 
             # We make predictions up to the last hour in the predict_period
