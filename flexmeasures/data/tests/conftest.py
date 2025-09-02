@@ -287,9 +287,9 @@ def test_reporter(app, db, add_nearby_weather_sensors):
         _parameters_schema = TestReporterParametersSchema()
 
         def _compute_report(self, **kwargs) -> list:
-            start = kwargs.get("start")
-            end = kwargs.get("end")
             sensor = kwargs["output"][0]["sensor"]
+            start = pd.Timestamp(kwargs.get("start")).tz_convert(sensor.timezone)
+            end = pd.Timestamp(kwargs.get("end")).tz_convert(sensor.timezone)
             resolution = sensor.event_resolution
 
             index = pd.date_range(start=start, end=end, freq=resolution)

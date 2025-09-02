@@ -26,12 +26,13 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
-from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
+    GenericAssetTypeSchema as AssetTypeSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.services.scheduling import (
@@ -56,6 +57,7 @@ from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
 
+asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
 sensor_schema = SensorSchema()
@@ -73,6 +75,42 @@ def get_accessible_accounts() -> list[Account]:
             pass
 
     return accounts
+
+
+class AssetTypesAPI(FlaskView):
+    """
+    This API view exposes generic asset types.
+    """
+
+    route_base = "/assets/types"
+    trailing_slash = False
+    decorators = [auth_required()]
+
+    @route("", methods=["GET"])
+    @as_json
+    def index(self):
+        """List all asset types available on this platform.
+
+        .. :quickref: Asset; Get list of available asset types
+
+        **Example response**
+
+        An example of one asset type being returned in the response:
+
+        .. sourcecode:: json
+
+            [
+                {
+                    "id": 1,
+                    "name": "solar",
+                    "description": "solar panel(s)",
+                }
+            ]
+        """
+        response = asset_type_schema.dump(
+            db.session.scalars(select(GenericAssetType)).all(), many=True
+        )
+        return response, 200
 
 
 class AssetAPI(FlaskView):
@@ -657,6 +695,7 @@ class AssetAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "most_recent_beliefs_only": fields.Boolean(required=False),
+            "compress_json": fields.Boolean(required=False),
         },
         location="query",
     )
