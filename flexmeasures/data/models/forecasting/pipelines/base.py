@@ -308,7 +308,7 @@ class BasePipeline:
                 end_for_loop = self.n_steps_to_predict if is_predict_pipeline else 1
                 belief_timestamps_list = []
 
-                # Loop through each simulated forecast step and increase the belief_time and target_end by 1 traget sensor resolution
+                # Loop through each simulated forecast step and increase the belief_time and target_end by 1 target sensor resolution
                 for index_offset in range(0, end_for_loop):
 
                     # Move belief_time and target_end forward one resolution per step
