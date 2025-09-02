@@ -34,8 +34,12 @@ class ForecastingPipelineSchema(Schema):
     train_period = fields.Int(required=False, allow_none=True)
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     predict_period = fields.Int(required=False, allow_none=True)
-    max_forecast_horizon = DurationField(required=False, allow_none=True)
-    forecast_frequency = DurationField(required=False, allow_none=True)
+    max_forecast_horizon = DurationField(
+        required=False, allow_none=True, load_default=timedelta(hours=48)
+    )
+    forecast_frequency = DurationField(
+        required=False, allow_none=True, load_default=timedelta(hours=1)
+    )
     probabilistic = fields.Bool(required=True)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
 

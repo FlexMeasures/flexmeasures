@@ -1157,7 +1157,7 @@ def train_predict_pipeline(
     del kwargs["resolution"]
 
     try:
-        pipeline = TrainPredictPipeline(**kwargs)
+        pipeline = TrainPredictPipeline(config=kwargs)
         pipeline.run(as_job=as_job)
 
     except Exception as e:

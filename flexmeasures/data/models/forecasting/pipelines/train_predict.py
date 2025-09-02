@@ -28,38 +28,9 @@ class TrainPredictPipeline(DataGenerator):
 
     def __init__(
         self,
-        sensor: int,
-        model_save_dir: str,
-        output_path: str,
-        start_date: str,
-        end_date: str,
-        train_period: int,
-        sensor_to_save: int,
-        start_predict_date: str,
-        predict_period: int,
-        past_regressors: str = None,
-        future_regressors: str = None,
-        max_forecast_horizon: int = 2 * 24,
-        forecast_frequency: int = 1,
-        probabilistic: bool = False,
+        config: dict,
         delete_model: bool = False,
     ):
-        config = dict(
-            sensor=sensor,
-            model_save_dir=model_save_dir,
-            output_path=output_path,
-            start_date=start_date,
-            end_date=end_date,
-            train_period=train_period,
-            sensor_to_save=sensor_to_save,
-            start_predict_date=start_predict_date,
-            predict_period=predict_period,
-            past_regressors=past_regressors,
-            future_regressors=future_regressors,
-            max_forecast_horizon=max_forecast_horizon,
-            forecast_frequency=forecast_frequency,
-            probabilistic=probabilistic,
-        )
         super().__init__(config=config)
         for k, v in self._config.items():
             setattr(self, k, v)
