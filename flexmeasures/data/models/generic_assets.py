@@ -882,12 +882,20 @@ class GenericAsset(db.Model, AuthModelMixin):
                         )
                         base_records["bt"] = belief_times_ms
 
-                    # Convert to list of dictionaries efficiently to avoid numpy errors
+                    cleaned_records = {}
+                    for key, values in base_records.items():
+                        if isinstance(values, list):
+                            cleaned_records[key] = values
+                        else:
+                            cleaned_records[key] = (
+                                pd.Series(values).fillna(None).tolist()
+                            )
+
+                    # Convert to list of dictionaries
                     for i in range(len(df)):
-                        record = {}
-                        for key, values in base_records.items():
-                            value = values[i]
-                            record[key] = None if pd.isna(value) else value
+                        record = {
+                            key: values[i] for key, values in cleaned_records.items()
+                        }
                         all_records.append(record)
 
                 return json.dumps(
