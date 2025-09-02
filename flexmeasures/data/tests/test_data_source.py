@@ -31,11 +31,7 @@ def test_get_reporter_from_source(db, app, test_reporter, add_nearby_weather_sen
 
     assert res.lineage.sources[0] == reporter.data_source
 
-    with pytest.raises((AttributeError, TypeError)):
-        # Marshmallow 3.x
-        #   AttributeError: 'str' object has no attribute 'isoformat'. Did you mean: 'format'?
-        # Marshmallow 4.x
-        #   TypeError: descriptor 'isoformat' for 'datetime.datetime' objects doesn't apply to a 'str' object
+    with pytest.raises(AttributeError):
         reporter.compute(
             input=[{"sensor": reporter_sensor}],
             output=[{"sensor": reporter_sensor}],

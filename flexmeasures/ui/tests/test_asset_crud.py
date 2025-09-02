@@ -10,6 +10,7 @@ from flexmeasures.ui.tests.utils import (
     mock_asset_response_with_kpis,
     mock_api_data_as_form_input,
 )
+from flexmeasures.ui.views.assets import get_assets_by_account
 
 """
 Testing if our asset UI proceeds with the expected round trip.
@@ -25,6 +26,12 @@ def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
     requests_mock.get(f"{api_path_assets}/public", status_code=200, json=[])
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
+
+
+def test_get_assets_by_account(db, client, requests_mock, as_prosumer_user1):
+    mock_assets = mock_asset_response(multiple=True)
+    requests_mock.get(f"{api_path_assets}", status_code=200, json=mock_assets)
+    assert get_assets_by_account(1)[1].name == "TestAsset2"
 
 
 def test_new_asset_page(client, setup_assets, as_admin):
@@ -148,17 +155,13 @@ def test_sensors_to_show_as_kpis_json(
         follow_redirects=True,
         data=mock_api_data_as_form_input(ma_copy),
     )
-    # how the UI works is that the page reloads with 200 but there is a an error message string that checks if the editing was successful or not
     assert response.status_code == 200
     assert b"Cannot edit asset:" in response.data
-    assert b"Invalid JSON" in response.data
 
-    # Test invalid function in the sensors_to_show_as_kpis
+    # Test invalid default_function in the sensors_to_show_as_kpis
     ma_copy = copy.deepcopy(mock_asset)
     ma_copy["sensors_to_show_as_kpis"] = json.loads(ma_copy["sensors_to_show_as_kpis"])
-    ma_copy["sensors_to_show_as_kpis"][0]["function"] = "not valid function"
-    # Stringify the sensors_to_show_as_kpis
-    ma_copy["sensors_to_show_as_kpis"] = json.dumps(ma_copy["sensors_to_show_as_kpis"])
+    ma_copy["sensors_to_show_as_kpis"][0]["default_function"] = "not valid function"
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
@@ -166,7 +169,6 @@ def test_sensors_to_show_as_kpis_json(
     )
     assert response.status_code == 200
     assert b"Cannot edit asset:" in response.data
-    assert b"Must be one of: sum, min, max, mean." in response.data
 
 
 def test_add_asset(db, client, setup_assets, requests_mock, as_admin):

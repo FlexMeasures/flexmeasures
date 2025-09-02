@@ -34,7 +34,7 @@ pyomo>=5.6,<6.9
 tabulate
 timetomodel>=0.7.3
 # 3.0.2: significantly faster db queries, incl. bulk saving, 3.1: numpy/pandas upgrade
-timely-beliefs[forecast]>=3.2.1
+timely-beliefs[forecast]>=3.2
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
@@ -51,9 +51,8 @@ Flask-Classful>=0.16
 Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
-marshmallow>=3
-# See GH#1450 (failing tests on older Python versions)
-marshmallow~=3.0; python_version < "3.11"
+# <4: https://github.com/FlexMeasures/flexmeasures/issues/1447
+marshmallow>=3,<4
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs

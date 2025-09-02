@@ -222,7 +222,7 @@ FlexMeasures is also a web-based platform, so we need to create a user to authen
 Add initial structure
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Populate the database with some standard asset types, user roles, data sources etc.: 
+Populate the database with some standard asset types, user roles etc.: 
 
 .. code-block:: bash
 

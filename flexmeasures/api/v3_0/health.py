@@ -47,8 +47,8 @@ class HealthAPI(FlaskView):
         .. sourcecode:: json
 
             {
-                "database_sql": True,
-                "database_redis": False
+                'database_sql': True,
+                'database_redis': False
             }
 
         """

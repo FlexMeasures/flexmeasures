@@ -179,55 +179,25 @@ def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
 
 
-@functools.total_ordering
-class OrderByIdMixin:
-    """
-    Mixin class that adds rich comparison and hashing methods based on an ``id`` attribute.
+from flexmeasures.data.models.time_series import Sensor  # noqa E402
 
-    Classes inheriting from this mixin must define an ``id`` property or attribute
-    that is an ``int`` or otherwise supports comparison and hashing.
-    """
 
-    def __eq__(self, other):
-        """
-        Return True if the ``id`` of both instances is equal.
-
-        :param other: Another instance to compare.
-        :return: True if ``self.id == other.id``, else False.
-        """
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        if self.id is None or other.id is None:
-            raise ValueError(
-                f"Cannot compare {self} and {other}: one or both have no ID."
-            )
-        return self.id == other.id
-
-    def __lt__(self, other):
-        """
-        Return True if this instance's ``id`` is less than the other's.
-
-        :param other: Another instance to compare.
-        :return: True if ``self.id < other.id``, else False.
-        """
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        if self.id is None or other.id is None:
-            raise ValueError(
-                f"Cannot compare {self} and {other}: one or both have no ID."
-            )
-        return self.id < other.id
-
-    def __hash__(self):
-        """
-        Return a hash based on the ``id`` attribute.
-
-        This allows instances to be used in sets and as dictionary keys.
-
-        :return: Hash value.
-        """
-        if self.id is None:
-            raise TypeError(
-                f"Unhashable object: {self} has no ID. Consider calling `db.session.flush()` before using {type(self).__name__} objects in sets or as dictionary keys."
-            )
-        return hash(self.id)
+def get_downsample_function_and_value(
+    kpi: dict, sensor: Sensor, sensor_stats: dict
+) -> tuple:
+    downsample_function = kpi.get("default_function", None)
+    if downsample_function is None:
+        if sensor.unit == "%":
+            downsample_function = "mean"
+        else:
+            downsample_function = "sum"
+    try:
+        if downsample_function == "mean":
+            downsample_value = dict(next(iter(sensor_stats.values())))["Mean value"]
+        else:
+            downsample_value = dict(next(iter(sensor_stats.values())))[
+                "Sum over values"
+            ]
+    except StopIteration:
+        downsample_value = 0
+    return downsample_function, downsample_value

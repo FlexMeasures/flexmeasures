@@ -151,21 +151,6 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
     We recommend to use the Windows Sub-system for Linux (https://learn.microsoft.com/en-us/windows/wsl/install) or work via Docker-compose (https://flexmeasures.readthedocs.io/en/latest/dev/docker-compose.html).
 
 
-We recommend you populate the database with some standard asset types, user roles, data sources etc.: 
-
-.. code-block:: bash
-
-   $ flexmeasures add initial-structure
-
-For instance, without an asset type, you cannot add an asset.
-
-Actually, you can add many things from the terminal. Check what data you can add yourself:
-
-.. code-block:: bash
-
-   $ flexmeasures add --help
-
-
 
 Logfile
 --------

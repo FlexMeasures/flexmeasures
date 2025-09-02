@@ -375,7 +375,7 @@ def get_series_from_quantity_or_sensor(
         )
         if as_instantaneous_events:
             bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
-        time_series = simplify_index(bdf).reindex(index).squeeze(axis=1)
+        time_series = simplify_index(bdf).reindex(index).squeeze()
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution
         )
@@ -438,12 +438,6 @@ def process_time_series_segments(
                 )
         start = event["start"]
         end = event["end"]
-        same_offset = start.utcoffset() == end.utcoffset()
-        # If start and end have different UTC offsets (like crossing DST),
-        # normalize them by converting to UTC.
-        if not same_offset:
-            start = start.tz_convert("UTC")
-            end = end.tz_convert("UTC")
         # Assign the value to the corresponding segment in the DataFrame
         time_series_segments.loc[start : end - resolution, segment] = value
 

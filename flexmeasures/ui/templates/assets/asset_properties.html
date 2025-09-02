@@ -111,6 +111,9 @@
                                     {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
                                     <div class="col-md-3">
                                         {{ asset_form.sensors_to_show_as_kpis(class_="form-control") }}
+                                        {% for error in asset_form.errors.sensors_to_show_as_kpis %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
                                     </div>
                                 </div>
 
@@ -528,7 +531,6 @@
                     showToast("Please select a field to add", "error");
                     return;
                 }
-            }
 
                 const fieldValue = getFlexModel()[fieldName];
                 if (
@@ -561,14 +563,8 @@
                     renderSelectInfoCards(fieldName);
                 }, 500);
 
-                if (FlexModelFieldValidTypes[fieldName].includes(Array)) {
-                    currentFlexmodel[fieldName] = ["Not Set"];
-                } else if (FlexModelFieldValidTypes[fieldName].includes(Boolean)) {
-                    currentFlexmodel[fieldName] = true;
-                } else {
-                    currentFlexmodel[fieldName] = "Not Set";
-                }
-                setFlexModel(currentFlexmodel)
+
+            }
 
             function setCardSensor(sensorId) {
                 if (!activeCard()) {
@@ -1105,6 +1101,7 @@
                     return;
                 }
 
+
                 const name = card.id.replace('-control', '');
                 const fieldDataTypes = FlexModelFieldValidTypes[name];
 
@@ -1201,6 +1198,7 @@
                 const selectedKey = event.target.value;
                 renderSelectInfoCards(selectedKey);
             });
+
         });
     </script>
 

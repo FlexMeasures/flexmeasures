@@ -887,9 +887,8 @@ class SensorAPI(FlaskView):
         db.session.add(sensor)
         db.session.commit()
 
-        AssetAuditLog.add_record(
-            sensor.generic_asset, f"Created sensor '{sensor.name}': {sensor.id}"
-        )
+        asset = sensor_schema.context["generic_asset"]
+        AssetAuditLog.add_record(asset, f"Created sensor '{sensor.name}': {sensor.id}")
 
         return sensor_schema.dump(sensor), 201
 

@@ -126,7 +126,7 @@ def create_user(  # noqa: C901
         db.session.flush()
         account_audit_log = AuditLog(
             event_datetime=server_now(),
-            event=f"Account {account_name} created while creating user {username}",
+            event=f"Account {account_name} created",
             active_user_id=active_user_id,
             active_user_name=active_user_name,
             affected_account_id=account.id,

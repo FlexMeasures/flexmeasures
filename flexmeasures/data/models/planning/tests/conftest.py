@@ -165,7 +165,6 @@ def inflexible_devices(db, building) -> dict[str, Sensor]:
         attributes={"capacity_in_mw": 2},
     )
     db.session.add(residual_demand_sensor)
-    db.session.flush()  # assign IDs
     return {
         pv_sensor.name: pv_sensor,
         residual_demand_sensor.name: residual_demand_sensor,
@@ -189,7 +188,7 @@ def add_inflexible_device_forecasts(
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
     headroom = 0.1  # 90% of nominal capacity
     pv_sensor = inflexible_devices["PV power sensor"]
-    capacity = ur.Quantity(pv_sensor.get_attribute("power-capacity")).to("MW").magnitude
+    capacity = pv_sensor.get_attribute("capacity_in_mw")
     pv_values = (
         [0] * (8 * 4) + [(1 - headroom) * capacity] * (8 * 4) + [0] * (8 * 4)
     ) * (len(time_slots) // (24 * 4))
@@ -279,15 +278,9 @@ def add_stock_delta(db, add_battery_assets, setup_sources) -> dict[str, Sensor]:
     """
 
     battery = add_battery_assets["Test battery"]
-    capacity = (
-        ur.Quantity(
-            battery.get_attribute(
-                "power-capacity",
-                battery.get_attribute("site-power-capacity"),
-            )
-        )
-        .to("MW")
-        .magnitude
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
     )
     sensors = {}
     sensor_specs = [

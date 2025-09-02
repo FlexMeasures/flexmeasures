@@ -221,7 +221,7 @@ def test_determine_unit_conversion_multiplier():
     assert determine_unit_conversion_multiplier("kW", "W") == 1000
     assert determine_unit_conversion_multiplier("J/s", "W") == 1
     assert determine_unit_conversion_multiplier("Wh", "W", timedelta(minutes=10)) == 6
-    assert determine_unit_conversion_multiplier("kWh", "MJ") == pytest.approx(3.6)
+    assert determine_unit_conversion_multiplier("kWh", "MJ") == 3.6
     with pytest.raises(pint.errors.OffsetUnitCalculusError):
         # Not a conversion that can be specified as a multiplication
         determine_unit_conversion_multiplier("°C", "K")

@@ -689,7 +689,7 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="production-capacity",
+                    fallback_attribute="production_capacity",
                     max_value=power_capacity_in_mw[d],
                     min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
@@ -761,7 +761,7 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="consumption-capacity",
+                    fallback_attribute="consumption_capacity",
                     min_value=0,  # capacities are positive by definition
                     max_value=power_capacity_in_mw[d],
                     resolve_overlaps="min",
@@ -886,13 +886,12 @@ class MetaStorageScheduler(Scheduler):
 
             roundtrip_efficiency = flex_model[d].get(
                 "roundtrip_efficiency",
-                sensor_d.generic_asset.flex_model.get("roundtrip-efficiency", 1),
+                sensor_d.get_attribute("roundtrip_efficiency", 1),
             )
 
             # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
-            if (
-                "roundtrip_efficiency" in flex_model[d]
-                or sensor_d.get_attribute("roundtrip-efficiency") is not None
+            if "roundtrip_efficiency" in flex_model[d] or sensor_d.has_attribute(
+                "roundtrip-efficiency"
             ):
                 charging_efficiency[d] = roundtrip_efficiency**0.5
                 discharging_efficiency[d] = roundtrip_efficiency**0.5
@@ -914,7 +913,7 @@ class MetaStorageScheduler(Scheduler):
                         query_window=(start, end),
                         resolution=resolution,
                         beliefs_before=belief_time,
-                        fallback_attribute="storage-efficiency",
+                        fallback_attribute="storage_efficiency",  # this should become storage-efficiency
                         max_value=1,
                     )
                     .astype(float)
@@ -1082,11 +1081,15 @@ class MetaStorageScheduler(Scheduler):
             )
         return min_target, max_target
 
-    def get_min_max_soc_on_sensor(self) -> tuple[str | None, str | None]:
+    def get_min_max_soc_on_sensor(self) -> tuple[float | None, float | None]:
         """This happens before deserializing the flex-model."""
-        return self.sensor.generic_asset.flex_model.get(
-            "soc-min"
-        ), self.sensor.generic_asset.flex_model.get("soc-max")
+        soc_min_sensor: float | None = self.sensor.get_attribute("min_soc_in_mwh")
+        soc_max_sensor: float | None = self.sensor.get_attribute("max_soc_in_mwh")
+        if soc_min_sensor and self.flex_model.get("soc-unit") == "kWh":
+            soc_min_sensor *= 1000  # later steps assume soc data is kWh
+        if soc_max_sensor and self.flex_model.get("soc-unit") == "kWh":
+            soc_max_sensor *= 1000
+        return soc_min_sensor, soc_max_sensor
 
     def ensure_soc_min_max(self):
         """
@@ -1117,16 +1120,19 @@ class MetaStorageScheduler(Scheduler):
 
         We search for the power capacity in the following order:
         1. Look for the power_capacity_in_mw field in the deserialized flex-model.
-        2. Look for the power-capacity flex-model field of the asset.
-        3. Look for the site-power-capacity attribute of the asset.
+        2. Look for the capacity_in_mw attribute of the sensor.
+        3. Look for the capacity_in_mw attribute of the asset (sensor.get_attribute does this internally).
+        4. Look for the power-capacity attribute of the sensor.
+        5. Look for the power-capacity attribute of the asset.
+        6. Look for the site-power-capacity attribute of the asset.
         """
         power_capacities = []
         for flex_model_d, sensor in zip(flex_model, sensors):
 
-            # 1 and 2
+            # 1, 2 and 3
             power_capacity_in_mw = flex_model_d.get(
                 "power_capacity_in_mw",
-                sensor.generic_asset.flex_model.get("power-capacity"),
+                sensor.get_attribute("capacity_in_mw"),
             )
             if power_capacity_in_mw is not None:
                 power_capacities.append(
@@ -1134,20 +1140,30 @@ class MetaStorageScheduler(Scheduler):
                 )
                 continue
 
-            # 3
+            # 4 and 5
+            power_capacity = sensor.get_attribute("power-capacity")
+            if power_capacity is not None:
+                power_capacities.append(
+                    self._ensure_variable_quantity(power_capacity, "MW")
+                )
+                continue
+
+            # 6
             site_power_capacity = sensor.generic_asset.get_attribute(
                 "site-power-capacity"
             )
             if site_power_capacity is not None:
                 current_app.logger.warning(
-                    f"Missing 'power-capacity' on power sensor {sensor.id}. Using site-power-capacity instead."
+                    f"Missing 'power-capacity' or 'capacity_in_mw' attribute on power sensor {sensor.id}. Using site-power-capacity instead."
                 )
                 power_capacities.append(
                     self._ensure_variable_quantity(site_power_capacity, "MW")
                 )
                 continue
 
-            raise ValueError("Power capacity is not defined in the flex-model.")
+            raise ValueError(
+                "Power capacity is not defined in the sensor attributes or the flex-model."
+            )
         return power_capacities
 
     def _ensure_variable_quantity(

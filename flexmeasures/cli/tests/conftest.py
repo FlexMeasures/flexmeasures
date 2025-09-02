@@ -10,6 +10,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
 @pytest.fixture(scope="function")
+@pytest.mark.skip_github
 def setup_dummy_asset(fresh_db, app):
     """
     Create an Asset to add sensors to and return the id.
@@ -31,6 +32,7 @@ def setup_dummy_asset(fresh_db, app):
 
 
 @pytest.fixture(scope="function")
+@pytest.mark.skip_github
 def setup_dummy_data(fresh_db, app, setup_dummy_asset):
     """
     Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
@@ -97,6 +99,7 @@ def setup_dummy_data(fresh_db, app, setup_dummy_asset):
     yield sensor1.id, sensor2.id, report_sensor.id, report_sensor_2.id
 
 
+@pytest.mark.skip_github
 @pytest.fixture(scope="function")
 def process_power_sensor(
     fresh_db,
@@ -134,6 +137,7 @@ def process_power_sensor(
     yield power_sensor.id
 
 
+@pytest.mark.skip_github
 @pytest.fixture(scope="function")
 def storage_schedule_sensors(
     fresh_db,

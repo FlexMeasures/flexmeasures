@@ -208,29 +208,25 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        Enumerated option only.
    * - ``soc-min``
      - ``"2.5 kWh"``
-     - A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0).
-       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
+     - A constant lower boundary for all values in the schedule (defaults to 0). [#quantity_field]_
    * - ``soc-max``
      - ``"7 kWh"``
-     - A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided).
-       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
+     - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided). [#quantity_field]_
    * - ``soc-minima``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
-     - Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
+     - Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
    * - ``soc-maxima``
      - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
-     - Set points that form user-defined upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
+     - Set points that form upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
    * - ``soc-targets``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
-     - Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values).
+     - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
    * - ``soc-gain``
      - ``[".1kWh"]``
      - SoC gain per time step, e.g. from a secondary energy source (defaults to zero).
-       Useful if energy is inserted by an external process (in-flow).
    * - ``soc-usage``
      - ``[{"sensor": 23}]``
      - SoC reduction per time step, e.g. from a load or heat sink (defaults to zero).
-       Useful if energy is extracted by an external process or there are dissipating losses (out-flow).
    * - ``roundtrip-efficiency``
      - ``"90%"``
      - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%). [#quantity_field]_

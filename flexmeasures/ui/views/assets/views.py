@@ -221,6 +221,7 @@ class AssetCrudUI(FlaskView):
         """
 
         asset: GenericAsset = None
+        error_msg = ""
 
         if id == "create":
             asset_form = NewAssetForm()
@@ -264,7 +265,14 @@ class AssetCrudUI(FlaskView):
                         asset_form.process_api_validation_errors(
                             post_asset_response.json()["message"]
                         )
+                        if "json" in post_asset_response.json()["message"]:
+                            error_msg = str(
+                                post_asset_response.json()["message"]["json"]
+                            )
             if asset is None:
+                # Display the errors
+                error_msg = asset_form.errors
+                msg = "Cannot create asset. " + str(error_msg)
                 if asset_form.latitude.data and asset_form.longitude.data:
                     map_center = asset_form.latitude.data, asset_form.longitude.data
                 else:
@@ -272,7 +280,7 @@ class AssetCrudUI(FlaskView):
                 return render_flexmeasures_template(
                     "assets/asset_new.html",
                     asset_form=asset_form,
-                    msg="Cannot create asset.",
+                    msg=msg,
                     parent_asset_id=asset_form.parent_asset_id.data or "",
                     map_center=map_center,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),

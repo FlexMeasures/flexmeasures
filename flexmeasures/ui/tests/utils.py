@@ -81,7 +81,7 @@ def mock_asset_response_with_kpis(
         {
             "title": "My KPIs",
             "sensor": sensor.id,
-            "function": "sum",
+            "default_function": "sum",
         }
     ]
     asset["sensors_to_show_as_kpis"] = json.dumps(sensors_to_show_as_kpis)

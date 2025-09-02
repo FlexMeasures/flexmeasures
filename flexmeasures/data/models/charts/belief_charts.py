@@ -517,7 +517,7 @@ def chart_for_multiple_sensors(
         # Set up field definition for sensor descriptions
         sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
         sensor_field_definition["scale"] = dict(
-            domain=[sensor.as_dict["description"] for sensor in row_sensors]
+            domain=[sensor.to_dict()["description"] for sensor in row_sensors]
         )
 
         # Derive the unit that should be shown

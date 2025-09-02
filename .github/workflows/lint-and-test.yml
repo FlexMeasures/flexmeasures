@@ -62,11 +62,8 @@ jobs:
         run: pytest flexmeasures/data/schemas --doctest-modules --ignore flexmeasures/data/schemas/tests
       - name: Run all doctests in the ui/utils subpackage
         run: pytest flexmeasures/ui --doctest-modules --ignore flexmeasures/ui/tests
-      - name: Run all doctests in the utils subpackage (except find_smallest_common_unit)
-        run: pytest flexmeasures/utils --doctest-modules --ignore flexmeasures/utils/tests -k "not find_smallest_common_unit"
-      - name: Run doctest for find_smallest_common_unit (only on 3.11+)
-        if: ${{ matrix.py_version != '3.9' && matrix.py_version != '3.10' }}
-        run: pytest flexmeasures/utils/unit_utils.py --doctest-modules -k "find_smallest_common_unit"
+      - name: Run all doctests in the utils subpackage
+        run: pytest flexmeasures/utils --doctest-modules --ignore flexmeasures/utils/tests
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch --cov-report=lcov
       - name: Coveralls

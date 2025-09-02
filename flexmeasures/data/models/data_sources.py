@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
 
@@ -253,9 +252,6 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             self.attributes_hash = hashlib.sha256(
                 json.dumps(attributes).encode("utf-8")
             ).digest()
-        else:
-            # Otherwise, the attributes only default to {} when flushing/committing to the db
-            kwargs["attributes"] = {}
 
         tb.BeliefSourceDBMixin.__init__(self, name=name)
         db.Model.__init__(self, **kwargs)
@@ -351,8 +347,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     def __str__(self) -> str:
         return self.description
 
-    @cached_property
-    def as_dict(self) -> dict:
+    def to_dict(self) -> dict:
         model_incl_version = self.model if self.model else ""
         if self.model and self.version:
             model_incl_version += f" (v{self.version})"
@@ -369,12 +364,6 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             type=_type,
             description=self.description,
         )
-
-    def to_dict(self) -> dict:
-        current_app.logger.warning(
-            "DataSource().to_dict() is deprecated since v0.28.0 and should be replaced by the DataSource().as_dict property."
-        )
-        return self.as_dict
 
     @staticmethod
     def hash_attributes(attributes: dict) -> str:
@@ -430,18 +419,19 @@ def keep_latest_version(
         event_column = "event_end"
 
     # Add source-related columns using vectorized operations for clarity
-    source_to_fields = {
-        s: {
-            "source.name": s.name,
-            "source.type": s.type,
-            "source.model": s.model,
-            "source.version": Version(s.version or "0.0.0"),
-        }
-        for s in bdf["source"].unique()
-    }
-    source_expanded = bdf["source"].map(source_to_fields)
-    bdf[["source.name", "source.type", "source.model", "source.version"]] = (
-        pd.DataFrame(source_expanded.tolist(), index=bdf.index)
+    bdf[["source.name", "source.type", "source.model", "source.version"]] = bdf[
+        "source"
+    ].apply(
+        lambda s: pd.Series(
+            {
+                "source.name": s.name,
+                "source.type": s.type,
+                "source.model": s.model,
+                "source.version": Version(
+                    s.version if s.version is not None else "0.0.0"
+                ),
+            }
+        )
     )
 
     # Sort by event_start and version, keeping only the latest version

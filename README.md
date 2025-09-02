@@ -69,7 +69,7 @@ Building customer-facing apps & services is where developers make impact. We mak
 
 ## Getting started
 
-Head over to our [documentation](https://flexmeasures.readthedocs.io), e.g. the [getting started guide](https://flexmeasures.readthedocs.io/latest/getting-started.html#getting-started) or the [5-minute tutorial](https://flexmeasures.readthedocs.io/latest/tut/toy-example-setup.html). Or find more information on [FlexMeasures.io](https://flexmeasures.io).
+Head over to our [documentation](https://flexmeasures.readthedocs.io), e.g. the [getting started guide](https://flexmeasures.readthedocs.io/en/latest/getting-started.html) or the [5-minute tutorial](https://flexmeasures.readthedocs.io/en/latest/tut/toy-example-from-scratch.html). Or find more information on [FlexMeasures.io](https://flexmeasures.io).
 
 See also [Seita's Github profile](https://github.com/SeitaBV), e.g. for FlexMeasures plugin examples.
 

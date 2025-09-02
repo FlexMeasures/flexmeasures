@@ -111,7 +111,9 @@ flask-migrate==4.1.0
 flask-principal==0.4.0
     # via flask-security-too
 flask-security-too[fsqla,mfa]==5.6.2
-    # via -r requirements/app.in
+    # via
+    #   -r requirements/app.in
+    #   flask-security-too
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
@@ -362,7 +364,7 @@ tabulate==0.9.0
     # via -r requirements/app.in
 threadpoolctl==3.6.0
     # via scikit-learn
-timely-beliefs[forecast]==3.2.1
+timely-beliefs[forecast]==3.2.0
     # via -r requirements/app.in
 timetomodel==0.7.3
     # via -r requirements/app.in
