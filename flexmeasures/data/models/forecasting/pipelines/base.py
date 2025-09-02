@@ -308,7 +308,7 @@ class BasePipeline:
                 belief_timestamps_list = []
 
                 # Loop through each simulated forecast step and increase the belief_time and target_end by 1 target sensor resolution
-                for index_offset in range(0, end_for_loop):
+                for index_offset in range(0, end_for_loop, self.forecast_frequency):
 
                     # Move belief_time and target_end forward one resolution per step
                     belief_time = first_belief_time + pd.Timedelta(
