@@ -207,6 +207,9 @@ class ForecastingPipelineSchema(Schema):
             if predict_period_in_hours < 1:
                 raise click.BadParameter("--predict-period must be at least 1 hour")
 
+        if data["start_date"] is None:
+            start_date = predict_start - timedelta(hours=train_period_in_hours)
+
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
 
@@ -235,7 +238,7 @@ class ForecastingPipelineSchema(Schema):
             target=target_sensor,
             model_save_dir=data["model_save_dir"],
             output_path=output_path,
-            start_date=data["start_date"],
+            start_date=start_date,
             end_date=data["end_date"],
             train_period_in_hours=train_period_in_hours,
             predict_start=predict_start,
