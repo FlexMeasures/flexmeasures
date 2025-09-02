@@ -185,9 +185,8 @@ class ForecastingPipelineSchema(Schema):
             )
 
         if data.get("train_period") is None:
-            train_period_in_hours = int(
-                (predict_start - data["start_date"]).total_seconds() / 3600
-            )
+            train_period_in_hours = 30 * 24  # Set default train_period value to 30 days
+
             if train_period_in_hours < 48:
                 raise click.BadParameter(
                     "--train-period must be at least 2 days (48 hours)."
