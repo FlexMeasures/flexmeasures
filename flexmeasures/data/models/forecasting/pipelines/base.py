@@ -78,8 +78,7 @@ class BasePipeline:
         self.n_steps_to_predict = n_steps_to_predict
         self.max_forecast_horizon = max_forecast_horizon
         self.horizons = range(
-            (self.n_steps_to_predict + forecast_frequency - 1)
-            // forecast_frequency
+            (self.n_steps_to_predict + forecast_frequency - 1) // forecast_frequency
         )  # rounds up so we get the number of forecast steps of size `forecast_frequency` within `n_steps_to_predict`
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
