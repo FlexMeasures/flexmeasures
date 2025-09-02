@@ -66,7 +66,12 @@ class ForecastingPipelineSchema(Schema):
                     "start-predict-date must be before end-date",
                     field_name="start_predict_date",
                 )
-
+        elif not start_date:
+            raise ValidationError(
+                "Missing required option: either --start-date/--train-start or --from-date/--predict-start must be specified. "
+                "Provide --start-date to define the beginning of training data, or --from-date to anchor "
+                "the forecast period."
+            )
         if train_period is not None and train_period < 2:
             raise ValidationError(
                 "train-period must be at least 2 days (48 hours)",
