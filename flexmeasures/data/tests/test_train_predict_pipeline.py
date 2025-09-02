@@ -14,7 +14,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
     [
         (
             {
-                "sensor": 1,
+                "sensor": "solar-sensor",
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
                 "start_date": "2025-01-01T00:00+02:00",
@@ -31,7 +31,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         ),
         (
             {
-                "sensor": 1,
+                "sensor": "solar-sensor",
                 "future_regressors": ["irradiance-sensor"],
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
@@ -49,7 +49,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         ),
         # (
         #     {
-        #         "sensor": 1,
+        #         "sensor": "solar-sensor",
         #         "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
         #         "output_path": None,
         #         "start_date": "2025-07-01T00:00+02:00",
@@ -71,7 +71,7 @@ def test_train_predict_pipeline(
     kwargs,
     expected_error: bool | tuple[type[BaseException], str],
 ):
-    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    sensor = setup_fresh_test_forecast_data[kwargs["sensor"]]
     kwargs["sensor"] = sensor.id
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
