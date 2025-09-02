@@ -1,5 +1,4 @@
 import re
-from sqlalchemy import MetaData, Table, Column, Integer, DateTime, Interval
 
 
 def validate_color_hex(value):
@@ -52,19 +51,3 @@ def validate_url(value):
         )
 
     return value
-
-
-def get_timed_belief_min_v() -> Table:
-    """Define the structure of the timed_belief_min_v materialized view."""
-
-    # Only create the table definition if it exists
-    metadata = MetaData()
-    timed_belief_min_v = Table(
-        "timed_belief_min_v",
-        metadata,
-        Column("sensor_id", Integer),
-        Column("event_start", DateTime),
-        Column("source_id", Integer),
-        Column("most_recent_belief_horizon", Interval),
-    )
-    return timed_belief_min_v

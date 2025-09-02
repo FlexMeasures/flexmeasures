@@ -16,6 +16,7 @@ db: sa = (
 )
 Base = None  # type: ignore
 session_options = None
+timed_belief_min_v = None
 
 
 def init_db():
@@ -32,7 +33,7 @@ def init_db():
 def configure_db_for(app: Flask):
     """Call this to configure the database and the tools we use on it for the Flask app.
     This should only be called once in the app's lifetime."""
-    global db, Base
+    global db, Base, timed_belief_min_v
 
     with app.app_context():
         db.init_app(app)
@@ -50,6 +51,10 @@ def configure_db_for(app: Flask):
             task_runs,
             forecasting,
         )  # noqa: F401
+
+        from flexmeasures.data.models.time_series import get_timed_belief_min_v
+
+        timed_belief_min_v = get_timed_belief_min_v(db.session)
 
         # This would create db structure based on models, but you should use `flask db upgrade` for that.
         # Base.metadata.create_all(bind=db.engine)

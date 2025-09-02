@@ -356,7 +356,7 @@ class AssetCrudUI(FlaskView):
         asset_form.with_options()
         asset_form.process(obj=asset)
         mv_refresh_interval = current_app.config.get(
-            "FLEXMEASURES_MVIEW_UPDATE_INTERVAL", None
+            "FLEXMEASURES_MVIEW_REFRESH_INTERVAL", None
         )
 
         return render_flexmeasures_template(

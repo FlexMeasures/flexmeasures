@@ -676,8 +676,8 @@ Default: ``None`` (defaults are set internally for each sunset API version, e.g.
 Perforamance optimizations
 ----------------------------
 
-FLEXMEASURES_MVIEW_UPDATE_INTERVAL
+FLEXMEASURES_MVIEW_REFRESH_INTERVAL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Interval in minutes to refresh the materialized views in the background.
+Interval in minutes to refresh the materialized db view which caches the most recent beliefs at a given point in time (for faster queries).
 
-Default: ``0`` (minutes)
+Default: None

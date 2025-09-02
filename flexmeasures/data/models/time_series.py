@@ -8,7 +8,17 @@ from packaging.version import Version
 from flask import current_app
 
 import pandas as pd
-from sqlalchemy import select, Table
+from sqlalchemy import (
+    select,
+    Table,
+    Column,
+    DateTime,
+    Integer,
+    MetaData,
+    text,
+    Interval,
+)
+from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -45,6 +55,32 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.geo_utils import parse_lat_lng
+
+
+def get_timed_belief_min_v(session: Session) -> Table | None:
+    """Define the structure of the timed_belief_min_v materialized view."""
+
+    timed_belief_min_v = session.execute(
+        text(
+            """
+            SELECT *
+            FROM pg_matviews
+            WHERE matviewname = 'timed_belief_min_v';
+        """
+        )
+    ).fetchone()
+    if timed_belief_min_v:
+        metadata = MetaData()
+        timed_belief_min_v = Table(
+            "timed_belief_min_v",
+            metadata,
+            Column("sensor_id", Integer),
+            Column("event_start", DateTime),
+            Column("source_id", Integer),
+            Column("most_recent_belief_horizon", Interval),
+        )
+
+    return timed_belief_min_v
 
 
 class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
