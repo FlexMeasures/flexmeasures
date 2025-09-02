@@ -186,7 +186,7 @@ class SensorSchemaMixin(Schema):
 
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
-    Sensor schema, with validations.
+    Sensor schema with validations.
     """
 
     generic_asset_id = fields.Integer(required=True)
@@ -198,8 +198,6 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
             raise ValidationError(
                 f"Generic asset with id {generic_asset_id} doesn't exist."
             )
-        # Add it to context to use it for AssetAuditLog record
-        self.context["generic_asset"] = generic_asset
 
     class Meta:
         model = Sensor
@@ -491,7 +489,7 @@ class SensorDataFileSchema(Schema):
     }
 
     @validates("uploaded_files")
-    def validate_uploaded_files(self, files: list[FileStorage]):
+    def validate_uploaded_files(self, files: list[FileStorage], **kwargs):
         """Validate the deserialized fields."""
         errors = {}
         for i, file in enumerate(files):

@@ -30,6 +30,7 @@ Bugfixes
 -----------
 * Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 * Fix editing of public assets in the UI [see `PR #1636 <https://www.github.com/FlexMeasures/flexmeasures/pull/1636>`_]
+* Fix issue with :abbr:`DST (Daylight Saving Time)` transitions when processing variable quantities using the time series specification format, in flex-contexts and/or flex-models [see `PR #1681 <https://www.github.com/FlexMeasures/flexmeasures/pull/1681>`_]
 * Add audit log entries when creating sensors, assets and accounts via the CLI [see `PR #1623 <https://www.github.com/FlexMeasures/flexmeasures/pull/1623>`_]
 
 
@@ -111,7 +112,7 @@ New features
 Infrastructure / Support
 ----------------------
 
-* Upgraded dependencies [see `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_, `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_ and `PR #1567 <https://www.github.com/FlexMeasures/flexmeasures/pull/1567>`_, `PR #1611 <https://www.github.com/FlexMeasures/flexmeasures/pull/1611>`_ and `PR #1613 <https://www.github.com/FlexMeasures/flexmeasures/pull/1613>`_]
+* Upgraded dependencies [see `PR #1450 <https://www.github.com/FlexMeasures/flexmeasures/pull/1450>`_, `PR #1527 <https://www.github.com/FlexMeasures/flexmeasures/pull/1527>`_, `PR #1532 <https://www.github.com/FlexMeasures/flexmeasures/pull/1532>`_, `PR #1567 <https://www.github.com/FlexMeasures/flexmeasures/pull/1567>`_, `PR #1611 <https://www.github.com/FlexMeasures/flexmeasures/pull/1611>`_ and `PR #1613 <https://www.github.com/FlexMeasures/flexmeasures/pull/1613>`_]
 * Improved authorization checks for modifying roles [see `PR #1517 <https://github.com/FlexMeasures/flexmeasures/pull/1517>`_]
 * In authorization, prevent accidental errors by not matching empty principals [see `PR #1556 <https://github.com/FlexMeasures/flexmeasures/pull/1556>`_]
 * Tests: guarantee a clean db upon creating the test db [see `PR #1518 <https://github.com/FlexMeasures/flexmeasures/pull/1518>`_]
