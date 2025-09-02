@@ -29,6 +29,7 @@ Bugfixes
 -----------
 * Fixed usage of slow query for status page [see `PR #1638 <https://www.github.com/FlexMeasures/flexmeasures/pull/1638>`_]
 * Fix editing of public assets in the UI [see `PR #1636 <https://www.github.com/FlexMeasures/flexmeasures/pull/1636>`_]
+* Fix issue with :abbr:`DST (Daylight Saving Time)` transitions when processing variable quantities using the time series specification format, in flex-contexts and/or flex-models [see `PR #1681 <https://www.github.com/FlexMeasures/flexmeasures/pull/1681>`_]
 * Add audit log entries when creating sensors, assets and accounts via the CLI [see `PR #1623 <https://www.github.com/FlexMeasures/flexmeasures/pull/1623>`_]
 
 
