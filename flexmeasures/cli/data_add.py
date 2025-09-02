@@ -74,7 +74,9 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.models.user import User
 from flexmeasures.data.services.data_sources import (
     get_source_or_none,
@@ -233,6 +235,7 @@ def new_account(
         logo_url=logo_url,
     )
     db.session.add(account)
+    db.session.flush()
     if roles:
         for role_name in roles.split(","):
             role = db.session.execute(
@@ -242,8 +245,13 @@ def new_account(
                 click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
                 role = AccountRole(name=role_name)
                 db.session.add(role)
-            db.session.flush()
             db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
+    account_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"Created account '{name}' ({account.id}) via CLI",
+        affected_account_id=account.id,
+    )
+    db.session.add(account_audit_log)
     db.session.commit()
     click.secho(
         f"Account '{name}' (ID: {account.id}) successfully created.",
@@ -320,7 +328,7 @@ def new_user(
     click.secho(f"Successfully created user {created_user}", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("sensor", cls=DeprecatedOptionsCommand)
+@fm_add_data.command("sensor")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
@@ -337,14 +345,10 @@ def new_user(
 )
 @click.option(
     "--asset",
-    "--asset-id",
-    "generic_asset_id",
+    "asset",
+    type=GenericAssetIdField(),
     required=True,
-    type=int,
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
-    help="Generic asset to assign this sensor to",
+    help="ID of the asset to assign this sensor to",
 )
 @click.option(
     "--attributes",
@@ -353,7 +357,7 @@ def new_user(
     default="{}",
     help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measure power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
 )
-def add_sensor(**args):
+def add_sensor(asset: GenericAsset, **args):
     """Add a sensor."""
     check_timezone(args["timezone"])
     try:
@@ -375,6 +379,8 @@ def add_sensor(**args):
             timedelta_event_resolution
         )
         args["event_resolution"] = isodate_event_resolution
+    args["generic_asset_id"] = asset.id
+
     check_errors(SensorSchema().validate(args))
 
     sensor = Sensor(**args)
@@ -383,6 +389,10 @@ def add_sensor(**args):
         raise click.Abort()
     sensor.attributes = attributes
     db.session.add(sensor)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        asset, f"Created sensor '{sensor.name}' ({sensor.id}) via CLI."
+    )
     db.session.commit()
     click.secho(f"Successfully created sensor with ID {sensor.id}", **MsgStyle.SUCCESS)
     click.secho(
@@ -464,6 +474,11 @@ def add_asset(**args):
             **MsgStyle.WARN,
         )
     db.session.add(generic_asset)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        generic_asset,
+        f"Created asset '{generic_asset.name}' ({generic_asset.id}) via CLI.",
+    )
     db.session.commit()
     click.secho(
         f"Successfully created asset with ID {generic_asset.id}.", **MsgStyle.SUCCESS
@@ -1404,13 +1419,14 @@ def add_schedule_for_storage(  # noqa C901
 
     # Convert SoC units (we ask for % in this CLI) to MWh, given the storage capacity
     try:
-        check_required_attributes(power_sensor, [("max_soc_in_mwh", float)])
+        check_required_attributes(power_sensor, [("soc-max", str)])
     except MissingAttributeException:
         click.secho(
-            f"Sensor {power_sensor} has no max_soc_in_mwh attribute.", **MsgStyle.ERROR
+            f"Asset {power_sensor.generic_asset} has no soc-max flex-model field.",
+            **MsgStyle.ERROR,
         )
         raise click.Abort()
-    capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
+    capacity_str = power_sensor.get_attribute("soc-max")
     soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
     soc_targets = []
     for soc_target_tuple in soc_target_strings:
@@ -2103,12 +2119,9 @@ def add_toy_account(kind: str, name: str):
             owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
+            attributes=asset_attributes,
             **asset_kwargs,
         )
-        if asset.flex_context is None:
-            asset.flex_context = {}
-        if len(asset_attributes) > 0:
-            asset.attributes = asset_attributes
 
         sensor_specs = dict(
             generic_asset=asset,

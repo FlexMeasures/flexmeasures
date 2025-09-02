@@ -304,6 +304,11 @@
         ).addTo(assetMap);
 </script>
 
+<script type="module">
+    import {
+        getFlexFieldTitle, renderSensor, getAsset,
+        getAccount, getSensor, apiBasePath
+    } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 <script type="module">
     import {
@@ -357,10 +362,6 @@
         // on initial run of the script as its not available at that point
         if (!hasInitialized) {
             hasInitialized = true;
-        } else {
-            renderFlexContextForm();
-        }
-    }
 
     // ============= Add Field/Card Action Button START ============== //
     const addFieldBtn = document.getElementById("addFieldBtn");
@@ -562,7 +563,6 @@
 
             flexOptionsContainer.innerHTML = "";
             senSearchResEle.innerHTML = "";
-
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
             card.classList.add("border-on-click"); // Add border to the clicked card
             handleFlexSelectChange(fieldName);
@@ -632,6 +632,17 @@
         highlightCard.appendChild(identityIcon);
         return card;
     }
+
+    flexContextFormEle.addEventListener("click", function (event) {
+        const removeIcon = event.target.closest('.remove-icon');
+
+        if (removeIcon) {
+            const fieldName = removeIcon.getAttribute('data-field-name');
+            const sensorId = removeIcon.getAttribute('data-sensor-id');
+
+            removeFlexContextSensorValue(fieldName, parseInt(sensorId, 10));
+        }
+    });
 
     async function renderFlexContextForm() {
         flexContextFormEle.innerHTML = "";
@@ -870,7 +881,6 @@
             });
             col4.appendChild(select);
             // Units select - END
-
 
             row.appendChild(col8);
             row.appendChild(col4);

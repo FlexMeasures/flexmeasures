@@ -13,7 +13,11 @@ from typing import Iterable
 from alembic import op
 import sqlalchemy as sa
 
-from flexmeasures.utils.unit_utils import is_power_unit, is_energy_unit, ur
+from flexmeasures.data.models.legacy_migration_utils import (
+    upgrade_value,
+    downgrade_value,
+    NonDowngradableValueError,
+)
 
 # revision identifiers, used by Alembic.
 revision = "f0ee99278f6f"
@@ -24,16 +28,16 @@ depends_on = None
 # All flex-model fields that, before upgrading, were supported as an asset attribute (float, quantity string, or sensor reference, or a list thereof):
 FLEX_MODEL_FIELDS = {
     "min_soc_in_mwh": "soc-min",  # snake_case fallback attribute containing a float
-    # "max_soc_in_mwh": "soc-max",  # snake_case fallback attribute containing a float
-    # "soc-gain": "soc-gain",  # fallback attribute containing a list of quantity strings and/or sensor references
-    # "soc-usage": "soc-usage",  # fallback attribute containing a list of quantity strings and/or sensor references
-    # "roundtrip_efficiency": "roundtrip-efficiency",  # snake_case fallback attribute containing a float
-    # "charging-efficiency": "charging-efficiency",  # fallback attribute containing a quantity string, sensor reference or float
-    # "discharging-efficiency": "discharging-efficiency",  # fallback attribute containing a quantity string, sensor reference or float
-    # "storage_efficiency": "storage-efficiency",  # snake_case fallback attribute containing a quantity string, sensor reference or float
-    # "capacity_in_mw": "power-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
-    # "consumption_capacity": "consumption-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
-    # "production_capacity": "production-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+    "max_soc_in_mwh": "soc-max",  # snake_case fallback attribute containing a float
+    "soc-gain": "soc-gain",  # fallback attribute containing a list of quantity strings and/or sensor references
+    "soc-usage": "soc-usage",  # fallback attribute containing a list of quantity strings and/or sensor references
+    "roundtrip_efficiency": "roundtrip-efficiency",  # snake_case fallback attribute containing a float
+    "charging-efficiency": "charging-efficiency",  # fallback attribute containing a quantity string, sensor reference or float
+    "discharging-efficiency": "discharging-efficiency",  # fallback attribute containing a quantity string, sensor reference or float
+    "storage_efficiency": "storage-efficiency",  # snake_case fallback attribute containing a quantity string, sensor reference or float
+    "capacity_in_mw": "power-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+    "consumption_capacity": "consumption-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
+    "production_capacity": "production-capacity",  # snake_case fallback attribute containing a quantity string or sensor reference
 }
 """
 The following flex-model fields exist that had no prior support as an asset attribute, and are therefore not migrated:
@@ -46,10 +50,6 @@ The following flex-model fields exist that had no prior support as an asset attr
 - prefer-charging-sooner
 - prefer-curtailing-later
 """
-
-
-class NonDowngradableValueError(ValueError):
-    pass
 
 
 def upgrade():
@@ -193,54 +193,6 @@ def downgrade():
 
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
         batch_op.drop_column("flex_model")
-
-
-def upgrade_value(
-    old_field_name: str, old_value: int | float | dict | bool, sensor=None, asset=None
-) -> str | int | float | dict | bool:
-    """Depending on the old field name, some values still need to be turned into string quantities."""
-
-    # check if value is an int, bool, float or dict
-    if not isinstance(old_value, (int, float, dict, bool)):
-        if sensor:
-            raise Exception(
-                f"Invalid value for '{old_field_name}' in sensor {sensor.id}: {old_value}"
-            )
-        elif asset:
-            raise Exception(
-                f"Invalid value for '{old_field_name}' in asset {asset.id}: {old_value}"
-            )
-    if old_field_name[-6:] == "in_mwh" and isinstance(old_value, (float, int)):
-        # convert from float (in MWh) to string (in kWh)
-        value_in_kwh = old_value * 1000
-        return f"{value_in_kwh} kWh"
-    elif old_field_name[-6:] == "in_mw" and isinstance(old_value, (float, int)):
-        # convert from float (in MW) to string (in kW)
-        value_in_kw = old_value * 1000
-        return f"{value_in_kw} kW"
-    else:
-        # move as is
-        return old_value
-
-
-def downgrade_value(old_field_name: str, new_value) -> float | str | dict:
-    """Depending on the old field name, some values still need to be turned back into floats."""
-    if isinstance(new_value, str):
-        # Convert the value back to the original format
-        if old_field_name[-6:] == "in_mwh" and is_energy_unit(new_value):
-            value_in_mwh = ur.Quantity(new_value).to("MWh").magnitude
-            return value_in_mwh
-        elif old_field_name[-6:] == "in_mw" and is_power_unit(new_value):
-            value_in_mw = ur.Quantity(new_value).to("MW").magnitude
-            return value_in_mw
-        else:
-            # Return string quantity
-            return new_value
-    elif isinstance(new_value, dict):
-        # Return sensor reference
-        return new_value
-    else:
-        raise NonDowngradableValueError()
 
 
 def fetch_assets() -> tuple[sa.Table, Iterable[sa.Row], sa.Connection]:
