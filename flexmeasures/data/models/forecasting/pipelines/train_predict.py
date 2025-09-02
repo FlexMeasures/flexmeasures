@@ -9,7 +9,7 @@ from rq.job import Job
 
 from flask import current_app
 
-from flexmeasures.data.models.data_sources import DataGenerator
+from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
@@ -17,12 +17,10 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecastingPipelineSc
 from flexmeasures.utils.flexmeasures_inflection import p
 
 
-class TrainPredictPipeline(DataGenerator):
+class TrainPredictPipeline(Forecaster):
 
     __version__ = "1"
     __author__ = "Seita"
-
-    __data_generator_base__ = "forecaster"
 
     _config_schema = ForecastingPipelineSchema()
 

@@ -145,14 +145,11 @@ def create(  # noqa C901
 
     # Register Forecasters, Reporters and Schedulers
     from flexmeasures.utils.coding_utils import get_classes_module
-    from flexmeasures.data.models import reporting, planning
-    from flexmeasures.data.models.data_sources import DataGenerator
+    from flexmeasures import Forecaster, Reporter, Scheduler
 
-    forecasters = get_classes_module(
-        "flexmeasures.data.models.forecasting", DataGenerator
-    )
-    reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
-    schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
+    forecasters = get_classes_module("flexmeasures.data.models", Forecaster)
+    reporters = get_classes_module("flexmeasures.data.models", Reporter)
+    schedulers = get_classes_module("flexmeasures.data.models", Scheduler)
 
     app.data_generators = dict()
     app.data_generators["forecaster"] = forecasters

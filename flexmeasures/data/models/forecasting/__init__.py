@@ -4,6 +4,7 @@ from typing import Callable
 
 from timetomodel import ModelSpecs
 
+from flexmeasures.data.models.data_sources import DataGenerator
 from flexmeasures.data.models.forecasting.custom_models.base_model import (  # noqa: F401
     BaseModel,
 )
@@ -13,6 +14,7 @@ from flexmeasures.data.models.forecasting.model_specs.naive import (
 from flexmeasures.data.models.forecasting.model_specs.linear_regression import (
     ols_specs_configurator as linear_ols_specs,
 )
+from flexmeasures.data.schemas.forecasting import ForecasterConfigSchema
 
 
 model_map = {
@@ -51,3 +53,11 @@ def lookup_model_specs_configurator(
     if model_search_term.lower() not in model_map.keys():
         raise Exception("No model found for search term '%s'" % model_search_term)
     return model_map[model_search_term.lower()]
+
+
+class Forecaster(DataGenerator):
+    __version__ = None
+    __author__ = None
+    __data_generator_base__ = "forecaster"
+
+    _config_schema = ForecasterConfigSchema()
