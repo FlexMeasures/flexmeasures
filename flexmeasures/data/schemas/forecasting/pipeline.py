@@ -29,7 +29,7 @@ class ForecastingPipelineSchema(Schema):
     )  # expects comma-separated Sensor id's
     model_save_dir = fields.Str(required=True)
     output_path = fields.Str(required=False, allow_none=True)
-    start_date = AwareDateTimeOrDateField(required=True)
+    start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
     train_period = fields.Int(required=False, allow_none=True)
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
