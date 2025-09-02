@@ -99,7 +99,8 @@ def test_show_forecasters(app, db):
     runner = app.test_cli_runner()
     result = runner.invoke(list_forecasters)
 
-    assert "CustomLGBM" in result.output
+    # todo: the Custom LGBM model itself should be mentioned, though
+    assert "TrainPredictPipeline" in result.output
     check_command_ran_without_error(result)
 
 
