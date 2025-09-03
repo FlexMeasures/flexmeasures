@@ -35,6 +35,7 @@ class TrainPredictPipeline(Forecaster):
         self.sensors = config["sensors"]
         self.past_regressors = config["past_regressors"]
         self.future_regressors = config["future_regressors"]
+        self.future = config["future"]
         self.target_sensor = config["target"]
         self.model_save_dir = config["model_save_dir"]
         self.output_path = config["output_path"]
@@ -74,6 +75,7 @@ class TrainPredictPipeline(Forecaster):
             sensors=self.sensors,
             past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
+            future=self.future,
             target_sensor=self.target_sensor,
             model_save_dir=self.model_save_dir,
             n_steps_to_predict=self.train_period_in_hours * multiplier,
@@ -96,6 +98,7 @@ class TrainPredictPipeline(Forecaster):
             sensors=self.sensors,
             past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
+            future=self.future,
             target_sensor=self.target_sensor,
             model_path=os.path.join(
                 self.model_save_dir,
