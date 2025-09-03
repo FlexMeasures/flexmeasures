@@ -503,7 +503,8 @@ class BasePipeline:
             # Drop duplicate event_starts (keep first)
             if n_extra_points := len(data) - len(data["event_start"].unique()):
                 logging.debug(
-                    f"Data for {sensor_name} contains multiple beliefs about a single event. Dropping {n_extra_points} beliefs with duplicate event starts."
+                    f"Data for {sensor_name} contains multiple beliefs about a single event. "
+                    f"Dropping {n_extra_points} beliefs with duplicate event starts."
                 )
                 data = data.drop_duplicates("event_start")
 
@@ -520,12 +521,13 @@ class BasePipeline:
                 data_darts = transformer.transform(
                     data_darts, **(interpolate_kwargs or {})
                 )
-
                 logging.debug(
                     f"Sensor '{sensor_name}' has gaps:\n{data_darts_gaps.to_string()}\n"
-                    "These were filled using `pd.DataFrame.interpolate()` method."
+                    "These were filled using `pd.DataFrame.interpolate()`."
                 )
+
             dfs.append(data_darts)
+
         if len(dfs) == 1:
             data_darts = dfs[0]
         else:
