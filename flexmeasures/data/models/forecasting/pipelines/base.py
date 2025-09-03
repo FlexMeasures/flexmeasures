@@ -409,7 +409,7 @@ class BasePipeline:
     def detect_and_fill_missing_values(
         self,
         df: pd.DataFrame,
-        sensor_names: str | list[str],
+        sensor_names: list[str],
         start: datetime,
         end: datetime,
         interpolate_kwargs: dict = None,
@@ -422,7 +422,7 @@ class BasePipeline:
 
         Parameters:
         - df (pd.DataFrame): The input dataframe containing time series data with a "time" column.
-        - sensor_name (str): The name of the sensor (used for logging).
+        - sensor_names (list[str]): The names of the sensors (used for logging).
         - start (datetime): The desired start time of the time series.
         - end (datetime): The desired end time of the time series.
         - interpolate_kwargs (dict, optional): Additional keyword arguments passed to `MissingValuesFiller`,
@@ -437,8 +437,6 @@ class BasePipeline:
         - logging.warning: If missing values are detected and filled using `pd.DataFrame.interpolate()`.
         """
         dfs = []
-        if isinstance(sensor_names, str):
-            sensor_names = [sensor_names]
 
         for sensor_name in sensor_names:
             if df.empty:
@@ -712,7 +710,7 @@ class BasePipeline:
 
         target_data = self.detect_and_fill_missing_values(
             df=target_dataframe[(target_dataframe["event_start"] <= target_end)],
-            sensor_names="target",
+            sensor_names=["target"],
             start=target_start,
             end=target_end,
         )
