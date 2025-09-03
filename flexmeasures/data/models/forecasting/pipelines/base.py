@@ -312,22 +312,12 @@ class BasePipeline:
                 for index_offset in range(0, end_for_loop, self.forecast_frequency):
 
                     # Move belief_time and target_end forward one resolution per step
-                    belief_time = first_belief_time + pd.Timedelta(
-                        minutes=index_offset
-                        * target_sensor_resolution.total_seconds()
-                        / 60
-                    )  # The timestamp to simulate the start of prediction, used to obtain future and past data relative to this timestamp.
-                    target_end = first_target_end + pd.Timedelta(
-                        minutes=index_offset
-                        * target_sensor_resolution.total_seconds()
-                        / 60
+                    delta = pd.Timedelta(
+                        seconds=index_offset * target_sensor_resolution.total_seconds()
                     )
-
-                    forecast_end = first_forecast_end + pd.Timedelta(
-                        minutes=index_offset
-                        * target_sensor_resolution.total_seconds()
-                        / 60
-                    )
+                    belief_time = first_belief_time + delta
+                    target_end = first_target_end + delta
+                    forecast_end = first_forecast_end + delta
 
                     # Split covariates and target series for this simulated forecast
                     past_covariates, future_covariates, y_split = (
