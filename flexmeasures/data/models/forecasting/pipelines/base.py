@@ -474,7 +474,6 @@ class BasePipeline:
 
             data = df.copy()
 
-            sensor = db.session.get(Sensor, self.sensors[sensor_name])
 
             # Convert start & end to naive UTC
             start = start.tz_localize(None)
