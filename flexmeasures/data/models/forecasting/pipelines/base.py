@@ -126,7 +126,7 @@ class BasePipeline:
                     event_ends_before=sensor_event_ends_before,
                     most_recent_beliefs_only=most_recent_beliefs_only,
                     exclude_source_types=(
-                        ["forecaster"] if name in "target" else []
+                        ["forecaster"] if name == "target" else []
                     ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
                 )
                 try:
