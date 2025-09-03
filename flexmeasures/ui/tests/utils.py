@@ -23,7 +23,7 @@ def logout(client):
     return client.get(url_for("security.logout"), follow_redirects=True)
 
 
-def mock_asset_response(
+def mock_asset_data(
     asset_id: int = 2,
     account_id: int = 1,
     as_list: bool = True,
@@ -36,7 +36,7 @@ def mock_asset_response(
     asset = dict(
         id=asset_id,
         name="TestAsset",
-        generic_asset_type={"id": 1, "name": "battery"},
+        generic_asset_type_id=1,
         account_id=int(account_id),
         latitude=70.4,
         longitude=30.9,
@@ -52,14 +52,14 @@ def mock_asset_response(
     return asset
 
 
-def mock_asset_response_with_kpis(
+def mock_asset_data_with_kpis(
     db,
     asset_id: int = 1,
     account_id: int = 1,
     as_list: bool = True,
     multiple: bool = False,
 ) -> dict | list[dict]:
-    asset = mock_asset_response(
+    asset = mock_asset_data(
         asset_id=asset_id, account_id=account_id, as_list=as_list, multiple=multiple
     )
     sensor: Sensor = db.session.execute(
@@ -118,7 +118,7 @@ def mock_user_response(
     return user
 
 
-def mock_api_data_as_form_input(api_data: dict) -> dict:
+def mock_asset_data_as_form_input(api_data: dict) -> dict:
     form_input = copy.deepcopy(api_data)
     form_input["account"] = api_data["account_id"]
     return form_input
