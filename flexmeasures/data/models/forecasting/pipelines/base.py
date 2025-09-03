@@ -5,7 +5,6 @@ import logging
 from datetime import datetime
 from functools import reduce
 
-import numpy as np
 import pandas as pd
 from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
@@ -462,7 +461,6 @@ class BasePipeline:
                 transformer = MissingValuesFiller(fill="auto")
 
             data = df.copy()
-
 
             # Convert start & end to naive UTC
             start = start.tz_localize(None)
