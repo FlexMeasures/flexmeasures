@@ -365,6 +365,7 @@ class BasePipeline:
                     belief_timestamps_list,
                 )
 
+            # Autoregressive-only case
             if not self.past_regressors and not self.future_regressors:
                 logging.info("Using autoregressive forecasting.")
 
@@ -376,8 +377,8 @@ class BasePipeline:
 
                 logging.debug("Data split successfully with autoregressive lags.")
                 return None, None, target_list, belief_timestamps_list
-            # Existing logic for using regressors
 
+            # With regressors
             X_past_regressors_df = (
                 df[
                     ["event_start", "source_y", "belief_time"]
@@ -475,10 +476,9 @@ class BasePipeline:
 
             sensor = db.session.get(Sensor, self.sensors[sensor_name])
 
-            # Convert start & end to UTC
+            # Convert start & end to naive UTC
             start = start.tz_localize(None)
             end = end.tz_localize(None)
-            # last event_start in sensor df is end - event_resolution
             last_event_start = end
 
             # Ensure the first and last event_starts match the expected dates specified in the CLI arguments
@@ -492,7 +492,6 @@ class BasePipeline:
                 )
                 data = pd.concat([new_row_start, data], ignore_index=True)
 
-            # Add end time if missing
             if data.empty or (
                 data["event_start"].iloc[-1] != last_event_start
                 and data["event_start"].iloc[-1] < last_event_start
@@ -502,23 +501,22 @@ class BasePipeline:
                 )
                 data = pd.concat([data, new_row_end], ignore_index=True)
 
-            # Check for duplicate events
+            # Drop duplicate event_starts (keep first)
             if n_extra_points := len(data) - len(data["event_start"].unique()):
                 logging.debug(
                     f"Data for {sensor_name} contains multiple beliefs about a single event. Dropping {n_extra_points} beliefs with duplicate event starts."
                 )
                 data = data.drop_duplicates("event_start")
 
-            # Convert data to Darts TimeSeries
+            # Convert to Darts TimeSeries & fill
             data_darts = TimeSeries.from_dataframe(
                 df=data,
                 time_col="event_start",
-                fill_missing_dates=True,  # Ensures all timestamps are present, filling gaps with NaNs
+                fill_missing_dates=True,
                 freq=self.target_sensor.event_resolution,
             )
             data_darts_gaps = data_darts.gaps()
 
-            # Fill missing values using Darts transformer
             if not data_darts_gaps.empty:
                 data_darts = transformer.transform(
                     data_darts, **(interpolate_kwargs or {})
