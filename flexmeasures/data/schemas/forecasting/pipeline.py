@@ -181,6 +181,11 @@ class ForecastingPipelineSchema(Schema):
             for x in data.get("future_regressors", "").split(",")
             if x.strip()
         ]
+        past = [
+            db.session.get(Sensor, int(x.strip()))
+            for x in data.get("past_regressors", "").split(",")
+            if x.strip()
+        ]
 
         resolution = target_sensor.event_resolution
 
@@ -248,6 +253,7 @@ class ForecastingPipelineSchema(Schema):
             past_regressors=past_regressors,
             future_regressors=future_regressors,
             future=future,
+            past=past,
             target=target_sensor,
             model_save_dir=data["model_save_dir"],
             output_path=output_path,

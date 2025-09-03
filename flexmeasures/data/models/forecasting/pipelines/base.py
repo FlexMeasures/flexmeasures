@@ -63,6 +63,7 @@ class BasePipeline:
         future_regressors: list[str],
         target_sensor: Sensor,
         future: list[Sensor],
+        past: list[Sensor],
         n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int,
@@ -76,6 +77,7 @@ class BasePipeline:
         self.past_regressors = past_regressors
         self.future_regressors = future_regressors
         self.future = future
+        self.past = past
         self.n_steps_to_predict = n_steps_to_predict
         self.max_forecast_horizon = max_forecast_horizon
         self.horizons = range(
