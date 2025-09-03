@@ -6,14 +6,13 @@ from __future__ import annotations
 
 from typing import Any
 from datetime import datetime, timedelta
-import os
 
 import click
 from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
 
-from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone, server_now
+from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures import Sensor
 
@@ -371,131 +370,3 @@ def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
     delta_seconds = resolution.total_seconds()
     floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
     return datetime.fromtimestamp(floored, tz=dt.tzinfo)
-
-
-def resolve_forecast_config(  # noqa: C901  todo: remove function, if everything has moved to ForecastingPipelineSchema
-    sensors: dict,
-    regressors: list[str],
-    future_regressors: list[str],
-    target: str,
-    start_date: datetime,
-    end_date: datetime,
-    train_period: int | None,
-    start_predict_date: datetime | None,
-    predict_period: int | None,
-    sensor_to_save: int | None,
-    model_save_dir: str,
-    output_path: str | None,
-    max_forecast_horizon: int,
-    forecast_frequency: int,
-    probabilistic: bool,
-) -> dict:
-    """
-    Validate and resolve forecasting parameters.
-
-    Returns:
-        dict of resolved arguments for TrainPredictPipeline
-    Raises:
-        click.BadParameter on invalid inputs
-    """
-
-    if not (regressors or future_regressors):
-        regressors = ["autoregressive"]
-
-    # Auto-fill regressors if empty and future_regressors is provided
-    if not regressors and future_regressors:
-        regressors = future_regressors.copy()
-
-    # Validate sensor keys
-    if "autoregressive" not in regressors:
-        for key in regressors + [target]:
-            if key not in sensors:
-                raise click.BadParameter(f"Sensor '{key}' not found in --sensors")
-
-    # Validate future regressors are subset of regressors
-    missing = set(future_regressors) - set(regressors)
-    if missing:
-        raise click.BadParameter(
-            f"--future-regressors contains entries not found in --regressors: {missing}"
-        )
-
-    if start_date >= end_date:
-        raise click.BadParameter("--start-date must be before --end-date")
-
-    regressors_list = regressors
-    future_regressors_list = future_regressors
-
-    target_sensor = Sensor.query.get(sensors[target])
-    if not target_sensor:
-        raise click.BadParameter(f"Target sensor '{target}' not found in DB.")
-
-    resolution = target_sensor.event_resolution
-
-    if start_predict_date is None:
-        predict_start = floor_to_resolution(server_now(), resolution)
-    else:
-        predict_start = start_predict_date
-
-    if predict_start < start_date:
-        raise click.BadParameter("--start-predict-date cannot be before --start-date")
-    if predict_start >= end_date:
-        raise click.BadParameter("--start-predict-date must be before --end-date")
-
-    if train_period is None:
-        train_period_in_hours = int((predict_start - start_date).total_seconds() / 3600)
-        if train_period_in_hours < 48:
-            raise click.BadParameter(
-                "--train-period must be at least 2 days (48 hours). consider reducing --start-date. or increasing --start-predict-date."
-            )
-    else:
-        train_period_in_hours = int(train_period) * 24
-        if train_period_in_hours < 48:
-            raise click.BadParameter(
-                "--train-period must be at least 2 days (48 hours). consider increasing --train-period."
-            )
-
-    if predict_period is None:
-        predict_period_in_hours = int((end_date - predict_start).total_seconds() / 3600)
-    else:
-        predict_period_in_hours = int(predict_period)
-        if predict_period_in_hours < 1:
-            raise click.BadParameter("--predict-period must be at least 1 hour")
-
-    if predict_period_in_hours <= 0:
-        raise click.BadParameter("--predict-period must be greater than 0")
-
-    if "autoregressive" in regressors_list:
-        sensors = {target: sensors[target]}  # reduce to AR
-
-    if max_forecast_horizon is None and forecast_frequency is None:
-        max_forecast_horizon = predict_period_in_hours
-        forecast_frequency = predict_period_in_hours
-    elif max_forecast_horizon is None:
-        max_forecast_horizon = predict_period_in_hours
-    elif forecast_frequency is None:
-        forecast_frequency = max_forecast_horizon
-
-    if sensor_to_save is None:
-        sensor_to_save = target_sensor
-
-    # Ensure output path exists if provided
-    if output_path and not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    return dict(
-        sensors=sensors,
-        regressors=regressors_list,
-        future_regressors=future_regressors_list,
-        target=target,
-        model_save_dir=model_save_dir,
-        output_path=output_path,
-        start_date=start_date,
-        end_date=end_date,
-        train_period_in_hours=train_period_in_hours,
-        predict_start=predict_start,
-        predict_period_in_hours=predict_period_in_hours,
-        max_forecast_horizon=max_forecast_horizon,
-        forecast_frequency=forecast_frequency,
-        probabilistic=probabilistic,
-        sensor_to_save=sensor_to_save,
-    )
