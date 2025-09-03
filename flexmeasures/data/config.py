@@ -52,9 +52,16 @@ def configure_db_for(app: Flask):
             forecasting,
         )  # noqa: F401
 
-        from flexmeasures.data.models.time_series import get_timed_belief_min_v
+        import timely_beliefs.utils as tb_utils
 
-        timed_belief_min_v = get_timed_belief_min_v(db.session)
+        try:
+            timed_belief_min_v = tb_utils.get_timed_belief_min_v(db.session)
+        except Exception:
+            timed_belief_min_v = None
+            app.logger.warning(
+                "Could not determine timed_belief_min_v. Do you have timely-beliefs installed and is the latest version?"
+                " Beliefs will be retrieved from the actual table instead of the materialized view.",
+            )
 
         # This would create db structure based on models, but you should use `flask db upgrade` for that.
         # Base.metadata.create_all(bind=db.engine)
