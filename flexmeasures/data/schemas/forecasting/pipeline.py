@@ -113,7 +113,7 @@ class ForecastingPipelineSchema(Schema):
                 sensor = db.session.get(Sensor, int(sensor_id))
                 if sensor is None:
                     raise ValidationError(f"Sensor id {sensor_id} not found in DB.")
-                sensors_names.append(f"{sensor.name}_regressor{idx}")
+                sensors_names.append(f"{sensor.name} (ID: {sensor_id})")
         return sensors_names
 
     def _parse_json_dict(self, text: str) -> dict:
@@ -150,9 +150,9 @@ class ForecastingPipelineSchema(Schema):
 
         # Add them to the dict with unique keys
         for idx, sensor_id in enumerate(sorted(all_ids), start=1):
-            sensors_dict[f"{db.session.get(Sensor, sensor_id).name}_regressor{idx}"] = (
-                sensor_id
-            )
+            sensors_dict[
+                f"{db.session.get(Sensor, sensor_id).name} (ID: {sensor_id})"
+            ] = sensor_id
 
         return sensors_dict
 

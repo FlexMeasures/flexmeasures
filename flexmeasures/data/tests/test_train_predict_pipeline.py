@@ -115,7 +115,7 @@ def test_train_predict_pipeline(
         ), "string representation of the Forecaster (DataSource) should mention the used model"
         for regressor in regressors:
             assert (
-                f"{regressor.name}_regressor{regressor.id}"
+                f"{regressor.name} (ID: {regressor.id})"
                 in forecasts.lineage.sources[0].attributes["data_generator"]["config"][
                     "future_regressors"
                 ]
