@@ -303,10 +303,10 @@ class BasePipeline:
                 target_list = []
                 past_covariates_list = []
                 future_covariates_list = []
+                belief_timestamps_list = []
 
                 # Number of prediction iterations: all steps if predict pipeline, else just 1 (training)
                 end_for_loop = self.n_steps_to_predict if is_predict_pipeline else 1
-                belief_timestamps_list = []
 
                 # Loop through each simulated forecast step and increase the belief_time and target_end by 1 target sensor resolution
                 for index_offset in range(0, end_for_loop, self.forecast_frequency):
