@@ -8,6 +8,7 @@ from datetime import timedelta
 
 from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
 
+from flexmeasures.data import db
 from flexmeasures.data.schemas import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeOrDateField, DurationField
 from flexmeasures.data.models.time_series import Sensor
@@ -109,7 +110,7 @@ class ForecastingPipelineSchema(Schema):
         for idx, sensor_id in enumerate(text.split(","), start=1):
             sensor_id = sensor_id.strip()
             if sensor_id:
-                sensor = Sensor.query.get(int(sensor_id))
+                sensor = db.session.get(Sensor, int(sensor_id))
                 if sensor is None:
                     raise ValidationError(f"Sensor id {sensor_id} not found in DB.")
                 sensors_names.append(f"{sensor.name}_regressor{idx}")
@@ -149,7 +150,7 @@ class ForecastingPipelineSchema(Schema):
 
         # Add them to the dict with unique keys
         for idx, sensor_id in enumerate(sorted(all_ids), start=1):
-            sensors_dict[f"{Sensor.query.get(sensor_id).name}_regressor{idx}"] = (
+            sensors_dict[f"{db.session.get(Sensor, sensor_id).name}_regressor{idx}"] = (
                 sensor_id
             )
 
