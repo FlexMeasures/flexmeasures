@@ -412,6 +412,7 @@ class BasePipeline:
         self,
         df: pd.DataFrame,
         sensor_names: list[str],
+        sensors: list[Sensor],
         start: datetime,
         end: datetime,
         interpolate_kwargs: dict = None,
@@ -440,10 +441,8 @@ class BasePipeline:
         """
         dfs = []
 
-        for sensor_name in sensor_names:
+        for sensor_name, sensor in zip(sensor_names, sensors):
             if df.empty:
-                sensor = db.session.get(Sensor, self.sensors[sensor_name])
-
                 last_event_start = end - pd.Timedelta(
                     hours=sensor.event_resolution.total_seconds() / 3600
                 )
@@ -600,6 +599,7 @@ class BasePipeline:
             past_covariates = self.detect_and_fill_missing_values(
                 df=past_data,
                 sensor_names=[r for r in self.past_regressors],
+                sensors=self.past,
                 start=target_start,
                 end=target_end,
             )
@@ -677,6 +677,7 @@ class BasePipeline:
             forecast_data_darts = self.detect_and_fill_missing_values(
                 df=forecast_data,
                 sensor_names=[r for r in self.future_regressors],
+                sensors=self.future,
                 start=target_end + self.target_sensor.event_resolution,
                 end=forecast_end + self.target_sensor.event_resolution,
             )
@@ -684,6 +685,7 @@ class BasePipeline:
             realized_data_darts = self.detect_and_fill_missing_values(
                 df=realized_data,
                 sensor_names=[r for r in self.future_regressors],
+                sensors=self.future,
                 start=target_start,
                 end=target_end,
             )
@@ -713,6 +715,7 @@ class BasePipeline:
         target_data = self.detect_and_fill_missing_values(
             df=target_dataframe[(target_dataframe["event_start"] <= target_end)],
             sensor_names=["target"],
+            sensors=[self.target_sensor],
             start=target_start,
             end=target_end,
         )
