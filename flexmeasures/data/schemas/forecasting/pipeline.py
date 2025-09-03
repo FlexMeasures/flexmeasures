@@ -169,9 +169,7 @@ class ForecastingPipelineSchema(Schema):
         )
         target_sensor = data["sensor"]
 
-        if not regressors and not future_regressors and not past_regressors:
-            regressors = []
-        elif regressors:
+        if regressors:
             future_regressors.extend(regressors)
             future_regressors = list(set(future_regressors))
             past_regressors.extend(regressors)
