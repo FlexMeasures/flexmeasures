@@ -447,10 +447,10 @@ class BasePipeline:
                     hours=sensor.event_resolution.total_seconds() / 3600
                 )
                 new_row_start = pd.DataFrame(
-                    {"event_start": [start], f"{sensor_name}": [None]}
+                    {"event_start": [start], sensor_name: [None]}
                 )
                 new_row_end = pd.DataFrame(
-                    {"event_start": [last_event_start], f"{sensor_name}": [None]}
+                    {"event_start": [last_event_start], sensor_name: [None]}
                 )
                 df = pd.concat([new_row_start, df, new_row_end], ignore_index=True)
 
@@ -475,7 +475,7 @@ class BasePipeline:
                 and data["event_start"].iloc[0] > start
             ):
                 new_row_start = pd.DataFrame(
-                    {"event_start": [start], f"{sensor_name}": [None]}
+                    {"event_start": [start], sensor_name: [None]}
                 )
                 data = pd.concat([new_row_start, data], ignore_index=True)
 
@@ -484,7 +484,7 @@ class BasePipeline:
                 and data["event_start"].iloc[-1] < last_event_start
             ):
                 new_row_end = pd.DataFrame(
-                    {"event_start": [last_event_start], f"{sensor_name}": [None]}
+                    {"event_start": [last_event_start], sensor_name: [None]}
                 )
                 data = pd.concat([data, new_row_end], ignore_index=True)
 
