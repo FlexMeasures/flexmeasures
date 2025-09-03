@@ -8,7 +8,7 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import (
     mock_asset_data,
     mock_asset_data_with_kpis,
-    mock_api_data_as_form_input,
+    mock_asset_data_as_form_input,
 )
 
 """
@@ -117,7 +117,7 @@ def test_add_asset(db, client, setup_assets, as_admin):
     response = client.post(
         url_for("AssetCrudUI:post", id="create"),
         follow_redirects=True,
-        data=mock_api_data_as_form_input(mock_asset),
+        data=mock_asset_data_as_form_input(mock_asset),
     )
     assert response.status_code == 200  # response is HTML form
     assert "html" in response.content_type
@@ -132,7 +132,7 @@ def test_edit_asset(db, client, setup_assets, as_admin):
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
-        data=mock_api_data_as_form_input(mock_asset),
+        data=mock_asset_data_as_form_input(mock_asset),
     )
     assert response.status_code == 200
     assert b"Editing was successful" in response.data
@@ -150,7 +150,7 @@ def test_sensors_to_show_as_kpis_json(db, client, setup_assets, as_admin):
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
-        data=mock_api_data_as_form_input(ma_copy),
+        data=mock_asset_data_as_form_input(ma_copy),
     )
     # how the UI works is that the page reloads with 200 but there is a an error message string that checks if the editing was successful or not
     assert response.status_code == 200
@@ -166,7 +166,7 @@ def test_sensors_to_show_as_kpis_json(db, client, setup_assets, as_admin):
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
-        data=mock_api_data_as_form_input(ma_copy),
+        data=mock_asset_data_as_form_input(ma_copy),
     )
     assert response.status_code == 200
     assert b"Cannot edit asset:" in response.data
