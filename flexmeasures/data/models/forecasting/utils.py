@@ -159,8 +159,7 @@ def data_to_bdf(
     data: pd.DataFrame,
     horizon: int,
     probabilistic: bool,
-    sensors: dict[str, int],
-    target_sensor: str,
+    target_sensor: Sensor,
     sensor_to_save: Sensor,
     data_source: DataSource,
 ) -> tb.BeliefsDataFrame:
@@ -179,8 +178,8 @@ def data_to_bdf(
         Whether the forecasts are probabilistic or deterministic.
     sensors : dict[str, int]
         Dictionary mapping sensor names to sensor IDs.
-    target_sensor : str
-        The name of the target sensor.
+    target_sensor : Sensor
+        The Sensor object for which the predictions are made.
     sensor_to_save : Sensor
         The sensor object to save the forecasts to.
     source : DataSource
@@ -190,13 +189,12 @@ def data_to_bdf(
     tb.BeliefsDataFrame
         A formatted BeliefsDataFrame ready for database insertion.
     """
-    sensor = Sensor.query.get(sensors[target_sensor])
     df = data.copy()
     df.reset_index(inplace=True)
     df.pop("component")
 
     # Rename target to '0h'
-    df = df.rename(columns={target_sensor: "0h"})
+    df = df.rename(columns={"target": "0h"})
     df["event_start"] = pd.to_datetime(df["event_start"])
     df["belief_time"] = pd.to_datetime(df["belief_time"])
 
@@ -213,7 +211,7 @@ def data_to_bdf(
 
     # Add shifted event_starts
     expanded["event_start"] = expanded["event_start"] + expanded["h"].apply(
-        lambda h: sensor.event_resolution * h
+        lambda h: target_sensor.event_resolution * h
     )
 
     # Forecast values
@@ -227,10 +225,14 @@ def data_to_bdf(
         ["event_start", "belief_time", "forecasts", "cumulative_probability"]
     ]
     test_df["event_start"] = (
-        test_df["event_start"].dt.tz_localize("UTC").dt.tz_convert(sensor.timezone)
+        test_df["event_start"]
+        .dt.tz_localize("UTC")
+        .dt.tz_convert(target_sensor.timezone)
     )
     test_df["belief_time"] = (
-        test_df["belief_time"].dt.tz_localize("UTC").dt.tz_convert(sensor.timezone)
+        test_df["belief_time"]
+        .dt.tz_localize("UTC")
+        .dt.tz_convert(target_sensor.timezone)
     )
 
     # Build forecast DataFrame

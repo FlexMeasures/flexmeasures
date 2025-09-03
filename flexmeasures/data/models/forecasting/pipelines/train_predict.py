@@ -4,7 +4,6 @@ import time
 import logging
 from datetime import datetime, timedelta
 
-from flexmeasures.data.models.time_series import Sensor
 from rq.job import Job
 
 from flask import current_app
@@ -36,7 +35,7 @@ class TrainPredictPipeline(Forecaster):
         self.sensors = config["sensors"]
         self.past_regressors = config["past_regressors"]
         self.future_regressors = config["future_regressors"]
-        self.target = "target"
+        self.target_sensor = config["target"]
         self.model_save_dir = config["model_save_dir"]
         self.output_path = config["output_path"]
         self.start_date = config["start_date"]
@@ -75,7 +74,7 @@ class TrainPredictPipeline(Forecaster):
             sensors=self.sensors,
             past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
-            target=self.target,
+            target_sensor=self.target_sensor,
             model_save_dir=self.model_save_dir,
             n_steps_to_predict=self.train_period_in_hours * multiplier,
             max_forecast_horizon=self.max_forecast_horizon,
@@ -97,15 +96,15 @@ class TrainPredictPipeline(Forecaster):
             sensors=self.sensors,
             past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
-            target=self.target,
+            target_sensor=self.target_sensor,
             model_path=os.path.join(
                 self.model_save_dir,
-                f"sensor_{self.sensors[self.target]}-cycle_{counter}-lgbm.pkl",
+                f"sensor_{self.target_sensor.id}-cycle_{counter}-lgbm.pkl",
             ),
             output_path=(
                 os.path.join(
                     self.output_path,
-                    f"sensor_{self.sensors[self.target]}-cycle_{counter}.csv",
+                    f"sensor_{self.target_sensor.id}-cycle_{counter}.csv",
                 )
                 if self.output_path
                 else None
@@ -157,9 +156,7 @@ class TrainPredictPipeline(Forecaster):
             predict_end = predict_start + timedelta(hours=self.predict_period_in_hours)
             counter = 0
 
-            sensor_resolution = Sensor.query.get(
-                self.sensors[self.target]
-            ).event_resolution
+            sensor_resolution = self.target_sensor.event_resolution
             multiplier = int(
                 timedelta(hours=1) / sensor_resolution
             )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution e,g  15 min sensor resolution will have 7*24*4 = 168 predicitons to predict a week
@@ -182,7 +179,7 @@ class TrainPredictPipeline(Forecaster):
                     cycle_runtime = self.run_cycle(**train_predict_params)
                     cumulative_cycles_runtime += cycle_runtime
                 else:
-                    train_predict_params["target_sensor_id"] = self.sensors[self.target]
+                    train_predict_params["target_sensor_id"] = self.target_sensor.id
                     cycles_job_params.append(train_predict_params)
 
                 # Move forward to the next cycle one prediction period later
@@ -220,7 +217,7 @@ class TrainPredictPipeline(Forecaster):
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
-                        self.sensors[self.target],
+                        self.target_sensor.id,
                         job_id=job.id,
                         queue=queue,
                         asset_or_sensor_type="sensor",

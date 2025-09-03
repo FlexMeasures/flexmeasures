@@ -62,7 +62,7 @@ class BasePipeline:
         self,
         sensors: dict[str, int],
         future_regressors: list[str],
-        target: str,
+        target_sensor: Sensor,
         n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int,
@@ -75,7 +75,6 @@ class BasePipeline:
         self.sensors = sensors
         self.past_regressors = past_regressors
         self.future_regressors = future_regressors
-        self.target = target
         self.n_steps_to_predict = n_steps_to_predict
         self.max_forecast_horizon = max_forecast_horizon
         self.horizons = range(
@@ -83,7 +82,7 @@ class BasePipeline:
         )  # rounds up so we get the number of forecast steps of size `forecast_frequency` within `n_steps_to_predict`
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
-        self.target_sensor = db.session.get(Sensor, self.sensors[self.target])
+        self.target_sensor = target_sensor
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
         self.max_forecast_horizon_in_hours = (
@@ -127,7 +126,7 @@ class BasePipeline:
                     event_ends_before=sensor_event_ends_before,
                     most_recent_beliefs_only=most_recent_beliefs_only,
                     exclude_source_types=(
-                        ["forecaster"] if name in self.target else []
+                        ["forecaster"] if name in "target" else []
                     ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
                 )
                 try:
@@ -359,7 +358,7 @@ class BasePipeline:
             if not self.past_regressors and not self.future_regressors:
                 logging.info("Using autoregressive forecasting.")
 
-                y = df[["event_start", "belief_time", self.target]].copy()
+                y = df[["event_start", "belief_time", "target"]].copy()
 
                 _, _, target_list, belief_timestamps_list = _generate_splits(
                     None, None, y
@@ -383,7 +382,7 @@ class BasePipeline:
                 else None
             )
             y = (
-                df[["event_start", "belief_time", self.target]]
+                df[["event_start", "belief_time", "target"]]
                 .dropna()
                 .reset_index(drop=True)
                 .copy()
@@ -713,7 +712,7 @@ class BasePipeline:
 
         target_data = self.detect_and_fill_missing_values(
             df=target_dataframe[(target_dataframe["event_start"] <= target_end)],
-            sensor_names=self.target,
+            sensor_names="target",
             start=target_start,
             end=target_end,
         )

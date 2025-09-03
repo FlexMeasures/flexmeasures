@@ -25,7 +25,7 @@ class PredictPipeline(BasePipeline):
         sensors: dict[str, int],
         past_regressors: list[str],
         future_regressors: list[str],
-        target: str,
+        target_sensor: Sensor,
         model_path: str,
         output_path: str,
         n_steps_to_predict: int,
@@ -63,7 +63,7 @@ class PredictPipeline(BasePipeline):
             sensors=sensors,
             past_regressors=past_regressors,
             future_regressors=future_regressors,
-            target=target,
+            target_sensor=target_sensor,
             n_steps_to_predict=n_steps_to_predict,
             max_forecast_horizon=max_forecast_horizon,
             event_starts_after=event_starts_after,
@@ -82,9 +82,7 @@ class PredictPipeline(BasePipeline):
         self.predict_start = predict_start
         self.predict_end = predict_end
 
-        self.sensor_resolution = Sensor.query.get(
-            self.sensors[self.target]
-        ).event_resolution
+        self.sensor_resolution = self.target_sensor.event_resolution
         self.readable_resolution = duration_isoformat(self.sensor_resolution)
         self.total_forecast_hours = (
             self.max_forecast_horizon * self.sensor_resolution.total_seconds() / 3600
@@ -140,15 +138,15 @@ class PredictPipeline(BasePipeline):
             y_pred_df.insert(1, "belief_time", belief_timestamp)
 
             # Insert the target sensor name and value at belief time forecasts are made
-            y_pred_df.insert(2, self.target, value_at_belief_horizon)
+            y_pred_df.insert(2, "target", value_at_belief_horizon)
             if self.quantiles:
                 y_pred_df.set_index(
-                    ["event_start", "belief_time", self.target, "component"],
+                    ["event_start", "belief_time", "target", "component"],
                     inplace=True,
                 )
             else:
                 y_pred_df.set_index(
-                    ["event_start", "belief_time", self.target], inplace=True
+                    ["event_start", "belief_time", "target"], inplace=True
                 )
 
             logging.debug(
@@ -300,8 +298,7 @@ class PredictPipeline(BasePipeline):
                 data=df_pred,
                 horizon=self.max_forecast_horizon,
                 probabilistic=self.probabilistic,
-                sensors=self.sensors,
-                target_sensor=self.target,
+                target_sensor=self.target_sensor,
                 sensor_to_save=self.sensor_to_save,
                 data_source=self.data_source,
             )

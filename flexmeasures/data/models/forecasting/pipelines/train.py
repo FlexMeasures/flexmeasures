@@ -9,6 +9,7 @@ from datetime import datetime
 
 from darts import TimeSeries
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
@@ -22,7 +23,7 @@ class TrainPipeline(BasePipeline):
         sensors: dict[str, int],
         past_regressors: list[str],
         future_regressors: list[str],
-        target: str,
+        target_sensor: Sensor,
         model_save_dir: str,
         n_steps_to_predict: int,
         max_forecast_horizon: int,
@@ -53,7 +54,7 @@ class TrainPipeline(BasePipeline):
             sensors=sensors,
             past_regressors=past_regressors,
             future_regressors=future_regressors,
-            target=target,
+            target_sensor=target_sensor,
             n_steps_to_predict=n_steps_to_predict,
             max_forecast_horizon=max_forecast_horizon,
             event_starts_after=event_starts_after,
@@ -117,7 +118,7 @@ class TrainPipeline(BasePipeline):
             y_train = y_train_list[0]
 
             models = {
-                f"sensor_{self.sensors[self.target]}-cycle_{counter}-lgbm.pkl": CustomLGBM(
+                f"sensor_{self.target_sensor.id}-cycle_{counter}-lgbm.pkl": CustomLGBM(
                     max_forecast_horizon=self.max_forecast_horizon,
                     probabilistic=self.probabilistic,
                     auto_regressive=self.auto_regressive,
