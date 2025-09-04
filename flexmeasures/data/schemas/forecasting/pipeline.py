@@ -150,6 +150,16 @@ class ForecastingPipelineSchema(Schema):
             if x.strip()
         ]
 
+        past_and_future = [
+            db.session.get(Sensor, int(x.strip()))
+            for x in data.get("regressors", "").split(",")
+            if x.strip()
+        ]
+
+        if past_and_future:
+            future = list(set(future + past_and_future))
+            past = list(set(past + past_and_future))
+
         resolution = target_sensor.event_resolution
 
         predict_start = data.get("start_predict_date") or floor_to_resolution(
