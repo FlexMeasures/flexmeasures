@@ -84,7 +84,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.cli.utils import validate_color_cli, validate_url_cli
+from flexmeasures.cli.utils import validate_color_cli, validate_url_cli, split_commas
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
@@ -1018,42 +1018,30 @@ def add_holidays(
 )
 @click.option(
     "--regressors",
-    help="Comma-separated list of sensor IDs to be used as regressors. "
-    "This is the full set of regressors and can include both past (realizations) and future (forecasts). "
-    "The sensor that is being forecast is used as a past regressor by default (i.e. autoregressive), "
-    "so no need to pass that sensor ID explicitly.",
-)
-@click.option(
     "--regressor",
     multiple=True,
+    callback=split_commas,
     help="Sensor ID to be treated as a regressor. "
-    "This is the full set of regressors and can include both past (realizations) and future (forecasts). "
-    "The sensor that is being forecast is used as a past regressor by default (i.e. autoregressive), "
-    "so no need to pass that sensor ID explicitly.",
+    "Use this if only forecasts recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
 )
 @click.option(
     "--future-regressors",
-    help="Comma-separated list of sensor IDs to be treated only as future regressors. "
-    "Use this if only forecasts recorded on this sensor matter as a regressor.",
-)
-@click.option(
     "--future-regressor",
     multiple=True,
+    callback=split_commas,
     help="Sensor ID to be treated only as a future regressor. "
     "Use this if only forecasts recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times.",
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
 )
 @click.option(
     "--past-regressors",
-    help="Comma-separated list of sensor IDs to be treated only as past regressors. "
-    "Use this if only past realizations recorded on this sensor matter as a regressor.",
-)
-@click.option(
     "--past-regressor",
     multiple=True,
+    callback=split_commas,
     help="Sensor ID to be treated only as a past regressor. "
-    "Use this if only past realizations recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times.",
+    "Use this if only forecasts recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
 )
 @click.option(
     "--train-start",
@@ -1177,17 +1165,6 @@ def train_predict_pipeline(
             **MsgStyle.WARN,
         )
     del kwargs["resolution"]
-
-    # Support both comma-separated lists of sensor IDs and the same sensor ID option passed multiple times
-    kwargs["future_regressors"] = converge_listings(
-        kwargs.pop("future_regressors"), kwargs.pop("future_regressor")
-    )
-    kwargs["past_regressors"] = converge_listings(
-        kwargs.pop("past_regressors"), kwargs.pop("past_regressor")
-    )
-    kwargs["regressors"] = converge_listings(
-        kwargs.pop("regressors"), kwargs.pop("regressor")
-    )
 
     try:
         pipeline = TrainPredictPipeline(config=kwargs)
@@ -2410,16 +2387,3 @@ def parse_source(source):
     else:
         _source = get_or_create_source(source, source_type="CLI script")
     return _source
-
-
-def converge_listings(
-    comma_separated_option: str | None,
-    multiple_option: tuple[str],
-) -> list[str]:
-    """Converge comma-separated lists of items with a list of items."""
-    if comma_separated_option is None:
-        return list(multiple_option)
-    first_list = [x.strip() for x in comma_separated_option.split(",") if x.strip()]
-    second_list = list(multiple_option)
-    converged_list = list(set(first_list + second_list))
-    return converged_list

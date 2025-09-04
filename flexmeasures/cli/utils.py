@@ -370,3 +370,13 @@ def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
     delta_seconds = resolution.total_seconds()
     floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
     return datetime.fromtimestamp(floored, tz=dt.tzinfo)
+
+
+def split_commas(ctx, param, value):
+    """Converge comma-separated lists of items with a list of unique items."""
+    if not value:
+        return []
+    result = []
+    for v in value:
+        result.extend(v.split(","))
+    return list(set([x.strip() for x in result if x.strip()]))
