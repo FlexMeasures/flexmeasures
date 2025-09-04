@@ -449,6 +449,15 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     required=False,
     help="Resolution of the data in ISO 8601 format. If not set, defaults to the minimum resolution of the sensor data. Note: Nominal durations like 'P1D' are converted to absolute timedeltas.",
 )
+@click.option(
+    "--combine-legend",
+    "combine_legend",
+    type=bool,
+    default=False,
+    required=False,
+    is_flag=True,
+    help="If True, then legend will be combined and put in the bottom of all charts, otherwise each chart for an asset can have a separate legend. Default value is False.",
+)
 def chart(
     sensors: list[Sensor] | None = None,
     assets: list[GenericAsset] | None = None,
@@ -459,6 +468,7 @@ def chart(
     width: int | None = None,
     filename_template: str | None = None,
     resolution: timedelta | None = None,
+    combine_legend: bool = False,
 ):
     """
     Export sensor or asset charts in PNG or SVG formats. For example:
@@ -518,6 +528,7 @@ def chart(
             beliefs_before=belief_time,
             include_data=True,
             resolution=resolution,
+            combine_legend=combine_legend,
         )
 
         # remove formatType as it relies on a custom JavaScript function
