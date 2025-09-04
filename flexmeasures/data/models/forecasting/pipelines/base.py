@@ -56,21 +56,17 @@ class BasePipeline:
 
     def __init__(
         self,
-        future_regressors: list[str],
         target_sensor: Sensor,
         future: list[Sensor],
         past: list[Sensor],
         n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int,
-        past_regressors: list[str] | None = None,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
     ) -> None:
-        self.past_regressors = past_regressors
-        self.future_regressors = future_regressors
         self.future = future
         self.past = past
         self.n_steps_to_predict = n_steps_to_predict
@@ -82,6 +78,10 @@ class BasePipeline:
         self.event_ends_before = event_ends_before
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})"
+        self.future_regressors = [
+            f"{sensor.name} (ID: {sensor.id})" for sensor in future
+        ]
+        self.past_regressors = [f"{sensor.name} (ID: {sensor.id})" for sensor in past]
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
         self.max_forecast_horizon_in_hours = (
@@ -121,7 +121,7 @@ class BasePipeline:
 
                 most_recent_beliefs_only = True
                 # Extend time range for future regressors
-                if name in self.future_regressors:
+                if sensor in self.future:
                     sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
                         hours=self.max_forecast_horizon_in_hours
                     )
@@ -362,7 +362,7 @@ class BasePipeline:
                 )
 
             # Autoregressive-only case
-            if not self.past_regressors and not self.future_regressors:
+            if not self.past and not self.future:
                 logging.info("Using autoregressive forecasting.")
 
                 y = df[["event_start", "belief_time", self.target]].copy()
@@ -385,7 +385,7 @@ class BasePipeline:
             )
             X_future_regressors_df = (
                 df[["event_start", "source_y", "belief_time"] + self.future_regressors]
-                if self.future_regressors != []
+                if self.future != []
                 else None
             )
             y = (

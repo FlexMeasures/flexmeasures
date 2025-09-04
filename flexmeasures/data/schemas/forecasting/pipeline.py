@@ -103,19 +103,6 @@ class ForecastingPipelineSchema(Schema):
                     data["forecast_frequency"] // sensor.event_resolution
                 )
 
-    def _parse_comma_list(self, text: str | None) -> list[str]:
-        if not text:
-            return []
-        sensors_names = []
-        for idx, sensor_id in enumerate(text.split(","), start=1):
-            sensor_id = sensor_id.strip()
-            if sensor_id:
-                sensor = db.session.get(Sensor, int(sensor_id))
-                if sensor is None:
-                    raise ValidationError(f"Sensor id {sensor_id} not found in DB.")
-                sensors_names.append(f"{sensor.name} (ID: {sensor_id})")
-        return sensors_names
-
     def _parse_json_dict(self, text: str) -> dict:
         try:
             return json.loads(text)
@@ -128,16 +115,7 @@ class ForecastingPipelineSchema(Schema):
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
 
-        regressors = self._parse_comma_list(data.get("regressors", ""))
-        future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
-        past_regressors = self._parse_comma_list(data.get("past_regressors", ""))
         target_sensor = data["sensor"]
-
-        if regressors:
-            future_regressors.extend(regressors)
-            future_regressors = list(set(future_regressors))
-            past_regressors.extend(regressors)
-            past_regressors = list(set(past_regressors))
 
         future = [
             db.session.get(Sensor, int(x.strip()))
@@ -222,8 +200,6 @@ class ForecastingPipelineSchema(Schema):
             os.makedirs(output_path)
 
         return dict(
-            past_regressors=past_regressors,
-            future_regressors=future_regressors,
             future=future,
             past=past,
             target=target_sensor,
