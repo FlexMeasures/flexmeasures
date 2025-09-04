@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import click
-import json
 
 from datetime import timedelta
 
@@ -102,15 +101,6 @@ class ForecastingPipelineSchema(Schema):
                 data["forecast_frequency"] = (
                     data["forecast_frequency"] // sensor.event_resolution
                 )
-
-    def _parse_json_dict(self, text: str) -> dict:
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            raise ValidationError(
-                "sensors must be a valid JSON string mapping names to IDs",
-                field_name="sensors",
-            )
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
