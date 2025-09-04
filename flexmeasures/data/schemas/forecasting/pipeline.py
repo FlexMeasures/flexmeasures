@@ -7,10 +7,8 @@ from datetime import timedelta
 
 from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
 
-from flexmeasures.data import db
 from flexmeasures.data.schemas import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeOrDateField, DurationField
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
 
@@ -18,15 +16,18 @@ from flexmeasures.utils.time_utils import server_now
 class ForecastingPipelineSchema(Schema):
 
     sensor = SensorIdField(required=True)
-    regressors = fields.Str(
-        required=False, allow_none=True
-    )  # expects comma-separated Sensor id's like "2092,2093"
-    past_regressors = fields.Str(
-        required=False, allow_none=True
-    )  # expects comma-separated Sensor id's
-    future_regressors = fields.Str(
-        required=False, allow_none=True
-    )  # expects comma-separated Sensor id's
+    future_regressors = fields.List(
+        SensorIdField(),
+        required=False,
+    )
+    past_regressors = fields.List(
+        SensorIdField(),
+        required=False,
+    )
+    regressors = fields.List(
+        SensorIdField(),
+        required=False,
+    )
     model_save_dir = fields.Str(required=True)
     output_path = fields.Str(required=False, allow_none=True)
     start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
@@ -107,22 +108,9 @@ class ForecastingPipelineSchema(Schema):
 
         target_sensor = data["sensor"]
 
-        future_regressors = [
-            db.session.get(Sensor, int(x.strip()))
-            for x in data.get("future_regressors", "").split(",")
-            if x.strip()
-        ]
-        past_regressors = [
-            db.session.get(Sensor, int(x.strip()))
-            for x in data.get("past_regressors", "").split(",")
-            if x.strip()
-        ]
-
-        past_and_future_regressors = [
-            db.session.get(Sensor, int(x.strip()))
-            for x in data.get("regressors", "").split(",")
-            if x.strip()
-        ]
+        future_regressors = data.get("future_regressors", [])
+        past_regressors = data.get("past_regressors", [])
+        past_and_future_regressors = data.get("regressors", [])
 
         if past_and_future_regressors:
             future_regressors = list(

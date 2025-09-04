@@ -78,9 +78,7 @@ def test_train_predict_pipeline(
         for regressor_name in kwargs.get("future_regressors", [])
     ]
     if regressors:
-        kwargs["future_regressors"] = ",".join(
-            [str(regressor.id) for regressor in regressors]
-        )
+        kwargs["future_regressors"] = [regressor.id for regressor in regressors]
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
             pipeline = TrainPredictPipeline(config=kwargs)
@@ -115,7 +113,7 @@ def test_train_predict_pipeline(
         ), "string representation of the Forecaster (DataSource) should mention the used model"
         for regressor in regressors:
             assert (
-                str(regressor.id)
+                regressor.id
                 in forecasts.lineage.sources[0].attributes["data_generator"]["config"][
                     "future_regressors"
                 ]

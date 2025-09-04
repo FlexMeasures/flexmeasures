@@ -1024,14 +1024,36 @@ def add_holidays(
     "so no need to pass that sensor ID explicitly.",
 )
 @click.option(
+    "--regressor",
+    multiple=True,
+    help="Sensor ID to be treated as a regressor. "
+    "This is the full set of regressors and can include both past (realizations) and future (forecasts). "
+    "The sensor that is being forecast is used as a past regressor by default (i.e. autoregressive), "
+    "so no need to pass that sensor ID explicitly.",
+)
+@click.option(
     "--future-regressors",
     help="Comma-separated list of sensor IDs to be treated only as future regressors. "
     "Use this if only forecasts recorded on this sensor matter as a regressor.",
 )
 @click.option(
+    "--future-regressor",
+    multiple=True,
+    help="Sensor ID to be treated only as a future regressor. "
+    "Use this if only forecasts recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times.",
+)
+@click.option(
     "--past-regressors",
     help="Comma-separated list of sensor IDs to be treated only as past regressors. "
     "Use this if only past realizations recorded on this sensor matter as a regressor.",
+)
+@click.option(
+    "--past-regressor",
+    multiple=True,
+    help="Sensor ID to be treated only as a past regressor. "
+    "Use this if only past realizations recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times.",
 )
 @click.option(
     "--train-start",
@@ -1155,6 +1177,32 @@ def train_predict_pipeline(
             **MsgStyle.WARN,
         )
     del kwargs["resolution"]
+
+    def converge_sensor_listings(
+        kwargs: dict,
+        comma_separated_option: str,
+        multiple_option: str,
+        converged_option: str,
+    ) -> dict:
+        """Support both comma-separated lists of sensor IDs and the same sensor ID option passed multiple times"""
+        a: str | None = kwargs.pop(comma_separated_option)
+        b: tuple = kwargs.pop(multiple_option)
+        if a is None:
+            return kwargs
+        a_list = [int(x.strip()) for x in a.split(",") if x.strip()]
+        b_list = list(b)
+        c_list = list(set(a_list + b_list))
+        kwargs[converged_option] = c_list
+        return kwargs
+
+    # Support both comma-separated lists of sensor IDs and the same sensor ID option passed multiple times
+    kwargs = converge_sensor_listings(
+        kwargs, "future_regressors", "future_regressor", "future_regressors"
+    )
+    kwargs = converge_sensor_listings(
+        kwargs, "past_regressors", "past_regressor", "past_regressors"
+    )
+    kwargs = converge_sensor_listings(kwargs, "regressors", "regressor", "regressors")
 
     try:
         pipeline = TrainPredictPipeline(config=kwargs)
