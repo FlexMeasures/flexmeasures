@@ -227,15 +227,23 @@
                     {% endfor %}
                 </ul>
             </li>
-            {% if active_subpage == "asset_graph" %}
-            <div class="form-check form-switch" style="margin-left: auto;">
-                <input class="form-check-input" type="checkbox" id="useMaterializedView" checked title="Reload this graph with latest data instead of using recent cache (updated every {{ mv_refresh_interval }} minutes). This will take longer to load.">
-                <label class="form-check-label" for="useMaterializedView">Use materialized view</label>
-            </div>
-            {% endif %}
-            <div class="form-check form-switch" style="margin-left: 10px;">
-                <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
-                <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+            <div style="margin-left: auto;" class="d-flex align-items-center">
+                {# Option to refresh data from materialized view if applicable #}
+                {# Note: the checkbox is checked by default, meaning the materialized view is used (for faster loading) #}
+                {# Unchecking it will reload the graph with fresh data, which may take more time #}
+                {# This option is only shown when a materialized view refresh interval is configured #}
+                {% if active_subpage == "asset_graph" and mv_refresh_interval %}
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="useMaterializedView" checked title="Bypass cached data and reload this graph with real-time results.
+Cached data is refreshed every {{ mv_refresh_interval }} minutes for faster loading.
+Loading fresh data will take additional time.">
+                    <label class="form-check-label" for="useMaterializedView">Refresh data</label>
+                </div>
+                {% endif %}
+                <div class="form-check form-switch" style="margin-left: 10px;">
+                    <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
+                    <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+                </div>
             </div>
             {% endif %}
         </ol>
