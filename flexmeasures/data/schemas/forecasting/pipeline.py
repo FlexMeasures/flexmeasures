@@ -88,19 +88,11 @@ class ForecastingPipelineSchema(Schema):
                 raise ValidationError(
                     f"max-forecast-horizon must be a multiple of the sensor resolution ({sensor.event_resolution})"
                 )
-            else:
-                data["max_forecast_horizon"] = (
-                    data["max_forecast_horizon"] // sensor.event_resolution
-                )
 
         if forecast_frequency is not None:
             if forecast_frequency % sensor.event_resolution != timedelta(0):
                 raise ValidationError(
                     f"forecast-frequency must be a multiple of the sensor resolution ({sensor.event_resolution})"
-                )
-            else:
-                data["forecast_frequency"] = (
-                    data["forecast_frequency"] // sensor.event_resolution
                 )
 
     @post_load

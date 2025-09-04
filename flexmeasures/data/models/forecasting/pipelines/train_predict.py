@@ -45,8 +45,12 @@ class TrainPredictPipeline(Forecaster):
         )
         self.predict_period_in_hours = self._config["predict_period_in_hours"]
         self.train_period_in_hours = self._config["train_period_in_hours"]
-        self.max_forecast_horizon = config["max_forecast_horizon"]
-        self.forecast_frequency = config["forecast_frequency"]
+        self.max_forecast_horizon = (
+            config["max_forecast_horizon"] // self.target_sensor.event_resolution
+        )
+        self.forecast_frequency = (
+            config["forecast_frequency"] // self.target_sensor.event_resolution
+        )
         self.probabilistic = config["probabilistic"]
         self.sensor_to_save = config["sensor_to_save"]
         self.delete_model = delete_model
