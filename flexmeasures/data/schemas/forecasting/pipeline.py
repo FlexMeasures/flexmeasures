@@ -127,13 +127,15 @@ class ForecastingPipelineSchema(Schema):
 
     def _build_sensors_dict(
         self,
-        target_sensor_id: int,
+        target_sensor: Sensor,
         regressors: str,
         future_regressors: str,
         past_regressors: str,
     ) -> dict:
 
-        sensors_dict = {"target": target_sensor_id}
+        sensors_dict = {
+            f"{target_sensor.name} (ID: {target_sensor.id})": target_sensor.id
+        }
 
         # Split both regressors and future_regressors and merge them
         all_ids = set()
@@ -163,7 +165,7 @@ class ForecastingPipelineSchema(Schema):
         future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
         past_regressors = self._parse_comma_list(data.get("past_regressors", ""))
         sensors = self._build_sensors_dict(
-            target_sensor_id=data["sensor"].id,
+            target_sensor=data["sensor"],
             regressors=data.get("regressors", ""),
             future_regressors=data.get("future_regressors", ""),
             past_regressors=data.get("past_regressors", ""),

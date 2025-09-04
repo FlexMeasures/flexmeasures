@@ -142,15 +142,15 @@ class PredictPipeline(BasePipeline):
             y_pred_df.insert(1, "belief_time", belief_timestamp)
 
             # Insert the target sensor name and value at belief time forecasts are made
-            y_pred_df.insert(2, "target", value_at_belief_horizon)
+            y_pred_df.insert(2, self.target, value_at_belief_horizon)
             if self.quantiles:
                 y_pred_df.set_index(
-                    ["event_start", "belief_time", "target", "component"],
+                    ["event_start", "belief_time", self.target, "component"],
                     inplace=True,
                 )
             else:
                 y_pred_df.set_index(
-                    ["event_start", "belief_time", "target"], inplace=True
+                    ["event_start", "belief_time", self.target], inplace=True
                 )
 
             logging.debug(

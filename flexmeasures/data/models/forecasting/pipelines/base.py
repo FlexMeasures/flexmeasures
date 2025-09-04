@@ -86,6 +86,7 @@ class BasePipeline:
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
         self.target_sensor = target_sensor
+        self.target = f"{target_sensor.name} (ID: {target_sensor.id})"
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
         self.max_forecast_horizon_in_hours = (
@@ -129,7 +130,7 @@ class BasePipeline:
                     event_ends_before=sensor_event_ends_before,
                     most_recent_beliefs_only=most_recent_beliefs_only,
                     exclude_source_types=(
-                        ["forecaster"] if name == "target" else []
+                        ["forecaster"] if name == self.target else []
                     ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
                 )
                 try:
@@ -361,7 +362,7 @@ class BasePipeline:
             if not self.past_regressors and not self.future_regressors:
                 logging.info("Using autoregressive forecasting.")
 
-                y = df[["event_start", "belief_time", "target"]].copy()
+                y = df[["event_start", "belief_time", self.target]].copy()
 
                 _, _, target_list, belief_timestamps_list = _generate_splits(
                     None, None, y
@@ -385,7 +386,7 @@ class BasePipeline:
                 else None
             )
             y = (
-                df[["event_start", "belief_time", "target"]]
+                df[["event_start", "belief_time", self.target]]
                 .dropna()
                 .reset_index(drop=True)
                 .copy()
@@ -411,7 +412,6 @@ class BasePipeline:
     def detect_and_fill_missing_values(
         self,
         df: pd.DataFrame,
-        sensor_names: list[str],
         sensors: list[Sensor],
         start: datetime,
         end: datetime,
@@ -425,7 +425,7 @@ class BasePipeline:
 
         Parameters:
         - df (pd.DataFrame): The input dataframe containing time series data with a "time" column.
-        - sensor_names (list[str]): The names of the sensors (used for logging).
+        - sensors (list[Sensor]): The list of sensors (used for logging).
         - start (datetime): The desired start time of the time series.
         - end (datetime): The desired end time of the time series.
         - interpolate_kwargs (dict, optional): Additional keyword arguments passed to `MissingValuesFiller`,
@@ -441,7 +441,8 @@ class BasePipeline:
         """
         dfs = []
 
-        for sensor_name, sensor in zip(sensor_names, sensors):
+        for sensor in sensors:
+            sensor_name = f"{sensor.name} (ID: {sensor.id})"
             if df.empty:
                 last_event_start = end - pd.Timedelta(
                     hours=sensor.event_resolution.total_seconds() / 3600
@@ -455,7 +456,7 @@ class BasePipeline:
                 df = pd.concat([new_row_start, df, new_row_end], ignore_index=True)
 
                 logging.debug(
-                    f"Sensor '{self.sensors[sensor_name]}' has no data from {start} to {end}. Filling with {fill}."
+                    f"Sensor {sensor_name} has no data from {start} to {end}. Filling with {fill}."
                 )
                 transformer = MissingValuesFiller(fill=float(fill))
             else:
@@ -491,7 +492,7 @@ class BasePipeline:
             # Drop duplicate event_starts (keep first)
             if n_extra_points := len(data) - len(data["event_start"].unique()):
                 logging.debug(
-                    f"Data for {sensor_name} contains multiple beliefs about a single event. "
+                    f"Data for sensor {sensor_name} contains multiple beliefs about a single event. "
                     f"Dropping {n_extra_points} beliefs with duplicate event starts."
                 )
                 data = data.drop_duplicates("event_start")
@@ -510,7 +511,7 @@ class BasePipeline:
                     data_darts, **(interpolate_kwargs or {})
                 )
                 logging.debug(
-                    f"Sensor '{sensor_name}' has gaps:\n{data_darts_gaps.to_string()}\n"
+                    f"Sensor {sensor_name} has gaps:\n{data_darts_gaps.to_string()}\n"
                     "These were filled using `pd.DataFrame.interpolate()`."
                 )
 
@@ -598,7 +599,6 @@ class BasePipeline:
 
             past_covariates = self.detect_and_fill_missing_values(
                 df=past_data,
-                sensor_names=[r for r in self.past_regressors],
                 sensors=self.past,
                 start=target_start,
                 end=target_end,
@@ -676,7 +676,6 @@ class BasePipeline:
             )
             forecast_data_darts = self.detect_and_fill_missing_values(
                 df=forecast_data,
-                sensor_names=[r for r in self.future_regressors],
                 sensors=self.future,
                 start=target_end + self.target_sensor.event_resolution,
                 end=forecast_end + self.target_sensor.event_resolution,
@@ -684,7 +683,6 @@ class BasePipeline:
 
             realized_data_darts = self.detect_and_fill_missing_values(
                 df=realized_data,
-                sensor_names=[r for r in self.future_regressors],
                 sensors=self.future,
                 start=target_start,
                 end=target_end,
@@ -714,7 +712,6 @@ class BasePipeline:
 
         target_data = self.detect_and_fill_missing_values(
             df=target_dataframe[(target_dataframe["event_start"] <= target_end)],
-            sensor_names=["target"],
             sensors=[self.target_sensor],
             start=target_start,
             end=target_end,

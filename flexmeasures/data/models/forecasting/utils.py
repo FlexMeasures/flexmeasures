@@ -194,7 +194,7 @@ def data_to_bdf(
     df.pop("component")
 
     # Rename target to '0h'
-    df = df.rename(columns={"target": "0h"})
+    df = df.rename(columns={f"{target_sensor.name} (ID: {target_sensor.id})": "0h"})
     df["event_start"] = pd.to_datetime(df["event_start"])
     df["belief_time"] = pd.to_datetime(df["belief_time"])
 
