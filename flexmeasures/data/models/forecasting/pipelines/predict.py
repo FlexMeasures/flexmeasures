@@ -22,8 +22,8 @@ from flexmeasures.data.utils import save_to_db
 class PredictPipeline(BasePipeline):
     def __init__(
         self,
-        future: list[Sensor],
-        past: list[Sensor],
+        future_regressors: list[Sensor],
+        past_regressors: list[Sensor],
         target_sensor: Sensor,
         model_path: str,
         output_path: str,
@@ -43,8 +43,8 @@ class PredictPipeline(BasePipeline):
         Initialize the PredictPipeline.
 
         :param sensors: Dictionary mapping custom regressor names to sensor IDs.
-        :param past_regressors: List of past regressor names.
-        :param future_regressors: List of future regressor names.
+        :param past_regressors: List of sensors serving as past regressors.
+        :param future_regressors: List of sensors serving as future regressors.
         :param target: Custom target name.
         :param model_path: Path to the model file.
         :param output_path: Path where predictions will be saved.
@@ -59,8 +59,8 @@ class PredictPipeline(BasePipeline):
         :param data_source: Data source to attribute the forecasts to.
         """
         super().__init__(
-            future=future,
-            past=past,
+            future_regressors=future_regressors,
+            past_regressors=past_regressors,
             target_sensor=target_sensor,
             n_steps_to_predict=n_steps_to_predict,
             max_forecast_horizon=max_forecast_horizon,

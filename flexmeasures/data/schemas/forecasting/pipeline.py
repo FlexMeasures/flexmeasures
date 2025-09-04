@@ -107,26 +107,28 @@ class ForecastingPipelineSchema(Schema):
 
         target_sensor = data["sensor"]
 
-        future = [
+        future_regressors = [
             db.session.get(Sensor, int(x.strip()))
             for x in data.get("future_regressors", "").split(",")
             if x.strip()
         ]
-        past = [
+        past_regressors = [
             db.session.get(Sensor, int(x.strip()))
             for x in data.get("past_regressors", "").split(",")
             if x.strip()
         ]
 
-        past_and_future = [
+        past_and_future_regressors = [
             db.session.get(Sensor, int(x.strip()))
             for x in data.get("regressors", "").split(",")
             if x.strip()
         ]
 
-        if past_and_future:
-            future = list(set(future + past_and_future))
-            past = list(set(past + past_and_future))
+        if past_and_future_regressors:
+            future_regressors = list(
+                set(future_regressors + past_and_future_regressors)
+            )
+            past_regressors = list(set(past_regressors + past_and_future_regressors))
 
         resolution = target_sensor.event_resolution
 
@@ -190,8 +192,8 @@ class ForecastingPipelineSchema(Schema):
             os.makedirs(output_path)
 
         return dict(
-            future_regressors=future,
-            past_regressors=past,
+            future_regressors=future_regressors,
+            past_regressors=past_regressors,
             target=target_sensor,
             model_save_dir=data["model_save_dir"],
             output_path=output_path,

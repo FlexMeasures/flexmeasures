@@ -20,8 +20,8 @@ warnings.filterwarnings("ignore")
 class TrainPipeline(BasePipeline):
     def __init__(
         self,
-        future: list[Sensor],
-        past: list[Sensor],
+        future_regressors: list[Sensor],
+        past_regressors: list[Sensor],
         target_sensor: Sensor,
         model_save_dir: str,
         n_steps_to_predict: int,
@@ -35,6 +35,8 @@ class TrainPipeline(BasePipeline):
         Initialize the TrainPipeline.
 
         :param sensors: Dictionary mapping custom regressor names to sensor IDs.
+        :param past_regressors: List of sensors serving as past regressors.
+        :param future_regressors: List of sensors serving as future regressors.
         :param target: Custom target name.
         :param model_save_dir: Directory where the trained model will be saved.
         :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
@@ -44,10 +46,12 @@ class TrainPipeline(BasePipeline):
         """
         self.model_save_dir = model_save_dir
         self.probabilistic = probabilistic
-        self.auto_regressive = True if not past and not future else False
+        self.auto_regressive = (
+            True if not past_regressors and not future_regressors else False
+        )
         super().__init__(
-            future=future,
-            past=past,
+            future_regressors=future_regressors,
+            past_regressors=past_regressors,
             target_sensor=target_sensor,
             n_steps_to_predict=n_steps_to_predict,
             max_forecast_horizon=max_forecast_horizon,

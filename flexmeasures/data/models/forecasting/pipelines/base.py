@@ -57,8 +57,8 @@ class BasePipeline:
     def __init__(
         self,
         target_sensor: Sensor,
-        future: list[Sensor],
-        past: list[Sensor],
+        future_regressors: list[Sensor],
+        past_regressors: list[Sensor],
         n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int,
@@ -67,8 +67,8 @@ class BasePipeline:
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
     ) -> None:
-        self.future = future
-        self.past = past
+        self.future = future_regressors
+        self.past = past_regressors
         self.n_steps_to_predict = n_steps_to_predict
         self.max_forecast_horizon = max_forecast_horizon
         self.horizons = range(
@@ -79,9 +79,11 @@ class BasePipeline:
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})"
         self.future_regressors = [
-            f"{sensor.name} (ID: {sensor.id})" for sensor in future
+            f"{sensor.name} (ID: {sensor.id})" for sensor in future_regressors
         ]
-        self.past_regressors = [f"{sensor.name} (ID: {sensor.id})" for sensor in past]
+        self.past_regressors = [
+            f"{sensor.name} (ID: {sensor.id})" for sensor in past_regressors
+        ]
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
         self.max_forecast_horizon_in_hours = (
