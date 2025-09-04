@@ -88,36 +88,6 @@ def mock_asset_data_with_kpis(
     return asset
 
 
-def mock_user_response(
-    user_id: int = 1,
-    username: str = "Alex",
-    email="alex@seita.nl",
-    active: bool = True,
-    as_list: bool = True,
-    multiple: bool = False,
-) -> dict | list[dict]:
-    user = dict(
-        id=user_id,
-        username=username,
-        email=email,
-        active=active,
-        password="secret",
-        flexmeasures_roles=[1],
-        last_login_at="2021-05-14T20:00:00+02:00",
-        account_id=1,
-    )
-    if as_list:
-        user_list = [user]
-        if multiple:
-            user2 = copy.deepcopy(user)
-            user2["id"] = 2
-            user2["username"] = "Bert"
-            user2["email"] = "bert@seita.nl"
-            user_list.append(user2)
-        return user_list
-    return user
-
-
 def mock_asset_data_as_form_input(api_data: dict) -> dict:
     form_input = copy.deepcopy(api_data)
     form_input["account"] = api_data["account_id"]

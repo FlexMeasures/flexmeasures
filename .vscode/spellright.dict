@@ -290,3 +290,5 @@ attr
 getattr
 asc
 desc
+autoflush
+fromisoformat
