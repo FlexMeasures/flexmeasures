@@ -235,6 +235,7 @@ class PredictPipeline(BasePipeline):
                 )
                 y = y_list[h]
                 belief_timestamp = belief_timestamps_list[h]
+                # todo: there is something off about this debug statement, as h+1 never reaches n
                 logging.debug(
                     f"Making prediction for {self.readable_resolution} offset {h + 1}/{self.n_steps_to_predict}"
                 )
