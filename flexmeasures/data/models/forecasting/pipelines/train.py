@@ -20,7 +20,6 @@ warnings.filterwarnings("ignore")
 class TrainPipeline(BasePipeline):
     def __init__(
         self,
-        sensors: dict[str, int],
         past_regressors: list[str],
         future_regressors: list[str],
         future: list[Sensor],
@@ -53,7 +52,6 @@ class TrainPipeline(BasePipeline):
             True if not past_regressors and not future_regressors else False
         )
         super().__init__(
-            sensors=sensors,
             past_regressors=past_regressors,
             future_regressors=future_regressors,
             future=future,

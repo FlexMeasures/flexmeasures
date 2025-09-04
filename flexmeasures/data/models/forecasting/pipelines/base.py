@@ -40,8 +40,6 @@ class BasePipeline:
 
     Parameters
     ----------
-    sensors : dict[str, int]
-        Mapping of sensor names to sensor IDs.
     past_regressors : list[str] | None
         Sensor names used only as historical (past) covariates.
     future_regressors : list[str]
@@ -58,7 +56,6 @@ class BasePipeline:
 
     def __init__(
         self,
-        sensors: dict[str, int],
         future_regressors: list[str],
         target_sensor: Sensor,
         future: list[Sensor],
@@ -72,7 +69,6 @@ class BasePipeline:
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
     ) -> None:
-        self.sensors = sensors
         self.past_regressors = past_regressors
         self.future_regressors = future_regressors
         self.future = future

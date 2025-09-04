@@ -32,7 +32,6 @@ class TrainPredictPipeline(Forecaster):
         for k, v in self._config.items():
             setattr(self, k, v)
         config = self._config
-        self.sensors = config["sensors"]
         self.past_regressors = config["past_regressors"]
         self.future_regressors = config["future_regressors"]
         self.future = config["future"]
@@ -73,7 +72,6 @@ class TrainPredictPipeline(Forecaster):
 
         # Train model
         train_pipeline = TrainPipeline(
-            sensors=self.sensors,
             past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
             future=self.future,
@@ -97,7 +95,6 @@ class TrainPredictPipeline(Forecaster):
 
         # Make predictions
         predict_pipeline = PredictPipeline(
-            sensors=self.sensors,
             past_regressors=self.past_regressors,
             future_regressors=self.future_regressors,
             future=self.future,

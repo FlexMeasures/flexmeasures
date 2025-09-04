@@ -22,7 +22,6 @@ from flexmeasures.data.utils import save_to_db
 class PredictPipeline(BasePipeline):
     def __init__(
         self,
-        sensors: dict[str, int],
         past_regressors: list[str],
         future_regressors: list[str],
         future: list[Sensor],
@@ -62,7 +61,6 @@ class PredictPipeline(BasePipeline):
         :param data_source: Data source to attribute the forecasts to.
         """
         super().__init__(
-            sensors=sensors,
             past_regressors=past_regressors,
             future_regressors=future_regressors,
             future=future,

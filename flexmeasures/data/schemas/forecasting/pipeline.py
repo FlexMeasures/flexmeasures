@@ -125,51 +125,12 @@ class ForecastingPipelineSchema(Schema):
                 field_name="sensors",
             )
 
-    def _build_sensors_dict(
-        self,
-        target_sensor: Sensor,
-        regressors: str,
-        future_regressors: str,
-        past_regressors: str,
-    ) -> dict:
-
-        sensors_dict = {
-            f"{target_sensor.name} (ID: {target_sensor.id})": target_sensor.id
-        }
-
-        # Split both regressors and future_regressors and merge them
-        all_ids = set()
-        if regressors:
-            all_ids.update(int(x.strip()) for x in regressors.split(",") if x.strip())
-        if future_regressors:
-            all_ids.update(
-                int(x.strip()) for x in future_regressors.split(",") if x.strip()
-            )
-        if past_regressors:
-            all_ids.update(
-                int(x.strip()) for x in past_regressors.split(",") if x.strip()
-            )
-
-        # Add them to the dict with unique keys
-        for idx, sensor_id in enumerate(sorted(all_ids), start=1):
-            sensors_dict[
-                f"{db.session.get(Sensor, sensor_id).name} (ID: {sensor_id})"
-            ] = sensor_id
-
-        return sensors_dict
-
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
 
         regressors = self._parse_comma_list(data.get("regressors", ""))
         future_regressors = self._parse_comma_list(data.get("future_regressors", ""))
         past_regressors = self._parse_comma_list(data.get("past_regressors", ""))
-        sensors = self._build_sensors_dict(
-            target_sensor=data["sensor"],
-            regressors=data.get("regressors", ""),
-            future_regressors=data.get("future_regressors", ""),
-            past_regressors=data.get("past_regressors", ""),
-        )
         target_sensor = data["sensor"]
 
         if regressors:
@@ -251,7 +212,6 @@ class ForecastingPipelineSchema(Schema):
             os.makedirs(output_path)
 
         return dict(
-            sensors=sensors,
             past_regressors=past_regressors,
             future_regressors=future_regressors,
             future=future,
