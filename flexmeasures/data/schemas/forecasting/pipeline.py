@@ -154,9 +154,8 @@ class ForecastingPipelineSchema(Schema):
         forecast_frequency = data.get("forecast_frequency")
 
         if max_forecast_horizon is None and forecast_frequency is None:
-            multiplier = timedelta(hours=1) // data["sensor"].event_resolution
-            max_forecast_horizon = predict_period_in_hours * multiplier
-            forecast_frequency = predict_period_in_hours * multiplier
+            max_forecast_horizon = timedelta(hours=predict_period_in_hours)
+            forecast_frequency = timedelta(hours=predict_period_in_hours)
         elif max_forecast_horizon is None:
             max_forecast_horizon = forecast_frequency
         elif forecast_frequency is None:
