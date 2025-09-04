@@ -100,11 +100,7 @@ def test_train_predict_pipeline(
         )
         # 1 hour of forecasts is saved over 4 15-minute resolution events
         n_events_per_horizon = timedelta(hours=1) / config["target"].event_resolution
-        n_hourly_horizons = (
-            config["max_forecast_horizon"]
-            // config["target"].event_resolution
-            // n_events_per_horizon
-        )
+        n_hourly_horizons = config["max_forecast_horizon"] // timedelta(hours=1)
         assert (
             len(forecasts) == n_cycles * n_hourly_horizons * n_events_per_horizon
         ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_hourly_horizons} hourly horizons"
