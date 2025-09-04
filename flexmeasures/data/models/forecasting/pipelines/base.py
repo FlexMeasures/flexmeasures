@@ -8,7 +8,6 @@ from functools import reduce
 import pandas as pd
 from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
-from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from timely_beliefs import utils as tb_utils
 
@@ -105,14 +104,22 @@ class BasePipeline:
         - pd.DataFrame: A DataFrame containing all the data from each sensor.
         """
         try:
-            logging.debug("Loading all data from %s", self.sensors)
+            logging.debug(
+                "Loading all data from %s",
+                {
+                    "Future regressors": [s.id for s in self.future],
+                    "Past regressors": [s.id for s in self.past],
+                    "Target": self.target_sensor.id,
+                },
+            )
 
             sensor_dfs = []
-            for name, sensor_id in self.sensors.items():
+            sensors = self.future + self.past + [self.target_sensor]
+            for sensor in sensors:
+                name = f"{sensor.name} (ID: {sensor.id})"
 
-                logging.debug(f"Loading data for {name} (sensor ID {sensor_id})")
+                logging.debug(f"Loading data for {name} (sensor ID {sensor.id})")
 
-                sensor = db.session.get(Sensor, sensor_id)
                 sensor_event_ends_before = self.event_ends_before
                 sensor_event_starts_after = self.event_starts_after
 
