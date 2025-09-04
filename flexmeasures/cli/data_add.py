@@ -1178,31 +1178,16 @@ def train_predict_pipeline(
         )
     del kwargs["resolution"]
 
-    def converge_sensor_listings(
-        kwargs: dict,
-        comma_separated_option: str,
-        multiple_option: str,
-        converged_option: str,
-    ) -> dict:
-        """Support both comma-separated lists of sensor IDs and the same sensor ID option passed multiple times"""
-        a: str | None = kwargs.pop(comma_separated_option)
-        b: tuple = kwargs.pop(multiple_option)
-        if a is None:
-            return kwargs
-        a_list = [int(x.strip()) for x in a.split(",") if x.strip()]
-        b_list = list(b)
-        c_list = list(set(a_list + b_list))
-        kwargs[converged_option] = c_list
-        return kwargs
-
     # Support both comma-separated lists of sensor IDs and the same sensor ID option passed multiple times
-    kwargs = converge_sensor_listings(
-        kwargs, "future_regressors", "future_regressor", "future_regressors"
+    kwargs["future_regressors"] = converge_listings(
+        kwargs.pop("future_regressors"), kwargs.pop("future_regressor")
     )
-    kwargs = converge_sensor_listings(
-        kwargs, "past_regressors", "past_regressor", "past_regressors"
+    kwargs["past_regressors"] = converge_listings(
+        kwargs.pop("past_regressors"), kwargs.pop("past_regressor")
     )
-    kwargs = converge_sensor_listings(kwargs, "regressors", "regressor", "regressors")
+    kwargs["regressors"] = converge_listings(
+        kwargs.pop("regressors"), kwargs.pop("regressor")
+    )
 
     try:
         pipeline = TrainPredictPipeline(config=kwargs)
@@ -2425,3 +2410,16 @@ def parse_source(source):
     else:
         _source = get_or_create_source(source, source_type="CLI script")
     return _source
+
+
+def converge_listings(
+    comma_separated_option: str | None,
+    multiple_option: tuple[str],
+) -> list[str]:
+    """Converge comma-separated lists of items with a list of items."""
+    if comma_separated_option is None:
+        return list(multiple_option)
+    first_list = [x.strip() for x in comma_separated_option.split(",") if x.strip()]
+    second_list = list(multiple_option)
+    converged_list = list(set(first_list + second_list))
+    return converged_list
