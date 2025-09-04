@@ -108,13 +108,12 @@ def test_train_predict_pipeline(
             forecasts.lineage.number_of_belief_times == n_cycles
         ), f"we expect 1 belief time per cycle, and {n_cycles} cycles"
         # todo: source should mention the CustomLGBM model, though
+        source = forecasts.lineage.sources[0]
         assert "TrainPredictPipeline" in str(
-            forecasts.lineage.sources[0]
+            source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
+        data_generator_config = source.attributes["data_generator"]["config"]
         for regressor in regressors:
             assert (
-                regressor.id
-                in forecasts.lineage.sources[0].attributes["data_generator"]["config"][
-                    "future_regressors"
-                ]
+                regressor.id in data_generator_config["future_regressors"]
             ), f"data generator config should mention regressor {regressor.name}"
