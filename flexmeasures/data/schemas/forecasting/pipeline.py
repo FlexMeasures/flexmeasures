@@ -200,8 +200,8 @@ class ForecastingPipelineSchema(Schema):
             os.makedirs(output_path)
 
         return dict(
-            future=future,
-            past=past,
+            future_regressors=future,
+            past_regressors=past,
             target=target_sensor,
             model_save_dir=data["model_save_dir"],
             output_path=output_path,
