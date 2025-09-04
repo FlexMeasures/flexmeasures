@@ -39,14 +39,14 @@ logger = logging.getLogger("S2FlaskWSServerSync")
 
 class FRBCDeviceData:
     """Class to store FRBC device data received from Resource Manager."""
-    
+
     def __init__(self):
         self.system_description: Optional[FRBCSystemDescription] = None
         self.fill_level_target_profile: Optional[FRBCFillLevelTargetProfile] = None
         self.storage_status: Optional[FRBCStorageStatus] = None
         self.actuator_status: Optional[FRBCActuatorStatus] = None
         self.resource_id: Optional[str] = None
-    
+
     def is_complete(self) -> bool:
         """Check if we have received all necessary data to generate instructions."""
         return (
@@ -123,8 +123,12 @@ class S2FlaskWSServerSync:
         self._handlers = MessageHandlersSync()
         self.s2_parser = S2Parser()
         self._connections: Dict[str, Sock] = {}
-        self._device_data: Dict[str, FRBCDeviceData] = {}  # Store device data by resource_id
-        self._websocket_to_resource: Dict[Sock, str] = {}  # Map websocket to resource_id
+        self._device_data: Dict[str, FRBCDeviceData] = (
+            {}
+        )  # Store device data by resource_id
+        self._websocket_to_resource: Dict[Sock, str] = (
+            {}
+        )  # Map websocket to resource_id
         self._register_default_handlers()
         self.sock.route(self.ws_path)(self._ws_handler)
 
@@ -135,10 +139,18 @@ class S2FlaskWSServerSync:
             ResourceManagerDetails, self.handle_ResourceManagerDetails
         )
         # Register FRBC message handlers
-        self._handlers.register_handler(FRBCSystemDescription, self.handle_frbc_system_description)
-        self._handlers.register_handler(FRBCFillLevelTargetProfile, self.handle_frbc_fill_level_target_profile)
-        self._handlers.register_handler(FRBCStorageStatus, self.handle_frbc_storage_status)
-        self._handlers.register_handler(FRBCActuatorStatus, self.handle_frbc_actuator_status)
+        self._handlers.register_handler(
+            FRBCSystemDescription, self.handle_frbc_system_description
+        )
+        self._handlers.register_handler(
+            FRBCFillLevelTargetProfile, self.handle_frbc_fill_level_target_profile
+        )
+        self._handlers.register_handler(
+            FRBCStorageStatus, self.handle_frbc_storage_status
+        )
+        self._handlers.register_handler(
+            FRBCActuatorStatus, self.handle_frbc_actuator_status
+        )
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
@@ -220,15 +232,19 @@ class S2FlaskWSServerSync:
             if websocket in self._websocket_to_resource:
                 resource_id = self._websocket_to_resource[websocket]
                 del self._websocket_to_resource[websocket]
-                
+
                 # Clean up device data
                 if resource_id in self._device_data:
                     del self._device_data[resource_id]
-                
+
                 # Clean up device state from scheduler if available
-                if hasattr(self, 's2_scheduler') and self.s2_scheduler is not None:
+                if (
+                    hasattr(self, "s2_scheduler")
+                    and self.s2_scheduler is not None
+                    and hasattr(self.s2_scheduler, "remove_device_state")
+                ):
                     self.s2_scheduler.remove_device_state(resource_id)
-                    
+
             self.app.logger.info("Client %s disconnected (sync)", client_id)
 
     def respond_with_reception_status(
@@ -303,7 +319,7 @@ class S2FlaskWSServerSync:
         # Store the resource_id from ResourceManagerDetails for device identification
         resource_id = str(message.resource_id)
         self._websocket_to_resource[websocket] = resource_id
-        
+
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
         self._device_data[resource_id].resource_id = resource_id
@@ -314,12 +330,12 @@ class S2FlaskWSServerSync:
         if not isinstance(message, FRBCSystemDescription):
             return
         self.app.logger.info("Received FRBCSystemDescription: %s", message.to_json())
-        
+
         # Get resource_id from websocket mapping
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
-        
+
         self._device_data[resource_id].system_description = message
         self._check_and_generate_instructions(resource_id, websocket)
 
@@ -328,12 +344,14 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, FRBCFillLevelTargetProfile):
             return
-        self.app.logger.info("Received FRBCFillLevelTargetProfile: %s", message.to_json())
-        
+        self.app.logger.info(
+            "Received FRBCFillLevelTargetProfile: %s", message.to_json()
+        )
+
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
-        
+
         self._device_data[resource_id].fill_level_target_profile = message
         self._check_and_generate_instructions(resource_id, websocket)
 
@@ -343,11 +361,11 @@ class S2FlaskWSServerSync:
         if not isinstance(message, FRBCStorageStatus):
             return
         self.app.logger.info("Received FRBCStorageStatus: %s", message.to_json())
-        
+
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
-        
+
         self._device_data[resource_id].storage_status = message
         self._check_and_generate_instructions(resource_id, websocket)
 
@@ -357,52 +375,63 @@ class S2FlaskWSServerSync:
         if not isinstance(message, FRBCActuatorStatus):
             return
         self.app.logger.info("Received FRBCActuatorStatus: %s", message.to_json())
-        
+
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
-        
+
         self._device_data[resource_id].actuator_status = message
         self._check_and_generate_instructions(resource_id, websocket)
 
-    def _check_and_generate_instructions(self, resource_id: str, websocket: Sock) -> None:
+    def _check_and_generate_instructions(
+        self, resource_id: str, websocket: Sock
+    ) -> None:
         """Check if we have all required data and generate instructions if so."""
         device_data = self._device_data.get(resource_id)
         if device_data is None or not device_data.is_complete():
             self.app.logger.info(f"Waiting for more data from device {resource_id}")
             return
-        
-        self.app.logger.info(f"All data received for device {resource_id}, generating instructions")
-        
+
+        self.app.logger.info(
+            f"All data received for device {resource_id}, generating instructions"
+        )
+
         try:
             # Use the S2Scheduler to create and store device state
-            if hasattr(self, 's2_scheduler') and self.s2_scheduler is not None:
+            if hasattr(self, "s2_scheduler") and self.s2_scheduler is not None:
                 # Create S2FrbcDeviceState from FRBC messages and store in scheduler
                 device_state = self.s2_scheduler.create_device_state_from_frbc_messages(
                     resource_id=resource_id,
                     system_description=device_data.system_description,
                     fill_level_target_profile=device_data.fill_level_target_profile,
                     storage_status=device_data.storage_status,
-                    actuator_status=device_data.actuator_status
+                    actuator_status=device_data.actuator_status,
                 )
-                
+
                 # Generate instructions using the scheduler
                 schedule_results = self.s2_scheduler.compute()
-                
+
                 # Send generated instructions
                 for result in schedule_results:
                     if isinstance(result, FRBCInstruction):
                         self._send_and_forget(result, websocket)
-                        self.app.logger.info(f"Sent FRBC instruction: {result.to_json()}")
+                        self.app.logger.info(
+                            f"Sent FRBC instruction: {result.to_json()}"
+                        )
                     elif isinstance(result, dict) and "sensor" in result:
                         # TODO: save result["data"] to sensor if needed for FlexMeasures
                         pass
             else:
                 # Scheduler not available - log warning and skip instruction generation
-                self.app.logger.warning(f"S2Scheduler not available for device {resource_id}, cannot generate instructions")
-                    
+                self.app.logger.warning(
+                    f"S2Scheduler not available for device {resource_id}, cannot generate instructions"
+                )
+
         except Exception as e:
-            self.app.logger.error(f"Error generating instructions for device {resource_id}: {e}")
+            self.app.logger.error(
+                f"Error generating instructions for device {resource_id}: {e}"
+            )
             import traceback
+
             self.app.logger.error(f"Traceback: {traceback.format_exc()}")
             # Continue processing other devices
