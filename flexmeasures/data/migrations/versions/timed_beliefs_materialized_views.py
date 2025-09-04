@@ -19,7 +19,7 @@ def upgrade():
     # Create the materialized view with proper alias
     op.execute(
         """
-        CREATE MATERIALIZED VIEW timed_belief_min_v AS
+        CREATE MATERIALIZED VIEW most_recent_beliefs_mview AS
         SELECT *
         FROM (
             SELECT
@@ -46,26 +46,26 @@ def upgrade():
     # Create indexes
     op.execute(
         """
-        CREATE INDEX idx_timed_belief_min_v_sensor_event
-        ON timed_belief_min_v(sensor_id, event_start);
+        CREATE INDEX idx_most_recent_beliefs_mview_sensor_event
+        ON most_recent_beliefs_mview(sensor_id, event_start);
     """
     )
 
     op.execute(
         """
-        CREATE INDEX idx_timed_belief_min_v_event_start
-        ON timed_belief_min_v(event_start);
+        CREATE INDEX idx_most_recent_beliefs_mview_event_start
+        ON most_recent_beliefs_mview(event_start);
     """
     )
 
     # Create a unique index to allow concurrent refreshes
     op.execute(
         """
-        CREATE UNIQUE INDEX idx_timed_belief_min_v_unique
-        ON timed_belief_min_v(sensor_id, event_start, source_id);
+        CREATE UNIQUE INDEX idx_most_recent_beliefs_mview_unique
+        ON most_recent_beliefs_mview(sensor_id, event_start, source_id);
     """
     )
 
 
 def downgrade():
-    op.execute("DROP MATERIALIZED VIEW IF EXISTS timed_belief_min_v CASCADE;")
+    op.execute("DROP MATERIALIZED VIEW IF EXISTS most_recent_beliefs_mview CASCADE;")

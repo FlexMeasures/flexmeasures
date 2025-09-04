@@ -16,7 +16,7 @@ db: sa = (
 )
 Base = None  # type: ignore
 session_options = None
-timed_belief_min_v = None
+most_recent_beliefs_mview = None
 
 
 def init_db():
@@ -33,7 +33,7 @@ def init_db():
 def configure_db_for(app: Flask):
     """Call this to configure the database and the tools we use on it for the Flask app.
     This should only be called once in the app's lifetime."""
-    global db, Base, timed_belief_min_v
+    global db, Base, most_recent_beliefs_mview
 
     with app.app_context():
         db.init_app(app)
@@ -55,11 +55,12 @@ def configure_db_for(app: Flask):
         import timely_beliefs.utils as tb_utils
 
         try:
-            timed_belief_min_v = tb_utils.get_timed_belief_min_v(db.session)
+            most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(
+                db.session
+            )
         except Exception:
-            timed_belief_min_v = None
             app.logger.warning(
-                "Could not determine timed_belief_min_v. Do you have timely-beliefs installed and is the latest version?"
+                "Could not determine most_recent_beliefs_mview. Do you have timely-beliefs installed and is the latest version?"
                 " Beliefs will be retrieved from the actual table instead of the materialized view.",
             )
 

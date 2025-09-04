@@ -48,7 +48,7 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import (
     flatten_unique,
 )
-from flexmeasures.data.config import timed_belief_min_v
+from flexmeasures.data.config import most_recent_beliefs_mview
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
@@ -710,7 +710,7 @@ class AssetAPI(FlaskView):
         Data for use in charts (in case you have the chart specs already).
         """
         sensors = flatten_unique(asset.validate_sensors_to_show())
-        kwargs["timed_belief_min_v"] = timed_belief_min_v
+        kwargs["most_recent_beliefs_mview"] = most_recent_beliefs_mview
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
     @route("/<id>/auditlog")

@@ -649,7 +649,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         compress_json: bool = False,
         resolution: timedelta | None = None,
         use_materialized_view: bool = True,
-        timed_belief_min_v: Table | None = None,
+        most_recent_beliefs_mview: Table | None = None,
     ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
 
@@ -691,7 +691,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 one_deterministic_belief_per_event_per_source=True,
                 resolution=resolution,
                 use_materialized_view=use_materialized_view,
-                timed_belief_min_v=timed_belief_min_v,
+                most_recent_beliefs_mview=most_recent_beliefs_mview,
             )
         if as_json and not compress_json:
             from flexmeasures.data.services.time_series import simplify_index

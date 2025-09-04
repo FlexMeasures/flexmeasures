@@ -118,7 +118,7 @@ def refresh_materialized_views(concurrent: bool):
     )
     try:
         db.session.execute(
-            text(f"REFRESH MATERIALIZED VIEW {refresh_type} timed_belief_min_v;")
+            text(f"REFRESH MATERIALIZED VIEW {refresh_type} most_recent_beliefs_mview;")
         )
         db.session.commit()
         elapsed_time = time.time() - start_time
