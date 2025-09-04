@@ -85,7 +85,7 @@ class CustomLGBM(BaseModel):
             elif horizon % 24 == 23:
                 lags = [-1, -2]
 
-            lags = list(range(-1, -25, -1))
+            # lags = list(range(-1, -25, -1))  # todo: consider letting the model figure out which lags are important
             model_params["lags"] = lags
             if self.use_past_covariates:
                 model_params["lags_past_covariates"] = lags
