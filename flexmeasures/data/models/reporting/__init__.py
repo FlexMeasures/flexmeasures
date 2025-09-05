@@ -36,16 +36,6 @@ class Reporter(DataGenerator):
                 result["sensor"].event_resolution == result["data"].event_resolution
             ), f"The resolution of the results ({result['data'].event_resolution}) should match that of the output sensor ({result['sensor'].event_resolution}, ID {result['sensor'].id})."
 
-            # Update the BeliefDataFrame's sensor to be the intended sensor
-            result["data"].sensor = result["sensor"]
-
-            # Update all data sources in the BeliefsDataFrame to the data source representing the configured reporter
-            result["data"].index = result["data"].index.set_levels(
-                [self.data_source] * len(result["data"]),
-                level="source",
-                verify_integrity=False,
-            )
-
         return results
 
     def _compute_report(self, **kwargs) -> list[dict[str, Any]]:

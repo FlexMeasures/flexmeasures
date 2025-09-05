@@ -129,7 +129,27 @@ class DataGenerator:
 
         self._parameters = self._parameters_schema.load(self._parameters)
 
-        return self._compute(**self._parameters)
+        results = self._compute(**self._parameters)
+        results = self._assign_sensors_and_source(results)
+        return results
+
+    def _assign_sensors_and_source(
+        self, results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Assign sensors and the DataGenerator's source to the results."""
+        for result in results:
+
+            # Update the BeliefDataFrame's sensor to be the intended sensor
+            result["data"].sensor = result["sensor"]
+
+            # Update all data sources in the BeliefsDataFrame to the data source representing the configured reporter
+            result["data"].index = result["data"].index.set_levels(
+                [self.data_source] * len(result["data"]),
+                level="source",
+                verify_integrity=False,
+            )
+
+        return results
 
     @staticmethod
     def validate_deserialized(values: dict, schema: Schema):
