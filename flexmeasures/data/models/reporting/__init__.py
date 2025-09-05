@@ -52,8 +52,7 @@ class Reporter(DataGenerator):
         return results
 
     def _compute_report(self, **kwargs) -> list[dict[str, Any]]:
-        """
-        Overwrite with the actual computation of your report.
+        """Overwrite with the actual computation of your report.
 
         :returns list of dictionaries, for example:
                  [

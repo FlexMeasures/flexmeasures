@@ -76,8 +76,7 @@ class Forecaster(DataGenerator):
         return results
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
-        """
-        Overwrite with the actual computation of your forecast.
+        """Overwrite with the actual computation of your forecast.
 
         :returns list of dictionaries, for example:
                  [
