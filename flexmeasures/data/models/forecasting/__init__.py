@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Callable
 
 from timetomodel import ModelSpecs
@@ -93,3 +94,32 @@ class Forecaster(DataGenerator):
                  ]
         """
         raise NotImplementedError()
+
+    def _clean_parameters(self, parameters: dict) -> dict:
+        """Clean out DataGenerator parameters that should not be stored as DataSource attributes.
+
+        These parameters are already contained in the TimedBelief:
+
+        - max_forecast_horizon: as the maximum belief horizon of the beliefs for a given event
+        - forecast_frequency:   as the spacing between unique belief times
+        - probabilistic:        as the cumulative_probability of each belief
+        - sensor_to_save:       as the sensor on which the beliefs are recorded
+
+        Other:
+
+        - model_save_dir:       used internally for the train and predict pipelines to save and load the model
+        - output_path:          for exporting forecasts to file, more of a developer feature
+        """
+        _parameters = deepcopy(parameters)
+        fields_to_remove = [
+            "max_forecast_horizon",
+            "forecast_frequency",
+            "probabilistic",
+            "model_save_dir",
+            "output_path",
+            "sensor_to_save",
+        ]
+
+        for field in fields_to_remove:
+            _parameters.pop(field, None)
+        return _parameters
