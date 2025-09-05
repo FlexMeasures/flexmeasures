@@ -73,6 +73,12 @@ class Forecaster(DataGenerator):
 
         results = self._compute_forecast(**kwargs)
 
+        for result in results:
+            # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
+            assert not check_output_resolution or (
+                result["sensor"].event_resolution == result["data"].event_resolution
+            ), f"The resolution of the results ({result['data'].event_resolution}) should match that of the output sensor ({result['sensor'].event_resolution}, ID {result['sensor'].id})."
+
         return results
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
