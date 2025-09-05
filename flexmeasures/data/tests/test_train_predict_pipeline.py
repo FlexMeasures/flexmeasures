@@ -10,9 +10,12 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 
 
 @pytest.mark.parametrize(
-    ["config", "expected_error"],
+    ["config", "params", "expected_error"],
     [
         (
+            {
+                # "model": "CustomLGBM",
+            },
             {
                 "sensor": "solar-sensor",
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
@@ -22,7 +25,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "train_period": 2,
                 "sensor_to_save": None,
                 "start_predict_date": "2025-01-02T00:00+02:00",
-                "predict_period": 0,  # 0 days
+                "predict_period": 0,  # 0 days is expected to fail
                 "max_forecast_horizon": "PT1H",
                 "forecast_frequency": "PT1H",
                 "probabilistic": False,
@@ -30,6 +33,9 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
             (ValidationError, "predict-period must be greater than 0"),
         ),
         (
+            {
+                # "model": "CustomLGBM",
+            },
             {
                 "sensor": "solar-sensor",
                 "future_regressors": ["irradiance-sensor"],
@@ -48,6 +54,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
             None,
         ),
         # (
+        #     {},
         #     {
         #         "sensor": "solar-sensor",
         #         "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
@@ -69,51 +76,58 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 def test_train_predict_pipeline(
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
+    params,  # parameters passed to the compute method of the Forecaster
     expected_error: bool | tuple[type[BaseException], str],
 ):
-    sensor = setup_fresh_test_forecast_data[config["sensor"]]
-    config["sensor"] = sensor.id
+    sensor = setup_fresh_test_forecast_data[params["sensor"]]
+    params["sensor"] = sensor.id
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
-        for regressor_name in config.get("future_regressors", [])
+        for regressor_name in params.get("future_regressors", [])
     ]
     if regressors:
-        config["future_regressors"] = [regressor.id for regressor in regressors]
+        params["future_regressors"] = [regressor.id for regressor in regressors]
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
             pipeline = TrainPredictPipeline(config=config)
-            pipeline.run()
+            pipeline.run(**params)
         assert expected_error[1] in str(e_info)
     else:
         pipeline = TrainPredictPipeline(config=config)
+        pipeline.run(**params)
 
         # Check pipeline properties
-        for attr in ("past_regressors", "future_regressors"):
+        for attr in ("model",):
             if config.get(attr):
                 assert hasattr(pipeline, attr)
 
-        pipeline.run()
         forecasts = sensor.search_beliefs(source_types=["forecaster"])
-        dg_config = pipeline._config  # config stored in the data generator
-        n_cycles = (dg_config["end_date"] - dg_config["predict_start"]) / (
-            dg_config["forecast_frequency"]
+        dg_params = pipeline._parameters  # parameters stored in the data generator
+        n_cycles = (dg_params["end_date"] - dg_params["predict_start"]) / (
+            dg_params["forecast_frequency"]
         )
         # 1 hour of forecasts is saved over 4 15-minute resolution events
-        n_events_per_horizon = timedelta(hours=1) / dg_config["target"].event_resolution
-        n_hourly_horizons = dg_config["max_forecast_horizon"] // timedelta(hours=1)
+        n_events_per_horizon = timedelta(hours=1) / dg_params["target"].event_resolution
+        n_hourly_horizons = dg_params["max_forecast_horizon"] // timedelta(hours=1)
         assert (
             len(forecasts) == n_cycles * n_hourly_horizons * n_events_per_horizon
         ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_hourly_horizons} hourly horizons"
         assert (
             forecasts.lineage.number_of_belief_times == n_cycles
         ), f"we expect 1 belief time per cycle, and {n_cycles} cycles"
-        # todo: source should mention the CustomLGBM model, though
         source = forecasts.lineage.sources[0]
         assert "TrainPredictPipeline" in str(
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
-        data_generator_config = source.attributes["data_generator"]["config"]
+
+        # Check DataGenerator configuration stored under DataSource attributes
+        # todo: source should mention the CustomLGBM model, though
+        # data_generator_config = source.attributes["data_generator"]["config"]
+        # assert data_generator_config["model"] == "CustomLGBM"
+
+        # Check DataGenerator parameters stored under DataSource attributes
+        data_generator_params = source.attributes["data_generator"]["parameters"]
         for regressor in regressors:
             assert (
-                regressor.id in data_generator_config["future_regressors"]
-            ), f"data generator config should mention regressor {regressor.name}"
+                regressor.id in data_generator_params["future_regressors"]
+            ), f"data generator parameters should mention regressor {regressor.name}"

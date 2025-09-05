@@ -12,7 +12,7 @@ from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
 
 
-class ForecastingPipelineSchema(Schema):
+class ForecasterParametersSchema(Schema):
 
     sensor = SensorIdField(required=True)
     future_regressors = fields.List(
