@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type, Dict, Any
+from typing import Dict, Any
 import isodate
 import json
 import yaml
@@ -28,6 +28,7 @@ import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.cli.utils import (
+    get_reporter,
     DeprecatedDefaultGroup,
     MsgStyle,
     DeprecatedOption,
@@ -87,7 +88,6 @@ from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.cli.utils import validate_color_cli, validate_url_cli, split_commas
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
-from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 from flexmeasures.data.models.forecasting.pipelines.train_predict import (
     TrainPredictPipeline,
@@ -1942,50 +1942,12 @@ def add_report(  # noqa: C901
         )
         raise click.Abort()
 
-    if source is None:
-        click.echo(
-            f"Looking for the Reporter {reporter_class} among all the registered reporters...",
-        )
-
-        # get reporter class
-        ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
-            reporter_class
-        )
-
-        # check if it exists
-        if ReporterClass is None:
-            click.secho(
-                f"Reporter class `{reporter_class}` not available.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
-
-        click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
-
-        # initialize reporter class with the reporter sensor and reporter config
-        reporter: Reporter = ReporterClass(config=config, save_config=save_config)
-
-    else:
-        try:
-            reporter: Reporter = source.data_generator  # type: ignore
-
-            if not isinstance(reporter, Reporter):
-                raise NotImplementedError(
-                    f"DataGenerator `{reporter}` is not of the type `Reporter`"
-                )
-
-            click.secho(
-                f"Reporter `{reporter.__class__.__name__}` fetched successfully from the database.",
-                **MsgStyle.SUCCESS,
-            )
-
-        except NotImplementedError:
-            click.secho(
-                f"Error! DataSource `{source}` not storing a valid Reporter.",
-                **MsgStyle.ERROR,
-            )
-
-        reporter._save_config = save_config
+    reporter = get_reporter(
+        source=source,
+        reporter_class=reporter_class,
+        config=config,
+        save_config=save_config,
+    )
 
     if ("start" not in parameters) and (start is not None):
         parameters["start"] = start.isoformat()

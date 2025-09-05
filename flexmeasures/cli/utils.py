@@ -4,17 +4,18 @@ Utils for FlexMeasures CLI
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Type
 from datetime import datetime, timedelta
 
 import click
 from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
+from flask import current_app as app
 
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
-from flexmeasures import Sensor
+from flexmeasures import Reporter, Sensor, Source
 
 
 class MsgStyle(object):
@@ -380,3 +381,56 @@ def split_commas(ctx, param, value):
     for v in value:
         result.extend(v.split(","))
     return list(set([x.strip() for x in result if x.strip()]))
+
+
+def get_reporter(
+    source: Source | None,
+    reporter_class: str,
+    config: dict,
+    save_config: bool,
+) -> Reporter:
+    if source is None:
+        click.echo(
+            f"Looking for the Reporter {reporter_class} among all the registered reporters...",
+        )
+
+        # get reporter class
+        ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
+            reporter_class
+        )
+
+        # check if it exists
+        if ReporterClass is None:
+            click.secho(
+                f"Reporter class `{reporter_class}` not available.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+
+        click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
+
+        # initialize reporter class with the reporter sensor and reporter config
+        reporter: Reporter = ReporterClass(config=config, save_config=save_config)
+
+    else:
+        try:
+            reporter: Reporter = source.data_generator  # type: ignore
+
+            if not isinstance(reporter, Reporter):
+                raise NotImplementedError(
+                    f"DataGenerator `{reporter}` is not of the type `Reporter`"
+                )
+
+            click.secho(
+                f"Reporter `{reporter.__class__.__name__}` fetched successfully from the database.",
+                **MsgStyle.SUCCESS,
+            )
+
+        except NotImplementedError:
+            click.secho(
+                f"Error! DataSource `{source}` not storing a valid Reporter.",
+                **MsgStyle.ERROR,
+            )
+
+        reporter._save_config = save_config
+    return reporter
