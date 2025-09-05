@@ -10,7 +10,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 
 
 @pytest.mark.parametrize(
-    ["kwargs", "expected_error"],
+    ["config", "expected_error"],
     [
         (
             {
@@ -68,39 +68,39 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 )
 def test_train_predict_pipeline(
     setup_fresh_test_forecast_data,
-    kwargs,
+    config,  # config passed to the Forecaster
     expected_error: bool | tuple[type[BaseException], str],
 ):
-    sensor = setup_fresh_test_forecast_data[kwargs["sensor"]]
-    kwargs["sensor"] = sensor.id
+    sensor = setup_fresh_test_forecast_data[config["sensor"]]
+    config["sensor"] = sensor.id
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
-        for regressor_name in kwargs.get("future_regressors", [])
+        for regressor_name in config.get("future_regressors", [])
     ]
     if regressors:
-        kwargs["future_regressors"] = [regressor.id for regressor in regressors]
+        config["future_regressors"] = [regressor.id for regressor in regressors]
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
-            pipeline = TrainPredictPipeline(config=kwargs)
+            pipeline = TrainPredictPipeline(config=config)
             pipeline.run()
         assert expected_error[1] in str(e_info)
     else:
-        pipeline = TrainPredictPipeline(config=kwargs)
+        pipeline = TrainPredictPipeline(config=config)
 
         # Check pipeline properties
         for attr in ("past_regressors", "future_regressors"):
-            if kwargs.get(attr):
+            if config.get(attr):
                 assert hasattr(pipeline, attr)
 
         pipeline.run()
         forecasts = sensor.search_beliefs(source_types=["forecaster"])
-        config = pipeline._config
-        n_cycles = (config["end_date"] - config["predict_start"]) / (
-            config["forecast_frequency"]
+        dg_config = pipeline._config  # config stored in the data generator
+        n_cycles = (dg_config["end_date"] - dg_config["predict_start"]) / (
+            dg_config["forecast_frequency"]
         )
         # 1 hour of forecasts is saved over 4 15-minute resolution events
-        n_events_per_horizon = timedelta(hours=1) / config["target"].event_resolution
-        n_hourly_horizons = config["max_forecast_horizon"] // timedelta(hours=1)
+        n_events_per_horizon = timedelta(hours=1) / dg_config["target"].event_resolution
+        n_hourly_horizons = dg_config["max_forecast_horizon"] // timedelta(hours=1)
         assert (
             len(forecasts) == n_cycles * n_hourly_horizons * n_events_per_horizon
         ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_hourly_horizons} hourly horizons"
