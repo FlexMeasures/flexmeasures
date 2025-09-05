@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from typing import List, Dict, Any
+from typing import Any
 from flexmeasures.data.models.data_sources import DataGenerator
 
 from flexmeasures.data.schemas.reporting import (
@@ -21,7 +21,7 @@ class Reporter(DataGenerator):
     _parameters_schema = ReporterParametersSchema()
     _config_schema = ReporterConfigSchema()
 
-    def _compute(self, check_output_resolution=True, **kwargs) -> List[Dict[str, Any]]:
+    def _compute(self, check_output_resolution=True, **kwargs) -> list[dict[str, Any]]:
         """This method triggers the creation of a new report.
 
         The same object can generate multiple reports with different start, end, resolution
@@ -30,7 +30,7 @@ class Reporter(DataGenerator):
             check_output_resolution (default: True):  set to False to skip the validation of the output event_resolution.
         """
 
-        results: List[Dict[str, Any]] = self._compute_report(**kwargs)
+        results = self._compute_report(**kwargs)
 
         for result in results:
             # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
@@ -51,7 +51,7 @@ class Reporter(DataGenerator):
 
         return results
 
-    def _compute_report(self, **kwargs) -> List[Dict[str, Any]]:
+    def _compute_report(self, **kwargs) -> list[dict[str, Any]]:
         """
         Overwrite with the actual computation of your report.
 
