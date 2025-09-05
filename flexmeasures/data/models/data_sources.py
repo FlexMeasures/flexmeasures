@@ -418,7 +418,6 @@ def keep_latest_version(
 
     # Remember the original index, then reset it
     index_levels = bdf.index.names
-    bdf = bdf.reset_index()
     belief_column = "belief_time"
     if belief_column not in index_levels:
         belief_column = "belief_horizon"
@@ -427,6 +426,7 @@ def keep_latest_version(
         event_column = "event_end"
 
     # Add source-related columns using vectorized operations for clarity
+    source_values = set(bdf.index.get_level_values("source").values)
     source_to_fields = {
         s: {
             "source.name": s.name,
@@ -434,32 +434,40 @@ def keep_latest_version(
             "source.model": s.model,
             "source.version": Version(s.version or "0.0.0"),
         }
-        for s in bdf["source"].unique()
+        for s in source_values
     }
-    source_expanded = bdf["source"].map(source_to_fields)
+    source_expanded = bdf.index.get_level_values("source").map(source_to_fields)
+
     bdf[["source.name", "source.type", "source.model", "source.version"]] = (
         pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     )
-
+    bdf["_" + event_column] = bdf.index.get_level_values(event_column)
     # Sort by event_start and version, keeping only the latest version
-    bdf = bdf.sort_values(by=[event_column, "source.version"], ascending=[True, False])
+    bdf = bdf.sort_values(
+        by=["_" + event_column, "source.version"], ascending=[True, False]
+    )
 
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
     unique_columns = [
-        event_column,
-        "cumulative_probability",
+        "_" + event_column,
         "source.name",
         "source.type",
         "source.model",
     ]
-    if not one_deterministic_belief_per_event:
+    if not one_deterministic_belief_per_event and belief_column in bdf.columns:
         unique_columns += [belief_column]
     bdf = bdf.drop_duplicates(unique_columns)
 
     # Remove temporary columns and restore the original index
     bdf = bdf.drop(
-        columns=["source.name", "source.type", "source.model", "source.version"]
+        columns=[
+            "source.name",
+            "source.type",
+            "source.model",
+            "source.version",
+            "_" + event_column,
+        ]
     )
-    bdf = bdf.set_index(index_levels)
+    # bdf = bdf.set_index(index_levels)
 
     return bdf
