@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable
 
 from timetomodel import ModelSpecs
 
@@ -61,3 +61,30 @@ class Forecaster(DataGenerator):
     __data_generator_base__ = "forecaster"
 
     _config_schema = ForecasterConfigSchema()
+
+    def _compute(self, check_output_resolution=True, **kwargs) -> list[dict[str, Any]]:
+        """This method triggers the creation of a new forecast.
+
+        The same object can generate multiple forecasts with different start, end, resolution and belief_time values.
+
+        :param check_output_resolution: If True, checks each output for whether the event_resolution
+                                        matches that of the sensor it is supposed to be recorded on.
+        """
+
+        results = self._compute_forecast(**kwargs)
+
+        return results
+
+    def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
+        """
+        Overwrite with the actual computation of your forecast.
+
+        :returns list of dictionaries, for example:
+                 [
+                     {
+                         "sensor": 501,
+                         "data": <a BeliefsDataFrame>,
+                     },
+                 ]
+        """
+        raise NotImplementedError()
