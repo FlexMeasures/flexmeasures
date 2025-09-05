@@ -187,7 +187,7 @@ class DataGenerator:
 
         Example:
 
-            An DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
+            A DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
             to be persisted.
 
             Parameters provided to the `compute` method (input of the method `_clean_parameters`):
