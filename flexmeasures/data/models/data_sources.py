@@ -95,6 +95,16 @@ class DataGenerator:
             self._config = self._config_schema.load({})
 
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
+        """Overwrite with the actual computation of your data generator.
+
+        :returns list of dictionaries, for example:
+                 [
+                     {
+                         "sensor": 501,
+                         "data": <a BeliefsDataFrame>,
+                     },
+                 ]
+        """
         raise NotImplementedError()
 
     def compute(self, parameters: dict | None = None, **kwargs) -> list[dict[str, Any]]:
