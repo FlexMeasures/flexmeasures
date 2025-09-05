@@ -24,10 +24,10 @@ class Reporter(DataGenerator):
     def _compute(self, check_output_resolution=True, **kwargs) -> list[dict[str, Any]]:
         """This method triggers the creation of a new report.
 
-        The same object can generate multiple reports with different start, end, resolution
-        and belief_time values.
+        The same object can generate multiple reports with different start, end, resolution and belief_time values.
 
-            check_output_resolution (default: True):  set to False to skip the validation of the output event_resolution.
+        :param check_output_resolution: If True, checks each output for whether the event_resolution
+                                        matches that of the sensor it is supposed to be recorded on.
         """
 
         results = self._compute_report(**kwargs)
