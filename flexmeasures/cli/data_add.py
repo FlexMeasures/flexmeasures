@@ -27,8 +27,9 @@ import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
+from flexmeasures import Reporter
 from flexmeasures.cli.utils import (
-    get_reporter,
+    get_data_generator,
     DeprecatedDefaultGroup,
     MsgStyle,
     DeprecatedOption,
@@ -1942,11 +1943,12 @@ def add_report(  # noqa: C901
         )
         raise click.Abort()
 
-    reporter = get_reporter(
+    reporter = get_data_generator(
         source=source,
-        reporter_class=reporter_class,
+        model=reporter_class,
         config=config,
         save_config=save_config,
+        data_generator_type=Reporter,
     )
 
     if ("start" not in parameters) and (start is not None):
