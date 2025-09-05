@@ -93,6 +93,30 @@ def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
 
 
 @pytest.mark.skip_github
+def test_show_reporters(app, db):
+    from flexmeasures.cli.data_show import list_reporters
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(list_reporters)
+
+    assert "ProfitOrLossReporter" in result.output
+    assert "PandasReporter" in result.output
+    check_command_ran_without_error(result)
+
+
+@pytest.mark.skip_github
+def test_show_schedulers(app, db):
+    from flexmeasures.cli.data_show import list_schedulers
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(list_schedulers)
+
+    assert "StorageScheduler" in result.output
+    assert "ProcessScheduler" in result.output
+    check_command_ran_without_error(result)
+
+
+@pytest.mark.skip_github
 def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
     from flexmeasures.cli.data_show import plot_beliefs
 

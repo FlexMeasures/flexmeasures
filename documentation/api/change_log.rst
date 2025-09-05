@@ -11,6 +11,11 @@ v3.0-26 | 2025-09-02
 - Moved endpoints `GET /sensors/data` and `POST /sensors/data` into deprecation. Their URL does not align with the style of other endpoints, and they rely on entity addresses instead of IDs, which has been confusing users (a concept we are fading out).
 
 
+v3.0-26 | 2025-09-02
+""""""""""""""""""""
+- Added endpoint `GET /assets/types`.
+
+
 v3.0-25 | 2025-07-24
 """"""""""""""""""""
 - Removed /play blueprint with endpoint `PUT /restoreData`.
