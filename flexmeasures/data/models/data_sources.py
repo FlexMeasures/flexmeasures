@@ -121,7 +121,7 @@ class DataGenerator:
         return self._compute(**self._parameters)
 
     @staticmethod
-    def validate_deserialized(values: dict, schema: Schema) -> bool:
+    def validate_deserialized(values: dict, schema: Schema):
         schema.load(schema.dump(values))
 
     @classmethod
