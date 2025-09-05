@@ -55,7 +55,13 @@ class Reporter(DataGenerator):
         """
         Overwrite with the actual computation of your report.
 
-        :returns BeliefsDataFrame: report as a BeliefsDataFrame.
+        :returns list of dictionaries, for example:
+                 [
+                     {
+                         "sensor": 501,
+                         "data": <a BeliefsDataFrame>,
+                     },
+                 ]
         """
         raise NotImplementedError()
 

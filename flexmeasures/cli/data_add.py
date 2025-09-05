@@ -89,7 +89,6 @@ from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
-from timely_beliefs import BeliefsDataFrame
 from flexmeasures.data.models.forecasting.pipelines.train_predict import (
     TrainPredictPipeline,
 )
@@ -1998,7 +1997,7 @@ def add_report(  # noqa: C901
     click.echo("Report computation is running...")
 
     # compute the report
-    results: BeliefsDataFrame = reporter.compute(parameters=parameters)
+    results = reporter.compute(parameters=parameters)
 
     for result in results:
         data = result["data"]
