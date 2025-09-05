@@ -40,12 +40,11 @@ class Reporter(DataGenerator):
             result["data"].sensor = result["sensor"]
 
             # Update all data sources in the BeliefsDataFrame to the data source representing the configured reporter
-            if not result["data"].empty:
-                result["data"].index = result["data"].index.set_levels(
-                    [self.data_source] * len(result["data"]),
-                    level="source",
-                    verify_integrity=False,
-                )
+            result["data"].index = result["data"].index.set_levels(
+                [self.data_source] * len(result["data"]),
+                level="source",
+                verify_integrity=False,
+            )
 
         return results
 
