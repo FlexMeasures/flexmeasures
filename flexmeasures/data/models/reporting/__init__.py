@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
-
 from typing import Any
 from flexmeasures.data.models.data_sources import DataGenerator
 
@@ -63,23 +61,3 @@ class Reporter(DataGenerator):
                  ]
         """
         raise NotImplementedError()
-
-    def _clean_parameters(self, parameters: dict) -> dict:
-        _parameters = deepcopy(parameters)
-        fields_to_remove = ["start", "end", "resolution", "belief_time"]
-
-        for field in fields_to_remove:
-            _parameters.pop(field, None)
-
-        fields_to_remove_input = [
-            "event_starts_after",
-            "event_ends_before",
-            "belief_time",
-            "resolution",
-        ]
-
-        for _input in _parameters["input"]:
-            for field in fields_to_remove_input:
-                _input.pop(field, None)
-
-        return _parameters

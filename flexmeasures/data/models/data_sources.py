@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -201,8 +202,24 @@ class DataGenerator:
             Parameters persisted to the DB (output of the method `_clean_parameters`):
             parameters = {"field1" : 1,"field2" : 2}
         """
+        _parameters = deepcopy(parameters)
+        fields_to_remove = ["start", "end", "resolution", "belief_time"]
 
-        raise NotImplementedError()
+        for field in fields_to_remove:
+            _parameters.pop(field, None)
+
+        fields_to_remove_input = [
+            "event_starts_after",
+            "event_ends_before",
+            "belief_time",
+            "resolution",
+        ]
+
+        for _input in _parameters["input"]:
+            for field in fields_to_remove_input:
+                _input.pop(field, None)
+
+        return _parameters
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
