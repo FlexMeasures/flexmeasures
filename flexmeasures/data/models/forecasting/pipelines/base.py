@@ -189,7 +189,7 @@ class BasePipeline:
         except Exception as e:
             raise CustomException(f"Error loading dataframe with all beliefs: {e}", sys)
 
-    def split_data_all_beliefs(
+    def split_data_all_beliefs(  # noqa: C901
         self, df: pd.DataFrame, is_predict_pipeline: bool = False
     ) -> tuple[
         list[TimeSeries] | None,
