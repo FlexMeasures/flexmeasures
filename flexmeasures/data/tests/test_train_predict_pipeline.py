@@ -36,6 +36,21 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
                 "start_date": "2025-01-01T00:00+02:00",
+                "start_predict_date": "2025-01-08T00:00+02:00",  # start_predict_date after coincides with end of available data in sensor
+                "end_date": "2025-01-09T00:00+02:00",
+                "sensor_to_save": None,
+                "max_forecast_horizon": "PT1H",
+                "probabilistic": False,
+            },
+            None,
+        ),
+        (
+            {
+                "sensor": "solar-sensor",
+                "future_regressors": ["irradiance-sensor"],
+                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output_path": None,
+                "start_date": "2025-01-01T00:00+02:00",
                 "end_date": "2025-01-03T00:00+02:00",
                 "train_period": 2,
                 "sensor_to_save": None,
