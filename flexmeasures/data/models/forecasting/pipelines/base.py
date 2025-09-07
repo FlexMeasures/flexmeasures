@@ -450,7 +450,10 @@ class BasePipeline:
                             (X_future_regressors_df["event_start"] > target_end)
                             & (X_future_regressors_df["event_start"] <= forecast_end)
                             & (X_future_regressors_df["belief_time"] <= belief_time)
-                            & (X_future_regressors_df["belief_time"] <= X_future_regressors_df["event_start"])
+                            & (
+                                X_future_regressors_df["belief_time"]
+                                <= X_future_regressors_df["event_start"]
+                            )
                         ].copy()
 
                         # for each event_start in that window, pick the latest belief before the event
@@ -459,7 +462,9 @@ class BasePipeline:
                             X_future_regressors_df.loc[fc_window.index, "event_start"]
                             - X_future_regressors_df.loc[fc_window.index, "belief_time"]
                         ).abs()
-                        idx_fc = fc_window.groupby("event_start")["belief_time"].idxmax()
+                        idx_fc = fc_window.groupby("event_start")[
+                            "belief_time"
+                        ].idxmax()
                         forecast_slice = (
                             fc_window.loc[idx_fc]
                             .drop(columns=["time_diff"], errors="ignore")
@@ -468,7 +473,11 @@ class BasePipeline:
                         )
 
                         # keep only value columns (drop meta)
-                        keep_fc = [c for c in forecast_slice.columns if c not in ("belief_time", "source_y")]
+                        keep_fc = [
+                            c
+                            for c in forecast_slice.columns
+                            if c not in ("belief_time", "source_y")
+                        ]
                         forecast_slice = forecast_slice[keep_fc]
 
                         future_df = (
