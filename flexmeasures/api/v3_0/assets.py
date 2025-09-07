@@ -65,6 +65,42 @@ sensors_schema = SensorSchema(many=True)
 partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
+def format_json_field_change(field_name: str, old_value, new_value) -> str:
+    """Format JSON field changes using dictdiffer."""
+    try:
+        from dictdiffer import diff
+
+        if isinstance(old_value, list):
+            old_dict = {i: item for i, item in enumerate(old_value)}
+            new_dict = {i: item for i, item in enumerate(new_value)}
+        else:
+            old_dict, new_dict = old_value, new_value
+
+        if isinstance(old_dict, dict) and isinstance(new_dict, dict):
+            diff_results = list(diff(old_dict, new_dict))
+            changes = []
+            for change_type, key, value in diff_results:
+                if change_type == "change":
+                    changes.append(f"change {key}: {value[0]} -> {value[1]}")
+                elif change_type == "add":
+                    for item in value:
+                        changes.append(f"add {key}[{item[0]}]: {item[1]}")
+                elif change_type == "remove":
+                    for item in value:
+                        changes.append(f"remove {key}[{item[0]}]: {item[1]}")
+
+            if changes:
+                changes_str = "\n".join(
+                    f"{i}. {change}" for i, change in enumerate(changes, 1)
+                )
+                return f"Updated Field: {field_name}\n{changes_str}"
+
+        return f"Updated Field: {field_name}, From: {old_value}, To: {new_value}"
+    except Exception as e:
+        print("Error formatting JSON field change:", e)
+        return f"Updated Field: {field_name}, From: {old_value}, To: {new_value}"
+
+
 def get_accessible_accounts() -> list[Account]:
     accounts = []
     for _account in db.session.scalars(select(Account)).all():
@@ -594,9 +630,14 @@ class AssetAPI(FlaskView):
                 except Exception as e:
                     return {"error": str(e)}, 422
 
-            audit_log_data.append(
-                f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
-            )
+            if k.lower() in {"sensors_to_show", "flex_context", "flex_model"}:
+                audit_log_data.append(
+                    format_json_field_change(k, getattr(db_asset, k), v)
+                )
+            else:
+                audit_log_data.append(
+                    f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
+                )
 
         # Iterate over each field or attribute updates and create a separate audit log entry for each.
         for event in audit_log_data:
