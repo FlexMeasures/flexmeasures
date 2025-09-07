@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 from functools import reduce
 
+import numpy as np
 import pandas as pd
 from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
