@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import click
 
 from datetime import timedelta
 
@@ -13,7 +12,7 @@ from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
 
 
-class ForecastingPipelineSchema(Schema):
+class ForecasterParametersSchema(Schema):
 
     sensor = SensorIdField(required=True)
     future_regressors = fields.List(
@@ -132,9 +131,7 @@ class ForecastingPipelineSchema(Schema):
             train_period_in_hours = data["train_period"] * 24
 
         if train_period_in_hours < 48:
-            raise click.BadParameter(
-                "--train-period must be at least 2 days (48 hours)."
-            )
+            raise ValidationError("train-period must be at least 2 days (48 hours).")
 
         if data.get("predict_period") is None:
             predict_period_in_hours = int(
@@ -143,7 +140,7 @@ class ForecastingPipelineSchema(Schema):
         else:
             predict_period_in_hours = data["predict_period"] * 24
             if predict_period_in_hours < 1:
-                raise click.BadParameter("--predict-period must be at least 1 hour")
+                raise ValidationError("predict-period must be at least 1 hour")
 
         if data["start_date"] is None:
             start_date = predict_start - timedelta(hours=train_period_in_hours)

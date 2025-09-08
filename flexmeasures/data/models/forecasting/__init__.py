@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Callable
+from copy import deepcopy
+from typing import Any, Callable
 
 from timetomodel import ModelSpecs
 
@@ -61,3 +62,64 @@ class Forecaster(DataGenerator):
     __data_generator_base__ = "forecaster"
 
     _config_schema = ForecasterConfigSchema()
+
+    def _compute(self, check_output_resolution=True, **kwargs) -> list[dict[str, Any]]:
+        """This method triggers the creation of a new forecast.
+
+        The same object can generate multiple forecasts with different start, end, resolution and belief_time values.
+
+        :param check_output_resolution: If True, checks each output for whether the event_resolution
+                                        matches that of the sensor it is supposed to be recorded on.
+        """
+
+        results = self._compute_forecast(**kwargs)
+
+        for result in results:
+            # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
+            assert not check_output_resolution or (
+                result["sensor"].event_resolution == result["data"].event_resolution
+            ), f"The resolution of the results ({result['data'].event_resolution}) should match that of the output sensor ({result['sensor'].event_resolution}, ID {result['sensor'].id})."
+
+        return results
+
+    def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
+        """Overwrite with the actual computation of your forecast.
+
+        :returns list of dictionaries, for example:
+                 [
+                     {
+                         "sensor": 501,
+                         "data": <a BeliefsDataFrame>,
+                     },
+                 ]
+        """
+        raise NotImplementedError()
+
+    def _clean_parameters(self, parameters: dict) -> dict:
+        """Clean out DataGenerator parameters that should not be stored as DataSource attributes.
+
+        These parameters are already contained in the TimedBelief:
+
+        - max_forecast_horizon: as the maximum belief horizon of the beliefs for a given event
+        - forecast_frequency:   as the spacing between unique belief times
+        - probabilistic:        as the cumulative_probability of each belief
+        - sensor_to_save:       as the sensor on which the beliefs are recorded
+
+        Other:
+
+        - model_save_dir:       used internally for the train and predict pipelines to save and load the model
+        - output_path:          for exporting forecasts to file, more of a developer feature
+        """
+        _parameters = deepcopy(parameters)
+        fields_to_remove = [
+            "max_forecast_horizon",
+            "forecast_frequency",
+            "probabilistic",
+            "model_save_dir",
+            "output_path",
+            "sensor_to_save",
+        ]
+
+        for field in fields_to_remove:
+            _parameters.pop(field, None)
+        return _parameters
