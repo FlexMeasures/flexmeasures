@@ -52,6 +52,9 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         ),
         (
             {
+                # "model": "CustomLGBM",
+            },
+            {
                 "sensor": "solar-sensor",
                 "future_regressors": ["irradiance-sensor"],
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
