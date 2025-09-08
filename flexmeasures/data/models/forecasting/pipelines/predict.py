@@ -115,9 +115,7 @@ class PredictPipeline(BasePipeline):
         Make an additional column for quantiles forecast when probabilistic is True
         """
         try:
-            logging.debug(
-                f"Preparing DataFrame for predictions: {self.readable_resolution} intervals at viewpoint {viewpoint + 1}."
-            )
+            logging.debug(f"Preparing DataFrame for viewpoint {viewpoint}.")
 
             if self.probabilistic:
                 q_kwargs = dict(quantiles=self.quantiles) if self.quantiles else dict()
@@ -147,9 +145,7 @@ class PredictPipeline(BasePipeline):
                     ["event_start", "belief_time", self.target], inplace=True
                 )
 
-            logging.debug(
-                f"DataFrame prepared for predictions: {self.readable_resolution} intervals at viewpoint {viewpoint + 1}."
-            )
+            logging.debug(f"DataFrame prepared for viewpoint {viewpoint}.")
             return y_pred_df
         except Exception as e:
             raise CustomException(
@@ -176,7 +172,7 @@ class PredictPipeline(BasePipeline):
         """
         try:
             logging.debug(
-                f"Predicting for {self.readable_resolution} viewpoint {viewpoint + 1}, forecasting up to ({self.total_forecast_hours} hours) ahead."
+                f"Predicting for viewpoint {viewpoint}, forecasting up to {self.total_forecast_hours} hours ahead."
             )
             # Inputs (y, past_covariates, future_covariates) are pre-sliced for this
             # belief time by BasePipeline._generate_splits. See BasePipeline docs and
@@ -198,13 +194,11 @@ class PredictPipeline(BasePipeline):
                 viewpoint=viewpoint,
                 belief_timestamp=belief_timestamp,
             )
-            logging.debug(
-                f"Prediction for {self.readable_resolution} viewpoint {viewpoint + 1} completed."
-            )
+            logging.debug(f"Prediction for viewpoint {viewpoint} completed.")
             return y_pred_df
         except Exception as e:
             raise CustomException(
-                f"Error predicting for {self.readable_resolution} viewpoint {viewpoint + 1}: {e}",
+                f"Error predicting for viewpoint {viewpoint}: {e}",
                 sys,
             ) from e
 
@@ -226,7 +220,7 @@ class PredictPipeline(BasePipeline):
 
             # We make predictions up to the last hour in the predict_period
             y_pred_dfs = list()
-            for v in self.viewpoints:
+            for v, belief_timestamp in enumerate(belief_timestamps_list):
                 future_covariates = (
                     future_covariates_list[v] if future_covariates_list else None
                 )
@@ -234,16 +228,15 @@ class PredictPipeline(BasePipeline):
                     past_covariates_list[v] if past_covariates_list else None
                 )
                 y = y_list[v]
-                belief_timestamp = belief_timestamps_list[v]
                 logging.debug(
-                    f"Making prediction for {self.readable_resolution} viewpoint {v + 1}/{self.number_of_viewpoints}"
+                    f"Making prediction for {belief_timestamp} (viewpoint {v + 1}/{self.number_of_viewpoints})"
                 )
                 y_pred_df = self.make_single_fixed_viewpoint_prediction(
                     model=model,
                     future_covariates=future_covariates,
                     past_covariates=past_covariates,
                     current_y=y,
-                    viewpoint=v,
+                    viewpoint=v + 1,  # humanized iterator starting from 1
                     belief_timestamp=belief_timestamp,
                 )
                 y_pred_dfs.append(y_pred_df)

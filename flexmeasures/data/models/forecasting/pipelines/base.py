@@ -76,7 +76,6 @@ class BasePipeline:
         self.number_of_viewpoints = (
             self.n_steps_to_predict + forecast_frequency - 1
         ) // forecast_frequency
-        self.viewpoints = range(self.number_of_viewpoints)
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
         self.target_sensor = target_sensor
