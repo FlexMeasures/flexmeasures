@@ -99,7 +99,8 @@ class TrainPredictPipeline(Forecaster):
                 if self._parameters["output_path"]
                 else None
             ),
-            n_steps_to_predict=self._parameters["predict_period_in_hours"] * multiplier,
+            n_steps_to_predict=self._parameters["retrain_frequency_in_hours"]
+            * multiplier,
             max_forecast_horizon=self._parameters["max_forecast_horizon"]
             // self._parameters["target"].event_resolution,
             forecast_frequency=self._parameters["forecast_frequency"]
@@ -145,7 +146,7 @@ class TrainPredictPipeline(Forecaster):
     ):
         try:
             logging.info(
-                f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
+                f"Starting Train-Predict Pipeline to predict for {self._parameters['retrain_frequency_in_hours']} hours."
             )
 
             train_start = self._parameters["start_date"]
@@ -154,7 +155,7 @@ class TrainPredictPipeline(Forecaster):
             )
             predict_start = self._parameters["predict_start"]
             predict_end = predict_start + timedelta(
-                hours=self._parameters["predict_period_in_hours"]
+                hours=self._parameters["retrain_frequency_in_hours"]
             )
             counter = 0
 
@@ -187,9 +188,8 @@ class TrainPredictPipeline(Forecaster):
                     cycles_job_params.append(train_predict_params)
 
                 # Move forward to the next cycle one prediction period later
-                # todo: rename prediction period to retraining frequency?
                 cycle_frequency = timedelta(
-                    hours=self._parameters["predict_period_in_hours"]
+                    hours=self._parameters["retrain_frequency_in_hours"]
                 )
                 train_end += cycle_frequency
                 predict_start += cycle_frequency

@@ -33,7 +33,9 @@ class ForecasterParametersSchema(Schema):
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
     train_period = fields.Int(required=False, allow_none=True)  # todo: DurationField
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
-    predict_period = fields.Int(required=False, allow_none=True)  # todo: DurationField
+    retrain_frequency = DurationField(
+        required=False, allow_none=True
+    )  # aka the predict period
     max_forecast_horizon = DurationField(
         required=False, allow_none=True, load_default=timedelta(hours=48)
     )
@@ -49,7 +51,7 @@ class ForecasterParametersSchema(Schema):
         end_date = data["end_date"]
         predict_start = data.get("start_predict_date", None)
         train_period = data.get("train_period")
-        predict_period = data.get("predict_period")
+        retrain_frequency = data.get("retrain_frequency")
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
@@ -77,9 +79,10 @@ class ForecasterParametersSchema(Schema):
                 field_name="train_period",
             )
 
-        if predict_period is not None and predict_period <= 0:
+        if retrain_frequency is not None and retrain_frequency <= timedelta(0):
             raise ValidationError(
-                "predict-period must be greater than 0", field_name="predict_period"
+                "retrain-frequency must be greater than 0",
+                field_name="retrain_frequency",
             )
 
         if max_forecast_horizon is not None:
@@ -133,14 +136,14 @@ class ForecasterParametersSchema(Schema):
         if train_period_in_hours < 48:
             raise ValidationError("train-period must be at least 2 days (48 hours).")
 
-        if data.get("predict_period") is None:
-            predict_period_in_hours = int(
+        if data.get("retrain_frequency") is None:
+            retrain_frequency_in_hours = int(
                 (data["end_date"] - predict_start).total_seconds() / 3600
             )
         else:
-            predict_period_in_hours = data["predict_period"] * 24
-            if predict_period_in_hours < 1:
-                raise ValidationError("predict-period must be at least 1 hour")
+            retrain_frequency_in_hours = data["retrain_frequency"] // timedelta(hours=1)
+            if retrain_frequency_in_hours < 1:
+                raise ValidationError("retrain-frequency must be at least 1 hour")
 
         if data["start_date"] is None:
             start_date = predict_start - timedelta(hours=train_period_in_hours)
@@ -151,8 +154,8 @@ class ForecasterParametersSchema(Schema):
         forecast_frequency = data.get("forecast_frequency")
 
         if max_forecast_horizon is None and forecast_frequency is None:
-            max_forecast_horizon = timedelta(hours=predict_period_in_hours)
-            forecast_frequency = timedelta(hours=predict_period_in_hours)
+            max_forecast_horizon = timedelta(hours=retrain_frequency_in_hours)
+            forecast_frequency = timedelta(hours=retrain_frequency_in_hours)
         elif max_forecast_horizon is None:
             max_forecast_horizon = forecast_frequency
         elif forecast_frequency is None:
@@ -177,7 +180,7 @@ class ForecasterParametersSchema(Schema):
             end_date=data["end_date"],
             train_period_in_hours=train_period_in_hours,
             predict_start=predict_start,
-            predict_period_in_hours=predict_period_in_hours,
+            retrain_frequency_in_hours=retrain_frequency_in_hours,
             max_forecast_horizon=max_forecast_horizon,
             forecast_frequency=forecast_frequency,
             probabilistic=data["probabilistic"],

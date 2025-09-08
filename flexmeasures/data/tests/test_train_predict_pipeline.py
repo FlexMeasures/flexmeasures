@@ -25,12 +25,12 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "train_period": 2,
                 "sensor_to_save": None,
                 "start_predict_date": "2025-01-02T00:00+02:00",
-                "predict_period": 0,  # 0 days is expected to fail
+                "retrain_frequency": "P0D",  # 0 days is expected to fail
                 "max_forecast_horizon": "PT1H",
                 "forecast_frequency": "PT1H",
                 "probabilistic": False,
             },
-            (ValidationError, "predict-period must be greater than 0"),
+            (ValidationError, "retrain-frequency must be greater than 0"),
         ),
         (
             {
@@ -64,7 +64,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "train_period": 2,
                 "sensor_to_save": None,
                 "start_predict_date": "2025-01-02T00:00+02:00",
-                "predict_period": 1,
+                "retrain_frequency": "P1D",
                 "max_forecast_horizon": "PT1H",
                 "forecast_frequency": "PT1H",
                 "probabilistic": False,
@@ -82,7 +82,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
         #         "train_period": 24.0,
         #         "sensor_to_save": 1,
         #         "start_predict_date": "2025-07-11T17:26+02:00",
-        #         "predict_period": 24,
+        #         "retrain_frequency": "PT24H",
         #         "max_forecast_horizon": 24,
         #         "forecast_frequency": 1,
         #         "probabilistic": False,

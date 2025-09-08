@@ -1064,14 +1064,16 @@ def add_holidays(
     required=False,
     type=click.IntRange(min=2),
     help="Duration of the initial training period in days (minimum of 2). "
-    "After each forecast period, each next cycle will increase the training period by the forecast period. "
+    "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
     "If not set, derives a training period from --start-predict-date instead. "
     "If that is also not set, defaults to 2 days.",
 )
 @click.option(
-    "--predict-period",
+    "--retrain-frequency",
+    "--remodel-frequency",  # the term as used in the old forecasting tooling
+    "--predict-period",  # only used during development afaik
     required=False,
-    help="Number of days to predict into the future in each cycle. After each cycle, the prediction window will move forward by this number of days.",
+    help="The duration of a cycle of training and predicting, defining how often to retrain the model.",
 )
 @click.option(
     "--from-date",
