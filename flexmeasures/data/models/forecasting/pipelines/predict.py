@@ -11,8 +11,8 @@ import pandas as pd
 from darts import TimeSeries
 from isodate import duration_isoformat
 
+from flexmeasures import Sensor, Source
 from flexmeasures.data import db
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.utils import data_to_bdf
 from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
@@ -37,7 +37,7 @@ class PredictPipeline(BasePipeline):
         event_ends_before: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
-        data_source: str = None,
+        data_source: Source = None,
     ) -> None:
         """
         Initialize the PredictPipeline.
