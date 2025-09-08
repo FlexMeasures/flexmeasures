@@ -230,11 +230,12 @@ Account overview {% endblock %} {% block divs %}
       <div class="card">
          <div class="d-flex justify-content-between align-items-center">
           <h3 id="usersTableTitle">All users</h3>
-        
+          {% if user_can_create_children %}
           <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
             data-bs-target="#createUserModal">
             Create User
           </a>
+          {% endif %}
         </div>
 
         <div class="form-check form-check-inline">
