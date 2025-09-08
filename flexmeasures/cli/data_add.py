@@ -1073,7 +1073,7 @@ def add_holidays(
     "--remodel-frequency",  # the term as used in the old forecasting tooling
     "--predict-period",  # only used during development afaik
     required=False,
-    help="The duration of a cycle of training and predicting, defining how often to retrain the model.",
+    help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H').",
 )
 @click.option(
     "--from-date",
