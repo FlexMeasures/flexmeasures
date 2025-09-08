@@ -31,9 +31,9 @@ class ForecasterParametersSchema(Schema):
     output_path = fields.Str(required=False, allow_none=True)
     start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
-    train_period = fields.Int(required=False, allow_none=True)
+    train_period = fields.Int(required=False, allow_none=True)  # todo: DurationField
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
-    predict_period = fields.Int(required=False, allow_none=True)
+    predict_period = fields.Int(required=False, allow_none=True)  # todo: DurationField
     max_forecast_horizon = DurationField(
         required=False, allow_none=True, load_default=timedelta(hours=48)
     )
