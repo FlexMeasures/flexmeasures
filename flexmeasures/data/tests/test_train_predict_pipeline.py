@@ -108,11 +108,11 @@ def test_train_predict_pipeline(
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
             pipeline = TrainPredictPipeline(config=config)
-            pipeline.run(**params)
+            pipeline.compute(parameters=params)
         assert expected_error[1] in str(e_info)
     else:
         pipeline = TrainPredictPipeline(config=config)
-        pipeline.run(**params)
+        pipeline.compute(parameters=params)
 
         # Check pipeline properties
         for attr in ("model",):
