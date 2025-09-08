@@ -196,7 +196,7 @@ class TrainPredictPipeline(Forecaster):
                 predict_end += cycle_frequency
             if counter == 0:
                 logging.info(
-                    f"Train-Predict Pipeline Not Run: --start-predict-date + --predict-period is {predict_end}, which exceeds --end-date {self._parameters["end_date"]}. "
+                    f"Train-Predict Pipeline Not Run: start-predict-date + predict-period is {predict_end}, which exceeds end-date {self._parameters['end_date']}. "
                     f"Try decreasing the predict-period."
                 )
             elif not as_job:
