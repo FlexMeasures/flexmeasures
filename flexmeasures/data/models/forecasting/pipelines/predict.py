@@ -107,7 +107,7 @@ class PredictPipeline(BasePipeline):
         y_pred: TimeSeries,
         belief_horizon,
         value_at_belief_horizon,
-        horizon,
+        viewpoint: int,
         belief_timestamp,
     ):
         """
@@ -116,7 +116,7 @@ class PredictPipeline(BasePipeline):
         """
         try:
             logging.debug(
-                f"Preparing DataFrame for predictions: {self.readable_resolution} intervals at offset {horizon + 1}."
+                f"Preparing DataFrame for predictions: {self.readable_resolution} intervals at viewpoint {viewpoint + 1}."
             )
 
             if self.probabilistic:
@@ -148,7 +148,7 @@ class PredictPipeline(BasePipeline):
                 )
 
             logging.debug(
-                f"DataFrame prepared for predictions: {self.readable_resolution} intervals at offset {horizon + 1}."
+                f"DataFrame prepared for predictions: {self.readable_resolution} intervals at viewpoint {viewpoint + 1}."
             )
             return y_pred_df
         except Exception as e:
@@ -162,11 +162,11 @@ class PredictPipeline(BasePipeline):
         future_covariates: TimeSeries,
         past_covariates: TimeSeries,
         current_y: TimeSeries,
-        horizon: int,
+        viewpoint: int,
         belief_timestamp: pd.Timestamp,
     ) -> pd.DataFrame:
         """
-        Make a single prediction for the given horizon (in steps of the sensor resolution),
+        Make a single prediction for the given viewpoint (enumeration of the number of viewpoints),
         using inputs already sliced for this belief time.
         Notes
         -----
@@ -176,13 +176,13 @@ class PredictPipeline(BasePipeline):
         """
         try:
             logging.debug(
-                f"Predicting for {self.readable_resolution} offset {horizon + 1}, forecasting up to ({self.total_forecast_hours} hours) ahead."
+                f"Predicting for {self.readable_resolution} viewpoint {viewpoint + 1}, forecasting up to ({self.total_forecast_hours} hours) ahead."
             )
             # Inputs (y, past_covariates, future_covariates) are pre-sliced for this
             # belief time by BasePipeline._generate_splits. See BasePipeline docs and
             # CHECK THIS DIAGRAM : https://cloud.seita.nl/index.php/s/FYRgJwE3ER8kTLk aka 20250210_123637.png
 
-            # Get time series of forecasts at a single horizon
+            # Get time series of forecasts at a single viewpoint
             y_pred = model.predict(
                 current_y,
                 past_covariates=past_covariates,
@@ -195,16 +195,16 @@ class PredictPipeline(BasePipeline):
                 y_pred=y_pred,
                 belief_horizon=belief_horizon,
                 value_at_belief_horizon=value_at_belief_horizon,
-                horizon=horizon,
+                viewpoint=viewpoint,
                 belief_timestamp=belief_timestamp,
             )
             logging.debug(
-                f"Prediction for {self.readable_resolution} offset {horizon + 1} completed."
+                f"Prediction for {self.readable_resolution} viewpoint {viewpoint + 1} completed."
             )
             return y_pred_df
         except Exception as e:
             raise CustomException(
-                f"Error predicting for {self.readable_resolution} offset {horizon + 1}: {e}",
+                f"Error predicting for {self.readable_resolution} viewpoint {viewpoint + 1}: {e}",
                 sys,
             ) from e
 
@@ -226,25 +226,25 @@ class PredictPipeline(BasePipeline):
 
             # We make predictions up to the last hour in the predict_period
             y_pred_dfs = list()
-            for h in self.horizons:
+            for v in self.viewpoints:
                 future_covariates = (
-                    future_covariates_list[h] if future_covariates_list else None
+                    future_covariates_list[v] if future_covariates_list else None
                 )
                 past_covariates = (
-                    past_covariates_list[h] if past_covariates_list else None
+                    past_covariates_list[v] if past_covariates_list else None
                 )
-                y = y_list[h]
-                belief_timestamp = belief_timestamps_list[h]
+                y = y_list[v]
+                belief_timestamp = belief_timestamps_list[v]
                 # todo: there is something off about this debug statement, as h+1 never reaches n
                 logging.debug(
-                    f"Making prediction for {self.readable_resolution} offset {h + 1}/{self.n_steps_to_predict}"
+                    f"Making prediction for {self.readable_resolution} viewpoint {v + 1}/{self.n_steps_to_predict}"
                 )
                 y_pred_df = self.make_single_horizon_prediction(
                     model=model,
                     future_covariates=future_covariates,
                     past_covariates=past_covariates,
                     current_y=y,
-                    horizon=h,
+                    viewpoint=v,
                     belief_timestamp=belief_timestamp,
                 )
                 y_pred_dfs.append(y_pred_df)
