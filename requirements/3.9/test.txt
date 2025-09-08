@@ -134,3 +134,4 @@ zipp==3.23.0
     # via
     #   -c requirements/3.9/app.txt
     #   importlib-metadata
+dictdiffer>=0.9.0

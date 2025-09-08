@@ -56,6 +56,7 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
+from dictdiffer import diff
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
@@ -66,10 +67,34 @@ partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
 def format_json_field_change(field_name: str, old_value, new_value) -> str:
-    """Format JSON field changes using dictdiffer."""
-    try:
-        from dictdiffer import diff
+    """
+    Format JSON field changes using dictdiffer.
 
+    This function attempts to provide a detailed diff of changes between two JSON-like structures.
+    If the structures are not dicts or lists, or if an error occurs, it fall back to a simple change description.
+
+    :param field_name: Name of the field being changed.
+    :param old_value: The old value of the field.
+    :param new_value: The new value of the field.
+    :return: A formatted string describing the changes.
+
+    **Example input**
+
+    .. sourcecode:: json
+
+        {
+            "change_type": "change",
+            "key": "site-production-capacity",
+            "value": ('1500 kW', '15000 kW')
+        }
+
+    **Example output**
+
+    .. sourcecode:: text
+
+        change site-production-capacity: 1500 kW -> 15000 kW
+    """
+    try:
         if isinstance(old_value, list):
             old_dict = {i: item for i, item in enumerate(old_value)}
             new_dict = {i: item for i, item in enumerate(new_value)}
@@ -84,21 +109,26 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
                     changes.append(f"change {key}: {value[0]} -> {value[1]}")
                 elif change_type == "add":
                     for item in value:
-                        changes.append(f"add {key}[{item[0]}]: {item[1]}")
+                        changes.append(f"add {item[0]}: {item[1]}")
                 elif change_type == "remove":
                     for item in value:
-                        changes.append(f"remove {key}[{item[0]}]: {item[1]}")
+                        changes.append(f"remove {item[0]}")
 
             if changes:
-                changes_str = "\n".join(
-                    f"{i}. {change}" for i, change in enumerate(changes, 1)
-                )
-                return f"Updated Field: {field_name}\n{changes_str}"
+                if len(changes) > 1:
+                    changes_str = "\n".join(
+                        f"{i}. {change}" for i, change in enumerate(changes, 1)
+                    )
+                else:
+                    changes_str = changes[0]
+                return f"Updated: {field_name}, {changes_str}"
 
-        return f"Updated Field: {field_name}, From: {old_value}, To: {new_value}"
+        return f"Updated: {field_name}, From: {old_value}, To: {new_value}"
     except Exception as e:
-        print("Error formatting JSON field change:", e)
-        return f"Updated Field: {field_name}, From: {old_value}, To: {new_value}"
+        current_app.logger.error(
+            f"Error formatting JSON field change for {field_name}: {e}"
+        )
+        return f"Updated: {field_name}, From: {old_value}, To: {new_value}"
 
 
 def get_accessible_accounts() -> list[Account]:
@@ -636,7 +666,7 @@ class AssetAPI(FlaskView):
                 )
             else:
                 audit_log_data.append(
-                    f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
+                    f"Updated: {k}, From: {getattr(db_asset, k)}, To: {v}"
                 )
 
         # Iterate over each field or attribute updates and create a separate audit log entry for each.
