@@ -31,7 +31,7 @@ class ForecasterParametersSchema(Schema):
     output_path = fields.Str(required=False, allow_none=True)
     start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
-    train_period = fields.Int(required=False, allow_none=True)  # todo: DurationField
+    train_period = DurationField(required=False, allow_none=True)
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     retrain_frequency = DurationField(
         required=False, allow_none=True
@@ -119,9 +119,7 @@ class ForecasterParametersSchema(Schema):
         )
         if data.get("start_predict_date") is None and data.get("train_period"):
 
-            predict_start = data["start_date"] + timedelta(
-                hours=data["train_period"] * 24
-            )
+            predict_start = data["start_date"] + data["train_period"]
 
         if data.get("train_period") is None and data["start_date"] is None:
             train_period_in_hours = 30 * 24  # Set default train_period value to 30 days
@@ -131,10 +129,13 @@ class ForecasterParametersSchema(Schema):
                 (predict_start - data["start_date"]).total_seconds() / 3600
             )
         else:
-            train_period_in_hours = data["train_period"] * 24
+            train_period_in_hours = data["train_period"] // timedelta(hours=1)
 
         if train_period_in_hours < 48:
-            raise ValidationError("train-period must be at least 2 days (48 hours).")
+            raise ValidationError(
+                "train-period must be at least 2 days (48 hours)",
+                field_name="train_period",
+            )
 
         if data.get("retrain_frequency") is None:
             retrain_frequency_in_hours = int(

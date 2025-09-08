@@ -1062,8 +1062,7 @@ def add_holidays(
 @click.option(
     "--train-period",
     required=False,
-    type=click.IntRange(min=2),
-    help="Duration of the initial training period in days (minimum of 2). "
+    help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
     "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
     "If not set, derives a training period from --start-predict-date instead. "
     "If that is also not set, defaults to 2 days.",
