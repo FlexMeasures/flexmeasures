@@ -9,7 +9,7 @@ from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
-from werkzeug.exceptions import Forbidden, Unauthorized
+from werkzeug.exceptions import Forbidden
 from flexmeasures.auth.policy import check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
@@ -195,8 +195,11 @@ class UserAPI(FlaskView):
         {
             "email": fields.Email(required=True),
             "username": fields.Str(required=True),
-            "account_id": AccountIdField(required=True, data_key="account_id"),
+            "account": AccountIdField(required=True, data_key="account_id"),
         }
+    )
+    @permission_required_for_context(
+        "create-children", ctx_arg_pos=1, ctx_arg_name="account"
     )
     def post(self, user_data):
         """Create new user
@@ -217,9 +220,23 @@ class UserAPI(FlaskView):
         .. sourcecode:: json
 
             {
-                "email": "test_prosumer@seita.nl",
-                "username": "Test Prosumer User",
+                "email": "test_user@seita.nl",
+                "username": "Test User",
                 "account_id": 1
+            }
+
+        **Example response**
+
+        .. sourcecode:: json
+
+            {
+                'account_id': 1,
+                'active': True,
+                'email': 'test_user@seita.nl',
+                'flexmeasures_roles': [1, 3],
+                'id': 1,
+                'timezone': 'Europe/Amsterdam',
+                'username': 'Test User'
             }
 
         :reqheader Authorization: The authentication token
@@ -233,21 +250,15 @@ class UserAPI(FlaskView):
         """
         from flexmeasures.data.services.users import create_user
 
-        account = user_data["account_id"]
-        try:
-            check_access(account, "create-children")
-        except (Forbidden, Unauthorized):
-            raise Forbidden(
-                "You are not allowed to create users for this account."
-            ) from None
-
         created_user = create_user(
             username=user_data["username"],
             email=user_data["email"],
-            account_name=account.name,
-            password=user_data["email"],  # temporary password
+            account_name=user_data["account"].name,
+            password=user_data["email"],  # This will be set to a random password below
             user_roles=[],
         )
+        set_random_password(created_user)
+        send_reset_password_instructions(created_user)
         db.session.commit()
         return user_schema.dump(created_user), 201
 
