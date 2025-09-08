@@ -23,8 +23,7 @@ User Crud views for admins and consultants.
 
 
 def render_user(user: User | None, msg: str | None = None):
-    check_access(user, "read")
-
+    """Renders the user details page."""
     user_view_user_auditlog = True
     try:
         check_access(AuditLog.user_table_acl(current_user), "read")
