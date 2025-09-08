@@ -235,9 +235,8 @@ class PredictPipeline(BasePipeline):
                 )
                 y = y_list[v]
                 belief_timestamp = belief_timestamps_list[v]
-                # todo: there is something off about this debug statement, as h+1 never reaches n
                 logging.debug(
-                    f"Making prediction for {self.readable_resolution} viewpoint {v + 1}/{self.n_steps_to_predict}"
+                    f"Making prediction for {self.readable_resolution} viewpoint {v + 1}/{self.number_of_viewpoints}"
                 )
                 y_pred_df = self.make_single_horizon_prediction(
                     model=model,
