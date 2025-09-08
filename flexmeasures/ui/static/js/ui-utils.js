@@ -216,3 +216,4 @@ export function convertHtmlToElement(htmlString) {
     tempDiv.innerHTML = htmlString.trim();
     return tempDiv.firstChild;
 }
+

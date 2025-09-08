@@ -13,6 +13,22 @@ from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_asset_types(
+    client, setup_api_test_data, setup_roles_users, requesting_user
+):
+    get_asset_types_response = client.get(url_for("AssetTypesAPI:index"))
+    print("Server responded with:\n%s" % get_asset_types_response.json)
+    assert get_asset_types_response.status_code == 200
+    assert isinstance(get_asset_types_response.json, list)
+    assert len(get_asset_types_response.json) > 0
+    assert isinstance(get_asset_types_response.json[0], dict)
+    for key in ("id", "name", "description"):
+        assert key in get_asset_types_response.json[0].keys()
+
+
+@pytest.mark.parametrize(
     "requesting_user, status_code",
     [
         (None, 401),  # the case without auth: authentication will fail
@@ -610,18 +626,22 @@ def test_post_an_asset_with_existing_name(
 
     post_data = get_asset_post_data()
 
-    def get_asset_with_name(asset_name):
+    def get_asset_by_name(asset_name):
         return db.session.execute(
             select(GenericAsset).filter_by(name=asset_name)
         ).scalar_one_or_none()
 
-    parent = get_asset_with_name(parent_name)
+    parent = None
+    if parent_name:
+        parent = get_asset_by_name(parent_name)
 
     post_data["name"] = child_name
     post_data["account_id"] = requesting_user.account_id
 
     if parent:
         post_data["parent_asset_id"] = parent.parent_asset_id
+    else:
+        post_data["parent_asset_id"] = None
 
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
