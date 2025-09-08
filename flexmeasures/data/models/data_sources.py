@@ -116,7 +116,8 @@ class DataGenerator:
         `parameters` cannot contain the key `parameters` at its top level, otherwise it could conflict with keyword argument `parameters`
         of the method compute when passing the `parameters` as deserialized attributes.
 
-        :param parameters: serialized `parameters` parameters, defaults to None
+        :param parameters:  Serialized parameters, defaults to None.
+        :param kwargs:      Deserialized parameters (can be used as an alternative to the `parameters` kwarg).
         """
 
         if self._parameters is None:

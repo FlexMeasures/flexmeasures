@@ -33,9 +33,12 @@ class TrainPredictPipeline(Forecaster):
         self,
         config: dict | None = None,
         delete_model: bool = False,
+        save_config: bool = True,
         save_parameters: bool = True,
     ):
-        super().__init__(config=config, save_parameters=save_parameters)
+        super().__init__(
+            config=config, save_config=save_config, save_parameters=save_parameters
+        )
         for k, v in self._config.items():
             setattr(self, k, v)
         self.delete_model = delete_model
@@ -129,7 +132,9 @@ class TrainPredictPipeline(Forecaster):
         return total_runtime
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
-        # todo: move contents of `self.run` here, taking care of the Job logic
+        # Run the train-and-predict pipeline
+        self.run(**kwargs)
+        # todo: return results
         return []
 
     def run(
@@ -138,7 +143,6 @@ class TrainPredictPipeline(Forecaster):
         queue: str = "forecasting",
         **job_kwargs,
     ):
-        self.compute(parameters=job_kwargs)
         try:
             logging.info(
                 f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."

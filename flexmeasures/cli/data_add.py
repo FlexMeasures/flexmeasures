@@ -27,7 +27,7 @@ import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
-from flexmeasures import Reporter
+from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
     get_data_generator,
     DeprecatedDefaultGroup,
@@ -90,9 +90,6 @@ from flexmeasures.cli.utils import validate_color_cli, validate_url_cli, split_c
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
-from flexmeasures.data.models.forecasting.pipelines.train_predict import (
-    TrainPredictPipeline,
-)
 
 
 @click.group("add")
@@ -1121,9 +1118,56 @@ def add_holidays(
     "--horizon",
     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
 )
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the configuration of the forecaster.",
+)
+@click.option(
+    "--reporter",
+    "reporter_class",
+    default="TrainPredictPipeline",
+    type=click.STRING,
+    help="Reporter class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
+    " Use the command `flexmeasures show forecasters` to list all the available forecasters.",
+)
+@click.option(
+    "--source",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="DataSource ID of the `Forecaster`.",
+)
+@click.option(
+    "--parameters",
+    "parameters_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step).",
+)
+@click.option(
+    "--edit-config",
+    "edit_config",
+    is_flag=True,
+    help="Add this flag to edit the configuration of the Forecaster in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--edit-parameters",
+    "edit_parameters",
+    is_flag=True,
+    help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
+)
 @with_appcontext
 def train_predict_pipeline(
     as_job,
+    reporter_class: str,
+    source: DataSource | None = None,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
     **kwargs,
 ):
     """
@@ -1166,9 +1210,37 @@ def train_predict_pipeline(
         )
     del kwargs["resolution"]
 
+    config = dict()
+
+    if config_file:
+        config = yaml.safe_load(config_file)
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    parameters = dict()
+
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
+
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
+
+    # Move remaining kwargs to parameters
+    for k, v in kwargs.items():
+        if k not in parameters:
+            parameters[k] = v
+
+    forecaster = get_data_generator(
+        source=source,
+        model=reporter_class,
+        config=config,
+        save_config=True,
+        data_generator_type=Forecaster,
+    )
+
     try:
-        pipeline = TrainPredictPipeline()
-        pipeline.run(as_job=as_job, **kwargs)
+        forecaster.compute(as_job=as_job, parameters=parameters)
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
