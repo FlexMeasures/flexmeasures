@@ -59,7 +59,7 @@ def test_get_ancestry(app, db):
 def test_ui_flexcontext_schema():
     """
     This test ensures that all fields in the DBFlexContextSchema (except some exclusions)
-    are also in the UI schema.
+    are also in the UI schema and vice versa.
 
     This is important to keep in mind when updating either schema. We want to avoid a situation
     where a field is added to the DB schema but not to the UI schema, as that would lead to
@@ -83,8 +83,10 @@ def test_ui_flexcontext_schema():
         if value.data_key not in exclude_fields:
             schema_keys.append(value.data_key)
 
-    for key in schema_keys:
-        assert key in ui_flexcontext_schema_fields
+    schema_keys = set(schema_keys)
+    ui_flexcontext_schema_fields = set(ui_flexcontext_schema_fields)
+
+    assert schema_keys == ui_flexcontext_schema_fields
 
 
 class NewAsset:
