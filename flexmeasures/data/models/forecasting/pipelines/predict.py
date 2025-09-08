@@ -156,7 +156,7 @@ class PredictPipeline(BasePipeline):
                 f"Error preparing prediction DataFrame: {e}", sys
             ) from e
 
-    def make_single_horizon_prediction(
+    def make_single_fixed_viewpoint_prediction(
         self,
         model,
         future_covariates: TimeSeries,
@@ -208,7 +208,7 @@ class PredictPipeline(BasePipeline):
                 sys,
             ) from e
 
-    def make_multi_horizon_predictions(
+    def make_multi_fixed_viewpoint_predictions(
         self,
         model,
         future_covariates_list: list[TimeSeries],
@@ -217,7 +217,7 @@ class PredictPipeline(BasePipeline):
         belief_timestamps_list: list[pd.Timestamp],
     ) -> pd.DataFrame:
         """
-        Make multiple predictions for the given model, X, and y.
+        Make predictions for multiple fixed viewpoints, for the given model, X, and y.
         """
         try:
             logging.debug(
@@ -238,7 +238,7 @@ class PredictPipeline(BasePipeline):
                 logging.debug(
                     f"Making prediction for {self.readable_resolution} viewpoint {v + 1}/{self.number_of_viewpoints}"
                 )
-                y_pred_df = self.make_single_horizon_prediction(
+                y_pred_df = self.make_single_fixed_viewpoint_prediction(
                     model=model,
                     future_covariates=future_covariates,
                     past_covariates=past_covariates,
@@ -282,7 +282,7 @@ class PredictPipeline(BasePipeline):
 
             model = self.load_model()
             logging.debug("Model loaded")
-            df_pred = self.make_multi_horizon_predictions(
+            df_pred = self.make_multi_fixed_viewpoint_predictions(
                 model,
                 future_covariates_list=future_covariates_list,
                 past_covariates_list=past_covariates_list,
