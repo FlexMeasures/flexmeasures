@@ -7,7 +7,7 @@ import json
 from flask import current_app
 from flask_security import current_user
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import select, Table
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func, text
@@ -648,6 +648,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         as_json: bool = False,
         compress_json: bool = False,
         resolution: timedelta | None = None,
+        use_materialized_view: bool = True,
+        most_recent_beliefs_mview: Table | None = None,
     ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
 
@@ -688,6 +690,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 most_recent_events_only=most_recent_events_only,
                 one_deterministic_belief_per_event_per_source=True,
                 resolution=resolution,
+                use_materialized_view=use_materialized_view,
+                most_recent_beliefs_mview=most_recent_beliefs_mview,
             )
         if as_json and not compress_json:
             from flexmeasures.data.services.time_series import simplify_index
