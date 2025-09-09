@@ -260,6 +260,11 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates("attributes")
     def validate_attributes(self, attributes: dict, **kwargs):
+        """
+        Validate sensors_to_show if sent within attributes.
+        Deprecated, as this is now its own field on the model.
+        Can be deleted once we stop supporting storing them under here.
+        """
         sensors_to_show = attributes.get("sensors_to_show", [])
         if sensors_to_show:
 
