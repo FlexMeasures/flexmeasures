@@ -10,7 +10,7 @@ from sqlalchemy import select
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import User, Role
+from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
     get_user_by_id_or_raise_notfound,
     reset_password,

@@ -7,6 +7,7 @@ from sqlalchemy import and_, select, func, or_
 from flask_sqlalchemy.pagination import SelectPagination
 from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
+from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
 from flexmeasures.auth.policy import check_access
@@ -22,6 +23,7 @@ from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     reset_password,
     remove_cookie_and_token_access,
+    set_random_password,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
