@@ -299,7 +299,10 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
 
     @post_load()
     def post_load_sequence(self, data: dict, **kwargs) -> BeliefsDataFrame:
-        """If needed, upsample and convert units, then deserialize to a BeliefsDataFrame."""
+        """
+        If needed, upsample and convert units, then deserialize to a BeliefsDataFrame.
+        Returns a dict with the BDF in it, as that is expected by webargs when used with as_kwargs=True.
+        """
         data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
         bdf = self.load_bdf(data)
@@ -313,9 +316,6 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             if any(h < timedelta(0) for h in bdf.belief_horizons):
                 raise ValidationError("Prognoses must lie in the future.")
 
-        # return bdf
-        # Returning a dict with our value wrapped in there, as that is expected
-        # (not sure why using location_loader leads to this expectation ...)
         return dict(bdf=bdf)
 
     @staticmethod
