@@ -191,9 +191,8 @@ def test_post_invalid_sensor_data(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
 def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db):
-    sensor_name = "some gas sensor"
-    sensor = setup_api_test_data[sensor_name]
-    post_data = make_sensor_data_request_for_gas_sensor(sensor_name=sensor_name)
+    sensor = setup_api_test_data["some gas sensor"]
+    post_data = make_sensor_data_request_for_gas_sensor()
 
     @event.listens_for(Engine, "handle_error")
     def receive_handle_error(exception_context):
@@ -261,7 +260,6 @@ def test_post_sensor_instantaneous_data(
     requesting_user,
 ):
     post_data = make_sensor_data_request_for_gas_sensor(
-        sensor_name="empty temperature sensor",
         num_values=num_values,
         unit="°C",
         duration="PT0H",

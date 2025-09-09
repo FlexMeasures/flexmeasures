@@ -138,7 +138,6 @@ def test_post_sensor_instantaneous_data_round(
     requesting_user,
 ):
     post_data = make_sensor_data_request_for_gas_sensor(
-        sensor_name="empty temperature sensor",
         num_values=1,
         unit="°C",
         duration="PT0H",

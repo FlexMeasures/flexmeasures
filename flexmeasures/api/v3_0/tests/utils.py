@@ -9,7 +9,6 @@ def make_sensor_data_request_for_gas_sensor(
     duration: str = "PT1H",
     unit: str = "m³",
     include_a_null: bool = False,
-    sensor_name: str = "some gas sensor",
 ) -> dict:
     """Creates request to post sensor data for a gas sensor.
     This particular gas sensor measures units of m³/h with a 10-minute resolution.
