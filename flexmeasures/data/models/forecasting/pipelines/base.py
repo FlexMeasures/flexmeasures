@@ -570,7 +570,7 @@ class BasePipeline:
     def detect_and_fill_missing_values(
         self,
         df: pd.DataFrame,
-        sensors: list[Sensor],
+        sensors: list[str],
         start: datetime,
         end: datetime,
         interpolate_kwargs: dict = None,
@@ -583,7 +583,7 @@ class BasePipeline:
 
         Parameters:
         - df (pd.DataFrame): The input dataframe containing time series data with a "time" column.
-        - sensors (list[Sensor]): The list of sensors (used for logging).
+        - sensors (list[str]): The list of sensor names.
         - start (datetime): The desired start time of the time series.
         - end (datetime): The desired end time of the time series.
         - interpolate_kwargs (dict, optional): Additional keyword arguments passed to `MissingValuesFiller`,
@@ -599,8 +599,8 @@ class BasePipeline:
         """
         dfs = []
 
-        for sensor in sensors:
-            sensor_name = f"{sensor.name} (ID: {sensor.id})"
+        for sensor_name in sensors:
+            sensor = Sensor.query.get(int(sensor_name.split("ID: ")[1].split(")")[0]))
             if df.empty:
                 last_event_start = end - pd.Timedelta(
                     hours=sensor.event_resolution.total_seconds() / 3600
