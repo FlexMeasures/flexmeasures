@@ -79,7 +79,7 @@ class BasePipeline:
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
         self.target_sensor = target_sensor
-        self.target = f"{target_sensor.name} (ID: {target_sensor.id})"
+        self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
             f"{sensor.name} (ID: {sensor.id})" for sensor in future_regressors
         ]
