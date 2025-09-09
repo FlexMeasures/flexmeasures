@@ -7,7 +7,6 @@ from sqlalchemy import and_, select, func, or_
 from flask_sqlalchemy.pagination import SelectPagination
 from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
-from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
 from flexmeasures.auth.policy import check_access
@@ -21,7 +20,7 @@ from flexmeasures.data.queries.users import query_users_by_search_terms
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
-    set_random_password,
+    reset_password,
     remove_cookie_and_token_access,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -433,10 +432,7 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        set_random_password(user)
-        remove_cookie_and_token_access(user)
-        send_reset_password_instructions(user)
-
+        reset_password(user)
         # commit only if sending instructions worked, as well
         db.session.commit()
 
