@@ -326,9 +326,7 @@ class BasePipeline:
                         .reset_index(drop=True)
                     )
                     past_keep = [
-                        c
-                        for c in past_latest.columns
-                        if c not in ("belief_time")
+                        c for c in past_latest.columns if c not in ("belief_time")
                     ]
                     past_latest = past_latest[past_keep]
 
@@ -360,9 +358,7 @@ class BasePipeline:
                         .reset_index(drop=True)
                     )
 
-                    keep = [
-                        c for c in fr.columns if c not in ("belief_time")
-                    ]
+                    keep = [c for c in fr.columns if c not in ("belief_time")]
                     future_realized_latest = fr[keep]
                     future_all_closest = fa[keep]
 
@@ -538,9 +534,7 @@ class BasePipeline:
 
             # With regressors
             X_past_regressors_df = (
-                df[["event_start", "belief_time"]
-                    + self.past_regressors
-                ]
+                df[["event_start", "belief_time"] + self.past_regressors]
                 if self.past_regressors
                 else None
             )
