@@ -165,8 +165,11 @@ def test_cli_help(app):
 
 
 @pytest.mark.skip_github
-@pytest.mark.parametrize("_format", ["png", "svg"])
-def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format):
+@pytest.mark.parametrize(
+    "_format, combine_legend",
+    [("png", True), ("png", False), ("svg", True), ("svg", False)],
+)
+def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format, combine_legend):
     from flexmeasures.cli.data_show import chart
 
     sensor = get_test_sensor(fresh_db)
@@ -186,7 +189,8 @@ def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format):
                 "2021-03-29T16:00+01",
                 "--filename",
                 f"chart-$entity_type-$id.{_format}",
-            ],
+            ]
+            + (["--combine-legend"] if combine_legend else []),
         )
 
         check_command_ran_without_error(result)

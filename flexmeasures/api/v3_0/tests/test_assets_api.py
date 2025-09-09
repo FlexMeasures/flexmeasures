@@ -305,13 +305,13 @@ def test_alter_an_asset(
 
     check_audit_log_event(
         db=db,
-        event=f"Updated Field: name, From: {name}, To: other",
+        event=f"Updated: name, From: {name}, To: other",
         user=requesting_user,
         asset=prosumer_asset,
     )
     check_audit_log_event(
         db=db,
-        event=f"Updated Field: latitude, From: {latitude}, To: 11.1",
+        event=f"Updated: latitude, From: {latitude}, To: 11.1",
         user=requesting_user,
         asset=prosumer_asset,
     )
