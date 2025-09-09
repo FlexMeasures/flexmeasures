@@ -438,9 +438,10 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     required=False,
     type=str,
     default="chart-$now.png",
-    help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
-    " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
-    " Example: 'result_file_$entity_type_$id_$now.png' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
+    help="Output filename template. You can use the following placeholders with a dollar sign ($): "
+    "$now (current timestamp), $id (sensor or asset ID), and $entity_type ('asset' or 'sensor'). "
+    "Example: 'chart_$entity_type_$id_$now.png' → 'chart_asset_1_2023-08-24T14:47:08.png'. "
+    "Note: you may need to escape the dollar sign (\$) in your terminal.",
 )
 @click.option(
     "--resolution",
