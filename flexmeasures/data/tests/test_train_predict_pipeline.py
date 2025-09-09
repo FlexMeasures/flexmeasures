@@ -54,7 +54,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
             {
                 # "model": "CustomLGBM",
             },
-            {  # Test: duplicate sensors names in past and future regressors
+            {  # Test: duplicate sensor names in past and future regressors
                 "sensor": "solar-sensor",
                 "past_regressors": ["irradiance-sensor"],
                 "future_regressors": ["irradiance-sensor"],
