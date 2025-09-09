@@ -440,7 +440,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     default="chart-$now.png",
     help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
     " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
-    " Example: 'result_file_$entity_type_$id_$now.csv' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
+    " Example: 'result_file_$entity_type_$id_$now.png' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
 )
 @click.option(
     "--resolution",
