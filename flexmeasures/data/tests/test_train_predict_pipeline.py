@@ -54,6 +54,25 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
             {
                 # "model": "CustomLGBM",
             },
+            {  # Test: duplicate sensors names in past and future regressors
+                "sensor": "solar-sensor",
+                "past_regressors": ["irradiance-sensor"],
+                "future_regressors": ["irradiance-sensor"],
+                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output_path": None,
+                "start_date": "2025-01-01T00:00+02:00",
+                "start_predict_date": "2025-01-04T00:00+02:00",
+                "end_date": "2025-01-09T00:00+02:00",
+                "sensor_to_save": None,
+                "max_forecast_horizon": "PT1H",
+                "probabilistic": False,
+            },
+            (Exception, "Error splitting data"),
+        ),
+        (
+            {
+                # "model": "CustomLGBM",
+            },
             {
                 "sensor": "solar-sensor",
                 "future_regressors": ["irradiance-sensor"],
