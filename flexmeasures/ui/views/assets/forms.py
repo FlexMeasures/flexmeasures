@@ -74,7 +74,7 @@ class AssetForm(FlaskForm):
             return
 
     def to_json(self) -> dict:
-        """turn form data into a JSON we can POST to our internal API"""
+        """turn form data into a JSON object"""
         data = copy.copy(self.data)
         if data.get("longitude") is not None:
             data["longitude"] = float(data["longitude"])
@@ -86,23 +86,6 @@ class AssetForm(FlaskForm):
             del data["csrf_token"]
 
         return data
-
-    def process_api_validation_errors(self, api_response: dict):
-        """Process form errors from the API for the WTForm"""
-        if not isinstance(api_response, dict):
-            return
-        for error_header in ("json", "validation_errors"):
-            if error_header not in api_response:
-                continue
-            for field in list(self._fields.keys()):
-                if field in list(api_response[error_header].keys()):
-                    field_errors = api_response[error_header][field]
-                    if isinstance(field_errors, list):
-                        self._fields[field].errors += api_response[error_header][field]
-                    else:
-                        self._fields[field].errors.append(
-                            api_response[error_header][field]
-                        )
 
     def with_options(self):
         if "generic_asset_type_id" in self:
