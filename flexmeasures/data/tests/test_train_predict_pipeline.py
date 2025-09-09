@@ -117,27 +117,18 @@ def test_train_predict_pipeline(
 ):
     sensor = setup_fresh_test_forecast_data[params["sensor"]]
     params["sensor"] = sensor.id
-    # list of regressor names without duplicates to be created by the test fixture
-    regressors_names = list(
-        set(
-            params.get("past_regressors", [])
-            + params.get("future_regressors", [])
-            + params.get("regressors", [])
-        )
-    )
-    regressors = [
-        setup_fresh_test_forecast_data[regressor_name]
-        for regressor_name in regressors_names
-    ]
+
     past_regressors = [
-        sensor
-        for sensor in regressors
-        if sensor.name in params.get("past_regressors", [])
+        setup_fresh_test_forecast_data[regressor_name]
+        for regressor_name in params.get("past_regressors", [])
     ]
     future_regressors = [
-        sensor
-        for sensor in regressors
-        if sensor.name in params.get("future_regressors", [])
+        setup_fresh_test_forecast_data[regressor_name]
+        for regressor_name in params.get("future_regressors", [])
+    ]
+    regressors = [
+        setup_fresh_test_forecast_data[regressor_name]
+        for regressor_name in params.get("regressors", [])
     ]
 
     if params.get("past_regressors"):
@@ -189,11 +180,22 @@ def test_train_predict_pipeline(
 
         # Check DataGenerator parameters stored under DataSource attributes
         data_generator_params = source.attributes["data_generator"]["parameters"]
+        for regressor in past_regressors:
+            assert (
+                regressor.id in data_generator_params["past_regressors"]
+            ), f"data generator parameters should mention past regressor {regressor.name}"
+
+        for regressor in future_regressors:
+            assert (
+                regressor.id in data_generator_params["future_regressors"]
+            ), f"data generator parameters should mention future regressor {regressor.name}"
         for regressor in regressors:
-            assert regressor.id in data_generator_params[
-                "future_regressors"
-            ] + data_generator_params.get(
-                "past_regressors", []
-            ) + data_generator_params.get(
-                "regressors", []
-            ), f"data generator parameters should mention regressor {regressor.name}"
+            assert (
+                regressor.id in data_generator_params["past_regressors"]
+            ), f"data generator parameters should mention regressor {regressor.name} as a past regressor"
+            assert (
+                regressor.id in data_generator_params["future_regressors"]
+            ), f"data generator parameters should mention regressor {regressor.name} as a future regressor"
+        assert (
+            "regressors" not in data_generator_params
+        ), "(past and future) regressors should be stored under 'past_regressors' and 'future_regressors' instead"
