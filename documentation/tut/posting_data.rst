@@ -94,7 +94,7 @@ Likewise, if the data unit does not match the sensor’s unit, FlexMeasures will
 Being explicit when posting power data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For power data, USEF specifies separate message types for observations and forecasts.
+For power data, USEF[1] specifies separate message types for observations and forecasts.
 Correspondingly, we allow the following message types to be used with the `POST  /sensors/16/data <../api/v3_0.html#post--api-v3_0-sensors-(id)-data>`_ endpoint:
 
 .. code-block:: json
@@ -226,3 +226,6 @@ The endpoint also allows to limit the flexibility range and also to set target v
 
 
 In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasures is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.
+
+
+[1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf
