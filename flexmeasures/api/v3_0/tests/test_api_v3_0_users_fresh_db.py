@@ -5,6 +5,7 @@ from sqlalchemy import select
 from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.audit_log import AuditLog
+from flexmeasures.data.models.user import Account
 
 
 @pytest.mark.parametrize(
@@ -88,3 +89,56 @@ def test_user_role_successful_modification_permission(
 
     print("Server responded with:\n%s" % patch_user_response.data)
     assert patch_user_response.status_code == expected_status_code
+
+
+@pytest.mark.parametrize(
+    "requesting_user, account_name, status_code",
+    [
+        (
+            "test_prosumer_user_2@seita.nl",
+            "Test Prosumer Account",
+            201,
+        ),  # An acct-admin of "Prosumer" account
+        (
+            "test_dummy_account_admin@seita.nl",
+            "Test Prosumer Account",
+            403,
+        ),  # An acct-admin of another account (Dummy account)
+        (
+            "test_admin_reader_user@seita.nl",
+            "Test Dummy Account",
+            403,
+        ),  # An admin-reader of "Dummy" account
+    ],
+    indirect=["requesting_user"],
+)
+def test_user_creation_api(
+    fresh_db,
+    client,
+    setup_roles_users_fresh_db,
+    setup_accounts_fresh_db,
+    requesting_user,
+    account_name,
+    status_code,
+):
+    """
+    Test user creation endpoint.
+
+    Only user with the right permissions can create a user in a certain account.
+    In this case the user is required to have the "create-children" perm for that account.
+    """
+
+    account = fresh_db.session.execute(
+        select(Account).filter_by(name=account_name)
+    ).scalar_one()
+
+    user_creation_response = client.post(
+        url_for("UserAPI:post"),
+        json={
+            "email": "new_user@seita.nl",
+            "username": "new_user",
+            "account_id": account.id,
+        },
+    )
+    print("Server responded with:\n%s" % user_creation_response.data)
+    assert user_creation_response.status_code == status_code
