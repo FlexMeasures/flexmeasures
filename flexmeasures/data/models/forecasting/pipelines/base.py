@@ -80,8 +80,6 @@ class BasePipeline:
         self.event_ends_before = event_ends_before
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})"
-        self.future_regressors_sensors = future_regressors
-        self.past_regressors_sensors = past_regressors
         self.future_regressors = [
             f"{sensor.name} (ID: {sensor.id})" for sensor in future_regressors
         ]
@@ -428,7 +426,7 @@ class BasePipeline:
                         )
                         past_covariates = self.detect_and_fill_missing_values(
                             df=past_slice,
-                            sensors=[r for r in self.past_regressors_sensors],
+                            sensors=self.past,
                             start=target_start,
                             end=target_end,
                         )
@@ -492,7 +490,7 @@ class BasePipeline:
 
                         future_covariates = self.detect_and_fill_missing_values(
                             df=future_df,
-                            sensors=[r for r in self.future_regressors_sensors],
+                            sensors=self.future,
                             start=target_start,
                             end=forecast_end + self.target_sensor.event_resolution,
                         )
