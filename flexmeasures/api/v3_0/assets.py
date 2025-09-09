@@ -78,21 +78,36 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
     :param new_value: The new value of the field.
     :return: A formatted string describing the changes.
 
-    **Example input**
+    **Example input 1**
 
     .. sourcecode:: json
 
         {
-            "change_type": "change",
-            "key": "site-production-capacity",
-            "value": ('1500 kW', '15000 kW')
+            "field_name": "flex_context",
+            "old_value": {'site-production-capacity': '1500 kW', 'site-peak-production': '20000kW', 'inflexible-device-sensors': []},
+            "new_value": {'site-production-capacity': '15000 kW', 'site-peak-production': '20000kW', 'inflexible-device-sensors': []}
         }
 
-    **Example output**
+    **Example output 1**
 
     .. sourcecode:: text
 
-        change site-production-capacity: 1500 kW -> 15000 kW
+        Updated: flex_context, change site-production-capacity:: 1500 kW -> 15000 kW
+
+    **Example input 2**
+
+    .. sourcecode:: json
+
+        {
+            "field_name": "flex_context",
+            "old_value": {'site-production-capacity': '15000 kW', 'site-peak-production': '20000kW'},
+            "new_value": {'site-peak-production': '20000kW'}
+        }
+
+    **Example output 2**
+
+    .. sourcecode:: text
+        Updated: flex_context, remove site-production-capacity
     """
     try:
         if isinstance(old_value, list):
