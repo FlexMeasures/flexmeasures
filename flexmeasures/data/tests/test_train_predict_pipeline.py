@@ -67,7 +67,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
                 "max_forecast_horizon": "PT1H",
                 "probabilistic": False,
             },
-            (Exception, "Error splitting data"),
+            None,
         ),
         (
             {
