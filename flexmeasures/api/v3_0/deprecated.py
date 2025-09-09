@@ -77,7 +77,7 @@ class SensorEntityAddressAPI(FlaskView):
         """
         bdf = data.get("bdf")
         sensor_id = bdf.sensor.id if bdf is not None else "<id>"
-        current_app.logger.warning(
+        current_app.logger.debug(
             f"User {current_user} called the deprecated endpoint /sensors/data for sensor {sensor_id}. Should start using /sensors/{sensor_id}/data."
         )
         response, code = save_and_enqueue(bdf)
