@@ -165,27 +165,19 @@ def data_to_bdf(
 ) -> tb.BeliefsDataFrame:
     """
     Converts a prediction DataFrame into a BeliefsDataFrame for saving to the database.
-    Parameters:
-    ----------
-    data : pd.DataFrame
-        DataFrame containing predictions for different forecast horizons.
-        If probabilistic forecasts are generated, `data` includes a
-        `component` column that encodes which quantile (cumulative probability)
-        the row corresponds to.
-    horizon : int
-        Maximum forecast horizon in time-steps relative to the sensor's resolution. For example, if the sensor resolution is 1 hour, a horizon of 48 represents a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes, a horizon of 4*48 represents a forecast horizon of 48 hours.
-    probabilistic : bool
-        Whether the forecasts are probabilistic or deterministic.
-    target_sensor : Sensor
-        The Sensor object for which the predictions are made.
-    sensor_to_save : Sensor
-        The sensor object to save the forecasts to.
-    source : DataSource
-        The source object to attribute the forecasts to.
-    Returns:
-    -------
-    tb.BeliefsDataFrame
-        A formatted BeliefsDataFrame ready for database insertion.
+
+    :param data:            DataFrame containing predictions for different forecast horizons.
+                            If probabilistic forecasts are generated, `data` includes a `component` column,
+                            which encodes which quantile (cumulative probability) the row corresponds to.
+    :param horizon:         Maximum forecast horizon in time-steps relative to the sensor's resolution.
+                            For example, if the sensor resolution is 1 hour, a horizon of 48 represents
+                            a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes,
+                            a horizon of 4*48 represents a forecast horizon of 48 hours.
+    :param probabilistic:   Whether the forecasts are probabilistic or deterministic.
+    :param target_sensor:   The Sensor object for which the predictions are made.
+    :param sensor_to_save:  The Sensor object to save the forecasts to.
+    :param data_source:     The DataSource object to attribute the forecasts to.
+    :returns:               A formatted BeliefsDataFrame ready for database insertion.
     """
     df = data.copy()
     df.reset_index(inplace=True)
