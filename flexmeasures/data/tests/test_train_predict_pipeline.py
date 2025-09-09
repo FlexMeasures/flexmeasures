@@ -112,6 +112,16 @@ def test_train_predict_pipeline(
         sensor
         for sensor in regressors if sensor.name in params.get("future_regressors", [])
     ]
+
+    if params.get("past_regressors"):
+        params["past_regressors"] = [regressor.id for regressor in past_regressors]
+
+    if params.get("future_regressors"):
+        params["future_regressors"] = [regressor.id for regressor in future_regressors]
+
+    if params.get("regressors"):
+        params["regressors"] = [regressor.id for regressor in regressors]
+
     if expected_error:
         with pytest.raises(expected_error[0]) as e_info:
             pipeline = TrainPredictPipeline(config=config)
