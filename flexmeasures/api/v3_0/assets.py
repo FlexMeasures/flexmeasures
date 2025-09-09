@@ -574,7 +574,6 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         db_asset = patch_asset(db_asset, asset_data)
-
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
