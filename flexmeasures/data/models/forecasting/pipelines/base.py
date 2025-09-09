@@ -412,7 +412,7 @@ class BasePipeline:
                     y_slice_df = _slice_closed(y_clean, target_start, target_end)
                     y_split = self.detect_and_fill_missing_values(
                         df=y_slice_df,
-                        sensors=[self.target_sensor],
+                        sensors=[self.target],
                         start=target_start,
                         end=target_end,
                     )
@@ -424,7 +424,7 @@ class BasePipeline:
                         )
                         past_covariates = self.detect_and_fill_missing_values(
                             df=past_slice,
-                            sensors=self.past,
+                            sensors=self.past_regressors,
                             start=target_start,
                             end=target_end,
                         )
@@ -488,7 +488,7 @@ class BasePipeline:
 
                         future_covariates = self.detect_and_fill_missing_values(
                             df=future_df,
-                            sensors=self.future,
+                            sensors=self.future_regressors,
                             start=target_start,
                             end=forecast_end + self.target_sensor.event_resolution,
                         )
