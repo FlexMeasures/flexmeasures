@@ -6,9 +6,9 @@ import copy
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import (
-    mock_asset_response,
-    mock_asset_response_with_kpis,
-    mock_api_data_as_form_input,
+    mock_asset_data,
+    mock_asset_data_with_kpis,
+    mock_asset_data_as_form_input,
 )
 
 """
@@ -20,9 +20,7 @@ The real logic tests are done in the api package, which is also the better place
 api_path_assets = "http://localhost//api/v3_0/assets"
 
 
-def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
-    requests_mock.get(f"{api_path_assets}", status_code=200, json=[])
-    requests_mock.get(f"{api_path_assets}/public", status_code=200, json=[])
+def test_assets_page_empty(db, client, as_prosumer_user1):
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
 
@@ -43,15 +41,11 @@ def test_new_asset_page(client, setup_assets, as_admin):
         "auditlog",
     ],
 )
-def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1, view):
+def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
     user = find_user_by_email("test_prosumer_user@seita.nl")
     asset = user.account.generic_assets[0]
     db.session.expunge(user)
-    mock_asset = mock_asset_response(as_list=False)
-    mock_asset["latitude"] = asset.latitude
-    mock_asset["longitude"] = asset.longitude
 
-    requests_mock.get(f"{api_path_assets}/{asset.id}", status_code=200, json=mock_asset)
     asset_page = client.get(
         url_for(
             f"AssetCrudUI:{view}",
@@ -97,14 +91,12 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1, 
     ],
 )
 def test_asset_page_dates_validation(
-    db, client, setup_assets, requests_mock, as_prosumer_user1, args, error
+    db, client, setup_assets, as_prosumer_user1, args, error
 ):
     user = find_user_by_email("test_prosumer_user@seita.nl")
     asset = user.account.generic_assets[0]
     db.session.expunge(user)
-    mock_asset = mock_asset_response(as_list=False)
 
-    requests_mock.get(f"{api_path_assets}/{asset.id}", status_code=200, json=mock_asset)
     asset_page = client.get(
         url_for(
             "AssetCrudUI:graphs",
@@ -117,14 +109,30 @@ def test_asset_page_dates_validation(
     assert "UNPROCESSABLE_ENTITY".encode() in asset_page.data
 
 
-def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
-    mock_asset = mock_asset_response_with_kpis(db=db, as_list=False)
-    requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)
-    requests_mock.get(f"{api_path_assets}/1", status_code=200, json=mock_asset)
+def test_add_asset(db, client, setup_assets, as_admin):
+    """Add a new asset"""
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    mock_asset = mock_asset_data(account_id=user.account.id, as_list=False)
+
+    response = client.post(
+        url_for("AssetCrudUI:post", id="create"),
+        follow_redirects=True,
+        data=mock_asset_data_as_form_input(mock_asset),
+    )
+    assert response.status_code == 200  # response is HTML form
+    assert "html" in response.content_type
+    assert b"Creation was successful" in response.data
+    assert mock_asset["name"] in str(response.data)
+    assert str(mock_asset["latitude"]) in str(response.data)
+    assert str(mock_asset["longitude"]) in str(response.data)
+
+
+def test_edit_asset(db, client, setup_assets, as_admin):
+    mock_asset = mock_asset_data_with_kpis(db=db, as_list=False)
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
-        data=mock_api_data_as_form_input(mock_asset),
+        data=mock_asset_data_as_form_input(mock_asset),
     )
     assert response.status_code == 200
     assert b"Editing was successful" in response.data
@@ -133,12 +141,8 @@ def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
     assert str(mock_asset["longitude"]) in str(response.data)
 
 
-def test_sensors_to_show_as_kpis_json(
-    db, client, setup_assets, requests_mock, as_admin
-):
-    mock_asset = mock_asset_response_with_kpis(db=db, as_list=False)
-    requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)
-    requests_mock.get(f"{api_path_assets}/1", status_code=200, json=mock_asset)
+def test_sensors_to_show_as_kpis_json(db, client, setup_assets, as_admin):
+    mock_asset = mock_asset_data_with_kpis(db=db, as_list=False)
 
     # Test asset with invalid json
     ma_copy = copy.deepcopy(mock_asset)
@@ -146,7 +150,7 @@ def test_sensors_to_show_as_kpis_json(
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
-        data=mock_api_data_as_form_input(ma_copy),
+        data=mock_asset_data_as_form_input(ma_copy),
     )
     # how the UI works is that the page reloads with 200 but there is a an error message string that checks if the editing was successful or not
     assert response.status_code == 200
@@ -162,43 +166,15 @@ def test_sensors_to_show_as_kpis_json(
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
-        data=mock_api_data_as_form_input(ma_copy),
+        data=mock_asset_data_as_form_input(ma_copy),
     )
     assert response.status_code == 200
     assert b"Cannot edit asset:" in response.data
     assert b"Must be one of: sum, min, max, mean." in response.data
 
 
-def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
-    """Add a new asset"""
-    user = find_user_by_email("test_prosumer_user@seita.nl")
-    mock_asset = mock_asset_response(account_id=user.account.id, as_list=False)
-    del mock_asset[
-        "generic_asset_type"
-    ]  # API gives back more info here than a POST sends
-    mock_asset["generic_asset_type_id"] = 1
-    requests_mock.post(api_path_assets, status_code=201, json=mock_asset)
-
-    # Mock the GET request to fetch the asset (this is the missing mock)
-    requests_mock.get(f"{api_path_assets}/2", status_code=200, json=mock_asset)
-    response = client.post(
-        url_for("AssetCrudUI:post", id="create"),
-        follow_redirects=True,
-        data=mock_api_data_as_form_input(mock_asset),
-    )
-    assert response.status_code == 200  # response is HTML form
-    assert "html" in response.content_type
-    assert b"Creation was successful" in response.data
-    assert mock_asset["name"] in str(response.data)
-    assert str(mock_asset["latitude"]) in str(response.data)
-    assert str(mock_asset["longitude"]) in str(response.data)
-
-
-def test_delete_asset(client, db, requests_mock, as_admin):
+def test_delete_asset(client, db, as_admin):
     """Delete an asset"""
-    requests_mock.delete(f"{api_path_assets}/1", status_code=204, json={})
-    requests_mock.get(api_path_assets, status_code=200, json={})
-    requests_mock.get(f"{api_path_assets}/public", status_code=200, json={})
     response = client.get(
         url_for("AssetCrudUI:delete_with_data", id=1),
         follow_redirects=True,
