@@ -81,7 +81,8 @@ class BasePipeline:
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
-            f"{sensor.name} (ID: {sensor.id})" for sensor in future_regressors
+            f"{sensor.name} (ID: {sensor.id})_FR-{idx}"
+            for idx, sensor in enumerate(future_regressors)
         ]
         self.past_regressors = [
             f"{sensor.name} (ID: {sensor.id})" for sensor in past_regressors
