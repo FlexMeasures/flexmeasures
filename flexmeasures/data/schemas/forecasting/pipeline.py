@@ -73,7 +73,7 @@ class ForecasterParametersSchema(Schema):
                     field_name="start_predict_date",
                 )
 
-        if train_period is not None and train_period < 2:
+        if train_period is not None and train_period < timedelta(days=2):
             raise ValidationError(
                 "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
