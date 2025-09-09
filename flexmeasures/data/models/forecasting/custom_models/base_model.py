@@ -25,7 +25,7 @@ class BaseModel(ABC):
       and the number of models.
     - Each model must implement both `fit()` and `predict()`.
     - `self._setup()` is called during initialization to prepare these models (subclasses must implement it).
-    - Parameters are validated by `ForecastingPipelineSchema`, which is also a good place to learn more
+    - Parameters are validated by `ForecasterParametersSchema`, which is also a good place to learn more
       about configuration and expected inputs.
 
     Attributes:
