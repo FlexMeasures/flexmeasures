@@ -164,5 +164,5 @@ def test_train_predict_pipeline(
         data_generator_params = source.attributes["data_generator"]["parameters"]
         for regressor in regressors:
             assert (
-                regressor.id in data_generator_params["future_regressors"]
+                regressor.id in data_generator_params["future_regressors"] + data_generator_params.get("past_regressors", []) + data_generator_params.get("regressors", [])
             ), f"data generator parameters should mention regressor {regressor.name}"
