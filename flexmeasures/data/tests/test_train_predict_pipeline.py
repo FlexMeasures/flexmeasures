@@ -99,18 +99,26 @@ def test_train_predict_pipeline(
     sensor = setup_fresh_test_forecast_data[params["sensor"]]
     params["sensor"] = sensor.id
     # list of regressor names without duplicates to be created by the test fixture
-    regressors_names = list(set(params.get("past_regressors", []) + params.get("future_regressors", []) + params.get("regressors", [])))
+    regressors_names = list(
+        set(
+            params.get("past_regressors", [])
+            + params.get("future_regressors", [])
+            + params.get("regressors", [])
+        )
+    )
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
         for regressor_name in regressors_names
     ]
     past_regressors = [
         sensor
-        for sensor in regressors if sensor.name in params.get("past_regressors", [])
+        for sensor in regressors
+        if sensor.name in params.get("past_regressors", [])
     ]
     future_regressors = [
         sensor
-        for sensor in regressors if sensor.name in params.get("future_regressors", [])
+        for sensor in regressors
+        if sensor.name in params.get("future_regressors", [])
     ]
 
     if params.get("past_regressors"):
@@ -163,6 +171,10 @@ def test_train_predict_pipeline(
         # Check DataGenerator parameters stored under DataSource attributes
         data_generator_params = source.attributes["data_generator"]["parameters"]
         for regressor in regressors:
-            assert (
-                regressor.id in data_generator_params["future_regressors"] + data_generator_params.get("past_regressors", []) + data_generator_params.get("regressors", [])
+            assert regressor.id in data_generator_params[
+                "future_regressors"
+            ] + data_generator_params.get(
+                "past_regressors", []
+            ) + data_generator_params.get(
+                "regressors", []
             ), f"data generator parameters should mention regressor {regressor.name}"
