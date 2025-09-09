@@ -154,10 +154,10 @@ class BasePipeline:
                     logging.warning(f"Error during custom resample for {name}: {e}")
 
                 df = df.reset_index()
-                df[["event_start", "belief_time", "source", name]] = df[
-                    ["event_start", "belief_time", "source", "event_value"]
+                df[["event_start", "belief_time", name]] = df[
+                    ["event_start", "belief_time", "event_value"]
                 ].copy()
-                df_filtered = df[["event_start", "belief_time", "source", name]]
+                df_filtered = df[["event_start", "belief_time", name]]
 
                 sensor_dfs.append(df_filtered)
 
@@ -328,7 +328,7 @@ class BasePipeline:
                     past_keep = [
                         c
                         for c in past_latest.columns
-                        if c not in ("belief_time", "source_y")
+                        if c not in ("belief_time")
                     ]
                     past_latest = past_latest[past_keep]
 
@@ -361,7 +361,7 @@ class BasePipeline:
                     )
 
                     keep = [
-                        c for c in fr.columns if c not in ("belief_time", "source_y")
+                        c for c in fr.columns if c not in ("belief_time")
                     ]
                     future_realized_latest = fr[keep]
                     future_all_closest = fa[keep]
@@ -477,7 +477,7 @@ class BasePipeline:
                         keep_fc = [
                             c
                             for c in forecast_slice.columns
-                            if c not in ("belief_time", "source_y")
+                            if c not in ("belief_time")
                         ]
                         forecast_slice = forecast_slice[keep_fc]
 
@@ -538,15 +538,14 @@ class BasePipeline:
 
             # With regressors
             X_past_regressors_df = (
-                df[
-                    ["event_start", "source_y", "belief_time"]
-                    + [r for r in self.past_regressors]
+                df[["event_start", "belief_time"]
+                    + self.past_regressors
                 ]
                 if self.past_regressors
                 else None
             )
             X_future_regressors_df = (
-                df[["event_start", "source_y", "belief_time"] + self.future_regressors]
+                df[["event_start", "belief_time"] + self.future_regressors]
                 if self.future != []
                 else None
             )
