@@ -127,7 +127,9 @@ def combined_sensor_data_description(request: Request, schema):
     data = MultiDict(request.view_args)
     data.update(request.args)  # Url (GET)
     try:
-        data.update(request.json)  # JSON (POST)
+        if "id" in request.json:
+            del request.json["id"]  # for simplicity, id should only be in the path
+        data.update(request.json)  # get values from JSON (POST)
     except JsonError:
         pass
 
