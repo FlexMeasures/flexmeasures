@@ -98,6 +98,8 @@ def test_train_predict_pipeline(
 ):
     sensor = setup_fresh_test_forecast_data[params["sensor"]]
     params["sensor"] = sensor.id
+    # list of regressor names without duplicates to be created by the test fixture
+    regressors_names = list(set(params.get("past_regressors", []) + params.get("future_regressors", []) + params.get("regressors", [])))
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
         for regressor_name in params.get("future_regressors", [])
