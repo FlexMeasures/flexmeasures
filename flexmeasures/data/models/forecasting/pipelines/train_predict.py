@@ -16,9 +16,11 @@ from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
-from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
+    TrainPredictPipelineConfigSchema,
+)
 from flexmeasures.utils.flexmeasures_inflection import p
-from flexmeasures.data.schemas.forecasting import ForecasterConfigSchema
 
 
 class TrainPredictPipeline(Forecaster):
@@ -26,7 +28,7 @@ class TrainPredictPipeline(Forecaster):
     __version__ = "1"
     __author__ = "Seita"
 
-    _config_schema = ForecasterConfigSchema()  # todo: the CustomLGBM model will go here
+    _config_schema = TrainPredictPipelineConfigSchema()
     _parameters_schema = ForecasterParametersSchema()
 
     def __init__(

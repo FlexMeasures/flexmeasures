@@ -12,6 +12,11 @@ from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
 
 
+class TrainPredictPipelineConfigSchema(Schema):
+
+    model = fields.String(load_default="CustomLGBM")
+
+
 class ForecasterParametersSchema(Schema):
 
     sensor = SensorIdField(required=True)

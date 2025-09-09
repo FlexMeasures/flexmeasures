@@ -174,9 +174,8 @@ def test_train_predict_pipeline(
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
         # Check DataGenerator configuration stored under DataSource attributes
-        # todo: source should mention the CustomLGBM model, though
-        # data_generator_config = source.attributes["data_generator"]["config"]
-        # assert data_generator_config["model"] == "CustomLGBM"
+        data_generator_config = source.attributes["data_generator"]["config"]
+        assert data_generator_config["model"] == "CustomLGBM"
 
         # Check DataGenerator parameters stored under DataSource attributes
         data_generator_params = source.attributes["data_generator"]["parameters"]
