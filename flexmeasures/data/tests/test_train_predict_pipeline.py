@@ -102,7 +102,7 @@ def test_train_predict_pipeline(
     regressors_names = list(set(params.get("past_regressors", []) + params.get("future_regressors", []) + params.get("regressors", [])))
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
-        for regressor_name in params.get("future_regressors", [])
+        for regressor_name in regressors_names
     ]
     if regressors:
         params["future_regressors"] = [regressor.id for regressor in regressors]
