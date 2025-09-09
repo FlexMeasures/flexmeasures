@@ -117,9 +117,8 @@ class BasePipeline:
 
             sensor_dfs = []
             sensor_names = self.future_regressors + self.past_regressors + [self.target]
-            for name in sensor_names:
-                sensor = Sensor.query.get(int(name.split("ID: ")[1].split(")")[0]))
-
+            sensors = self.future + self.past + [self.target_sensor]
+            for name, sensor in zip(sensor_names, sensors):
                 logging.debug(f"Loading data for {name} (sensor ID {sensor.id})")
 
                 sensor_event_ends_before = self.event_ends_before
