@@ -412,6 +412,7 @@ class BasePipeline:
                     y_split = self.detect_and_fill_missing_values(
                         df=y_slice_df,
                         sensors=[self.target_sensor],
+                        sensor_names=[self.target],
                         start=target_start,
                         end=target_end,
                     )
@@ -424,6 +425,7 @@ class BasePipeline:
                         past_covariates = self.detect_and_fill_missing_values(
                             df=past_slice,
                             sensors=self.past,
+                            sensor_names=self.past_regressors,
                             start=target_start,
                             end=target_end,
                         )
@@ -488,6 +490,7 @@ class BasePipeline:
                         future_covariates = self.detect_and_fill_missing_values(
                             df=future_df,
                             sensors=self.future,
+                            sensor_names=self.future_regressors,
                             start=target_start,
                             end=forecast_end + self.target_sensor.event_resolution,
                         )
@@ -570,6 +573,7 @@ class BasePipeline:
         self,
         df: pd.DataFrame,
         sensors: list[Sensor],
+        sensor_names: list[str],
         start: datetime,
         end: datetime,
         interpolate_kwargs: dict = None,
@@ -598,8 +602,7 @@ class BasePipeline:
         """
         dfs = []
 
-        for sensor in sensors:
-            sensor_name = f"{sensor.name} (ID: {sensor.id})"
+        for sensor, sensor_name in zip(sensors, sensor_names):
             if df.empty:
                 last_event_start = end - pd.Timedelta(
                     hours=sensor.event_resolution.total_seconds() / 3600
