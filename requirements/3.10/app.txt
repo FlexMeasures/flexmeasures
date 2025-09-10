@@ -65,6 +65,8 @@ cryptography==45.0.5
     #   webauthn
 cycler==0.12.1
     # via matplotlib
+dictdiffer==0.9.0
+    # via -r requirements/app.in
 dill==0.4.0
     # via openturns
 dnspython==2.7.0
@@ -185,7 +187,7 @@ markupsafe==3.0.2
     #   sentry-sdk
     #   werkzeug
     #   wtforms
-marshmallow==3.26.1
+marshmallow==3.26.1 ; python_version < "3.11"
     # via
     #   -r requirements/app.in
     #   flask-marshmallow
@@ -424,4 +426,3 @@ zipp==3.23.0
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
-dictdiffer>=0.9.0

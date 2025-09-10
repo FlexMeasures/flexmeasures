@@ -65,6 +65,8 @@ cryptography==45.0.6
     #   webauthn
 cycler==0.12.1
     # via matplotlib
+dictdiffer==0.9.0
+    # via -r requirements/app.in
 dill==0.4.0
     # via openturns
 dnspython==2.7.0
@@ -111,7 +113,9 @@ flask-migrate==4.1.0
 flask-principal==0.4.0
     # via flask-security-too
 flask-security-too[fsqla,mfa]==5.6.2
-    # via -r requirements/app.in
+    # via
+    #   -r requirements/app.in
+    #   flask-security-too
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
@@ -221,7 +225,6 @@ openturns==1.25
 packaging==25.0
     # via
     #   altair
-    #   marshmallow
     #   matplotlib
     #   sktime
     #   statsmodels
@@ -424,4 +427,3 @@ zipp==3.23.0
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
-dictdiffer>=0.9.0

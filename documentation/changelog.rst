@@ -3,11 +3,13 @@
 FlexMeasures Changelog
 **********************
 
-v0.28.0 | September XX, 2025
+v0.28.0 | September 10, 2025
 ============================
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v028-daily-kpis/>`_.
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+             This upgrade may take a few minutes, depending on how much time series data you have in your database (the data will be reindexed).
 
 New features
 -------------
