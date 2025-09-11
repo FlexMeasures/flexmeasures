@@ -291,7 +291,7 @@ class SensorAPI(FlaskView):
             {
                 "data": [
                     {
-                        "uploaded-files": "[\"file1.csv\", \"file2.csv\"]"
+                        "uploaded-files": ["file1.csv", "file2.csv"]
                     }
                 ]
             }
