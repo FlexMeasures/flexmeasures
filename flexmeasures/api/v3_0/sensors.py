@@ -289,8 +289,10 @@ class SensorAPI(FlaskView):
         .. code-block:: json
 
             {
-                "uploaded-files": ["file1.csv", "file2.csv"]
+                "uploaded-files": ["<file1.csv>", "<file2.csv>"]
             }
+
+        where the ``uploaded-files`` field should be sent as a multipart file upload.
 
         The file should have columns for a timestamp (event_start) and a value (event_value).
         The timestamp should be in ISO 8601 format.
