@@ -289,11 +289,7 @@ class SensorAPI(FlaskView):
         .. code-block:: json
 
             {
-                "data": [
-                    {
-                        "uploaded-files": ["file1.csv", "file2.csv"]
-                    }
-                ]
+                "uploaded-files": ["file1.csv", "file2.csv"]
             }
 
         The file should have columns for a timestamp (event_start) and a value (event_value).
