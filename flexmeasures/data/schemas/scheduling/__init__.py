@@ -287,10 +287,10 @@ class FlexContextSchema(Schema):
                     previous_field_name = price_field.data_key
                 if not units_are_convertible(currency_unit, shared_currency_unit):
                     field_name = price_field.data_key
-                    raise ValidationError(
-                        f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
-                        field_name=field_name,
-                    )
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{price_unit}') for the '{field_name}' field."
+                    if shared_currency_unit not in price_unit:
+                        error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name=field_name)
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
         elif sensor := data.get("consumption_price_sensor"):
