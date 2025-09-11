@@ -1532,6 +1532,119 @@ def add_schedule_for_storage(  # noqa C901
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
+# @create_schedule.command("for-storage", cls=DeprecatedOptionsCommand)
+# @with_appcontext
+# @click.option(
+#     "--sensor",
+#     "--sensor-id",
+#     "power_sensor",
+#     type=SensorIdField(),
+#     required=True,
+#     cls=DeprecatedOption,
+#     deprecated=["--sensor-id"],
+#     preferred="--sensor",
+#     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
+# )
+# @click.option(
+#     "--start",
+#     "start",
+#     type=AwareDateTimeField(),
+#     required=True,
+#     help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+# )
+# @click.option(
+#     "--duration",
+#     "duration",
+#     type=DurationField(),
+#     required=True,
+#     help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+# )
+# @click.option(
+#     "--soc-at-start",
+#     "soc_at_start",
+#     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+#     required=True,
+#     help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
+# )
+# @click.option(
+#     "--state-of-charge",
+#     "state_of_charge",
+#     type=SensorIdField(unit="MWh"),
+#     help="State of charge sensor.",
+#     required=False,
+#     default=None,
+# )
+# @click.option(
+#     "--soc-target",
+#     "soc_target_strings",
+#     type=click.Tuple(
+#         types=[QuantityField("%", validate=validate.Range(min=0, max=1)), str]
+#     ),
+#     multiple=True,
+#     required=False,
+#     help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 8601 format."
+#     " This argument can be given multiple times."
+#     " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
+# )
+# @click.option(
+#     "--storage-power-capacity",
+#     "storage_power_capacity",
+#     type=VariableQuantityField("MW"),
+#     required=False,
+#     default=None,
+#     help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+#     "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+#     "It defines both-ways maximum power capacity.",
+# )
+# @click.option(
+#     "--storage-consumption-capacity",
+#     "storage_consumption_capacity",
+#     type=VariableQuantityField("MW"),
+#     required=False,
+#     default=None,
+#     help="Storage consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+#     "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+#     "It defines the storage maximum consumption (charging) capacity.",
+# )
+# @click.option(
+#     "--storage-production-capacity",
+#     "storage_production_capacity",
+#     type=VariableQuantityField("MW"),
+#     required=False,
+#     default=None,
+#     help="Storage production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
+#     "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
+#     "It defines the storage maximum production (discharging) capacity.",
+# )
+# @click.option(
+#     "--as-job",
+#     is_flag=True,
+#     help="Whether to queue a scheduling job instead of computing directly. "
+#     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
+# )
+# def add_schedule_for_storage(  # noqa C901
+#     power_sensor: Sensor,
+#     start: datetime,
+#     duration: timedelta,
+#     soc_at_start: ur.Quantity,
+#     storage_power_capacity: ur.Quantity | Sensor | None,
+#     storage_consumption_capacity: ur.Quantity | Sensor | None,
+#     storage_production_capacity: ur.Quantity | Sensor | None,
+#     soc_target_strings: list[tuple[ur.Quantity, str]],
+#     state_of_charge: Sensor | None = None,
+#     as_job: bool = False,
+# ):
+#     """Create a new schedule for a storage asset.
+
+#     Current limitations:
+
+#     - Limited to power sensors (probably possible to generalize to non-electric assets)
+#     - Only
+#     """
+
+#     pass
+
+
 @create_schedule.command("for-process", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
