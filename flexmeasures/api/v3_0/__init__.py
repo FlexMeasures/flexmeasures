@@ -2,6 +2,8 @@
 FlexMeasures API v3
 """
 
+from pathlib import Path
+
 from flask import Flask
 import json
 
@@ -50,15 +52,26 @@ def create_openapi_specs(app: Flask):
     spec.components.security_scheme("ApiKeyAuth", api_key_scheme)
 
     with app.test_request_context():
-        for resource_name in ["SensorAPI"]:  # TODO: list others
-            # endpoints:dict = [{ep_name: ep} for ep, ep_name in app.view_functions if ep_name.starts_with(resource_name)]
-            # print(endpoints)
-            spec.path(
-                view=app.view_functions["SensorAPI:fetch_one"]
-            )  # TODO: get all views from the registered routes
+        documented_endpoints_counter = 0
+        # Document ALL API endpoints under /api/v3_0/
+        for rule in app.url_map.iter_rules():
+            if rule.rule.startswith("/api/v3_0/"):
+                endpoint_name = rule.endpoint
+                if endpoint_name in app.view_functions:
+                    try:
+                        view_function = app.view_functions[endpoint_name]
+                        spec.path(view=view_function)
+                        documented_endpoints_counter += 1
+                    except Exception as e:
+                        print(f"❌ Failed to document {rule.rule}: {e}")
 
-    spec_out = json.dumps(spec.to_dict(), indent=2)
-    print(spec_out)
+    output_path = Path("flexmeasures/ui/static/openapi-specs.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, "w") as f:
+        json.dump(spec.to_dict(), f, indent=2)
+
+    print(f"✅ Documented {documented_endpoints_counter} endpoints to {output_path}")
 
 
 def register_swagger_ui(app: Flask):
