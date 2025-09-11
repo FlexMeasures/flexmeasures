@@ -13,6 +13,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
 
 Bugfixes
 -----------
