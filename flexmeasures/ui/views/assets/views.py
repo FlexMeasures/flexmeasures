@@ -173,10 +173,14 @@ class AssetCrudUI(FlaskView):
         site_asset = asset
         while site_asset.parent_asset_id:
             site_asset = site_asset.parent_asset
+
+        from flexmeasures.data.schemas.scheduling import UI_FLEX_CONTEXT_SCHEMA
+
         return render_flexmeasures_template(
             "assets/asset_context.html",
             assets=assets,
             asset=asset,
+            flex_context_schema=UI_FLEX_CONTEXT_SCHEMA,
             current_asset_sensors=current_asset_sensors,
             site_asset=site_asset,
             user_can_create_children=user_can_create_children(asset),
