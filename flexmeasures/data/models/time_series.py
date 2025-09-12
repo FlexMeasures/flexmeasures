@@ -19,6 +19,7 @@ import timely_beliefs.utils as tb_utils
 
 from flexmeasures.auth.policy import AuthModelMixin, ACCOUNT_ADMIN_ROLE, CONSULTANT_ROLE
 from flexmeasures.data import db
+from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
@@ -95,7 +96,44 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             kwargs["generic_asset_id"] = generic_asset_id
         if attributes is not None:
             kwargs["attributes"] = attributes
+        else:
+            # Otherwise, the attributes only default to {} when flushing/committing to the db
+            kwargs["attributes"] = {}
         db.Model.__init__(self, **kwargs)
+
+        # For backwards compatibility, when setting attributes that served as flex-model fields,
+        # move them to the flex_context of the sensor's asset (and don't store them as attributes)
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
+        to_delete = []
+        for attribute in self.attributes:
+            for field in DBStorageFlexModelSchema().fields.values():
+                if attribute == field.metadata.get("deprecated field"):
+                    if self.generic_asset is None:
+                        self.generic_asset = db.session.get(
+                            GenericAsset, self.generic_asset_id
+                        )
+                    # Move the attribute to the flex_model db column
+                    new_value = upgrade_value(attribute, self.attributes[attribute])
+                    if field.data_key in self.generic_asset.flex_model:
+                        if self.generic_asset.flex_model[field.data_key] == new_value:
+                            current_app.logger.warning(
+                                f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field, but note that it was already set to the same value."
+                            )
+                        else:
+                            raise ValueError(
+                                f"Cannot move attribute {attribute} of sensor {self.name} to its asset's flex-model, because the {field.data_key} field is already set to something else."
+                            )
+                    self.generic_asset.flex_model[field.data_key] = new_value
+                    # Remove the original attribute
+                    current_app.logger.warning(
+                        f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field."
+                    )
+                    to_delete.append(attribute)
+        for attr in to_delete:
+            del self.attributes[attr]
 
     __table_args__ = (
         UniqueConstraint(
@@ -154,6 +192,14 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         }
 
     @property
+    def asset(self) -> GenericAsset:
+        return self.generic_asset
+
+    @property
+    def asset_id(self) -> int:
+        return self.generic_asset_id
+
+    @property
     def entity_address(self) -> str:
         """Deprecated. Entity addresses will not be supported in future releases."""
         try:
@@ -210,15 +256,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             return self.attributes[attribute]
         if hasattr(self.generic_asset, attribute):
             return getattr(self.generic_asset, attribute)
-        if attribute in self.generic_asset.attributes:
-            return self.generic_asset.attributes[attribute]
-        if hasattr(self.generic_asset.flex_context, attribute):
-            return getattr(self.generic_asset.flex_context, attribute)
-        if (
-            self.generic_asset.flex_context
-            and attribute in self.generic_asset.flex_context
-        ):
-            return self.generic_asset.flex_context[attribute]
+        asset_value = self.generic_asset.get_attribute(attribute)
+        if asset_value is not None:
+            return asset_value
 
         return default
 

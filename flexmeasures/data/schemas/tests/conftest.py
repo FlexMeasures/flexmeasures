@@ -54,7 +54,7 @@ def setup_dummy_sensors(db, app, dummy_asset):
 
     db.session.commit()
 
-    yield sensor1, sensor2
+    yield sensor1, sensor2, sensor3, sensor4
 
 
 @pytest.fixture(scope="module")

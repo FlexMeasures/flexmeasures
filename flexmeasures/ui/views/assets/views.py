@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import json
 from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 from marshmallow import ValidationError
-import json
 
 from flexmeasures.data import db
 from flexmeasures.auth.policy import check_access
@@ -380,9 +380,16 @@ class AssetCrudUI(FlaskView):
             ),
         }
 
+        site_asset = asset
+        while site_asset.parent_asset_id:
+            site_asset = site_asset.parent_asset
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
+            site_asset=site_asset,
+            asset_flexmodel=json.dumps(asset.flex_model),
+            available_units=available_units(),
             asset_summary=asset_summary,
             asset_form=asset_form,
             msg=msg,

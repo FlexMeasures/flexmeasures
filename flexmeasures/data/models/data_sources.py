@@ -253,6 +253,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             self.attributes_hash = hashlib.sha256(
                 json.dumps(attributes).encode("utf-8")
             ).digest()
+        else:
+            # Otherwise, the attributes only default to {} when flushing/committing to the db
+            kwargs["attributes"] = {}
 
         tb.BeliefSourceDBMixin.__init__(self, name=name)
         db.Model.__init__(self, **kwargs)
