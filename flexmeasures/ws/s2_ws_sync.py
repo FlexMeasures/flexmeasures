@@ -295,7 +295,7 @@ class S2FlaskWSServerSync:
             selected_protocol_version=S2_VERSION,
         )
         self._send_and_forget(handshake_response, websocket)
-        self.app.logger.info("HandshakeResponse sent (sync)")
+        self.app.logger.info(f"HandshakeResponse sent (sync): {handshake_response}")
         # If client is RM, send control type selection
         if hasattr(message, "role") and message.role == EnergyManagementRole.RM:
             self.app.logger.info("Sending control type selection (sync)")
@@ -304,7 +304,9 @@ class S2FlaskWSServerSync:
                 control_type=ControlType.FILL_RATE_BASED_CONTROL,
             )
             self._send_and_forget(select_control_type, websocket)
-            self.app.logger.info("SelectControlType sent (sync)")
+            self.app.logger.info(
+                f"SelectControlType sent (sync): {select_control_type}"
+            )
 
     def handle_reception_status(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
