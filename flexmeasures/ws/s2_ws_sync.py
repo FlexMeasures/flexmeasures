@@ -285,7 +285,7 @@ class S2FlaskWSServerSync:
         self.app.logger.info("Received Handshake (sync): %s", message.to_json())
 
         handshake_response = HandshakeResponse(
-            message_id=message.message_id,
+            message_id=uuid.uuid4(),
             selected_protocol_version="1.0.0",
         )
         self._send_and_forget(handshake_response, websocket)
