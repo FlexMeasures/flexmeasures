@@ -83,7 +83,7 @@ class MessageHandlersSync:
                     "While processing message %s an unrecoverable error occurred.",
                     message_id,
                 )
-                logger.error("Error: %s", traceback.format_exc())
+                logger.debug("Error: %s", traceback.format_exc())
                 server.respond_with_reception_status(
                     subject_message_id=getattr(
                         msg,
@@ -451,5 +451,5 @@ class S2FlaskWSServerSync:
             )
             import traceback
 
-            self.app.logger.error(f"Traceback: {traceback.format_exc()}")
+            self.app.logger.debug(f"Traceback: {traceback.format_exc()}")
             # Continue processing other devices
