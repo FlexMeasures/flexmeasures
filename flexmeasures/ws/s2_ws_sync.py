@@ -390,22 +390,22 @@ class S2FlaskWSServerSync:
         device_data = self._device_data.get(resource_id)
         self.app.logger.debug(
             "✅ System description? Go flight!"
-            if device_data.system_description is not None
+            if getattr(device_data, "system_description", None) is not None
             else "❌ System description? Hold on.."
         )
         self.app.logger.debug(
             "✅ Fill level target profile? Go flight!"
-            if device_data.fill_level_target_profile is not None
+            if getattr(device_data, "fill_level_target_profile", None) is not None
             else "❌ Fill level target profile? Hold on.."
         )
         self.app.logger.debug(
             "✅ Storage status? Go flight!"
-            if device_data.storage_status is not None
+            if getattr(device_data, "storage_status", None) is not None
             else "❌ Storage status? Hold on.."
         )
         self.app.logger.debug(
             "✅ Actuator status? Go flight!"
-            if device_data.actuator_status is not None
+            if getattr(device_data, "actuator_status", None) is not None
             else "❌ Actuator status? Hold on.."
         )
         if device_data is None or not device_data.is_complete():
