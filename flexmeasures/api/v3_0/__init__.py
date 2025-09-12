@@ -78,7 +78,7 @@ def register_swagger_ui(app: Flask):
     """
     Register the Swagger UI blueprint to view the OpenAPI specs.
     """
-    SWAGGER_URL = "/api/docs"  # URL for exposing Swagger UI (without trailing '/')
+    SWAGGER_URL = "/api/v3_0/docs"  # URL for exposing Swagger UI (without trailing '/')
     API_URL = "/ui/static/openapi-specs.json"
 
     # Call factory function to create our blueprint
