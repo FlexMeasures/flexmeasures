@@ -5,6 +5,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from dictdiffer import diff
 
 """Services for managing assets"""
@@ -132,6 +133,8 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
         if k == "flex_context":
             # Validate the flex context schema
             DBFlexContextSchema().load(v)
+        if k == "flex_model":
+            DBStorageFlexModelSchema().load(v)
 
         if k.lower() in {"sensors_to_show", "flex_context", "flex_model"}:
             audit_log_data.append(format_json_field_change(k, getattr(db_asset, k), v))
