@@ -575,7 +575,7 @@ class AssetAPI(FlaskView):
         """
         try:
             db_asset = patch_asset(db_asset, asset_data)
-        except Exception as e:
+        except ValidationError as e:
             return {"error": str(e)}, 422
         db.session.add(db_asset)
         db.session.commit()
