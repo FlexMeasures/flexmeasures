@@ -242,7 +242,9 @@ def test_efficiency_pair(
                 "consumption-price": "1 KRW/MWh",
                 "site-peak-production-price": "1 EUR/MW",
             },
-            {"site-peak-production-price": "Prices must share the same monetary unit."},
+            {
+                "site-peak-production-price": "all prices in the flex-context must share the same currency unit"
+            },
         ),
         (
             {
