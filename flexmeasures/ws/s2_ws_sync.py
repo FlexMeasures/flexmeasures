@@ -388,26 +388,17 @@ class S2FlaskWSServerSync:
     ) -> None:
         """Check if we have all required data and generate instructions if so."""
         device_data = self._device_data.get(resource_id)
-        self.app.logger.debug(
-            "✅ System description? Go flight!"
-            if getattr(device_data, "system_description", None) is not None
-            else "❌ System description? Hold on.."
-        )
-        self.app.logger.debug(
-            "✅ Fill level target profile? Go flight!"
-            if getattr(device_data, "fill_level_target_profile", None) is not None
-            else "❌ Fill level target profile? Hold on.."
-        )
-        self.app.logger.debug(
-            "✅ Storage status? Go flight!"
-            if getattr(device_data, "storage_status", None) is not None
-            else "❌ Storage status? Hold on.."
-        )
-        self.app.logger.debug(
-            "✅ Actuator status? Go flight!"
-            if getattr(device_data, "actuator_status", None) is not None
-            else "❌ Actuator status? Hold on.."
-        )
+        for attr in (
+            "system_description",
+            "fill_level_target_profile",
+            "storage_status",
+            "actuator_status",
+        ):
+            self.app.logger.debug(
+                f"✅ {attr}? Go flight!"
+                if getattr(device_data, attr, None) is not None
+                else f"❌ {attr}? Hold on.."
+            )
         if device_data is None or not device_data.is_complete():
             self.app.logger.info(f"Waiting for more data from device {resource_id}")
             return
