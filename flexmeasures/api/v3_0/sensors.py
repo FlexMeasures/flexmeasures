@@ -12,7 +12,7 @@ from flask import current_app, url_for
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
-from marshmallow import fields, ValidationError
+from marshmallow import fields, Schema, ValidationError
 import marshmallow.validate as validate
 from rq.job import Job, NoSuchJobError
 import timely_beliefs as tb
@@ -69,6 +69,19 @@ post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
+
+
+class SensorKwargsSchema(Schema):
+    account_id = AccountIdField(required=False)
+    asset_id = AssetIdField(required=False)
+    include_consultancy_clients = fields.Boolean(required=False, load_default=False)
+    include_public_assets = fields.Boolean(required=False, load_default=False)
+    page = fields.Int(required=False, validate=validate.Range(min=1))
+    per_page = fields.Int(
+        required=False, validate=validate.Range(min=1), load_default=10
+    )
+    filter = SearchFilterField(required=False)
+    unit = UnitField(required=False)
 
 
 class SensorAPI(FlaskView):
@@ -138,66 +151,7 @@ class SensorAPI(FlaskView):
             - ApiKeyAuth: []
           parameters:
             - in: query
-              name: account_id
-              description: Filter sensors by account ID
-              required: false
-              schema:
-                type: integer
-                example: 1
-            - in: query
-              name: asset_id
-              description: Filter sensors by asset ID (includes sub-assets)
-              required: false
-              schema:
-                type: integer
-                example: 5
-            - in: query
-              name: include_consultancy_clients
-              description: Include sensors from consultancy client accounts
-              required: false
-              schema:
-                type: boolean
-                default: false
-                example: true
-            - in: query
-              name: include_public_assets
-              description: Include sensors from public assets
-              required: false
-              schema:
-                type: boolean
-                default: false
-                example: true
-            - in: query
-              name: filter
-              description: Search filter for sensor name, account name, or asset name
-              required: false
-              schema:
-                type: string
-                example: "gas demand"
-            - in: query
-              name: unit
-              description: Filter sensors by unit of measurement
-              required: false
-              schema:
-                type: string
-                example: "m³/h"
-            - in: query
-              name: page
-              description: Page number for pagination
-              required: false
-              schema:
-                type: integer
-                minimum: 1
-                example: 1
-            - in: query
-              name: per_page
-              description: Number of sensors per page
-              required: false
-              schema:
-                type: integer
-                minimum: 1
-                default: 10
-                example: 10
+              schema: SensorKwargsSchema
           responses:
             200:
               description: PROCESSED - List of sensors (paginated or direct list)
@@ -207,15 +161,13 @@ class SensorAPI(FlaskView):
                     oneOf:
                       - type: array
                         description: Direct list when no pagination requested
-                        items:
-                          $ref: '#/components/schemas/Sensor'
+                        items: Sensor
                       - type: object
                         description: Paginated response
                         properties:
                           data:
                             type: array
-                            items:
-                              $ref: '#/components/schemas/Sensor'
+                            items: Sensor
                           num-records:
                             type: integer
                             description: Total number of records in query result
@@ -227,6 +179,18 @@ class SensorAPI(FlaskView):
                           - num-records
                           - filtered-records
                   examples:
+                    direct_list:
+                      summary: Direct sensor list
+                      description: Example of direct response with one sensor
+                      value:
+                        data:
+                          - entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
+                            event_resolution: "PT15M"
+                            generic_asset_id: 1
+                            name: "Gas demand"
+                            timezone: "Europe/Amsterdam"
+                            unit: "m³/h"
+                            id: 2
                     paginated_response:
                       summary: Paginated sensor list
                       description: Example of paginated response with one sensor
@@ -367,7 +331,8 @@ class SensorAPI(FlaskView):
     def upload_data(
         self, data: list[tb.BeliefsDataFrame], filenames: list[str], **kwargs
     ):
-        """---
+        """
+        ---
         post:
           summary: Upload sensor data by file
           description: |
@@ -385,25 +350,39 @@ class SensorAPI(FlaskView):
           requestBody:
             content:
               multipart/form-data:
-                schema:
-                  type: object
-                  properties:
-                    data:
-                      type: string
-                      format: binary
-                    filenames:
-                      type: array
-                      items:
-                        type: string
-                  required:
-                    - data
-                    - filenames
+                schema: SensorDataFileSchema
                 encoding:
-                  data:
+                  uploaded-files:
                     contentType: application/octet-stream
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema: SensorId
           responses:
             200:
               description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  examples:
+                    new_data:
+                      summary: New data
+                      description: |
+                        If the data sent is new and is not already processed by FlexMeasures, the response will be as follows.
+                      value:
+                        "message": "Request has been processed."
+                        "status": "PROCESSED"
+                    processed_previously_received:
+                      summary: Previously received data
+                      description: |
+                        If some of the data sent was already received and successfully processed by FlexMeasures, the response will be as follows.
+                        Note that in this case, the data is still processed, but the already received data points are ignored.
+                      value:
+                        "message": "Some of the data has already been received and successfully processed."
+                        "results": "PROCESSED"
+                        "status": "ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED"
             400:
               description: INVALID_REQUEST
             401:
@@ -1353,6 +1332,8 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            404:
+              description: ASSET_NOT_FOUND
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
