@@ -201,6 +201,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
     @property
     def entity_address(self) -> str:
+        """Deprecated. Entity addresses will not be supported in future releases."""
         try:
             return build_entity_address(dict(sensor_id=self.id), "sensor")
         except EntityAddressException as eae:

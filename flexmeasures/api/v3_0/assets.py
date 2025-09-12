@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import current_app, request
+from flask import request
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -15,8 +15,13 @@ from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, delete, func, or_
+from sqlalchemy import select, func, or_
 
+from flexmeasures.data.services.generic_assets import (
+    create_asset,
+    patch_asset,
+    delete_asset,
+)
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
     get_sensor_stats,
@@ -53,17 +58,15 @@ from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
-from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
+patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
-partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
 def get_accessible_accounts() -> list[Account]:
@@ -465,13 +468,7 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        asset = GenericAsset(**asset_data)
-        db.session.add(asset)
-        # assign asset id
-        db.session.flush()
-
-        AssetAuditLog.add_record(asset, f"Created asset '{asset.name}': {asset.id}")
-
+        asset = create_asset(asset_data)
         db.session.commit()
 
         return asset_schema.dump(asset), 201
@@ -519,7 +516,7 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_args(partial_asset_schema)
+    @use_args(patch_asset_schema)
     @use_kwargs(
         {
             "db_asset": AssetIdField(
@@ -576,6 +573,11 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
+        db_asset = patch_asset(db_asset, asset_data)
+
+        """
+        # todo: check whether flex_context and flex_model are covered in the audit log by patch_asset
+        # from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
         audit_log_data = list()
         schema_map = dict(
             flex_context=DBFlexContextSchema,
@@ -612,6 +614,8 @@ class AssetAPI(FlaskView):
 
         for k, v in asset_data.items():
             setattr(db_asset, k, v)
+        """
+
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -643,12 +647,8 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        asset_name, asset_id = asset.name, asset.id
-        AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
-
-        db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
+        delete_asset(asset)
         db.session.commit()
-        current_app.logger.info("Deleted asset '%s'." % asset_name)
         return {}, 204
 
     @route("/<id>/chart", strict_slashes=False)  # strict on next version? see #1014

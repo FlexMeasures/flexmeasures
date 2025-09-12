@@ -49,7 +49,6 @@ from flexmeasures.data.schemas.sensors import (
     SensorDataFileSchema,
 )
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
-from flexmeasures.data.schemas.utils import path_and_files
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
@@ -63,8 +62,6 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 # Instantiate schemas outside of endpoint logic to minimize response time
-get_sensor_schema = GetSensorDataSchema()
-post_sensor_schema = PostSensorDataSchema()
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
@@ -270,7 +267,9 @@ class SensorAPI(FlaskView):
             return response, 200
 
     @route("<id>/data/upload", methods=["POST"])
-    @path_and_files(SensorDataFileSchema)
+    @use_args(
+        SensorDataFileSchema(), location="combined_sensor_data_upload", as_kwargs=True
+    )
     @permission_required_for_context(
         "create-children",
         ctx_arg_name="data",
@@ -320,29 +319,29 @@ class SensorAPI(FlaskView):
         response, code = save_and_enqueue(data)
         return response, code
 
-    @route("/data", methods=["POST"])
+    @route("/<id>/data", methods=["POST"])
     @use_args(
-        post_sensor_schema,
-        location="json",
+        PostSensorDataSchema(),
+        location="combined_sensor_data_description",
+        as_kwargs=True,
     )
     @permission_required_for_context(
         "create-children",
-        ctx_arg_pos=1,
+        ctx_arg_name="bdf",
         ctx_loader=lambda bdf: bdf.sensor,
         pass_ctx_to_loader=True,
     )
-    def post_data(self, bdf: tb.BeliefsDataFrame):
+    def post_data(self, id: int, bdf: tb.BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
 
-        .. :quickref: Data; Upload sensor data
+        .. :quickref: Data; Post sensor data
 
         **Example request**
 
         .. code-block:: json
 
             {
-                "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
                 "values": [-11.28, -11.28, -11.28, -11.28],
                 "start": "2021-06-07T00:00:00+02:00",
                 "duration": "PT1H",
@@ -352,7 +351,6 @@ class SensorAPI(FlaskView):
         The above request posts four values for a duration of one hour, where the first
         event start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.
 
-        The sensor is the one with ID=1.
         The unit has to be convertible to the sensor's unit.
         The resolution of the data has to match the sensor's required resolution, but
         FlexMeasures will attempt to upsample lower resolutions.
@@ -370,13 +368,14 @@ class SensorAPI(FlaskView):
         response, code = save_and_enqueue(bdf)
         return response, code
 
-    @route("/data", methods=["GET"])
+    @route("/<id>/data", methods=["GET"])
     @use_args(
-        get_sensor_schema,
-        location="query",
+        GetSensorDataSchema(),
+        location="combined_sensor_data_description",
+        as_kwargs=True,
     )
-    @permission_required_for_context("read", ctx_arg_pos=1, ctx_arg_name="sensor")
-    def get_data(self, sensor_data_description: dict):
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    def get_data(self, id: int, **sensor_data_description: dict):
         """Get sensor data from FlexMeasures.
 
         .. :quickref: Data; Download sensor data
@@ -386,7 +385,6 @@ class SensorAPI(FlaskView):
         .. code-block:: json
 
             {
-                "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
                 "start": "2021-06-07T00:00:00+02:00",
                 "duration": "PT1H",
                 "resolution": "PT15M",
