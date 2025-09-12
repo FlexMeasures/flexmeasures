@@ -119,6 +119,10 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     audit_log_data = list()
 
     # first special content
+    schema_map = dict(
+        flex_context=DBFlexContextSchema,
+        flex_model=DBStorageFlexModelSchema,
+    )
     for k, v in asset_data.items():
         if getattr(db_asset, k) == v:
             continue
@@ -130,11 +134,9 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
                         f"Updated Attr: {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}"
                     )
             continue
-        if k == "flex_context":
-            # Validate the flex context schema
-            DBFlexContextSchema().load(v)
-        if k == "flex_model":
-            DBStorageFlexModelSchema().load(v)
+        if k in schema_map:
+            # Validate the given schema
+            schema_map[k]().load(v)
 
         if k.lower() in {"sensors_to_show", "flex_context", "flex_model"}:
             audit_log_data.append(format_json_field_change(k, getattr(db_asset, k), v))
