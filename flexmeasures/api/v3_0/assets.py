@@ -577,48 +577,6 @@ class AssetAPI(FlaskView):
             db_asset = patch_asset(db_asset, asset_data)
         except ValidationError as e:
             return {"error": str(e)}, 422
-
-        """
-        # todo: check whether flex_context and flex_model are covered in the audit log by patch_asset
-        # from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
-        audit_log_data = list()
-        schema_map = dict(
-            flex_context=DBFlexContextSchema,
-            flex_model=DBStorageFlexModelSchema,
-        )
-
-        for k, v in asset_data.items():
-            if getattr(db_asset, k) == v:
-                continue
-            if k == "attributes":
-                current_attributes = getattr(db_asset, k)
-                for attr_key, attr_value in v.items():
-                    if current_attributes.get(attr_key) != attr_value:
-                        audit_log_data.append(
-                            f"Updated Attr: {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}"
-                        )
-                continue
-            if k in schema_map:
-                try:
-                    # Validate against the given schema
-                    schema_map[k]().load(v)
-                except Exception as e:
-                    return {"error": str(e)}, 422
-                # todo: add audit log entry for the updated fields, similar to when changing an attribute, because
-                #       the events have a 255 character limit, which may not be enough for the whole flex-model
-
-            audit_log_data.append(
-                f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
-            )
-
-        # Iterate over each field or attribute updates and create a separate audit log entry for each.
-        for event in audit_log_data:
-            AssetAuditLog.add_record(db_asset, event)
-
-        for k, v in asset_data.items():
-            setattr(db_asset, k, v)
-        """
-
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
