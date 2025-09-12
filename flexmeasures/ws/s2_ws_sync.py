@@ -31,6 +31,7 @@ from s2python.frbc import (
 from s2python.message import S2Message
 from s2python.s2_parser import S2Parser
 from s2python.s2_validation_error import S2ValidationError
+from s2python.version import S2_VERSION
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -284,9 +285,14 @@ class S2FlaskWSServerSync:
             return
         self.app.logger.info("Received Handshake (sync): %s", message.to_json())
 
+        if S2_VERSION not in message.supported_protocol_versions:
+            raise NotImplementedError(
+                f"Server supported protocol {S2_VERSION} not supported by client. Client supports: message.supported_protocol_versions"
+            )
+
         handshake_response = HandshakeResponse(
             message_id=uuid.uuid4(),
-            selected_protocol_version="1.0.0",
+            selected_protocol_version=S2_VERSION,
         )
         self._send_and_forget(handshake_response, websocket)
         self.app.logger.info("HandshakeResponse sent (sync)")
