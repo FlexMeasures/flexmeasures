@@ -130,11 +130,8 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
                     )
             continue
         if k == "flex_context":
-            try:
-                # Validate the flex context schema
-                DBFlexContextSchema().load(v)
-            except Exception as e:
-                return {"error": str(e)}, 422
+            # Validate the flex context schema
+            DBFlexContextSchema().load(v)
 
         if k.lower() in {"sensors_to_show", "flex_context", "flex_model"}:
             audit_log_data.append(format_json_field_change(k, getattr(db_asset, k), v))
