@@ -573,7 +573,10 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        db_asset = patch_asset(db_asset, asset_data)
+        try:
+            db_asset = patch_asset(db_asset, asset_data)
+        except Exception as e:
+            return {"error": str(e)}, 422
 
         """
         # todo: check whether flex_context and flex_model are covered in the audit log by patch_asset
