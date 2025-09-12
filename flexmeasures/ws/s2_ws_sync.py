@@ -412,7 +412,7 @@ class S2FlaskWSServerSync:
             # Use the S2Scheduler to create and store device state
             if hasattr(self, "s2_scheduler") and self.s2_scheduler is not None:
                 # Create S2FrbcDeviceState from FRBC messages and store in scheduler
-                device_state = self.s2_scheduler.create_device_states_from_frbc_messages(
+                device_state = self.s2_scheduler.create_device_states_from_frbc_data(
                     resource_id=resource_id,
                     system_description=device_data.system_description,
                     fill_level_target_profile=device_data.fill_level_target_profile,
