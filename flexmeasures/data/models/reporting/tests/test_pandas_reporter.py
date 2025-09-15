@@ -175,6 +175,20 @@ def test_reporter_empty(setup_dummy_data):
 
     assert report[0]["data"].empty
 
+    # compute report on dates with partial data available (sensor_1 yes, sensor_2 no)
+    report = reporter.compute(
+        sensor=report_sensor,
+        start=datetime(2023, 5, 11, tzinfo=utc),
+        end=datetime(2022, 5, 11, 10, tzinfo=utc),
+        input=[
+            dict(name="sensor_1", sensor=s1),
+            dict(name="sensor_2", sensor=s2),
+        ],
+        output=[dict(name="sensor_r", sensor=report_sensor)],
+    )
+
+    assert report[0]["data"].empty
+
 
 def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
     """
