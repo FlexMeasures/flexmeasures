@@ -371,10 +371,9 @@
             return responseData.data.map(belief => {
                 const sensor = responseData.sensors[belief.sid] || {};
                 const source = responseData.sources[belief.src] || {};
+                let value = belief.val
                 if (sensor.unit === 's' && typeof belief.val === 'number'){
-                   let value = new Date(belief.val * 1000)
-                }else{
-                   let value = belief.val
+                   value = new Date(belief.val * 1000)
                 }
                 return {
                     // Map shortened field names back to original names
