@@ -159,7 +159,7 @@ def test_reporter_empty(setup_dummy_data):
         output=[dict(name="sensor_r", sensor=report_sensor)],
     )
 
-    assert not report[0]["data"].empty
+    assert not report[0]["data"].empty, "expected some output, given non-empty input"
 
     # compute report on dates with no data available
     report = reporter.compute(
@@ -173,7 +173,7 @@ def test_reporter_empty(setup_dummy_data):
         output=[dict(name="sensor_r", sensor=report_sensor)],
     )
 
-    assert report[0]["data"].empty
+    assert report[0]["data"].empty, "expected empty output, given empty input"
 
     # compute report on dates with partial data available (sensor_1 yes, sensor_2 no)
     report = reporter.compute(
