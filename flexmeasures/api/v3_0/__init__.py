@@ -85,7 +85,10 @@ def register_swagger_ui(app: Flask):
     swaggerui_blueprint = get_swaggerui_blueprint(
         SWAGGER_URL,  # Swagger UI static files will be mapped to '{SWAGGER_URL}/dist/'
         API_URL,
-        config={"app_name": "FlexMeasures"},  # Swagger UI config overrides
+        config={
+            "app_name": "FlexMeasures",
+            "layout": "BaseLayout",
+        },  # Swagger UI config overrides
         # oauth_config={  # OAuth config. See https://github.com/swagger-api/swagger-ui#oauth2-configuration .
         #    'clientId': "your-client-id",
         #    'clientSecret': "your-client-secret-if-required",
