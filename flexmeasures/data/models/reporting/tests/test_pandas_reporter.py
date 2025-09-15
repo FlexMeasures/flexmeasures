@@ -134,9 +134,16 @@ def test_reporter_empty(setup_dummy_data):
     s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     config = dict(
-        required_input=[{"name": "sensor_1"}],
-        required_output=[{"name": "sensor_1"}],
-        transformations=[],
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "sensor_r"}],
+        transformations=[
+            {
+                "df_input": "sensor_1",
+                "method": "add",
+                "args": ["@sensor_2"],
+                "df_output": "sensor_r",
+            }
+        ],
     )
 
     reporter = PandasReporter(config=config)
@@ -145,8 +152,11 @@ def test_reporter_empty(setup_dummy_data):
     report = reporter.compute(
         start=datetime(2023, 4, 10, tzinfo=utc),
         end=datetime(2023, 4, 10, 10, tzinfo=utc),
-        input=[dict(name="sensor_1", sensor=s1)],
-        output=[dict(name="sensor_1", sensor=report_sensor)],
+        input=[
+            dict(name="sensor_1", sensor=s1),
+            dict(name="sensor_2", sensor=s2),
+        ],
+        output=[dict(name="sensor_r", sensor=report_sensor)],
     )
 
     assert not report[0]["data"].empty
@@ -156,8 +166,11 @@ def test_reporter_empty(setup_dummy_data):
         sensor=report_sensor,
         start=datetime(2021, 4, 10, tzinfo=utc),
         end=datetime(2021, 4, 10, 10, tzinfo=utc),
-        input=[dict(name="sensor_1", sensor=s1)],
-        output=[dict(name="sensor_1", sensor=report_sensor)],
+        input=[
+            dict(name="sensor_1", sensor=s1),
+            dict(name="sensor_2", sensor=s2),
+        ],
+        output=[dict(name="sensor_r", sensor=report_sensor)],
     )
 
     assert report[0]["data"].empty
