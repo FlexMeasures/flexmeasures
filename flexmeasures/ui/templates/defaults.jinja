@@ -52,6 +52,7 @@
     {% endif %}
 
     {% do navigation_bar.append(('logged-in-user', 'logged-in-user', '', user_name, 'user')) %}
+    {% do navigation_bar.append(('api/v3_0/docs', 'swagger-docs', '', 'Swagger Docs', 'book')) %}
 {% endif %}
 
 {% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'Documentation (new window)', 'question')) if documentation_exists and current_user.is_authenticated %}
