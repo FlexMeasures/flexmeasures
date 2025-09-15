@@ -120,7 +120,39 @@ Finally, it is possible to set custom titles for any sensor graph by clicking on
 
 |
 
-Internally, the asset has a `sensors_to_show`` field, which controls which sensor data appears in the plot. This can also be set by a script. The accepted format is a dictionary with a graph title and a lists of sensor IDs (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }]`).
+Internally, the asset has a `sensors_to_show` field, which controls which sensor data appears in the plot. This can also be set by a script. The accepted format is a dictionary with a graph title and a lists of sensor IDs (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }]`).
+
+
+Showing daily KPIs
+^^^^^^^^^^^^^^^^^^^^^^
+
+It is possible to also show daily KPIs (key performance indicators) on the graph page. 
+For an impression, see the screenshot below.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-KPIs.png
+    :align: center
+..    :scale: 40%
+
+|
+
+Currently, this supports only a daily resolution (which fits the date picker on the graph page, where you pick date ranges).
+
+So you will need a sensor with daily resolution (probably generated with FlexMeasures' reporting tooling).
+From this data, you can display summed totals, means, max or min values (the image above shows two KPIs with totals).
+
+We aim to support a graphical tool to edit these KPIs in the future.
+For now, you can set them by editing the asset's `kpi_sensors_to_show` field in the properties page, which will validate that the format is correct and tell you what to change. Read more about the format below.
+
+Internally, the asset has a ``sensors_to_show_as_kpis`` field, which controls which sensor data appears in the KPI widgets.
+This can also be set by a script. The accepted format is a list of dictionaries with a KPI title, a sensor ID and the function to use on the data (one of "sum", "mean", "max", "min").
+An example would be:
+
+.. sourcecode:: python
+
+    [
+        {"title": "My KPI", "sensor": 2, "function": "sum"},
+        {"title": "Raw Power KPI", "sensor": 3, "function": "sum"}
+    ]
 
 
 .. _view_asset_properties:

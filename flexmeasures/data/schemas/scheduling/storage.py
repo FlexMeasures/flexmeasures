@@ -345,6 +345,13 @@ class DBStorageFlexModelSchema(Schema):
         value_validator=validate.Range(min=0),
     )
 
+    state_of_charge = VariableQuantityField(
+        to_unit="MWh",
+        data_key="state-of-charge",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
     soc_gain = fields.List(
         VariableQuantityField("MW"),
         data_key="soc-gain",
@@ -507,6 +514,7 @@ class DBStorageFlexModelSchema(Schema):
             "soc_minima",
             "soc_maxima",
             "soc_targets",
+            "state_of_charge",
             "state_of_charge",
         ]
 

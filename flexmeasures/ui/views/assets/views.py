@@ -5,23 +5,28 @@ from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
-from flexmeasures.auth.error_handling import unauthorized_handler
+from marshmallow import ValidationError
 
 from flexmeasures.data import db
 from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
+from flexmeasures.data.services.generic_assets import (
+    create_asset,
+    patch_asset,
+    delete_asset,
+)
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     get_center_location_of_assets,
 )
+from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
-from flexmeasures.ui.views.api_wrapper import InternalApi
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
 from flexmeasures.ui.views.assets.utils import (
     get_asset_by_id_or_raise_notfound,
-    process_internal_api_response,
     user_can_create_assets,
     user_can_create_children,
     user_can_delete,
@@ -37,6 +42,9 @@ from flexmeasures.ui.utils.view_utils import available_units
 """
 Asset crud view.
 """
+
+asset_schema = AssetSchema()
+patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
 class AssetCrudUI(FlaskView):
@@ -66,25 +74,19 @@ class AssetCrudUI(FlaskView):
 
     @login_required
     def owned_by(self, account_id: str):
-        """/assets/owned_by/<account_id>"""
+        """GET /assets/owned_by/<account_id>"""
         msg = ""
-        get_assets_response = InternalApi().get(
-            url_for("AssetAPI:index"),
-            query={"account_id": account_id},
-            do_not_raise_for=[404],
+        account: Account | None = (
+            db.session.query(Account).filter_by(id=account_id).one_or_none()
         )
-        if get_assets_response.status_code == 404:
+        if account is None:
             assets = []
             msg = f"Account {account_id} unknown."
         else:
-            assets = [
-                process_internal_api_response(ad, make_obj=True)
-                for ad in get_assets_response.json()
-            ]
-        db.session.flush()
+            assets = account.generic_assets
         return render_flexmeasures_template(
             "assets/assets.html",
-            account=db.session.get(Account, account_id),
+            account=account,
             assets=assets,
             msg=msg,
             user_can_create_assets=user_can_create_assets(),
@@ -219,11 +221,11 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
-    def post(self, id: str):
-        """POST to /assets/<id>, where id can be 'create' (and thus a new asset is made from POST data)
-        Most of the code deals with creating a user for the asset if no existing is chosen.
+    def post(self, id: str):  # noqa: C901
         """
-
+        Either "create" a new asset from POST data.
+        Or, if an actual ID is given, patch the existing asset with POST data.
+        """
         asset: GenericAsset = None
 
         if id == "create":
@@ -232,6 +234,8 @@ class AssetCrudUI(FlaskView):
 
             account, account_error = asset_form.set_account()
             asset_type, asset_type_error = asset_form.set_asset_type()
+
+            check_access(account, "create-children")
 
             form_valid = asset_form.validate_on_submit()
 
@@ -248,26 +252,19 @@ class AssetCrudUI(FlaskView):
                 post_args = asset_form.to_json()
                 if post_args.get("account_id") == -1:
                     del post_args["account_id"]
-                post_asset_response = InternalApi().post(
-                    url_for("AssetAPI:post"),
-                    args=post_args,
-                    do_not_raise_for=[400, 422],
-                )
-                if post_asset_response.status_code in (200, 201):
-                    asset_dict = post_asset_response.json()
-                    asset = process_internal_api_response(
-                        asset_dict, int(asset_dict["id"]), make_obj=True
-                    )
-                    msg = "Creation was successful."
+
+                # do our validation here already, so we can display errors nicely
+                errors = asset_schema.validate(post_args)
+                if errors:
+                    fields = list(asset_form._fields.keys())
+                    for field in [f for f in fields if f in errors]:
+                        asset_form._fields[field].errors.append(errors[field])
+                    asset = None
                 else:
-                    current_app.logger.error(
-                        f"Internal asset API call unsuccessful [{post_asset_response.status_code}]: {post_asset_response.text}"
-                    )
-                    asset_form.process_api_validation_errors(post_asset_response.json())
-                    if "message" in post_asset_response.json():
-                        asset_form.process_api_validation_errors(
-                            post_asset_response.json()["message"]
-                        )
+                    loaded_data = asset_schema.load(post_args)
+                    asset = create_asset(loaded_data)
+                    db.session.commit()
+                    session["msg"] = "Creation was successful."
             if asset is None:
                 if asset_form.latitude.data and asset_form.longitude.data:
                     map_center = asset_form.latitude.data, asset_form.longitude.data
@@ -288,45 +285,28 @@ class AssetCrudUI(FlaskView):
             asset_form = AssetForm()
             asset_form.with_options()
             if not asset_form.validate_on_submit():
-                # Display the form data, but set some extra data which the page wants to show.
-                asset_info = asset_form.to_json()
-                asset_info = {
-                    k: v for k, v in asset_info.items() if k not in asset_form.errors
-                }
-                asset_info["id"] = id
-                asset_info["account_id"] = asset.account_id
-                asset = process_internal_api_response(
-                    asset_info, int(id), make_obj=True
-                )
                 session["msg"] = f"Cannot edit asset: {asset_form.errors}"
-                return redirect(url_for("AssetCrudUI:properties", id=asset.id))
-            patch_asset_response = InternalApi().patch(
-                url_for("AssetAPI:patch", id=id),
-                args=asset_form.to_json(),
-                do_not_raise_for=[400, 422],
-            )
-            asset_dict = patch_asset_response.json()
-            if patch_asset_response.status_code in (200, 201):
-                asset = process_internal_api_response(
-                    asset_dict, int(id), make_obj=True
-                )
-                msg = "Editing was successful."
-            else:
-                current_app.logger.error(
-                    f"Internal asset API call unsuccessful [{patch_asset_response.status_code}]: {patch_asset_response.text}"
-                )
-                msg = "Cannot edit asset."
-                asset_form.process_api_validation_errors(
-                    patch_asset_response.json().get("message")
-                )
-                asset = db.session.get(GenericAsset, id)
-        session["msg"] = msg
+                return redirect(url_for("AssetCrudUI:properties", id=id))
+            try:
+                loaded_asset_data = patch_asset_schema.load(asset_form.to_json())
+                patch_asset(asset, loaded_asset_data)
+                db.session.commit()
+                session["msg"] = "Editing was successful."
+            except ValidationError as ve:
+                # we are redirecting to the properties page, there we cannot show errors in form
+                session["msg"] = f"Cannot edit asset: {ve.messages}"
+            except Exception as exc:
+                session["msg"] = "Cannot edit asset: An error occurred."
+                current_app.logger.error(exc)
+
         return redirect(url_for("AssetCrudUI:properties", id=asset.id))
 
     @login_required
     def delete_with_data(self, id: str):
         """Delete via /assets/delete_with_data/<id>"""
-        InternalApi().delete(url_for("AssetAPI:delete", id=id))
+        asset = get_asset_by_id_or_raise_notfound(id)
+        delete_asset(asset)
+        db.session.commit()
         return self.index(
             msg=f"Asset {id} and assorted meter readings / forecasts have been deleted."
         )
@@ -379,15 +359,19 @@ class AssetCrudUI(FlaskView):
             session.pop("msg")
         else:
             msg = ""
-        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
-        asset_dict = get_asset_response.json()
-        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
 
+        asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
 
         asset_form = AssetForm()
         asset_form.with_options()
-        asset_form.process(data=process_internal_api_response(asset_dict))
+        asset_form.process(obj=asset)
+
+        # JSON fields need to be pre-processed to be valid form data
+        asset_form.attributes.data = json.dumps(asset.attributes)
+        asset_form.sensors_to_show_as_kpis.data = json.dumps(
+            asset.sensors_to_show_as_kpis
+        )
 
         asset_summary = {
             "Name": asset.name,

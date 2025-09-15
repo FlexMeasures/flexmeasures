@@ -109,7 +109,7 @@
                 </div>
             </div>
             {% endif %}
-      
+
             <div class="header-action-button">
                 {% if user_can_delete_asset %}
                 <div>
@@ -409,6 +409,7 @@
             "soc-minima": null,
             "soc-maxima": null,
             "soc-targets": null,
+            "state-of-charge": null,
             "soc-gain": [],
             "soc-usage": [],
             "roundtrip-efficiency": null,
@@ -428,6 +429,7 @@
             "soc-minima": typeTwo,
             "soc-maxima": typeTwo,
             "soc-targets": typeTwo,
+            "state-of-charge": typeTwo,
             "soc-gain": typeFour,
             "soc-usage": typeFour,
             "roundtrip-efficiency": typeFive,
@@ -447,6 +449,7 @@
             "soc-minima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form lower boundaries, e.g. to target a full car battery in the morning", "types": "A sensor which records the set points as energy targets." },
             "soc-maxima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form upper boundaries at certain times.", "types": "A sensor which records the set points as energy targets." },
             "soc-targets": { "units": flexModelAllowedUnits.energy, "desc": "Exact set point(s) that the scheduler needs to realize.", "types": "A sensor which records the set points as energy targets." },
+            "state-of-charge": { "units": flexModelAllowedUnits.energy, "desc": "Sensor used to record the scheduled state of charge.", "types": "A sensor which records the state of charge." },
             "soc-gain": { "units": flexModelAllowedUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated gain.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
             "soc-usage": { "units": flexModelAllowedUnits.power, "desc": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated usage.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
             "roundtrip-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
@@ -681,7 +684,7 @@
                                 ${assetFlexModelFieldDesc[modelKey]["desc"] || "No description available."}
                             </div>
 
-                             <div class="pt-2 fw-bold"> 
+                             <div class="pt-2 fw-bold">
                                 Possible Types: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["types"] || "No types available."} </span> <br/>
                                 Example Units: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["units"].join(", ")} </span>
                             </div>
@@ -1013,7 +1016,7 @@
                                     Include Public Assets
                                 </label>
                             </div>
-                            
+
                             <div class="row">
                                 <div class="col-8 pe-1">
                                     <input
@@ -1230,40 +1233,37 @@
         });
     </script>
 
-    <script>
-        function Sensor(
-            id,
-            name,
-            unit,
-            resolution,
-            entity_address,
-            active
-        ) {
-            this.id = id;
-            this.name = name;
-            this.unit = unit;
-            this.resolution = resolution
-            this.entity_address = entity_address;
-            this.url = `/sensors/${id}`;
-        }
+<script>
+    function Sensor(
+        id,
+        name,
+        unit,
+        resolution,
+        active
+    ) {
+        this.id = id;
+        this.name = name;
+        this.unit = unit;
+        this.resolution = resolution
+        this.url = `/sensors/${id}`;
+    }
 
-        $(document).ready(function () {
-            let unit = "";
-            // Initialize the DataTable
-            const table = $("#sensorsTable").dataTable({
-                order: [[0, "asc"]],
-                pageLength: 5,
-                lengthMenu: [5, 10, 25, 50, 75, 100],
-                serverSide: true,
-                // make the table row vertically aligned with header
-                columns: [
-                    { data: "id", title: "ID", orderable: true },
-                    { data: "name", title: "Name", orderable: true },
-                    { data: "unit", title: "Unit", orderable: false },
-                    { data: "resolution", title: "Resolution", orderable: true },
-                    { data: "entity_address", title: "Entity address", orderable: false },
-                    { data: "url", title: "URL", className: "d-none" },
-                ],
+    $(document).ready(function () {
+        let unit = "";
+        // Initialize the DataTable
+        const table = $("#sensorsTable").dataTable({
+            order: [[0, "asc"]],
+            pageLength: 5,
+            lengthMenu: [5, 10, 25, 50, 75, 100],
+            serverSide: true,
+            // make the table row vertically aligned with header
+            columns: [
+                { data: "id", title: "ID", orderable: true },
+                { data: "name", title: "Name", orderable: true },
+                { data: "unit", title: "Unit", orderable: false },
+                { data: "resolution", title: "Resolution", orderable: true },
+                { data: "url", title: "URL", className: "d-none" },
+            ],
 
                 ajax: function (data, callback, settings) {
                     const basePath = window.location.origin;
@@ -1289,23 +1289,22 @@
 
 
 
-                    $.ajax({
-                        type: "get",
-                        url: url,
-                        success: function (response, text) {
-                            let clean_response = [];
-                            response["data"].forEach((element) =>
-                                clean_response.push(
-                                    new Sensor(
-                                        element["id"],
-                                        element["name"],
-                                        element["unit"],
-                                        element["event_resolution"],
-                                        element["entity_address"],
-                                        element["active"]
-                                    )
+                $.ajax({
+                    type: "get",
+                    url: url,
+                    success: function (response, text) {
+                        let clean_response = [];
+                        response["data"].forEach((element) =>
+                            clean_response.push(
+                                new Sensor(
+                                    element["id"],
+                                    element["name"],
+                                    element["unit"],
+                                    element["event_resolution"],
+                                    element["active"]
                                 )
-                            );
+                            )
+                        );
 
                             callback({
                                 data: clean_response,
