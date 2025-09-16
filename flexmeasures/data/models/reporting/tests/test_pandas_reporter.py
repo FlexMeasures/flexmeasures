@@ -171,7 +171,15 @@ def test_reporter_empty(setup_dummy_data):
 
     # compute report on date with partial data available (sensor_1 yes, sensor_2 no)
     report = compute_period(start=datetime(2023, 5, 11, tzinfo=utc))
-    assert report[0]["data"].empty
+    assert (
+        not report[0]["data"].empty and report[0]["data"].isna().all().all()
+    ), "expected NaN values"
+
+    config["transformations"][0]["skip_if_empty"] = True
+    # recompute report on date with partial data available (sensor_1 yes, sensor_2 no)
+    reporter = PandasReporter(config=config)
+    report = compute_period(start=datetime(2023, 5, 11, tzinfo=utc))
+    assert not report[0]["data"].empty, "expected sensor_1 values"
 
 
 def test_pandas_reporter_unit_conversion(app, setup_dummy_data):
