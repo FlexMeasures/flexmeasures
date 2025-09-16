@@ -212,7 +212,11 @@ class Scheduler:
         combined_flex_model = amended_db_flex_model + amended_flex_model
         if len(combined_flex_model) == 1:
             self.flex_model = combined_flex_model[0]
+            del self.flex_model["asset"]
         else:
+            for fm in combined_flex_model:
+                if "sensor" in fm and "asset" in fm:
+                    del fm["asset"]
             self.flex_model = combined_flex_model
 
     def deserialize_config(self):
