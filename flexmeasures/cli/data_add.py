@@ -1123,11 +1123,11 @@ def add_holidays(
     help="Path to the JSON or YAML file with the configuration of the forecaster.",
 )
 @click.option(
-    "--reporter",
-    "reporter_class",
+    "--forecaster",
+    "forecaster_class",
     default="TrainPredictPipeline",
     type=click.STRING,
-    help="Reporter class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
+    help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
     " Use the command `flexmeasures show forecasters` to list all the available forecasters.",
 )
 @click.option(
@@ -1159,7 +1159,7 @@ def add_holidays(
 @with_appcontext
 def train_predict_pipeline(
     as_job,
-    reporter_class: str,
+    forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
@@ -1230,7 +1230,7 @@ def train_predict_pipeline(
 
     forecaster = get_data_generator(
         source=source,
-        model=reporter_class,
+        model=forecaster_class,
         config=config,
         save_config=True,
         data_generator_type=Forecaster,
