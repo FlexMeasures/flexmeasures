@@ -699,7 +699,6 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="production-capacity",
                     max_value=power_capacity_in_mw[d],
                     min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
@@ -773,7 +772,6 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="consumption-capacity",
                     min_value=0,  # capacities are positive by definition
                     max_value=power_capacity_in_mw[d],
                     resolve_overlaps="min",
@@ -849,7 +847,6 @@ class MetaStorageScheduler(Scheduler):
                         query_window=(start, end),
                         resolution=resolution,
                         beliefs_before=belief_time,
-                        fallback_attribute="soc-usage" if is_usage else "soc-gain",
                     )
 
                     # example: 4 MW sustained over 15 minutes gives 1 MWh
@@ -877,7 +874,6 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="charging-efficiency",
                 )
                 .astype(float)
                 .fillna(1)
@@ -890,7 +886,6 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="discharging-efficiency",
                 )
                 .astype(float)
                 .fillna(1)
@@ -926,7 +921,6 @@ class MetaStorageScheduler(Scheduler):
                         query_window=(start, end),
                         resolution=resolution,
                         beliefs_before=belief_time,
-                        fallback_attribute="storage-efficiency",
                         max_value=1,
                     )
                     .astype(float)
