@@ -1568,10 +1568,17 @@ def add_schedule_for_storage(  # noqa C901
     help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
 )
 @click.option(
+    "--scheduler",
+    "scheduler_class",
+    default="StorageScheduler",
+    type=click.STRING,
+    help="Scheduler class registered in flexmeasures.data.models.planning.storage.",
+)
+@click.option(
     "--flex-context",
     "flex_context",
     type=JSONOrFile(),
-    required=True,
+    required=False,
     help="Asset FlexContext data, provided as a JSON string or a path to a JSON file.",
 )
 @click.option(
@@ -1591,6 +1598,7 @@ def add_schedule(  # noqa C901
     power_sensor: Sensor,
     start: datetime,
     duration: timedelta,
+    scheduler_class: str,
     soc_at_start: ur.Quantity,
     state_of_charge: Sensor | None = None,
     flex_context: str | None = None,
@@ -1604,7 +1612,6 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only
     """
-    print("=======================", power_sensor, duration)
 
     scheduling_kwargs = dict(
         start=start,
@@ -1613,6 +1620,10 @@ def add_schedule(  # noqa C901
         resolution=power_sensor.event_resolution,
         flex_model=flex_model,
         flex_context=flex_context,
+        scheduler_specs={
+            "module": "flexmeasures.data.models.planning.storage",
+            "class": scheduler_class,
+        },
     )
 
     if as_job:

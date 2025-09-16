@@ -1142,6 +1142,13 @@ class MetaStorageScheduler(Scheduler):
                 current_app.logger.warning(
                     f"Missing 'power-capacity' on power sensor {sensor.id}. Using site-power-capacity instead."
                 )
+                if isinstance(site_power_capacity, dict):
+                    site_power_capacity = site_power_capacity.get("sensor", None)
+                    if site_power_capacity is None:
+                        raise ValueError(
+                            "site-power-capacity attribute is a dict, but has no sensor key."
+                        )
+
                 power_capacities.append(
                     self._ensure_variable_quantity(site_power_capacity, "MW")
                 )
