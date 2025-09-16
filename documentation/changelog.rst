@@ -20,6 +20,15 @@ Bugfixes
 -----------
 
 
+v0.28.1 | September XX, 2025
+============================
+
+Bugfixes
+-----------
+* Fix schema validation in ``PATCH /assets/(id)`` [see `PR #1711 <https://www.github.com/FlexMeasures/flexmeasures/pull/1711>`_]
+
+
+
 v0.28.0 | September 10, 2025
 ============================
 
