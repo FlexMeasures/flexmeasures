@@ -92,6 +92,8 @@ class MetaStorageScheduler(Scheduler):
 
         # List the asset(s) and sensor(s) being scheduled
         if self.asset is not None:
+            if not isinstance(self.flex_model, list):
+                self.flex_model = [self.flex_model]
             sensors: list[Sensor | None] = [
                 flex_model_d.get("sensor") for flex_model_d in self.flex_model
             ]
