@@ -299,6 +299,10 @@ def get_quantity_from_attribute(
     # Get the default value from the entity attribute
     value: str | float | int = entity.get_attribute(attribute, np.nan)
 
+    # Backwards compatibility: support soc-usage and soc-gain attributes upgraded to become list[str]
+    if isinstance(value, list) and len(value) == 1 and isinstance(value[0], str):
+        value = value[0]
+
     # Try to convert it to a quantity in the desired unit
     try:
         q = ur.Quantity(value)
