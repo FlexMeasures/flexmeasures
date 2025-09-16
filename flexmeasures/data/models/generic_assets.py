@@ -412,8 +412,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             return self.attributes[attribute]
         if self.flex_model and attribute in self.flex_model:
             return self.flex_model[attribute]
-        if self.flex_context and attribute in self.flex_context:
-            return self.flex_context[attribute]
+        flex_context = self.get_flex_context()
+        if attribute in flex_context:
+            return flex_context[attribute]
         return default
 
     def has_attribute(self, attribute: str) -> bool:
