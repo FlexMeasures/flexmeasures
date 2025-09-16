@@ -110,7 +110,7 @@ class MetaStorageScheduler(Scheduler):
             assets = [asset]  # noqa: F841
 
         # For backwards compatibility with the single asset scheduler
-        flex_model = self.flex_model
+        flex_model = self.flex_model.copy()
         if not isinstance(flex_model, list):
             flex_model = [flex_model]
 
@@ -1036,12 +1036,12 @@ class MetaStorageScheduler(Scheduler):
             for d, sensor_flex_model in enumerate(self.flex_model):
                 self.flex_model[d] = StorageFlexModelSchema(
                     start=self.start,
-                    sensor=sensor_flex_model["sensor"],
+                    sensor=sensor_flex_model.get("sensor"),
                     default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
                         "soc-unit"
                     ),
                 ).load(sensor_flex_model["sensor_flex_model"])
-                self.flex_model[d]["sensor"] = sensor_flex_model["sensor"]
+                self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
 
                 # Extend schedule period in case a target exceeds its end
                 self.possibly_extend_end(
@@ -1066,6 +1066,7 @@ class MetaStorageScheduler(Scheduler):
         """
         if sensor is None:
             sensor = self.sensor
+            # todo: what if self.sensor is None, too
 
         if soc_targets and not isinstance(soc_targets, Sensor):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
@@ -1295,7 +1296,7 @@ class StorageScheduler(MetaStorageScheduler):
             if sensor is not None
         }
 
-        flex_model = self.flex_model
+        flex_model = self.flex_model.copy()
 
         if not isinstance(self.flex_model, list):
             flex_model["sensor"] = sensors[0]

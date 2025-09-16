@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Type, Union
 import pandas as pd
 from flask import current_app
 
+from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.utils.coding_utils import deprecated
@@ -185,6 +186,34 @@ class Scheduler:
             asset = self.sensor.generic_asset
         db_flex_context = asset.get_flex_context()
         self.flex_context = {**db_flex_context, **self.flex_context}
+
+        # Merge the passed flex_model with the db_flex_model by matching asset IDs
+        db_flex_model = asset.get_flex_model()
+        amended_flex_model = []
+        asset_ids = []
+        flex_model = self.flex_model.copy()
+        if not isinstance(self.flex_model, list):
+            flex_model["asset"] = self.sensor.generic_asset.id
+            flex_model = [flex_model]
+
+        for flex_model_d in flex_model:
+            asset_id = flex_model_d.get("asset")
+            if asset_id is None:
+                sensor_id = flex_model_d["sensor"]
+                sensor = db.session.get(Sensor, sensor_id)
+                asset_id = sensor.asset_id
+            if asset_id in db_flex_model:
+                flex_model_d = {**db_flex_model[asset_id], **flex_model_d}
+            amended_flex_model.append(flex_model_d)
+            asset_ids.append(asset_id)
+        amended_db_flex_model = [
+            v for k, v in db_flex_model.items() if k not in asset_ids
+        ]
+        combined_flex_model = amended_db_flex_model + amended_flex_model
+        if len(combined_flex_model) == 1:
+            self.flex_model = combined_flex_model[0]
+        else:
+            self.flex_model = combined_flex_model
 
     def deserialize_config(self):
         """

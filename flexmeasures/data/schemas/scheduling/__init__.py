@@ -457,13 +457,21 @@ class MultiSensorFlexModelSchema(Schema):
         }
     """
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(required=False)
+    asset = GenericAssetIdField(required=False)
     # it's up to the Scheduler to deserialize the underlying flex-model
     sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
 
+    @validates_schema
+    def ensure_sensor_or_asset(self, data, **kwargs):
+        if "sensor" in data and "asset" in data:
+            raise ValidationError("Specify either a sensor or an asset, but not both.")
+        if "sensor" not in data and "asset" not in data:
+            raise ValidationError("Specify either a sensor or an asset.")
+
     @pre_load
     def unwrap_envelope(self, data, **kwargs):
-        """Any field other than 'sensor' becomes part of the sensor's flex-model."""
+        """Any field other than 'sensor' and 'asset' becomes part of the sensor's flex-model."""
         extra = {}
         rest = {}
         for k, v in data.items():

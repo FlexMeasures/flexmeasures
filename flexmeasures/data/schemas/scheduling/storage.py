@@ -183,7 +183,7 @@ class StorageFlexModelSchema(Schema):
     def __init__(
         self,
         start: datetime,
-        sensor: Sensor,
+        sensor: Sensor | None,
         *args,
         default_soc_unit: str | None = None,
         **kwargs,
@@ -191,32 +191,35 @@ class StorageFlexModelSchema(Schema):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
+        self.timezone = sensor.timezone if sensor is not None else None
 
         # guess default soc-unit
         if default_soc_unit is None:
-            if self.sensor.unit in ("MWh", "kWh"):
+            if self.sensor is not None and self.sensor.unit in ("MWh", "kWh"):
                 default_soc_unit = self.sensor.unit
-            elif self.sensor.unit in ("MW", "kW"):
+            elif self.sensor is not None and self.sensor.unit in ("MW", "kW"):
                 default_soc_unit = self.sensor.unit + "h"
+            else:
+                default_soc_unit = "MWh"
 
         self.soc_maxima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-maxima",
         )
 
         self.soc_minima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-minima",
             value_validator=validate.Range(min=0),
         )
         self.soc_targets = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-targets",
         )
 
@@ -228,6 +231,9 @@ class StorageFlexModelSchema(Schema):
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
+        # skip check if the flex-model does not define a sensor: the StorageScheduler will not base its resolution on this flex-model
+        if self.sensor is None:
+            return
         soc_targets: list[SoCTarget] | Sensor | None = data.get("soc_targets")
         # skip check if the SOC targets are not provided or if they are defined as sensors
         if not soc_targets or isinstance(soc_targets, Sensor):
@@ -263,7 +269,8 @@ class StorageFlexModelSchema(Schema):
         self, unit: Sensor | ur.Quantity, **kwargs
     ):
         if (
-            isinstance(unit, Sensor)
+            self.sensor is not None
+            and isinstance(unit, Sensor)
             and unit.event_resolution != self.sensor.event_resolution
         ):
             raise ValidationError(
