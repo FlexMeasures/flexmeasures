@@ -18,6 +18,7 @@ from flexmeasures.api.v3_0.users import UserAPI
 from flexmeasures.api.v3_0.assets import AssetAPI, AssetTypesAPI
 from flexmeasures.api.v3_0.health import HealthAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
+from flexmeasures import __version__
 
 
 def register_at(app: Flask):
@@ -40,7 +41,7 @@ def create_openapi_specs(app: Flask):
     """ """
     spec = APISpec(
         title="FlexMeasures",
-        version="0.28.0",  # TODO: dynamic
+        version=__version__,
         openapi_version="3.0.2",  # TODO: newest is 3.1.0
         plugins=[FlaskPlugin(), MarshmallowPlugin()],
     )
