@@ -570,7 +570,7 @@ class SensorAPI(FlaskView):
             For details on flexibility model and context, see describing_flexibility documentation.
 
             Note: To schedule an EMS with multiple flexible sensors at once,
-            use `this endpoint <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ instead.
+            use [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.
 
             The length of the schedule can be set explicitly through the 'duration' field.
             Otherwise, it is set by the config setting `planning_horizon_config`, which defaults to 48 hours.
@@ -581,7 +581,7 @@ class SensorAPI(FlaskView):
             The appropriate algorithm is chosen by FlexMeasures (based on asset type).
             It's also possible to use custom schedulers and custom flexibility models.
 
-            If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
+            If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)
           security:
             - ApiKeyAuth: []
           requestBody:

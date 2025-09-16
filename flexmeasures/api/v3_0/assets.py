@@ -946,107 +946,109 @@ class AssetAPI(FlaskView):
         **kwargs,
     ):
         """
-        Trigger FlexMeasures to create a schedule for a collection of flexible and inflexible devices.
+        ---
+        post:
+          summary: Trigger scheduling job for any number of devices
+          description: |
+            Trigger FlexMeasures to create a schedule for this asset.
+            The flex-model references the power sensors of flexible devices, which must belong to the given asset,
+            either directly or indirectly, by being assigned to one of the asset's (grand)children.
 
-        .. :quickref: Schedule; Trigger scheduling job for any number of devices
+            In this request, you can describe:
 
-        Trigger FlexMeasures to create a schedule for this asset.
-        The flex-model references the power sensors of flexible devices, which must belong to the given asset,
-        either directly or indirectly, by being assigned to one of the asset's (grand)children.
+            - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
+            - the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
+            - the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
-        In this request, you can describe:
+            For details on flexibility model and context, see :ref:`describing_flexibility`.
+            Below, we'll also list some examples.
 
-        - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
-        - the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
-        - the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)
+            .. note:: This endpoint supports scheduling an EMS with multiple flexible devices at once.
+                    It can do so jointly (the default) or sequentially
+                    (considering previously scheduled sensors as inflexible).
+                    To use sequential scheduling, use ``sequential=true`` in the JSON body.
 
-        For details on flexibility model and context, see :ref:`describing_flexibility`.
-        Below, we'll also list some examples.
+            The length of the schedule can be set explicitly through the 'duration' field.
+            Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
+            If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+            Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of each sensor's resolution.
+            Targets that exceed the max planning horizon are not accepted.
 
-        .. note:: This endpoint supports scheduling an EMS with multiple flexible devices at once.
-                  It can do so jointly (the default) or sequentially
-                  (considering previously scheduled sensors as inflexible).
-                  To use sequential scheduling, use ``sequential=true`` in the JSON body.
+            The appropriate algorithm is chosen by FlexMeasures (based on asset type).
+            It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
 
-        The length of the schedule can be set explicitly through the 'duration' field.
-        Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
-        If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of each sensor's resolution.
-        Targets that exceed the max planning horizon are not accepted.
+            If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)
 
-        The appropriate algorithm is chosen by FlexMeasures (based on asset type).
-        It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
+          requestBody:
+              content:
+                  application/json:
+                    schema: AssetTriggerSchema
+                    examples:
+                      storage_asset:
+                        description: |
+                          This message triggers a schedule for a storage asset (with power sensor 931),
+                          starting at 10.00am, when the state of charge (soc) should be assumed to be 12.1 kWh,
+                          and also schedules a curtailable production asset (with power sensor 932),
+                          whose production forecasts are recorded under sensor 760.
 
-        If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
+                          Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+                          and aggregate production should be priced by sensor 10,
+                          where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+                          and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
 
-        **Example request**
+                          The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+                          Finally, the site consumption capacity is limited by sensor 32.
+                        value:
+                          "start": "2015-06-02T10:00:00+00:00"
+                          "flex-model":
+                            - "sensor": 931
+                              "soc-at-start": 12.1
+                              "soc-unit": "kWh"
+                              "power-capacity": "25kW"
+                              "consumption-capacity" : {"sensor": 42}
+                              "production-capacity" : "30 kW"
+                            - "sensor": 932
+                              "consumption-capacity": "0 kW"
+                              "production-capacity": {"sensor": 760}
+                          "flex-context":
+                            "consumption-price-sensor": 9
+                            "production-price-sensor": 10
+                            "inflexible-device-sensors": [13, 14, 15]
+                            "site-power-capacity": "100kW"
+                            "site-production-capacity": "80kW"
+                            "site-consumption-capacity": {"sensor": 32}
 
-        This message triggers a schedule for a storage asset (with power sensor 931),
-        starting at 10.00am, when the state of charge (soc) should be assumed to be 12.1 kWh,
-        and also schedules a curtailable production asset (with power sensor 932),
-        whose production forecasts are recorded under sensor 760.
+          responses:
+              200:
+                description: PROCESSED
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                    examples:
+                      successful_response:
+                        description: |
+                          This message indicates that the scheduling request has been processed without any error.
+                          A scheduling job has been created with some Universally Unique Identifier (UUID),
+                          which will be picked up by a worker.
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: see /sensors/<id>/schedules/<uuid>.
+                        value:
+                          status: PROCESSED
+                          schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                          message: "Request has been processed."
+              400:
+                description: INVALID_DATA
+              401:
+                description: UNAUTHORIZED
+              403:
+                description: INVALID_SENDER
+              405:
+                description: INVALID_METHOD
+              422:
+                description: UNPROCESSABLE_ENTITY
 
-        Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
-        and aggregate production should be priced by sensor 10,
-        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
-        and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
-
-        The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
-        Finally, the site consumption capacity is limited by sensor 32.
-
-        .. code-block:: json
-
-            {
-                "start": "2015-06-02T10:00:00+00:00",
-                "flex-model": [
-                    {
-                        "sensor": 931,
-                        "soc-at-start": 12.1,
-                        "soc-unit": "kWh",
-                        "power-capacity": "25kW",
-                        "consumption-capacity" : {"sensor": 42},
-                        "production-capacity" : "30 kW"
-                    },
-                    {
-                        "sensor": 932,
-                        "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 760},
-                    }
-                ],
-                "flex-context": {
-                    "consumption-price-sensor": 9,
-                    "production-price-sensor": 10,
-                    "inflexible-device-sensors": [13, 14, 15],
-                    "site-power-capacity": "100kW",
-                    "site-production-capacity": "80kW",
-                    "site-consumption-capacity": {"sensor": 32}
-                }
-            }
-
-        **Example response**
-
-        This message indicates that the scheduling request has been processed without any error.
-        A scheduling job has been created with some Universally Unique Identifier (UUID),
-        which will be picked up by a worker.
-        The given UUID may be used to obtain the resulting schedule for each flexible device: see /sensors/<id>/schedules/<uuid>.
-
-        .. sourcecode:: json
-
-            {
-                "status": "PROCESSED",
-                "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                "message": "Request has been processed."
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_DATA
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 405: INVALID_METHOD
-        :status 422: UNPROCESSABLE_ENTITY
+          tags:
+              - assets
         """
         end_of_schedule = start_of_schedule + duration
 
