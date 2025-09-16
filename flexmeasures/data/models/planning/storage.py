@@ -99,8 +99,10 @@ class MetaStorageScheduler(Scheduler):
                 s.asset if s is not None else flex_model_d.get("asset")
                 for s, flex_model_d in zip(sensors, self.flex_model)
             ]
+            # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
             resolution = determine_minimum_resampling_resolution(
-                [s.event_resolution for s in sensors if s is not None]
+                [s.event_resolution for s in sensors if s is not None],
+                fallback_resolution=timedelta(minutes=15),
             )
             asset = self.asset
         else:
