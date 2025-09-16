@@ -336,6 +336,11 @@ class PandasReporter(Reporter):
             kwargs = self._process_pandas_kwargs(
                 transformation.get("kwargs", {}), method
             )
+
+            # Possibly skip transformation if dealing with an empty Series/DataFrame
+            # skip_if_empty = transformation.get("skip_if_empty", False)
+            # todo: if any of the args or kwargs are empty Series or DataFrame, and skip_if_empty, then `self.data[df_output] = self.data[df_input]`
+
             self.data[df_output] = getattr(self.data[df_input], method)(*args, **kwargs)
 
             previous_df = df_output
