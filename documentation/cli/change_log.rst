@@ -4,6 +4,10 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.29.0 | October XX, 2024
+=================================
+* Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
+
 since v0.28.0 | September 10, 2025
 =================================
 * Removed command ``flexmeasures db-ops save`` and ``flexmeasures db-ops load`` for folder&file - base backup management.
