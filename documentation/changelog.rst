@@ -17,6 +17,7 @@ New features
 * Improved timestamp on sensor detail page to be more friendly [see `PR #1632 <https://www.github.com/FlexMeasures/flexmeasures/pull/1632>`_]
 * Asset types support: new API endpoint (`GET /assets/types`), better docs and fix CLI command `flexmeasures show asset-types` [see `PR #1663 <https://github.com/FlexMeasures/flexmeasures/pull/1663>`_]
 * Add `--combine-legend` option to flexmeasures show chart. When used, all legends are combined and displayed at the bottom of the chart. If not used (default = False), each chart will display its own separate legend (as on the asset page) [see `PR #1696 <https://github.com/FlexMeasures/flexmeasures/pull/1696>`_]
+* Add support for using Swagger to generate API documentation [see `PR #1703 <https://github.com/FlexMeasures/flexmeasures/pull/1703>`_]
 
 Infrastructure / Support
 ----------------------
