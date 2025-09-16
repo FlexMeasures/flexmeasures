@@ -521,7 +521,6 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="soc-minima-breach-price",
                     fill_sides=True,
                 ).shift(-1, freq=resolution)
                 all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
@@ -532,7 +531,6 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="soc-minima-breach-price",
                     fill_sides=True,
                 ).shift(-1, freq=resolution)
                 # Set up commitments DataFrame
@@ -601,7 +599,6 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="soc-maxima-breach-price",
                     fill_sides=True,
                 ).shift(-1, freq=resolution)
                 all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
@@ -612,7 +609,6 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    fallback_attribute="soc-maxima-breach-price",
                     fill_sides=True,
                 ).shift(-1, freq=resolution)
                 # Set up commitments DataFrame
@@ -719,7 +715,6 @@ class MetaStorageScheduler(Scheduler):
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
-                            fallback_attribute="production-breach-price",
                             fill_sides=True,
                         )
                     )
@@ -732,7 +727,6 @@ class MetaStorageScheduler(Scheduler):
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
-                            fallback_attribute="production-breach-price",
                             fill_sides=True,
                         )
                     )
@@ -792,7 +786,6 @@ class MetaStorageScheduler(Scheduler):
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
-                            fallback_attribute="consumption-breach-price",
                             fill_sides=True,
                         )
                     )
@@ -805,7 +798,6 @@ class MetaStorageScheduler(Scheduler):
                             query_window=(start, end),
                             resolution=resolution,
                             beliefs_before=belief_time,
-                            fallback_attribute="consumption-breach-price",
                             fill_sides=True,
                         )
                     )
