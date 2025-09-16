@@ -169,7 +169,6 @@ class MetaStorageScheduler(Scheduler):
         # Check for known prices or price forecasts
         up_deviation_prices = get_continuous_series_sensor_or_quantity(
             variable_quantity=consumption_price,
-            actuator=asset,
             unit=self.flex_context["shared_currency_unit"] + "/MWh",
             query_window=(start, end),
             resolution=resolution,
@@ -179,7 +178,6 @@ class MetaStorageScheduler(Scheduler):
         ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
         down_deviation_prices = get_continuous_series_sensor_or_quantity(
             variable_quantity=production_price,
-            actuator=asset,
             unit=self.flex_context["shared_currency_unit"] + "/MWh",
             query_window=(start, end),
             resolution=resolution,
@@ -205,7 +203,6 @@ class MetaStorageScheduler(Scheduler):
         # Create Series with EMS capacities
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
-            actuator=asset,
             unit="MW",
             query_window=(start, end),
             resolution=resolution,
@@ -214,7 +211,6 @@ class MetaStorageScheduler(Scheduler):
         )
         ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
-            actuator=asset,
             unit="MW",
             query_window=(start, end),
             resolution=resolution,
@@ -224,7 +220,6 @@ class MetaStorageScheduler(Scheduler):
         )
         ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
-            actuator=asset,
             unit="MW",
             query_window=(start, end),
             resolution=resolution,
@@ -265,7 +260,6 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_context.get("ems_peak_consumption_price") is not None:
             ems_peak_consumption = get_continuous_series_sensor_or_quantity(
                 variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
-                actuator=asset,
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -278,7 +272,6 @@ class MetaStorageScheduler(Scheduler):
             )
             ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_consumption_price,
-                actuator=asset,
                 unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -299,7 +292,6 @@ class MetaStorageScheduler(Scheduler):
         if self.flex_context.get("ems_peak_production_price") is not None:
             ems_peak_production = get_continuous_series_sensor_or_quantity(
                 variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
-                actuator=asset,
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -312,7 +304,6 @@ class MetaStorageScheduler(Scheduler):
             )
             ems_peak_production_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_peak_production_price,
-                actuator=asset,
                 unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -348,7 +339,6 @@ class MetaStorageScheduler(Scheduler):
             # Convert to Series
             any_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
-                actuator=asset,
                 unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -357,7 +347,6 @@ class MetaStorageScheduler(Scheduler):
             )
             all_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_consumption_breach_price,
-                actuator=asset,
                 unit=self.flex_context["shared_currency_unit"]
                 + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
                 query_window=(start, end),
@@ -398,7 +387,6 @@ class MetaStorageScheduler(Scheduler):
             # Convert to Series
             any_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
-                actuator=asset,
                 unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -407,7 +395,6 @@ class MetaStorageScheduler(Scheduler):
             )
             all_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
                 variable_quantity=ems_production_breach_price,
-                actuator=asset,
                 unit=self.flex_context["shared_currency_unit"]
                 + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
                 query_window=(start, end),
@@ -489,7 +476,6 @@ class MetaStorageScheduler(Scheduler):
             if isinstance(soc_targets[d], Sensor):
                 soc_targets[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_targets[d],
-                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -501,7 +487,6 @@ class MetaStorageScheduler(Scheduler):
             if isinstance(soc_minima[d], Sensor):
                 soc_minima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima[d],
-                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -516,7 +501,6 @@ class MetaStorageScheduler(Scheduler):
                 soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
                 any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
-                    actuator=asset,
                     unit=self.flex_context["shared_currency_unit"] + "/MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -525,7 +509,6 @@ class MetaStorageScheduler(Scheduler):
                 ).shift(-1, freq=resolution)
                 all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima_breach_price,
-                    actuator=asset,
                     unit=self.flex_context["shared_currency_unit"]
                     + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
                     query_window=(start + resolution, end + resolution),
@@ -537,7 +520,6 @@ class MetaStorageScheduler(Scheduler):
                 # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_minima_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_minima[d],
-                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -579,7 +561,6 @@ class MetaStorageScheduler(Scheduler):
             if isinstance(soc_maxima[d], Sensor):
                 soc_maxima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
-                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -594,7 +575,6 @@ class MetaStorageScheduler(Scheduler):
                 soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
-                    actuator=asset,
                     unit=self.flex_context["shared_currency_unit"] + "/MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -603,7 +583,6 @@ class MetaStorageScheduler(Scheduler):
                 ).shift(-1, freq=resolution)
                 all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima_breach_price,
-                    actuator=asset,
                     unit=self.flex_context["shared_currency_unit"]
                     + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
                     query_window=(start + resolution, end + resolution),
@@ -615,7 +594,6 @@ class MetaStorageScheduler(Scheduler):
                 # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
                 soc_maxima_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
-                    actuator=asset_d,
                     unit="MWh",
                     query_window=(start + resolution, end + resolution),
                     resolution=resolution,
@@ -672,7 +650,6 @@ class MetaStorageScheduler(Scheduler):
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
-                actuator=asset_d,
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
@@ -690,7 +667,6 @@ class MetaStorageScheduler(Scheduler):
             else:
                 production_capacity_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=production_capacity[d],
-                    actuator=asset_d,
                     unit="MW",
                     query_window=(start, end),
                     resolution=resolution,
@@ -710,7 +686,6 @@ class MetaStorageScheduler(Scheduler):
                     any_production_breach_price = (
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=production_breach_price,
-                            actuator=asset,
                             unit=self.flex_context["shared_currency_unit"] + "/MW",
                             query_window=(start, end),
                             resolution=resolution,
@@ -721,7 +696,6 @@ class MetaStorageScheduler(Scheduler):
                     all_production_breach_price = (
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=production_breach_price,
-                            actuator=asset,
                             unit=self.flex_context["shared_currency_unit"]
                             + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
                             query_window=(start, end),
@@ -761,7 +735,6 @@ class MetaStorageScheduler(Scheduler):
             else:
                 consumption_capacity_d = get_continuous_series_sensor_or_quantity(
                     variable_quantity=consumption_capacity[d],
-                    actuator=asset_d,
                     unit="MW",
                     query_window=(start, end),
                     resolution=resolution,
@@ -781,7 +754,6 @@ class MetaStorageScheduler(Scheduler):
                     any_consumption_breach_price = (
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=consumption_breach_price,
-                            actuator=asset,
                             unit=self.flex_context["shared_currency_unit"] + "/MW",
                             query_window=(start, end),
                             resolution=resolution,
@@ -792,7 +764,6 @@ class MetaStorageScheduler(Scheduler):
                     all_consumption_breach_price = (
                         get_continuous_series_sensor_or_quantity(
                             variable_quantity=consumption_breach_price,
-                            actuator=asset,
                             unit=self.flex_context["shared_currency_unit"]
                             + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
                             query_window=(start, end),
@@ -834,7 +805,6 @@ class MetaStorageScheduler(Scheduler):
                 for component in soc_delta:
                     stock_delta_series = get_continuous_series_sensor_or_quantity(
                         variable_quantity=component,
-                        actuator=asset_d,
                         unit="MW",
                         query_window=(start, end),
                         resolution=resolution,
@@ -861,7 +831,6 @@ class MetaStorageScheduler(Scheduler):
             charging_efficiency[d] = (
                 get_continuous_series_sensor_or_quantity(
                     variable_quantity=charging_efficiency[d],
-                    actuator=asset_d,
                     unit="dimensionless",
                     query_window=(start, end),
                     resolution=resolution,
@@ -873,7 +842,6 @@ class MetaStorageScheduler(Scheduler):
             discharging_efficiency[d] = (
                 get_continuous_series_sensor_or_quantity(
                     variable_quantity=discharging_efficiency[d],
-                    actuator=asset_d,
                     unit="dimensionless",
                     query_window=(start, end),
                     resolution=resolution,
@@ -908,7 +876,6 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["efficiency"] = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=storage_efficiency[d],
-                        actuator=asset_d,
                         unit="dimensionless",
                         query_window=(start, end),
                         resolution=resolution,
