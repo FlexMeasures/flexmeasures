@@ -464,8 +464,12 @@ class MultiSensorFlexModelSchema(Schema):
 
     @validates_schema
     def ensure_sensor_or_asset(self, data, **kwargs):
-        if "sensor" in data and "asset" in data:
-            raise ValidationError("Specify either a sensor or an asset, but not both.")
+        if (
+            "sensor" in data
+            and "asset" in data
+            and data["sensor"].asset != data["asset"]
+        ):
+            raise ValidationError("Sensor does not belong to asset.")
         if "sensor" not in data and "asset" not in data:
             raise ValidationError("Specify either a sensor or an asset.")
 

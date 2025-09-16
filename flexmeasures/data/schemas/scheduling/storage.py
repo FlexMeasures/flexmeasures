@@ -14,7 +14,8 @@ from marshmallow import (
 )
 from marshmallow.validate import OneOf, ValidationError
 
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures import Asset, Sensor
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.sensors import VariableQuantityField
 from flexmeasures.utils.unit_utils import (
@@ -70,6 +71,8 @@ class StorageFlexModelSchema(Schema):
     Some fields are not required, as they might live on the Sensor.attributes.
     You can use StorageScheduler.deserialize_flex_config to get that filled in.
     """
+
+    asset = GenericAssetIdField(required=False)
 
     soc_at_start = QuantityField(
         required=False,
@@ -263,6 +266,11 @@ class StorageFlexModelSchema(Schema):
             raise ValidationError(
                 "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
+
+    @validates("asset")
+    def validate_asset(self, asset: Asset, **kwargs):
+        if self.sensor is not None and self.sensor.asset != asset:
+            raise ValidationError("Sensor does not belong to asset.")
 
     @validates("storage_efficiency")
     def validate_storage_efficiency_resolution(
