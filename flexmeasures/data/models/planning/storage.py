@@ -961,7 +961,8 @@ class MetaStorageScheduler(Scheduler):
                 or self.flex_model["soc-at-start"] is None
             ):
                 if (
-                    self.start == self.sensor.get_attribute("soc_datetime")
+                    self.sensor is not None
+                    and self.start == self.sensor.get_attribute("soc_datetime")
                     and self.sensor.get_attribute("soc_in_mwh") is not None
                 ):
                     self.flex_model["soc-at-start"] = self.sensor.get_attribute(
