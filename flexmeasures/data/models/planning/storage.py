@@ -1049,8 +1049,12 @@ class MetaStorageScheduler(Scheduler):
             )
         return min_target, max_target
 
-    def get_min_max_soc_on_sensor(self) -> tuple[str | None, str | None]:
+    def get_min_max_soc_from_db(self) -> tuple[str | None, str | None]:
         """This happens before deserializing the flex-model."""
+        if self.asset is not None:
+            return self.asset.flex_model.get("soc-min"), self.asset.flex_model.get(
+                "soc-max"
+            )
         return self.sensor.generic_asset.flex_model.get(
             "soc-min"
         ), self.sensor.generic_asset.flex_model.get("soc-max")
@@ -1062,7 +1066,7 @@ class MetaStorageScheduler(Scheduler):
         This happens before deserializing the flex-model.
         """
         _, max_target = self.get_min_max_targets()
-        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor()
+        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_from_db()
         if "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
             # Default is 0 - can't drain the storage by more than it contains
             self.flex_model["soc-min"] = soc_min_sensor if soc_min_sensor else 0
