@@ -527,7 +527,7 @@ class AssetTriggerSchema(Schema):
         """Verify that the flex-model's sensors live under the asset for which a schedule is triggered."""
         asset = data["asset"]
         sensors = []
-        for sensor_flex_model in data["flex_model"]:
+        for sensor_flex_model in data.get("flex_model", []):
             sensor = sensor_flex_model["sensor"]
             if sensor in sensors:
                 raise FMValidationError(
