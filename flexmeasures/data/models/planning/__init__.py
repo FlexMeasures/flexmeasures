@@ -193,7 +193,11 @@ class Scheduler:
         asset_ids = []
         flex_model = self.flex_model.copy()
         if not isinstance(self.flex_model, list):
-            flex_model["asset"] = self.sensor.generic_asset.id
+            if "asset" not in flex_model:
+                if self.asset is not None:
+                    flex_model["asset"] = asset.id
+                else:
+                    flex_model["asset"] = self.sensor.generic_asset.id
             flex_model = [flex_model]
 
         for flex_model_d in flex_model:
