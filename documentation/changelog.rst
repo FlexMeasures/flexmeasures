@@ -3,11 +3,39 @@
 FlexMeasures Changelog
 **********************
 
-v0.28.0 | September XX, 2025
+
+v0.29.0 | October XX, 2025
 ============================
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+* Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
+* Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
+
+Bugfixes
+-----------
+
+
+v0.28.1 | September XX, 2025
+============================
+
+Bugfixes
+-----------
+* Fix schema validation in ``PATCH /assets/(id)`` [see `PR #1711 <https://www.github.com/FlexMeasures/flexmeasures/pull/1711>`_]
+
+
+
+v0.28.0 | September 10, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v028-daily-kpis/>`_.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+             This upgrade may take a few minutes, depending on how much time series data you have in your database (the data will be reindexed).
 
 New features
 -------------

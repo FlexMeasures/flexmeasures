@@ -12,13 +12,14 @@ from apispec.ext.marshmallow import MarshmallowPlugin
 from apispec_webframeworks.flask import FlaskPlugin
 from flask_swagger_ui import get_swaggerui_blueprint
 
+from flexmeasures import __version__ as fm_version
 from flexmeasures.api.v3_0.sensors import SensorAPI
 from flexmeasures.api.v3_0.accounts import AccountAPI
 from flexmeasures.api.v3_0.users import UserAPI
 from flexmeasures.api.v3_0.assets import AssetAPI, AssetTypesAPI
 from flexmeasures.api.v3_0.health import HealthAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
-from flexmeasures import __version__
+from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
 
 
 def register_at(app: Flask):
@@ -33,6 +34,7 @@ def register_at(app: Flask):
     AssetTypesAPI.register(app, route_prefix=v3_0_api_prefix)
     HealthAPI.register(app, route_prefix=v3_0_api_prefix)
     ServicesAPI.register(app)
+    SensorEntityAddressAPI.register(app, route_prefix=v3_0_api_prefix)
 
     register_swagger_ui(app)
 
@@ -41,7 +43,7 @@ def create_openapi_specs(app: Flask):
     """ """
     spec = APISpec(
         title="FlexMeasures",
-        version=__version__,
+        version=fm_version,
         openapi_version="3.0.2",  # TODO: newest is 3.1.0
         plugins=[FlaskPlugin(), MarshmallowPlugin()],
     )
