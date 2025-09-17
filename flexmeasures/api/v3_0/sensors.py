@@ -130,8 +130,8 @@ class SensorAPI(FlaskView):
             Alternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified
             asset and its sub-assets are retrieved, provided the user has read access to the asset.
 
-            NOTE: You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is
-            part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).
+            > **Note:** You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is
+            > part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).
 
             Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.
             This is only possible if the user has the role of a consultant.
@@ -420,7 +420,7 @@ class SensorAPI(FlaskView):
           summary: Upload sensor data
           description: |
             Send data values via JSON, where the duration and number of values determine the resolution.
-            
+
             The example request posts four values for a duration of one hour, where the first
             event start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.
 
@@ -572,8 +572,8 @@ class SensorAPI(FlaskView):
 
             For details on flexibility model and context, see describing_flexibility documentation.
 
-            Note: To schedule an EMS with multiple flexible sensors at once,
-            use [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.
+            > **Note:** To schedule an EMS with multiple flexible sensors at once,
+            > use [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.
 
             The length of the schedule can be set explicitly through the 'duration' field.
             Otherwise, it is set by the config setting `planning_horizon_config`, which defaults to 48 hours.

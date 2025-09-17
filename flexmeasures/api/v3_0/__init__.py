@@ -68,7 +68,7 @@ def create_openapi_specs(app: Flask):
                     except Exception as e:
                         print(f"❌ Failed to document {rule.rule}: {e}")
 
-    output_path = Path("flexmeasures/ui/static/openapi-specs.json")
+    output_path = Path("flexmeasures/ui/static/documentation/openapi-specs.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(output_path, "w") as f:
@@ -82,7 +82,7 @@ def register_swagger_ui(app: Flask):
     Register the Swagger UI blueprint to view the OpenAPI specs.
     """
     SWAGGER_URL = "/api/v3_0/docs"  # URL for exposing Swagger UI (without trailing '/')
-    API_URL = "/ui/static/openapi-specs.json"
+    API_URL = "/ui/static/documentation/openapi-specs.json"
 
     # Call factory function to create our blueprint
     swaggerui_blueprint = get_swaggerui_blueprint(
@@ -92,14 +92,6 @@ def register_swagger_ui(app: Flask):
             "app_name": "FlexMeasures",
             "layout": "BaseLayout",
         },  # Swagger UI config overrides
-        # oauth_config={  # OAuth config. See https://github.com/swagger-api/swagger-ui#oauth2-configuration .
-        #    'clientId': "your-client-id",
-        #    'clientSecret': "your-client-secret-if-required",
-        #    'realm': "your-realms",
-        #    'appName': "your-app-name",
-        #    'scopeSeparator': " ",
-        #    'additionalQueryStringParams': {'test': "hello"}
-        # }
     )
 
     app.register_blueprint(swaggerui_blueprint)

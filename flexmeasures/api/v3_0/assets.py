@@ -963,22 +963,22 @@ class AssetAPI(FlaskView):
             - the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
             - the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
-            For details on flexibility model and context, see :ref:`describing_flexibility`.
+            For details on flexibility model and context, [see describing_flexibility](https://flexmeasures.readthedocs.io/stable/features/scheduling.html#describing-flexibility).
             Below, we'll also list some examples.
 
-            .. note:: This endpoint supports scheduling an EMS with multiple flexible devices at once.
-                    It can do so jointly (the default) or sequentially
-                    (considering previously scheduled sensors as inflexible).
-                    To use sequential scheduling, use ``sequential=true`` in the JSON body.
+            > **Note:** This endpoint supports scheduling an EMS with multiple flexible devices at once.
+            > It can do so jointly (the default) or sequentially
+            > (considering previously scheduled sensors as inflexible).
+            > To use sequential scheduling, use ``sequential=true`` in the JSON body.
 
             The length of the schedule can be set explicitly through the 'duration' field.
-            Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
+            Otherwise, it is set by the config setting [see planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.
             If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-            Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of each sensor's resolution.
+            Finally, the schedule length is limited by [see max_planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
             Targets that exceed the max planning horizon are not accepted.
 
             The appropriate algorithm is chosen by FlexMeasures (based on asset type).
-            It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
+            It's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).
 
             If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)
 
@@ -1034,7 +1034,7 @@ class AssetAPI(FlaskView):
                           This message indicates that the scheduling request has been processed without any error.
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: see /sensors/<id>/schedules/<uuid>.
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: PROCESSED
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
