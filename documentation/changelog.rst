@@ -18,6 +18,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Make monitoring tasks & users robust against db issues [see `PR #1715 <https://www.github.com/FlexMeasures/flexmeasures/pull/1715>`_]
 
 
 v0.28.1 | September XX, 2025
