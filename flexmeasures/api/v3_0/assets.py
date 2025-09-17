@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import current_app, request
+from flask import request
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -15,8 +15,13 @@ from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, delete, func, or_
+from sqlalchemy import select, func, or_
 
+from flexmeasures.data.services.generic_assets import (
+    create_asset,
+    patch_asset,
+    delete_asset,
+)
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
     get_sensor_stats,
@@ -53,17 +58,15 @@ from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
-from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
+patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
-partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
 def get_accessible_accounts() -> list[Account]:
@@ -465,13 +468,7 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        asset = GenericAsset(**asset_data)
-        db.session.add(asset)
-        # assign asset id
-        db.session.flush()
-
-        AssetAuditLog.add_record(asset, f"Created asset '{asset.name}': {asset.id}")
-
+        asset = create_asset(asset_data)
         db.session.commit()
 
         return asset_schema.dump(asset), 201
@@ -519,7 +516,7 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_args(partial_asset_schema)
+    @use_args(patch_asset_schema)
     @use_kwargs(
         {
             "db_asset": AssetIdField(
@@ -576,42 +573,10 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        audit_log_data = list()
-        schema_map = dict(
-            flex_context=DBFlexContextSchema,
-            flex_model=DBStorageFlexModelSchema,
-        )
-
-        for k, v in asset_data.items():
-            if getattr(db_asset, k) == v:
-                continue
-            if k == "attributes":
-                current_attributes = getattr(db_asset, k)
-                for attr_key, attr_value in v.items():
-                    if current_attributes.get(attr_key) != attr_value:
-                        audit_log_data.append(
-                            f"Updated Attr: {attr_key}, From: {current_attributes.get(attr_key)}, To: {attr_value}"
-                        )
-                continue
-            if k in schema_map:
-                try:
-                    # Validate against the given schema
-                    schema_map[k]().load(v)
-                except Exception as e:
-                    return {"error": str(e)}, 422
-                # todo: add audit log entry for the updated fields, similar to when changing an attribute, because
-                #       the events have a 255 character limit, which may not be enough for the whole flex-model
-
-            audit_log_data.append(
-                f"Updated Field: {k}, From: {getattr(db_asset, k)}, To: {v}"
-            )
-
-        # Iterate over each field or attribute updates and create a separate audit log entry for each.
-        for event in audit_log_data:
-            AssetAuditLog.add_record(db_asset, event)
-
-        for k, v in asset_data.items():
-            setattr(db_asset, k, v)
+        try:
+            db_asset = patch_asset(db_asset, asset_data)
+        except ValidationError as e:
+            return {"error": str(e)}, 422
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -643,12 +608,8 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        asset_name, asset_id = asset.name, asset.id
-        AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
-
-        db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
+        delete_asset(asset)
         db.session.commit()
-        current_app.logger.info("Deleted asset '%s'." % asset_name)
         return {}, 204
 
     @route("/<id>/chart", strict_slashes=False)  # strict on next version? see #1014

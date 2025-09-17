@@ -65,6 +65,8 @@ cryptography==45.0.6
     #   webauthn
 cycler==0.12.1
     # via matplotlib
+dictdiffer==0.9.0
+    # via -r requirements/app.in
 dill==0.4.0
     # via openturns
 dnspython==2.7.0
@@ -223,7 +225,6 @@ openturns==1.25
 packaging==25.0
     # via
     #   altair
-    #   marshmallow
     #   matplotlib
     #   sktime
     #   statsmodels

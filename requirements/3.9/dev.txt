@@ -15,6 +15,10 @@ click==8.1.8
     #   -c requirements/3.9/app.txt
     #   -c requirements/3.9/test.txt
     #   black
+dictdiffer==0.9.0
+    # via
+    #   -c requirements/3.9/app.txt
+    #   -r requirements/dev.in
 distlib==0.4.0
     # via virtualenv
 filelock==3.18.0

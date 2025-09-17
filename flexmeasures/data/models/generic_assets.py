@@ -412,8 +412,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             return self.attributes[attribute]
         if self.flex_model and attribute in self.flex_model:
             return self.flex_model[attribute]
-        if self.flex_context and attribute in self.flex_context:
-            return self.flex_context[attribute]
+        flex_context = self.get_flex_context()
+        if attribute in flex_context:
+            return flex_context[attribute]
         return default
 
     def has_attribute(self, attribute: str) -> bool:
@@ -442,16 +443,18 @@ class GenericAsset(db.Model, AuthModelMixin):
             parent_asset = parent_asset.parent_asset
         return flex_context
 
-    def get_flex_model(self) -> list[dict]:
+    def get_flex_model(self) -> dict[int, dict]:
         """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
 
         Recursive function returning a multi-asset flex-model.
+
+        :returns: dictionary with asset IDs as keys and serialized flex-model dicts as values.
         """
-        flex_model = []
+        flex_model = {}
         if self.flex_model:
-            flex_model.append(self.flex_model.copy())
+            flex_model[self.id] = dict(asset=self.id, **self.flex_model)
         for child in self.child_assets:
-            flex_model.extend(child.get_flex_model())
+            flex_model = {**flex_model, **child.get_flex_model()}
         return flex_model
 
     def get_consumption_price_sensor(self):
@@ -820,9 +823,32 @@ class GenericAsset(db.Model, AuthModelMixin):
 
                 sensors_metadata = {}
                 sources_metadata = {}
+                all_source_objs = set()
+
+                # Collect all unique sources first
+                for sensor, bdf in bdf_dict.items():
+                    if not bdf.empty and "source" in bdf.index.names:
+                        all_source_objs.update(
+                            bdf.index.get_level_values("source").unique()
+                        )
+
+                # Build source metadata once
+                for source_obj in all_source_objs:
+                    if hasattr(source_obj, "id"):
+                        source_dict = source_obj.as_dict
+                        sources_metadata[source_obj.id] = {
+                            "name": source_dict.get("name", ""),
+                            "model": source_dict.get("model", ""),
+                            "type": source_dict.get("type", "other"),
+                            "description": source_dict.get("description", ""),
+                        }
+
                 all_records = []
 
                 for sensor, bdf in bdf_dict.items():
+                    if bdf.empty:
+                        continue
+
                     # Build metadata lookup table for this sensor
                     sensor_dict = sensor.as_dict
                     sensors_metadata[sensor.id] = {
@@ -845,12 +871,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                             if most_recent_beliefs_only
                             else ["belief_time", "source"]
                         ),
-                    )
+                    ).reset_index()
 
-                    df = df.reset_index()
-
-                    # Convert event values recording seconds to datetimes
-                    # todo: invalid assumption for sensors measuring durations
+                    # Handle datetime conversion for seconds unit
                     if sensor.unit == "s":
                         time_mask = df["event_value"].notna()
                         time_values = df.loc[time_mask, "event_value"]
@@ -863,66 +886,71 @@ class GenericAsset(db.Model, AuthModelMixin):
                             .dt.tz_convert(self.timezone)
                         )
 
-                    # Process each row in the dataframe
-                    for _, row in df.iterrows():
-                        source_obj = row.get("source")
+                    # VECTORIZED PROCESSING instead of for loops for speed
+                    # Convert timestamps to milliseconds vectorized
+                    event_start_ms = (
+                        df["event_start"].astype("int64") // 1_000_000
+                    ).astype(int)
 
-                        # Build source metadata if not already built
-                        if (
-                            source_obj
-                            and hasattr(source_obj, "id")
-                            and source_obj.id not in sources_metadata
-                        ):
-                            source_dict = source_obj.as_dict
-                            sources_metadata[source_obj.id] = {
-                                "name": source_dict.get("name", ""),
-                                "model": source_dict.get("model", ""),
-                                "type": source_dict.get("type", "other"),
-                                "description": source_dict.get("description", ""),
-                            }
+                    # Create base records using DataFrame operations
+                    base_records = {
+                        "ts": event_start_ms.tolist(),
+                        "sid": [sensor.id] * len(df),
+                        "val": df["event_value"].tolist(),
+                        "sf": [factors.get(sensor.unit, 1.0)] * len(df),
+                    }
 
-                        # Build record with reference IDs only
+                    # Add source IDs if available
+                    if "source" in df.columns:
+                        source_ids = (
+                            df["source"]
+                            .apply(lambda x: x.id if hasattr(x, "id") else None)
+                            .tolist()
+                        )
+                        base_records["src"] = source_ids
+
+                    # Add belief horizons if available
+                    if "belief_horizon" in df.columns:
+                        belief_horizons_sec = (
+                            df["belief_horizon"]
+                            .apply(
+                                lambda x: (
+                                    int(x.total_seconds()) if pd.notnull(x) else None
+                                )
+                            )
+                            .tolist()
+                        )
+                        base_records["bh"] = belief_horizons_sec
+
+                    # Add belief times if needed
+                    if not most_recent_beliefs_only and "belief_time" in df.columns:
+                        belief_times_ms = (
+                            df["belief_time"]
+                            .apply(
+                                lambda x: (
+                                    int(x.timestamp() * 1000) if pd.notnull(x) else None
+                                )
+                            )
+                            .tolist()
+                        )
+                        base_records["bt"] = belief_times_ms
+
+                    cleaned_records = {}
+                    for key, values in base_records.items():
+                        if isinstance(values, list):
+                            cleaned_records[key] = values
+                        else:
+                            cleaned_records[key] = (
+                                pd.Series(values).fillna(None).tolist()
+                            )
+
+                    # Convert to list of dictionaries
+                    for i in range(len(df)):
                         record = {
-                            "ts": int(
-                                row["event_start"].timestamp() * 1000
-                            ),  # Convert from seconds to milliseconds for JavaScript compatibility
-                            "sid": sensor.id,
-                            "val": row["event_value"],
-                            "sf": factors.get(sensor.unit, 1.0),
+                            key: values[i] for key, values in cleaned_records.items()
                         }
-
-                        # Add optional fields
-                        if source_obj and hasattr(source_obj, "id"):
-                            record["src"] = source_obj.id
-
-                        if "belief_horizon" in row and pd.notnull(
-                            row["belief_horizon"]
-                        ):
-                            record["bh"] = int(row["belief_horizon"].total_seconds())
-
-                        if (
-                            not most_recent_beliefs_only
-                            and "belief_time" in row
-                            and pd.notnull(row["belief_time"])
-                        ):
-                            record["bt"] = int(
-                                row["belief_time"].timestamp() * 1000
-                            )  # Convert from seconds to milliseconds for JavaScript compatibility
-
-                        # Clean up any problematic types
-                        for key, value in record.items():
-                            if pd.isna(value):
-                                record[key] = None
-                            elif isinstance(value, pd.Timestamp):
-                                record[key] = value.timestamp() * 1000
-                            elif isinstance(value, (pd.Timedelta, timedelta)):
-                                record[key] = str(value)
-                            elif hasattr(value, "item"):  # numpy types
-                                record[key] = value.item()
-                            elif hasattr(value, "total_seconds"):
-                                record[key] = value.total_seconds()
-
                         all_records.append(record)
+
                 return json.dumps(
                     {
                         "data": all_records,
@@ -930,9 +958,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                         "sources": sources_metadata,
                     }
                 )
-
             else:
-                # if there is no data, return empty
                 return json.dumps({"data": [], "sensors": {}, "sources": {}})
 
         return bdf_dict

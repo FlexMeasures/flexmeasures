@@ -5,7 +5,7 @@ import marshmallow.validate as validate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, select, func, or_
 from flask_sqlalchemy.pagination import SelectPagination
-from webargs.flaskparser import use_kwargs
+from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
@@ -21,8 +21,9 @@ from flexmeasures.data.queries.users import query_users_by_search_terms
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
-    set_random_password,
+    reset_password,
     remove_cookie_and_token_access,
+    set_random_password,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -189,6 +190,78 @@ class UserAPI(FlaskView):
             ]
 
         return response, 200
+
+    @route("", methods=["POST"])
+    @use_args(
+        {
+            "email": fields.Email(required=True),
+            "username": fields.Str(required=True),
+            "account": AccountIdField(required=True, data_key="account_id"),
+        }
+    )
+    @permission_required_for_context(
+        "create-children", ctx_arg_pos=1, ctx_arg_name="account"
+    )
+    def post(self, user_data):
+        """Create new user
+
+        .. :quickref: User; Create a new user
+
+        This endpoint creates a new user.
+
+        The following fields are required:
+         - email
+         - username
+         - account_id
+
+        Other attributes/fields such as password and roles can be assigned or reset later.
+
+        **Example request**
+
+        .. sourcecode:: json
+
+            {
+                "email": "test_user@seita.nl",
+                "username": "Test User",
+                "account_id": 1
+            }
+
+        **Example response**
+
+        .. sourcecode:: json
+
+            {
+                'account_id': 1,
+                'active': True,
+                'email': 'test_user@seita.nl',
+                'flexmeasures_roles': [1, 3],
+                'id': 1,
+                'timezone': 'Europe/Amsterdam',
+                'username': 'Test User'
+            }
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 201: CREATED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        from flexmeasures.data.services.users import create_user
+
+        created_user = create_user(
+            username=user_data["username"],
+            email=user_data["email"],
+            account_name=user_data["account"].name,
+            password=user_data["email"],  # This will be set to a random password below
+            user_roles=[],
+        )
+        set_random_password(created_user)
+        send_reset_password_instructions(created_user)
+        db.session.commit()
+        return user_schema.dump(created_user), 201
 
     @route("/<id>")
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
@@ -361,10 +434,7 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        set_random_password(user)
-        remove_cookie_and_token_access(user)
-        send_reset_password_instructions(user)
-
+        reset_password(user)
         # commit only if sending instructions worked, as well
         db.session.commit()
 
