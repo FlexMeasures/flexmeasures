@@ -14,7 +14,7 @@ from sentry_sdk import (
     capture_message as capture_message_for_sentry,
     set_context as set_sentry_context,
 )
-from sqlalchemy import select
+from sqlalchemy import exc as sqla_exc, select
 from tabulate import tabulate
 
 from flexmeasures.data import db
@@ -27,6 +27,13 @@ from flexmeasures.cli.utils import MsgStyle
 @click.group("monitor")
 def fm_monitor():
     """FlexMeasures: Monitor tasks."""
+
+
+def get_email_recipients():
+    recipients = app.config.get("FLEXMEASURES_MONITORING_MAIL_RECIPIENTS", [])
+    if isinstance(recipients, str):
+        recipients = [recipients]
+    return recipients
 
 
 def send_task_monitoring_alert(
@@ -53,7 +60,7 @@ def send_task_monitoring_alert(
 
     capture_message_for_sentry(msg)
 
-    email_recipients = app.config.get("FLEXMEASURES_MONITORING_MAIL_RECIPIENTS", [])
+    email_recipients = get_email_recipients()
     if len(email_recipients) > 0:
         email = Message(subject=f"Problem with task {task_name}", bcc=email_recipients)
         email.body = (
@@ -89,7 +96,12 @@ def monitor_latest_run(task, custom_message):
     for t in task:
         task_name = t[0]
         app.logger.info(f"Checking latest run of task {task_name} ...")
-        latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
+        try:
+            latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
+        except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
+            msg = f"Task {task_name} could not be checked due to a database connectivity problem."
+            send_task_monitoring_alert(task_name, msg, custom_msg=custom_message)
+            raise click.Abort()
         if latest_run is None:
             msg = f"Task {task_name} has no last run and thus cannot be monitored. Is it configured properly?"
             send_task_monitoring_alert(task_name, msg, custom_msg=custom_message)
@@ -166,7 +178,7 @@ def send_lastseen_monitoring_alert(
         msg += (
             "\n\nThe user(s) has/have not been notified (--alert-users was not used)."
         )
-    email_recipients = app.config.get("FLEXMEASURES_MONITORING_MAIL_RECIPIENTS", [])
+    email_recipients = get_email_recipients()
     if len(email_recipients) > 0:
         email = Message(
             subject="Last contact by user(s) too long ago", bcc=email_recipients
@@ -245,14 +257,28 @@ def monitor_last_seen(
     will work for all filters independently.
     """
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
-    latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
+    latest_run: LatestTaskRun | None = None
+    users: list[User] = []
 
-    # find users we haven't seen in the given time window (last_seen_at is naive UTC)
-    users: list[User] = db.session.scalars(
-        select(User).filter(
-            User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
-        )
-    ).all()
+    try:
+        latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
+        # find users we haven't seen in the given time window (last_seen_at is naive UTC)
+        users = db.session.scalars(
+            select(User).filter(
+                User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
+            )
+        ).all()
+    except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
+        email_recipients = get_email_recipients()
+        if len(email_recipients) > 0:
+            email = Message(
+                subject="Could not monitor last seen status of users",
+                bcc=email_recipients,
+            )
+            email.body = "Due to a database connectivity problem, we could not check which users have not been seen in a while.\nWe suggest to check the logs."
+            app.mail.send(email)
+        raise click.Abort()
+
     # role filters
     if account_role is not None:
         users = [user for user in users if user.account.has_role(account_role)]
