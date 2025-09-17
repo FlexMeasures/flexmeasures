@@ -295,7 +295,7 @@ def monitor_last_seen(
             > latest_run.datetime
         ]
         if len(users) < original_length:
-            txt_about_already_alerted_users = "There are (also) users who have been absent long, but one of the earlier monitoring runs already included them (run monitoring with --include-all-users-each-run to see them)."
+            txt_about_already_alerted_users = "There are (also) users who have been absent long, but one of the earlier monitoring runs already included them (run monitoring with --all-absent-users to see them)."
     if not users:
         click.secho(
             f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago. {txt_about_already_alerted_users}",
