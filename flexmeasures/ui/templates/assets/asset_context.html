@@ -373,8 +373,15 @@
         const assetFlexContext = getFlexContext();
         assetFlexContext[fieldName] = "";
         flexOptionsContainer.innerHTML = "";
-        setActiveCard(document.getElementById(`${fieldName}-control`));
         setFlexContext(assetFlexContext);
+
+        setTimeout(() => {
+            const card = document.getElementById(`${fieldName}-control`);
+            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+            card.classList.add('border-on-click'); // Add border to the clicked card
+            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isOnlySensorField));
+            handleFlexSelectChange(fieldName);
+        }, 500);
     }
     // ============== Add Field/Card Action Button END ============== //
 
