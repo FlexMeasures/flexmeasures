@@ -1051,7 +1051,7 @@ class AssetAPI(FlaskView):
                 description: UNPROCESSABLE_ENTITY
 
           tags:
-              - assets
+              - Assets
         """
         end_of_schedule = start_of_schedule + duration
 
