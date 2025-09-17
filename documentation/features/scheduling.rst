@@ -271,7 +271,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 Usually, not the whole flexibility model is needed.
 FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
-You can add new storage schedules with the CLI command ``flexmeasures add schedule for-storage``.
+You can add new storage schedules with the CLI command ``flexmeasures add schedule``.
 
 If you model devices that *buffer* energy (e.g. thermal energy storage systems connected to heat pumps), we can use the same flexibility parameters described above for storage devices.
 However, here are some tips to model a buffer correctly:

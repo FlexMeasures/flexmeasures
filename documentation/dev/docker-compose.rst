@@ -102,9 +102,10 @@ Next, we put a scheduling job in the worker's queue. This only works because we 
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
+    $ flexmeasures add schedule --sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-        --roundtrip-efficiency 90% --as-job
+        --flex-context '{"consumption-price": {"sensor": 1}}' \
+        --flex-model '{"roundtrip-efficiency": "90%"}' --as-job
 
 We should now see in the output of ``docker logs flexmeasures-worker-1`` something like the following:
 

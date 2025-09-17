@@ -85,13 +85,12 @@ This will have an effect on the available headroom for the battery, given the ``
         .. code-block:: bash
             :emphasize-lines: 3
 
-            $ flexmeasures add schedule for-storage \
+            $ flexmeasures add schedule \
                 --sensor 2 \
-                --inflexible-device-sensor 3 \
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --roundtrip-efficiency 90%
+                --flex-context '{"inflexible-device-sensors": [3]}'
             New schedule is stored.
 
     .. tab:: API
