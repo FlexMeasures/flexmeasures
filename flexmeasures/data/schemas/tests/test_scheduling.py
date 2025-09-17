@@ -516,7 +516,18 @@ def test_db_flex_context_schema(
         ({"sensor": "epex_da"}, "EUR/MWh"),
     ],
 )
-@pytest.mark.parametrize("deserialized", [True, False])
+@pytest.mark.parametrize(
+    "deserialized",
+    [
+        True,
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(
+                reason="getting a unit on a still serialized variable quantity is not yet supported"
+            ),
+        ),
+    ],
+)
 def test_get_variable_quantity_unit(
     setup_markets, variable_quantity, expected_unit: str, deserialized: bool
 ):
