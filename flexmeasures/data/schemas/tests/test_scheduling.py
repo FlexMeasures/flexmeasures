@@ -13,7 +13,7 @@ from flexmeasures.data.schemas.scheduling.process import (
 from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
 )
-from flexmeasures.data.schemas.sensors import TimedEventSchema
+from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
 
 
 @pytest.mark.parametrize(
@@ -503,3 +503,28 @@ def test_db_flex_context_schema(
             )
     else:
         schema.load(flex_context)
+
+
+@pytest.mark.parametrize(
+    ["variable_quantity", "expected_unit"],
+    [
+        ("1 kWh", "kWh"),
+        (
+            [{"start": "2025-09-17T00:00+02", "duration": "PT3H", "value": "1 kWh"}],
+            "kWh",
+        ),
+        ({"sensor": "epex_da"}, "EUR/MWh"),
+    ],
+)
+@pytest.mark.parametrize("deserialized", [True, False])
+def test_get_variable_quantity_unit(
+    setup_markets, variable_quantity, expected_unit: str, deserialized: bool
+):
+
+    if isinstance(variable_quantity, dict):
+        variable_quantity["sensor"] = setup_markets[variable_quantity["sensor"]].id
+
+    field = VariableQuantityField("/1")  # we use to_unit="/1" here to allow any unit
+    if deserialized:
+        variable_quantity = field.deserialize(variable_quantity)
+    assert field._get_unit(variable_quantity) == expected_unit
