@@ -97,8 +97,7 @@ class MessageHandlersSync:
                 raise
         else:
             logger.warning(
-                "Received a message of type %s but no handler is registered. Ignoring the message.",
-                type(msg),
+                f"Ignoring message of type {type(msg)}; no handler is registered",
             )
 
     def register_handler(
@@ -162,17 +161,15 @@ class S2FlaskWSServerSync:
 
     def _handle_websocket_connection(self, websocket: Sock) -> None:
         client_id = str(uuid.uuid4())
-        self.app.logger.info("Client %s connected (sync).", client_id)
+        self.app.logger.info(f"Client {client_id} connected (sync)")
         self._connections[client_id] = websocket
         try:
             while True:
                 message = websocket.receive()
                 try:
                     s2_msg = self.s2_parser.parse_as_any_message(message)
-                    self.app.logger.info(
-                        "Received message in _handle_websocket_connection: %s",
-                        s2_msg.to_json(),
-                    )
+                    self.app.logger.info("Received message from client")
+                    self.app.logger.debug(s2_msg.to_json())
                 except json.JSONDecodeError:
                     self.respond_with_reception_status(
                         subject_message_id=uuid.UUID(
@@ -225,7 +222,7 @@ class S2FlaskWSServerSync:
                     self.app.logger.error("Error processing message: %s", str(e))
                     raise
         except ConnectionClosed:
-            self.app.logger.info("Connection with client %s closed (sync)", client_id)
+            self.app.logger.info(f"Connection with client {client_id} closed (sync)")
         finally:
             if client_id in self._connections:
                 del self._connections[client_id]
@@ -246,7 +243,7 @@ class S2FlaskWSServerSync:
                 ):
                     self.s2_scheduler.remove_device_state(resource_id)
 
-            self.app.logger.info("Client %s disconnected (sync)", client_id)
+            self.app.logger.info(f"Client {client_id} disconnected (sync)")
 
     def respond_with_reception_status(
         self,
@@ -261,9 +258,7 @@ class S2FlaskWSServerSync:
             diagnostic_label=diagnostic_label,
         )
         self.app.logger.info(
-            "Sending reception status %s for message %s (sync)",
-            status,
-            subject_message_id,
+            f"Sending reception status {status} for message {subject_message_id} (sync)",
         )
         try:
             websocket.send(response.to_json())
@@ -283,7 +278,8 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, Handshake):
             return
-        self.app.logger.info("Received Handshake (sync): %s", message.to_json())
+        self.app.logger.info("Received Handshake (sync)")
+        self.app.logger.debug(message.to_json())
 
         if S2_VERSION not in message.supported_protocol_versions:
             raise NotImplementedError(
@@ -295,25 +291,26 @@ class S2FlaskWSServerSync:
             selected_protocol_version=S2_VERSION,
         )
         self._send_and_forget(handshake_response, websocket)
-        self.app.logger.info(f"HandshakeResponse sent (sync): {handshake_response}")
+        self.app.logger.info("HandshakeResponse sent (sync)")
+        self.app.logger.debug(handshake_response)
         # If client is RM, send control type selection
         if hasattr(message, "role") and message.role == EnergyManagementRole.RM:
-            self.app.logger.info("Sending control type selection (sync)")
+            self.app.logger.debug("Sending control type selection (sync)")
             select_control_type = SelectControlType(
                 message_id=uuid.uuid4(),
                 control_type=ControlType.FILL_RATE_BASED_CONTROL,
             )
             self._send_and_forget(select_control_type, websocket)
-            self.app.logger.info(
-                f"SelectControlType sent (sync): {select_control_type}"
-            )
+            self.app.logger.info("SelectControlType sent (sync)")
+            self.app.logger.debug(select_control_type)
 
     def handle_reception_status(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
     ) -> None:
         if not isinstance(message, ReceptionStatus):
             return
-        self.app.logger.info("Received ReceptionStatus (sync): %s", message.to_json())
+        self.app.logger.info("Received ReceptionStatus (sync)")
+        self.app.logger.debug(message.to_json())
 
     def handle_ResourceManagerDetails(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
