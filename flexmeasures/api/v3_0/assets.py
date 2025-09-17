@@ -576,7 +576,7 @@ class AssetAPI(FlaskView):
         try:
             db_asset = patch_asset(db_asset, asset_data)
         except ValidationError as e:
-            return {"error": str(e)}, 422
+            return invalid_flex_config(str(e.messages))
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200

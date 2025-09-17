@@ -790,7 +790,7 @@
 
         if (!response.ok) {
             const errorData = await response.json();
-            const errorMessage = errorData?.message || errorData?.error || response.statusText;
+            const errorMessage = errorData?.message.json || errorData?.error || response.statusText;
             showToast(`Failed to update the flex context: ${errorMessage}`, "error");
 
             // Revert to previous state
