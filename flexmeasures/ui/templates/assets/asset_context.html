@@ -346,735 +346,779 @@
     let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
     assetFlexContextRawJSON = Object.assign({}, assetFlexContextSchema, processResourceRawJSON(assetFlexContextSchema, assetFlexContextRawJSON));
 
-    const spinnerElement = document.getElementById('spinnerElement');
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
-    const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
-    const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
+        const spinnerElement = document.getElementById('spinnerElement');
+        const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
-    function reRenderForm() {
-        // Skip on first init. This code prevents the access to teh variable 'getFlexcontext'
-        // on initial run of the script as its not available at that point
-        if (!hasInitialized) {
-            hasInitialized = true;
-        } else {
-            renderFlexContextForm();
-        }
-    }
+        const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
+        const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
 
-    // ============= Add Field/Card Action Button START ============== //
-    const addFieldBtn = document.getElementById("addFieldBtn");
-    addFieldBtn.onclick = async function () {
-        const fieldName = flexSelect.value;
-        if (fieldName === "blank") {
-            showToast("Please select a field to add", "error");
-            return;
-        }
-        const assetFlexContext = getFlexContext();
-        assetFlexContext[fieldName] = "";
-        flexOptionsContainer.innerHTML = "";
-        setFlexContext(assetFlexContext);
-
-        // Store active card in local storage
-        localStorage.setItem('activeCard', JSON.stringify({ fieldName }));
-
-        setTimeout(() => {
-            const card = document.getElementById(`${fieldName}-control`);
-            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
-            card.classList.add('border-on-click'); // Add border to the clicked card
-            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isOnlySensorField));
-            handleFlexSelectChange(fieldName);
-            setActiveCard(card);
-
-        }, 500);
-        
-    }
-    // ============== Add Field/Card Action Button END ============== //
-
-    async function updateFlexContext() {
-        const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        let data = getFlexContext();
-
-        // Clean null values
-        for (const [key, value] of Object.entries(data)) {
-            if (value === null) {
-                delete data[key];
+        function reRenderForm() {
+            // Skip on first init. This code prevents the access to teh variable 'getFlexcontext'
+            // on initial run of the script as its not available at that point
+            if (!hasInitialized) {
+                hasInitialized = true;
+            } else {
+                renderFlexContextForm();
             }
         }
 
-        const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
+        // ============= Add Field/Card Action Button START ============== //
+        const addFieldBtn = document.getElementById("addFieldBtn");
+        addFieldBtn.onclick = async function () {
+            const fieldName = flexSelect.value;
+            if (fieldName === "blank") {
+                showToast("Please select a field to add", "error");
+                return;
+            }
+            const assetFlexContext = getFlexContext();
+            assetFlexContext[fieldName] = "";
+            flexOptionsContainer.innerHTML = "";
+            setFlexContext(assetFlexContext);
 
-        const response = await fetch(apiURL, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: requestBody,
-        });
+            // Store active card in local storage
+            localStorage.setItem('activeCard',fieldName);
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            const errorMessage = errorData?.message || errorData?.error || response.statusText;
-            showToast(`Failed to update the flex context: ${errorMessage}`, "error");
-        } else {
-            setFlexContext(data);
-            showToast("Flex context updated successfully", "success");
+            setTimeout(() => {
+                const card = document.getElementById(`${fieldName}-control`);
+                const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+                card.classList.add('border-on-click'); // Add border to the clicked card
+                flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isOnlySensorField));
+                handleFlexSelectChange(fieldName);
+                setActiveCard(card);
+
+            }, 500);
+            
         }
-    }
+        // ============== Add Field/Card Action Button END ============== //
 
-    /* This search function is tied to the FlexContext Form */
-    async function searchSensorsFlexContextForm() {
-        const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
-        spinnerElement.style.display = 'flex';
-        senSearchResEle.style.display = 'none';
-        const flexUnitsSelectValue = document.getElementById("flexUnitsSelect").value;
-        const flexCheckBox = document.getElementById('flexCheckBox');
+        async function updateFlexContext() {
+            const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
+            let data = getFlexContext();
 
-        const params = new URLSearchParams();
+            // Clean null values
+            for (const [key, value] of Object.entries(data)) {
+                if (value === null) {
+                    delete data[key];
+                }
+            }
 
-        if (searchValue) {
-            params.append('filter', searchValue);
-        }
+            const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
 
-        if (flexCheckBox.checked) {
-            params.append('include_public_assets', true);
-        }
-
-        if (flexUnitsSelectValue != "null") {
-            params.append('unit', flexUnitsSelectValue);
-        }
-
-        const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
-
-        try {
-            const response = await fetch(apiUrl);
+            const response = await fetch(apiURL, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: requestBody,
+            });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch sensors');
+                const errorData = await response.json();
+                const errorMessage = errorData?.message || errorData?.error || response.statusText;
+                showToast(`Failed to update the flex context: ${errorMessage}`, "error");
+            } else {
+                setFlexContext(data);
+                showToast("Flex context updated successfully", "success");
+            }
+        }
+
+        /* This search function is tied to the FlexContext Form */
+        async function searchSensorsFlexContextForm() {
+            const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
+            spinnerElement.style.display = 'flex';
+            senSearchResEle.style.display = 'none';
+            const flexUnitsSelectValue = document.getElementById("flexUnitsSelect").value;
+            const flexCheckBox = document.getElementById('flexCheckBox');
+
+            const params = new URLSearchParams();
+
+            if (searchValue) {
+                params.append('filter', searchValue);
             }
 
-            const responseData = await response.json();
-            const filteredSensors = responseData.data;
+            if (flexCheckBox.checked) {
+                params.append('include_public_assets', true);
+            }
 
-            // Render the fetched sensors
-            renderSensorSearchResults(filteredSensors, senSearchResEle, updateSensorValue);
+            if (flexUnitsSelectValue != "null") {
+                params.append('unit', flexUnitsSelectValue);
+            }
 
-            spinnerElement.classList.add('hidden-important');
-            senSearchResEle.style.display = 'block';
-        } catch (error) {
-            const errorMessage = error?.message || error?.error || response.statusText;
-            showToast(`Failed to search sensors: ${errorMessage}`, "error");
+            const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
+
+            try {
+                const response = await fetch(apiUrl);
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch sensors');
+                }
+
+                const responseData = await response.json();
+                const filteredSensors = responseData.data;
+
+                // Render the fetched sensors
+                renderSensorSearchResults(filteredSensors, senSearchResEle, updateSensorValue);
+
+                spinnerElement.classList.add('hidden-important');
+                senSearchResEle.style.display = 'block';
+            } catch (error) {
+                const errorMessage = error?.message || error?.error || response.statusText;
+                showToast(`Failed to search sensors: ${errorMessage}`, "error");
+            }
         }
-    }
-    // ============== Flex Context Management BEGIN ============== //
+        // ============== Flex Context Management BEGIN ============== //
 
-    async function removeFlexContextField(fieldName) {
-        const assetFlexContext = getFlexContext();
-        getFlexContext()[fieldName] = null;
-        setFlexContext(assetFlexContext);
-    }
+        async function removeFlexContextField(fieldName) {
+            const assetFlexContext = getFlexContext();
+            getFlexContext()[fieldName] = null;
 
-    async function removeFlexContextSensorValue(fieldName, sensorId) {
-        const assetFlexContext = getFlexContext();
-        if (sensorId) {
-            const fieldValue = assetFlexContext[fieldName];
+    
+
+            setFlexContext(assetFlexContext);
+
+
+        }
+
+        async function removeFlexContextSensorValue(fieldName, sensorId) {
+            const assetFlexContext = getFlexContext();
+            if (sensorId) {
+                const fieldValue = assetFlexContext[fieldName];
+                const isArray = Array.isArray(fieldValue);
+                const isKeyValueObject = typeof fieldValue === "object" &&
+                    fieldValue !== null &&
+                    !Array.isArray(fieldValue) && // Exclude arrays
+                    Object.keys(fieldValue).length > 0;
+                if (isArray) {
+                    const sensorIndex = assetFlexContext[fieldName].indexOf(sensorId);
+                    assetFlexContext[fieldName].splice(sensorIndex, 1);
+                } else if (isKeyValueObject) {
+                    assetFlexContext[fieldName] = "";
+                }
+            } else {
+                assetFlexContext[fieldName] = null;
+            }
+        }
+
+        async function renderFlexContextCard(fieldName) {
+            const assetFlexContext = getFlexContext();
+            senSearchResEle.innerHTML = "";
+            let fieldValue = assetFlexContext[fieldName]
+            let newFieldValue;
+            let isSensorValue = false;
+            const sensorsContent = [];
+
+            if (fieldValue === null) {
+                newFieldValue = ""
+            } else if (typeof fieldValue === "object") {
+                if (fieldValue["sensor"]) {
+                    newFieldValue = `{&quot;sensor&quot;: ${fieldValue["sensor"]}}`
+                    isSensorValue = true;
+                } else if (fieldValue.length > 0) {
+                    newFieldValue = fieldValue.join(", ")
+                }
+            } else if (typeof fieldValue == "string") {
+                newFieldValue = fieldValue
+            }
+
+            const isString = typeof fieldValue === "string";
             const isArray = Array.isArray(fieldValue);
             const isKeyValueObject = typeof fieldValue === "object" &&
                 fieldValue !== null &&
                 !Array.isArray(fieldValue) && // Exclude arrays
                 Object.keys(fieldValue).length > 0;
-            if (isArray) {
-                const sensorIndex = assetFlexContext[fieldName].indexOf(sensorId);
-                assetFlexContext[fieldName].splice(sensorIndex, 1);
-            } else if (isKeyValueObject) {
-                assetFlexContext[fieldName] = "";
+
+            if (isKeyValueObject) {
+                const item = convertHtmlToElement(await renderSensor(fieldValue["sensor"]));
+                sensorsContent.push(item);
+            } else if (isArray) {
+                const sensorPromises = fieldValue.map(async (sensor, sensorIndex) => {
+                    const closeIcon = document.createElement('i');
+                    closeIcon.className = 'fa fa-times fa-lg';
+                    closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+                    closeIcon.setAttribute('data-bs-placement', 'top');
+                    closeIcon.setAttribute('title', 'Remove');
+                    closeIcon.style.cursor = 'pointer';
+                    closeIcon.onclick = async () => {
+                        try {
+                            console.log("Removing sensor: ", sensor);
+                            await removeFlexContextSensorValue(fieldName, sensor);
+                            console.log("Sensor removed successfully.");
+                        } catch (error) {
+                            console.error("Failed to remove sensor:", error);
+                        }
+                    };
+
+                    const item = convertHtmlToElement(await renderSensor(sensor));
+                    item.classList.add("align-items-center", "pb-2");
+                    item.appendChild(closeIcon);
+                    return item;
+                });
+                sensorsContent.push(...await Promise.all(sensorPromises));
             }
-        } else {
-            assetFlexContext[fieldName] = null;
-        }
-        await renderFlexContextForm();
-    }
 
-    async function renderFlexContextCard(fieldName) {
-        const assetFlexContext = getFlexContext();
-        senSearchResEle.innerHTML = "";
-        let fieldValue = assetFlexContext[fieldName]
-        let newFieldValue;
-        let isSensorValue = false;
-        const sensorsContent = [];
+            const isActiveCard = () => {
+                const activeCard = localStorage.getItem('activeCard');
+                return activeCard && activeCard === fieldName;
+            };
 
-        if (fieldValue === null) {
-            newFieldValue = ""
-        } else if (typeof fieldValue === "object") {
-            if (fieldValue["sensor"]) {
-                newFieldValue = `{&quot;sensor&quot;: ${fieldValue["sensor"]}}`
-                isSensorValue = true;
-            } else if (fieldValue.length > 0) {
-                newFieldValue = fieldValue.join(", ")
+            const card = document.createElement("div");
+            card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
+            card.id = `${fieldName}-control`;
+
+
+            card.onclick = function () {
+                if (card.classList.contains('border-on-click')) {
+                    if (activeCard() && activeCard().id === card.id) {
+                        setActiveCard(null); // Deselect if the same card is clicked again
+                        // remove active card from localstorage
+                        localStorage.removeItem('activeCard');
+                        card.classList.remove('border-on-click'); // Remove the border class
+                        flexOptionsContainer.innerHTML = ""; // Clear options container
+                        senSearchResEle.innerHTML = ""; // Clear sensor search results
+                        handleFlexSelectChange(null); // Clear the info container
+                    }
+                    return;
+                }
+
+                flexOptionsContainer.innerHTML = "";
+                senSearchResEle.innerHTML = "";
+
+                document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
+                card.classList.add("border-on-click"); // Add border to the clicked card
+                handleFlexSelectChange(fieldName);
+                const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+                flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isOnlySensorField)));
+                setActiveCard(card);
+                // Store active card in local storage
+                localStorage.setItem('activeCard', fieldName);
             }
-        } else if (typeof fieldValue == "string") {
-            newFieldValue = fieldValue
+
+            const highlightCard = document.createElement('div');
+            card.appendChild(highlightCard);
+
+            const titleContainer = document.createElement('div');
+            titleContainer.className = 'd-flex justify-content-between align-items-center';
+            const title = document.createElement('label');
+            title.className = 'form-label fs-5 fw-semi-bold';
+            title.textContent = getFlexFieldTitle(fieldName);
+            const closeIcon = document.createElement('i');
+            closeIcon.className = 'fa fa-times fa-lg';
+            closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+            closeIcon.setAttribute('data-bs-placement', 'top');
+            closeIcon.setAttribute('title', 'Remove');
+            closeIcon.style.cursor = 'pointer';
+            closeIcon.onclick = () => removeFlexContextField(fieldName);
+            titleContainer.appendChild(title);
+            titleContainer.appendChild(closeIcon);
+
+            let fieldIconClass = '';
+            let fieldIconTitle = '';
+            if (isKeyValueObject || isArray) {
+                fieldIconClass = iconMap["sensor"];
+                fieldIconTitle = "A dynamic signal (via a sensor)";
+            } else if (isString) {
+                fieldIconClass = iconMap["string"];
+                fieldIconTitle = "A Fixed Value";
+            } else {
+                fieldIconClass = iconMap["default"];
+                fieldIconTitle = "Unknown";
+            }
+
+            const identityIcon = document.createElement('i');
+            identityIcon.className = `${fieldIconClass} ps-1 fa-md float-end text-black-50`;
+            identityIcon.setAttribute('data-bs-toggle', 'tooltip');
+            identityIcon.setAttribute('data-bs-html', 'true');
+            identityIcon.setAttribute('title', fieldIconTitle);
+            identityIcon.style.cursor = 'pointer';
+
+            highlightCard.appendChild(titleContainer);
+
+            if (isKeyValueObject || isArray) {
+                const sensorsContainer = document.createElement('div');
+                sensorsContainer.id = `inflexible-device-sensors-container`;
+                sensorsContainer.className = 'pb-2';
+                // sensorsContainer.appendChild(...sensorsContent);
+                sensorsContent.forEach(sensorItem => {
+                    sensorsContainer.appendChild(sensorItem);
+                });
+                highlightCard.appendChild(sensorsContainer);
+            } else if (isString) {
+                const valueContainer = document.createElement('div');
+                valueContainer.className = 'pb-2';
+                const valueSpan = document.createElement('span');
+                valueSpan.className = 'fw-light fs-4';
+                valueSpan.innerHTML = newFieldValue ? newFieldValue : "<i>Not Set</i>";
+                valueContainer.appendChild(valueSpan);
+                highlightCard.appendChild(valueContainer);
+            }
+
+            highlightCard.appendChild(identityIcon);
+            return card;
         }
 
-        const isString = typeof fieldValue === "string";
-        const isArray = Array.isArray(fieldValue);
-        const isKeyValueObject = typeof fieldValue === "object" &&
-            fieldValue !== null &&
-            !Array.isArray(fieldValue) && // Exclude arrays
-            Object.keys(fieldValue).length > 0;
+        async function renderFlexContextForm() {
+            flexContextFormEle.innerHTML = "";
 
-        if (isKeyValueObject) {
-            const item = convertHtmlToElement(await renderSensor(fieldValue["sensor"]));
-            sensorsContent.push(item);
-        } else if (isArray) {
-            const sensorPromises = fieldValue.map(async (sensor, sensorIndex) => {
-                const closeIcon = document.createElement('i');
-                closeIcon.className = 'fa fa-times fa-lg';
-                closeIcon.setAttribute('data-bs-toggle', 'tooltip');
-                closeIcon.setAttribute('data-bs-placement', 'top');
-                closeIcon.setAttribute('title', 'Remove');
-                closeIcon.style.cursor = 'pointer';
-                closeIcon.onclick = async () => {
-                    try {
-                        console.log("Removing sensor: ", sensor);
-                        await removeFlexContextSensorValue(fieldName, sensor);
-                        console.log("Sensor removed successfully.");
-                    } catch (error) {
-                        console.error("Failed to remove sensor:", error);
+            // check if active card is in local storage
+            const storedActiveCard = localStorage.getItem("activeCard")
+            const assetFlexContext = getFlexContext();
+
+
+
+            for (const [key, value] of Object.entries(assetFlexContext)) {
+                if (value !== null) {
+                    const fieldCard = await renderFlexContextCard(key);
+                    flexContextFormEle.appendChild(fieldCard);
+                }
+            }
+
+            if (storedActiveCard && activeCard()){
+                console.log("In Context?: ", (storedActiveCard in assetFlexContext))
+                console.log("!In Context?: ", !(storedActiveCard in assetFlexContext))
+                console.log("assetFlexContext: ", assetFlexContext)
+                console.log("storedActiveCard: ", storedActiveCard)
+                console.log("activeCard: ", activeCard())
+                console.log("card id: ", (activeCard() ? activeCard().id : null))
+                const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
+                const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price");
+                setTimeout(() => {
+                    flexOptionsContainer.innerHTML = "";
+                    flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isOnlySensorField));
+                    handleFlexSelectChange(flexId);
+                    activeCard().classList.add('border-on-click'); // Add border to the clicked card
+                    const renderedActiveCard = document.getElementById(`${flexId}-control`);
+                    renderedActiveCard.classList.add('border-on-click'); // Add border to the clicked card
+                    setActiveCard(renderedActiveCard);
+                }, 300);
+            } else {
+                localStorage.removeItem('activeCard');
+            }
+
+
+            renderFlexSelectOptions();
+            renderSelectInfoCards();
+            console.log("activeCard 2: ", activeCard())
+
+        }
+
+        // This is a bridge/middlewar fuciton to work with actionFunc interface
+        // used by the sensor search results
+        async function updateSensorValue(sensorId) {
+            await updateFlexContextFieldValue("sensor", sensorId);
+        }
+
+        async function updateFlexContextFieldValue(dataType, sensorId) {
+            let highlightedCard = document.querySelector('.border-on-click');
+            const assetFlexContext = getFlexContext();
+            if (!highlightedCard) {
+                showToast("Please select a field to update", "error");
+                return;
+            }
+
+            // get card id and remove '-control' at the end
+            const cardId = highlightedCard.id;
+            const flexId = cardId.slice(0, -8);
+            if (dataType === "fixedValue") {
+                const powerCapacityInputValue = document.getElementById("fixed-value").value;
+                // check if value is valid
+                if (powerCapacityInputValue === "") {
+                    showToast("Please enter a value", "error");
+                    return;
+                }
+                assetFlexContext[flexId] = powerCapacityInputValue;
+            } else if (dataType === "sensor" && sensorId) {
+                if (flexId === "inflexible-device-sensors") {
+                    if (assetFlexContext[flexId]) {
+                        assetFlexContext[flexId].push(sensorId);
+                        console.log("Adding sensor to inflexible-device-sensors: ", assetFlexContext[flexId]);
+                    } else {
+                        assetFlexContext[flexId] = [sensorId];
+                    }
+                } else {
+                    assetFlexContext[flexId] = { sensor: sensorId };
+                }
+            }
+
+            highlightedCard = await renderFlexContextCard(flexId);
+            flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
+            await setActiveCard(document.getElementById(`${flexId}-control`));
+            await setFlexContext(assetFlexContext);
+
+            // Update FlexContext
+            await updateFlexContext();
+        }
+
+        function renderFlexSelectOptions() {
+            // comapare the assetFlexContext with the template and get the fields that are not set
+            const assetFlexContextTemplate = Object.assign({}, assetFlexContextSchema, getFlexContext());
+            flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
+            for (const [key, value] of Object.entries(assetFlexContextTemplate)) {
+                if (value === null || value.length === 0) {
+                    flexSelect.innerHTML += `<option value="${key}">${getFlexFieldTitle(key)}</option>`;
+                }
+            }
+
+        }
+
+        function renderFlexInputOptions(contextKey, sensorsOnly = false) {
+            if (!contextKey){
+                flexInfoContainer.innerHTML = "";
+                return;
+            }
+
+            const tabsContainer = document.createElement("div");
+            tabsContainer.id = "flex-input-options"
+            tabsContainer.className = "card-header";
+
+            const ul = document.createElement("ul");
+            ul.className = "nav nav-tabs card-header-tabs";
+            ul.id = "pills-tab";
+            ul.setAttribute("role", "tablist");
+
+            function createTooltipIcon(title) {
+                const icon = document.createElement("i");
+                icon.className = "fa fa-info-circle ps-2";
+                icon.setAttribute("data-bs-toggle", "tooltip");
+                icon.setAttribute("data-bs-placement", "bottom");
+                icon.title = title;
+                return icon;
+            }
+
+            if (sensorsOnly) {
+                // Only the dynamic value tab
+                const li = document.createElement("li");
+                li.className = "nav-item";
+                li.setAttribute("role", "presentation");
+
+                const button = document.createElement("button");
+                button.className = "nav-link active";
+                button.id = "pills-dynamic-tab";
+                button.setAttribute("data-bs-toggle", "pill");
+                button.setAttribute("data-bs-target", "#pills-dynamic");
+                button.type = "button";
+                button.setAttribute("role", "tab");
+                button.setAttribute("aria-controls", "pills-dynamic");
+                button.setAttribute("aria-selected", "false");
+                button.textContent = "Dynamic value (a sensor)";
+
+                li.appendChild(button);
+                ul.appendChild(li);
+            } else {
+                // Fixed value tab
+                const liFixed = document.createElement("li");
+                liFixed.className = "nav-item";
+                liFixed.setAttribute("role", "presentation");
+
+                const buttonFixed = document.createElement("button");
+                buttonFixed.className = "nav-link flex-nav active";
+                buttonFixed.id = "pills-homfixed";
+                buttonFixed.setAttribute("data-bs-toggle", "pill");
+                buttonFixed.setAttribute("data-bs-target", "#pills-fixed");
+                buttonFixed.type = "button";
+                buttonFixed.setAttribute("role", "tab");
+                buttonFixed.setAttribute("aria-controls", "pills-fixed");
+                buttonFixed.setAttribute("aria-selected", "true");
+                buttonFixed.textContent = "Fixed value";
+
+                liFixed.appendChild(buttonFixed);
+                ul.appendChild(liFixed);
+
+                // Dynamic value tab
+                const liDynamic = document.createElement("li");
+                liDynamic.className = "nav-item";
+                liDynamic.setAttribute("role", "presentation");
+
+                const buttonDynamic = document.createElement("button");
+                buttonDynamic.className = "nav-link flex-nav";
+                buttonDynamic.id = "pills-dynamic-tab";
+                buttonDynamic.setAttribute("data-bs-toggle", "pill");
+                buttonDynamic.setAttribute("data-bs-target", "#pills-dynamic");
+                buttonDynamic.type = "button";
+                buttonDynamic.setAttribute("role", "tab");
+                buttonDynamic.setAttribute("aria-controls", "pills-dynamic");
+                buttonDynamic.setAttribute("aria-selected", "false");
+                buttonDynamic.textContent = "Dynamic value (a sensor)";
+
+                liDynamic.appendChild(buttonDynamic);
+                ul.appendChild(liDynamic);
+            }
+
+            tabsContainer.appendChild(ul);
+
+            // A helper function to create the sensor search block
+            function createSensorSearchBlock() {
+                const group = document.createElement("div");
+                group.id = "select-sensor-input";
+                group.className = "flex-input-group p-2";
+
+                // Label
+                const label = document.createElement("label");
+                label.htmlFor = "sensor";
+                label.className = "form-label";
+                label.innerHTML = `Look up Sensor for <b>${getFlexFieldTitle(contextKey)}</b> `;
+                label.appendChild(createTooltipIcon(
+                    `
+                        Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. 
+                        Make sure that the sensor data will be available consistently, though, so scheduling will work.
+                    `
+                ));
+                group.appendChild(label);
+
+                // Checkbox group
+                const formCheck = document.createElement("div");
+                formCheck.className = "form-check";
+
+                const checkbox = document.createElement("input");
+                checkbox.className = "form-check-input";
+                checkbox.type = "checkbox";
+                checkbox.value = "";
+                checkbox.id = "flexCheckBox";
+                checkbox.onchange = searchSensorsFlexContextForm;
+
+
+                const checkLabel = document.createElement("label");
+                checkLabel.className = "form-check-label";
+                checkLabel.htmlFor = "flexCheckBox";
+                checkLabel.textContent = "Include Public Assets";
+
+                formCheck.appendChild(checkbox);
+                formCheck.appendChild(checkLabel);
+                group.appendChild(formCheck);
+
+                // Row with search + units
+                const row = document.createElement("div");
+                row.className = "row";
+
+                const col8 = document.createElement("div");
+                col8.className = "col-8 pe-1";
+                const searchInput = document.createElement("input");
+                searchInput.type = "text";
+                searchInput.id = "flexContextSensorSearch";
+                searchInput.className = "form-control";
+                searchInput.placeholder = "Search sensors...";
+                searchInput.oninput = searchSensorsFlexContextForm;
+                searchInput.onkeydown = function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault(); // Prevent form submission
+                        searchSensorsFlexContextForm();
                     }
                 };
 
-                const item = convertHtmlToElement(await renderSensor(sensor));
-                item.classList.add("align-items-center", "pb-2");
-                item.appendChild(closeIcon);
-                return item;
-            });
-            sensorsContent.push(...await Promise.all(sensorPromises));
-        }
+                col8.appendChild(searchInput);
 
-        const card = document.createElement("div");
-        card.className = 'card m-1 p-2 card-highlight';
-        card.id = `${fieldName}-control`;
+                const col4 = document.createElement("div");
+                col4.className = "col-4 ps-0";
 
-        const isActiveCard = () => {
-            const activeCard = JSON.parse(localStorage.getItem('activeCard'));
-            return activeCard && activeCard.fieldName === fieldName;
-        };
+                // Units select - START
+                const select = document.createElement("select");
+                select.id = "flexUnitsSelect";
+                select.className = "form-select";
+                select.onchange = searchSensorsFlexContextForm;
 
-        if (isActiveCard()){
-            card.classList.add('border-on-click');
-        }
+                const defaultOption = document.createElement("option");
+                defaultOption.value = null;
+                defaultOption.selected = true;
+                defaultOption.textContent = "Units";
+                select.appendChild(defaultOption);
 
-        card.onclick = function () {
-            if (card.classList.contains('border-on-click')) {
-                if (activeCard() && activeCard().id === card.id) {
-                    setActiveCard(null); // Deselect if the same card is clicked again
-                    // remove active card from localstorage
-                    localStorage.removeItem('activeCard');
-                    card.classList.remove('border-on-click'); // Remove the border class
-                    flexOptionsContainer.innerHTML = ""; // Clear options container
-                    senSearchResEle.innerHTML = ""; // Clear sensor search results
-                    handleFlexSelectChange(null); // Clear the info container
-                }
-                return;
+                availableUnits.forEach(unit => {
+                    const option = document.createElement("option");
+                    option.value = unit;
+                    option.textContent = unit;
+                    select.appendChild(option);
+                });
+                col4.appendChild(select);
+                // Units select - END
+
+
+                row.appendChild(col8);
+                row.appendChild(col4);
+                group.appendChild(row);
+
+                return group;
             }
 
-            flexOptionsContainer.innerHTML = "";
-            senSearchResEle.innerHTML = "";
+            // Create the main tab-content wrapper
+            const tabContent = document.createElement("div");
+            tabContent.className = "tab-content rounded-bottom";
+            tabContent.id = "pills-tabContent";
+            tabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
+            tabContent.style.border = '1px solid #0000002d';
 
-            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
-            card.classList.add("border-on-click"); // Add border to the clicked card
-            handleFlexSelectChange(fieldName);
-            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
-            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isOnlySensorField)));
-            setActiveCard(card);
-            // Store active card in local storage
-            localStorage.setItem('activeCard', JSON.stringify({ fieldName }));
-        }
+            if (sensorsOnly) {
+                // Dynamic tab only
+                const dynamicPane = document.createElement("div");
+                dynamicPane.className = "tab-pane fade show active";
+                dynamicPane.id = "pills-dynamic";
+                dynamicPane.setAttribute("role", "tabpanel");
+                dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
 
-        const highlightCard = document.createElement('div');
-        card.appendChild(highlightCard);
+                dynamicPane.appendChild(createSensorSearchBlock());
 
-        const titleContainer = document.createElement('div');
-        titleContainer.className = 'd-flex justify-content-between align-items-center';
-        const title = document.createElement('label');
-        title.className = 'form-label fs-5 fw-semi-bold';
-        title.textContent = getFlexFieldTitle(fieldName);
-        const closeIcon = document.createElement('i');
-        closeIcon.className = 'fa fa-times fa-lg';
-        closeIcon.setAttribute('data-bs-toggle', 'tooltip');
-        closeIcon.setAttribute('data-bs-placement', 'top');
-        closeIcon.setAttribute('title', 'Remove');
-        closeIcon.style.cursor = 'pointer';
-        closeIcon.onclick = () => removeFlexContextField(fieldName);
-        titleContainer.appendChild(title);
-        titleContainer.appendChild(closeIcon);
-
-        let fieldIconClass = '';
-        let fieldIconTitle = '';
-        if (isKeyValueObject || isArray) {
-            fieldIconClass = iconMap["sensor"];
-            fieldIconTitle = "A dynamic signal (via a sensor)";
-        } else if (isString) {
-            fieldIconClass = iconMap["string"];
-            fieldIconTitle = "A Fixed Value";
-        } else {
-            fieldIconClass = iconMap["default"];
-            fieldIconTitle = "Unknown";
-        }
-
-        const identityIcon = document.createElement('i');
-        identityIcon.className = `${fieldIconClass} ps-1 fa-md float-end text-black-50`;
-        identityIcon.setAttribute('data-bs-toggle', 'tooltip');
-        identityIcon.setAttribute('data-bs-html', 'true');
-        identityIcon.setAttribute('title', fieldIconTitle);
-        identityIcon.style.cursor = 'pointer';
-
-        highlightCard.appendChild(titleContainer);
-
-        if (isKeyValueObject || isArray) {
-            const sensorsContainer = document.createElement('div');
-            sensorsContainer.id = `inflexible-device-sensors-container`;
-            sensorsContainer.className = 'pb-2';
-            // sensorsContainer.appendChild(...sensorsContent);
-            sensorsContent.forEach(sensorItem => {
-                sensorsContainer.appendChild(sensorItem);
-            });
-            highlightCard.appendChild(sensorsContainer);
-        } else if (isString) {
-            const valueContainer = document.createElement('div');
-            valueContainer.className = 'pb-2';
-            const valueSpan = document.createElement('span');
-            valueSpan.className = 'fw-light fs-4';
-            valueSpan.innerHTML = newFieldValue ? newFieldValue : "<i>Not Set</i>";
-            valueContainer.appendChild(valueSpan);
-            highlightCard.appendChild(valueContainer);
-        }
-
-        highlightCard.appendChild(identityIcon);
-        return card;
-    }
-
-    async function renderFlexContextForm() {
-        flexContextFormEle.innerHTML = "";
-
-        for (const [key, value] of Object.entries(getFlexContext())) {
-            if (value !== null) {
-                const fieldCard = await renderFlexContextCard(key);
-                flexContextFormEle.appendChild(fieldCard);
-            }
-        }
-
-        renderFlexSelectOptions();
-        renderSelectInfoCards();
-    }
-
-    // This is a bridge/middlewar fuciton to work with actionFunc interface
-    // used by the sensor search results
-    async function updateSensorValue(sensorId) {
-        await updateFlexContextFieldValue("sensor", sensorId);
-    }
-
-    async function updateFlexContextFieldValue(dataType, sensorId) {
-        let highlightedCard = document.querySelector('.border-on-click');
-        const assetFlexContext = getFlexContext();
-        if (!highlightedCard) {
-            showToast("Please select a field to update", "error");
-            return;
-        }
-
-        // get card id and remove '-control' at the end
-        const cardId = highlightedCard.id;
-        const flexId = cardId.slice(0, -8);
-        if (dataType === "fixedValue") {
-            const powerCapacityInputValue = document.getElementById("fixed-value").value;
-            // check if value is valid
-            if (powerCapacityInputValue === "") {
-                showToast("Please enter a value", "error");
-                return;
-            }
-            assetFlexContext[flexId] = powerCapacityInputValue;
-        } else if (dataType === "sensor" && sensorId) {
-            if (flexId === "inflexible-device-sensors") {
-                if (assetFlexContext[flexId]) {
-                    assetFlexContext[flexId].push(sensorId);
-                    console.log("Adding sensor to inflexible-device-sensors: ", assetFlexContext[flexId]);
-                } else {
-                    assetFlexContext[flexId] = [sensorId];
-                }
+                tabContent.appendChild(dynamicPane);
             } else {
-                assetFlexContext[flexId] = { sensor: sensorId };
+                // Fixed value pane
+                const fixedPane = document.createElement("div");
+                fixedPane.className = "tab-pane fade show active";
+                fixedPane.id = "pills-fixed";
+                fixedPane.setAttribute("role", "tabpanel");
+                fixedPane.setAttribute("aria-labelledby", "pills-fixed-tab");
+
+                const fixedGroup = document.createElement("div");
+                fixedGroup.className = "flex-input-group p-2";
+
+                const fixedLabel = document.createElement("label");
+                fixedLabel.htmlFor = "fixed-value";
+                fixedLabel.className = "form-label";
+                fixedLabel.innerHTML = `Value for <b>${getFlexFieldTitle(contextKey)}</b> `;
+                fixedLabel.appendChild(createTooltipIcon(
+                    "Enter a fixed value with a unit, e.g. '75kW' or '105 EUR'. It will be used in all schedules for this asset and his sensors."
+                ));
+
+                const fixedInput = document.createElement("input");
+                fixedInput.type = "text";
+                fixedInput.id = "fixed-value";
+                fixedInput.className = "form-control";
+                fixedInput.value = (typeof getFlexContext()[contextKey] === "string") ? getFlexContext()[contextKey] : "";
+                fixedInput.placeholder = "e.g. 15000 kW";
+                fixedInput.onkeydown = function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault(); // Prevent form submission
+                        updateFlexContextFieldValue('fixedValue', null);
+                    }
+                };
+
+                const setButton = document.createElement("button");
+                setButton.className = "btn btn-secondary btn-sm me-2 mt-2";
+                setButton.onclick = () => updateFlexContextFieldValue('fixedValue', null);
+                setButton.textContent = "Set Value";
+
+                fixedGroup.appendChild(fixedLabel);
+                fixedGroup.appendChild(fixedInput);
+                fixedGroup.appendChild(setButton);
+                fixedPane.appendChild(fixedGroup);
+
+                tabContent.appendChild(fixedPane);
+
+                // Dynamic value pane
+                const dynamicPane = document.createElement("div");
+                dynamicPane.className = "tab-pane fade rounded-bottom";
+                dynamicPane.id = "pills-dynamic";
+                dynamicPane.setAttribute("role", "tabpanel");
+                dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
+
+                dynamicPane.appendChild(createSensorSearchBlock(
+                    "Look up Sensor",
+                    "You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Make sure that the sensor data will be available consistently, though, so scheduling will work."
+                ));
+
+                tabContent.appendChild(dynamicPane);
             }
+
+            tabsContainer.appendChild(tabContent);
+            return tabsContainer;
         }
-
-        highlightedCard = await renderFlexContextCard(flexId);
-        flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
-        await setActiveCard(document.getElementById(`${flexId}-control`));
-        await setFlexContext(assetFlexContext);
-
-        // Update FlexContext
-        await updateFlexContext();
-    }
-
-    function renderFlexSelectOptions() {
-        // comapare the assetFlexContext with the template and get the fields that are not set
-        const assetFlexContextTemplate = Object.assign({}, assetFlexContextSchema, getFlexContext());
-        flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
-        for (const [key, value] of Object.entries(assetFlexContextTemplate)) {
-            if (value === null || value.length === 0) {
-                flexSelect.innerHTML += `<option value="${key}">${getFlexFieldTitle(key)}</option>`;
-            }
-        }
-
-    }
-
-    function renderFlexInputOptions(contextKey, sensorsOnly = false) {
-        const tabsContainer = document.createElement("div");
-        tabsContainer.className = "card-header";
-
-        const ul = document.createElement("ul");
-        ul.className = "nav nav-tabs card-header-tabs";
-        ul.id = "pills-tab";
-        ul.setAttribute("role", "tablist");
-
-        function createTooltipIcon(title) {
-            const icon = document.createElement("i");
-            icon.className = "fa fa-info-circle ps-2";
-            icon.setAttribute("data-bs-toggle", "tooltip");
-            icon.setAttribute("data-bs-placement", "bottom");
-            icon.title = title;
-            return icon;
-        }
-
-        if (sensorsOnly) {
-            // Only the dynamic value tab
-            const li = document.createElement("li");
-            li.className = "nav-item";
-            li.setAttribute("role", "presentation");
-
-            const button = document.createElement("button");
-            button.className = "nav-link active";
-            button.id = "pills-dynamic-tab";
-            button.setAttribute("data-bs-toggle", "pill");
-            button.setAttribute("data-bs-target", "#pills-dynamic");
-            button.type = "button";
-            button.setAttribute("role", "tab");
-            button.setAttribute("aria-controls", "pills-dynamic");
-            button.setAttribute("aria-selected", "false");
-            button.textContent = "Dynamic value (a sensor)";
-
-            li.appendChild(button);
-            ul.appendChild(li);
-        } else {
-            // Fixed value tab
-            const liFixed = document.createElement("li");
-            liFixed.className = "nav-item";
-            liFixed.setAttribute("role", "presentation");
-
-            const buttonFixed = document.createElement("button");
-            buttonFixed.className = "nav-link flex-nav active";
-            buttonFixed.id = "pills-homfixed";
-            buttonFixed.setAttribute("data-bs-toggle", "pill");
-            buttonFixed.setAttribute("data-bs-target", "#pills-fixed");
-            buttonFixed.type = "button";
-            buttonFixed.setAttribute("role", "tab");
-            buttonFixed.setAttribute("aria-controls", "pills-fixed");
-            buttonFixed.setAttribute("aria-selected", "true");
-            buttonFixed.textContent = "Fixed value";
-
-            liFixed.appendChild(buttonFixed);
-            ul.appendChild(liFixed);
-
-            // Dynamic value tab
-            const liDynamic = document.createElement("li");
-            liDynamic.className = "nav-item";
-            liDynamic.setAttribute("role", "presentation");
-
-            const buttonDynamic = document.createElement("button");
-            buttonDynamic.className = "nav-link flex-nav";
-            buttonDynamic.id = "pills-dynamic-tab";
-            buttonDynamic.setAttribute("data-bs-toggle", "pill");
-            buttonDynamic.setAttribute("data-bs-target", "#pills-dynamic");
-            buttonDynamic.type = "button";
-            buttonDynamic.setAttribute("role", "tab");
-            buttonDynamic.setAttribute("aria-controls", "pills-dynamic");
-            buttonDynamic.setAttribute("aria-selected", "false");
-            buttonDynamic.textContent = "Dynamic value (a sensor)";
-
-            liDynamic.appendChild(buttonDynamic);
-            ul.appendChild(liDynamic);
-        }
-
-        tabsContainer.appendChild(ul);
-
-        // A helper function to create the sensor search block
-        function createSensorSearchBlock() {
-            const group = document.createElement("div");
-            group.id = "select-sensor-input";
-            group.className = "flex-input-group p-2";
-
-            // Label
-            const label = document.createElement("label");
-            label.htmlFor = "sensor";
-            label.className = "form-label";
-            label.innerHTML = `Look up Sensor for <b>${getFlexFieldTitle(contextKey)}</b> `;
-            label.appendChild(createTooltipIcon(
-                `
-                    Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. 
-                    Make sure that the sensor data will be available consistently, though, so scheduling will work.
-                `
-            ));
-            group.appendChild(label);
-
-            // Checkbox group
-            const formCheck = document.createElement("div");
-            formCheck.className = "form-check";
-
-            const checkbox = document.createElement("input");
-            checkbox.className = "form-check-input";
-            checkbox.type = "checkbox";
-            checkbox.value = "";
-            checkbox.id = "flexCheckBox";
-            checkbox.onchange = searchSensorsFlexContextForm;
+        // ============== Flex Context Management END ============== //
 
 
-            const checkLabel = document.createElement("label");
-            checkLabel.className = "form-check-label";
-            checkLabel.htmlFor = "flexCheckBox";
-            checkLabel.textContent = "Include Public Assets";
+        // ============== Page Events ============== //
 
-            formCheck.appendChild(checkbox);
-            formCheck.appendChild(checkLabel);
-            group.appendChild(formCheck);
+        flexContexFormModal.addEventListener('shown.bs.modal', function () {
+            // Initial renders
+            renderFlexContextForm(); // Initial render of flex context form
+        });
 
-            // Row with search + units
-            const row = document.createElement("div");
-            row.className = "row";
+        flexContexFormModal.addEventListener('hidden.bs.modal', function () {
+            updateFlexContext();
+            localStorage.removeItem('activeCard');
+        });
 
-            const col8 = document.createElement("div");
-            col8.className = "col-8 pe-1";
-            const searchInput = document.createElement("input");
-            searchInput.type = "text";
-            searchInput.id = "flexContextSensorSearch";
-            searchInput.className = "form-control";
-            searchInput.placeholder = "Search sensors...";
-            searchInput.oninput = searchSensorsFlexContextForm;
-            searchInput.onkeydown = function (event) {
-                if (event.key === 'Enter') {
-                    event.preventDefault(); // Prevent form submission
-                    searchSensorsFlexContextForm();
-                }
-            };
+        flexSelect.addEventListener('change', (event) => {
+            const selectedKey = event.target.value;
+            handleFlexSelectChange(selectedKey);
+        });
 
-            col8.appendChild(searchInput);
+        function renderSelectInfoCards(contextKey, description, allowedUnits, isArray = false) {
+            if (contextKey) {
+                return `
+                    <div>
+                        <div class="alert alert-info" role="alert">
+                            <b> About ${getFlexFieldTitle(contextKey)}
+                            <div class="pt-2 fw-normal">
+                                ${description}
+                            </div>
 
-            const col4 = document.createElement("div");
-            col4.className = "col-4 ps-0";
-
-            // Units select - START
-            const select = document.createElement("select");
-            select.id = "flexUnitsSelect";
-            select.className = "form-select";
-            select.onchange = searchSensorsFlexContextForm;
-
-            const defaultOption = document.createElement("option");
-            defaultOption.value = null;
-            defaultOption.selected = true;
-            defaultOption.textContent = "Units";
-            select.appendChild(defaultOption);
-
-            availableUnits.forEach(unit => {
-                const option = document.createElement("option");
-                option.value = unit;
-                option.textContent = unit;
-                select.appendChild(option);
-            });
-            col4.appendChild(select);
-            // Units select - END
-
-
-            row.appendChild(col8);
-            row.appendChild(col4);
-            group.appendChild(row);
-
-            return group;
-        }
-
-        // Create the main tab-content wrapper
-        const tabContent = document.createElement("div");
-        tabContent.className = "tab-content rounded-bottom";
-        tabContent.id = "pills-tabContent";
-        tabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
-        tabContent.style.border = '1px solid #0000002d';
-
-        if (sensorsOnly) {
-            // Dynamic tab only
-            const dynamicPane = document.createElement("div");
-            dynamicPane.className = "tab-pane fade show active";
-            dynamicPane.id = "pills-dynamic";
-            dynamicPane.setAttribute("role", "tabpanel");
-            dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
-
-            dynamicPane.appendChild(createSensorSearchBlock());
-
-            tabContent.appendChild(dynamicPane);
-        } else {
-            // Fixed value pane
-            const fixedPane = document.createElement("div");
-            fixedPane.className = "tab-pane fade show active";
-            fixedPane.id = "pills-fixed";
-            fixedPane.setAttribute("role", "tabpanel");
-            fixedPane.setAttribute("aria-labelledby", "pills-fixed-tab");
-
-            const fixedGroup = document.createElement("div");
-            fixedGroup.className = "flex-input-group p-2";
-
-            const fixedLabel = document.createElement("label");
-            fixedLabel.htmlFor = "fixed-value";
-            fixedLabel.className = "form-label";
-            fixedLabel.innerHTML = `Value for <b>${getFlexFieldTitle(contextKey)}</b> `;
-            fixedLabel.appendChild(createTooltipIcon(
-                "Enter a fixed value with a unit, e.g. '75kW' or '105 EUR'. It will be used in all schedules for this asset and his sensors."
-            ));
-
-            const fixedInput = document.createElement("input");
-            fixedInput.type = "text";
-            fixedInput.id = "fixed-value";
-            fixedInput.className = "form-control";
-            fixedInput.value = (typeof getFlexContext()[contextKey] === "string") ? getFlexContext()[contextKey] : "";
-            fixedInput.placeholder = "e.g. 15000 kW";
-            fixedInput.onkeydown = function (event) {
-                if (event.key === 'Enter') {
-                    event.preventDefault(); // Prevent form submission
-                    updateFlexContextFieldValue('fixedValue', null);
-                }
-            };
-
-            const setButton = document.createElement("button");
-            setButton.className = "btn btn-secondary btn-sm me-2 mt-2";
-            setButton.onclick = () => updateFlexContextFieldValue('fixedValue', null);
-            setButton.textContent = "Set Value";
-
-            fixedGroup.appendChild(fixedLabel);
-            fixedGroup.appendChild(fixedInput);
-            fixedGroup.appendChild(setButton);
-            fixedPane.appendChild(fixedGroup);
-
-            tabContent.appendChild(fixedPane);
-
-            // Dynamic value pane
-            const dynamicPane = document.createElement("div");
-            dynamicPane.className = "tab-pane fade rounded-bottom";
-            dynamicPane.id = "pills-dynamic";
-            dynamicPane.setAttribute("role", "tabpanel");
-            dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
-
-            dynamicPane.appendChild(createSensorSearchBlock(
-                "Look up Sensor",
-                "You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Make sure that the sensor data will be available consistently, though, so scheduling will work."
-            ));
-
-            tabContent.appendChild(dynamicPane);
-        }
-
-        tabsContainer.appendChild(tabContent);
-        return tabsContainer;
-    }
-    // ============== Flex Context Management END ============== //
-
-
-    // ============== Page Events ============== //
-
-    flexContexFormModal.addEventListener('shown.bs.modal', function () {
-        // Initial renders
-        renderFlexContextForm(); // Initial render of flex context form
-    });
-
-    flexContexFormModal.addEventListener('hidden.bs.modal', function () {
-        updateFlexContext();
-        localStorage.removeItem('activeCard');
-    });
-
-    function renderSelectInfoCards(contextKey, description, allowedUnits, isArray = false) {
-        if (contextKey) {
-            return `
-                <div>
-                    <div class="alert alert-info" role="alert">
-                        <b> About ${getFlexFieldTitle(contextKey)}
-                        <div class="pt-2 fw-normal">
-                            ${description}
+                            <div class="pt-3 fw-bold"> 
+                                Example Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
+                            </div>
+                            
                         </div>
-
-                        <div class="pt-3 fw-bold"> 
-                            Example Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
-                        </div>
-                        
                     </div>
-                </div>
-            `;
-        } else {
+                `;
+            } else {
+                flexInfoContainer.innerHTML = "";
+            }
+        }
+
+        function handleFlexSelectChange(selectedOption) {
             flexInfoContainer.innerHTML = "";
-        }
-    }
+            if (!selectedOption) {
+                return; // No option selected, do nothing
+            }
 
-    function handleFlexSelectChange(selectedOption) {
-        flexInfoContainer.innerHTML = "";
-        if (!selectedOption) {
-            return; // No option selected, do nothing
+            const alertStyle = "alert alert-light";
+            if (selectedOption === "consumption-price") {
+                const description = "Set the sensor that represents the consumption price of the site. This value will be used in the optimization.";
+                const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("consumption-price", description, allowedUnits);
+            } else if (selectedOption === "production-price") {
+                const description = "Set the sensor that represents the production price of the site. This value will be used in the optimization.";
+                const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("production-price", description, allowedUnits);
+            } else if (selectedOption == "site-power-capacity") {
+                const description = "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization.";
+                const allowedUnits = ["kW", "kVA", "MVA"];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-power-capacity", description, allowedUnits);
+            } else if (selectedOption == "site-production-capacity") {
+                const description = "This value represents the maximum power that the site can produce. This value will be used in the optimization.";
+                const allowedUnits = ["kW"];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-capacity", description, allowedUnits);
+            } else if (selectedOption == "site-consumption-capacity") {
+                const description = "This value represents the maximum power that the site can consume. This value will be used in the optimization.";
+                const allowedUnits = ["kW"];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-capacity", description, allowedUnits);
+            } else if (selectedOption == "site-consumption-breach-price") {
+                const description = "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization.";
+                const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-breach-price", description, allowedUnits);
+            } else if (selectedOption == "site-production-breach-price") {
+                const description = "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization.";
+                const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-breach-price", description, allowedUnits);
+            } else if (selectedOption == "site-peak-consumption") {
+                const description = "This value represents the peak consumption of the site. This value will be used in the optimization.";
+                const allowedUnits = ["kW"];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption", description, allowedUnits);
+            } else if (selectedOption == "site-peak-production") {
+                const description = "This value represents the peak production of the site. This value will be used in the optimization.";
+                const allowedUnits = ["kW"];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production", description, allowedUnits);
+            } else if (selectedOption == "site-peak-consumption-price") {
+                const description = "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization.";
+                const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption-price", description, allowedUnits);
+            } else if (selectedOption == "site-peak-production-price") {
+                const description = "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization.";
+                const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production-price", description, allowedUnits);
+            } else if (selectedOption == "inflexible-device-sensors") {
+                const description = "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization.";
+                const allowedUnits = ["kW"];
+                flexInfoContainer.innerHTML = renderSelectInfoCards("inflexible-device-sensors", description, allowedUnits);
+            }
         }
-
-        const alertStyle = "alert alert-light";
-        if (selectedOption === "consumption-price") {
-            const description = "Set the sensor that represents the consumption price of the site. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("consumption-price", description, allowedUnits);
-        } else if (selectedOption === "production-price") {
-            const description = "Set the sensor that represents the production price of the site. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MWh", "JPY/kWh", "USD/MWh, and other currencies."];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("production-price", description, allowedUnits);
-        } else if (selectedOption == "site-power-capacity") {
-            const description = "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization";
-            const allowedUnits = ["kW", "kVA", "MVA"];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-power-capacity", description, allowedUnits);
-        } else if (selectedOption == "site-production-capacity") {
-            const description = "This value represents the maximum power that the site can produce. This value will be used in the optimization";
-            const allowedUnits = ["kW"];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-capacity", description, allowedUnits);
-        } else if (selectedOption == "site-consumption-capacity") {
-            const description = "This value represents the maximum power that the site can consume. This value will be used in the optimization";
-            const allowedUnits = ["kW"];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-capacity", description, allowedUnits);
-        } else if (selectedOption == "site-consumption-breach-price") {
-            const description = "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-consumption-breach-price", description, allowedUnits);
-        } else if (selectedOption == "site-production-breach-price") {
-            const description = "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-production-breach-price", description, allowedUnits);
-        } else if (selectedOption == "site-peak-consumption") {
-            const description = "This value represents the peak consumption of the site. This value will be used in the optimization";
-            const allowedUnits = ["kW"];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption", description, allowedUnits);
-        } else if (selectedOption == "site-peak-production") {
-            const description = "This value represents the peak production of the site. This value will be used in the optimization";
-            const allowedUnits = ["kW"];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production", description, allowedUnits);
-        } else if (selectedOption == "site-peak-consumption-price") {
-            const description = "This value represents the price that will be paid if the site consumes more power than the site peak consumption. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-consumption-price", description, allowedUnits);
-        } else if (selectedOption == "site-peak-production-price") {
-            const description = "This value represents the price that will be paid if the site produces more power than the site peak production. This value will be used in the optimization";
-            const allowedUnits = ["EUR/MW", "JPY/kW", "USD/MW, and other currencies."];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("site-peak-production-price", description, allowedUnits);
-        } else if (selectedOption == "inflexible-device-sensors") {
-            const description = "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization";
-            const allowedUnits = ["kW"];
-            flexInfoContainer.innerHTML = renderSelectInfoCards("inflexible-device-sensors", description, allowedUnits);
-        }
-    }
-    // ============== Page Events ============== //
+        // ============== Page Events ============== //
 </script>
 
 {% endblock %}
