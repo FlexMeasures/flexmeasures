@@ -516,26 +516,21 @@ def test_db_flex_context_schema(
         ({"sensor": "epex_da"}, "EUR/MWh"),
     ],
 )
-@pytest.mark.parametrize(
-    "deserialized",
-    [
-        True,
-        pytest.param(
-            False,
-            marks=pytest.mark.xfail(
-                reason="getting a unit on a still serialized variable quantity is not yet supported"
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("deserialized", [True, False])
 def test_get_variable_quantity_unit(
     setup_markets, variable_quantity, expected_unit: str, deserialized: bool
 ):
-
+    # Use sensor name to look up sensor ID from fixture
     if isinstance(variable_quantity, dict):
+        variable_quantity = variable_quantity.copy()
         variable_quantity["sensor"] = setup_markets[variable_quantity["sensor"]].id
 
     field = VariableQuantityField("/1")  # we use to_unit="/1" here to allow any unit
+    deserialized_variable_quantity = field.deserialize(variable_quantity)
     if deserialized:
-        variable_quantity = field.deserialize(variable_quantity)
-    assert field._get_unit(variable_quantity) == expected_unit
+        assert field._get_unit(deserialized_variable_quantity) == expected_unit
+    else:
+        assert (
+            field._get_original_unit(variable_quantity, deserialized_variable_quantity)
+            == expected_unit
+        )

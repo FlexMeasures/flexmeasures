@@ -169,8 +169,8 @@ class FlexContextSchema(Schema):
             )
         return data
 
-    @validates_schema
-    def check_prices(self, data: dict, **kwargs):
+    @validates_schema(pass_original=True)
+    def check_prices(self, data: dict, original_data: dict, **kwargs):
         """Check assumptions about prices.
 
         1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
@@ -221,7 +221,7 @@ class FlexContextSchema(Schema):
         # make sure that the prices fields are valid price units
 
         # All prices must share the same unit
-        data = self._try_to_convert_price_units(data)
+        data = self._try_to_convert_price_units(data, original_data)
         shared_currency = ur.Quantity(data["shared_currency_unit"])
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
@@ -265,7 +265,7 @@ class FlexContextSchema(Schema):
 
         return data
 
-    def _try_to_convert_price_units(self, data):
+    def _try_to_convert_price_units(self, data: dict, original_data: dict):
         """Convert price units to the same unit and scale if they can (incl. same currency)."""
 
         shared_currency_unit = None
@@ -287,7 +287,10 @@ class FlexContextSchema(Schema):
                     previous_field_name = price_field.data_key
                 if not units_are_convertible(currency_unit, shared_currency_unit):
                     field_name = price_field.data_key
-                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{price_unit}') for the '{field_name}' field."
+                    original_price_unit = price_field._get_original_unit(
+                        original_data[field_name], data[field]
+                    )
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{original_price_unit}') for the '{field_name}' field."
                     if shared_currency_unit not in price_unit:
                         error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     raise ValidationError(error_message, field_name=field_name)
