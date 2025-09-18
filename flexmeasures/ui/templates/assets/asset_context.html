@@ -375,6 +375,9 @@
         flexOptionsContainer.innerHTML = "";
         setFlexContext(assetFlexContext);
 
+        // Store active card in local storage
+        localStorage.setItem('activeCard', JSON.stringify({ fieldName }));
+
         setTimeout(() => {
             const card = document.getElementById(`${fieldName}-control`);
             const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
@@ -553,10 +556,21 @@
         card.className = 'card m-1 p-2 card-highlight';
         card.id = `${fieldName}-control`;
 
+        const isActiveCard = () => {
+            const activeCard = JSON.parse(localStorage.getItem('activeCard'));
+            return activeCard && activeCard.fieldName === fieldName;
+        };
+
+        if (isActiveCard()){
+            card.classList.add('border-on-click');
+        }
+
         card.onclick = function () {
             if (card.classList.contains('border-on-click')) {
                 if (activeCard() && activeCard().id === card.id) {
                     setActiveCard(null); // Deselect if the same card is clicked again
+                    // remove active card from localstorage
+                    localStorage.removeItem('activeCard');
                     card.classList.remove('border-on-click'); // Remove the border class
                     flexOptionsContainer.innerHTML = ""; // Clear options container
                     senSearchResEle.innerHTML = ""; // Clear sensor search results
@@ -574,6 +588,8 @@
             const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
             flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isOnlySensorField)));
             setActiveCard(card);
+            // Store active card in local storage
+            localStorage.setItem('activeCard', JSON.stringify({ fieldName }));
         }
 
         const highlightCard = document.createElement('div');
@@ -976,6 +992,7 @@
 
     flexContexFormModal.addEventListener('hidden.bs.modal', function () {
         updateFlexContext();
+        localStorage.removeItem('activeCard');
     });
 
     function renderSelectInfoCards(contextKey, description, allowedUnits, isArray = false) {
