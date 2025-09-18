@@ -20,7 +20,7 @@ Bugfixes
 -----------
 
 
-v0.28.1 | September XX, 2025
+v0.28.1 | September 18, 2025
 ============================
 
 Bugfixes
