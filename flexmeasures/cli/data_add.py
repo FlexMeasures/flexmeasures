@@ -1601,7 +1601,7 @@ def add_schedule(  # noqa C901
     flex_model: str | None = None,
     as_job: bool = False,
 ):
-    """Create a new schedule for a storage asset.
+    """Create a new schedule for an asset.
 
     Current limitations:
 
