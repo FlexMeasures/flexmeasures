@@ -381,7 +381,10 @@
             card.classList.add('border-on-click'); // Add border to the clicked card
             flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isOnlySensorField));
             handleFlexSelectChange(fieldName);
+            setActiveCard(card);
+
         }, 500);
+        
     }
     // ============== Add Field/Card Action Button END ============== //
 
@@ -410,11 +413,6 @@
             const errorData = await response.json();
             const errorMessage = errorData?.message || errorData?.error || response.statusText;
             showToast(`Failed to update the flex context: ${errorMessage}`, "error");
-
-            // Revert to previous state
-            const asset = await getAsset("{{ asset.id }}", false);
-            const previousFlexContext = await processAssetRawFlexContextJSON(asset.flex_context);
-            setFlexContext(previousFlexContext);
         } else {
             setFlexContext(data);
             showToast("Flex context updated successfully", "success");
@@ -573,7 +571,8 @@
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
             card.classList.add("border-on-click"); // Add border to the clicked card
             handleFlexSelectChange(fieldName);
-            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isKeyValueObject || isArray)));
+            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isOnlySensorField)));
             setActiveCard(card);
         }
 
@@ -651,7 +650,6 @@
         }
 
         renderFlexSelectOptions();
-        setActiveCard(null);
         renderSelectInfoCards();
     }
 
