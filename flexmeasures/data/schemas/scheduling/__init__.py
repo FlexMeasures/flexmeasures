@@ -552,13 +552,25 @@ class MultiSensorFlexModelSchema(Schema):
         }
     """
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(required=False)
+    asset = GenericAssetIdField(required=False)
     # it's up to the Scheduler to deserialize the underlying flex-model
     sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
 
+    @validates_schema
+    def ensure_sensor_or_asset(self, data, **kwargs):
+        if (
+            "sensor" in data
+            and "asset" in data
+            and data["sensor"].asset != data["asset"]
+        ):
+            raise ValidationError("Sensor does not belong to asset.")
+        if "sensor" not in data and "asset" not in data:
+            raise ValidationError("Specify either a sensor or an asset.")
+
     @pre_load
     def unwrap_envelope(self, data, **kwargs):
-        """Any field other than 'sensor' becomes part of the sensor's flex-model."""
+        """Any field other than 'sensor' and 'asset' becomes part of the sensor's flex-model."""
         extra = {}
         rest = {}
         for k, v in data.items():
@@ -610,7 +622,7 @@ class AssetTriggerSchema(Schema):
         """Verify that the flex-model's sensors live under the asset for which a schedule is triggered."""
         asset = data["asset"]
         sensors = []
-        for sensor_flex_model in data["flex_model"]:
+        for sensor_flex_model in data.get("flex_model", []):
             sensor = sensor_flex_model["sensor"]
             if sensor in sensors:
                 raise FMValidationError(

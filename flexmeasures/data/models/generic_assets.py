@@ -412,8 +412,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             return self.attributes[attribute]
         if self.flex_model and attribute in self.flex_model:
             return self.flex_model[attribute]
-        if self.flex_context and attribute in self.flex_context:
-            return self.flex_context[attribute]
+        flex_context = self.get_flex_context()
+        if attribute in flex_context:
+            return flex_context[attribute]
         return default
 
     def has_attribute(self, attribute: str) -> bool:
@@ -442,16 +443,18 @@ class GenericAsset(db.Model, AuthModelMixin):
             parent_asset = parent_asset.parent_asset
         return flex_context
 
-    def get_flex_model(self) -> list[dict]:
+    def get_flex_model(self) -> dict[int, dict]:
         """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
 
         Recursive function returning a multi-asset flex-model.
+
+        :returns: dictionary with asset IDs as keys and serialized flex-model dicts as values.
         """
-        flex_model = []
+        flex_model = {}
         if self.flex_model:
-            flex_model.append(dict(asset=self.id, **self.flex_model))
+            flex_model[self.id] = dict(asset=self.id, **self.flex_model)
         for child in self.child_assets:
-            flex_model.extend(child.get_flex_model())
+            flex_model = {**flex_model, **child.get_flex_model()}
         return flex_model
 
     def get_consumption_price_sensor(self):

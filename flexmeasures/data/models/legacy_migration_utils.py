@@ -93,6 +93,8 @@ def upgrade_value(
         # convert from float (in MW) to string (in kW)
         value_in_kw = old_value * 1000
         return f"{value_in_kw} kW"
+    elif old_field_name in ("soc-gain", "soc-usage") and isinstance(old_value, str):
+        return [old_value]
     else:
         # move as is
         return old_value
