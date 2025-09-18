@@ -273,9 +273,7 @@ class FlexContextSchema(Schema):
         for field in self.declared_fields:
             if field[-5:] == "price" and field in data:
                 price_field = self.declared_fields[field]
-                price_unit = price_field._get_unit(
-                    deserialized_variable_quantity=data[field]
-                )
+                price_unit = price_field._get_unit(data[field])
                 currency_unit = str(
                     (
                         ur.Quantity(price_unit) / ur.Quantity(f"1{price_field.to_unit}")
@@ -289,9 +287,8 @@ class FlexContextSchema(Schema):
                     previous_field_name = price_field.data_key
                 if not units_are_convertible(currency_unit, shared_currency_unit):
                     field_name = price_field.data_key
-                    original_price_unit = price_field._get_unit(
-                        serialized_variable_quantity=original_data[field_name],
-                        deserialized_variable_quantity=data[field],
+                    original_price_unit = price_field._get_original_unit(
+                        original_data[field_name], data[field]
                     )
                     error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{original_price_unit}') for the '{field_name}' field."
                     if shared_currency_unit not in price_unit:

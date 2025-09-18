@@ -528,17 +528,9 @@ def test_get_variable_quantity_unit(
     field = VariableQuantityField("/1")  # we use to_unit="/1" here to allow any unit
     deserialized_variable_quantity = field.deserialize(variable_quantity)
     if deserialized:
-        assert (
-            field._get_unit(
-                deserialized_variable_quantity=deserialized_variable_quantity
-            )
-            == expected_unit
-        )
+        assert field._get_unit(deserialized_variable_quantity) == expected_unit
     else:
         assert (
-            field._get_unit(
-                serialized_variable_quantity=variable_quantity,
-                deserialized_variable_quantity=deserialized_variable_quantity,
-            )
+            field._get_original_unit(variable_quantity, deserialized_variable_quantity)
             == expected_unit
         )

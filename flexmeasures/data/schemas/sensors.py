@@ -411,45 +411,43 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         return super().convert(_value, param, ctx, **kwargs)
 
-    def _get_unit(
+    def _get_original_unit(
         self,
+        serialized_variable_quantity: str | list[dict] | dict,
         deserialized_variable_quantity: ur.Quantity | list[dict] | Sensor,
-        serialized_variable_quantity: str | list[dict] | dict | None = None,
     ) -> str:
-        """Obtain the unit from the variable quantity.
-
-        :returns:   the original unit of the serialized quantity, unless it is None,
-                    in which case the unit of the deserialized quantity is returned.
-        """
+        """Obtain the original unit from the still serialized variable quantity."""
         if isinstance(serialized_variable_quantity, str):
             unit = str(ur.Quantity(serialized_variable_quantity).units)
         elif isinstance(serialized_variable_quantity, list):
             unit = str(ur.Quantity(serialized_variable_quantity[0]["value"]).units)
         elif isinstance(serialized_variable_quantity, dict):
-            unit = (
-                deserialized_variable_quantity.unit
-            )  # use deserialized quantity to avoid another Sensor query
-        elif serialized_variable_quantity is not None:
+            unit = deserialized_variable_quantity.unit
+        else:
             raise NotImplementedError(
                 f"Unexpected type '{type(serialized_variable_quantity)}' for serialized_variable_quantity describing '{self.data_key}': {serialized_variable_quantity}."
             )
-        elif isinstance(deserialized_variable_quantity, ur.Quantity):
-            unit = str(deserialized_variable_quantity.units)
-        elif isinstance(deserialized_variable_quantity, list):
-            unit = str(deserialized_variable_quantity[0]["value"].units)
+        return unit
+
+    def _get_unit(self, variable_quantity: ur.Quantity | list[dict] | Sensor) -> str:
+        """Obtain the unit from the (deserialized) variable quantity."""
+        if isinstance(variable_quantity, ur.Quantity):
+            unit = str(variable_quantity.units)
+        elif isinstance(variable_quantity, list):
+            unit = str(variable_quantity[0]["value"].units)
             if not all(
-                str(deserialized_variable_quantity[j]["value"].units) == unit
-                for j in range(len(deserialized_variable_quantity))
+                str(variable_quantity[j]["value"].units) == unit
+                for j in range(len(variable_quantity))
             ):
                 raise ValidationError(
                     "Segments of a time series must share the same unit.",
                     field_name=self.data_key,
                 )
-        elif isinstance(deserialized_variable_quantity, Sensor):
-            unit = deserialized_variable_quantity.unit
+        elif isinstance(variable_quantity, Sensor):
+            unit = variable_quantity.unit
         else:
             raise NotImplementedError(
-                f"Unexpected type '{type(deserialized_variable_quantity)}' for deserialized_variable_quantity describing '{self.data_key}': {deserialized_variable_quantity}."
+                f"Unexpected type '{type(variable_quantity)}' for variable_quantity describing '{self.data_key}': {variable_quantity}."
             )
         return unit
 
