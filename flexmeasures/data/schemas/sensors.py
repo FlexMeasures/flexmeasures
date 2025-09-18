@@ -425,7 +425,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             unit = deserialized_variable_quantity.unit
         else:
             raise NotImplementedError(
-                f"Unexpected type '{type(deserialized_variable_quantity)}' for variable_quantity describing '{self.data_key}': {deserialized_variable_quantity}."
+                f"Unexpected type '{type(serialized_variable_quantity)}' for serialized_variable_quantity describing '{self.data_key}': {serialized_variable_quantity}."
             )
         return unit
 
