@@ -35,6 +35,22 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
                 --soc-at-start 50% \
                 --flex-model '{"roundtrip-efficiency": "90%"}'
             New schedule is stored.
+        
+        .. note::
+
+        Larger flex context and flex model data can also be stored in files instead of passing them inline.  
+        For example:
+
+        .. code-block:: console
+
+            echo '{"roundtrip-efficiency": "90%"}' > my-flex-context.json 
+            flexmeasures add schedule \                                      
+                --sensor 2 \
+                --start ${TOMORROW}T07:00+01:00 \
+                --duration PT12H \
+                --soc-at-start 50% \
+                --flex-model my-flex-model.json
+
 
     .. tab:: API
 

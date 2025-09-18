@@ -90,6 +90,7 @@ This will have an effect on the available headroom for the battery, given the ``
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
+                --flex-model '{"roundtrip-efficiency": "90%"}' \
                 --flex-context '{"inflexible-device-sensors": [3]}'
             New schedule is stored.
 
