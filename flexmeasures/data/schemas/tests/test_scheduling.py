@@ -13,7 +13,7 @@ from flexmeasures.data.schemas.scheduling.process import (
 from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
 )
-from flexmeasures.data.schemas.sensors import TimedEventSchema
+from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
 
 
 @pytest.mark.parametrize(
@@ -242,7 +242,9 @@ def test_efficiency_pair(
                 "consumption-price": "1 KRW/MWh",
                 "site-peak-production-price": "1 EUR/MW",
             },
-            {"site-peak-production-price": "Prices must share the same monetary unit."},
+            {
+                "site-peak-production-price": "all prices in the flex-context must share the same currency unit"
+            },
         ),
         (
             {
@@ -501,3 +503,34 @@ def test_db_flex_context_schema(
             )
     else:
         schema.load(flex_context)
+
+
+@pytest.mark.parametrize(
+    ["variable_quantity", "expected_unit"],
+    [
+        ("1 kWh", "kWh"),
+        (
+            [{"start": "2025-09-17T00:00+02", "duration": "PT3H", "value": "1 kWh"}],
+            "kWh",
+        ),
+        ({"sensor": "epex_da"}, "EUR/MWh"),
+    ],
+)
+@pytest.mark.parametrize("deserialized", [True, False])
+def test_get_variable_quantity_unit(
+    setup_markets, variable_quantity, expected_unit: str, deserialized: bool
+):
+    # Use sensor name to look up sensor ID from fixture
+    if isinstance(variable_quantity, dict):
+        variable_quantity = variable_quantity.copy()
+        variable_quantity["sensor"] = setup_markets[variable_quantity["sensor"]].id
+
+    field = VariableQuantityField("/1")  # we use to_unit="/1" here to allow any unit
+    deserialized_variable_quantity = field.deserialize(variable_quantity)
+    if deserialized:
+        assert field._get_unit(deserialized_variable_quantity) == expected_unit
+    else:
+        assert (
+            field._get_original_unit(variable_quantity, deserialized_variable_quantity)
+            == expected_unit
+        )
