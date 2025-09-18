@@ -121,7 +121,10 @@ class PredictPipeline(BasePipeline):
                 q_kwargs = dict(quantiles=self.quantiles) if self.quantiles else dict()
                 y_pred_df = y_pred.quantiles_df(**q_kwargs).T
             else:
-                y_pred_df = y_pred.pd_dataframe().T
+                try:
+                    y_pred_df = y_pred.pd_dataframe().T
+                except AttributeError:
+                    y_pred_df = y_pred.to_dataframe().T
 
             y_pred_df.columns = [
                 f"{h}h" for h in range(1, self.max_forecast_horizon + 1)

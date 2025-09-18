@@ -181,7 +181,6 @@ def data_to_bdf(
     """
     df = data.copy()
     df.reset_index(inplace=True)
-    df.pop("component")
 
     # Rename target to '0h'
     df = df.rename(columns={f"{target_sensor.name} (ID: {target_sensor.id})": "0h"})
