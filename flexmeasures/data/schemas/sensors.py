@@ -422,6 +422,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         elif isinstance(serialized_variable_quantity, list):
             unit = str(ur.Quantity(serialized_variable_quantity[0]["value"]).units)
         elif isinstance(serialized_variable_quantity, dict):
+            # use deserialized quantity to avoid another Sensor query; the serialized quantity only has the sensor ID
             unit = deserialized_variable_quantity.unit
         else:
             raise NotImplementedError(
