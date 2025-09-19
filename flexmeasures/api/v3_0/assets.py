@@ -11,8 +11,9 @@ from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError
+from marshmallow import fields, ValidationError, Schema
 import marshmallow.validate as validate
+from marshmallow.validate import OneOf
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
@@ -56,7 +57,10 @@ from flexmeasures.utils.coding_utils import (
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
-from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.sensors import (
+    SensorSchema,
+    SensorIdField,
+)
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
@@ -79,6 +83,212 @@ def get_accessible_accounts() -> list[Account]:
             pass
 
     return accounts
+
+
+class StorageFlexModelOpenAPISchema(Schema):
+    """StorageFlexModelSchema adapted for OpenAPI documentation."""
+
+    soc_at_start = fields.Float(
+        required=False,
+        data_key="soc-at-start",
+    )
+
+    soc_min = fields.Float(
+        validate=validate.Range(
+            min=0
+        ),  # change to min=ur.Quantity("0 MWh") in case return_magnitude=False
+        data_key="soc-min",
+    )
+    soc_max = fields.Float(
+        data_key="soc-max",
+    )
+
+    power_capacity_in_mw = fields.Float(required=False, data_key="power-capacity")
+
+    consumption_capacity = fields.Float(required=False, data_key="consumption-capacity")
+    production_capacity = fields.Float(required=False, data_key="production-capacity")
+
+    # Activation prices
+    prefer_curtailing_later = fields.Bool(
+        data_key="prefer-curtailing-later", load_default=True
+    )
+    prefer_charging_sooner = fields.Bool(
+        data_key="prefer-charging-sooner", load_default=True
+    )
+
+    # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
+    soc_maxima = fields.Float(
+        data_key="soc-maxima",
+    )
+
+    soc_minima = fields.Float(
+        data_key="soc-minima",
+        validate=validate.Range(min=0),
+    )
+
+    soc_targets = fields.Float(
+        data_key="soc-targets",
+    )
+
+    soc_unit = fields.Str(
+        validate=OneOf(
+            [
+                "kWh",
+                "MWh",
+            ]
+        ),
+        data_key="soc-unit",
+        required=False,
+    )
+
+    state_of_charge = fields.Float(
+        data_key="state-of-charge",
+        required=False,
+    )
+
+    charging_efficiency = fields.Float(data_key="charging-efficiency", required=False)
+    discharging_efficiency = fields.Float(
+        data_key="discharging-efficiency", required=False
+    )
+
+    roundtrip_efficiency = fields.Float(data_key="roundtrip-efficiency", required=False)
+
+    storage_efficiency = fields.Float(data_key="storage-efficiency")
+
+    soc_gain = fields.List(
+        fields.Float(),
+        data_key="soc-gain",
+        required=False,
+        validate=validate.Length(min=1),
+    )
+    soc_usage = fields.List(
+        fields.Float(),
+        data_key="soc-usage",
+        required=False,
+        validate=validate.Length(min=1),
+    )
+
+
+class FlexContextOpenAPISchema(Schema):
+    """FlexContextSchema adapted for OpenAPI documentation."""
+
+    # Device commitments
+    consumption_breach_price = fields.Float(
+        data_key="consumption-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+    production_breach_price = fields.Float(
+        data_key="production-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+    soc_minima_breach_price = fields.Float(
+        data_key="soc-minima-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+    soc_maxima_breach_price = fields.Float(
+        data_key="soc-maxima-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+    relax_constraints = fields.Bool(data_key="relax-constraints", load_default=False)
+    # Dev fields
+    relax_soc_constraints = fields.Bool(
+        data_key="relax-soc-constraints", load_default=False
+    )
+    relax_capacity_constraints = fields.Bool(
+        data_key="relax-capacity-constraints", load_default=False
+    )
+    relax_site_capacity_constraints = fields.Bool(
+        data_key="relax-site-capacity-constraints", load_default=False
+    )
+
+    # Energy commitments
+    ems_power_capacity_in_mw = fields.Float(
+        data_key="site-power-capacity",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+    # todo: deprecated since flexmeasures==0.23
+    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
+    production_price_sensor = SensorIdField(data_key="production-price-sensor")
+    consumption_price = fields.Float(
+        data_key="consumption-price",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+    production_price = fields.Float(
+        data_key="production-price",
+        required=False,
+    )
+
+    # Capacity breach commitments
+    ems_production_capacity_in_mw = fields.Float(
+        data_key="site-production-capacity",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+    ems_consumption_capacity_in_mw = fields.Float(
+        data_key="site-consumption-capacity",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+    ems_consumption_breach_price = fields.Float(
+        data_key="site-consumption-breach-price",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+    ems_production_breach_price = fields.Float(
+        data_key="site-production-breach-price",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+
+    # Peak consumption commitment
+    ems_peak_consumption_in_mw = fields.Float(
+        data_key="site-peak-consumption",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+    ems_peak_consumption_price = fields.Float(
+        data_key="site-peak-consumption-price",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+
+    # Peak production commitment
+    ems_peak_production_in_mw = fields.Float(
+        data_key="site-peak-production",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+    ems_peak_production_price = fields.Float(
+        data_key="site-peak-production-price",
+        required=False,
+        validate=validate.Range(min=0),
+    )
+    # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
+
+    inflexible_device_sensors = fields.List(
+        SensorIdField(), data_key="inflexible-device-sensors"
+    )
+
+
+class AssetTriggerOpenAPISchema(AssetTriggerSchema):
+    """OpenAPI-specific version of AssetTriggerSchema with properly nested flex schemas."""
+
+    asset = fields.Integer(data_key="id")
+    start_of_schedule = fields.DateTime(data_key="start", format="iso", required=True)
+    belief_time = fields.DateTime(format="iso", data_key="prior")
+    duration = fields.DateTime()
+    flex_model = fields.List(
+        fields.Nested(StorageFlexModelOpenAPISchema()),
+        data_key="flex-model",
+    )
+    flex_context = fields.Nested(FlexContextOpenAPISchema(), data_key="flex-context")
+    sequential = fields.Bool(load_default=False)
 
 
 class AssetTypesAPI(FlaskView):
@@ -949,107 +1159,109 @@ class AssetAPI(FlaskView):
         **kwargs,
     ):
         """
-        Trigger FlexMeasures to create a schedule for a collection of flexible and inflexible devices.
+        ---
+        post:
+          summary: Trigger scheduling job for any number of devices
+          description: |
+            Trigger FlexMeasures to create a schedule for this asset.
+            The flex-model needs to reference the power sensors of flexible devices, which must belong to the given asset,
+            either directly or indirectly, by being assigned to one of the asset's (grand)children.
 
-        .. :quickref: Schedule; Trigger scheduling job for any number of devices
+            In this request, you can describe:
 
-        Trigger FlexMeasures to create a schedule for this asset.
-        The flex-model references the power sensors of flexible devices, which must belong to the given asset,
-        either directly or indirectly, by being assigned to one of the asset's (grand)children.
+            - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
+            - the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
+            - the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
-        In this request, you can describe:
+            For details on flexibility model and context, [see describing_flexibility](https://flexmeasures.readthedocs.io/stable/features/scheduling.html#describing-flexibility).
+            Below, we'll also list some examples.
 
-        - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
-        - the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
-        - the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)
+            > **Note:** This endpoint supports scheduling an EMS with multiple flexible devices at once.
+            > It can do so jointly (the default) or sequentially
+            > (considering previously scheduled sensors as inflexible).
+            > To use sequential scheduling, use ``sequential=true`` in the JSON body.
 
-        For details on flexibility model and context, see :ref:`describing_flexibility`.
-        Below, we'll also list some examples.
+            The length of the schedule can be set explicitly through the 'duration' field.
+            Otherwise, it is set by the config setting [see planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.
+            If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+            Finally, the schedule length is limited by [see max_planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
+            Targets that exceed the max planning horizon are not accepted.
 
-        .. note:: This endpoint supports scheduling an EMS with multiple flexible devices at once.
-                  It can do so jointly (the default) or sequentially
-                  (considering previously scheduled sensors as inflexible).
-                  To use sequential scheduling, use ``sequential=true`` in the JSON body.
+            The appropriate algorithm is chosen by FlexMeasures (based on asset type).
+            It's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).
 
-        The length of the schedule can be set explicitly through the 'duration' field.
-        Otherwise, it is set by the config setting :ref:`planning_horizon_config`, which defaults to 48 hours.
-        If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-        Finally, the schedule length is limited by :ref:`max_planning_horizon_config`, which defaults to 2520 steps of each sensor's resolution.
-        Targets that exceed the max planning horizon are not accepted.
+            If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)
 
-        The appropriate algorithm is chosen by FlexMeasures (based on asset type).
-        It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
+          requestBody:
+              content:
+                  application/json:
+                    schema: AssetTriggerOpenAPISchema
+                    examples:
+                      storage_asset:
+                        description: |
+                          This message triggers a schedule for a storage asset (with power sensor 931),
+                          starting at 10.00am, when the state of charge (soc) should be assumed to be 12.1 kWh,
+                          and also schedules a curtailable production asset (with power sensor 932),
+                          whose production forecasts are recorded under sensor 760.
 
-        If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
+                          Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+                          and aggregate production should be priced by sensor 10,
+                          where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+                          and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
 
-        **Example request**
+                          The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
+                          Finally, the site consumption capacity is limited by sensor 32.
+                        value:
+                          "start": "2015-06-02T10:00:00+00:00"
+                          "flex-model":
+                            - "sensor": 931
+                              "soc-at-start": 12.1
+                              "soc-unit": "kWh"
+                              "power-capacity": "25kW"
+                              "consumption-capacity" : {"sensor": 42}
+                              "production-capacity" : "30 kW"
+                            - "sensor": 932
+                              "consumption-capacity": "0 kW"
+                              "production-capacity": {"sensor": 760}
+                          "flex-context":
+                            "consumption-price-sensor": 9
+                            "production-price-sensor": 10
+                            "inflexible-device-sensors": [13, 14, 15]
+                            "site-power-capacity": "100kW"
+                            "site-production-capacity": "80kW"
+                            "site-consumption-capacity": {"sensor": 32}
 
-        This message triggers a schedule for a storage asset (with power sensor 931),
-        starting at 10.00am, when the state of charge (soc) should be assumed to be 12.1 kWh,
-        and also schedules a curtailable production asset (with power sensor 932),
-        whose production forecasts are recorded under sensor 760.
+          responses:
+              200:
+                description: PROCESSED
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                    examples:
+                      successful_response:
+                        description: |
+                          This message indicates that the scheduling request has been processed without any error.
+                          A scheduling job has been created with some Universally Unique Identifier (UUID),
+                          which will be picked up by a worker.
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                        value:
+                          status: PROCESSED
+                          schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                          message: "Request has been processed."
+              400:
+                description: INVALID_DATA
+              401:
+                description: UNAUTHORIZED
+              403:
+                description: INVALID_SENDER
+              405:
+                description: INVALID_METHOD
+              422:
+                description: UNPROCESSABLE_ENTITY
 
-        Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
-        and aggregate production should be priced by sensor 10,
-        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
-        and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
-
-        The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
-        Finally, the site consumption capacity is limited by sensor 32.
-
-        .. code-block:: json
-
-            {
-                "start": "2015-06-02T10:00:00+00:00",
-                "flex-model": [
-                    {
-                        "sensor": 931,
-                        "soc-at-start": 12.1,
-                        "soc-unit": "kWh",
-                        "power-capacity": "25kW",
-                        "consumption-capacity" : {"sensor": 42},
-                        "production-capacity" : "30 kW"
-                    },
-                    {
-                        "sensor": 932,
-                        "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 760},
-                    }
-                ],
-                "flex-context": {
-                    "consumption-price-sensor": 9,
-                    "production-price-sensor": 10,
-                    "inflexible-device-sensors": [13, 14, 15],
-                    "site-power-capacity": "100kW",
-                    "site-production-capacity": "80kW",
-                    "site-consumption-capacity": {"sensor": 32}
-                }
-            }
-
-        **Example response**
-
-        This message indicates that the scheduling request has been processed without any error.
-        A scheduling job has been created with some Universally Unique Identifier (UUID),
-        which will be picked up by a worker.
-        The given UUID may be used to obtain the resulting schedule for each flexible device: see /sensors/<id>/schedules/<uuid>.
-
-        .. sourcecode:: json
-
-            {
-                "status": "PROCESSED",
-                "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                "message": "Request has been processed."
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_DATA
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 405: INVALID_METHOD
-        :status 422: UNPROCESSABLE_ENTITY
+          tags:
+              - Assets
         """
         end_of_schedule = start_of_schedule + duration
 

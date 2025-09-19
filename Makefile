@@ -23,6 +23,7 @@ update-docs:
 	make install-docs-dependencies
 	@echo "Creating documentation ..."
 	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
+	make generate-openapi
 
 update-docs-pdf:
 	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
@@ -143,3 +144,8 @@ clean-db:
 
 cli-autocomplete:
 	./flexmeasures/cli/scripts/add_scripts_path.sh ${extension}
+
+generate-openapi:
+	@echo "Generating OpenAPI specifications..."
+	python flexmeasures/utils/generate_open_api_specs.py
+	@echo "OpenAPI specs generated successfully"

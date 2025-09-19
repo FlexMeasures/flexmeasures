@@ -267,6 +267,10 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return sensor.id
 
 
+class SensorId(Schema):
+    id = SensorIdField(required=True)
+
+
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     def __init__(
         self,
