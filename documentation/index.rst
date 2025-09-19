@@ -55,9 +55,10 @@ The main purpose of FlexMeasures is to create optimized schedules. Let's have a 
             $ flexmeasures db upgrade  # create tables
             $ flexmeasures add toy-account --kind battery  # setup account incl. a user, battery (ID 2) and market (ID 1)
             $ flexmeasures add beliefs --sensor 2 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
-            $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
+            $ flexmeasures add schedule --sensor 2 \
                 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-                --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
+                --soc-at-start 50% --flex-context '{"consumption-price": {"sensor": 1}}' \
+                --flex-model '{"roundtrip-efficiency": "90%"}' # this is also possible per API
             $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
     
 
