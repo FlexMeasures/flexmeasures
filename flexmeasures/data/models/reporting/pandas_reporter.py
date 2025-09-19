@@ -349,6 +349,8 @@ class PandasReporter(Reporter):
             if (_any_empty(args) or _any_empty(kwargs.values())) and skip_if_empty:
                 self.data[df_output] = self.data[df_input]
             else:
-                self.data[df_output] = getattr(self.data[df_input], method)(*args, **kwargs)
+                self.data[df_output] = getattr(self.data[df_input], method)(
+                    *args, **kwargs
+                )
 
             previous_df = df_output
