@@ -289,12 +289,15 @@ class SensorAPI(FlaskView):
         .. code-block:: json
 
             {
-                "data": [
-                    {
-                        "uploaded-files": "[\"file1.csv\", \"file2.csv\"]"
-                    }
-                ]
+                "uploaded-files": ["<file1.csv>", "<file2.csv>"],
+                "belief-time-measured-instantly": false
             }
+
+        where the ``uploaded-files`` field should be sent as a multipart file upload.
+
+        By default, the belief time of the recorded data will be the time at which the data was received.
+        To record the data as if it were sent right after the fact,
+        set the optional ``belief-time-measured-instantly`` field to ``true``.
 
         The file should have columns for a timestamp (event_start) and a value (event_value).
         The timestamp should be in ISO 8601 format.
