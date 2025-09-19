@@ -24,14 +24,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
-import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.cli.utils import (
     JSONOrFile,
-    DeprecatedDefaultGroup,
     MsgStyle,
     DeprecatedOption,
+    DeprecatedDefaultGroup,
     DeprecatedOptionsCommand,
 )
 from flexmeasures.data import db
@@ -50,10 +49,6 @@ from flexmeasures.data.models.time_series import (
     TimedBelief,
 )
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.validation_utils import (
-    check_required_attributes,
-    MissingAttributeException,
-)
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -63,11 +58,9 @@ from flexmeasures.data.schemas import (
     LongitudeField,
     SensorIdField,
     TimeIntervalField,
-    VariableQuantityField,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import TimeIntervalSchema
-from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.io import Output
 from flexmeasures.data.schemas.units import QuantityField
@@ -1114,421 +1107,6 @@ def create_forecasts(
         )
 
 
-# todo: repurpose `flexmeasures add schedule` (deprecated since v0.12),
-#       - see https://github.com/FlexMeasures/flexmeasures/pull/537#discussion_r1048680231
-#       - hint for repurposing to invoke custom logic instead of a default subcommand:
-#             @fm_add_data.group("schedule", invoke_without_command=True)
-#             def create_schedule():
-#                 if ctx.invoked_subcommand:
-#                     ...
-@fm_add_data.group(
-    "schedule",
-    cls=DeprecatedDefaultGroup,
-    default="storage",
-    deprecation_message="The command 'flexmeasures add schedule' is deprecated. Please use `flexmeasures add schedule for-storage` instead.",
-)
-@click.pass_context
-@with_appcontext
-def create_schedule(ctx):
-    """(Deprecated) Create a new schedule for a given power sensor.
-
-    THIS COMMAND HAS BEEN RENAMED TO `flexmeasures add schedule for-storage`
-    """
-    pass
-
-
-@create_schedule.command("for-storage", cls=DeprecatedOptionsCommand)
-@with_appcontext
-@click.option(
-    "--sensor",
-    "--sensor-id",
-    "power_sensor",
-    type=SensorIdField(),
-    required=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
-    help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
-)
-@click.option(
-    "--consumption-price-sensor",
-    "consumption_price_sensor",
-    type=SensorIdField(),
-    required=False,
-    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
-)
-@click.option(
-    "--production-price-sensor",
-    "production_price_sensor",
-    type=SensorIdField(),
-    required=False,
-    help="Optimize production against this sensor. Defaults to the consumption price sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
-)
-@click.option(
-    "--optimization-context-id",
-    "optimization_context_sensor",
-    type=SensorIdField(),
-    required=False,
-    help="To be deprecated. Use consumption-price-sensor instead.",
-)
-@click.option(
-    "--inflexible-device-sensor",
-    "inflexible_device_sensors",
-    type=SensorIdField(),
-    multiple=True,
-    help="Take into account the power flow of inflexible devices. Follow up with the sensor's ID."
-    " This argument can be given multiple times.",
-)
-@click.option(
-    "--site-power-capacity",
-    "site_power_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Site consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines both-ways maximum power capacity on the site level.",
-)
-@click.option(
-    "--site-consumption-capacity",
-    "site_consumption_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Site consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines the maximum consumption capacity on the site level.",
-)
-@click.option(
-    "--site-production-capacity",
-    "site_production_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Site production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines the maximum production capacity on the site level.",
-)
-@click.option(
-    "--start",
-    "start",
-    type=AwareDateTimeField(),
-    required=True,
-    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
-)
-@click.option(
-    "--duration",
-    "duration",
-    type=DurationField(),
-    required=True,
-    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
-)
-@click.option(
-    "--soc-at-start",
-    "soc_at_start",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
-    required=True,
-    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
-)
-@click.option(
-    "--state-of-charge",
-    "state_of_charge",
-    type=SensorIdField(unit="MWh"),
-    help="State of charge sensor.",
-    required=False,
-    default=None,
-)
-@click.option(
-    "--soc-target",
-    "soc_target_strings",
-    type=click.Tuple(
-        types=[QuantityField("%", validate=validate.Range(min=0, max=1)), str]
-    ),
-    multiple=True,
-    required=False,
-    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 8601 format."
-    " This argument can be given multiple times."
-    " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
-)
-@click.option(
-    "--soc-min",
-    "soc_min",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
-    required=False,
-    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule.",
-)
-@click.option(
-    "--soc-max",
-    "soc_max",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
-    required=False,
-    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule.",
-)
-@click.option(
-    "--roundtrip-efficiency",
-    "roundtrip_efficiency",
-    type=EfficiencyField(),
-    required=False,
-    default=1,
-    help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
-)
-@click.option(
-    "--charging-efficiency",
-    "charging_efficiency",
-    type=VariableQuantityField("%"),
-    required=False,
-    default=None,
-    help="Storage charging efficiency to use for the schedule."
-    "Provide a quantity with units (e.g. 94%) or a sensor storing the value with the syntax sensor:<id> (e.g. sensor:20)."
-    "Defaults to 100% (no losses).",
-)
-@click.option(
-    "--discharging-efficiency",
-    "discharging_efficiency",
-    type=VariableQuantityField("%"),
-    required=False,
-    default=None,
-    help="Storage discharging efficiency to use for the schedule."
-    "Provide a quantity with units (e.g. 94%) or a sensor storing the value with the syntax sensor:<id> (e.g. sensor:20)."
-    "Defaults to 100% (no losses).",
-)
-@click.option(
-    "--soc-gain",
-    "soc_gain",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Specify the State of Charge (SoC) gain as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
-    "This represents the rate at which storage is charged from a different source.",
-)
-@click.option(
-    "--soc-usage",
-    "soc_usage",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Specify the State of Charge (SoC) usage as a quantity in power units (e.g. 1 MW or 1000 kW) "
-    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
-    "This represents the rate at which the storage is discharged from a different source.",
-)
-@click.option(
-    "--storage-power-capacity",
-    "storage_power_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines both-ways maximum power capacity.",
-)
-@click.option(
-    "--storage-consumption-capacity",
-    "storage_consumption_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Storage consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines the storage maximum consumption (charging) capacity.",
-)
-@click.option(
-    "--storage-production-capacity",
-    "storage_production_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Storage production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines the storage maximum production (discharging) capacity.",
-)
-@click.option(
-    "--storage-efficiency",
-    "storage_efficiency",
-    type=VariableQuantityField("%", default_src_unit="dimensionless"),
-    required=False,
-    default="100%",
-    help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
-    " applied over each time step equal to the sensor resolution."
-    "This parameter also supports using a reference sensor as 'sensor:<id>' (e.g. sensor:34)."
-    " For example, a storage efficiency of 99 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.99**(1/24)."
-    " Defaults to 100% (no losses).",
-)
-@click.option(
-    "--as-job",
-    is_flag=True,
-    help="Whether to queue a scheduling job instead of computing directly. "
-    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
-)
-def add_schedule_for_storage(  # noqa C901
-    power_sensor: Sensor,
-    consumption_price_sensor: Sensor,
-    production_price_sensor: Sensor,
-    optimization_context_sensor: Sensor,
-    inflexible_device_sensors: list[Sensor],
-    site_power_capacity: ur.Quantity | Sensor | None,
-    site_consumption_capacity: ur.Quantity | Sensor | None,
-    site_production_capacity: ur.Quantity | Sensor | None,
-    start: datetime,
-    duration: timedelta,
-    soc_at_start: ur.Quantity,
-    charging_efficiency: ur.Quantity | Sensor | None,
-    discharging_efficiency: ur.Quantity | Sensor | None,
-    soc_gain: ur.Quantity | Sensor | None,
-    soc_usage: ur.Quantity | Sensor | None,
-    storage_power_capacity: ur.Quantity | Sensor | None,
-    storage_consumption_capacity: ur.Quantity | Sensor | None,
-    storage_production_capacity: ur.Quantity | Sensor | None,
-    soc_target_strings: list[tuple[ur.Quantity, str]],
-    soc_min: ur.Quantity | None = None,
-    soc_max: ur.Quantity | None = None,
-    roundtrip_efficiency: ur.Quantity | None = None,
-    storage_efficiency: ur.Quantity | Sensor | None = None,
-    state_of_charge: Sensor | None = None,
-    as_job: bool = False,
-):
-    """Create a new schedule for a storage asset.
-
-    Current limitations:
-
-    - Limited to power sensors (probably possible to generalize to non-electric assets)
-    - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
-    """
-    # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
-    tb_utils.replace_deprecated_argument(
-        "optimization-context-id",
-        optimization_context_sensor,
-        "consumption-price-sensor",
-        consumption_price_sensor,
-        required_argument=False,
-    )
-
-    # Parse input and required sensor attributes
-    if not power_sensor.measures_power:
-        click.secho(
-            f"Sensor with ID {power_sensor.id} is not a power sensor.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
-    if production_price_sensor is None and consumption_price_sensor is not None:
-        production_price_sensor = consumption_price_sensor
-    end = start + duration
-
-    # Convert SoC units (we ask for % in this CLI) to MWh, given the storage capacity
-    try:
-        check_required_attributes(power_sensor, [("soc-max", str)])
-    except MissingAttributeException:
-        click.secho(
-            f"Asset {power_sensor.generic_asset} has no soc-max flex-model field.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
-    capacity_str = power_sensor.get_attribute("soc-max")
-    soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
-    soc_targets = []
-    for soc_target_tuple in soc_target_strings:
-        soc_target_value_str, soc_target_datetime_str = soc_target_tuple
-        soc_target_value = convert_units(
-            soc_target_value_str.magnitude,
-            str(soc_target_value_str.units),
-            "MWh",
-            capacity=capacity_str,
-        )
-        soc_targets.append(
-            dict(value=soc_target_value, datetime=soc_target_datetime_str)
-        )
-
-    if soc_min is not None:
-        soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
-    if soc_max is not None:
-        soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
-    if roundtrip_efficiency is not None:
-        roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
-
-    scheduling_kwargs = dict(
-        start=start,
-        end=end,
-        belief_time=server_now(),
-        resolution=power_sensor.event_resolution,
-        flex_model={
-            "soc-at-start": soc_at_start,
-            "soc-targets": soc_targets,
-            "soc-min": soc_min,
-            "soc-max": soc_max,
-            "soc-unit": "MWh",
-            "roundtrip-efficiency": roundtrip_efficiency,
-        },
-        flex_context={
-            "consumption-price": (
-                {"sensor": consumption_price_sensor.id}
-                if consumption_price_sensor
-                else None
-            ),
-            "production-price": (
-                {"sensor": production_price_sensor.id}
-                if production_price_sensor
-                else None
-            ),
-            "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
-        },
-    )
-
-    # remove None value from flex_context
-    scheduling_kwargs["flex_context"] = {
-        k: v for k, v in scheduling_kwargs["flex_context"].items() if v is not None
-    }
-
-    if state_of_charge is not None:
-        scheduling_kwargs["flex_model"]["state-of-charge"] = {
-            "sensor": state_of_charge.id
-        }
-
-    quantity_or_sensor_vars = {
-        "flex_model": {
-            "charging-efficiency": charging_efficiency,
-            "discharging-efficiency": discharging_efficiency,
-            "storage-efficiency": storage_efficiency,
-            "soc-gain": soc_gain,
-            "soc-usage": soc_usage,
-            "power-capacity": storage_power_capacity,
-            "consumption-capacity": storage_consumption_capacity,
-            "production-capacity": storage_production_capacity,
-        },
-        "flex_context": {
-            "site-power-capacity": site_power_capacity,
-            "site-consumption-capacity": site_consumption_capacity,
-            "site-production-capacity": site_production_capacity,
-        },
-    }
-
-    for key in ["flex_model", "flex_context"]:
-        for field_name, value in quantity_or_sensor_vars[key].items():
-            if value is not None:
-                if "efficiency" in field_name:
-                    unit = "%"
-                else:
-                    unit = "MW"
-
-                scheduling_kwargs[key][field_name] = VariableQuantityField(
-                    unit
-                )._serialize(value, None, None)
-
-    if as_job:
-        job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
-        if job:
-            click.secho(
-                f"New scheduling job {job.id} has been added to the queue.",
-                **MsgStyle.SUCCESS,
-            )
-    else:
-        success = make_schedule(
-            asset_or_sensor=get_asset_or_sensor_ref(power_sensor),
-            **scheduling_kwargs,
-        )
-        if success:
-            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
-
-
 @fm_add_data.command("schedule")
 @with_appcontext
 @click.option(
@@ -1537,7 +1115,6 @@ def add_schedule_for_storage(  # noqa C901
     "power_sensor",
     type=SensorIdField(),
     required=True,
-    cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
@@ -1606,7 +1183,7 @@ def add_schedule(  # noqa C901
     Current limitations:
 
     - Limited to power sensors (probably possible to generalize to non-electric assets)
-    - Only
+    - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
 
     scheduling_kwargs = dict(
@@ -1636,6 +1213,22 @@ def add_schedule(  # noqa C901
         )
         if success:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+
+
+@fm_add_data.group(
+    "schedule",
+    cls=DeprecatedDefaultGroup,
+    default="storage",
+    deprecation_message="The command 'flexmeasures add schedule' is deprecated. Please use `flexmeasures add schedule for-storage` instead.",
+)
+@click.pass_context
+@with_appcontext
+def create_schedule(ctx):
+    """(Deprecated) Create a new schedule for a given power sensor.
+
+    THIS COMMAND HAS BEEN RENAMED TO `flexmeasures add schedule for-storage`
+    """
+    pass
 
 
 @create_schedule.command("for-process", cls=DeprecatedOptionsCommand)
