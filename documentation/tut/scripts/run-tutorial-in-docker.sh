@@ -32,9 +32,10 @@ docker cp prices-tomorrow.csv flexmeasures-server-1:/app
 docker exec -it flexmeasures-server-1 bash -c "flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam"
 
 echo "[TUTORIAL-RUNNER] creating schedule ..."
-docker exec -it flexmeasures-server-1 bash -c "flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
+docker exec -it flexmeasures-server-1 bash -c "flexmeasures add schedule --sensor 2 \
     --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-    --roundtrip-efficiency 90%"
+    --flex-context '{"consumption-price": {"sensor": 1}}' \
+    --flex-model '{"roundtrip-efficiency": "90%"}'"
 # We also want to use --as-job here (testing the queuing), but for some reason using exec with -c and a command, the container can't see the redis port
 # You can also exec into the container in a bash session, then define TOMORROW (and maybe add prices if not done yet) and run this commans with --as-job 
 

@@ -40,10 +40,10 @@ echo "[TUTORIAL-RUNNER] showing beliefs ..."
 docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
 
 echo "[TUTORIAL-RUNNER] update schedule taking solar into account ..."
-docker exec -it flexmeasures-server-1 flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
-    --inflexible-device-sensor 3 \
-    --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-    --soc-at-start 50% --roundtrip-efficiency 90%
+docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 2 \
+    --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
+    --flex-context '{"inflexible-device-sensors": [3], "consumption-price": {"sensor": 1}}' \
+    --flex-model '{"roundtrip-efficiency": "90%"}'
 
 
 echo "[TUTORIAL-RUNNER] showing schedule ..."
