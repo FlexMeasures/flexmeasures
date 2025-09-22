@@ -30,7 +30,6 @@ from flexmeasures.cli.utils import (
     JSONOrFile,
     MsgStyle,
     DeprecatedOption,
-    DeprecatedDefaultGroup,
     DeprecatedOptionsCommand,
 )
 from flexmeasures.data import db
@@ -57,10 +56,8 @@ from flexmeasures.data.schemas import (
     LatitudeField,
     LongitudeField,
     SensorIdField,
-    TimeIntervalField,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
-from flexmeasures.data.schemas.times import TimeIntervalSchema
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.io import Output
 from flexmeasures.data.schemas.units import QuantityField
@@ -1111,12 +1108,9 @@ def create_forecasts(
 @with_appcontext
 @click.option(
     "--sensor",
-    "--sensor-id",
     "power_sensor",
     type=SensorIdField(),
     required=True,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
 )
 @click.option(
@@ -1137,7 +1131,7 @@ def create_forecasts(
     "--soc-at-start",
     "soc_at_start",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
-    required=True,
+    required=False,
     help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
 )
 @click.option(
@@ -1186,6 +1180,19 @@ def add_schedule(  # noqa C901
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
 
+    module = None
+
+    if scheduler_class == "ProcessScheduler":
+        module = "flexmeasures.data.models.planning.process"
+    elif scheduler_class == "StorageScheduler":
+        module = "flexmeasures.data.models.planning.storage"
+        if soc_at_start is None:
+            click.secho(
+                "For StorageScheduler, --soc-at-start is required.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+
     scheduling_kwargs = dict(
         start=start,
         end=start + duration,
@@ -1194,164 +1201,10 @@ def add_schedule(  # noqa C901
         flex_model=flex_model,
         flex_context=flex_context,
         scheduler_specs={
-            "module": "flexmeasures.data.models.planning.storage",
+            "module": module,
             "class": scheduler_class,
         },
     )
-
-    if as_job:
-        job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
-        if job:
-            click.secho(
-                f"New scheduling job {job.id} has been added to the queue.",
-                **MsgStyle.SUCCESS,
-            )
-    else:
-        success = make_schedule(
-            asset_or_sensor=get_asset_or_sensor_ref(power_sensor),
-            **scheduling_kwargs,
-        )
-        if success:
-            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
-
-
-@fm_add_data.group(
-    "schedule",
-    cls=DeprecatedDefaultGroup,
-    default="storage",
-    deprecation_message="The command 'flexmeasures add schedule' is deprecated. Please use `flexmeasures add schedule for-storage` instead.",
-)
-@click.pass_context
-@with_appcontext
-def create_schedule(ctx):
-    """(Deprecated) Create a new schedule for a given power sensor.
-
-    THIS COMMAND HAS BEEN RENAMED TO `flexmeasures add schedule for-storage`
-    """
-    pass
-
-
-@create_schedule.command("for-process", cls=DeprecatedOptionsCommand)
-@with_appcontext
-@click.option(
-    "--sensor",
-    "--sensor-id",
-    "power_sensor",
-    type=SensorIdField(),
-    required=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
-    help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
-)
-@click.option(
-    "--consumption-price-sensor",
-    "consumption_price_sensor",
-    type=SensorIdField(),
-    required=False,
-    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
-)
-@click.option(
-    "--start",
-    "start",
-    type=AwareDateTimeField(),
-    required=True,
-    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
-)
-@click.option(
-    "--duration",
-    "duration",
-    type=DurationField(),
-    required=True,
-    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
-)
-@click.option(
-    "--process-duration",
-    "process_duration",
-    type=DurationField(),
-    required=True,
-    help="Duration of the process. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
-)
-@click.option(
-    "--process-type",
-    "process_type",
-    type=click.Choice(["INFLEXIBLE", "BREAKABLE", "SHIFTABLE"], case_sensitive=False),
-    required=False,
-    default="SHIFTABLE",
-    help="Process schedule policy: INFLEXIBLE, BREAKABLE or SHIFTABLE.",
-)
-@click.option(
-    "--process-power",
-    "process_power",
-    type=ur.Quantity,
-    required=True,
-    help="Constant power of the process during the activation period, e.g. 4kW.",
-)
-@click.option(
-    "--forbid",
-    type=TimeIntervalField(),
-    multiple=True,
-    required=False,
-    help="Add time restrictions to the optimization, where the load will not be scheduled into."
-    'Use the following format to define the restrictions: `{"start":<timezone-aware datetime in ISO 6801>, "duration":<ISO 6801 duration>}`'
-    "This options allows to define multiple time restrictions by using the --forbid for different periods.",
-)
-@click.option(
-    "--as-job",
-    is_flag=True,
-    help="Whether to queue a scheduling job instead of computing directly. "
-    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
-)
-def add_schedule_process(
-    power_sensor: Sensor,
-    consumption_price_sensor: Sensor,
-    start: datetime,
-    duration: timedelta,
-    process_duration: timedelta,
-    process_type: str,
-    process_power: ur.Quantity,
-    forbid: list | None = None,
-    as_job: bool = False,
-):
-    """Create a new schedule for a process asset.
-
-    Current limitations:
-    - Only supports consumption blocks.
-    - Not taking into account grid constraints or other processes.
-    """
-
-    if forbid is None:
-        forbid = []
-
-    # Parse input and required sensor attributes
-    if not power_sensor.measures_power:
-        click.secho(
-            f"Sensor with ID {power_sensor.id} is not a power sensor.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
-
-    end = start + duration
-
-    process_power = convert_units(process_power.magnitude, process_power.units, "MW")  # type: ignore
-
-    scheduling_kwargs = dict(
-        start=start,
-        end=end,
-        belief_time=server_now(),
-        resolution=power_sensor.event_resolution,
-        flex_model={
-            "duration": pd.Timedelta(process_duration).isoformat(),
-            "process-type": process_type,
-            "power": process_power,
-            "time-restrictions": [TimeIntervalSchema().dump(f) for f in forbid],
-        },
-    )
-
-    if consumption_price_sensor is not None:
-        scheduling_kwargs["flex_context"] = {
-            "consumption-price": {"sensor": consumption_price_sensor.id},
-        }
 
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
