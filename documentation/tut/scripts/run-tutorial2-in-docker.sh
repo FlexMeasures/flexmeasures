@@ -3,6 +3,7 @@
 echo "[TUTORIAL-RUNNER] loading solar production data..."
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
+
 echo "Hour,Price
 ${TOMORROW}T00:00:00,0.0
 ${TOMORROW}T01:00:00,0.0
@@ -29,22 +30,22 @@ ${TOMORROW}T21:00:00,0.0
 ${TOMORROW}T22:00:00,0.0
 ${TOMORROW}T23:00:00,0.0" > solar-tomorrow.csv
 
-docker cp solar-tomorrow.csv flexmeasures-server-1:/app
+docker cp solar-tomorrow.csv flexmeasures-server-1:/app/
 
 echo "[TUTORIAL-RUNNER] adding source ..."
 docker exec -it flexmeasures-server-1 flexmeasures add source --name "toy-forecaster" --type forecaster
+
 echo "[TUTORIAL-RUNNER] adding beliefs ..."
-docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
+docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 
 echo "[TUTORIAL-RUNNER] showing beliefs ..."
-docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
+docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
 echo "[TUTORIAL-RUNNER] update schedule taking solar into account ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 2 \
-    --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-    --flex-context '{\"inflexible-device-sensors\": [3], \"consumption-price\": {\"sensor\": 1}}' \
-    --flex-model '{\"roundtrip-efficiency\": \"90%\"}'
-
+  --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
+  --flex-context '{"inflexible-device-sensors": [3], "consumption-price": {"sensor": 1}}' \
+  --flex-model '{"roundtrip-efficiency": "90%"}'
 
 echo "[TUTORIAL-RUNNER] showing schedule ..."
-docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
+docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
