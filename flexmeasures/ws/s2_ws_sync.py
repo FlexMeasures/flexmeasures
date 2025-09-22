@@ -6,11 +6,14 @@ import json
 import logging
 import traceback
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional, Type
 
+import isodate
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
+from flexmeasures.api.common.utils.validators import parse_duration
 from s2python.common import (
     ControlType,
     EnergyManagementRole,
@@ -56,6 +59,24 @@ class FRBCDeviceData:
             and self.storage_status is not None
             and self.actuator_status is not None
         )
+
+
+class ConnectionState:
+    """Class to track the state of each WebSocket connection for rate limiting."""
+
+    def __init__(self):
+        self.last_compute_time: Optional[datetime] = None
+        self.resource_id: Optional[str] = None
+
+    def can_compute(self, replanning_frequency: timedelta) -> bool:
+        """Check if enough time has passed since the last compute call."""
+        if self.last_compute_time is None:
+            return True
+        return datetime.now(timezone.utc) - self.last_compute_time >= replanning_frequency
+
+    def update_compute_time(self) -> None:
+        """Update the last compute time to now."""
+        self.last_compute_time = datetime.now(timezone.utc)
 
 
 class MessageHandlersSync:
@@ -129,6 +150,9 @@ class S2FlaskWSServerSync:
         self._websocket_to_resource: Dict[Sock, str] = (
             {}
         )  # Map websocket to resource_id
+        self._connection_states: Dict[Sock, ConnectionState] = (
+            {}
+        )  # Track connection state for rate limiting
         self._register_default_handlers()
         self.sock.route(self.ws_path)(self._ws_handler)
 
@@ -163,6 +187,8 @@ class S2FlaskWSServerSync:
         client_id = str(uuid.uuid4())
         self.app.logger.info(f"Client {client_id} connected (sync)")
         self._connections[client_id] = websocket
+        # Initialize connection state for rate limiting
+        self._connection_states[websocket] = ConnectionState()
         try:
             while True:
                 message = websocket.receive()
@@ -242,6 +268,10 @@ class S2FlaskWSServerSync:
                     and hasattr(self.s2_scheduler, "remove_device_state")
                 ):
                     self.s2_scheduler.remove_device_state(resource_id)
+
+            # Clean up connection state
+            if websocket in self._connection_states:
+                del self._connection_states[websocket]
 
             self.app.logger.info(f"Client {client_id} disconnected (sync)")
 
@@ -408,6 +438,37 @@ class S2FlaskWSServerSync:
             self.app.logger.info(f"Waiting for more data from device {resource_id}")
             return
 
+        # Check rate limiting based on FLEXMEASURES_S2_REPLANNING_FREQUENCY
+        connection_state = self._connection_states.get(websocket)
+        if connection_state is None:
+            self.app.logger.warning(f"No connection state found for device {resource_id}")
+            return
+
+        # Parse replanning frequency from config
+        replanning_freq_str = self.app.config.get("FLEXMEASURES_S2_REPLANNING_FREQUENCY", "PT5M")
+        try:
+            replanning_frequency = parse_duration(replanning_freq_str)
+            if replanning_frequency is None:
+                raise ValueError(f"Invalid duration format: {replanning_freq_str}")
+            if not isinstance(replanning_frequency, timedelta):
+                # Handle isodate.Duration objects by converting to timedelta
+                # For simplicity, assume it's a basic duration that can be converted
+                replanning_frequency = timedelta(seconds=replanning_frequency.total_seconds())
+        except Exception as e:
+            self.app.logger.error(f"Error parsing FLEXMEASURES_S2_REPLANNING_FREQUENCY '{replanning_freq_str}': {e}")
+            replanning_frequency = timedelta(minutes=5)  # Default to 5 minutes
+
+        # Check if we can compute based on rate limiting
+        if not connection_state.can_compute(replanning_frequency):
+            time_since_last = datetime.now(timezone.utc) - connection_state.last_compute_time
+            remaining_time = replanning_frequency - time_since_last
+            self.app.logger.info(
+                f"Rate limiting: Cannot generate instructions for device {resource_id}. "
+                f"Last compute was {time_since_last.total_seconds():.1f}s ago. "
+                f"Need to wait {remaining_time.total_seconds():.1f}s more."
+            )
+            return
+
         self.app.logger.info(
             f"All data received for device {resource_id}, generating instructions"
         )
@@ -424,6 +485,9 @@ class S2FlaskWSServerSync:
                     # storage_status=device_data.storage_status,
                     # actuator_status=device_data.actuator_status,
                 )
+
+                # Update the compute time before calling the scheduler
+                connection_state.update_compute_time()
 
                 # Generate instructions using the scheduler
                 schedule_results = self.s2_scheduler.compute()
