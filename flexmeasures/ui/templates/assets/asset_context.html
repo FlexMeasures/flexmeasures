@@ -419,6 +419,8 @@
                 showToast(`Failed to update the flex context: ${errorMessage}`, "error");
             } else {
                 setFlexContext(data);
+                renderSelectInfoCards();
+                localStorage.removeItem('activeCard');
                 showToast("Flex context updated successfully", "success");
             }
         }
@@ -472,12 +474,7 @@
         async function removeFlexContextField(fieldName) {
             const assetFlexContext = getFlexContext();
             getFlexContext()[fieldName] = null;
-
-    
-
             setFlexContext(assetFlexContext);
-
-
         }
 
         async function removeFlexContextSensorValue(fieldName, sensorId) {
@@ -541,9 +538,7 @@
                     closeIcon.style.cursor = 'pointer';
                     closeIcon.onclick = async () => {
                         try {
-                            console.log("Removing sensor: ", sensor);
                             await removeFlexContextSensorValue(fieldName, sensor);
-                            console.log("Sensor removed successfully.");
                         } catch (error) {
                             console.error("Failed to remove sensor:", error);
                         }
@@ -638,7 +633,6 @@
                 const sensorsContainer = document.createElement('div');
                 sensorsContainer.id = `inflexible-device-sensors-container`;
                 sensorsContainer.className = 'pb-2';
-                // sensorsContainer.appendChild(...sensorsContent);
                 sensorsContent.forEach(sensorItem => {
                     sensorsContainer.appendChild(sensorItem);
                 });
@@ -665,7 +659,6 @@
             const assetFlexContext = getFlexContext();
 
 
-
             for (const [key, value] of Object.entries(assetFlexContext)) {
                 if (value !== null) {
                     const fieldCard = await renderFlexContextCard(key);
@@ -674,32 +667,24 @@
             }
 
             if (storedActiveCard && activeCard()){
-                console.log("In Context?: ", (storedActiveCard in assetFlexContext))
-                console.log("!In Context?: ", !(storedActiveCard in assetFlexContext))
-                console.log("assetFlexContext: ", assetFlexContext)
-                console.log("storedActiveCard: ", storedActiveCard)
-                console.log("activeCard: ", activeCard())
-                console.log("card id: ", (activeCard() ? activeCard().id : null))
                 const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
-                const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price");
-                setTimeout(() => {
-                    flexOptionsContainer.innerHTML = "";
-                    flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isOnlySensorField));
-                    handleFlexSelectChange(flexId);
-                    activeCard().classList.add('border-on-click'); // Add border to the clicked card
-                    const renderedActiveCard = document.getElementById(`${flexId}-control`);
-                    renderedActiveCard.classList.add('border-on-click'); // Add border to the clicked card
-                    setActiveCard(renderedActiveCard);
-                }, 300);
-            } else {
-                localStorage.removeItem('activeCard');
+                if (assetFlexContext[storedActiveCard]){
+                    const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price");
+                    setTimeout(() => {
+                        flexOptionsContainer.innerHTML = "";
+                        flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isOnlySensorField));
+                        handleFlexSelectChange(flexId);
+                        activeCard().classList.add('border-on-click'); // Add border to the clicked card
+                        const renderedActiveCard = document.getElementById(`${flexId}-control`);
+                        renderedActiveCard.classList.add('border-on-click'); // Add border to the clicked card
+                        setActiveCard(renderedActiveCard);
+                    }, 300);
+
+                    renderSelectInfoCards();
+                }
             }
-
-
+            localStorage.removeItem('activeCard');
             renderFlexSelectOptions();
-            renderSelectInfoCards();
-            console.log("activeCard 2: ", activeCard())
-
         }
 
         // This is a bridge/middlewar fuciton to work with actionFunc interface
@@ -731,7 +716,6 @@
                 if (flexId === "inflexible-device-sensors") {
                     if (assetFlexContext[flexId]) {
                         assetFlexContext[flexId].push(sensorId);
-                        console.log("Adding sensor to inflexible-device-sensors: ", assetFlexContext[flexId]);
                     } else {
                         assetFlexContext[flexId] = [sensorId];
                     }
