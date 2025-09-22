@@ -431,49 +431,6 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "consumption_capacity"},
     )
 
-    soc_usage = fields.List(
-        VariableQuantityField("MW"),
-        data_key="soc-usage",
-        required=False,
-        validate=validate.Length(min=1),
-    )
-
-    roundtrip_efficiency = EfficiencyField(
-        data_key="roundtrip-efficiency", required=False
-    )
-
-    charging_efficiency = EfficiencyField(
-        data_key="charging-efficiency", required=False
-    )
-
-    discharging_efficiency = EfficiencyField(
-        data_key="discharging-efficiency", required=False
-    )
-
-    storage_efficiency = EfficiencyField(data_key="storage-efficiency", required=False)
-
-    prefer_charging_sooner = fields.Bool(
-        data_key="prefer-charging-sooner", load_default=True
-    )
-
-    prefer_curtailing_later = fields.Bool(
-        data_key="prefer-curtailing-later", load_default=True
-    )
-
-    power_capacity = VariableQuantityField(
-        to_unit="MW",
-        data_key="power-capacity",
-        required=False,
-        value_validator=validate.Range(min=0),
-    )
-
-    consumption_capacity = VariableQuantityField(
-        to_unit="MW",
-        data_key="consumption-capacity",
-        required=False,
-        value_validator=validate.Range(min=0),
-    )
-
     production_capacity = VariableQuantityField(
         to_unit="MW",
         data_key="production-capacity",
