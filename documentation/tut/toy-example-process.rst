@@ -62,7 +62,7 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
     $ flexmeasures add schedule --sensor 4 --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
         --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
-        --flex-model '{\"duration\": \"P0DT4H0M0S\", \"process-type\": \"INFLEXIBLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"INFLEXIBLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
 
 Under the INFLEXIBLE policy, the process starts as soon as possible, in this case, coinciding with the start of the planning window.
 
@@ -73,7 +73,7 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKA
     $ flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
         --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
-        --flex-model '{\"duration\": \"P0DT4H0M0S\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
 
@@ -84,7 +84,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
     $ flexmeasures add schedule --sensor 6 --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
         --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
-        --flex-model '{\"duration\": \"P0DT4H0M0S\", \"process-type\": \"SHIFTABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"SHIFTABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 
 Results

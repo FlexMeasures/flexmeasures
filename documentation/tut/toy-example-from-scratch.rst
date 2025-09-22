@@ -57,6 +57,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
                 ],
                 "soc-usage": [{"sensor": 73}]
             }
+            
             flexmeasures add schedule \                                      
                 --sensor 2 \
                 --start 2024-02-04T07:00+01:00 \

@@ -1180,12 +1180,12 @@ def add_schedule(  # noqa C901
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
 
-    module = None
+    scheduler_module = None
 
     if scheduler_class == "ProcessScheduler":
-        module = "flexmeasures.data.models.planning.process"
+        scheduler_module = "flexmeasures.data.models.planning.process"
     elif scheduler_class == "StorageScheduler":
-        module = "flexmeasures.data.models.planning.storage"
+        scheduler_module = "flexmeasures.data.models.planning.storage"
         if soc_at_start is None:
             click.secho(
                 "For StorageScheduler, --soc-at-start is required.",
@@ -1201,7 +1201,7 @@ def add_schedule(  # noqa C901
         flex_model=flex_model,
         flex_context=flex_context,
         scheduler_specs={
-            "module": module,
+            "module": scheduler_module,
             "class": scheduler_class,
         },
     )
