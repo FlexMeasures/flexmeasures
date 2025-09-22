@@ -331,7 +331,7 @@ Some examples from practice (usually industry) could be:
 
 You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
 
-You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
+You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule``.
 
 .. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 

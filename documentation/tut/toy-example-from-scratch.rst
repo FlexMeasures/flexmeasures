@@ -43,13 +43,20 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
         .. code-block:: console
 
-            echo '{"roundtrip-efficiency": "90%"}' > my-flex-context.json 
-            flexmeasures add schedule \                                      
-                --sensor 2 \
-                --start ${TOMORROW}T07:00+01:00 \
-                --duration PT12H \
-                --soc-at-start 50% \
-                --flex-model my-flex-model.json
+            cat my-flex-model.json  
+            {
+                "roundtrip-efficiency": "90%",
+                "soc-min": "15 kWh",
+                "soc-max": "60 kWh",
+                "soc-maxima": [
+                    {
+                        "value": "51 kWh",
+                        "start": "2024-02-04T10:35:00+01:00",
+                        "end": "2024-02-05T04:25:00+01:00"
+                    }
+                ],
+                "soc-usage": [{"sensor": 73}]
+            }
 
 
     .. tab:: API
