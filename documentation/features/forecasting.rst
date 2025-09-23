@@ -77,11 +77,11 @@ The ``--as-job`` parameter is optional. If given, the computation becomes a job 
 Rolling vs fixed-point
 -------------------------
 
-These forecasts are `rolling` forecasts ― which means they all have the same horizon. This is useful mostly for analytics and simulations.
+Unlike previous rolling forecasts, the new infrastructure generates **fixed-point forecasts**:
 
-We plan to work on fixed-point forecasts, which would forecast all values from one point in time, with a growing horizon as the forecasted time is further away.
-This resembles the real-time situation better.
-
+- One reference timestamp.
+- Predictions are made for multiple future horizons from that point.
+- Periodic retraining ensures forecasts remain accurate.
 
 Regressors
 -------------
