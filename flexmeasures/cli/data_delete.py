@@ -354,10 +354,28 @@ def delete_beliefs(  # noqa: C901
     default=True,
     help="Use the --keep-measurements flag to keep beliefs with a zero or negative belief horizon (measurements, nowcasts and backcasts).",
 )
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Only remove records of events starting on or after this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--end",
+    "end",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Only remove records of events ending on or before this datetime."
+    " Instantaneous events exactly at this datetime are kept."
+    " Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
 def delete_unchanged_beliefs(
     sensor_id: int | None = None,
     delete_unchanged_forecasts: bool = True,
     delete_unchanged_measurements: bool = True,
+    start: datetime | None = None,
+    end: datetime | None = None,
 ):
     """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
     q = select(TimedBelief)
@@ -366,6 +384,10 @@ def delete_unchanged_beliefs(
         if sensor is None:
             abort(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
         q = q.filter_by(sensor_id=sensor.id)
+    if start:
+        q = q.filter(TimedBelief.event_start >= start.isoformat())
+    if end:
+        q = q.filter(TimedBelief.event_start < end.isoformat())
     num_beliefs_before = db.session.scalar(select(func.count()).select_from(q))
     unchanged_queries = []
     num_forecasts_up_for_deletion = 0
