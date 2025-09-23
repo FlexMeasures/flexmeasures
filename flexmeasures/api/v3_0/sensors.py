@@ -883,7 +883,7 @@ class SensorAPI(FlaskView):
         """
         sensor = Sensor(**sensor_data)
         db.session.add(sensor)
-
+        db.session.flush()
         AssetAuditLog.add_record(
             sensor.generic_asset, f"Created sensor '{sensor.name}': {sensor.id}"
         )
