@@ -67,7 +67,7 @@ Here is how you can ask for forecasts to be made in the CLI:
 
 .. code-block:: bash
 
-    flexmeasures add forecasts --from-date 2024-02-02 --to-date 2024-02-02 --horizon 6 --sensor 12  --as-job
+    flexmeasures add forecasts --start-date 2023-08-02 --from-date 2024-02-02 --to-date 2024-02-02 --horizon 6 --sensor 12  --as-job  # add train-start
 
 Sensor 12 would represent the power readings of your solar power, and here you ask for forecasts for one day (2 February, 2024), with a forecast of 6 hours.
 
