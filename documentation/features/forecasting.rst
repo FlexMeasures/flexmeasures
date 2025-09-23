@@ -74,8 +74,8 @@ Sensor 12 would represent the power readings of your solar power, and here you a
 The ``--as-job`` parameter is optional. If given, the computation becomes a job which a worker needs to pick up. There is some more information at :ref:`how_queue_forecasting`.
 
 
-Rolling vs fixed-point
--------------------------
+Fixed-point vs rolling
+----------------------
 
 Unlike previous rolling forecasts, the new infrastructure generates **fixed-point forecasts**:
 
