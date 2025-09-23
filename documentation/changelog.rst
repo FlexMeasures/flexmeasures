@@ -19,6 +19,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix two audit logs in the sensor API, which were not committed to db [see `PR #1721 <https://github.com/FlexMeasures/flexmeasures/pull/1721>`_]
 
 
 v0.28.1 | September 18, 2025
