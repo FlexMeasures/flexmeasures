@@ -44,22 +44,21 @@ The main CLI parameters that control this process are:
 Technical specs
 -----------------
 
-In a nutshell, FlexMeasures uses linear regression and falls back to naive forecasting of the last known value if errors happen. 
+In a nutshell, FlexMeasures uses a LightGBM regression model (``LGBMRegressor``) as its base model to forecast future values.  
 
-Note that what might be even more important than the type of algorithm is the features handed to the model ― lagged values (e.g. value of the same time yesterday) and regressors (e.g. wind speed prediction to forecast wind power production).
-Most assets have yearly seasonality (e.g. wind, solar) and therefore forecasts would benefit from >= 2 years of history.
+Note that the most important factor is often the features provided to the model ― lagged values (e.g., the value at the same time yesterday) and regressors (e.g., wind speed prediction to forecast wind power production).  
+Most assets have yearly seasonality (e.g. wind, solar) and therefore forecasts benefit from at least two years of historical data.
 
 Here are more details:
 
-- The application uses an ordinary least squares auto-regressive model with external variables.
-- Lagged outcome variables are selected based on the periodicity of the asset (e.g. daily and/or weekly).
-- Common external variables are weather forecasts of temperature, wind speed and irradiation.
-- Timeseries data with frequent zero values are transformed using a customised Box-Cox transformation.
-- To avoid over-fitting, cross-validation is used.
-- Before fitting, explicit annotations of expert knowledge to the model (like the definition of asset-specific seasonality and special time events) are possible.
-- The model is currently fit each day for each asset and for each horizon.
-
-
+- The main model is a LightGBM regressor, which can be wrapped to produce probabilistic forecasts if required.
+- Lagged outcome variables are selected based on the periodicity of the asset (e.g. hourly, daily and/or weekly).
+- Missing data is filled using linear interpolation (via the Darts ``MissingValuesFiller``, which wraps ``pandas.DataFrame.interpolate``).
+- The model is trained once per cycle for each asset and can forecast up to the maximum forecast horizon in a single run.
+- Forecasts are **fixed-view forecasts** — the model is trained on a given history and produces predictions for a future window in one go.  
+  Training and prediction can then be repeated in **cycles** until a user-specified end date is reached.  
+  This cycle-based design is inspired by rolling forecasts while keeping a fixed viewpoint.  
+  The ``forecast_frequency`` parameter controls how often predictions are generated during the forecast period.
 A use case: automating solar production prediction
 -----------------------------------------------------
 
