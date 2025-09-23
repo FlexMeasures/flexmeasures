@@ -10,14 +10,36 @@ There are even existing plugins for importing `weather forecasts <https://github
 
 If you need to make your own predictions, forecasting algorithms can be used within FlexMeasures, for instance to assess the expected profile of future consumption/production.
 
-.. warning:: This feature is currently under development, we note future plans further below. Get in touch for latest updates or if you want to help.
+FlexMeasures provides a **fixed-view forecasting infrastructure**.  
+This means that the model is trained once on a historical period and then produces predictions for a future period in one go.  
 
+At the same time, the design is inspired by **rolling forecasts**, as training and prediction can be repeated in **cycles** until a user-specified end date is reached.  
+This is controlled by the ``forecast_frequency`` parameter, which specifies how often predictions are generated during the forecast period.
 
-.. contents::
-    :local:
-    :depth: 2
+Cycle Example
+-------------
 
+A single forecasting cycle consists of the following steps:
 
+1. **Training**: Fit the model on a historical window defined by ``train_start`` and ``train_end``.  
+2. **Prediction**: Produce forecasts for a horizon defined by ``predict_start`` and ``predict_end``.  
+3. **Repeat**: If the global ``end_date`` is not yet reached, move the prediction window forward by ``forecast_frequency`` and repeat steps 1 and 2.
+
+This way, forecasts can cover long ranges while still being based on updated training data in each cycle.
+
+CLI Parameters
+--------------
+
+The main CLI parameters that control this process are:
+
+- ``start-date``: Define the start of historical data used for training.  
+- ``from_date``: Define the period for which forecasts are generated.  
+- ``forecast_frequency``: How often predictions are generated within the forecast period (e.g. daily, hourly).  
+- ``max_forecast_horizon``: The maximum length of a forecast into the future.  
+- ``to_date``: The global cutoff point. Training and prediction cycles continue until this date is reached.
+
+``forecast_frequency`` together with ``max_forecast_horizon`` determine how the forecasting cycles advance through time.  
+``start-date`` / ``from_date`` and ``to_date`` allow precise control over the training and prediction windows in each cycle.
 
 Technical specs
 -----------------
