@@ -67,6 +67,7 @@ class ConnectionState:
     def __init__(self):
         self.last_compute_time: Optional[datetime] = None
         self.resource_id: Optional[str] = None
+        self.last_operation_mode: Optional[uuid.UUID] = None
 
     def can_compute(self, replanning_frequency: timedelta) -> bool:
         """Check if enough time has passed since the last compute call."""
@@ -303,6 +304,23 @@ class S2FlaskWSServerSync:
         except ConnectionClosed:
             self.app.logger.warning("Connection closed while sending message (sync)")
 
+    def _filter_instructions_by_operation_mode(self, instructions: list, connection_state: ConnectionState) -> list:
+        """Filter instructions to only include those with different operation_mode than the previous instruction."""
+        if not instructions:
+            return instructions
+        
+        filtered = []
+        last_operation_mode = connection_state.last_operation_mode
+        
+        for instruction in instructions:
+            # Always include the first instruction if we haven't sent any before
+            # or if the operation mode is different from the last sent instruction
+            if last_operation_mode is None or instruction.operation_mode != last_operation_mode:
+                filtered.append(instruction)
+                last_operation_mode = instruction.operation_mode
+        
+        return filtered
+
     def handle_handshake(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
     ) -> None:
@@ -492,14 +510,28 @@ class S2FlaskWSServerSync:
                 # Generate instructions using the scheduler
                 schedule_results = self.s2_scheduler.compute()
 
-                # Send generated instructions
+                # Filter and send generated instructions
+                frbc_instructions = [result for result in schedule_results if isinstance(result, FRBCInstruction)]
+                filtered_instructions = self._filter_instructions_by_operation_mode(frbc_instructions, connection_state)
+                
+                for instruction in filtered_instructions:
+                    self._send_and_forget(instruction, websocket)
+                    self.app.logger.info(
+                        f"Sent FRBC instruction: {instruction.to_json()}"
+                    )
+                    # Update the last operation mode for this connection
+                    connection_state.last_operation_mode = instruction.operation_mode
+                
+                # Log filtering results
+                if len(frbc_instructions) > len(filtered_instructions):
+                    self.app.logger.info(
+                        f"Filtered instructions: {len(frbc_instructions)} -> {len(filtered_instructions)} "
+                        f"(reduced by {len(frbc_instructions) - len(filtered_instructions)})"
+                    )
+                
+                # Process non-instruction results
                 for result in schedule_results:
-                    if isinstance(result, FRBCInstruction):
-                        self._send_and_forget(result, websocket)
-                        self.app.logger.info(
-                            f"Sent FRBC instruction: {result.to_json()}"
-                        )
-                    elif isinstance(result, dict) and "sensor" in result:
+                    if isinstance(result, dict) and "sensor" in result:
                         # TODO: save result["data"] to sensor if needed for FlexMeasures
                         pass
             else:

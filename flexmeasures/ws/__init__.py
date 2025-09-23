@@ -1,7 +1,6 @@
 import importlib
 import pkgutil
 from flask import Blueprint, current_app
-from simple_websocket import Server
 from flask_security import auth_token_required
 
 from flask_sock import Sock
