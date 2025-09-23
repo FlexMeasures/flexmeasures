@@ -883,11 +883,11 @@ class SensorAPI(FlaskView):
         """
         sensor = Sensor(**sensor_data)
         db.session.add(sensor)
-        db.session.commit()
 
         AssetAuditLog.add_record(
             sensor.generic_asset, f"Created sensor '{sensor.name}': {sensor.id}"
         )
+        db.session.commit()
 
         return sensor_schema.dump(sensor), 201
 
@@ -1015,12 +1015,11 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
-        db.session.commit()
-
         AssetAuditLog.add_record(
             sensor.generic_asset,
             f"Deleted data for sensor '{sensor.name}': {sensor.id}",
         )
+        db.session.commit()
 
         return {}, 204
 
