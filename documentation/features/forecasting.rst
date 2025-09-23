@@ -89,10 +89,11 @@ Regressors
 If you want to take regressors into account, in addition to merely past measurements (e.g. weather forecasts, see above),
 currently FlexMeasures supports only weather correlations.
 
-The attribute `sensor.weather_correlations` can be used for this, e.g. for the solar example above you might want to set this to ``["irradiance", "temperature"]``.
-FlexMeasures will then try to find an asset with asset type "weather_station" that has a location near the asset your forecasted sensor belogs to.
-That weather station should have sensors with the correlations you entered, and if they have data in a suitable range, the regressors can be used in your forecasting.
+- past regressors : sensors that only have realizations (historical data).
+- future regressors : sensors that only have forecasts (e.g. weather forecasts).
+- regressors : sensors that have both historical data and forecasts (e.g. weather forecasts).
 
+Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
 
 
