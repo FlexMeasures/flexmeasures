@@ -260,8 +260,8 @@ def create(  # noqa C901
                 if not hasattr(s2_ws, 's2_scheduler'):
                     from datetime import datetime, timedelta, timezone
                     
-                    # Get S2Scheduler class from registered schedulers
-                    scheduler_class = app.data_generators["scheduler"]["S2Scheduler"]
+                    # Get S2FlaskScheduler class from registered schedulers  
+                    scheduler_class = app.data_generators["scheduler"]["S2FlaskScheduler"]
                     
                     # Create scheduler instance with minimal setup for WebSocket usage
                     scheduler = scheduler_class.__new__(scheduler_class)
@@ -289,7 +289,7 @@ def create(  # noqa C901
                     scheduler.flex_model = {}
                     scheduler.flex_context = {}
                     scheduler.fallback_scheduler_class = None
-                    scheduler.info = {"scheduler": "S2Scheduler"}
+                    scheduler.info = {"scheduler": "S2FlaskScheduler"}
                     scheduler.config_deserialized = True
                     scheduler.return_multiple = True
                     
@@ -298,7 +298,7 @@ def create(  # noqa C901
                     
                     # Attach scheduler to WebSocket server
                     s2_ws.s2_scheduler = scheduler
-                    app.logger.info("S2Scheduler initialized for WebSocket connections")
+                    app.logger.info("S2FlaskScheduler initialized for WebSocket connections")
                 
                 return  # Let other before_request hooks handle it
 

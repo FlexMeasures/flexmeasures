@@ -492,7 +492,7 @@ class S2FlaskWSServerSync:
         )
 
         try:
-            # Use the S2Scheduler to create and store device state
+            # Use the S2FlaskScheduler to create and store device state
             if hasattr(self, "s2_scheduler") and self.s2_scheduler is not None:
                 # Create S2FrbcDeviceState from FRBC messages and store in scheduler
                 self.s2_scheduler.frbc_device_data = device_data
@@ -537,7 +537,7 @@ class S2FlaskWSServerSync:
             else:
                 # Scheduler not available - log warning and skip instruction generation
                 self.app.logger.warning(
-                    f"S2Scheduler not available for device {resource_id}, cannot generate instructions"
+                    f"S2FlaskScheduler not available for device {resource_id}, cannot generate instructions"
                 )
 
         except Exception as e:
