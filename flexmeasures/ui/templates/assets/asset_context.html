@@ -569,13 +569,16 @@
 
             card.onclick = function () {
                 if (activeCard() && activeCard().id === card.id) {
-                    setActiveCard(null); // Deselect if the same card is clicked again
-                    // remove active card from localstorage
-                    localStorage.removeItem('activeCard');
-                    card.classList.remove('border-on-click'); // Remove the border class
-                    flexOptionsContainer.innerHTML = ""; // Clear options container
-                    senSearchResEle.innerHTML = ""; // Clear sensor search results
-                    handleFlexSelectChange(null); // Clear the info container
+                    if (fieldName !== "inflexible-device-sensors"){
+                        setActiveCard(null); // Deselect if the same card is clicked again
+                        // remove active card from localstorage
+                        localStorage.removeItem('activeCard');
+                        card.classList.remove('border-on-click'); // Remove the border class
+                        flexOptionsContainer.innerHTML = ""; // Clear options container
+                        senSearchResEle.innerHTML = ""; // Clear sensor search results
+                        handleFlexSelectChange(null); // Clear the info container
+                    }
+                    return;
                 }
 
                 flexOptionsContainer.innerHTML = "";
