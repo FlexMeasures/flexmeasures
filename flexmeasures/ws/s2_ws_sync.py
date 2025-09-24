@@ -47,17 +47,26 @@ class FRBCDeviceData:
         self.system_description: Optional[FRBCSystemDescription] = None
         self.fill_level_target_profile: Optional[FRBCFillLevelTargetProfile] = None
         self.storage_status: Optional[FRBCStorageStatus] = None
-        self.actuator_status: Optional[FRBCActuatorStatus] = None
+        self.actuator_statuses: Dict[str, FRBCActuatorStatus] = {}  # Changed to dict by actuator_id
         self.resource_id: Optional[str] = None
 
     def is_complete(self) -> bool:
         """Check if we have received all necessary data to generate instructions."""
-        return (
-            self.system_description is not None
-            and self.fill_level_target_profile is not None
-            and self.storage_status is not None
-            and self.actuator_status is not None
-        )
+        # Check basic required data
+        if (
+            self.system_description is None
+            or self.fill_level_target_profile is None
+            or self.storage_status is None
+        ):
+            return False
+        
+        # Check that we have actuator status for ALL actuators in system description
+        if self.system_description.actuators:
+            required_actuator_ids = {str(actuator.id) for actuator in self.system_description.actuators}
+            received_actuator_ids = set(self.actuator_statuses.keys())
+            return required_actuator_ids.issubset(received_actuator_ids)
+        
+        return True
 
 
 class ConnectionState:
@@ -443,7 +452,8 @@ class S2FlaskWSServerSync:
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
 
-        self._device_data[resource_id].actuator_status = message
+        # Store actuator status by actuator_id to support multiple actuators
+        self._device_data[resource_id].actuator_statuses[str(message.actuator_id)] = message
         self._check_and_generate_instructions(resource_id, websocket)
 
     def _check_and_generate_instructions(  # noqa: C901
@@ -451,17 +461,29 @@ class S2FlaskWSServerSync:
     ) -> None:
         """Check if we have all required data and generate instructions if so."""
         device_data = self._device_data.get(resource_id)
-        for attr in (
-            "system_description",
-            "fill_level_target_profile",
-            "storage_status",
-            "actuator_status",
-        ):
-            self.app.logger.debug(
-                f"✅ {attr}? Go flight!"
-                if getattr(device_data, attr, None) is not None
-                else f"❌ {attr}? Hold on.."
-            )
+        if device_data:
+            # Debug log basic attributes
+            for attr in (
+                "system_description",
+                "fill_level_target_profile", 
+                "storage_status",
+            ):
+                self.app.logger.debug(
+                    f"✅ {attr}? Go flight!"
+                    if getattr(device_data, attr, None) is not None
+                    else f"❌ {attr}? Hold on.."
+                )
+            
+            # Debug log actuator statuses
+            if device_data.system_description and device_data.system_description.actuators:
+                required_actuators = {str(a.id) for a in device_data.system_description.actuators}
+                received_actuators = set(device_data.actuator_statuses.keys())
+                missing_actuators = required_actuators - received_actuators
+                
+                if missing_actuators:
+                    self.app.logger.debug(f"❌ actuator_status? Hold on.. Missing: {missing_actuators}")
+                else:
+                    self.app.logger.debug(f"✅ actuator_status? Go flight! All {len(required_actuators)} actuators received")
         if device_data is None or not device_data.is_complete():
             self.app.logger.info(
                 f"Waiting for more data from device {resource_id} before running the S2FlaskScheduler"
