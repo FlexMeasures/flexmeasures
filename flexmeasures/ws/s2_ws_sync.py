@@ -9,7 +9,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional, Type
 
-import isodate
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
@@ -73,7 +72,9 @@ class ConnectionState:
         """Check if enough time has passed since the last compute call."""
         if self.last_compute_time is None:
             return True
-        return datetime.now(timezone.utc) - self.last_compute_time >= replanning_frequency
+        return (
+            datetime.now(timezone.utc) - self.last_compute_time >= replanning_frequency
+        )
 
     def update_compute_time(self) -> None:
         """Update the last compute time to now."""
@@ -304,21 +305,26 @@ class S2FlaskWSServerSync:
         except ConnectionClosed:
             self.app.logger.warning("Connection closed while sending message (sync)")
 
-    def _filter_instructions_by_operation_mode(self, instructions: list, connection_state: ConnectionState) -> list:
+    def _filter_instructions_by_operation_mode(
+        self, instructions: list, connection_state: ConnectionState
+    ) -> list:
         """Filter instructions to only include those with different operation_mode than the previous instruction."""
         if not instructions:
             return instructions
-        
+
         filtered = []
         last_operation_mode = connection_state.last_operation_mode
-        
+
         for instruction in instructions:
             # Always include the first instruction if we haven't sent any before
             # or if the operation mode is different from the last sent instruction
-            if last_operation_mode is None or instruction.operation_mode != last_operation_mode:
+            if (
+                last_operation_mode is None
+                or instruction.operation_mode != last_operation_mode
+            ):
                 filtered.append(instruction)
                 last_operation_mode = instruction.operation_mode
-        
+
         return filtered
 
     def handle_handshake(
@@ -436,7 +442,7 @@ class S2FlaskWSServerSync:
         self._device_data[resource_id].actuator_status = message
         self._check_and_generate_instructions(resource_id, websocket)
 
-    def _check_and_generate_instructions(
+    def _check_and_generate_instructions(  # noqa: C901
         self, resource_id: str, websocket: Sock
     ) -> None:
         """Check if we have all required data and generate instructions if so."""
@@ -461,11 +467,15 @@ class S2FlaskWSServerSync:
         # Check rate limiting based on FLEXMEASURES_S2_REPLANNING_FREQUENCY
         connection_state = self._connection_states.get(websocket)
         if connection_state is None:
-            self.app.logger.warning(f"No connection state found for device {resource_id}")
+            self.app.logger.warning(
+                f"No connection state found for device {resource_id}"
+            )
             return
 
         # Parse replanning frequency from config
-        replanning_freq_str = self.app.config.get("FLEXMEASURES_S2_REPLANNING_FREQUENCY", "PT5M")
+        replanning_freq_str = self.app.config.get(
+            "FLEXMEASURES_S2_REPLANNING_FREQUENCY", "PT5M"
+        )
         try:
             replanning_frequency = parse_duration(replanning_freq_str)
             if replanning_frequency is None:
@@ -473,14 +483,20 @@ class S2FlaskWSServerSync:
             if not isinstance(replanning_frequency, timedelta):
                 # Handle isodate.Duration objects by converting to timedelta
                 # For simplicity, assume it's a basic duration that can be converted
-                replanning_frequency = timedelta(seconds=replanning_frequency.total_seconds())
+                replanning_frequency = timedelta(
+                    seconds=replanning_frequency.total_seconds()
+                )
         except Exception as e:
-            self.app.logger.error(f"Error parsing FLEXMEASURES_S2_REPLANNING_FREQUENCY '{replanning_freq_str}': {e}")
+            self.app.logger.error(
+                f"Error parsing FLEXMEASURES_S2_REPLANNING_FREQUENCY '{replanning_freq_str}': {e}"
+            )
             replanning_frequency = timedelta(minutes=5)  # Default to 5 minutes
 
         # Check if we can compute based on rate limiting
         if not connection_state.can_compute(replanning_frequency):
-            time_since_last = datetime.now(timezone.utc) - connection_state.last_compute_time
+            time_since_last = (
+                datetime.now(timezone.utc) - connection_state.last_compute_time
+            )
             remaining_time = replanning_frequency - time_since_last
             self.app.logger.info(
                 f"Rate limiting: Cannot generate instructions for device {resource_id}. "
@@ -513,9 +529,15 @@ class S2FlaskWSServerSync:
                 schedule_results = self.s2_scheduler.compute()
 
                 # Filter and send generated instructions
-                frbc_instructions = [result for result in schedule_results if isinstance(result, FRBCInstruction)]
-                filtered_instructions = self._filter_instructions_by_operation_mode(frbc_instructions, connection_state)
-                
+                frbc_instructions = [
+                    result
+                    for result in schedule_results
+                    if isinstance(result, FRBCInstruction)
+                ]
+                filtered_instructions = self._filter_instructions_by_operation_mode(
+                    frbc_instructions, connection_state
+                )
+
                 for instruction in filtered_instructions:
                     self._send_and_forget(instruction, websocket)
                     self.app.logger.info(
@@ -523,14 +545,14 @@ class S2FlaskWSServerSync:
                     )
                     # Update the last operation mode for this connection
                     connection_state.last_operation_mode = instruction.operation_mode
-                
+
                 # Log filtering results
                 if len(frbc_instructions) > len(filtered_instructions):
                     self.app.logger.info(
                         f"Filtered instructions: {len(frbc_instructions)} -> {len(filtered_instructions)} "
                         f"(reduced by {len(frbc_instructions) - len(filtered_instructions)})"
                     )
-                
+
                 # Process non-instruction results
                 for result in schedule_results:
                     if isinstance(result, dict) and "sensor" in result:
