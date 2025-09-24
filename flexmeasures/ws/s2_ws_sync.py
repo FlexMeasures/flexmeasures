@@ -196,8 +196,12 @@ class S2FlaskWSServerSync:
                 message = websocket.receive()
                 try:
                     s2_msg = self.s2_parser.parse_as_any_message(message)
-                    self.app.logger.info("Received message from client")
-                    self.app.logger.debug(s2_msg.to_json())
+                    self.app.logger.info(f"Received {s2_msg.message_type }message from client")
+
+                    # Don't log verbose messages
+                    verbose_message_types = ["FRBC.UsageForecast"]
+                    if s2_msg.message_type not in verbose_message_types:
+                        self.app.logger.debug(s2_msg.to_json())
                 except json.JSONDecodeError:
                     self.respond_with_reception_status(
                         subject_message_id=uuid.UUID(
