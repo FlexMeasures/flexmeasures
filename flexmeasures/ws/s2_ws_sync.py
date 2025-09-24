@@ -453,7 +453,9 @@ class S2FlaskWSServerSync:
                 else f"❌ {attr}? Hold on.."
             )
         if device_data is None or not device_data.is_complete():
-            self.app.logger.info(f"Waiting for more data from device {resource_id}")
+            self.app.logger.info(
+                f"Waiting for more data from device {resource_id} before running the S2FlaskScheduler"
+            )
             return
 
         # Check rate limiting based on FLEXMEASURES_S2_REPLANNING_FREQUENCY
