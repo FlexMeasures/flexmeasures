@@ -346,7 +346,6 @@
     let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
     assetFlexContextRawJSON = Object.assign({}, assetFlexContextSchema, processResourceRawJSON(assetFlexContextSchema, assetFlexContextRawJSON));
 
-
         const spinnerElement = document.getElementById('spinnerElement');
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
@@ -366,6 +365,10 @@
         // ============= Add Field/Card Action Button START ============== //
         const addFieldBtn = document.getElementById("addFieldBtn");
         addFieldBtn.onclick = async function () {
+            // Clear any previously active card
+            setActiveCard(null);
+            localStorage.removeItem('activeCard');
+
             const fieldName = flexSelect.value;
             if (fieldName === "blank") {
                 showToast("Please select a field to add", "error");
@@ -530,6 +533,9 @@
                 sensorsContent.push(item);
             } else if (isArray) {
                 const sensorPromises = fieldValue.map(async (sensor, sensorIndex) => {
+                    const item = convertHtmlToElement(await renderSensor(sensor));
+                    item.classList.add("align-items-center", "pb-2");
+
                     const closeIcon = document.createElement('i');
                     closeIcon.className = 'fa fa-times fa-lg';
                     closeIcon.setAttribute('data-bs-toggle', 'tooltip');
@@ -539,13 +545,12 @@
                     closeIcon.onclick = async () => {
                         try {
                             await removeFlexContextSensorValue(fieldName, sensor);
+                            item.remove();
                         } catch (error) {
                             console.error("Failed to remove sensor:", error);
                         }
                     };
 
-                    const item = convertHtmlToElement(await renderSensor(sensor));
-                    item.classList.add("align-items-center", "pb-2");
                     item.appendChild(closeIcon);
                     return item;
                 });
@@ -563,17 +568,14 @@
 
 
             card.onclick = function () {
-                if (card.classList.contains('border-on-click')) {
-                    if (activeCard() && activeCard().id === card.id) {
-                        setActiveCard(null); // Deselect if the same card is clicked again
-                        // remove active card from localstorage
-                        localStorage.removeItem('activeCard');
-                        card.classList.remove('border-on-click'); // Remove the border class
-                        flexOptionsContainer.innerHTML = ""; // Clear options container
-                        senSearchResEle.innerHTML = ""; // Clear sensor search results
-                        handleFlexSelectChange(null); // Clear the info container
-                    }
-                    return;
+                if (activeCard() && activeCard().id === card.id) {
+                    setActiveCard(null); // Deselect if the same card is clicked again
+                    // remove active card from localstorage
+                    localStorage.removeItem('activeCard');
+                    card.classList.remove('border-on-click'); // Remove the border class
+                    flexOptionsContainer.innerHTML = ""; // Clear options container
+                    senSearchResEle.innerHTML = ""; // Clear sensor search results
+                    handleFlexSelectChange(null); // Clear the info container
                 }
 
                 flexOptionsContainer.innerHTML = "";
@@ -603,7 +605,18 @@
             closeIcon.setAttribute('data-bs-placement', 'top');
             closeIcon.setAttribute('title', 'Remove');
             closeIcon.style.cursor = 'pointer';
-            closeIcon.onclick = () => removeFlexContextField(fieldName);
+            closeIcon.onclick = () => {
+                assetFlexContext[fieldName] = null;
+                card.remove();
+                if (activeCard() && activeCard().id === card.id) {
+                    flexOptionsContainer.innerHTML = "";
+                    senSearchResEle.innerHTML = "";
+                    setActiveCard(null);
+                    handleFlexSelectChange(null);
+                    localStorage.removeItem('activeCard');
+                }
+                setFlexContext(assetFlexContext);
+            };
             titleContainer.appendChild(title);
             titleContainer.appendChild(closeIcon);
 
