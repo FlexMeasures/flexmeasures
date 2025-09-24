@@ -376,7 +376,6 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, ReceptionStatus):
             return
-        self.app.logger.info("Received ReceptionStatus (sync)")
         self.app.logger.debug(message.to_json())
 
     def handle_ResourceManagerDetails(
