@@ -59,13 +59,13 @@ class FRBCDeviceData:
             or self.storage_status is None
         ):
             return False
-        
+
         # Check that we have actuator status for ALL actuators in system description
         if self.system_description.actuators:
             required_actuator_ids = {str(actuator.id) for actuator in self.system_description.actuators}
             received_actuator_ids = set(self.actuator_statuses.keys())
             return required_actuator_ids.issubset(received_actuator_ids)
-        
+
         return True
 
 
@@ -464,7 +464,7 @@ class S2FlaskWSServerSync:
             # Debug log basic attributes
             for attr in (
                 "system_description",
-                "fill_level_target_profile", 
+                "fill_level_target_profile",
                 "storage_status",
             ):
                 self.app.logger.debug(
@@ -472,13 +472,13 @@ class S2FlaskWSServerSync:
                     if getattr(device_data, attr, None) is not None
                     else f"❌ {attr}? Hold on.."
                 )
-            
+
             # Debug log actuator statuses
             if device_data.system_description and device_data.system_description.actuators:
                 required_actuators = {str(a.id) for a in device_data.system_description.actuators}
                 received_actuators = set(device_data.actuator_statuses.keys())
                 missing_actuators = required_actuators - received_actuators
-                
+
                 if missing_actuators:
                     self.app.logger.debug(f"❌ actuator_status? Hold on.. Missing: {missing_actuators}")
                 else:
