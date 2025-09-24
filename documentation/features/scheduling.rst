@@ -168,7 +168,6 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 
 We describe the respective flex models below.
 These fields can be set or edited through the flexmodel edit modal in the asseet properties page be sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
-We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
 
 
 Storage
