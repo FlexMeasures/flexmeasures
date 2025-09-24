@@ -404,8 +404,7 @@ class S2FlaskWSServerSync:
 
         # Get resource_id from websocket mapping
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
-        if resource_id not in self._device_data:
-            self._device_data[resource_id] = FRBCDeviceData()
+        self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].system_description = message
         self._check_and_generate_instructions(resource_id, websocket)
@@ -420,8 +419,7 @@ class S2FlaskWSServerSync:
         )
 
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
-        if resource_id not in self._device_data:
-            self._device_data[resource_id] = FRBCDeviceData()
+        self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].fill_level_target_profile = message
         self._check_and_generate_instructions(resource_id, websocket)
@@ -434,8 +432,7 @@ class S2FlaskWSServerSync:
         self.app.logger.info("Received FRBCStorageStatus: %s", message.to_json())
 
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
-        if resource_id not in self._device_data:
-            self._device_data[resource_id] = FRBCDeviceData()
+        self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].storage_status = message
         self._check_and_generate_instructions(resource_id, websocket)
@@ -448,12 +445,15 @@ class S2FlaskWSServerSync:
         self.app.logger.info("Received FRBCActuatorStatus: %s", message.to_json())
 
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
-        if resource_id not in self._device_data:
-            self._device_data[resource_id] = FRBCDeviceData()
+        self.ensure_resource_is_registered(resource_id=resource_id)
 
         # Store actuator status by actuator_id to support multiple actuators
         self._device_data[resource_id].actuator_statuses[str(message.actuator_id)] = message
         self._check_and_generate_instructions(resource_id, websocket)
+
+    def ensure_resource_is_registered(self, resource_id: str):
+        if resource_id not in self._device_data:
+            self._device_data[resource_id] = FRBCDeviceData()
 
     def _check_and_generate_instructions(  # noqa: C901
         self, resource_id: str, websocket: Sock
