@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v0.29.0 | October XX, 2024
 =================================
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
+* The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period.
 
 since v0.28.0 | September 10, 2025
 =================================
