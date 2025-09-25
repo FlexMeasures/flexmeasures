@@ -385,9 +385,10 @@ def delete_unchanged_beliefs(
             abort(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
         q = q.filter_by(sensor_id=sensor.id)
     if start:
-        q = q.filter(TimedBelief.event_start >= start.isoformat())
+        q = q.filter(TimedBelief.event_start >= start)
     if end:
-        q = q.filter(TimedBelief.event_start < end.isoformat())
+        q = q.join(Sensor, TimedBelief.sensor_id == Sensor.id)
+        q = q.filter(TimedBelief.event_start + Sensor.event_resolution <= end)
     num_beliefs_before = db.session.scalar(select(func.count()).select_from(q))
     unchanged_queries = []
     num_forecasts_up_for_deletion = 0
