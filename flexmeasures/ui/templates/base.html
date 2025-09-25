@@ -371,6 +371,8 @@
             return responseData.data.map(belief => {
                 const sensor = responseData.sensors[belief.sid] || {};
                 const source = responseData.sources[belief.src] || {};
+
+                // Special case: for sensors with seconds unit, convert to datetime here
                 const value = (sensor.unit === 's' && typeof belief.val === 'number') ? new Date(belief.val * 1000) : belief.val;
                 return {
                     // Map shortened field names back to original names
