@@ -388,7 +388,7 @@ def delete_unchanged_beliefs(
         q = q.filter(TimedBelief.event_start >= start)
     if end:
         q = q.join(Sensor, TimedBelief.sensor_id == Sensor.id)
-        q = q.filter(TimedBelief.event_start + Sensor.event_resolution <= end)
+        q = q.filter(TimedBelief.event_start <= end - Sensor.event_resolution)
     num_beliefs_before = db.session.scalar(select(func.count()).select_from(q))
     unchanged_queries = []
     num_forecasts_up_for_deletion = 0
