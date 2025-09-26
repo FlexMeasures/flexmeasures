@@ -60,6 +60,10 @@ class UserAPIQuerySchema(BaseKwargsSchema):
     include_inactive = fields.Bool(load_default=False)
 
 
+class UserId(Schema):
+    user = UserIdField(required=False, data_key="id")
+
+
 class UserAPI(FlaskView):
     route_base = "/users"
     trailing_slash = False
@@ -302,7 +306,7 @@ class UserAPI(FlaskView):
         return user_schema.dump(created_user), 201
 
     @route("/<id>")
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs(UserId, location="path")
     @permission_required_for_context("read", ctx_arg_name="user")
     @as_json
     def get(self, id: int, user: UserModel):
@@ -318,6 +322,7 @@ class UserAPI(FlaskView):
           parameters:
             - in: path
               name: id
+              schema: UserId
               description: ID of the user to get.
               required: true
           responses:
@@ -353,7 +358,7 @@ class UserAPI(FlaskView):
 
     @route("/<id>", methods=["PATCH"])
     @use_kwargs(partial_user_schema)
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs(UserId, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def patch(self, id: int, user: UserModel, **user_data):  # noqa C901
@@ -376,7 +381,9 @@ class UserAPI(FlaskView):
           parameters:
             - in: path
               name: id
+              required: true
               description: ID of the user to update.
+              schema: UserId
           requestBody:
             content:
               application/json:
@@ -471,7 +478,7 @@ class UserAPI(FlaskView):
         return user_schema.dump(user), 200
 
     @route("/<id>/password-reset", methods=["PATCH"])
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs(UserId, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def reset_user_password(self, id: int, user: UserModel):
@@ -489,8 +496,8 @@ class UserAPI(FlaskView):
           parameters:
             - in: path
               name: id
-              schema:
-                type: int
+              required: true
+              schema: UserId
               description: ID of the user to reset the password for.
           responses:
             200:
@@ -511,7 +518,7 @@ class UserAPI(FlaskView):
         db.session.commit()
 
     @route("/<id>/auditlog")
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs(UserId, location="path")
     @permission_required_for_context(
         "read",
         ctx_arg_name="user",
@@ -561,6 +568,8 @@ class UserAPI(FlaskView):
           parameters:
             - in: path
               name: id
+              required: true
+              schema: UserId
               description: ID of the user to get the audit log for.
             - in: query
               name: kwargs
