@@ -11,9 +11,8 @@ from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError, Schema
+from marshmallow import fields, ValidationError
 import marshmallow.validate as validate
-from marshmallow.validate import OneOf
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
@@ -27,6 +26,7 @@ from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
     get_sensor_stats,
 )
+from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -40,7 +40,8 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
 )
-from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
@@ -59,7 +60,6 @@ from flexmeasures.auth.policy import check_access
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
-    SensorIdField,
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import naturalized_datetime_str
@@ -85,210 +85,14 @@ def get_accessible_accounts() -> list[Account]:
     return accounts
 
 
-class StorageFlexModelOpenAPISchema(Schema):
-    """StorageFlexModelSchema adapted for OpenAPI documentation."""
-
-    soc_at_start = fields.Float(
-        required=False,
-        data_key="soc-at-start",
-    )
-
-    soc_min = fields.Float(
-        validate=validate.Range(
-            min=0
-        ),  # change to min=ur.Quantity("0 MWh") in case return_magnitude=False
-        data_key="soc-min",
-    )
-    soc_max = fields.Float(
-        data_key="soc-max",
-    )
-
-    power_capacity_in_mw = fields.Float(required=False, data_key="power-capacity")
-
-    consumption_capacity = fields.Float(required=False, data_key="consumption-capacity")
-    production_capacity = fields.Float(required=False, data_key="production-capacity")
-
-    # Activation prices
-    prefer_curtailing_later = fields.Bool(
-        data_key="prefer-curtailing-later", load_default=True
-    )
-    prefer_charging_sooner = fields.Bool(
-        data_key="prefer-charging-sooner", load_default=True
-    )
-
-    # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
-    soc_maxima = fields.Float(
-        data_key="soc-maxima",
-    )
-
-    soc_minima = fields.Float(
-        data_key="soc-minima",
-        validate=validate.Range(min=0),
-    )
-
-    soc_targets = fields.Float(
-        data_key="soc-targets",
-    )
-
-    soc_unit = fields.Str(
-        validate=OneOf(
-            [
-                "kWh",
-                "MWh",
-            ]
-        ),
-        data_key="soc-unit",
-        required=False,
-    )
-
-    state_of_charge = fields.Float(
-        data_key="state-of-charge",
-        required=False,
-    )
-
-    charging_efficiency = fields.Float(data_key="charging-efficiency", required=False)
-    discharging_efficiency = fields.Float(
-        data_key="discharging-efficiency", required=False
-    )
-
-    roundtrip_efficiency = fields.Float(data_key="roundtrip-efficiency", required=False)
-
-    storage_efficiency = fields.Float(data_key="storage-efficiency")
-
-    soc_gain = fields.List(
-        fields.Float(),
-        data_key="soc-gain",
-        required=False,
-        validate=validate.Length(min=1),
-    )
-    soc_usage = fields.List(
-        fields.Float(),
-        data_key="soc-usage",
-        required=False,
-        validate=validate.Length(min=1),
-    )
-
-
-class FlexContextOpenAPISchema(Schema):
-    """FlexContextSchema adapted for OpenAPI documentation."""
-
-    # Device commitments
-    consumption_breach_price = fields.Float(
-        data_key="consumption-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-    )
-    production_breach_price = fields.Float(
-        data_key="production-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-    )
-    soc_minima_breach_price = fields.Float(
-        data_key="soc-minima-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-    )
-    soc_maxima_breach_price = fields.Float(
-        data_key="soc-maxima-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-    )
-    relax_constraints = fields.Bool(data_key="relax-constraints", load_default=False)
-    # Dev fields
-    relax_soc_constraints = fields.Bool(
-        data_key="relax-soc-constraints", load_default=False
-    )
-    relax_capacity_constraints = fields.Bool(
-        data_key="relax-capacity-constraints", load_default=False
-    )
-    relax_site_capacity_constraints = fields.Bool(
-        data_key="relax-site-capacity-constraints", load_default=False
-    )
-
-    # Energy commitments
-    ems_power_capacity_in_mw = fields.Float(
-        data_key="site-power-capacity",
-        required=False,
-        value_validator=validate.Range(min=0),
-    )
-    # todo: deprecated since flexmeasures==0.23
-    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
-    production_price_sensor = SensorIdField(data_key="production-price-sensor")
-    consumption_price = fields.Float(
-        data_key="consumption-price",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-    production_price = fields.Float(
-        data_key="production-price",
-        required=False,
-    )
-
-    # Capacity breach commitments
-    ems_production_capacity_in_mw = fields.Float(
-        data_key="site-production-capacity",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-    ems_consumption_capacity_in_mw = fields.Float(
-        data_key="site-consumption-capacity",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-    ems_consumption_breach_price = fields.Float(
-        data_key="site-consumption-breach-price",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-    ems_production_breach_price = fields.Float(
-        data_key="site-production-breach-price",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-
-    # Peak consumption commitment
-    ems_peak_consumption_in_mw = fields.Float(
-        data_key="site-peak-consumption",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-    ems_peak_consumption_price = fields.Float(
-        data_key="site-peak-consumption-price",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-
-    # Peak production commitment
-    ems_peak_production_in_mw = fields.Float(
-        data_key="site-peak-production",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-    ems_peak_production_price = fields.Float(
-        data_key="site-peak-production-price",
-        required=False,
-        validate=validate.Range(min=0),
-    )
-    # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
-
-    inflexible_device_sensors = fields.List(
-        SensorIdField(), data_key="inflexible-device-sensors"
-    )
+# Create FlexContext, FlexModel and AssetTrigger OpenAPI compatible schemas
+StorageFlexModelOpenAPISchema = make_openapi_compatible(StorageFlexModelSchema)
+FlexContextOpenAPISchema = make_openapi_compatible(FlexContextSchema)
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
-    """OpenAPI-specific version of AssetTriggerSchema with properly nested flex schemas."""
-
-    asset = fields.Integer(data_key="id")
-    start_of_schedule = fields.DateTime(data_key="start", format="iso", required=True)
-    belief_time = fields.DateTime(format="iso", data_key="prior")
-    duration = fields.DateTime()
-    flex_model = fields.List(
-        fields.Nested(StorageFlexModelOpenAPISchema()),
-        data_key="flex-model",
-    )
-    flex_context = fields.Nested(FlexContextOpenAPISchema(), data_key="flex-context")
-    sequential = fields.Bool(load_default=False)
+    flex_context = fields.Nested(FlexContextOpenAPISchema, required=True)
+    flex_model = fields.Nested(StorageFlexModelOpenAPISchema, required=True)
 
 
 class AssetTypesAPI(FlaskView):
@@ -1195,7 +999,8 @@ class AssetAPI(FlaskView):
           requestBody:
               content:
                   application/json:
-                    schema: AssetTriggerOpenAPISchema
+                    schema:
+                      $ref: "#/components/schemas/AssetTriggerOpenAPISchema"
                     examples:
                       storage_asset:
                         description: |

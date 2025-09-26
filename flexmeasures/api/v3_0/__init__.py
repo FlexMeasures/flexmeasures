@@ -20,6 +20,11 @@ from flexmeasures.api.v3_0.assets import AssetAPI, AssetTypesAPI
 from flexmeasures.api.v3_0.health import HealthAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
+from flexmeasures.api.v3_0.assets import (
+    AssetTriggerOpenAPISchema,
+    StorageFlexModelOpenAPISchema,
+    FlexContextOpenAPISchema,
+)
 
 
 def register_at(app: Flask):
@@ -53,6 +58,15 @@ def create_openapi_specs(app: Flask):
         "name": "Authorization",
     }  # TODO: should we stop making this configurable?
     spec.components.security_scheme("ApiKeyAuth", api_key_scheme)
+
+    # Register OpenAPI-compatible schemas
+    spec.components.schema(
+        "AssetTriggerOpenAPISchema", schema=AssetTriggerOpenAPISchema
+    )
+    spec.components.schema(
+        "StorageFlexModelOpenAPISchema", schema=StorageFlexModelOpenAPISchema
+    )
+    spec.components.schema("FlexContextOpenAPISchema", schema=FlexContextOpenAPISchema)
 
     with app.test_request_context():
         documented_endpoints_counter = 0
