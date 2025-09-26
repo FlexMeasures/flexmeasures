@@ -421,9 +421,6 @@
                 const errorMessage = errorData?.message || errorData?.error || response.statusText;
                 showToast(`Failed to update the flex context: ${errorMessage}`, "error");
             } else {
-                setFlexContext(data);
-                renderSelectInfoCards();
-                localStorage.removeItem('activeCard');
                 showToast("Flex context updated successfully", "success");
             }
         }
@@ -608,7 +605,9 @@
             closeIcon.setAttribute('data-bs-placement', 'top');
             closeIcon.setAttribute('title', 'Remove');
             closeIcon.style.cursor = 'pointer';
-            closeIcon.onclick = () => {
+            closeIcon.onclick = (event) => {
+                event.stopPropagation(); // prevent click from reaching the card
+
                 assetFlexContext[fieldName] = null;
                 card.remove();
                 if (activeCard() && activeCard().id === card.id) {
@@ -739,6 +738,8 @@
                     assetFlexContext[flexId] = { sensor: sensorId };
                 }
             }
+
+            localStorage.setItem('activeCard',flexId);
 
             highlightedCard = await renderFlexContextCard(flexId);
             flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
@@ -1032,6 +1033,8 @@
         flexContexFormModal.addEventListener('hidden.bs.modal', function () {
             updateFlexContext();
             localStorage.removeItem('activeCard');
+            flexOptionsContainer.innerHTML = "";
+            handleFlexSelectChange(null);
         });
 
         flexSelect.addEventListener('change', (event) => {
