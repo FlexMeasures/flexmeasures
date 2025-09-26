@@ -10,6 +10,7 @@ v0.29.0 | October XX, 2025
 
 New features
 -------------
+* Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
 
 Infrastructure / Support
 ----------------------
