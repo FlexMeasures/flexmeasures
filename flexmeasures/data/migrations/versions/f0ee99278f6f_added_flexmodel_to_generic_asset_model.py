@@ -180,8 +180,9 @@ def downgrade():
                 except NonDowngradableValueError:
                     continue
 
-            # Back up the remaining flex-model data as the flex-model attribute
-            asset_attrs["flex-model"] = flex_model_data
+            # Back up the remaining flex-model data as the flex-model attribute (if not empty)
+            if flex_model_data:
+                asset_attrs["flex-model"] = flex_model_data
 
             # Update the generic asset attributes
             stmt = (
