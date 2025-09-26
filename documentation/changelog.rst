@@ -15,6 +15,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
+* Upgraded Docker Image to Python 3.12 and Ubuntu 24 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
 
 Bugfixes
