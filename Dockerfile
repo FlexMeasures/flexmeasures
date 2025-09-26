@@ -1,4 +1,4 @@
-FROM amd64/ubuntu:22.04
+FROM amd64/ubuntu:24.04
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
