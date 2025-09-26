@@ -100,7 +100,7 @@ def upgrade():
             # Pop all the relevant fields from the sensor's attributes
             for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
                 if (
-                    old_value := asset.attributes.pop(old_field_name, None)
+                    old_value := sensor.attributes.pop(old_field_name, None)
                 ) is not None:
                     new_value = upgrade_value(old_field_name, old_value, sensor=sensor)
                     if new_field_name not in asset.flex_model:
