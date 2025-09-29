@@ -1179,6 +1179,49 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
+    # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
+    tb_utils.replace_deprecated_argument(
+        "optimization-context-id",
+        optimization_context_sensor,
+        "consumption-price-sensor",
+        consumption_price_sensor,
+        required_argument=False,
+    )
+
+    # Parse input and required sensor attributes
+    if not power_sensor.measures_power:
+        click.secho(
+            f"Sensor with ID {power_sensor.id} is not a power sensor.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if production_price_sensor is None and consumption_price_sensor is not None:
+        production_price_sensor = consumption_price_sensor
+    end = start + duration
+
+    # Convert SoC units (we ask for % in this CLI) to MWh, given the storage capacity
+    try:
+        check_required_attributes(power_sensor, [("soc-max", str)])
+    except MissingAttributeException:
+        click.secho(
+            f"Asset {power_sensor.generic_asset} has no soc-max flex-model field.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    capacity_str = power_sensor.get_attribute("soc-max")
+    soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
+    soc_targets = []
+    for soc_target_tuple in soc_target_strings:
+        soc_target_value_str, soc_target_datetime_str = soc_target_tuple
+        soc_target_value = convert_units(
+            soc_target_value_str.magnitude,
+            str(soc_target_value_str.units),
+            "MWh",
+            capacity=capacity_str,
+        )
+        soc_targets.append(
+            dict(value=soc_target_value, datetime=soc_target_datetime_str)
+        )
 
     scheduler_module = None
 
