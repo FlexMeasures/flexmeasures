@@ -25,6 +25,7 @@ from flexmeasures.api.v3_0.assets import (
     StorageFlexModelOpenAPISchema,
     FlexContextOpenAPISchema,
 )
+from flexmeasures.api.v3_0.users import UserAPIQuerySchema
 
 
 def register_at(app: Flask):
@@ -67,6 +68,7 @@ def create_openapi_specs(app: Flask):
         "StorageFlexModelOpenAPISchema", schema=StorageFlexModelOpenAPISchema
     )
     spec.components.schema("FlexContextOpenAPISchema", schema=FlexContextOpenAPISchema)
+    spec.components.schema("UserAPIQuerySchema", schema=UserAPIQuerySchema)
 
     with app.test_request_context():
         documented_endpoints_counter = 0

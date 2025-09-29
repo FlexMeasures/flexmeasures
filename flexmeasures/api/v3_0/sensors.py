@@ -69,8 +69,8 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 
 class SensorKwargsSchema(Schema):
-    account_id = AccountIdField(required=False)
-    asset_id = AssetIdField(required=False)
+    account = AccountIdField(data_key="account_id", required=False)
+    asset = AssetIdField(data_key="asset_id", required=False)
     include_consultancy_clients = fields.Boolean(required=False, load_default=False)
     include_public_assets = fields.Boolean(required=False, load_default=False)
     page = fields.Int(required=False, validate=validate.Range(min=1))
@@ -81,29 +81,24 @@ class SensorKwargsSchema(Schema):
     unit = UnitField(required=False)
 
 
+class TriggerScheduleKwargsSchema(Schema):
+    start_of_schedule = AwareDateTimeField(
+        data_key="start", format="iso", required=True
+    )
+    belief_time = AwareDateTimeField(format="iso", data_key="prior")
+    duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
+    flex_model = fields.Dict(data_key="flex-model")
+    flex_context = fields.Dict(required=False, data_key="flex-context")
+    force_new_job_creation = fields.Boolean(required=False)
+
+
 class SensorAPI(FlaskView):
     route_base = "/sensors"
     trailing_slash = False
     decorators = [auth_required()]
 
     @route("", methods=["GET"])
-    @use_kwargs(
-        {
-            "account": AccountIdField(data_key="account_id", required=False),
-            "asset": AssetIdField(data_key="asset_id", required=False),
-            "include_consultancy_clients": fields.Boolean(
-                required=False, load_default=False
-            ),
-            "include_public_assets": fields.Boolean(required=False, load_default=False),
-            "page": fields.Int(required=False, validate=validate.Range(min=1)),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=10
-            ),
-            "filter": SearchFilterField(required=False),
-            "unit": UnitField(required=False),
-        },
-        location="query",
-    )
+    @use_kwargs(SensorKwargsSchema, location="query")
     @as_json
     def index(
         self,
@@ -529,21 +524,7 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
-    @use_kwargs(
-        {
-            "start_of_schedule": AwareDateTimeField(
-                data_key="start", format="iso", required=True
-            ),
-            "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
-            "duration": PlanningDurationField(
-                load_default=PlanningDurationField.load_default
-            ),
-            "flex_model": fields.Dict(data_key="flex-model"),
-            "flex_context": fields.Dict(required=False, data_key="flex-context"),
-            "force_new_job_creation": fields.Boolean(required=False),
-        },
-        location="json",
-    )
+    @use_kwargs(TriggerScheduleKwargsSchema, location="json")
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def trigger_schedule(
         self,
@@ -587,12 +568,17 @@ class SensorAPI(FlaskView):
             If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)
           security:
             - ApiKeyAuth: []
+          parameters:
+            - name: sensor
+              in: path
+              required: true
+              schema:
+                type: int
           requestBody:
             required: true
             content:
               application/json:
-                schema:
-                  type: object
+                schema: TriggerScheduleKwargsSchema
                 examples:
                   simple_schedule:
                     summary: Simple storage schedule

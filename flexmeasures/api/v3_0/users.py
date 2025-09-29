@@ -1,7 +1,6 @@
 from __future__ import annotations
 from flask_classful import FlaskView, route
 from marshmallow import fields, Schema
-import marshmallow.validate as validate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, select, func, or_
 from flask_sqlalchemy.pagination import SelectPagination
@@ -15,7 +14,7 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
-from flexmeasures.api.common.schemas.search import SearchFilterField
+from flexmeasures.api.common.schemas.generic_schemas import UserPaginationSchema
 from flexmeasures.api.v3_0.assets import get_accessible_accounts
 from flexmeasures.data.queries.users import query_users_by_search_terms
 from flexmeasures.data.schemas.account import AccountSchema
@@ -42,21 +41,8 @@ partial_user_schema = UserSchema(partial=True)
 account_schema = AccountSchema()
 
 
-class BaseKwargsSchema(Schema):
-    page = fields.Int(required=False, validate=validate.Range(min=1))
-    per_page = fields.Int(
-        required=False, validate=validate.Range(min=1), load_default=1
-    )
-    filter = SearchFilterField(required=False)
-    sort_by = fields.Str(
-        required=False,
-        validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
-    )
-    sort_dir = fields.Str(required=False, validate=validate.OneOf(["asc", "desc"]))
-
-
-class UserAPIQuerySchema(BaseKwargsSchema):
-    account = AccountIdField()
+class UserAPIQuerySchema(UserPaginationSchema):
+    account = AccountIdField(data_key="account_id", required=True)
     include_inactive = fields.Bool(load_default=False)
 
 
@@ -70,26 +56,7 @@ class UserAPI(FlaskView):
     decorators = [auth_required()]
 
     @route("", methods=["GET"])
-    @use_kwargs(
-        {
-            "account": AccountIdField(data_key="account_id", load_default=None),
-            "include_inactive": fields.Bool(load_default=False),
-            "page": fields.Int(required=False, validate=validate.Range(min=1)),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=1
-            ),
-            "filter": SearchFilterField(required=False),
-            "sort_by": fields.Str(
-                required=False,
-                validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
-            ),
-            "sort_dir": fields.Str(
-                required=False,
-                validate=validate.OneOf(["asc", "desc"]),
-            ),
-        },
-        location="query",
-    )
+    @use_kwargs(UserAPIQuerySchema, location="query")
     @as_json
     def index(
         self,
@@ -133,10 +100,20 @@ class UserAPI(FlaskView):
                         - active: true
                           email: test_prosumer@seita.nl
                           account_id: 13
+                          account:
+                            account_roles: []
+                            consultancy_account_id: null
+                            id: 29
+                            logo_url: null
+                            name: AutoZoomAccount
+                            primary_color: null
+                            secondary_color: null
                           flexmeasures_roles: [1, 3]
                           id: 1
                           timezone: Europe/Amsterdam
                           username: Test Prosumer User
+                          last_login_at: "2022-05-09T10:47:13.410321"
+                          last_seen_at: "2022-05-09T10:47:13.410321"
             400:
               description: INVALID_REQUEST
             401:
@@ -343,6 +320,8 @@ class UserAPI(FlaskView):
                           id: 1
                           timezone: Europe/Amsterdam
                           username: Test Prosumer User
+                          last_login_at: "2022-05-09T10:47:13.410321"
+                          last_seen_at: "2022-05-09T10:47:13.410321"
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -410,6 +389,8 @@ class UserAPI(FlaskView):
                           id: 1
                           timezone: Europe/Amsterdam
                           username: Test Prosumer User
+                          last_login_at: "2022-05-09T10:47:13.410321"
+                          last_seen_at: "2022-05-09T10:47:13.410321"
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -525,24 +506,7 @@ class UserAPI(FlaskView):
         pass_ctx_to_loader=True,
         ctx_loader=AuditLog.user_table_acl,
     )
-    @use_kwargs(
-        {
-            "page": fields.Int(required=False, validate=validate.Range(min=1)),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=10
-            ),
-            "filter": SearchFilterField(required=False),
-            "sort_by": fields.Str(
-                required=False,
-                validate=validate.OneOf(["event_datetime"]),
-            ),
-            "sort_dir": fields.Str(
-                required=False,
-                validate=validate.OneOf(["asc", "desc"]),
-            ),
-        },
-        location="query",
-    )
+    @use_kwargs(UserPaginationSchema, location="query")
     @as_json
     def auditlog(
         self,
@@ -573,7 +537,7 @@ class UserAPI(FlaskView):
               description: ID of the user to get the audit log for.
             - in: query
               name: kwargs
-              schema: BaseKwargsSchema
+              schema: UserPaginationSchema
           security:
             - ApiKeyAuth: []
           responses:
