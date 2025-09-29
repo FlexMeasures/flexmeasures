@@ -1,6 +1,6 @@
 import pytest
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from pytz import utc
 
@@ -134,33 +134,52 @@ def test_reporter_empty(setup_dummy_data):
     s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
 
     config = dict(
-        required_input=[{"name": "sensor_1"}],
-        required_output=[{"name": "sensor_1"}],
-        transformations=[],
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "sensor_r"}],
+        transformations=[
+            {
+                "df_input": "sensor_1",
+                "method": "add",
+                "args": ["@sensor_2"],
+                "df_output": "sensor_r",
+            }
+        ],
     )
 
     reporter = PandasReporter(config=config)
 
+    def compute_period(
+        start: datetime, duration: timedelta = timedelta(hours=10)
+    ) -> list[dict]:
+        return reporter.compute(
+            start=start,
+            end=start + duration,
+            input=[
+                dict(name="sensor_1", sensor=s1),
+                dict(name="sensor_2", sensor=s2),
+            ],
+            output=[dict(name="sensor_r", sensor=report_sensor)],
+        )
+
     # compute report on available data
-    report = reporter.compute(
-        start=datetime(2023, 4, 10, tzinfo=utc),
-        end=datetime(2023, 4, 10, 10, tzinfo=utc),
-        input=[dict(name="sensor_1", sensor=s1)],
-        output=[dict(name="sensor_1", sensor=report_sensor)],
-    )
+    report = compute_period(start=datetime(2023, 4, 10, tzinfo=utc))
+    assert not report[0]["data"].empty, "expected some output, given non-empty input"
 
-    assert not report[0]["data"].empty
+    # compute report on date with no data available
+    report = compute_period(start=datetime(2021, 4, 10, tzinfo=utc))
+    assert report[0]["data"].empty, "expected empty output, given empty input"
 
-    # compute report on dates with no data available
-    report = reporter.compute(
-        sensor=report_sensor,
-        start=datetime(2021, 4, 10, tzinfo=utc),
-        end=datetime(2021, 4, 10, 10, tzinfo=utc),
-        input=[dict(name="sensor_1", sensor=s1)],
-        output=[dict(name="sensor_1", sensor=report_sensor)],
-    )
+    # compute report on date with partial data available (sensor_1 yes, sensor_2 no)
+    report = compute_period(start=datetime(2023, 5, 11, tzinfo=utc))
+    assert (
+        not report[0]["data"].empty and report[0]["data"].isna().all().all()
+    ), "expected NaN values"
 
-    assert report[0]["data"].empty
+    config["transformations"][0]["skip_if_empty"] = True
+    # recompute report on date with partial data available (sensor_1 yes, sensor_2 no)
+    reporter = PandasReporter(config=config)
+    report = compute_period(start=datetime(2023, 5, 11, tzinfo=utc))
+    assert not report[0]["data"].empty, "expected sensor_1 values"
 
 
 def test_pandas_reporter_unit_conversion(app, setup_dummy_data):

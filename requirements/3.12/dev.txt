@@ -29,7 +29,7 @@ flake8==7.1.1
     # via -r requirements/dev.in
 flake8-blind-except==0.2.1
     # via -r requirements/dev.in
-identify==2.6.13
+identify==2.6.14
     # via pre-commit
 mccabe==0.7.0
     # via flake8
@@ -53,7 +53,7 @@ pathspec==0.12.1
     # via
     #   black
     #   mypy
-platformdirs==4.3.8
+platformdirs==4.4.0
     # via
     #   -c requirements/3.12/app.txt
     #   black
@@ -76,7 +76,7 @@ pyyaml==6.0.2
     #   pre-commit
 setuptools-scm==8.0.4
     # via -r requirements/dev.in
-typing-extensions==4.14.1
+typing-extensions==4.15.0
     # via
     #   -c requirements/3.12/app.txt
     #   mypy

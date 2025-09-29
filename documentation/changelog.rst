@@ -10,12 +10,27 @@ v0.29.0 | October XX, 2025
 
 New features
 -------------
+* Added a UI editor (form modal) to edit an asset's flex-model [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_ and `PR #1565 <https://github.com/FlexMeasures/flexmeasures/pull/1565>`_]
+* Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
 
 Infrastructure / Support
 ----------------------
+* Migrate data for the ``flex-model`` of an asset to a dedicated column in the database table for assets [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_]
+* Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
+* Upgraded Docker Image Ubuntu 24, which uses Python 3.12 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
+* Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
 
 Bugfixes
 -----------
+
+
+v0.28.1 | September 18, 2025
+============================
+
+Bugfixes
+-----------
+* Fix schema validation in ``PATCH /assets/(id)`` [see `PR #1711 <https://www.github.com/FlexMeasures/flexmeasures/pull/1711>`_]
+* Fixed example values for peak pricing and improved error message for incompatible price units set in the ``flex-context`` [see `PR #1710 <https://github.com/FlexMeasures/flexmeasures/pull/1710>`_]
 
 
 v0.28.0 | September 10, 2025
@@ -219,7 +234,7 @@ v0.25.0 | April 01, 2025
 
 New features
 -------------
-* Added form modal to edit an asset's ``flex_context`` [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_, `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_ and `PR #1364 <https://github.com/FlexMeasures/flexmeasures/pull/1364>`_]
+* Added a UI editor (form modal) to edit an asset's flex-context [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_, `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_ and `PR #1364 <https://github.com/FlexMeasures/flexmeasures/pull/1364>`_]
 * Improve asset status page - distinguish better by data source type [see `PR #1022 <https://github.com/FlexMeasures/flexmeasures/pull/1022/>`_]
 * Better y-axis titles for charts that show multiple sensors with a shared unit [see `PR #1346 <https://github.com/FlexMeasures/flexmeasures/pull/1346>`_]
 * Add CLI command ``flexmeasures jobs save-last-failed`` (since v0.26: ``flexmeasures jobs save-last``) for saving the last failed jobs [see `PR #1342 <https://www.github.com/FlexMeasures/flexmeasures/pull/1342>`_ and `PR #1359 <https://github.com/FlexMeasures/flexmeasures/pull/1359>`_]

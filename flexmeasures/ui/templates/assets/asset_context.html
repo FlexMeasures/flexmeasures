@@ -117,7 +117,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title pe-2">Edit Asset's FlexContext</h5>
+                    <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-context</h5>
 
                     <div class="dropdown" data-bs-auto-close="outside">
                         <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
@@ -481,7 +481,6 @@
         let isSensorValue = false;
         const sensorsContent = [];
 
-
         if (fieldValue === null) {
             newFieldValue = ""
         } else if (typeof fieldValue === "object") {
@@ -529,7 +528,6 @@
                 return item;
             });
             sensorsContent.push(...await Promise.all(sensorPromises));
-
         }
 
         const card = document.createElement("div");
@@ -872,13 +870,11 @@
             col4.appendChild(select);
             // Units select - END
 
-
-            row.appendChild(col8);
+          row.appendChild(col8);
             row.appendChild(col4);
             group.appendChild(row);
             return group;
         }
-
 
         // Create the main tab-content wrapper
         const tabContent = document.createElement("div");

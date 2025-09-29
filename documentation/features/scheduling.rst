@@ -111,14 +111,14 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
      - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
        Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-peak-consumption-price``
-     - ``"260 EUR/MWh"``
+     - ``"260 EUR/MW"``
      - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
    * - ``site-peak-production``
      - ``{"sensor": 8}``
      - Current peak production.
        Costs from peaks below it are considered sunk costs. Default to 0 kW.
    * - ``site-peak-production-price``
-     - ``"260 EUR/MWh"``
+     - ``"260 EUR/MW"``
      - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
    * - ``soc-minima-breach-price``
      - ``"120 EUR/kWh"``
@@ -167,7 +167,8 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 
 
 We describe the respective flex models below.
-These fields can be set or edited through the flexmodel edit modal in the asseet properties page be sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
+
+These fields can be configured in the UI editor on the asset properties page or sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
 
 
 Storage
