@@ -3,27 +3,63 @@
 FlexMeasures Changelog
 **********************
 
-v0.28.0 | September XX, 2025
+
+v0.29.0 | October XX, 2025
 ============================
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
+New features
+-------------
+* Added a UI editor (form modal) to edit an asset's flex-model [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_ and `PR #1565 <https://github.com/FlexMeasures/flexmeasures/pull/1565>`_]
+* Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
+
+Infrastructure / Support
+----------------------
+* Migrate data for the ``flex-model`` of an asset to a dedicated column in the database table for assets [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_]
+* Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
+* Upgraded Docker Image Ubuntu 24, which uses Python 3.12 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
+* Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
+
+Bugfixes
+-----------
+
+
+v0.28.1 | September 18, 2025
+============================
+
+Bugfixes
+-----------
+* Fix schema validation in ``PATCH /assets/(id)`` [see `PR #1711 <https://www.github.com/FlexMeasures/flexmeasures/pull/1711>`_]
+* Fixed example values for peak pricing and improved error message for incompatible price units set in the ``flex-context`` [see `PR #1710 <https://github.com/FlexMeasures/flexmeasures/pull/1710>`_]
+
+
+v0.28.0 | September 10, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v028-daily-kpis/>`_.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+             This upgrade may take a few minutes, depending on how much time series data you have in your database (the data will be reindexed).
 
 New features
 -------------
 
 * Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_, `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_ and `PR #1656 <https://github.com/FlexMeasures/flexmeasures/pull/1656>`_]
+* Ability to add users via API (POST /users) and in the UI (from an account page) [See `PR #1678 <https://github.com/FlexMeasures/flexmeasures/pull/1678>`_]
 * Improved timestamp on sensor detail page to be more friendly [see `PR #1632 <https://www.github.com/FlexMeasures/flexmeasures/pull/1632>`_]
 * Asset types support: new API endpoint (`GET /assets/types`), better docs and fix CLI command `flexmeasures show asset-types` [see `PR #1663 <https://github.com/FlexMeasures/flexmeasures/pull/1663>`_]
+* Add `--combine-legend` option to flexmeasures show chart. When used, all legends are combined and displayed at the bottom of the chart. If not used (default = False), each chart will display its own separate legend (as on the asset page) [see `PR #1696 <https://github.com/FlexMeasures/flexmeasures/pull/1696>`_]
 
 Infrastructure / Support
 ----------------------
-* Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_, `PR #1672 <https://www.github.com/FlexMeasures/flexmeasures/pull/1672>`_ and `PR #1668 <https://www.github.com/FlexMeasures/flexmeasures/pull/1668>`_]
+* Upgraded dependencies [see `PR #1616 <https://www.github.com/FlexMeasures/flexmeasures/pull/1616>`_, `PR #1672 <https://www.github.com/FlexMeasures/flexmeasures/pull/1672>`_, `PR #1668 <https://www.github.com/FlexMeasures/flexmeasures/pull/1668>`_ and `PR #1690 <https://www.github.com/FlexMeasures/flexmeasures/pull/1690>`_]
 * Removed support for Python3.8 [see `PR #1615 <https://www.github.com/FlexMeasures/flexmeasures/pull/1615>`_]
 * Better support for using ``Sensor`` objects as dictionary keys [see `PR #1650 <https://www.github.com/FlexMeasures/flexmeasures/pull/1650>`_]
 * Removed obsolete API blueprint for play mode and underlying backup file-based functionality [see `PR #1622 <https://www.github.com/FlexMeasures/flexmeasures/pull/1622>`_ and `PR #1630 <https://www.github.com/FlexMeasures/flexmeasures/pull/1630>`_]
 * Faster data loading for the UI by vectorization of dictionary representations of sources and sensors, and of epoch conversion [see `PR #1641 <https://www.github.com/FlexMeasures/flexmeasures/pull/1641>`_]
-* Compress chart data sent to the UI charts [see `PR #1645 <https://github.com/FlexMeasures/flexmeasures/pull/1645>`_]
+* Refactor: Remove clunky calls to the API from within the UI view code [see `PR #1683 <https://github.com/FlexMeasures/flexmeasures/pull/1683>`_]
+* Compress chart data sent to the UI charts [see `PR #1645 <https://github.com/FlexMeasures/flexmeasures/pull/1645>`_ and `PR #1691 <https://github.com/FlexMeasures/flexmeasures/pull/1691>`_]
+* Better representation of changes in JSON structures in audit logs [see `PR #1700 <https://www.github.com/FlexMeasures/flexmeasures/pull/1700>`_]
 
 Bugfixes
 -----------
@@ -197,7 +233,7 @@ v0.25.0 | April 01, 2025
 
 New features
 -------------
-* Added form modal to edit an asset's ``flex_context`` [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_, `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_ and `PR #1364 <https://github.com/FlexMeasures/flexmeasures/pull/1364>`_]
+* Added a UI editor (form modal) to edit an asset's flex-context [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_, `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_ and `PR #1364 <https://github.com/FlexMeasures/flexmeasures/pull/1364>`_]
 * Improve asset status page - distinguish better by data source type [see `PR #1022 <https://github.com/FlexMeasures/flexmeasures/pull/1022/>`_]
 * Better y-axis titles for charts that show multiple sensors with a shared unit [see `PR #1346 <https://github.com/FlexMeasures/flexmeasures/pull/1346>`_]
 * Add CLI command ``flexmeasures jobs save-last-failed`` (since v0.26: ``flexmeasures jobs save-last``) for saving the last failed jobs [see `PR #1342 <https://www.github.com/FlexMeasures/flexmeasures/pull/1342>`_ and `PR #1359 <https://github.com/FlexMeasures/flexmeasures/pull/1359>`_]

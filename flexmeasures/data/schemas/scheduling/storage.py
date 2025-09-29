@@ -14,7 +14,8 @@ from marshmallow import (
 )
 from marshmallow.validate import OneOf, ValidationError
 
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures import Asset, Sensor
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.sensors import VariableQuantityField
 from flexmeasures.utils.unit_utils import (
@@ -70,6 +71,8 @@ class StorageFlexModelSchema(Schema):
     Some fields are not required, as they might live on the Sensor.attributes.
     You can use StorageScheduler.deserialize_flex_config to get that filled in.
     """
+
+    asset = GenericAssetIdField(required=False)
 
     soc_at_start = QuantityField(
         required=False,
@@ -183,7 +186,7 @@ class StorageFlexModelSchema(Schema):
     def __init__(
         self,
         start: datetime,
-        sensor: Sensor,
+        sensor: Sensor | None,
         *args,
         default_soc_unit: str | None = None,
         **kwargs,
@@ -191,32 +194,35 @@ class StorageFlexModelSchema(Schema):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
+        self.timezone = sensor.timezone if sensor is not None else None
 
         # guess default soc-unit
         if default_soc_unit is None:
-            if self.sensor.unit in ("MWh", "kWh"):
+            if self.sensor is not None and self.sensor.unit in ("MWh", "kWh"):
                 default_soc_unit = self.sensor.unit
-            elif self.sensor.unit in ("MW", "kW"):
+            elif self.sensor is not None and self.sensor.unit in ("MW", "kW"):
                 default_soc_unit = self.sensor.unit + "h"
+            else:
+                default_soc_unit = "MWh"
 
         self.soc_maxima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-maxima",
         )
 
         self.soc_minima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-minima",
             value_validator=validate.Range(min=0),
         )
         self.soc_targets = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-targets",
         )
 
@@ -228,6 +234,9 @@ class StorageFlexModelSchema(Schema):
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
+        # skip check if the flex-model does not define a sensor: the StorageScheduler will not base its resolution on this flex-model
+        if self.sensor is None:
+            return
         soc_targets: list[SoCTarget] | Sensor | None = data.get("soc_targets")
         # skip check if the SOC targets are not provided or if they are defined as sensors
         if not soc_targets or isinstance(soc_targets, Sensor):
@@ -258,12 +267,18 @@ class StorageFlexModelSchema(Schema):
                 "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
 
+    @validates("asset")
+    def validate_asset(self, asset: Asset, **kwargs):
+        if self.sensor is not None and self.sensor.asset != asset:
+            raise ValidationError("Sensor does not belong to asset.")
+
     @validates("storage_efficiency")
     def validate_storage_efficiency_resolution(
         self, unit: Sensor | ur.Quantity, **kwargs
     ):
         if (
-            isinstance(unit, Sensor)
+            self.sensor is not None
+            and isinstance(unit, Sensor)
             and unit.event_resolution != self.sensor.event_resolution
         ):
             raise ValidationError(
@@ -345,6 +360,13 @@ class DBStorageFlexModelSchema(Schema):
         value_validator=validate.Range(min=0),
     )
 
+    state_of_charge = VariableQuantityField(
+        to_unit="MWh",
+        data_key="state-of-charge",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
     soc_gain = fields.List(
         VariableQuantityField("MW"),
         data_key="soc-gain",
@@ -367,13 +389,15 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "roundtrip_efficiency"},
     )
 
-    charging_efficiency = EfficiencyField(
+    charging_efficiency = VariableQuantityField(
+        "%",
         data_key="charging-efficiency",
         required=False,
         metadata={"deprecated field": "charging-efficiency"},
     )
 
-    discharging_efficiency = EfficiencyField(
+    discharging_efficiency = VariableQuantityField(
+        "%",
         data_key="discharging-efficiency",
         required=False,
         metadata={"deprecated field": "discharging-efficiency"},
@@ -464,6 +488,7 @@ class DBStorageFlexModelSchema(Schema):
             "soc_minima",
             "soc_maxima",
             "soc_targets",
+            "state_of_charge",
             "state_of_charge",
         ]
 

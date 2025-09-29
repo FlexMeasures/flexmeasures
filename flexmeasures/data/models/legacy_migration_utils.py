@@ -76,7 +76,7 @@ def upgrade_value(
     """Depending on the old field name, some values still need to be turned into string quantities."""
 
     # check if value is an int, bool, float or dict
-    if not isinstance(old_value, (int, float, dict, bool)):
+    if not isinstance(old_value, (int, float, dict, bool, str)):
         if sensor:
             raise Exception(
                 f"Invalid value for '{old_field_name}' in sensor {sensor.id}: {old_value}"
@@ -93,6 +93,8 @@ def upgrade_value(
         # convert from float (in MW) to string (in kW)
         value_in_kw = old_value * 1000
         return f"{value_in_kw} kW"
+    elif old_field_name in ("soc-gain", "soc-usage") and isinstance(old_value, str):
+        return [old_value]
     else:
         # move as is
         return old_value
@@ -103,10 +105,10 @@ def downgrade_value(old_field_name: str, new_value) -> float | str | dict:
     if isinstance(new_value, str):
         # Convert the value back to the original format
         if old_field_name[-6:] == "in_mwh" and is_energy_unit(new_value):
-            value_in_mwh = ur.Quantity(new_value).to("MWh").magnitude
+            value_in_mwh = round(ur.Quantity(new_value).to("MWh").magnitude, 6)
             return value_in_mwh
         elif old_field_name[-5:] == "in_mw" and is_power_unit(new_value):
-            value_in_mw = ur.Quantity(new_value).to("MW").magnitude
+            value_in_mw = round(ur.Quantity(new_value).to("MW").magnitude, 6)
             return value_in_mw
         else:
             # Return string quantity

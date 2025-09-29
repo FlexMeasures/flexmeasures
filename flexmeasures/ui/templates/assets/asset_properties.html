@@ -266,7 +266,7 @@
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title pe-2">Edit Asset's FlexModel</h5>
+                    <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-model</h5>
                     <div class="dropdown" data-bs-auto-close="outside">
                         <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
                             aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
@@ -409,6 +409,7 @@
             "soc-minima": null,
             "soc-maxima": null,
             "soc-targets": null,
+            "state-of-charge": null,
             "soc-gain": [],
             "soc-usage": [],
             "roundtrip-efficiency": null,
@@ -428,6 +429,7 @@
             "soc-minima": typeTwo,
             "soc-maxima": typeTwo,
             "soc-targets": typeTwo,
+            "state-of-charge": typeTwo,
             "soc-gain": typeFour,
             "soc-usage": typeFour,
             "roundtrip-efficiency": typeFive,
@@ -447,11 +449,12 @@
             "soc-minima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form lower boundaries, e.g. to target a full car battery in the morning", "types": "A sensor which records the set points as energy targets." },
             "soc-maxima": { "units": flexModelAllowedUnits.energy, "desc": "Set points that form upper boundaries at certain times.", "types": "A sensor which records the set points as energy targets." },
             "soc-targets": { "units": flexModelAllowedUnits.energy, "desc": "Exact set point(s) that the scheduler needs to realize.", "types": "A sensor which records the set points as energy targets." },
+            "state-of-charge": { "units": flexModelAllowedUnits.energy, "desc": "Sensor used to record the scheduled state of charge.", "types": "A sensor which records the state of charge." },
             "soc-gain": { "units": flexModelAllowedUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated gain.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
             "soc-usage": { "units": flexModelAllowedUnits.power, "desc": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated usage.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
-            "roundtrip-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
-            "charging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of charging, not across roundtrip. Can be percent or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
-            "discharging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip. Can be percent or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
+            "roundtrip-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be a percentage or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
+            "charging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of charging, not across roundtrip. Can be a percentage, ratio [0,1], or a coefficient of performance (>1). Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
+            "discharging-efficiency": { "units": flexModelAllowedUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip. Can be a percentage or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
             "storage-efficiency": {
                 "units": flexModelAllowedUnits.efficiency,
                 "desc": "This can encode losses over time, so each time step the energy is held longer leads to higher losses. For example 95% (or 0.95) means a loss of 5% each step. Defaults to 100% or 1.0 (no loss). Note that the storage efficiency to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent  per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865",
@@ -1326,6 +1329,16 @@
                 unit = this.value;
                 table.api().ajax.reload();
             });
+
+            flexModelModal.addEventListener('hidden.bs.modal', function () {
+                updateFlexModel();
+            });
+
+            flexSelect.addEventListener('change', (event) => {
+                const selectedKey = event.target.value;
+                renderSelectInfoCards(selectedKey);
+            });
+
         });
     </script>
 

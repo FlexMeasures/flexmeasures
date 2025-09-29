@@ -111,14 +111,14 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
      - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
        Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-peak-consumption-price``
-     - ``"260 EUR/MWh"``
+     - ``"260 EUR/MW"``
      - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
    * - ``site-peak-production``
      - ``{"sensor": 8}``
      - Current peak production.
        Costs from peaks below it are considered sunk costs. Default to 0 kW.
    * - ``site-peak-production-price``
-     - ``"260 EUR/MWh"``
+     - ``"260 EUR/MW"``
      - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
    * - ``soc-minima-breach-price``
      - ``"120 EUR/kWh"``

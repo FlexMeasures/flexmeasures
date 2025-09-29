@@ -90,7 +90,7 @@ def upgrade():
 
         # Pop all the relevant fields from the asset's attributes
         for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
-            if old_value := asset.attributes.pop(old_field_name, None) is not None:
+            if (old_value := asset.attributes.pop(old_field_name, None)) is not None:
                 asset_flex_model[new_field_name] = upgrade_value(
                     old_field_name, old_value, asset=asset
                 )
@@ -99,7 +99,9 @@ def upgrade():
 
             # Pop all the relevant fields from the sensor's attributes
             for old_field_name, new_field_name in FLEX_MODEL_FIELDS.items():
-                if old_value := sensor.attributes.pop(old_field_name, None) is not None:
+                if (
+                    old_value := sensor.attributes.pop(old_field_name, None)
+                ) is not None:
                     new_value = upgrade_value(old_field_name, old_value, sensor=sensor)
                     if new_field_name not in asset.flex_model:
                         asset_flex_model[new_field_name] = new_value
@@ -180,8 +182,9 @@ def downgrade():
                 except NonDowngradableValueError:
                     continue
 
-            # Back up the remaining flex-model data as the flex-model attribute
-            asset_attrs["flex-model"] = flex_model_data
+            # Back up the remaining flex-model data as the flex-model attribute (if not empty)
+            if flex_model_data:
+                asset_attrs["flex-model"] = flex_model_data
 
             # Update the generic asset attributes
             stmt = (

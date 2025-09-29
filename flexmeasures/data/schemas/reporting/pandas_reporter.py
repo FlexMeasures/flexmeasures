@@ -23,6 +23,7 @@ class PandasMethodCall(Schema):
     method = fields.Str(required=True)
     args = fields.List(fields.Raw())
     kwargs = fields.Dict()
+    skip_if_empty = fields.Bool()
 
     @validates_schema
     def validate_method_call(self, data, **kwargs):
