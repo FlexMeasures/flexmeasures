@@ -8,259 +8,270 @@
 
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8 card">
-                <div class="row">
-                    <div class="col-sm-9">
-                        <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 10px;">
-                            <h1>
-                                Asset: {{ asset.name }}
-                            </h1>
-                            <div class="d-flex">
-                                <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
-                                    Show sensors
-                                </button>
-                                <button class="btn btn-sm btn-primary me-2" data-bs-toggle="modal"
-                                    data-bs-target="#flexContextModal">
-                                    Edit flex-context
-                                </button>
-                            </div>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8 card">
+            <div class="row">
+                <div class="col-sm-9">
+                    <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 10px;">
+                        <h1>
+                            Asset: {{ asset.name }}
+                        </h1>
+                        <div class="d-flex">
+                            <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
+                                Show sensors
+                            </button>
+                            <button class="btn btn-sm btn-primary me-2" data-bs-toggle="modal"
+                                data-bs-target="#flexContextModal">
+                                Edit flex-context
+                            </button>
                         </div>
-                        <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
                     </div>
-                    <div class="col-sm-3">
-                        {% if can_delete %}
-                        <button type="button" class="btn delete-button" onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
-                        {% endif %}
-                        <!-- Tabs for toggling content -->
-                        <div class="tabs-container">
-                            <ul class="nav nav-tabs">
-                                <!-- Reorder the tabs based on the length of the assets -->
-                                {% if assets|length > 2 %}
-                                    <!-- Structure tab will be first if assets length > 2 -->
-                                    <li class="nav-item">
-                                        <a class="nav-link active" id="structure-tab" data-bs-toggle="tab" href="#structure">Structure</a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link" id="location-tab" data-bs-toggle="tab" href="#location">Location</a>
-                                    </li>
-                                {% else %}
-                                    <!-- Location tab will be first if assets length <= 2 -->
-                                    <li class="nav-item">
-                                        <a class="nav-link active" id="location-tab" data-bs-toggle="tab" href="#location">Location</a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link" id="structure-tab" data-bs-toggle="tab" href="#structure">Structure</a>
-                                    </li>
-                                {% endif %}
-                            </ul>
-                        </div>
-
-                    </div>
+                    <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
                 </div>
-                
-                <!-- Tab Content (outside col-sm) -->
-                <div class="tab-content">
-                    <!-- Structure Content -->
-                    <div class="tab-pane fade {% if assets|length > 2 %}show active{% endif %}" id="structure">
-                        <div class="col-sm-12">
-                            {% from "_macros.html" import show_tree %}
-                            {{ show_tree(assets, asset.name) }}
-                        </div>
-                    </div>
-                    
-                    <!-- Location Content -->
-                    <div class="tab-pane fade {% if assets|length <= 2 %}show active{% endif %}" id="location">
-                        <!-- Location-related content here -->
-                        <div id="mapid" style="height: 400px;"></div>
-                    </div>
-                </div>                
-            </div>
-            <div class="col-sm-2"></div>
-            
-            <!-- Bootstrap Modal for Sensors -->
-            <div class="modal fade" id="sensorsModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Node Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                    {% if user_can_create_children %}
-                        <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
-                            <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
-                        </button>
+                <div class="col-sm-3">
+                    {% if can_delete %}
+                    <button type="button" class="btn delete-button"
+                        onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
                     {% endif %}
-                    <table id="modalTable" class="table table-bordered">
-                        <thead id="modalTableHead"></thead>
-                        <tbody id="modalTableBody"></tbody>
-                    </table>
+                    <!-- Tabs for toggling content -->
+                    <div class="tabs-container">
+                        <ul class="nav nav-tabs">
+                            <!-- Reorder the tabs based on the length of the assets -->
+                            {% if assets|length > 2 %}
+                            <!-- Structure tab will be first if assets length > 2 -->
+                            <li class="nav-item">
+                                <a class="nav-link active" id="structure-tab" data-bs-toggle="tab"
+                                    href="#structure">Structure</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="location-tab" data-bs-toggle="tab" href="#location">Location</a>
+                            </li>
+                            {% else %}
+                            <!-- Location tab will be first if assets length <= 2 -->
+                            <li class="nav-item">
+                                <a class="nav-link active" id="location-tab" data-bs-toggle="tab"
+                                    href="#location">Location</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="structure-tab" data-bs-toggle="tab"
+                                    href="#structure">Structure</a>
+                            </li>
+                            {% endif %}
+                        </ul>
                     </div>
-                    <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+                </div>
+            </div>
+
+            <!-- Tab Content (outside col-sm) -->
+            <div class="tab-content">
+                <!-- Structure Content -->
+                <div class="tab-pane fade {% if assets|length > 2 %}show active{% endif %}" id="structure">
+                    <div class="col-sm-12">
+                        {% from "_macros.html" import show_tree %}
+                        {{ show_tree(assets, asset.name) }}
                     </div>
                 </div>
+
+                <!-- Location Content -->
+                <div class="tab-pane fade {% if assets|length <= 2 %}show active{% endif %}" id="location">
+                    <!-- Location-related content here -->
+                    <div id="mapid" style="height: 400px;"></div>
                 </div>
             </div>
         </div>
+        <div class="col-sm-2"></div>
 
-        <!-- Flex Context Modal -->
-        <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
-        aria-hidden="true">
-            <div class="modal-dialog">
+        <!-- Bootstrap Modal for Sensors -->
+        <div class="modal fade" id="sensorsModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title pe-2">Edit Asset's FlexContext</h5>
-
-                        <div class="dropdown" data-bs-auto-close="outside">
-                            <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                                aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                                data-bs-placement="right" data-bs-toggle="tooltip"></span>
-
-                            <div class="dropdown-menu p-3" style="width: 400px;">
-                                <div>
-                                    <strong>Help</strong>
-                                    <p class="mb-2 pt-2">
-                                        Here, you can edit the flexibility context for this asset. This describes information about the managed system as a 
-                                        whole, in order to assess the value of activating flexibility. You can read more <a href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-context">in the documentation</a>.
-                                        <br/>
-                                        <br/>
-                                        These fields can also be sent via the API to FlexMeasures, but setting them here permanently might be more convenient. 
-                                        Some fields can point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
-                                        <br/>
-                                        <br/>
-                                        To add a field, choose it from the dropdown menu in the top right corner, then click the "Add Field" button'. 
-                                        Set a value in the right panel, using the provided form to set the field's value.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
+                        <h5 class="modal-title" id="modalTitle">Node Details</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-
                     <div class="modal-body">
-                        <div class="row">
-                            <!-- Left Column -->
-                            <div class="col-5">
-                                <form id="flexContextForm">
-                                </form>
-                            </div>
-
-                            <!-- Right Column -->
-                            <div class="col-7">
-                                <div>
-                                    <!-- Loading Spinner -->
-                                    <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
-                                        style="height: 50vh; display: none !important;">
-                                        <div class="spinner-border text-primary" role="status"
-                                            style="width: 4rem; height: 4rem;">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
-                                    </div>
-
-                                    <!-- Settings -->
-                                    <div>
-                                        <div class="row">
-                                            <div class="col-10">
-                                                <select class="form-select" id="flexSelect">
-                                                    <option value="blank">Select flex-context field to add</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-2 p-0">
-                                                <button class="btn btn-secondary btn-md"
-                                                    onclick="addFlexContextField()">Add Field</button>
-                                            </div>
-                                        </div>
-
-                                        <div id="flexInfoContainer" class="mt-3"></div>
-                                    </div>
-
-                                    <hr class="border border-dark" />
-
-                                    <div id="flexOptionsContainer" class="mt-3"></div>
-
-                                    <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
-                                </div>
-
-                            </div>
-                        </div>
+                        {% if user_can_create_children %}
+                        <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
+                            <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
+                        </button>
+                        {% endif %}
+                        <table id="modalTable" class="table table-bordered">
+                            <thead id="modalTableHead"></thead>
+                            <tbody id="modalTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        function openSensorsModal() {
-            const sensors = {{ current_asset_sensors | safe }};
-            document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
-            let tableHead = document.getElementById("modalTableHead");
-            let tableBody = document.getElementById("modalTableBody");
+    <!-- Flex Context Modal -->
+    <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-context</h5>
 
-            // Clear previous content
-            tableHead.innerHTML = "";
-            tableBody.innerHTML = "";
+                    <div class="dropdown" data-bs-auto-close="outside">
+                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
+                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
 
-            if (sensors && sensors.length > 0) {
-                let keys = Object.keys(sensors[0]); // e.g., ['name', 'unit']
-                keys.pop("link"); // Remove the 'link' from the table
-                
-                // Create table header row
-                let headerRow = document.createElement("tr");
-                keys.forEach(key => {
-                let headerText = key.charAt(0).toUpperCase() + key.slice(1);
-                let th = document.createElement("th"); // Use <th> for header cells
-                th.innerText = headerText;
-                th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
-                headerRow.appendChild(th);
-                });
-                tableHead.appendChild(headerRow);
+                        <div class="dropdown-menu p-3" style="width: 400px;">
+                            <div>
+                                <strong>Help</strong>
+                                <p class="mb-2 pt-2">
+                                    Here, you can edit the flexibility context for this asset. This describes
+                                    information about the managed system as a
+                                    whole, in order to assess the value of activating flexibility. You can read more <a
+                                        href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-context">in
+                                        the documentation</a>.
+                                    <br />
+                                    <br />
+                                    These fields can also be sent via the API to FlexMeasures, but setting them here
+                                    permanently might be more convenient.
+                                    Some fields can point to sensors, so they will always represent the dynamics of the
+                                    asset's environment (as long as that sensor has current data).
+                                    <br />
+                                    <br />
+                                    To add a field, choose it from the dropdown menu in the top right corner, then click
+                                    the "Add Field" button'.
+                                    Set a value in the right panel, using the provided form to set the field's value.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
-                // Force destroy the floatThead instance
-                setTimeout(function(){
-                if ($.fn.floatThead) {
-                    $('#modalTable').floatThead('destroy');
-                }
-                }, 200);
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
 
-                // Populate table with sensor data
-                sensors.forEach(sensor => {
-                let row = document.createElement("tr");
-                keys.forEach(key => {
-                    let td = document.createElement("td");
-                    if (key === "name") {
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Left Column -->
+                        <div class="col-5">
+                            <form id="flexContextForm">
+                            </form>
+                        </div>
+
+                        <!-- Right Column -->
+                        <div class="col-7">
+                            <div>
+                                <!-- Loading Spinner -->
+                                <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
+                                    style="height: 50vh; display: none !important;">
+                                    <div class="spinner-border text-primary" role="status"
+                                        style="width: 4rem; height: 4rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+
+                                <!-- Settings -->
+                                <div>
+                                    <div class="row">
+                                        <div class="col-10">
+                                            <select class="form-select" id="flexSelect">
+                                                <option value="blank">Select flex-context field to add</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-2 p-0">
+                                            <button id="addFieldBtn" class="btn btn-secondary btn-md">Add
+                                                Field</button>
+                                        </div>
+                                    </div>
+
+                                    <div id="flexInfoContainer" class="mt-3"></div>
+                                </div>
+
+                                <hr class="border border-dark" />
+
+                                <div id="flexOptionsContainer" class="mt-3"></div>
+
+                                <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openSensorsModal() {
+        const sensors = {{ current_asset_sensors | safe
+    }};
+    document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
+    let tableHead = document.getElementById("modalTableHead");
+    let tableBody = document.getElementById("modalTableBody");
+
+    // Clear previous content
+    tableHead.innerHTML = "";
+    tableBody.innerHTML = "";
+
+    if (sensors && sensors.length > 0) {
+        let keys = Object.keys(sensors[0]); // e.g., ['name', 'unit']
+        keys.pop("link"); // Remove the 'link' from the table
+
+        // Create table header row
+        let headerRow = document.createElement("tr");
+        keys.forEach(key => {
+            let headerText = key.charAt(0).toUpperCase() + key.slice(1);
+            let th = document.createElement("th"); // Use <th> for header cells
+            th.innerText = headerText;
+            th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
+            headerRow.appendChild(th);
+        });
+        tableHead.appendChild(headerRow);
+
+        // Force destroy the floatThead instance
+        setTimeout(function () {
+            if ($.fn.floatThead) {
+                $('#modalTable').floatThead('destroy');
+            }
+        }, 200);
+
+        // Populate table with sensor data
+        sensors.forEach(sensor => {
+            let row = document.createElement("tr");
+            keys.forEach(key => {
+                let td = document.createElement("td");
+                if (key === "name") {
                     // Create an anchor element
                     let a = document.createElement("a");
                     a.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
                     // Set the href; you can modify this as needed, for example using sensor.link if available
                     a.href = sensor.link;
                     td.appendChild(a);
-                    } else {
+                } else {
                     td.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
-                    }
-                    row.appendChild(td);
-                });
-                tableBody.appendChild(row);
-                });
-            } else {
-                tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
-            }
+                }
+                row.appendChild(td);
+            });
+            tableBody.appendChild(row);
+        });
+    } else {
+        tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
+    }
 
-            // Show Bootstrap modal
-            let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
-            modal.show();
+    // Show Bootstrap modal
+    let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
+    modal.show();
         }
-    </script>
+</script>
 
-    <style>
-        details {
-            display: none;
-        }
-    </style>
+<style>
+    details {
+        display: none;
+    }
+</style>
 
 <!-- Initialise the map -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
@@ -293,7 +304,12 @@
         ).addTo(assetMap);
 </script>
 
-<script>
+
+<script type="module">
+    import {
+        getFlexFieldTitle, renderSensor, getAsset,
+        getAccount, getSensor, apiBasePath
+    } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
     const senSearchResEle = document.getElementById("sensorsSearchResults")
     const flexContextFormEle = document.getElementById("flexContextForm")
@@ -321,7 +337,7 @@
     }
     let assetFlexContextRawJSON = "{{ asset.flex_context | safe }}";
     assetFlexContextRawJSON = processAssetRawFlexContextJSON(assetFlexContextRawJSON);
-    
+
     const apiSensorsListElement = document.getElementById("apiSensorsList");
     const spinnerElement = document.getElementById('spinnerElement');
     let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
@@ -331,10 +347,28 @@
     let editingIndex; // keeps track of which graph we are currently editing
     let savedGraphIndex; // keeps track of the graph that is currently selected
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
-    const apiBasePath = window.location.origin;
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
-    function processAssetRawFlexContextJSON(rawJSON){
+    // Making certain functions available globally
+    window.udpateFlexContextFieldValue = udpateFlexContextFieldValue;
+    window.searchSensorsFlexContextForm = searchSensorsFlexContextForm;
+    window.removeFlexContextField = removeFlexContextField;
+
+    const addFieldBtn = document.getElementById("addFieldBtn");
+    addFieldBtn.onclick = async function () {
+        const fieldName = flexSelect.value;
+        if (fieldName === "blank") {
+            showToast("Please select a field to add", "error");
+            return;
+        }
+        assetFlexContext[fieldName] = "";
+        flexOptionsContainer.innerHTML = "";
+        await renderFlexContextForm(); // I'm rendring here so the card with the 'border-on-click' class is updated/exists
+        const card = document.getElementById(`${fieldName}-control`);
+        selectFlexField(card);
+    }
+
+    function processAssetRawFlexContextJSON(rawJSON) {
         let processedJSON = rawJSON.replace(/'/g, '"');
         // change None to null
         processedJSON = processedJSON.replace(/None/g, 'null');
@@ -350,60 +384,6 @@
         }
 
         return processedJSON;
-    }
-
-    // Fetch Account Details
-    async function getAccount(accountId) {
-        const cacheKey = `account_${accountId}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/accounts/" + accountId;
-        const response = await fetch(apiUrl);
-        const account = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(account));
-
-        return account;
-    }
-
-    // Fetch Asset Details
-    async function getAsset(assetId, useCache = true) {
-        const cacheKey = `asset_${assetId}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData && useCache) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/assets/" + assetId;
-        const response = await fetch(apiUrl);
-        const asset = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(asset));
-
-        return asset;
-    }
-
-    // Fetch Sensor Details
-    async function getSensor(id) {
-        const cacheKey = `sensor_${id}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        if (cachedData) {
-            return JSON.parse(cachedData);
-        }
-
-        const apiUrl = apiBasePath + "/api/v3_0/sensors/" + id;
-        const response = await fetch(apiUrl);
-        const sensor = await response.json();
-
-        localStorage.setItem(cacheKey, JSON.stringify(sensor));
-
-        return sensor;
     }
 
     // highlight selected graph 
@@ -596,7 +576,7 @@
             params.append('include_public_assets', true);
         }
 
-        if(flexUnitsSelectValue != "null"){
+        if (flexUnitsSelectValue != "null") {
             params.append('unit', flexUnitsSelectValue);
         }
 
@@ -879,6 +859,7 @@
         senSearchResEle.innerHTML = "";
         let fieldValue = assetFlexContext[fieldName]
         let newFieldValue;
+        let isSensorValue = false;
         let sensorsContent = [];
 
         if (fieldValue === null) {
@@ -944,12 +925,13 @@
                                 <b>Asset:</b> ${Asset.name},
                                 <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                             </div>
-                            <i class="fa fa-times"
-                                onclick="removeFlexContextSensorValue('${fieldName}', ${sensorData.id})"
+                            <i class="fa fa-times remove-icon"
                                 data-bs-toggle="tooltip"
                                 data-bs-placement="top"
                                 title="Remove Sensor"
                                 style="cursor: pointer;"
+                                data-field-name="${fieldName}"
+                                data-sensor-id="${sensorData.id}"
                             ></i>
                         </div>
                     </div>`;
@@ -970,7 +952,7 @@
                 </div>
 
                 ${isKeyValueObject || isArray ? `
-                <div>
+                <div id="inflexible-device-sensors-container">
                     ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this field. Add sensors by selecting them from the right.</div>`}
                 </div>
                 ` : ""}
@@ -983,6 +965,17 @@
             </div>
         `;
     }
+
+    flexContextFormEle.addEventListener("click", function (event) {
+        const removeIcon = event.target.closest('.remove-icon');
+
+        if (removeIcon) {
+            const fieldName = removeIcon.getAttribute('data-field-name');
+            const sensorId = removeIcon.getAttribute('data-sensor-id');
+
+            removeFlexContextSensorValue(fieldName, parseInt(sensorId, 10));
+        }
+    });
 
     async function renderFlexContextForm() {
         flexContextFormEle.innerHTML = "";
@@ -1004,14 +997,14 @@
             showToast("Please select a field to update", "error");
             return;
         }
-    
+
         // get card id and remove '-control' at the end
         const cardId = highlightedCard.id;
         const flexId = cardId.slice(0, -8);
         if (dataType === "fixedValue") {
             const powerCapacityInputValue = document.getElementById("fixed-value").value;
             // check if value is valid
-            if(powerCapacityInputValue === "") {
+            if (powerCapacityInputValue === "") {
                 showToast("Please enter a value", "error");
                 return;
             }
@@ -1036,20 +1029,7 @@
         await updateFlexContext();
     }
 
-    async function addFlexContextField() {
-        const fieldName = flexSelect.value;
-        if (fieldName === "blank") {
-            showToast("Please select a field to add", "error");
-            return;
-        }
-        assetFlexContext[fieldName] = "";
-        flexOptionsContainer.innerHTML = "";
-        await renderFlexContextForm(); // im rendring here so te card with the 'border-on-click' class is updated/exists
-        const card = document.getElementById(`${fieldName}-control`);
-        selectFlexField(card);
-    }
-
-    function getFlexContextFieldTitle(fieldName){
+    function getFlexContextFieldTitle(fieldName) {
         return fieldName.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
     }
 
@@ -1107,6 +1087,7 @@
                     <div class="tab-content" id="pills-tabContent">
                         ${sensorsOnly ? `
                         <div class="tab-pane fade show active bg-dynamic-val rounded-bottom" id="pills-dynamic" role="tabpanel" aria-labelledby="pills-dynamic-tab">
+
                             <div id="select-sensor-input" class="flex-input-group mb-4 p-2">
                                 <label for="sensor" class="form-label">Look up Sensor for <b>${getFlexContextFieldTitle(contextKey)} </b>
                                     <i class="fa fa-info-circle ps-2"
@@ -1136,12 +1117,13 @@
                                     <div class="col-4 ps-0">
                                         <select id="flexUnitsSelect" class="form-select" onchange="searchSensorsFlexContextForm()">
                                             <option value="${null}" selected>Units</option>
-                                            ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                            ${availableUnits.map(unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
                                         </select>
                                     </div>
                                 </div>
 
                             </div>
+                            
                         </div>
                         ` : `
                         <div class="tab-pane fade show active bg-fixed-val rounded-bottom" id="pills-fixed" role="tabpanel" aria-labelledby="pills-fixed-tab">
@@ -1154,7 +1136,7 @@
                                     ></i>
                                 </label>
                                 <input type="text" id="fixed-value" class="form-control"
-                                    value="${typeof(assetFlexContext[contextKey]) == 'string' ? assetFlexContext[contextKey] : ""}"
+                                    value="${typeof (assetFlexContext[contextKey]) == 'string' ? assetFlexContext[contextKey] : ""}"
                                     placeholder="e.g. 15000 kW"
                                     onkeydown="if(event.key === 'Enter') { udpateFlexContextFieldValue('fixedValue', ${null}) }"
                                     >
@@ -1193,7 +1175,7 @@
                                     <div class="col-4 ps-0">
                                         <select id="flexUnitsSelect" class="form-select" onchange="searchSensorsFlexContextForm()">
                                             <option value="${null}" selected>Units</option>
-                                            ${availableUnits.map( unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                            ${availableUnits.map(unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
                                         </select>
                                     </div>
                                 </div>
@@ -1265,7 +1247,7 @@
                 }
                 // Pass
             } else {
-                selectFlexField(card) 
+                selectFlexField(card)
                 renderGraphCards();
             }
         } else if (
