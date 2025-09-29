@@ -12,7 +12,9 @@ from typing import Any, Callable, Dict, Optional, Type, List
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
+from flexmeasures import Asset
 from flexmeasures.api.common.utils.validators import parse_duration
+from flexmeasures.data.services.utils import get_or_create_model
 from s2python.common import (
     ControlType,
     EnergyManagementRole,
@@ -482,6 +484,9 @@ class S2FlaskWSServerSync:
         self._check_and_generate_instructions(resource_id, websocket)
 
     def ensure_resource_is_registered(self, resource_id: str):
+        self._assets[resource_id] = get_or_create_model(
+            Asset, name=resource_id, account_id=self.account.id
+        )
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
 
