@@ -11,13 +11,24 @@ v0.29.0 | October XX, 2025
 New features
 -------------
 * New CLI command for scheduling, with full flex-context and flex-model support as well as the option to set your scheduler class [see `PR #1713 <https://github.com/FlexMeasures/flexmeasures/pull/1713>`_]
-
+* Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
 
 Infrastructure / Support
 ----------------------
+* Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
+* Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
 
 Bugfixes
 -----------
+
+
+v0.28.1 | September 18, 2025
+============================
+
+Bugfixes
+-----------
+* Fix schema validation in ``PATCH /assets/(id)`` [see `PR #1711 <https://www.github.com/FlexMeasures/flexmeasures/pull/1711>`_]
+* Fixed example values for peak pricing and improved error message for incompatible price units set in the ``flex-context`` [see `PR #1710 <https://github.com/FlexMeasures/flexmeasures/pull/1710>`_]
 
 
 v0.28.0 | September 10, 2025
