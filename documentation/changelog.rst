@@ -123,7 +123,6 @@ v0.27.0 | July 20, 2025
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
-
 New features
 -------------
 

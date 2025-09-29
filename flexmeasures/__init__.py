@@ -9,11 +9,13 @@ from flexmeasures.data.models.user import (
     Role as UserRole,
 )
 from flexmeasures.data.models.data_sources import DataSource as Source
+from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.models.generic_assets import (
     GenericAsset as Asset,
     GenericAssetType as AssetType,
 )
 from flexmeasures.data.models.planning import Scheduler
+from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.time_series import Sensor
 
 

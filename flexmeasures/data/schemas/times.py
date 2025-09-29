@@ -93,6 +93,30 @@ class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):
         return fields.AwareDateTime._deserialize(self, value, attr, obj, **kwargs)
 
 
+class AwareDateTimeOrDateField(AwareDateTimeField):
+    """Like AwareDateTimeField, but accepts naive dates, which are localized to the FLEXMEASURES_TIMEZONE.
+
+    If inclusive=False (the default), converts dates to (midnight at) the start of the day.
+    Otherwise, if inclusive=True, converts dates to (midnight at) the end of the day.
+    """
+
+    def __init__(self, inclusive: bool = False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inclusive = inclusive
+
+    def _deserialize(self, value: str, attr, obj, **kwargs) -> datetime:
+        """Try deserializing a naive date (ISO 8601) before falling back to an aware datetime."""
+        try:
+            dt = datetime.strptime(value, "%Y-%m-%d")
+            timezone = current_app.config.get("FLEXMEASURES_TIMEZONE")
+            dt_aware = pd.Timestamp(dt).tz_localize(timezone)
+            if self.inclusive:
+                return dt_aware + pd.DateOffset(days=1)
+            return dt_aware
+        except ValueError:
+            return AwareDateTimeField._deserialize(self, value, attr, obj, **kwargs)
+
+
 class TimeIntervalSchema(Schema):
     start = AwareDateTimeField(required=True)
     duration = DurationField(required=True)
