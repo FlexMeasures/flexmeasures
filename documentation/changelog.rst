@@ -18,6 +18,7 @@ Infrastructure / Support
 ----------------------
 * Migrate data for the ``flex-model`` of an asset to a dedicated column in the database table for assets [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_]
 * Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
+* Upgraded Docker Image Ubuntu 24, which uses Python 3.12 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
 
 Bugfixes
