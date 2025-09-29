@@ -257,7 +257,7 @@ def create(  # noqa C901
             token = auth_header.removeprefix("Bearer ").strip()
             if token == app.config.get("WEBSOCKET_BEARER_TOKEN", None):
                 # Initialize S2Scheduler for this WebSocket connection if not already done
-                if not hasattr(s2_ws, 's2_scheduler'):
+                if not hasattr(s2_ws, 's2_scheduler') or s2_ws.s2_scheduler is None:
                     from datetime import datetime, timedelta, timezone
                     
                     # Get S2FlaskScheduler class from registered schedulers  

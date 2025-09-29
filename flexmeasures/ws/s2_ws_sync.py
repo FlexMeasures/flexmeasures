@@ -166,6 +166,7 @@ class S2FlaskWSServerSync:
         )  # Track connection state for rate limiting
         self._register_default_handlers()
         self.sock.route(self.ws_path)(self._ws_handler)
+        self.s2_scheduler = None
 
     def _register_default_handlers(self) -> None:
         self._handlers.register_handler(Handshake, self.handle_handshake)
