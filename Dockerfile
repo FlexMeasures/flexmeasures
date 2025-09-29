@@ -12,7 +12,7 @@ WORKDIR /app
 COPY requirements /app/requirements
 
 # py dev tooling
-# NB --break-system-packages, due to https://github.com/FlexMeasures/flexmeasures/pull/1723#pullrequestreview-3271273745
+# NB --break-system-packages, as Python >=3.11 separates system & external libs, see also https://github.com/FlexMeasures/flexmeasures/pull/1723#pullrequestreview-3271273745
 RUN python3 -m pip install --no-cache-dir --break-system-packages highspy && \
     PYV=$(python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)") && \
     pip install --no-cache-dir --break-system-packages -r requirements/$PYV/app.txt -r requirements/$PYV/dev.txt -r requirements/$PYV/test.txt
