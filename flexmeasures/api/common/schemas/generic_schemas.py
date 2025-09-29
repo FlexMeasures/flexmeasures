@@ -12,10 +12,3 @@ class PaginationSchema(Schema):
         required=False,
     )
     sort_dir = fields.Str(required=False, validate=validate.OneOf(["asc", "desc"]))
-
-
-class UserPaginationSchema(PaginationSchema):
-    sort_by = fields.Str(
-        required=False,
-        validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
-    )

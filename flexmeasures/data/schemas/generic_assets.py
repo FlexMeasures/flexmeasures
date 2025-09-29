@@ -5,7 +5,7 @@ import json
 from http import HTTPStatus
 
 from flask import abort
-from marshmallow import validates, ValidationError, fields, validates_schema
+from marshmallow import validates, ValidationError, fields, validates_schema, validate
 from marshmallow.validate import OneOf
 from flask_security import current_user
 from sqlalchemy import select
@@ -22,6 +22,8 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
+from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
+from flexmeasures.api.common.schemas.users import AccountIdField
 
 
 class JSON(fields.Field):
@@ -318,3 +320,24 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     def _serialize(self, asset: GenericAsset, attr, data, **kwargs) -> int:
         """Turn a GenericAsset into a generic asset id."""
         return asset.id
+
+
+class AssetAPIQuerySchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["id", "name", "owner"]),
+    )
+    account = AccountIdField(data_key="account_id", required=True)
+    all_accessible = fields.Bool(data_key="all_accessible", load_default=False)
+    include_public = fields.Bool(data_key="include_public", load_default=False)
+
+
+class AssetPaginationSchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["id", "name", "resolution"]),
+    )
+    sort_dir = fields.Str(
+        required=False,
+        validate=validate.OneOf(["asc", "desc"]),
+    )

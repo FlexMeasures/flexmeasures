@@ -11,7 +11,7 @@ from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError
+from marshmallow import fields, ValidationError, Schema
 import marshmallow.validate as validate
 
 from webargs.flaskparser import use_kwargs, use_args
@@ -39,6 +39,9 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
+    AssetAPIQuerySchema,
+    AssetPaginationSchema,
+    PaginationSchema,
 )
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
@@ -50,7 +53,6 @@ from flexmeasures.api.common.responses import (
     invalid_flex_config,
     request_processed,
 )
-from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.utils.coding_utils import (
     flatten_unique,
@@ -95,6 +97,56 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     flex_model = fields.Nested(StorageFlexModelOpenAPISchema, required=True)
 
 
+class AssetChartKwargsSchema(Schema):
+    event_starts_after = AwareDateTimeField(format="iso", required=False)
+    event_ends_before = AwareDateTimeField(format="iso", required=False)
+    beliefs_after = AwareDateTimeField(format="iso", required=False)
+    beliefs_before = AwareDateTimeField(format="iso", required=False)
+    include_data = fields.Boolean(required=False)
+    combine_legend = fields.Boolean(required=False, load_default=True)
+    dataset_name = fields.Str(required=False)
+    height = fields.Str(required=False)
+    width = fields.Str(required=False)
+    chart_type = fields.Str(required=False)
+
+
+class AssetChartDataKwargsSchema(Schema):
+    event_starts_after = AwareDateTimeField(format="iso", required=False)
+    event_ends_before = AwareDateTimeField(format="iso", required=False)
+    beliefs_after = AwareDateTimeField(format="iso", required=False)
+    beliefs_before = AwareDateTimeField(format="iso", required=False)
+    most_recent_beliefs_only = fields.Boolean(required=False)
+    compress_json = fields.Boolean(required=False)
+
+
+class AssetAuditLogPaginationSchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["event_datetime"]),
+    )
+
+
+class DefaultAssetViewJSONSchema(Schema):
+    default_asset_view = fields.Str(
+        required=True,
+        validate=validate.OneOf(
+            [
+                "Audit Log",
+                "Context",
+                "Graphs",
+                "Properties",
+                "Status",
+            ]
+        ),
+    )
+    use_as_default = fields.Bool(required=False, load_default=True)
+
+
+class KPIKwargsSchema(Schema):
+    event_starts_after = AwareDateTimeField(format="iso", required=False)
+    event_ends_before = AwareDateTimeField(format="iso", required=False)
+
+
 class AssetTypesAPI(FlaskView):
     """
     This API view exposes generic asset types.
@@ -107,23 +159,26 @@ class AssetTypesAPI(FlaskView):
     @route("", methods=["GET"])
     @as_json
     def index(self):
-        """List all asset types available on this platform.
-
-        .. :quickref: Asset; Get list of available asset types
-
-        **Example response**
-
-        An example of one asset type being returned in the response:
-
-        .. sourcecode:: json
-
-            [
-                {
-                    "id": 1,
-                    "name": "solar",
-                    "description": "solar panel(s)",
-                }
-            ]
+        """
+        ---
+        get:
+          summary: Get list of available asset types
+          security:
+            - ApiKeyAuth: []
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    single_asset_type:
+                      summary: One asset type being returned in the response
+                      value:
+                        - id: 1
+                          name: solar
+                          description: solar panel(s)
+          tags:
+            - Asset Types
         """
         response = asset_type_schema.dump(
             db.session.scalars(select(GenericAssetType)).all(), many=True
@@ -141,31 +196,7 @@ class AssetAPI(FlaskView):
     decorators = [auth_required()]
 
     @route("", methods=["GET"])
-    @use_kwargs(
-        {
-            "account": AccountIdField(data_key="account_id", load_default=None),
-            "all_accessible": fields.Bool(
-                data_key="all_accessible", load_default=False
-            ),
-            "include_public": fields.Bool(
-                data_key="include_public", load_default=False
-            ),
-            "page": fields.Int(required=False, validate=validate.Range(min=1)),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=10
-            ),
-            "filter": SearchFilterField(required=False),
-            "sort_by": fields.Str(
-                required=False,
-                validate=validate.OneOf(["id", "name", "owner"]),
-            ),
-            "sort_dir": fields.Str(
-                required=False,
-                validate=validate.OneOf(["asc", "desc"]),
-            ),
-        },
-        location="query",
-    )
+    @use_kwargs(AssetAPIQuerySchema, location="query")
     @as_json
     def index(
         self,
@@ -178,55 +209,69 @@ class AssetAPI(FlaskView):
         sort_by: str | None = None,
         sort_dir: str | None = None,
     ):
-        """List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+        """
+        ---
+        get:
+          summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+          description: |
+            This endpoint returns all accessible assets by accounts.
+            The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
+            Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
+            The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
 
-        .. :quickref: Asset; Download asset list
+            The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+              - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+              - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
+              The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
-        This endpoint returns all accessible assets by accounts.
-        The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
-        Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
-        The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
-
-        The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
-
-            - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-            - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
-              The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
-
-
-        **Example response**
-
-        An example of one asset being returned in a paginated response:
-
-        .. sourcecode:: json
-
-            {
-                "data" : [
-                    {
-                      "id": 1,
-                      "name": "Test battery",
-                      "latitude": 10,
-                      "longitude": 100,
-                      "account_id": 2,
-                      "generic_asset_type": {"id": 1, "name": "battery"}
-                    }
-                ],
-                "num-records" : 1,
-                "filtered-records" : 1
-
-            }
-
-        If no pagination is requested, the response only consists of the list under the "data" key.
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: query
+              schema: AssetAPIQuerySchema
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    single_asset:
+                      summary: One asset being returned in the response
+                      value:
+                        data:
+                        - id: 1
+                          name: Test battery
+                          latitude: 10
+                          longitude: 100
+                          account_id: 2
+                          generic_asset_type:
+                            id: 1
+                            name: battery
+                    paginated_assets:
+                      summary: A paginated list of assets being returned in the response
+                      value:
+                        data:
+                        - id: 1
+                          name: Test battery
+                          latitude: 10
+                          longitude: 100
+                          account_id: 2
+                          generic_asset_type:
+                            id: 1
+                            name: battery
+                        num-records: 1
+                        filtered-records: 1
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
 
         # find out which accounts are relevant
@@ -281,26 +326,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @use_kwargs(
-        {
-            "page": fields.Int(
-                required=False, validate=validate.Range(min=1), dump_default=1
-            ),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), dump_default=10
-            ),
-            "filter": SearchFilterField(required=False),
-            "sort_by": fields.Str(
-                required=False,
-                validate=validate.OneOf(["id", "name", "resolution"]),
-            ),
-            "sort_dir": fields.Str(
-                required=False,
-                validate=validate.OneOf(["asc", "desc"]),
-            ),
-        },
-        location="query",
-    )
+    @use_kwargs(AssetPaginationSchema, location="query")
     @as_json
     def asset_sensors(
         self,
@@ -313,51 +339,69 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        List all sensors under an asset.
+        ---
+        get:
+          summary: Return all sensors under an asset.
+          description: |
+            This endpoint returns all sensors under an asset.
 
-         .. :quickref: Asset; Return all sensors under an asset.
+            The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
 
-        This endpoint returns all sensors under an asset.
-
-        The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
-
-        - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
-        - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-        The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
-
-
-        **Example response**
-
-        An example of one asset being returned in a paginated response:
-
-        .. sourcecode:: json
-
-            {
-                "data" : [
-                    {
-                      "id": 1,
-                      "name": "Test battery",
-                      "latitude": 10,
-                      "longitude": 100,
-                      "account_id": 2,
-                      "generic_asset_type": {"id": 1, "name": "battery"}
-                    }
-                ],
-                "num-records" : 1,
-                "filtered-records" : 1
-
-            }
-
-        If no pagination is requested, the response only consists of the list under the "data" key.
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+            - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to fetch sensors for
+              schema:
+                type: integer
+            - in: query
+              schema: AssetPaginationSchema
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    single_asset:
+                      summary: One asset being returned in the response
+                      value:
+                        data:
+                        - id: 1
+                          name: Test battery
+                          latitude: 10
+                          longitude: 100
+                          account_id: 2
+                          generic_asset_type:
+                            id: 1
+                            name: battery
+                    paginated_assets:
+                      summary: A paginated list of assets being returned in the response
+                      value:
+                        data:
+                        - id: 1
+                          name: Test battery
+                          latitude: 10
+                          longitude: 100
+                          account_id: 2
+                          generic_asset_type:
+                            id: 1
+                            name: battery
+                        num-records: 1
+                        filtered-records: 1
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         query_statement = Sensor.generic_asset_id == asset.id
 
@@ -409,19 +453,24 @@ class AssetAPI(FlaskView):
     @route("/public", methods=["GET"])
     @as_json
     def public(self):
-        """Return all public assets.
-
-        .. :quickref: Asset; Return all public assets.
-
-        This endpoint returns all public assets.
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST
-        :status 401: UNAUTHORIZED
-        :status 422: UNPROCESSABLE_ENTITY
+        """
+        ---
+        get:
+          summary: Return all public assets.
+          description: This endpoint returns all public assets.
+          security:
+            - ApiKeyAuth: []
+          responses:
+            200:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         assets = db.session.scalars(
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
@@ -434,53 +483,48 @@ class AssetAPI(FlaskView):
     )
     @use_args(asset_schema)
     def post(self, asset_data: dict):
-        """Create new asset.
-
-        .. :quickref: Asset; Create a new asset
-
-        This endpoint creates a new asset.
-
-        **Example request A**
-
-        .. sourcecode:: json
-
-            {
-                "name": "Test battery",
-                "generic_asset_type_id": 2,
-                "account_id": 2,
-                "latitude": 40,
-                "longitude": 170.3,
-            }
-
-
-        The newly posted asset is returned in the response.
-
-        **Example request B**
-
-        Alternatively, set the ``parent_asset_id`` to make the new asset a child of another asset.
-        For example, to set asset 10 as its parent:
-
-        .. sourcecode:: json
-            :emphasize-lines: 5
-
-            {
-                "name": "Test battery",
-                "generic_asset_type_id": 2,
-                "account_id": 2,
-                "parent_asset_id": 10,
-                "latitude": 40,
-                "longitude": 170.3,
-            }
-
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 201: CREATED
-        :status 400: INVALID_REQUEST
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+        """
+        ---
+        post:
+          summary: Create new asset.
+          description: This endpoint creates a new asset.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            content:
+              application/json:
+                schema: AssetSchema
+                examples:
+                  single_asset:
+                    summary: One asset being returned in the response
+                    value:
+                      name: Test battery
+                      generic_asset_type_id: 2
+                      account_id: 2
+                      latitude: 40
+                      longitude: 170.3
+                  child_asset:
+                    summary: A child asset being returned in the response
+                    value:
+                      name: Test battery
+                      generic_asset_type_id: 2
+                      account_id: 2
+                      parent_asset_id: 10
+                      latitude: 40
+                      longitude: 170.3
+          responses:
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         asset = create_asset(asset_data)
         db.session.commit()
@@ -499,33 +543,38 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def fetch_one(self, id, asset):
-        """Fetch a given asset.
-
-        .. :quickref: Asset; Get an asset
-
-        This endpoint gets an asset.
-
-        **Example response**
-
-        .. sourcecode:: json
-
-            {
-                "generic_asset_type_id": 2,
-                "name": "Test battery",
-                "id": 1,
-                "latitude": 10,
-                "longitude": 100,
-                "account_id": 1,
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+        """
+        ---
+        get:
+          summary: Fetch a given asset.
+          description: This endpoint gets an asset.
+          security:
+            - ApiKeyAuth: []
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    single_asset:
+                      summary: One asset being returned in the response
+                      value:
+                        generic_asset_type_id: 2
+                        name: Test battery
+                        id: 1
+                        latitude: 10
+                        longitude: 100
+                        account_id: 1
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         return asset_schema.dump(asset), 200
 
@@ -542,50 +591,60 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
     def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
-        """Update an asset given its identifier.
+        """
+        ---
+        patch:
+          summary: Update an asset given its identifier.
+          description: |
+            This endpoint sets data for an existing asset.
+            Any subset of asset fields can be sent.
 
-        .. :quickref: Asset; Update an asset
-
-        This endpoint sets data for an existing asset.
-        Any subset of asset fields can be sent.
-
-        The following fields are not allowed to be updated:
-        - id
-        - account_id
-
-        **Example request**
-
-        .. sourcecode:: json
-
-            {
-                "latitude": 11.1,
-                "longitude": 99.9,
-            }
-
-
-        **Example response**
-
-        The whole asset is returned in the response:
-
-        .. sourcecode:: json
-
-            {
-                "generic_asset_type_id": 2,
-                "id": 1,
-                "latitude": 11.1,
-                "longitude": 99.9,
-                "name": "Test battery",
-                "account_id": 2,
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: UPDATED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+            The following fields are not allowed to be updated:
+            - id
+            - account_id
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to update.
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: patch_asset_schema
+                examples:
+                  single_asset:
+                    summary: One asset being updated
+                    value:
+                      latitude: 11.1
+                      longitude: 99.9
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    single_asset:
+                      summary: the whole asset is returned in the response
+                      value:
+                        generic_asset_type_id: 2
+                        name: Test battery
+                        id: 1
+                        latitude: 11.1
+                        longitude: 99.9
+                        account_id: 1
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         try:
             db_asset = patch_asset(db_asset, asset_data)
@@ -607,20 +666,32 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("delete", ctx_arg_name="asset")
     @as_json
     def delete(self, id: int, asset: GenericAsset):
-        """Delete an asset given its identifier.
-
-        .. :quickref: Asset; Delete an asset
-
-        This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 204: DELETED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+        """
+        ---
+        delete:
+          summary: Delete an asset given its identifier.
+          description: This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to delete.
+              schema:
+                type: integer
+          responses:
+            204:
+              description: DELETED
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         delete_asset(asset)
         db.session.commit()
@@ -635,26 +706,41 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @use_kwargs(
-        {
-            "event_starts_after": AwareDateTimeField(format="iso", required=False),
-            "event_ends_before": AwareDateTimeField(format="iso", required=False),
-            "beliefs_after": AwareDateTimeField(format="iso", required=False),
-            "beliefs_before": AwareDateTimeField(format="iso", required=False),
-            "include_data": fields.Boolean(required=False),
-            "combine_legend": fields.Boolean(required=False, load_default=True),
-            "dataset_name": fields.Str(required=False),
-            "height": fields.Str(required=False),
-            "width": fields.Str(required=False),
-            "chart_type": fields.Str(required=False),
-        },
-        location="query",
-    )
+    @use_kwargs(AssetChartKwargsSchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart(self, id: int, asset: GenericAsset, **kwargs):
-        """GET from /assets/<id>/chart
-
-        .. :quickref: Chart; Download a chart with time series
+        """
+        ---
+        get:
+          summary: Download a chart with time series
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to download a chart for.
+              schema:
+                type: integer
+            - in: query
+              schema: AssetChartKwargsSchema
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                image/png:
+                  schema:
+                    type: string
+                    format: binary
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets, Charts
         """
         # Store selected time range as session variables, for a consistent UX across UI page loads
         set_session_variables("event_starts_after", "event_ends_before")
@@ -684,11 +770,38 @@ class AssetAPI(FlaskView):
     )
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_data(self, id: int, asset: GenericAsset, **kwargs):
-        """GET from /assets/<id>/chart_data
-
-        .. :quickref: Chart; Download time series for use in charts
-
-        Data for use in charts (in case you have the chart specs already).
+        """
+        ---
+        get:
+          summary: Download time series for use in charts
+          description: Data for use in charts (in case you have the chart specs already).
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to download data for.
+              schema:
+                type: integer
+            - in: query
+              schema: AssetChartDataKwargsSchema
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: object
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets, Charts
         """
         sensors = flatten_unique(asset.validate_sensors_to_show())
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
@@ -699,26 +812,7 @@ class AssetAPI(FlaskView):
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="asset")
-    @use_kwargs(
-        {
-            "page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=1
-            ),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=10
-            ),
-            "filter": SearchFilterField(required=False),
-            "sort_by": fields.Str(
-                required=False,
-                validate=validate.OneOf(["event_datetime"]),
-            ),
-            "sort_dir": fields.Str(
-                required=False,
-                validate=validate.OneOf(["asc", "desc"]),
-            ),
-        },
-        location="query",
-    )
+    @use_kwargs(AssetAuditLogPaginationSchema, location="query")
     @as_json
     def auditlog(
         self,
@@ -730,42 +824,55 @@ class AssetAPI(FlaskView):
         sort_by: str | None = None,
         sort_dir: str | None = None,
     ):
-        """API endpoint to get history of asset related actions.
-
-        .. :quickref: Asset; Get audit log
-
-        The endpoint is paginated and supports search filters.
-
-            - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-            - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
-            - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
-              The response schema for pagination is inspired by https://datatables.net/manual/server-side
-
-
-        **Example response**
-
-        .. sourcecode:: json
-            {
-                "data" : [
-                    {
-                        'event': 'Asset test asset deleted',
-                        'event_datetime': '2021-01-01T00:00:00',
-                        'active_user_name': 'Test user',
-                    }
-                ],
-                "num-records" : 1,
-                "filtered-records" : 1
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+        """
+        ---
+        get:
+          summary: API endpoint to get history of asset related actions.
+          description: |
+            The endpoint is paginated and supports search filters.
+              - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+              - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
+              - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
+                The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side)
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to get the history for.
+              schema:
+                type: integer
+            - in: query
+              schema: AssetAuditLogPaginationSchema
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    examples:
+                      pagination:
+                        summary: Pagination response
+                        value:
+                          data:
+                            - event: Asset test asset deleted
+                              event_datetime: "2021-01-01T00:00:00"
+                              active_user_name: 'Test user'
+                          num_records: 1,
+                          filtered_records: 1
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         query_statement = AssetAuditLog.affected_asset_id == asset.id
         query = select(AssetAuditLog).filter(query_statement)
@@ -825,40 +932,51 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def get_jobs(self, id: int, asset: GenericAsset):
-        """API endpoint to get all jobs of an asset.
-
-        .. :quickref: Asset; Get asset jobs
-
-        The response will be a list of jobs.
-        Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
-
-        **Example response**
-
-        .. sourcecode:: json
-            {
-                "jobs": [
-                    {
-                        "job_id": 1,
-                        "queue": "scheduling",
-                        "asset_or_sensor_type": "asset",
-                        "asset_id": 1,
-                        "status": "finished",
-                        "err": None,
-                        "enqueued_at": "2023-10-01T00:00:00",
-                        "metadata_hash": "abc123",
-                    }
-                ],
-                "redis_connection_err": null
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+        """
+        ---
+        get:
+          summary: API endpoint to get all jobs of an asset.
+          description: |
+            The response will be a list of jobs.
+            Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to get the jobs for.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    jobs:
+                      summary: List of jobs
+                      value:
+                        jobs:
+                          -job_id: 1
+                          queue: scheduling
+                          asset_or_sensor_type: asset
+                          asset_id: 1
+                          status: finished
+                          err: null
+                          enqueued_at: "2023-10-01T00:00:00"
+                          metadata_hash: abc123
+                        redis_connection_err: null
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         redis_connection_err = None
         all_jobs_data = list()
@@ -876,56 +994,50 @@ class AssetAPI(FlaskView):
 
     @route("/default_asset_view", methods=["POST"])
     @as_json
-    @use_kwargs(
-        {
-            "default_asset_view": fields.Str(
-                required=True,
-                validate=validate.OneOf(
-                    [
-                        "Audit Log",
-                        "Context",
-                        "Graphs",
-                        "Properties",
-                        "Status",
-                    ]
-                ),
-            ),
-            "use_as_default": fields.Bool(required=False, load_default=True),
-        },
-        location="json",
-    )
+    @use_kwargs(DefaultAssetViewJSONSchema, location="json")
     def update_default_asset_view(self, **kwargs):
-        """Update the default asset view for the current user session.
+        """
+        ---
+        post:
+          summary: Update the default asset view
+          description: |
+            Update the default asset view for the current user session.
 
-        .. :quickref: Asset; Update the default asset view
-
-        **Example request**
-
-        .. sourcecode:: json
-
-            {
-                "default_asset_view": "Graphs",
-                "use_as_default": true
-            }
-
-        **Example response**
-
-        .. sourcecode:: json
-            {
-                "message": "Default asset view updated successfully."
-            }
-
-        This endpoint sets the default asset view for the current user session if use_as_default is true.
-        If use_as_default is false, it clears the session variable for the default asset view.
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+            This endpoint sets the default asset view for the current user session if use_as_default is true.
+            If use_as_default is false, it clears the session variable for the default asset view.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: DefaultAssetViewJSONSchema
+                examples:
+                  default_asset_view:
+                    summary: Default asset view
+                    value:
+                      default_asset_view: "Graphs"
+                      use_as_default: true
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Default asset view updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
         # Update the request.values
         request_values = request.values.copy()
@@ -1109,56 +1221,67 @@ class AssetAPI(FlaskView):
         location="query",
     )
     def get_kpis(self, id: int, asset: GenericAsset, start, end):
-        """API endpoint to get KPIs for an asset.
+        """
+        ---
+        get:
+          summary: API endpoint to get KPIs for an asset.
+          description: |
+            Gets statistics for sensors for the given time range. The sensors are expected to have a daily resolution, suitable for KPIs.
+            Each sensor has a preferred function to downsample the daily values to the KPI value.
 
-        .. :quickref: Asset; Get asset KPIs
-
-        Gets statistics for sensors for the given time range. The sensors are expected to have a daily resolution, suitable for KPIs.
-        Each sensor has a preferred function to downsample the daily values to the KPI value.
-
-        **Example request**
-
-        .. sourcecode:: json
-
-            {
-                "start": "2015-06-02T00:00:00+00:00",
-                "end": "2015-06-09T00:00:00+00:00"
-            }
-
-        **Example response**
-
-        .. sourcecode:: json
-
-            {
-                "data": [
-                    {
-                        "sensor": 145046,
-                        "title": "My KPI",
-                        "unit": "MW",
-                        "downsample_value": 0,
-                        "downsample_function": "sum",
-                    },
-                    {
-                        "sensor": 141053,
-                        "title": "Raw PowerKPI",
-                        "unit": "kW",
-                        "downsample_value": 816.67,
-                        "downsample_function": "sum",
-                    }
-                ]
-            }
-
-        This endpoint returns a list of kpis for the asset.
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_DATA
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 405: INVALID_METHOD
-        :status 422: UNPROCESSABLE_ENTITY
+            This endpoint returns a list of kpis for the asset.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              schema:
+                type: integer
+            - in: query
+              name: start
+              schema:
+                type: string
+                format: date-time
+              description: Start time for KPI calculation
+              example: "2015-06-02T00:00:00+00:00"
+            - in: query
+              name: end
+              schema:
+                type: string
+                format: date-time
+              description: End time for KPI calculation
+              example: "2015-06-09T00:00:00+00:00"
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    kpi_response:
+                      summary: KPI response
+                      value:
+                        data:
+                          - sensor: 145046
+                            title: My KPI
+                            unit: MW
+                            downsample_value: 0
+                            downsample_function: sum
+                          - sensor: 141053
+                            title: Raw PowerKPI
+                            unit: kW
+                            downsample_value: 816.67
+                            downsample_function: sum
+            400:
+              description: INVALID_DATA
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            405:
+              description: INVALID_METHOD
+          tags:
+            - Assets
         """
         check_access(asset, "read")
         asset_kpis = asset.sensors_to_show_as_kpis
