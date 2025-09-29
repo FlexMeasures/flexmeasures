@@ -389,13 +389,15 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "roundtrip_efficiency"},
     )
 
-    charging_efficiency = EfficiencyField(
+    charging_efficiency = VariableQuantityField(
+        "%",
         data_key="charging-efficiency",
         required=False,
         metadata={"deprecated field": "charging-efficiency"},
     )
 
-    discharging_efficiency = EfficiencyField(
+    discharging_efficiency = VariableQuantityField(
+        "%",
         data_key="discharging-efficiency",
         required=False,
         metadata={"deprecated field": "discharging-efficiency"},
