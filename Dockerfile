@@ -1,4 +1,4 @@
-FROM amd64/ubuntu:22.04
+FROM amd64/ubuntu:24.04
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
@@ -12,10 +12,10 @@ WORKDIR /app
 COPY requirements /app/requirements
 
 # py dev tooling
-RUN python3 -m pip install --no-cache-dir --upgrade pip && python3 --version && \
-    pip3 install --no-cache-dir --upgrade setuptools && pip3 install highspy && \
+# NB --break-system-packages, as Python >=3.11 separates system & external libs, see also https://github.com/FlexMeasures/flexmeasures/pull/1723#pullrequestreview-3271273745
+RUN python3 -m pip install --no-cache-dir --break-system-packages highspy && \
     PYV=$(python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)") && \
-    pip3 install --no-cache-dir -r requirements/$PYV/app.txt -r requirements/$PYV/dev.txt -r requirements/$PYV/test.txt
+    pip install --no-cache-dir --break-system-packages -r requirements/$PYV/app.txt -r requirements/$PYV/dev.txt -r requirements/$PYV/test.txt
 
 # Copy code and meta/config data
 COPY setup.* pyproject.toml .flaskenv wsgi.py /app/
@@ -23,7 +23,7 @@ COPY flexmeasures/ /app/flexmeasures
 RUN find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
 COPY .git/ /app/.git
 
-RUN pip3 install --no-cache-dir .
+RUN pip3 install --no-cache-dir --break-system-packages .
 
 EXPOSE 5000
 
