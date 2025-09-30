@@ -169,8 +169,8 @@ class FlexContextSchema(Schema):
             )
         return data
 
-    @validates_schema
-    def check_prices(self, data: dict, **kwargs):
+    @validates_schema(pass_original=True)
+    def check_prices(self, data: dict, original_data: dict, **kwargs):
         """Check assumptions about prices.
 
         1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
@@ -221,7 +221,7 @@ class FlexContextSchema(Schema):
         # make sure that the prices fields are valid price units
 
         # All prices must share the same unit
-        data = self._try_to_convert_price_units(data)
+        data = self._try_to_convert_price_units(data, original_data)
         shared_currency = ur.Quantity(data["shared_currency_unit"])
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
@@ -265,7 +265,7 @@ class FlexContextSchema(Schema):
 
         return data
 
-    def _try_to_convert_price_units(self, data):
+    def _try_to_convert_price_units(self, data: dict, original_data: dict):
         """Convert price units to the same unit and scale if they can (incl. same currency)."""
 
         shared_currency_unit = None
@@ -287,10 +287,13 @@ class FlexContextSchema(Schema):
                     previous_field_name = price_field.data_key
                 if not units_are_convertible(currency_unit, shared_currency_unit):
                     field_name = price_field.data_key
-                    raise ValidationError(
-                        f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
-                        field_name=field_name,
+                    original_price_unit = price_field._get_original_unit(
+                        original_data[field_name], data[field]
                     )
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{original_price_unit}') for the '{field_name}' field."
+                    if shared_currency_unit not in price_unit:
+                        error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name=field_name)
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
         elif sensor := data.get("consumption_price_sensor"):
@@ -457,13 +460,25 @@ class MultiSensorFlexModelSchema(Schema):
         }
     """
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(required=False)
+    asset = GenericAssetIdField(required=False)
     # it's up to the Scheduler to deserialize the underlying flex-model
     sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
 
+    @validates_schema
+    def ensure_sensor_or_asset(self, data, **kwargs):
+        if (
+            "sensor" in data
+            and "asset" in data
+            and data["sensor"].asset != data["asset"]
+        ):
+            raise ValidationError("Sensor does not belong to asset.")
+        if "sensor" not in data and "asset" not in data:
+            raise ValidationError("Specify either a sensor or an asset.")
+
     @pre_load
     def unwrap_envelope(self, data, **kwargs):
-        """Any field other than 'sensor' becomes part of the sensor's flex-model."""
+        """Any field other than 'sensor' and 'asset' becomes part of the sensor's flex-model."""
         extra = {}
         rest = {}
         for k, v in data.items():
@@ -515,7 +530,7 @@ class AssetTriggerSchema(Schema):
         """Verify that the flex-model's sensors live under the asset for which a schedule is triggered."""
         asset = data["asset"]
         sensors = []
-        for sensor_flex_model in data["flex_model"]:
+        for sensor_flex_model in data.get("flex_model", []):
             sensor = sensor_flex_model["sensor"]
             if sensor in sensors:
                 raise FMValidationError(
