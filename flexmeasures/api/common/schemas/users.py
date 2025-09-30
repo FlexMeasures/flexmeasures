@@ -21,7 +21,7 @@ class AccountIdField(fields.Integer):
         return account
 
     def _serialize(self, account: Account, attr, data, **kwargs) -> int:
-        return account.id
+        return account.id if account else None
 
     @classmethod
     def load_current(cls):

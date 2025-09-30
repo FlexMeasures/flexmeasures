@@ -327,7 +327,7 @@ class AssetAPIQuerySchema(PaginationSchema):
         required=False,
         validate=validate.OneOf(["id", "name", "owner"]),
     )
-    account = AccountIdField(data_key="account_id", required=True)
+    account = AccountIdField(data_key="account_id", required=False)
     all_accessible = fields.Bool(data_key="all_accessible", load_default=False)
     include_public = fields.Bool(data_key="include_public", load_default=False)
 
