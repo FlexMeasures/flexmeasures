@@ -15,11 +15,9 @@ def make_openapi_compatible(schema_cls: type[Schema]) -> type[Schema]:
         if field.__module__.startswith("marshmallow.fields"):
             new_fields[name] = field
         else:
-            # Replace *any* non-standard field (like VariableQuantityField) with String
+            # Replace *any* non-standard field (like VariableQuantityField) with OpenAPI compatible String field
             # Adding description so the user knows what the actual field is
-            new_fields[name] = fields.String(
-                description=f"OpenAPI compatible for {field.__class__.__name__}"
-            )
+            new_fields[name] = fields.String()
 
     # Build schema dynamically, based only on safe fields
     OpenAPISchema = type(
