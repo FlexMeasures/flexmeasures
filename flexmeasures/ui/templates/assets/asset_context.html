@@ -745,7 +745,7 @@
             flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
             await setActiveCard(document.getElementById(`${flexId}-control`));
             await setFlexContext(assetFlexContext);
-
+            
             // Update FlexContext
             await updateFlexContext();
         }
@@ -759,7 +759,6 @@
                     flexSelect.innerHTML += `<option value="${key}">${getFlexFieldTitle(key)}</option>`;
                 }
             }
-
         }
 
         function renderFlexInputOptions(contextKey, sensorsOnly = false) {
