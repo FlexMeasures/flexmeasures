@@ -261,7 +261,7 @@ def test_get_public_assets(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_auth_alter_an_asset(
+def test_alter_an_asset(
     client, setup_api_test_data, setup_accounts, requesting_user, db
 ):
     # without being an account-admin, no asset can be created ...
