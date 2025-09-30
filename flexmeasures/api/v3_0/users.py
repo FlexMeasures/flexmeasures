@@ -41,7 +41,7 @@ account_schema = AccountSchema()
 
 
 class UserAPIQuerySchema(UserPaginationSchema):
-    account = AccountIdField(data_key="account_id", required=True)
+    account = AccountIdField(data_key="account_id", load_default=None)
     include_inactive = fields.Bool(load_default=False)
 
 
