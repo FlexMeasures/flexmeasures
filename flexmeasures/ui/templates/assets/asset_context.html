@@ -702,7 +702,7 @@
             renderFlexSelectOptions();
         }
 
-        // This is a bridge/middlewar fuciton to work with actionFunc interface
+        // This is a bridge/middleware fuciton to work with actionFunc interface
         // used by the sensor search results
         async function updateSensorValue(sensorId) {
             await updateFlexContextFieldValue("sensor", sensorId);
@@ -974,7 +974,7 @@
                 fixedLabel.className = "form-label";
                 fixedLabel.innerHTML = `Value for <b>${getFlexFieldTitle(contextKey)}</b> `;
                 fixedLabel.appendChild(createTooltipIcon(
-                    "Enter a fixed value with a unit, e.g. '75kW' or '105 EUR'. It will be used in all schedules for this asset and his sensors."
+                    "Enter a fixed value with a unit, e.g. '75kW' or '105 EUR'. It will be used in all schedules for this asset and its sensors."
                 ));
 
                 const fixedInput = document.createElement("input");
