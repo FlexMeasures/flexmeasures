@@ -307,6 +307,9 @@ def delete_beliefs(  # noqa: C901
     # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
     # repr(entity) includes the IDs, which matters for the confirmation prompt
+    if num_beliefs_up_for_deletion == 0:
+        done("0 unchanged beliefs found.")
+        return
     if sensors:
         prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on {join_words_into_a_list([repr(sensor) for sensor in sensors])}?"
     elif generic_assets:
