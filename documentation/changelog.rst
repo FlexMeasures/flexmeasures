@@ -10,6 +10,7 @@ v0.29.0 | October XX, 2025
 
 New features
 -------------
+* New CLI command for scheduling, with full flex-context and flex-model support as well as the option to set your scheduler class [see `PR #1713 <https://github.com/FlexMeasures/flexmeasures/pull/1713>`_]
 * Added a UI editor (form modal) to edit an asset's flex-model [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_ and `PR #1565 <https://github.com/FlexMeasures/flexmeasures/pull/1565>`_]
 * Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
 
@@ -19,9 +20,12 @@ Infrastructure / Support
 * Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
 * Upgraded Docker Image Ubuntu 24, which uses Python 3.12 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
+* Improved flex-context modal UI and UI-backend functionalities&structure [see `PR #1704 <https://github.com/FlexMeasures/flexmeasures/pull/1704>`_]
 
 Bugfixes
 -----------
+* Changed 422 response for asset PATCH endpoint to the format also used elsewhere [see `PR #1722 <https://github.com/FlexMeasures/flexmeasures/pull/1722>`_]
+* Make monitoring tasks & users robust against db issues [see `PR #1715 <https://www.github.com/FlexMeasures/flexmeasures/pull/1715>`_]
 
 
 v0.28.1 | September 18, 2025

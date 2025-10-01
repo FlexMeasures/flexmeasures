@@ -109,7 +109,7 @@
                 </div>
             </div>
             {% endif %}
-
+      
             <div class="header-action-button">
                 {% if user_can_delete_asset %}
                 <div>
@@ -684,7 +684,7 @@
                                 ${assetFlexModelFieldDesc[modelKey]["desc"] || "No description available."}
                             </div>
 
-                             <div class="pt-2 fw-bold">
+                             <div class="pt-2 fw-bold"> 
                                 Possible Types: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["types"] || "No types available."} </span> <br/>
                                 Example Units: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["units"].join(", ")} </span>
                             </div>
@@ -1016,7 +1016,7 @@
                                     Include Public Assets
                                 </label>
                             </div>
-
+                            
                             <div class="row">
                                 <div class="col-8 pe-1">
                                     <input
@@ -1233,22 +1233,22 @@
         });
     </script>
 
-<script>
-    function Sensor(
-        id,
-        name,
-        unit,
-        resolution,
-        active
-    ) {
-        this.id = id;
-        this.name = name;
-        this.unit = unit;
-        this.resolution = resolution
-        this.url = `/sensors/${id}`;
-    }
+    <script>
+        function Sensor(
+            id,
+            name,
+            unit,
+            resolution,
+            active
+        ) {
+            this.id = id;
+            this.name = name;
+            this.unit = unit;
+            this.resolution = resolution
+            this.url = `/sensors/${id}`;
+        }
 
-    $(document).ready(function () {
+        $(document).ready(function () {
         let unit = "";
         // Initialize the DataTable
         const table = $("#sensorsTable").dataTable({
