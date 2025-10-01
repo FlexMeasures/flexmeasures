@@ -1,5 +1,5 @@
 from flask import current_app, stream_with_context, Response
-from flask_security import auth_token_required
+from flask_security import auth_token_required, login_required
 from werkzeug.exceptions import NotFound
 
 from flexmeasures.auth.decorators import roles_required
@@ -25,7 +25,7 @@ def post_task_run():
 
 
 @flexmeasures_api_ops.route("/logs")
-@auth_token_required
+@login_required
 @roles_required("debugger")
 def stream_logs():
     """Stream server logs for debugging."""
