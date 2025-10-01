@@ -446,10 +446,10 @@ class DBFlexContextSchema(FlexContextSchema):
         energy_price_fields = [
             "consumption_price",
             "production_price",
-        ]
-        capacity_price_fields = [
             "soc_minima_breach_price",
             "soc_maxima_breach_price",
+        ]
+        capacity_price_fields = [
             "consumption_breach_price",
             "production_breach_price",
             "ems_consumption_breach_price",
