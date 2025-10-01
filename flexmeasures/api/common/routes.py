@@ -1,3 +1,4 @@
+from collections import deque
 import os
 
 from flask import current_app, request, Response
@@ -39,5 +40,5 @@ def stream_logs():
     if not os.path.exists(log_file):
         abort(404, "Log file not found")
     with open(log_file, "r") as f:
-        lines = f.readlines()[-n:]  # last n lines
-    return Response("".join(lines), mimetype="text/plain")
+        last_n_lines = deque(f, maxlen=n)
+    return Response("".join(last_n_lines), mimetype="text/plain")
