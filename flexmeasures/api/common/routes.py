@@ -1,6 +1,6 @@
 import os
 
-from flask import current_app, Response
+from flask import current_app, request, Response
 from flask_security import auth_token_required, login_required
 from werkzeug.exceptions import NotFound, abort
 
@@ -35,8 +35,9 @@ def stream_logs():
         raise NotFound
 
     log_file = "flexmeasures.log"
+    n = int(request.args.get("tail", 200))
     if not os.path.exists(log_file):
         abort(404, "Log file not found")
     with open(log_file, "r") as f:
-        lines = f.readlines()[-200:]  # last 200 lines
+        lines = f.readlines()[-n:]  # last n lines
     return Response("".join(lines), mimetype="text/plain")
