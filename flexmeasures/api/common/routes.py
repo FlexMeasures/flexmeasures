@@ -1,8 +1,8 @@
-import time
+import os
 
-from flask import current_app, stream_with_context, Response
+from flask import current_app, Response
 from flask_security import auth_token_required, login_required
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import NotFound, abort
 
 from flexmeasures.auth.decorators import roles_required
 from flexmeasures.api.common import flexmeasures_api as flexmeasures_api_ops
@@ -34,14 +34,9 @@ def stream_logs():
     if current_app.config.get("LOGGING_LEVEL") != "DEBUG":
         raise NotFound
 
-    def generate():
-        with open("flexmeasures.log") as f:
-            f.seek(0, 2)  # go to end of file
-            while True:
-                line = f.readline()
-                if line:
-                    yield line
-                else:
-                    time.sleep(0.5)
-
-    return Response(stream_with_context(generate()), mimetype="text/plain")
+    log_file = "flexmeasures.log"
+    if not os.path.exists(log_file):
+        abort(404, "Log file not found")
+    with open(log_file, "r") as f:
+        lines = f.readlines()[-200:]  # last 200 lines
+    return Response("".join(lines), mimetype="text/plain")
