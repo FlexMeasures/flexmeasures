@@ -308,7 +308,7 @@ def delete_beliefs(  # noqa: C901
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
     # repr(entity) includes the IDs, which matters for the confirmation prompt
     if num_beliefs_up_for_deletion == 0:
-        done("0 unchanged beliefs found.")
+        done("0 beliefs found.")
         return
     if sensors:
         prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on {join_words_into_a_list([repr(sensor) for sensor in sensors])}?"
@@ -426,6 +426,9 @@ def delete_unchanged_beliefs(
     num_beliefs_up_for_deletion = (
         num_forecasts_up_for_deletion + num_measurements_up_for_deletion
     )
+    if num_beliefs_up_for_deletion == 0:
+        done("0 unchanged beliefs found.")
+        return
     prompt = f"Delete {num_beliefs_up_for_deletion} unchanged beliefs ({num_measurements_up_for_deletion} measurements and {num_forecasts_up_for_deletion} forecasts) out of {num_beliefs_before} beliefs?"
     click.confirm(prompt, abort=True)
 
