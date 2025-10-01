@@ -21,7 +21,7 @@ Infrastructure / Support
 * Upgraded Docker Image Ubuntu 24, which uses Python 3.12 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
 * Improved flex-context modal UI and UI-backend functionalities&structure [see `PR #1704 <https://github.com/FlexMeasures/flexmeasures/pull/1704>`_]
-* Changed API response for asset PATCH api to expected the format [see `PR #1722 <https://github.com/FlexMeasures/flexmeasures/pull/1722>`_]
+* Changed API response for asset PATCH api to the expected format [see `PR #1722 <https://github.com/FlexMeasures/flexmeasures/pull/1722>`_]
 
 Bugfixes
 -----------
