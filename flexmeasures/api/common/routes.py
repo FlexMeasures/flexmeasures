@@ -30,8 +30,8 @@ def post_task_run():
 @flexmeasures_api_ops.route("/logs")
 @login_required
 @roles_required("debugger")
-def stream_logs():
-    """Stream server logs for debugging."""
+def show_logs():
+    """Show server logs for debugging."""
     if current_app.config.get("LOGGING_LEVEL") != "DEBUG":
         raise NotFound
 
