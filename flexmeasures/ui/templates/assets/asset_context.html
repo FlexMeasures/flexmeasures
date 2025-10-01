@@ -371,7 +371,7 @@
         setFlexContext(assetFlexContext);
 
         // Store active card in local storage
-        localStorage.setItem('activeCard',fieldName);
+        localStorage.setItem('activeCard', fieldName);
 
         setTimeout(() => {
             const card = document.getElementById(`${fieldName}-control`);
@@ -382,7 +382,7 @@
             setActiveCard(card);
 
         }, 500);
-        
+
     }
     // ============== Add Field/Card Action Button END ============== //
 
@@ -557,7 +557,7 @@
 
         card.onclick = function () {
             if (activeCard() && activeCard().id === card.id) {
-                if (fieldName !== "inflexible-device-sensors"){
+                if (fieldName !== "inflexible-device-sensors") {
                     setActiveCard(null); // Deselect if the same card is clicked again
                     // remove active card from localstorage
                     localStorage.removeItem('activeCard');
@@ -672,9 +672,9 @@
             }
         }
 
-        if (storedActiveCard && activeCard()){
+        if (storedActiveCard && activeCard()) {
             const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
-            if (assetFlexContext[storedActiveCard]){
+            if (assetFlexContext[storedActiveCard]) {
                 const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price");
                 setTimeout(() => {
                     flexOptionsContainer.innerHTML = "";
@@ -730,13 +730,13 @@
             }
         }
 
-        localStorage.setItem('activeCard',flexId);
+        localStorage.setItem('activeCard', flexId);
 
         highlightedCard = await renderFlexContextCard(flexId);
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
         await setActiveCard(document.getElementById(`${flexId}-control`));
         await setFlexContext(assetFlexContext);
-        
+
         // Update FlexContext
         await updateFlexContext();
     }
@@ -753,7 +753,7 @@
     }
 
     function renderFlexInputOptions(contextKey, sensorsOnly = false) {
-        if (!contextKey){
+        if (!contextKey) {
             flexInfoContainer.innerHTML = "";
             return;
         }
@@ -1067,6 +1067,7 @@
         const alertStyle = "alert alert-light";
 
     }
+    // ============== Page Events ============== //
 </script>
 
 {% endblock %}
