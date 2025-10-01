@@ -1,3 +1,5 @@
+import time
+
 from flask import current_app, stream_with_context, Response
 from flask_security import auth_token_required, login_required
 from werkzeug.exceptions import NotFound
@@ -39,5 +41,7 @@ def stream_logs():
                 line = f.readline()
                 if line:
                     yield line
+                else:
+                    time.sleep(0.5)
 
     return Response(stream_with_context(generate()), mimetype="text/plain")
