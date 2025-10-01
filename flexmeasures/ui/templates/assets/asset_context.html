@@ -335,13 +335,14 @@
     for (const [key, value] of Object.entries(schemaSpecs)) {
         assetFlexContextSchema[key] = value["default"];
     }
-    processResourceRawJSON(assetFlexContextSchema, "{{ asset.flex_context | safe }}");
+    const assetFlexContextRawJSON = { ...assetFlexContextSchema };
+    processResourceRawJSON(assetFlexContextRawJSON, "{{ asset.flex_context | safe }}");
 
     const spinnerElement = document.getElementById('spinnerElement');
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
 
     const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
-    const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextSchema, reRenderForm);
+    const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
 
     function reRenderForm() {
         // Skip on first init. This code prevents the access to teh variable 'getFlexcontext'
