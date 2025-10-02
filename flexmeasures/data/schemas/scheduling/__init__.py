@@ -352,22 +352,22 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-minima-breach-price": {
         "default": None,
-        "description": "This penalty value is used to discourage the violation of state-of-charge minima constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site. If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. Without this value, any infeasible state-of-charge minima would prevent a complete schedule from being computed. "```
+        "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge minima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site. If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. Without this value, any infeasible state-of-charge minima would prevent a complete schedule from being computed.",
         "allowed-units": ALLOWED_UNITS_TYPES["energy-price"],
     },
     "soc-maxima-breach-price": {
         "default": None,
-        "description": "This value represents the price that will be paid if the state of charge of a battery goes above the maximum state of charge. This must use the same currency and cannot be a negative price.",
+        "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge maxima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an <b>internal nudge</b> to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.",
         "allowed-units": ALLOWED_UNITS_TYPES["energy-price"],
     },
     "consumption-breach-price": {
         "default": None,
-        "description": "The price of breaching the <b>consumption-capacity</b> in the flex-model, useful to treat <b>consumption-capacity</b> as a soft constraint but still make the scheduler attempt to respect it.",
+        "description": "This <b>penalty value</b> is used to discourage the violation of the <b>consumption-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
         "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "production-breach-price": {
         "default": None,
-        "description": "The price of breaching the <b>production-capacity</b> in the flex-model, useful to treat <b>production-capacity</b> as a soft constraint but still make the scheduler attempt to respect it.",
+        "description": "This <b>penalty value</b> is used to discourage the violation of the <b>production-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
         "allowed-units": ALLOWED_UNITS_TYPES["power-price"],
     },
     "site-consumption-breach-price": {

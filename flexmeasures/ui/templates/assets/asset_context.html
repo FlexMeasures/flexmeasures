@@ -326,11 +326,9 @@
         "string": "fa fa-solid fa-lock fa-lg",
         "default": "fa fa-solid fa-question-circle",
     }
-
-    let schemaSpecs = "{{ flex_context_schema | safe }}".replace(/'/g, '"');
-    schemaSpecs = schemaSpecs.replace(/None/g, 'null');
-    schemaSpecs = JSON.parse(schemaSpecs);
-
+    
+    const schemaSpecsString = '{{ flex_context_schema | tojson | safe  }}';
+    const schemaSpecs = JSON.parse(schemaSpecsString); 
     const assetFlexContextSchema = {};
     for (const [key, value] of Object.entries(schemaSpecs)) {
         assetFlexContextSchema[key] = value["default"];
