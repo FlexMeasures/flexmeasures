@@ -1291,6 +1291,23 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     transform: translate(-15px, 15px);
 }
 
+/* Remove default link styling from card anchors */
+#kpi-cards a {
+  color: inherit; /* keep text color normal */
+  border: none !important; /* no dashed underline */
+}
+
+/* Hover effect for cards */
+#kpi-cards a .card {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#kpi-cards a:hover .card {
+  background-color: var(--secondary-transparent);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* subtle shadow */
+}
+
+
 .role-title-text text {
     font-size: 20px;
     fill: var(--primary-color);
