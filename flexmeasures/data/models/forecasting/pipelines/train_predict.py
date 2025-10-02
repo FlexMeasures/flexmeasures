@@ -74,6 +74,7 @@ class TrainPredictPipeline(Forecaster):
             event_starts_after=train_start,
             event_ends_before=train_end,
             probabilistic=self._parameters["probabilistic"],
+            ensure_positive=self._parameters["ensure_positive"],
         )
 
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
