@@ -168,7 +168,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
         for _output in output_names:
             if _output not in fake_data:
                 raise ValidationError(
-                    "Cannot find final output `{_output}` DataFrame among the resulting DataFrames."
+                    f"Cannot find final output `{_output}` DataFrame among the resulting DataFrames."
                 )
 
             if (_output in output_method) and (
