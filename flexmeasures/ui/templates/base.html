@@ -986,6 +986,11 @@
             // Set kpiCards to empty
             kpiCards.innerHTML = '';
             data.forEach(kpi => {
+                const link = document.createElement('a');
+                link.href = `${apiBasePath}/sensors/${kpi.sensor}`;
+                link.title = "See actual KPI data";
+                link.classList.add('text-decoration-none', 'd-flex', 'flex-fill');
+
                 const colDiv = document.createElement('div');
                 colDiv.classList.add('col-md-3');
                 colDiv.classList.add('d-flex');
@@ -1002,12 +1007,10 @@
                                 <small>${kpi.downsample_function}</small>
                             </strong>
                         </h5>
-                        <small style="float: right;">
-                            <a href="${apiBasePath}/sensors/${kpi.sensor}" title="See actual KPI data">see more</a>
-                        </small>
                     </div>
                 `;
-                colDiv.appendChild(card);
+                link.appendChild(card);
+                colDiv.appendChild(link);
                 kpiCards.appendChild(colDiv);
             });
         })
