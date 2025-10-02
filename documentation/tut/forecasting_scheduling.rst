@@ -71,11 +71,11 @@ There might be reasons to add forecasts of past time ranges. For instance, for v
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 
-Here we request 6-hour forecasts to be made for two sensors, for a period of two days:
+Here we request 6-hour forecasts to be made for one sensor, for a period of two days:
 
 .. code-block:: bash
 
-    $ flexmeasures add forecasts --sensor 2 --sensor 3 \
+    $ flexmeasures add forecasts --sensor 2 \
         --from-date 2015-02-01 --to-date 2015-08-31 \
         --horizon 6 --as-job
 
