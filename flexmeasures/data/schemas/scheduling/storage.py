@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import TypedDict, cast, Callable
 from datetime import datetime, timedelta
 
 from flask import current_app
@@ -13,11 +14,28 @@ from marshmallow import (
 )
 from marshmallow.validate import OneOf, ValidationError
 
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures import Asset, Sensor
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.sensors import VariableQuantityField
+from flexmeasures.utils.unit_utils import (
+    ur,
+    is_power_unit,
+    is_energy_unit,
+)
 
-from flexmeasures.utils.unit_utils import ur
+#  Telling type hints what to expect after schema parsing
+SoCTarget = TypedDict(
+    "SoCTarget",
+    {
+        "datetime": datetime,
+        "start": datetime,
+        "end": datetime,
+        "duration": timedelta,
+        "value": float,
+    },
+    total=False,  # not all are required (just value, which we can say in 3.11)
+)
 
 
 class EfficiencyField(QuantityField):
@@ -53,6 +71,8 @@ class StorageFlexModelSchema(Schema):
     Some fields are not required, as they might live on the Sensor.attributes.
     You can use StorageScheduler.deserialize_flex_config to get that filled in.
     """
+
+    asset = GenericAssetIdField(required=False)
 
     soc_at_start = QuantityField(
         required=False,
@@ -166,7 +186,7 @@ class StorageFlexModelSchema(Schema):
     def __init__(
         self,
         start: datetime,
-        sensor: Sensor,
+        sensor: Sensor | None,
         *args,
         default_soc_unit: str | None = None,
         **kwargs,
@@ -174,32 +194,35 @@ class StorageFlexModelSchema(Schema):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
+        self.timezone = sensor.timezone if sensor is not None else None
 
         # guess default soc-unit
         if default_soc_unit is None:
-            if self.sensor.unit in ("MWh", "kWh"):
+            if self.sensor is not None and self.sensor.unit in ("MWh", "kWh"):
                 default_soc_unit = self.sensor.unit
-            elif self.sensor.unit in ("MW", "kW"):
+            elif self.sensor is not None and self.sensor.unit in ("MW", "kW"):
                 default_soc_unit = self.sensor.unit + "h"
+            else:
+                default_soc_unit = "MWh"
 
         self.soc_maxima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-maxima",
         )
 
         self.soc_minima = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-minima",
             value_validator=validate.Range(min=0),
         )
         self.soc_targets = VariableQuantityField(
             to_unit="MWh",
             default_src_unit=default_soc_unit,
-            timezone=sensor.timezone,
+            timezone=self.timezone,
             data_key="soc-targets",
         )
 
@@ -211,16 +234,19 @@ class StorageFlexModelSchema(Schema):
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
-        soc_targets: list[dict[str, datetime | float] | Sensor] | None = data.get(
-            "soc_targets"
-        )
+        # skip check if the flex-model does not define a sensor: the StorageScheduler will not base its resolution on this flex-model
+        if self.sensor is None:
+            return
+        soc_targets: list[SoCTarget] | Sensor | None = data.get("soc_targets")
         # skip check if the SOC targets are not provided or if they are defined as sensors
         if not soc_targets or isinstance(soc_targets, Sensor):
             return
+        max_target_datetime = max([target["end"] for target in soc_targets])
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
         if isinstance(max_server_horizon, int):
             max_server_horizon *= self.sensor.event_resolution
-        max_target_datetime = max([target["end"] for target in soc_targets])
+        # just telling the type checker that we are sure it is a timedelta now
+        max_server_horizon = cast(timedelta, max_server_horizon)
         max_server_datetime = self.start + max_server_horizon
         if max_target_datetime > max_server_datetime:
             current_app.logger.warning(
@@ -241,12 +267,18 @@ class StorageFlexModelSchema(Schema):
                 "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
 
+    @validates("asset")
+    def validate_asset(self, asset: Asset, **kwargs):
+        if self.sensor is not None and self.sensor.asset != asset:
+            raise ValidationError("Sensor does not belong to asset.")
+
     @validates("storage_efficiency")
     def validate_storage_efficiency_resolution(
         self, unit: Sensor | ur.Quantity, **kwargs
     ):
         if (
-            isinstance(unit, Sensor)
+            self.sensor is not None
+            and isinstance(unit, Sensor)
             and unit.event_resolution != self.sensor.event_resolution
         ):
             raise ValidationError(
@@ -284,3 +316,245 @@ class StorageFlexModelSchema(Schema):
             )
 
         return data
+
+
+class DBStorageFlexModelSchema(Schema):
+    """
+    Schema for flex-models stored in the db. Supports fixed quantities and sensor references, while disallowing time series specs.
+    """
+
+    soc_min = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-min",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "min_soc_in_mwh"},
+    )
+
+    soc_max = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-max",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "max_soc_in_mwh"},
+    )
+
+    soc_minima = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-minima",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
+    soc_maxima = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-maxima",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
+    soc_targets = VariableQuantityField(
+        to_unit="MWh",
+        data_key="soc-targets",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
+    state_of_charge = VariableQuantityField(
+        to_unit="MWh",
+        data_key="state-of-charge",
+        required=False,
+        value_validator=validate.Range(min=0),
+    )
+
+    soc_gain = fields.List(
+        VariableQuantityField("MW"),
+        data_key="soc-gain",
+        required=False,
+        validate=validate.Length(min=1),
+        metadata={"deprecated field": "soc-gain"},
+    )
+
+    soc_usage = fields.List(
+        VariableQuantityField("MW"),
+        data_key="soc-usage",
+        required=False,
+        validate=validate.Length(min=1),
+        metadata={"deprecated field": "soc-usage"},
+    )
+
+    roundtrip_efficiency = EfficiencyField(
+        data_key="roundtrip-efficiency",
+        required=False,
+        metadata={"deprecated field": "roundtrip_efficiency"},
+    )
+
+    charging_efficiency = VariableQuantityField(
+        "%",
+        data_key="charging-efficiency",
+        required=False,
+        metadata={"deprecated field": "charging-efficiency"},
+    )
+
+    discharging_efficiency = VariableQuantityField(
+        "%",
+        data_key="discharging-efficiency",
+        required=False,
+        metadata={"deprecated field": "discharging-efficiency"},
+    )
+
+    storage_efficiency = EfficiencyField(
+        data_key="storage-efficiency",
+        required=False,
+        metadata={"deprecated field": "storage_efficiency"},
+    )
+
+    prefer_charging_sooner = fields.Bool(
+        data_key="prefer-charging-sooner", load_default=True
+    )
+
+    prefer_curtailing_later = fields.Bool(
+        data_key="prefer-curtailing-later", load_default=True
+    )
+
+    power_capacity = VariableQuantityField(
+        to_unit="MW",
+        data_key="power-capacity",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "capacity_in_mw"},
+    )
+
+    consumption_capacity = VariableQuantityField(
+        to_unit="MW",
+        data_key="consumption-capacity",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "consumption_capacity"},
+    )
+
+    production_capacity = VariableQuantityField(
+        to_unit="MW",
+        data_key="production-capacity",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata={"deprecated field": "production_capacity"},
+    )
+
+    mapped_schema_keys: dict
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Initialize mapped_schema_keys to map field names to their data keys
+        # This is necessary for validation methods to access the correct data keys
+        # after the schema is declared.
+        self.mapped_schema_keys = {
+            field: (self.declared_fields[field].data_key or field)
+            for field in self.declared_fields
+        }
+
+    @validates_schema
+    def forbid_time_series_specs(self, data: dict, **kwargs):
+        """Do not allow time series specs for the flex-model fields saved in the db."""
+
+        # List of keys to check for time series specs
+        keys_to_check = []
+        # All the keys in this list are all fields of type VariableQuantity
+        for field_var, field in self.declared_fields.items():
+            if isinstance(field, VariableQuantityField):
+                keys_to_check.append((field_var, field))
+
+        # Check each key and raise a ValidationError if it's a list
+        for field_var, field in keys_to_check:
+            if field_var in data and isinstance(data[field_var], list):
+                raise ValidationError(
+                    "A time series specification (listing segments) is not supported when storing flex-model fields. Use a fixed quantity or a sensor reference instead.",
+                    field_name=field.data_key,
+                )
+
+    @validates_schema
+    def validate_fields_unit(self, data: dict, **kwargs):
+        """Check that each field value has a valid unit."""
+
+        self._validate_energy_fields(data)
+        self._validate_power_fields(data)
+        self._validate_array_fields(data)
+
+    def _validate_energy_fields(self, data: dict):
+        """Validate energy fields."""
+        energy_fields = [
+            "soc_min",
+            "soc_max",
+            "soc_minima",
+            "soc_maxima",
+            "soc_targets",
+            "state_of_charge",
+            "state_of_charge",
+        ]
+
+        for field in energy_fields:
+            if field in data:
+                self._validate_field(data, field, unit_validator=is_energy_unit)
+
+    def _validate_power_fields(self, data: dict):
+        """Validate power fields."""
+        power_fields = [
+            "power_capacity",
+            "consumption_capacity",
+            "production_capacity",
+        ]
+
+        for field in power_fields:
+            if field in data:
+                self._validate_field(data, field, unit_validator=is_power_unit)
+
+    def _validate_array_fields(self, data: dict):
+        """Validate power array fields."""
+        array_fields = ["soc_gain", "soc_usage"]
+
+        if self.mapped_schema_keys is None:
+            raise ValueError(
+                "mapped_schema_keys must be initialized before validation."
+            )
+
+        for field in array_fields:
+            if field in data:
+                for item in data[field]:
+                    if isinstance(item, ur.Quantity):
+                        if not is_power_unit(str(item.units)):
+                            raise ValidationError(
+                                f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
+                                field_name=self.mapped_schema_keys[field],
+                            )
+                    elif isinstance(item, Sensor):
+                        if not is_power_unit(item.unit):
+                            raise ValidationError(
+                                f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
+                                field_name=self.mapped_schema_keys[field],
+                            )
+                    else:
+                        raise ValidationError(
+                            f"Field '{self.mapped_schema_keys[field]}' must be a list of quantities or sensors.",
+                            field_name=self.mapped_schema_keys[field],
+                        )
+
+    def _validate_field(self, data: dict, field: str, unit_validator: Callable):
+        """Validate fields based on type and unit validator."""
+
+        if self.mapped_schema_keys is None:
+            raise ValueError(
+                "mapped_schema_keys must be initialized before validation."
+            )
+
+        if isinstance(data[field], ur.Quantity):
+            if not unit_validator(str(data[field].units)):
+                raise ValidationError(
+                    f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",
+                    field_name=self.mapped_schema_keys[field],
+                )
+        elif isinstance(data[field], Sensor):
+            if not unit_validator(data[field].unit):
+                raise ValidationError(
+                    f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",
+                    field_name=self.mapped_schema_keys[field],
+                )

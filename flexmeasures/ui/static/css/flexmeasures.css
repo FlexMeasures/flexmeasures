@@ -515,13 +515,6 @@ input:checked + .slider:before {
     color: var(--light-gray);
 }
 
-i {
-    font-size: normal;
-    position: relative;
-}
-i:not(.supersize):before, i:not(.supersize):after {
-    font-size: 24px;
-}
 .supersize {
     font-size: 48px;
 }
@@ -2046,4 +2039,9 @@ body.touched [title]:hover:after {
   margin-right: 1em;
   text-align: center;
   border-radius: 0.275rem;
+}
+
+.flex-nav.nav-link.active {
+  border-bottom-color: #fff;
+  background-color: #fff;
 }

@@ -12,6 +12,7 @@ from flexmeasures.data.schemas.scheduling.process import (
 )
 from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
+    DBStorageFlexModelSchema,
 )
 from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
 
@@ -96,7 +97,7 @@ def test_soc_value_field(timing_input, expected_start, expected_end):
 
 
 def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):
-    sensor1, _ = setup_dummy_sensors
+    sensor1, _, _, _ = setup_dummy_sensors
 
     schema = ProcessSchedulerFlexModelSchema(
         sensor=sensor1,
@@ -118,7 +119,7 @@ def test_process_scheduler_flex_model_load(db, app, setup_dummy_sensors):
 
 
 def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors):
-    sensor1, _ = setup_dummy_sensors
+    sensor1, _, _, _ = setup_dummy_sensors
 
     # checking default
 
@@ -194,7 +195,7 @@ def test_efficiency_pair(
     or by the (dis)charging efficiency fields.
     """
 
-    sensor1, _ = setup_dummy_sensors
+    sensor1, _, _, _ = setup_dummy_sensors
 
     schema = StorageFlexModelSchema(
         sensor=sensor1,
@@ -534,3 +535,80 @@ def test_get_variable_quantity_unit(
             field._get_original_unit(variable_quantity, deserialized_variable_quantity)
             == expected_unit
         )
+
+
+# test DBStorageFlexModelSchema
+@pytest.mark.parametrize(
+    ["flex_model", "fails"],
+    [
+        (
+            {"soc-min": "450 EUR/MWh"},
+            {"soc-min": "Cannot convert value `450 EUR/MWh` to 'MWh'"},
+        ),
+        (
+            {"soc-min": "3500 kWh"},
+            False,
+        ),
+        (
+            {"soc-minima": {"sensor": "energy-sensor"}},
+            False,
+        ),
+        (
+            {"soc-minima": {"sensor": "price-sensor"}},
+            {"soc-minima": "Cannot convert EUR/MWh to MWh"},
+        ),
+        (
+            {"soc-gain": ["450 EUR/MWh", "650 EUR/MWh"]},
+            {
+                "soc-gain": [
+                    ["Cannot convert value `450 EUR/MWh` to 'MW'"],
+                    ["Cannot convert value `650 EUR/MWh` to 'MW'"],
+                ]
+            },
+        ),
+        (
+            {"soc-usage": ["3500 kW", {"sensor": "power-sensor"}]},
+            False,
+        ),
+    ],
+)
+def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
+    schema = DBStorageFlexModelSchema()
+
+    sensors = {
+        "energy-sensor": setup_dummy_sensors[0],
+        "price-sensor": setup_dummy_sensors[1],
+        "power-sensor": setup_dummy_sensors[3],
+    }
+
+    for field_name, field_value in flex_model.items():
+        if isinstance(field_value, dict) and "sensor" in field_value:
+            # Replace sensor name with sensor ID
+            flex_model[field_name]["sensor"] = sensors[
+                flex_model[field_name]["sensor"]
+            ].id
+        if isinstance(field_value, list):
+            # Replace sensor names in lists with sensor IDs
+            flex_model[field_name] = [
+                {"sensor": sensors[item["sensor"]].id} if "sensor" in item else item
+                for item in field_value
+            ]
+
+    if fails:
+        with pytest.raises(ValidationError) as e_info:
+            schema.load(flex_model)
+        for field_name, expected_message in fails.items():
+            assert field_name in e_info.value.messages
+            if field_name in ["soc-gain", "soc-usage"]:
+                for index, message_list in e_info.value.messages[field_name].items():
+                    assert message_list[0] == expected_message[index][0]
+            else:
+                # Check all messages for the given field for the expected message
+                assert any(
+                    [
+                        expected_message in message
+                        for message in e_info.value.messages[field_name]
+                    ]
+                )
+    else:
+        schema.load(flex_model)

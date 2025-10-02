@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v0.29.0 | October XX, 2024
 =================================
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
+* The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period.
 
 since v0.28.0 | September 10, 2025
 =================================
@@ -91,7 +92,7 @@ since v0.16.0 | September 29, 2023
 since v0.15.0 | August 9, 2023
 ================================
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times.
-* Add ``flexmeasures add schedule for-process`` to create a new process schedule for a given power sensor.
+* Add ``flexmeasures add schedule`` to create a new process schedule for a given power sensor. Make sure to use the ``--scheduler ProcessScheduler`` option to use the in-built process scheduler.
 * Add support for describing ``config`` and ``parameters`` in YAML for the command ``flexmeasures add report``, editable in user's code editor using the flags ``--edit-config`` or ``--edit-parameters``.
 * Add ``--kind process`` option to create the asset and sensors for the ``ProcessScheduler`` tutorial.
 
