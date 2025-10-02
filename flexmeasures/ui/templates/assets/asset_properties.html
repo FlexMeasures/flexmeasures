@@ -548,11 +548,11 @@
                 const currentFlexmodel = getFlexModel()
 
                 if (FlexModelFieldValidTypes[fieldName].includes(Array)) {
-                    currentFlexmodel[fieldName] = ["Not Set"];
+                    currentFlexmodel[fieldName] = [""];
                 } else if (FlexModelFieldValidTypes[fieldName].includes(Boolean)) {
                     currentFlexmodel[fieldName] = true;
                 } else {
-                    currentFlexmodel[fieldName] = "Not Set";
+                    currentFlexmodel[fieldName] = "";
                 }
                 setFlexModel(currentFlexmodel)
 
