@@ -123,7 +123,7 @@ treeSpecs = {
             "signal": "datum.name === currentAssetName ? scaledNodeHeight * 1.1 : scaledNodeHeight"
           },
           "fill": {
-            "signal": "datum.name === currentAssetName ? 'gold' : datum.name === 'Add Child Asset' ? 'green' : 'lightblue'"
+            "signal": "datum.name === currentAssetName ? 'gold' : datum.name === 'Add asset' ? 'green' : 'lightblue'"
           },
           "stroke": {
             "signal": "datum.name === currentAssetName ? 'darkorange' : 'black'"
@@ -152,7 +152,7 @@ treeSpecs = {
                 "signal": "datum.name === currentAssetName ? scaledFont13 * 1.5 : scaledFont13"
               },
               "fill": {
-                "signal": "parent.name === currentAssetName ? 'black' : parent.name === 'Add Child Asset' ? 'white' : 'darkblue'"
+                "signal": "parent.name === currentAssetName ? 'black' : parent.name === 'Add asset' ? 'white' : 'darkblue'"
               },
               "limit": {"signal": "scaledNodeWidth-scaledLimit"},
               "font": {"value": "Calibri"},
