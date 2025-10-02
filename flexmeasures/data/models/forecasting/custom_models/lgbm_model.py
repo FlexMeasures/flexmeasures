@@ -29,6 +29,7 @@ class CustomLGBM(BaseModel):
         auto_regressive=True,
         use_past_covariates=False,
         use_future_covariates=False,
+        ensure_positive=False,
     ):
 
         if models_params is None:
@@ -57,6 +58,7 @@ class CustomLGBM(BaseModel):
             auto_regressive=auto_regressive,
             use_past_covariates=use_past_covariates,
             use_future_covariates=use_future_covariates,
+            ensure_positive=ensure_positive,
         )
 
     def _setup(self) -> None:

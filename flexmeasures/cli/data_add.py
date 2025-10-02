@@ -1107,6 +1107,11 @@ def add_holidays(
     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
 )
 @click.option(
+    "--ensure-positive",
+    is_flag=True,
+    help="Whether to ensure positive forecasts, by clipping out negative values.",
+)
+@click.option(
     "--config",
     "config_file",
     required=False,

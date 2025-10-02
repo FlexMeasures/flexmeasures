@@ -30,6 +30,7 @@ class TrainPipeline(BasePipeline):
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
         probabilistic: bool = False,
+        ensure_positive: bool = False,
     ) -> None:
         """
         Initialize the TrainPipeline.
@@ -49,6 +50,7 @@ class TrainPipeline(BasePipeline):
         self.auto_regressive = (
             True if not past_regressors and not future_regressors else False
         )
+        self.ensure_positive = ensure_positive
         super().__init__(
             future_regressors=future_regressors,
             past_regressors=past_regressors,
@@ -122,6 +124,7 @@ class TrainPipeline(BasePipeline):
                     auto_regressive=self.auto_regressive,
                     use_past_covariates=past_covariates_list is not None,
                     use_future_covariates=future_covariates_list is not None,
+                    ensure_positive=self.ensure_positive,
                 )
             }
 
