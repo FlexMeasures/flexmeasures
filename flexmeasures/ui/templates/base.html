@@ -986,7 +986,7 @@
             data.forEach(kpi => {
                 const link = document.createElement('a');
                 link.href = `${apiBasePath}/sensors/${kpi.sensor}`;
-                link.title = "See actual KPI data";
+                link.title = "See underlying KPI data";
                 link.classList.add('text-decoration-none', 'd-flex', 'flex-fill');
 
                 const colDiv = document.createElement('div');
