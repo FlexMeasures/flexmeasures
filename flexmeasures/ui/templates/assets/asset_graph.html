@@ -73,10 +73,10 @@
             {% if has_kpis %}
             <div class="row">
                 <div class="col-md-12">
-                    <div id="kpi-cards" class="row">
+                    <div id="kpi-cards" class="row g-3">
                         {% for kpi in asset_kpis %}
-                        <div class="col-md-3">
-                            <div class="card">
+                        <div class="col-md-3 d-flex">
+                            <div class="card flex-fill">
                                 <div class="card-body">
                                     <h5 class="card-title">{{ kpi.title }}</h5>
                                     <p class="card-text">Loading...</p>

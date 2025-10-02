@@ -986,12 +986,13 @@
             data.forEach(kpi => {
                 const colDiv = document.createElement('div');
                 colDiv.classList.add('col-md-3');
+                colDiv.classList.add('d-flex');
                 const card = document.createElement('div');
-                card.classList.add('card', 'mb-3');
+                card.classList.add('card', 'flex-fill');
                 // Add sensor data to the card
                 const label = kpi.unit === "%" ? "Average" : "Total";
                 card.innerHTML = `
-                    <div class="card-body">
+                    <div class="card-body d-flex flex-column justify-content-between">
                         <h5 class="card-title">${kpi.title}</h5>
                         <h5 class="card-text">
                             <strong>
