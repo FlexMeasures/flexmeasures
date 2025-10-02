@@ -154,7 +154,7 @@ treeSpecs = {
               "fill": {
                 "signal": "parent.name === currentAssetName ? 'black' : parent.name === 'Add asset' ? 'white' : 'darkblue'"
               },
-              "limit": {"signal": "scaledNodeWidth-scaledLimit"},
+              "limit": {"signal": "scaledNodeWidth-scaledLimit - (scaledNodeWidth * 0.15)"},
               "font": {"value": "Calibri"},
               "href": {"signal": "datum.link"},
               "tooltip": {"signal": "parent.tooltip"}
