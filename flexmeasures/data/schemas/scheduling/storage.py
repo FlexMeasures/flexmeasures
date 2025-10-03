@@ -489,7 +489,6 @@ class DBStorageFlexModelSchema(Schema):
             "soc_maxima",
             "soc_targets",
             "state_of_charge",
-            "state_of_charge",
         ]
 
         for field in energy_fields:
