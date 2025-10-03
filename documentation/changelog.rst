@@ -35,6 +35,7 @@ v0.28.2 | October 3, 2025
 Bugfixes
 -----------
 * Fix horizons in UI chart tooltips [see `PR #1730 <https://www.github.com/FlexMeasures/flexmeasures/pull/1730>`_]
+* Fix UI chart for Charge Point sessions [see `PR #1699 <https://www.github.com/FlexMeasures/flexmeasures/pull/1699>`_]
 * Fix two audit logs in the sensor API, which were not committed to db [see `PR #1721 <https://github.com/FlexMeasures/flexmeasures/pull/1721>`_]
 
 
