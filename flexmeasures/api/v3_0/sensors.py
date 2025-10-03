@@ -29,10 +29,12 @@ from flexmeasures.api.common.responses import (
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
 )
-from flexmeasures.api.common.schemas.sensor_data import (
+from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
+    SensorDataDescriptionSchema,
     GetSensorDataSchema,
     PostSensorDataSchema,
 )
+from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.policy import check_access
@@ -46,8 +48,8 @@ from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
     SensorIdField,
-    SensorId,
     SensorDataFileSchema,
+    SensorDataFileDescriptionSchema,
 )
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas import AssetIdField
@@ -62,7 +64,7 @@ from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
-# Instantiate schemas outside of endpoint logic to minimize response time
+# Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
@@ -341,18 +343,18 @@ class SensorAPI(FlaskView):
 
           security:
             - ApiKeyAuth: []
-          requestBody:
-            content:
-              multipart/form-data:
-                schema: SensorDataFileSchema
-                encoding:
-                  uploaded-files:
-                    contentType: application/octet-stream
           parameters:
             - name: id
               in: path
               required: true
               schema: SensorId
+          requestBody:
+            content:
+              multipart/form-data:
+                schema: SensorDataFileDescriptionSchema
+                encoding:
+                  uploaded-files:
+                    contentType: application/octet-stream
           responses:
             200:
               description: PROCESSED
@@ -364,14 +366,14 @@ class SensorAPI(FlaskView):
                     new_data:
                       summary: New data
                       description: |
-                        If the data sent is new and is not already processed by FlexMeasures, the response will be as follows.
+                        If the data sent is new and is not already processed by FlexMeasures, the response will be as above.
                       value:
                         "message": "Request has been processed."
                         "status": "PROCESSED"
                     processed_previously_received:
                       summary: Previously received data
                       description: |
-                        If some of the data sent was already received and successfully processed by FlexMeasures, the response will be as follows.
+                        If some of the data sent was already received and successfully processed by FlexMeasures, the response will be as above.
                         Note that in this case, the data is still processed, but the already received data points are ignored.
                       value:
                         "message": "Some of the data has already been received and successfully processed."
@@ -412,7 +414,7 @@ class SensorAPI(FlaskView):
         """
         ---
         post:
-          summary: Upload sensor data
+          summary: Post sensor data
           description: |
             Send data values via JSON, where the duration and number of values determine the resolution.
 
@@ -427,15 +429,19 @@ class SensorAPI(FlaskView):
 
           security:
             - ApiAuthKey: []
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema: SensorId
           requestBody:
             content:
               application/json:
-                schema: PostSensorDataSchema
+                schema: PostSensorDataDescriptionSchema
                 examples:
                   post_sensor:
                     summary: Post sensor data to flexmeasures
                     value:
-                      "sensor": "ea1.2021-01.io.flexmeasures:fm1.1"
                       "values": [-11.28, -11.28, -11.28, -11.28]
                       "start": "2021-06-07T00:00:00+02:00"
                       "duration": "PT1H"
@@ -468,37 +474,30 @@ class SensorAPI(FlaskView):
         """
         ---
         get:
-          summary: Download sensor data
+          summary: Get sensor data
           description: |
-            The unit has to be convertible from the sensor's unit.
+            The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.
 
-            Optional fields
+            Optional parameters:
 
-            - "resolution" (see :ref:`frequency_and_resolution`)
-            - "horizon" (see :ref:`beliefs`)
-            - "prior" (see :ref:`beliefs`)
-            - "source" (see :ref:`sources`)
+            - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
+            - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))
+            - "prior" (the belief timing docs also apply here)
+            - "source" (read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
+
+            An example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m³/h:
+
+              ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m³/h
           security:
             - ApiKeyAuth: []
           parameters:
-            - name: sensor
-              in: query
+            - name: id
+              in: path
               required: true
-              schema:
-                type: string
-          requestBody:
-            content:
-              application/json:
-                schema: GetSensorDataSchema
-                examples:
-                  get_sensor_data:
-                    summary: Get sensor data from flexmeasures
-                    value:
-                      "sensor": "ea1.2021-01.io.flexmeasures:fm1.1"
-                      "start": "2021-06-07T00:00:00+02:00"
-                      "duration": "PT1H"
-                      "resolution": "PT15M"
-                      "unit": "m³/h"
+              schema: SensorId
+            - in: query
+              schema: SensorDataTimingDescriptionSchema
+
           responses:
             200:
               description: PROCESSED
@@ -551,29 +550,32 @@ class SensorAPI(FlaskView):
             - the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
             - the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
-            For details on flexibility model and context, see describing_flexibility documentation.
+            For details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).
+            The schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).
+            The examples below illustrate how to describe a flexibility model and context.
 
             > **Note:** To schedule an EMS with multiple flexible sensors at once,
-            > use [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.
+            > use the [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.
 
-            The length of the schedule can be set explicitly through the 'duration' field.
-            Otherwise, it is set by the config setting `planning_horizon_config`, which defaults to 48 hours.
-            If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-            Finally, the schedule length is limited by `max_planning_horizon_config`, which defaults to 2520 steps of the sensor's resolution.
-            Targets that exceed the max planning horizon are not accepted.
+            About the duration of the schedule and targets within the schedule:
 
-            The appropriate algorithm is chosen by FlexMeasures (based on asset type).
-            It's also possible to use custom schedulers and custom flexibility models.
+            - The length of the schedule can be set explicitly through the 'duration' field.
+            - Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.
+            - If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
+            - Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.
 
-            If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)
+            About the scheduling algorithm being used:
+
+            - The appropriate algorithm is chosen by FlexMeasures (based on asset type).
+            - It's also possible to use custom schedulers and custom flexibility models.
+            - If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)
           security:
             - ApiKeyAuth: []
           parameters:
-            - name: sensor
+            - name: id
               in: path
               required: true
-              schema:
-                type: int
+              schema: SensorId
           requestBody:
             required: true
             content:
@@ -587,6 +589,7 @@ class SensorAPI(FlaskView):
                       start: "2015-06-02T10:00:00+00:00"
                       flex-model:
                         soc-at-start: "12.1 kWh"
+                        soc-max: "25 kWh"
                   complex_schedule:
                     summary: Complex 24-hour schedule
                     description: |
@@ -611,7 +614,7 @@ class SensorAPI(FlaskView):
                       while the consumption capacity is limited by a dynamic capacity contract whose values are recorded under sensor 32.
                       Breaching either capacity is penalized heavily in the optimization problem, with a price of 1000 EUR/kW.
                       Finally, peaks over 50 kW in either direction are penalized with a price of 260 EUR/MW.
-                      These penalties can be used to steer the schedule into a certain behaviour (e.g. avoiding breaches and peaks),
+                      These penalties can be used to steer the schedule into a certain behavior (e.g. avoiding breaches and peaks),
                       even if no direct financial impacts are expected at the given prices in the real world.
                       For example, site owners may be requested by their network operators to reduce stress on the grid,
                       be it explicitly or under a social contract.
@@ -769,7 +772,7 @@ class SensorAPI(FlaskView):
                       summary: Schedule response
                       description: |
                         This message contains a schedule indicating to consume at various power
-                        rates from 10am UTC onwards for a duration of 45 minutes.
+                        rates from 10am UTC onward for a duration of 45 minutes.
                       value:
                         values: [2.15, 3, 2]
                         start: "2015-06-02T10:00:00+00:00"
@@ -1144,6 +1147,10 @@ class SensorAPI(FlaskView):
         )
 
         sensor_name = sensor.name
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Deleted sensor '{sensor_name}': {id}",
+        )
         db.session.execute(delete(Sensor).filter_by(id=sensor.id))
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
@@ -1162,11 +1169,11 @@ class SensorAPI(FlaskView):
           security:
             - ApiKeyAuth: []
           parameters:
-            - in: path
-              name: id
+            - name: id
+              in: path
               description: ID of the sensor to delete data for.
-              schema:
-                type: SensorId
+              required: true
+              schema: SensorId
           responses:
             204:
               description: SENSOR_DATA_DELETED
@@ -1285,7 +1292,7 @@ class SensorAPI(FlaskView):
         ---
         get:
           summary: Get sensor status
-          descriptin: |
+          description: |
             This endpoint fetches the current status data for the specified sensor.
             The status includes information about the sensor's status, staleness and resolution.
           security:

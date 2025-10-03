@@ -292,3 +292,6 @@ asc
 desc
 autoflush
 fromisoformat
+upsample
+localhost
+schemas

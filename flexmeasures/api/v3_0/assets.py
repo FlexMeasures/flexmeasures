@@ -178,7 +178,7 @@ class AssetTypesAPI(FlaskView):
                           name: solar
                           description: solar panel(s)
           tags:
-            - Asset Types
+            - Assets
         """
         response = asset_type_schema.dump(
             db.session.scalars(select(GenericAssetType)).all(), many=True
