@@ -1031,7 +1031,7 @@
         handleFlexSelectChange(selectedKey);
     });
 
-    function renderSelectInfoCards(contextKey, description, allowedUnits, isArray = false) {
+    function renderSelectInfoCards(contextKey, description, exampleUnits, isArray = false) {
         if (contextKey) {
             return `
                 <div>
@@ -1042,7 +1042,7 @@
                         </div>
 
                         <div class="pt-3 fw-bold"> 
-                            Example Units: <span class="fw-normal"> ${allowedUnits.join(", ")} </span>
+                            Example Units: <span class="fw-normal"> ${exampleUnits.join(", ")} </span>
                         </div>
                         
                     </div>
@@ -1060,8 +1060,8 @@
         }
 
         const description = schemaSpecs[selectedOption]?.description || "No description available.";
-        const allowedUnits = schemaSpecs[selectedOption]["allowed-units"];
-        flexInfoContainer.innerHTML = renderSelectInfoCards(selectedOption, description, allowedUnits);
+        const exampleUnits = schemaSpecs[selectedOption]["allowed-units"];
+        flexInfoContainer.innerHTML = renderSelectInfoCards(selectedOption, description, exampleUnits);
 
         const alertStyle = "alert alert-light";
 
