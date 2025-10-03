@@ -328,82 +328,82 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "consumption-price": {
         "default": None,  # Refers to default value of the field
         "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["energy-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "production-price": {
         "default": None,
         "description": "Set the sensor that represents the production price of the site. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["energy-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "site-power-capacity": {
         "default": None,
         "description": "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power"] + ["kVA", "MVA"],
+        "example-units": EXAMPLE_UNIT_TYPES["power"] + ["kVA", "MVA"],
     },
     "site-production-capacity": {
         "default": None,
         "description": "This value represents the maximum power that the site can produce. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power"],
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-consumption-capacity": {
         "default": None,
         "description": "This value represents the maximum power that the site can consume. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power"],
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "soc-minima-breach-price": {
         "default": None,
         "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge minima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site. If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. Without this value, any infeasible state-of-charge minima would prevent a complete schedule from being computed.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["energy-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "soc-maxima-breach-price": {
         "default": None,
         "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge maxima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an <b>internal nudge</b> to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["energy-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "consumption-breach-price": {
         "default": None,
         "description": "This <b>penalty value</b> is used to discourage the violation of the <b>consumption-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "production-breach-price": {
         "default": None,
         "description": "This <b>penalty value</b> is used to discourage the violation of the <b>production-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-consumption-breach-price": {
         "default": None,
         "description": "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-production-breach-price": {
         "default": None,
         "description": "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-peak-consumption": {
         "default": None,
         "description": "This value represents the peak consumption of the site. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power"],
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-peak-production": {
         "default": None,
         "description": "This value represents the peak production of the site. This value will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power"],
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-peak-consumption-price": {
         "default": None,
         "description": "This value represents the price paid for increasing the site peak consumption any further. It is used in the scheduling optimization to motivate peak shaving.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-peak-production-price": {
         "default": None,
         "description": "This value represents the price paid for increasing the site peak production any further. It is used in the scheduling optimization to motivate peak shaving.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power-price"],
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "inflexible-device-sensors": {
         "default": [],
         "description": "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization.",
-        "allowed-units": EXAMPLE_UNIT_TYPES["power"],
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
 }
 

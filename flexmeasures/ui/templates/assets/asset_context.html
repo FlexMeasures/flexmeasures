@@ -1060,7 +1060,7 @@
         }
 
         const description = schemaSpecs[selectedOption]?.description || "No description available.";
-        const exampleUnits = schemaSpecs[selectedOption]["allowed-units"];
+        const exampleUnits = schemaSpecs[selectedOption]["example-units"];
         flexInfoContainer.innerHTML = renderSelectInfoCards(selectedOption, description, exampleUnits);
 
         const alertStyle = "alert alert-light";
