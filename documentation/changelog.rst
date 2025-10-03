@@ -25,7 +25,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Fix two audit logs in the sensor API, which were not committed to db [see `PR #1721 <https://github.com/FlexMeasures/flexmeasures/pull/1721>`_]
 * Changed 422 response for asset PATCH endpoint to the format also used elsewhere [see `PR #1722 <https://github.com/FlexMeasures/flexmeasures/pull/1722>`_]
 * Make monitoring tasks & users robust against db issues [see `PR #1715 <https://www.github.com/FlexMeasures/flexmeasures/pull/1715>`_]
 
@@ -36,6 +35,7 @@ v0.28.2 | October 3, 2025
 Bugfixes
 -----------
 * Fix horizons in UI chart tooltips [see `PR #1730 <https://www.github.com/FlexMeasures/flexmeasures/pull/1730>`_]
+* Fix two audit logs in the sensor API, which were not committed to db [see `PR #1721 <https://github.com/FlexMeasures/flexmeasures/pull/1721>`_]
 
 
 v0.28.1 | September 18, 2025
