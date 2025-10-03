@@ -862,7 +862,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                             df["belief_horizon"]
                             .apply(
                                 lambda x: (
-                                    int(x.total_seconds()) if pd.notnull(x) else None
+                                    int(x.total_seconds() * 1000)
+                                    if pd.notnull(x)
+                                    else None
                                 )
                             )
                             .tolist()
