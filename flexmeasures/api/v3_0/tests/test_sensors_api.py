@@ -286,7 +286,7 @@ def test_post_a_sensor(client, setup_api_test_data, requesting_user, db):
 
     assert sensor is not None
     assert sensor.unit == "kWh"
-    assert sensor.attributes["capacity_in_mw"] == 0.0074
+    assert sensor.generic_asset.flex_model["power-capacity"] == "7.4 kW"
 
     check_audit_log_event(
         db=db,

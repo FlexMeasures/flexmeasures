@@ -197,6 +197,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
     sensors_to_show = JSON(required=False)
     flex_context = JSON(required=False)
+    flex_model = JSON(required=False)
     sensors_to_show_as_kpis = JSON(required=False)
 
     class Meta:
@@ -260,6 +261,11 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates("attributes")
     def validate_attributes(self, attributes: dict, **kwargs):
+        """
+        Validate sensors_to_show if sent within attributes.
+        Deprecated, as this is now its own field on the model.
+        Can be deleted once we stop supporting storing them under here.
+        """
         sensors_to_show = attributes.get("sensors_to_show", [])
         if sensors_to_show:
 

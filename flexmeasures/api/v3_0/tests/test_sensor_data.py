@@ -21,7 +21,6 @@ def test_get_no_sensor_data(
     """Check the /sensors/data endpoint for fetching data for a period without any data."""
     sensor = setup_api_test_data["some gas sensor"]
     message = {
-        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "start": "1921-05-02T00:00:00+02:00",  # we have loaded no test data for this year
         "duration": "PT1H20M",
         "horizon": "PT0H",
@@ -29,7 +28,7 @@ def test_get_no_sensor_data(
         "resolution": "PT20M",
     }
     response = client.get(
-        url_for("SensorAPI:get_data"),
+        url_for("SensorAPI:get_data", id=sensor.id),
         query_string=message,
     )
     print("Server responded with:\n%s" % response.json)
@@ -39,6 +38,7 @@ def test_get_no_sensor_data(
     assert all(a == b for a, b in zip(values, [None, None, None, None]))
 
 
+@pytest.mark.parametrize("use_oldstyle_endpoint", [True, False])
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
@@ -46,6 +46,7 @@ def test_get_sensor_data(
     client,
     setup_api_test_data: dict[str, Sensor],
     setup_roles_users: dict[str, User],
+    use_oldstyle_endpoint,
     requesting_user,
     db,
 ):
@@ -56,7 +57,6 @@ def test_get_sensor_data(
     ).data_source[0]
     assert sensor.event_resolution == timedelta(minutes=10)
     message = {
-        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "start": "2021-05-02T00:00:00+02:00",
         "duration": "PT1H20M",
         "horizon": "PT0H",
@@ -64,10 +64,12 @@ def test_get_sensor_data(
         "source": source.id,
         "resolution": "PT20M",
     }
-    response = client.get(
-        url_for("SensorAPI:get_data"),
-        query_string=message,
-    )
+    if use_oldstyle_endpoint:  # remove this when we remove those endpoints one day
+        message["sensor"] = f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}"
+        url = url_for("SensorEntityAddressAPI:get_data_deprecated")
+    else:
+        url = url_for("SensorAPI:get_data", id=sensor.id)
+    response = client.get(url, query_string=message)
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
@@ -93,7 +95,6 @@ def test_get_instantaneous_sensor_data(
     ).data_source[0]
     assert sensor.event_resolution == timedelta(minutes=0)
     message = {
-        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "start": "2021-05-02T00:00:00+02:00",
         "duration": "PT1H20M",
         "horizon": "PT0H",
@@ -102,7 +103,7 @@ def test_get_instantaneous_sensor_data(
         "resolution": "PT20M",
     }
     response = client.get(
-        url_for("SensorAPI:get_data"),
+        url_for("SensorAPI:get_data", id=sensor.id),
         query_string=message,
     )
     print("Server responded with:\n%s" % response.json)
@@ -131,8 +132,9 @@ def test_post_sensor_data_bad_auth(
     Attempt to post sensor data with insufficient or missing auth.
     """
     post_data = make_sensor_data_request_for_gas_sensor()
+    sensor = setup_api_test_data["some gas sensor"]
     post_data_response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print("Server responded with:\n%s" % post_data_response.data)
@@ -149,7 +151,6 @@ def test_post_sensor_data_bad_auth(
             "_schema",
             "Resolution of 0:05:00 is incompatible",
         ),  # downsampling not supported
-        ("sensor", "ea1.2021-01.io.flexmeasures:fm1.666", "sensor", "doesn't exist"),
         ("unit", "m", "_schema", "Required unit"),
         ("type", "GetSensorDataRequest", "type", "Must be one of"),
     ],
@@ -171,21 +172,26 @@ def test_post_invalid_sensor_data(
     requesting_user,
 ):
     post_data = make_sensor_data_request_for_gas_sensor()
+    sensor = setup_api_test_data["some gas sensor"]
     post_data[request_field] = new_value
 
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
     assert response.status_code == 422
-    assert error_text in response.json["message"]["json"][error_field][0]
+    assert (
+        error_text
+        in response.json["message"]["combined_sensor_data_description"][error_field][0]
+    )
 
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
 def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db):
+    sensor = setup_api_test_data["some gas sensor"]
     post_data = make_sensor_data_request_for_gas_sensor()
 
     @event.listens_for(Engine, "handle_error")
@@ -200,7 +206,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
 
     # Check that 1st time posting the data succeeds
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
@@ -208,7 +214,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
 
     # Check that 2nd time posting the same data succeeds informatively
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
@@ -218,7 +224,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
     # Check that replacing data fails informatively
     post_data["values"][0] = 100
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     print(response.json)
@@ -254,7 +260,6 @@ def test_post_sensor_instantaneous_data(
     requesting_user,
 ):
     post_data = make_sensor_data_request_for_gas_sensor(
-        sensor_name="empty temperature sensor",
         num_values=num_values,
         unit="°C",
         duration="PT0H",
@@ -264,13 +269,16 @@ def test_post_sensor_instantaneous_data(
 
     # Check that 1st time posting the data succeeds
     response = client.post(
-        url_for("SensorAPI:post_data"),
+        url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
 
     assert response.status_code == status_code
     if status_code == 422:
-        assert response.json["message"]["json"]["_schema"][0] == message
+        assert (
+            response.json["message"]["combined_sensor_data_description"]["_schema"][0]
+            == message
+        )
     else:
         assert response.json["message"] == message
 
