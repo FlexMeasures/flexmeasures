@@ -355,6 +355,8 @@ class PandasReporter(Reporter):
                     )
                 except TypeError as exc:
                     if "unhashable type" in str(exc) and method == "sum":
-                        raise TypeError("Maybe use 'add' instead of 'sum'") from exc
+                        raise TypeError(
+                            "Consider using 'add' instead of 'sum' as the transformation method."
+                        ) from exc
 
             previous_df = df_output
