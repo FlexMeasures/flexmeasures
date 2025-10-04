@@ -584,21 +584,34 @@ class SensorAPI(FlaskView):
                 examples:
                   simple_schedule:
                     summary: Simple storage schedule
-                    description: This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
+                    description: |
+                      This message triggers a schedule for a storage asset, starting at 10.00am,
+                      at which time the state of charge (soc) is 12.1 kWh.
+                      The asset is further limited by a maximum soc of 25 kWh.
+                      The optimization is done with reference to a fixed price for consumption.
+
+                      This is close to the minimal set of information that needs to be provided to trigger a schedule.
+                      It requires no external data series, like dynamic prices in a sensor - look to the complex example for that.
+                      Obviously, the outcome of this scheduling problem will be as bland as the input.
                     value:
-                      start: "2015-06-02T10:00:00+00:00"
+                      start: "2025-06-02T10:00:00+00:00"
+                      flex-context:
+                        consumption-price: ".2 EUR/kWh"
                       flex-model:
                         soc-at-start: "12.1 kWh"
                         soc-max: "25 kWh"
                   complex_schedule:
                     summary: Complex 24-hour schedule
                     description: |
+                      In this complex example, let's really show off a lot of potential configurations.
+
                       This message triggers a 24-hour schedule for a storage asset, starting at 10.00am,
                       at which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.
 
                       The charging efficiency is constant (120%) and the discharging efficiency is determined by the contents of sensor
                       with id 98. If just the ``roundtrip-efficiency`` is known, it can be described with its own field.
                       The global minimum and maximum soc are set to 10 and 25 kWh, respectively.
+
                       To guarantee a minimum SOC in the period prior, the sensor with ID 300 contains beliefs at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.
                       Storage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.
                       Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
@@ -614,8 +627,10 @@ class SensorAPI(FlaskView):
                       while the consumption capacity is limited by a dynamic capacity contract whose values are recorded under sensor 32.
                       Breaching either capacity is penalized heavily in the optimization problem, with a price of 1000 EUR/kW.
                       Finally, peaks over 50 kW in either direction are penalized with a price of 260 EUR/MW.
+
                       These penalties can be used to steer the schedule into a certain behavior (e.g. avoiding breaches and peaks),
                       even if no direct financial impacts are expected at the given prices in the real world.
+
                       For example, site owners may be requested by their network operators to reduce stress on the grid,
                       be it explicitly or under a social contract.
 
