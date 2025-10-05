@@ -5,7 +5,7 @@ Forecasting
 
 Scheduling is about the future, and you need some knowledge / expectations about the future to do it.
 
-Of course, the nicest forecasts are the one you don't have to make yourself (it's not an easy field), so do use price or usage forecasts from third parties if available.
+Of course, the nicest forecasts are the one you don't have to make yourself (it's not an easy field), so do use price or usage forecasts from third parties if available, and load them into FlexMeasures. 
 There are even existing plugins for importing `weather forecasts <https://github.com/flexmeasures/flexmeasures-weather>`_ or `market data <https://github.com/SeitaBV/flexmeasures-entsoe>`_.
 
 If you need to make your own predictions, forecasting algorithms can be used within FlexMeasures, for instance to arrive at an expected profile of future solar power production at the site.
