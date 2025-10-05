@@ -488,6 +488,10 @@ class SensorAPI(FlaskView):
             An example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m³/h:
 
               ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m³/h
+
+           (you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).
+
+            > **Note:** This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.
           security:
             - ApiKeyAuth: []
           parameters:
