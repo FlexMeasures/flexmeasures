@@ -18,7 +18,7 @@ This means that from one (fixed) point in time, we forecast a range of events in
 At the same time, the design we implemented in FlexMeasures is inspired by **rolling forecasts**, as training and prediction can be repeated in **cycles** until a user-specified end date is reached.  If you ask FlexMeasures for a fixed-point forecast (one cycle), the model is trained once on the most recent applicable historical period and then produces predictions for the requested future period in one go.   
 This is controlled by the ``forecast_frequency`` parameter, which specifies how often predictions are generated during the forecast period.
 
-Cycle Example
+How a forecasting cycle works
 -------------
 
 A single forecasting cycle consists of the following steps:
