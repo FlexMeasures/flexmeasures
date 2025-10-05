@@ -90,6 +90,7 @@ class SensorAPI(FlaskView):
             "most_recent_beliefs_only": fields.Boolean(
                 required=False, load_default=True
             ),
+            "compress_json": fields.Boolean(required=False),
         },
         location="query",
     )

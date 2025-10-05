@@ -11,13 +11,11 @@ import timely_beliefs as tb
 
 from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures import Asset
 from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.queries.utils import simplify_index
 
 from flexmeasures.utils.flexmeasures_inflection import capitalize, pluralize
 from flexmeasures.utils.unit_utils import ur, convert_units
-from pint.errors import UndefinedUnitError, DimensionalityError
 
 
 def initialize_df(
@@ -281,39 +279,6 @@ def idle_after_reaching_target(
     return schedule
 
 
-def get_quantity_from_attribute(
-    entity: Asset | Sensor,
-    attribute: str | None,
-    unit: str | ur.Quantity,
-) -> ur.Quantity:
-    """Get the value (in the given unit) of a quantity stored as an entity attribute.
-
-    :param entity:      The entity (sensor or asset) containing the attribute to retrieve the value from.
-    :param attribute:   The attribute name to extract the value from.
-    :param unit:        The unit in which the value should be returned.
-    :return:            The retrieved quantity or the provided default.
-    """
-    if attribute is None:
-        return np.nan * ur.Quantity(unit)  # at least return result in the desired unit
-
-    # Get the default value from the entity attribute
-    value: str | float | int = entity.get_attribute(attribute, np.nan)
-
-    # Try to convert it to a quantity in the desired unit
-    try:
-        q = ur.Quantity(value)
-        q = q.to(unit)
-    except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-        try:
-            # Fall back to interpreting the value in the given unit
-            q = ur.Quantity(f"{value} {unit}")
-            q = q.to(unit)
-        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-            current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
-            q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
-    return q
-
-
 def get_series_from_quantity_or_sensor(
     variable_quantity: Sensor | list[dict] | ur.Quantity,
     unit: ur.Quantity | str,
@@ -438,6 +403,12 @@ def process_time_series_segments(
                 )
         start = event["start"]
         end = event["end"]
+        same_offset = start.utcoffset() == end.utcoffset()
+        # If start and end have different UTC offsets (like crossing DST),
+        # normalize them by converting to UTC.
+        if not same_offset:
+            start = start.tz_convert("UTC")
+            end = end.tz_convert("UTC")
         # Assign the value to the corresponding segment in the DataFrame
         time_series_segments.loc[start : end - resolution, segment] = value
 
@@ -463,12 +434,10 @@ def process_time_series_segments(
 
 def get_continuous_series_sensor_or_quantity(
     variable_quantity: Sensor | list[dict] | ur.Quantity | pd.Series | None,
-    actuator: Sensor | Asset,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None = None,
-    fallback_attribute: str | None = None,
     min_value: float | int = np.nan,
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
@@ -476,15 +445,13 @@ def get_continuous_series_sensor_or_quantity(
     fill_sides: bool = False,
 ) -> pd.Series:
     """Creates a time series from a sensor, time series specification, or quantity within a specified window,
-    falling back to a given `fallback_attribute` and making sure values stay within the domain [min_value, max_value].
+    making sure values stay within the domain [min_value, max_value].
 
     :param variable_quantity:       A sensor recording the data, a time series specification or a fixed quantity.
-    :param actuator:                The actuator from which relevant defaults are retrieved.
     :param unit:                    The desired unit of the data.
     :param query_window:            The time window (start, end) to query the data.
     :param resolution:              The resolution or time interval for the data.
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
-    :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
     :param min_value:               Minimum value.
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
@@ -500,11 +467,7 @@ def get_continuous_series_sensor_or_quantity(
     if isinstance(variable_quantity, pd.Series):
         return variable_quantity
     if variable_quantity is None:
-        variable_quantity = get_quantity_from_attribute(
-            entity=actuator,
-            attribute=fallback_attribute,
-            unit=unit,
-        )
+        variable_quantity = np.nan * ur.Quantity(unit)
 
     time_series = get_series_from_quantity_or_sensor(
         variable_quantity=variable_quantity,

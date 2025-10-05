@@ -51,8 +51,9 @@ Flask-Classful>=0.16
 Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
-# <4: https://github.com/FlexMeasures/flexmeasures/issues/1447
-marshmallow>=3,<4
+marshmallow>=3
+# See GH#1450 (failing tests on older Python versions)
+marshmallow~=3.0; python_version < "3.11"
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs
@@ -65,3 +66,4 @@ flask>=1.0
 werkzeug
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
+dictdiffer>=0.9.0
