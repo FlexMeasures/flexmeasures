@@ -13,7 +13,7 @@ If you need to make your own predictions, forecasting algorithms can be used wit
 FlexMeasures provides a CLI command to generate forecasts (see below). An API endpoint will follow soon.
 
 FlexMeasures provides a **fixed-view forecasting infrastructure**.  
-This means that the model is trained once on a historical period and then produces predictions for a future period in one go.  
+This means that from one (fixed) point in time, we forecast a range of events into the future (e.g. 24 hourly events for a span of one day). While the first forecast (one hour ahead) has a small horizon (1H), the last one has a large horizon (24H) and the accuracy between the two will usually differ (it is easier to forecast small horizons).   
 
 At the same time, the design is inspired by **rolling forecasts**, as training and prediction can be repeated in **cycles** until a user-specified end date is reached.  
 This is controlled by the ``forecast_frequency`` parameter, which specifies how often predictions are generated during the forecast period.
