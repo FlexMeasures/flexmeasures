@@ -5,7 +5,7 @@ HIGHS_DIR = "../HiGHS"
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs update-docs-pdf generate-openapi show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
 
 
 # ---- Development ---
@@ -31,6 +31,11 @@ update-docs-pdf:
 	make install-docs-dependencies
 	@echo "Creating documentation ..."
 	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
+
+generate-openapi:
+	@echo "Generating OpenAPI specifications..."
+	python flexmeasures/utils/generate_open_api_specs.py
+	@echo "OpenAPI specs generated successfully"
 
 # ---- Installation ---
 
@@ -144,8 +149,3 @@ clean-db:
 
 cli-autocomplete:
 	./flexmeasures/cli/scripts/add_scripts_path.sh ${extension}
-
-generate-openapi:
-	@echo "Generating OpenAPI specifications..."
-	python flexmeasures/utils/generate_open_api_specs.py
-	@echo "OpenAPI specs generated successfully"
