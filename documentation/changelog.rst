@@ -14,6 +14,7 @@ New features
 * Added a UI editor (form modal) to edit an asset's flex-model [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_ and `PR #1565 <https://github.com/FlexMeasures/flexmeasures/pull/1565>`_]
 * Full coverage of flex-context fields in the UI editor [see `PR #1689 <https://www.github.com/FlexMeasures/flexmeasures/pull/1689>`_]
 * Touch up the KPI cards [see `PR #1731 <https://www.github.com/FlexMeasures/flexmeasures/pull/1731>`_]
+* Touch up asset context page [see `PR #1732 <https://www.github.com/FlexMeasures/flexmeasures/pull/1732>`_]
 * Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
 * The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period [see `PR #1720 <https://www.github.com/FlexMeasures/flexmeasures/pull/1720>`_]
 
