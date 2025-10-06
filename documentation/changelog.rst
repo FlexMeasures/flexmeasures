@@ -28,6 +28,8 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Changed 422 response for asset PATCH endpoint to the format also used elsewhere [see `PR #1722 <https://github.com/FlexMeasures/flexmeasures/pull/1722>`_]
+* Fix UI flex-context editor for flex-contexts with boolean fields (that were set through the API) [see `PR #1733 <https://www.github.com/FlexMeasures/flexmeasures/pull/1733>`_]
+* Fix floating spinner on asset graphs page [see `PR #1738 <https://www.github.com/FlexMeasures/flexmeasures/pull/1738>`_]
 * Make monitoring tasks & users robust against db issues [see `PR #1715 <https://www.github.com/FlexMeasures/flexmeasures/pull/1715>`_]
 
 
