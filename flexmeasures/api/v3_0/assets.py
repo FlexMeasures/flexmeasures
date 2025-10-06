@@ -27,6 +27,11 @@ from flexmeasures.data.services.sensors import (
     get_sensor_stats,
 )
 from flexmeasures.api.common.schemas.utils import make_openapi_compatible
+from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
+from flexmeasures.api.common.schemas.assets import (
+    AssetAPIQuerySchema,
+    AssetPaginationSchema,
+)
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -39,9 +44,6 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
-    AssetAPIQuerySchema,
-    AssetPaginationSchema,
-    PaginationSchema,
 )
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
@@ -49,6 +51,7 @@ from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
 )
+from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.api.common.responses import (
     invalid_flex_config,
     request_processed,
@@ -59,7 +62,6 @@ from flexmeasures.utils.coding_utils import (
 )
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
-from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
@@ -73,18 +75,6 @@ assets_schema = AssetSchema(many=True)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
-
-
-def get_accessible_accounts() -> list[Account]:
-    accounts = []
-    for _account in db.session.scalars(select(Account)).all():
-        try:
-            check_access(_account, "read")
-            accounts.append(_account)
-        except (Forbidden, Unauthorized):
-            pass
-
-    return accounts
 
 
 # Create FlexContext, FlexModel and AssetTrigger OpenAPI compatible schemas

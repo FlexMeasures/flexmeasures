@@ -14,7 +14,7 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
-from flexmeasures.api.v3_0.assets import get_accessible_accounts
+from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.data.queries.users import query_users_by_search_terms
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema, UserPaginationSchema
