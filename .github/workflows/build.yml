@@ -1,4 +1,3 @@
----
 name: build-docker-image
 
 on:
@@ -51,12 +50,14 @@ jobs:
       - name: Copy prices dummy data
         run: docker cp prices-tomorrow.csv fm-container:/app/prices-tomorrow.csv
       - name: Add beliefs
-        run: docker exec --env-file .env fm-container flexmeasures
-          add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+        run: |
+          docker exec --env-file .env fm-container flexmeasures \
+            add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
       - name: Export TOMORROW
         run: echo "TOMORROW=$(date --date="next day" '+%Y-%m-%d')"
           >> $GITHUB_ENV
       - name: Add schedule
-        run: docker exec --env-file .env fm-container flexmeasures
-          add schedule for-storage --sensor 2 --start ${TOMORROW}T07:00+01:00 
-          --duration PT12H --soc-at-start 50% --roundtrip-efficiency 90%
+        run: |
+          docker exec --env-file .env fm-container flexmeasures \
+            add schedule --sensor 2 --start ${TOMORROW}T07:00+01:00 \
+            --duration PT12H --soc-at-start 50% --flex-model '{"roundtrip-efficiency": "90%"}'
