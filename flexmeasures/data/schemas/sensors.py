@@ -506,7 +506,7 @@ class SensorDataFileDescriptionSchema(Schema):
 
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
-    sensor = SensorIdField(data_key="id", read_only=True)
+    sensor = SensorIdField(data_key="id")
 
     _valid_content_types = {
         "text/csv",
