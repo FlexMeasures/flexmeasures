@@ -167,6 +167,7 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 
 
 We describe the respective flex models below.
+
 These fields can be configured in the UI editor on the asset properties page or sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
 
 

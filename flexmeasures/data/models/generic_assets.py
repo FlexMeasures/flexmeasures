@@ -873,19 +873,6 @@ class GenericAsset(db.Model, AuthModelMixin):
                         ),
                     ).reset_index()
 
-                    # Handle datetime conversion for seconds unit
-                    if sensor.unit == "s":
-                        time_mask = df["event_value"].notna()
-                        time_values = df.loc[time_mask, "event_value"]
-                        df["event_value"] = df["event_value"].astype(
-                            f"datetime64[ns, {self.timezone}]"
-                        )
-                        df.loc[time_mask, "event_value"] = (
-                            pd.to_datetime(time_values, unit="s", origin="unix")
-                            .dt.tz_localize("UTC")
-                            .dt.tz_convert(self.timezone)
-                        )
-
                     # VECTORIZED PROCESSING instead of for loops for speed
                     # Convert timestamps to milliseconds vectorized
                     event_start_ms = (
@@ -915,7 +902,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                             df["belief_horizon"]
                             .apply(
                                 lambda x: (
-                                    int(x.total_seconds()) if pd.notnull(x) else None
+                                    int(x.total_seconds() * 1000)
+                                    if pd.notnull(x)
+                                    else None
                                 )
                             )
                             .tolist()
