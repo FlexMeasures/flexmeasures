@@ -70,4 +70,4 @@ jobs:
         run: |
           docker exec --env-file .env fm-container flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
             --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --flex-context '{"consumption-price": {"sensor": 1}}' \
-            --flex-model '{"duration": "PT4H", "process-type": "BREAKABLE", "power": 0.2, "time-restrictions": [{"start": "${TOMORROW}T15:00:00+02:00", "duration": "PT1H"}]}' \
+            --flex-model "{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}"
