@@ -10,6 +10,12 @@ altair==5.5.0
     # via -r requirements/app.in
 annotated-types==0.7.0
     # via pydantic
+apispec[yaml]==6.8.4
+    # via
+    #   -r requirements/app.in
+    #   apispec-webframeworks
+apispec-webframeworks==1.2.0
+    # via -r requirements/app.in
 argon2-cffi==25.1.0
     # via -r requirements/app.in
 argon2-cffi-bindings==25.1.0
@@ -91,6 +97,7 @@ flask==3.1.2
     #   flask-security-too
     #   flask-sqlalchemy
     #   flask-sslify
+    #   flask-swagger-ui
     #   flask-wtf
     #   rq-dashboard
     #   sentry-sdk
@@ -122,6 +129,8 @@ flask-sqlalchemy==3.1.1
     #   flask-migrate
     #   flask-security-too
 flask-sslify==0.1.5
+    # via -r requirements/app.in
+flask-swagger-ui==5.21.0
     # via -r requirements/app.in
 flask-wtf==1.2.2
     # via
@@ -225,6 +234,7 @@ openturns==1.25
 packaging==25.0
     # via
     #   altair
+    #   apispec
     #   matplotlib
     #   sktime
     #   statsmodels
@@ -296,7 +306,9 @@ pytz==2025.2
     #   timely-beliefs
     #   timetomodel
 pyyaml==6.0.2
-    # via -r requirements/app.in
+    # via
+    #   -r requirements/app.in
+    #   apispec
 qrcode==8.2
     # via flask-security-too
 readchar==4.2.1

@@ -540,6 +540,12 @@ class AssetAPI(FlaskView):
           description: This endpoint gets an asset.
           security:
             - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to fetch.
+              schema:
+                type: integer
           responses:
             200:
               description: PROCESSED
