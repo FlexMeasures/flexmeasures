@@ -85,7 +85,7 @@ It can be good advice to dispatch this work in smaller chunks.
 Alternatively, note the ``--as-job`` parameter.
 If you use it, the forecasting jobs will be queued and picked up by worker processes (see above). You could run several workers (e.g. one per CPU) to get this work load done faster.
 
-Run ``flexmeasures add forecasts --help`` for more information.
+Run flexmeasures add forecasts --help for details on CLI parameters, or see :ref:forecasting to learn more about forecasting.
 
 
 .. _how_queue_scheduling:
