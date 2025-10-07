@@ -1,10 +1,11 @@
 from flask import abort
 from flask_security import current_user
-from marshmallow import fields
+from marshmallow import fields, validate
 from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User, Account
+from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
 
 class AccountIdField(fields.Integer):
@@ -53,3 +54,10 @@ class UserIdField(fields.Integer):
 
     def _serialize(self, user: User, attr, data, **kwargs) -> int:
         return user.id
+
+
+class AccountAPIQuerySchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["id", "name", "assets", "users"]),
+    )
