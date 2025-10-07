@@ -29,8 +29,17 @@ A single forecasting cycle consists of the following steps:
 
 This way, forecasts can cover long ranges while still being based on updated training data in each cycle.
 
-CLI Parameters
+CLI Command
 --------------
+You can create forecasts from the command line using:
+
+.. code-block:: bash
+
+    flexmeasures add forecasts --from-date 2024-02-02 --to-date 2024-02-02 --horizon 6 --sensor 12 --as-job
+
+This command asks FlexMeasures to generate forecasts for one day (2 February 2024)
+with a forecast horizon of 6 hours for the sensor with ID 12.
+If you include ``--as-job``, the forecasting task is added to the job queue to be processed by a worker.
 
 The main CLI parameters that control this process are:
 
