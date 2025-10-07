@@ -79,7 +79,7 @@ The ``--as-job`` parameter is optional. If given, the computation becomes a job 
 Fixed-point vs rolling
 ----------------------
 
-Unlike previous rolling forecasts, the new infrastructure generates **fixed-point forecasts**:
+Unlike previous rolling forecasts, where each prediction covers the same relative forecast horizon (but the origin keeps moving forward), the new infrastructure generates **fixed-point forecasts**:
 
 - One reference timestamp.
 - Predictions are made for multiple future horizons from that point.
