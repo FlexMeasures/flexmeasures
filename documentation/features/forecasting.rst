@@ -88,8 +88,7 @@ Unlike previous rolling forecasts, where each prediction covers the same relativ
 Regressors
 -------------
 
-If you want to take regressors into account, in addition to merely past measurements (e.g. weather forecasts, see above),
-currently FlexMeasures supports only weather correlations.
+If you want to take regressors into account, in addition to merely past measurements (e.g. weather forecasts, see above).
 
 - past regressors : sensors that only have realizations (historical data).
 - future regressors : sensors that only have forecasts (e.g. weather forecasts).
