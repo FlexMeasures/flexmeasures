@@ -1103,6 +1103,15 @@ class AssetAPI(FlaskView):
             It's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).
 
             If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to schedule.
+              schema:
+                type: integer
 
           requestBody:
               content:
@@ -1113,8 +1122,8 @@ class AssetAPI(FlaskView):
                       storage_asset:
                         description: |
                           This message triggers a schedule for a storage asset (with power sensor 931),
-                          starting at 10.00am, when the state of charge (soc) should be assumed to be 12.1 kWh,
-                          and also schedules a curtailable production asset (with power sensor 932),
+                          starting at 10.00am, with the state of charge (soc) sensor being 74.
+                          This also schedules a curtailable production asset (with power sensor 932),
                           whose production forecasts are recorded under sensor 760.
 
                           Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
@@ -1129,6 +1138,7 @@ class AssetAPI(FlaskView):
                           "flex-model":
                             - "sensor": 931
                               "soc-at-start": 12.1
+                              "state-of-charge": {"sensor": 74}
                               "soc-unit": "kWh"
                               "power-capacity": "25kW"
                               "consumption-capacity" : {"sensor": 42}
@@ -1137,8 +1147,8 @@ class AssetAPI(FlaskView):
                               "consumption-capacity": "0 kW"
                               "production-capacity": {"sensor": 760}
                           "flex-context":
-                            "consumption-price-sensor": 9
-                            "production-price-sensor": 10
+                            "consumption-price": {"sensor": 9}
+                            "production-price": {"sensor": 10}
                             "inflexible-device-sensors": [13, 14, 15]
                             "site-power-capacity": "100kW"
                             "site-production-capacity": "80kW"
