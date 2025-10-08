@@ -205,9 +205,10 @@ class AssetAPI(FlaskView):
           summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
           description: |
             This endpoint returns all accessible assets by accounts.
-            The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
-            Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
-            The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+
+              - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
+              - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
+              - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
 
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
@@ -1087,6 +1088,7 @@ class AssetAPI(FlaskView):
 
             For details on flexibility model and context, [see describing_flexibility](https://flexmeasures.readthedocs.io/stable/features/scheduling.html#describing-flexibility).
             Below, we'll also list some examples.
+            The schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors). The examples below illustrate how to describe a flexibility model and context.
 
             > **Note:** This endpoint supports scheduling an EMS with multiple flexible devices at once.
             > It can do so jointly (the default) or sequentially
@@ -1235,7 +1237,7 @@ class AssetAPI(FlaskView):
             Gets statistics for sensors for the given time range. The sensors are expected to have a daily resolution, suitable for KPIs.
             Each sensor has a preferred function to downsample the daily values to the KPI value.
 
-            This endpoint returns a list of kpis for the asset.
+            This endpoint returns a list of KPIs for the asset.
           security:
             - ApiKeyAuth: []
           parameters:
