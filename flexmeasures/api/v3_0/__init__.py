@@ -77,7 +77,7 @@ def create_openapi_specs(app: Flask):
         "DefaultAssetViewJSONSchema", schema=DefaultAssetViewJSONSchema
     )
     spec.components.schema("partial_account_schema", schema=partial_account_schema)
-    spec.components.schema("AccountAPIQuerySchema", AccountAPIQuerySchema)
+    spec.components.schema("AccountAPIQuerySchema", schema=AccountAPIQuerySchema)
 
     with app.test_request_context():
         documented_endpoints_counter = 0
