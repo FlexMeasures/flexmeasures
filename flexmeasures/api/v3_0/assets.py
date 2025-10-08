@@ -998,7 +998,7 @@ class AssetAPI(FlaskView):
         post:
           summary: Update the default asset view
           description: |
-            Update the default asset view for the current user session.
+            Update the default asseet page to show for the current user session. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).
 
             This endpoint sets the default asset view for the current user session if `use_as_default` is true.
             If `use_as_default` is false, it clears the session variable for the default asset view.
