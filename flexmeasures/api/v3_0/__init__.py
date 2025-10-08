@@ -27,6 +27,7 @@ from flexmeasures.api.v3_0.assets import (
     AssetAPIQuerySchema,
     DefaultAssetViewJSONSchema,
 )
+from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.v3_0.accounts import partial_account_schema, AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema
 
@@ -73,6 +74,7 @@ def create_openapi_specs(app: Flask):
     spec.components.schema("FlexContextOpenAPISchema", schema=FlexContextOpenAPISchema)
     spec.components.schema("UserAPIQuerySchema", schema=UserAPIQuerySchema)
     spec.components.schema("AssetAPIQuerySchema", schema=AssetAPIQuerySchema)
+    spec.components.schema("AssetSchema", schema=AssetSchema)
     spec.components.schema(
         "DefaultAssetViewJSONSchema", schema=DefaultAssetViewJSONSchema
     )
