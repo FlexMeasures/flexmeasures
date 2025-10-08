@@ -25,6 +25,7 @@ from flexmeasures.api.v3_0.assets import (
     StorageFlexModelOpenAPISchema,
     FlexContextOpenAPISchema,
     AssetAPIQuerySchema,
+    DefaultAssetViewJSONSchema,
 )
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema
 
@@ -71,6 +72,9 @@ def create_openapi_specs(app: Flask):
     spec.components.schema("FlexContextOpenAPISchema", schema=FlexContextOpenAPISchema)
     spec.components.schema("UserAPIQuerySchema", schema=UserAPIQuerySchema)
     spec.components.schema("AssetAPIQuerySchema", schema=AssetAPIQuerySchema)
+    spec.components.schema(
+        "DefaultAssetViewJSONSchema", schema=DefaultAssetViewJSONSchema
+    )
 
     with app.test_request_context():
         documented_endpoints_counter = 0

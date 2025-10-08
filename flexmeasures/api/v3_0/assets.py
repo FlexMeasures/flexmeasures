@@ -11,8 +11,7 @@ from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError, Schema
-import marshmallow.validate as validate
+from marshmallow import fields, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
@@ -120,16 +119,18 @@ class DefaultAssetViewJSONSchema(Schema):
     default_asset_view = fields.Str(
         required=True,
         validate=validate.OneOf(
-            [
-                "Audit Log",
-                "Context",
-                "Graphs",
-                "Properties",
-                "Status",
-            ]
+            ["Audit Log", "Context", "Graphs", "Properties", "Status"]
         ),
+        metadata={
+            "enum": ["Audit Log", "Context", "Graphs", "Properties", "Status"],
+            "description": "The default asset view to show.",
+        },
     )
-    use_as_default = fields.Bool(required=False, load_default=True)
+    use_as_default = fields.Bool(
+        required=False,
+        load_default=True,
+        metadata={"description": "Whether to use this view as default."},
+    )
 
 
 class KPIKwargsSchema(Schema):
