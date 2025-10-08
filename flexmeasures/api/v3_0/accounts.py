@@ -234,7 +234,9 @@ class AccountAPI(FlaskView):
         patch:
           summary: Update an existing account by ID.
           description: |
-            This endpoint updates the details for an existing account, identified by its ID.
+            This endpoint updates the details for an existing account.
+            
+            In the JSON body, sent in only the fields you want to update.
 
             **Restrictions on Fields:**
             - The **id** field is read-only and cannot be updated.
