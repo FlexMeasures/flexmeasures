@@ -736,6 +736,10 @@ class AssetAPI(FlaskView):
         ---
         get:
           summary: Download a chart with time series
+          description: |
+            This api returns a chart with time series for an asset, but can also be embedded in an HTML page to render the chart.
+
+            To know more about embedded charts read more on [the documentation](https://flexmeasures.readthedocs.io/latest/tut/building_uis.html#embedding-charts).
           security:
             - ApiKeyAuth: []
           parameters:
