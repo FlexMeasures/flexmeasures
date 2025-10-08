@@ -66,9 +66,8 @@ class AccountAPI(FlaskView):
           security:
             - ApiKeyAuth: []
           parameters:
-            # Assuming these parameters use a common schema for pagination and filtering
             - in: query
-              schema: AccountAPIQuerySchema # You'll need to define this schema
+              schema: AccountAPIQuerySchema
           responses:
             200:
               description: PROCESSED
@@ -235,7 +234,7 @@ class AccountAPI(FlaskView):
           summary: Update an existing account by ID.
           description: |
             This endpoint updates the details for an existing account.
-            
+
             In the JSON body, sent in only the fields you want to update.
 
             **Restrictions on Fields:**
@@ -258,8 +257,7 @@ class AccountAPI(FlaskView):
             content:
               application/json:
                 schema:
-                  # Assuming you have a schema defined for the Account update fields
-                  $ref: '#/components/schemas/AccountUpdateSchema'
+                  $ref: partial_account_schema
                 example:
                   name: Test Account Updated
                   primary_color: '#1a3443'
