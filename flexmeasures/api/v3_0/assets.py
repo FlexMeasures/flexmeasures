@@ -478,7 +478,11 @@ class AssetAPI(FlaskView):
         ---
         post:
           summary: Create new asset.
-          description: This endpoint creates a new asset.
+          description: |
+            This endpoint creates a new asset.
+
+            To establish a hierarchical relationship, you can optionally include the **parent_asset_id** in the request body to make the new asset a child of an existing asset.
+
           security:
             - ApiKeyAuth: []
           requestBody:
@@ -487,7 +491,7 @@ class AssetAPI(FlaskView):
                 schema: AssetSchema
                 examples:
                   single_asset:
-                    summary: One asset being returned in the response
+                    summary: Request to create a standalone asset
                     value:
                       name: Test battery
                       generic_asset_type_id: 2
@@ -495,7 +499,7 @@ class AssetAPI(FlaskView):
                       latitude: 40
                       longitude: 170.3
                   child_asset:
-                    summary: A child asset being returned in the response
+                    summary: Request to create an asset with a parent
                     value:
                       name: Test battery
                       generic_asset_type_id: 2
@@ -506,6 +510,27 @@ class AssetAPI(FlaskView):
           responses:
             201:
               description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    single_asset:
+                      summary: One asset being returned in the response
+                      value:
+                        generic_asset_type_id: 2
+                        name: Test battery
+                        id: 1
+                        latitude: 10
+                        longitude: 100
+                        account_id: 1
+                    child_asset:
+                      summary: A child asset being returned in the response
+                      value:
+                        generic_asset_type_id: 2
+                        name: Test battery
+                        id: 1
+                        latitude: 10
+                        longitude: 100
+                        account_id: 1
             400:
               description: INVALID_REQUEST
             401:
@@ -723,11 +748,6 @@ class AssetAPI(FlaskView):
           responses:
             200:
               description: PROCESSED
-              content:
-                image/png:
-                  schema:
-                    type: string
-                    format: binary
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -824,7 +844,7 @@ class AssetAPI(FlaskView):
         """
         ---
         get:
-          summary: API endpoint to get history of asset related actions.
+          summary: API endpoint to get audit logs of an asset actions.
           description: |
             The endpoint is paginated and supports search filters.
               - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
