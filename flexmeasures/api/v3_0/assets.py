@@ -1011,7 +1011,7 @@ class AssetAPI(FlaskView):
                 schema: DefaultAssetViewJSONSchema
                 examples:
                   default_asset_view:
-                    summary: Default asset view
+                    summary: Set default asset view
                     value:
                       default_asset_view: "Graphs"
                       use_as_default: true
