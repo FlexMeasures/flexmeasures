@@ -1001,7 +1001,7 @@ class AssetAPI(FlaskView):
             Update the default asset view for the current user session.
 
             This endpoint sets the default asset view for the current user session if `use_as_default` is true.
-            If use_as_default is false, it clears the session variable for the default asset view.
+            If `use_as_default` is false, it clears the session variable for the default asset view.
           security:
             - ApiKeyAuth: []
           requestBody:
