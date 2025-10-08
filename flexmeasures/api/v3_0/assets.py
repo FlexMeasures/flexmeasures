@@ -1023,6 +1023,14 @@ class AssetAPI(FlaskView):
 
             This endpoint sets the default asset view for the current user session if `use_as_default` is true.
             If `use_as_default` is false, it clears the session variable for the default asset view.
+
+            ## Example values for `default_asset_view`:
+            - "Audit Log"
+            - "Context"
+            - "Graphs"
+            - "Properties"
+            - "Status"
+
           security:
             - ApiKeyAuth: []
           requestBody:
@@ -1030,12 +1038,7 @@ class AssetAPI(FlaskView):
             content:
               application/json:
                 schema: DefaultAssetViewJSONSchema
-                examples:
-                  default_asset_view:
-                    summary: Set default asset view
-                    value:
-                      default_asset_view: "Graphs"
-                      use_as_default: true
+
           responses:
             200:
               description: PROCESSED
