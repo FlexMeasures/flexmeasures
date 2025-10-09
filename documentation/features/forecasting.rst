@@ -83,17 +83,3 @@ This is an example of a 24-hour horizon forecast for solar power production:
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/PV-forecasting-example.png
     :align: center
     :scale: 40%
-
-
-Future work
----------------
-
-We have mentioned that forecasting within FlexMeasures can become more powerful.
-Here we summarize what is on the roadmap for forecasting:
-
-- Add fixed-point forecasting (see above)
-- Make features easier to configure, especially regressors
-- Add more types of forecasting algorithms, like random forest or even LSTM
-- Possibly integrate with existing powerful forecasting tooling, for instance `OpenStef <https://lfenergy.org/projects/openstef>`_ or `Quartz Solar OS <https://github.com/openclimatefix/Open-Source-Quartz-Solar-Forecast>`_. 
-
-
