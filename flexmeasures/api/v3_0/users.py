@@ -40,6 +40,15 @@ partial_user_schema = UserSchema(partial=True)
 account_schema = AccountSchema()
 
 
+class AuthRequestSchema(Schema):
+    email = fields.Str(
+        required=True, metadata={"description": "The user's email address."}
+    )
+    password = fields.Str(
+        required=True, metadata={"description": "The user's password."}
+    )
+
+
 class UserAPIQuerySchema(UserPaginationSchema):
     account = AccountIdField(data_key="account_id", load_default=None)
     include_inactive = fields.Bool(load_default=False)
