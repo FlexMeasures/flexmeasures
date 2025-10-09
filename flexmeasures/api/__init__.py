@@ -96,15 +96,44 @@ def request_auth_token():
 @flexmeasures_api.route("/", methods=["GET"])
 @as_json
 def get_versions() -> dict:
-    """Public endpoint to list API versions.
-
-    .. :quickref: Public; List available API versions
-
     """
+    ---
+    get:
+      summary: List available API versions
+      description: |
+        Public endpoint to list all available FlexMeasures API versions.
+
+        This can be used to programmatically discover which API versions
+        are currently supported and their base URLs.
+      responses:
+        200:
+          description: Successfully retrieved available API versions.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "For these API versions a public endpoint is available, listing its service."
+                  versions:
+                    type: array
+                    items:
+                      type: string
+                    example: ["v3_0"]
+                  flexmeasures_version:
+                    type: string
+                    example: "0.18.3"
+      tags:
+        - Public
+    """
+
     response = {
-        "message": "For these API versions a public endpoint is available, listing its service. For example: "
-        "/api/v3_0. An authentication token can be requested at: "
-        "/api/requestAuthToken",
+        "message": (
+            "For these API versions a public endpoint is available, listing its service. For example: "
+            "/api/v3_0. An authentication token can be requested at: "
+            "/api/requestAuthToken"
+        ),
         "versions": ["v3_0"],
         "flexmeasures_version": flexmeasures_version,
     }

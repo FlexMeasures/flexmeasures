@@ -63,43 +63,38 @@ def create_openapi_specs(app: Flask):
     }  # TODO: should we stop making this a configurable parameter?
     spec.components.security_scheme("ApiKeyAuth", api_key_scheme)
 
-    # explicitly register OpenAPI-compatible schemas
-    spec.components.schema(
-        "FlexContextOpenAPISchema", schema=flex_context_schema_openAPI
-    )
-    spec.components.schema("UserAPIQuerySchema", schema=UserAPIQuerySchema)
-    spec.components.schema("AssetAPIQuerySchema", schema=AssetAPIQuerySchema)
-    spec.components.schema("AssetSchema", schema=AssetSchema)
-    spec.components.schema(
-        "DefaultAssetViewJSONSchema", schema=DefaultAssetViewJSONSchema
-    )
-    spec.components.schema("AccountSchema", schema=AccountSchema(partial=True))
-    spec.components.schema("AccountAPIQuerySchema", schema=AccountAPIQuerySchema)
-    spec.components.schema("AuthRequestSchema", schema=AuthRequestSchema)
+    # Explicitly register OpenAPI-compatible schemas
+    schemas = [
+        ("FlexContextOpenAPISchema", flex_context_schema_openAPI),
+        ("UserAPIQuerySchema", UserAPIQuerySchema),
+        ("AssetAPIQuerySchema", AssetAPIQuerySchema),
+        ("AssetSchema", AssetSchema),
+        ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
+        ("AccountSchema", AccountSchema(partial=True)),
+        ("AccountAPIQuerySchema", AccountAPIQuerySchema),
+        ("AuthRequestSchema", AuthRequestSchema),
+    ]
+
+    for name, schema in schemas:
+        spec.components.schema(name, schema=schema)
 
     with app.test_request_context():
         documented_endpoints_counter = 0
-        # Document ALL API endpoints under /api/v3_0/
+
         for rule in app.url_map.iter_rules():
-            if rule.rule.startswith("/api/v3_0/"):
-                endpoint_name = rule.endpoint
-                if endpoint_name in app.view_functions:
-                    try:
-                        view_function = app.view_functions[endpoint_name]
-                        spec.path(view=view_function)
-                        documented_endpoints_counter += 1
-                    except Exception as e:
-                        print(f"❌ Failed to document {rule.rule}: {e}")
-            # Document API endpoint /api/requestAuthToken
-            if rule.rule == "/api/requestAuthToken":
-                endpoint_name = rule.endpoint
-                if endpoint_name in app.view_functions:
-                    try:
-                        view_function = app.view_functions[endpoint_name]
-                        spec.path(view=view_function)
-                        documented_endpoints_counter += 1
-                    except Exception as e:
-                        print(f"❌ Failed to document {rule.rule}: {e}")
+            endpoint_name = rule.endpoint
+            if endpoint_name not in app.view_functions:
+                continue
+
+            view_function = app.view_functions[endpoint_name]
+
+            # Document all API endpoints under /api or root /
+            if rule.rule.startswith("/api/") or rule.rule == "/":
+                try:
+                    spec.path(view=view_function)
+                    documented_endpoints_counter += 1
+                except Exception as e:
+                    print(f"❌ Failed to document {rule.rule}: {e}")
 
     output_path = Path("flexmeasures/ui/static/openapi-specs.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -42,6 +42,49 @@
         ]
       }
     },
+    "/api/": {
+      "get": {
+        "summary": "List available API versions",
+        "description": "Public endpoint to list all available FlexMeasures API versions.\n\nThis can be used to programmatically discover which API versions\nare currently supported and their base URLs.\n",
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved available API versions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "For these API versions a public endpoint is available, listing its service."
+                    },
+                    "versions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "v3_0"
+                      ]
+                    },
+                    "flexmeasures_version": {
+                      "type": "string",
+                      "example": "0.18.3"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/ops/ping": {},
+    "/api/ops/getLatestTaskRun": {},
+    "/api/ops/postLatestTaskRun": {},
     "/api/v3_0/sensors/{id}": {
       "delete": {
         "summary": "Delete a sensor",
@@ -3292,10 +3335,48 @@
         ]
       }
     },
-    "/api/v3_0/health/ready": {},
+    "/api/v3_0/health/ready": {
+      "get": {
+        "summary": "Get readiness status",
+        "description": "Health check endpoint to verify if core services required by FlexMeasures are ready.\n",
+        "responses": {
+          "200": {
+            "description": "All required services are operational.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "database_sql": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "database_redis": {
+                      "type": "boolean",
+                      "example": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
     "/api/v3_0/docs/dist/{filename}": {},
-    "/api/v3_0/docs/{path}": {}
+    "/api/v3_0/docs/{path}": {},
+    "/api/dev/sensor/{id}": {},
+    "/api/dev/sensor/{id}/chart": {},
+    "/api/dev/sensor/{id}/chart_annotations": {},
+    "/api/dev/sensor/{id}/chart_data": {},
+    "/api/dev/asset/{id}": {},
+    "/api/v2_0/user/{id}/password-reset": {},
+    "/": {}
   },
   "info": {
     "title": "FlexMeasures",
