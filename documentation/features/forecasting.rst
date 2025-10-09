@@ -3,7 +3,13 @@
 Forecasting
 ============
 
-Scheduling is about the future, and you need some knowledge / expectations about the future to do it.
+Scheduling is about the future, and you need some knowledge / expectations about the future to do it.  
+In FlexMeasures, this knowledge often comes in the form of **forecasts** — data-driven estimates of what's likely to happen next.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/PV-forecasting-example.png
+   :align: center
+
+*Example of a 24-hour horizon forecast for solar power production.*
 
 Of course, the nicest forecasts are the one you don't have to make yourself (it's not an easy field), so do use price or usage forecasts from third parties if available, and load them into FlexMeasures. 
 There are even existing plugins for importing `weather forecasts <https://github.com/flexmeasures/flexmeasures-weather>`_ or `market data <https://github.com/SeitaBV/flexmeasures-entsoe>`_.
@@ -106,12 +112,3 @@ If you want to take regressors into account, in addition to merely past measurem
 Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
 
-
-Example
------------------------
-
-This is an example of a 24-hour horizon forecast for solar power production:
-
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/PV-forecasting-example.png
-    :align: center
-    :scale: 40%
