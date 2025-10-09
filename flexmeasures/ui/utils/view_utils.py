@@ -55,9 +55,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ):
         variables["sphinx_docs_exist"] = True
     variables["openapi_docs_exist"] = False
-    if os.path.exists(
-        "%s/static/documentation/openapi-specs.json" % flexmeasures_ui.root_path
-    ):
+    if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path):
         variables["openapi_docs_exist"] = True
 
     # Use event_starts_after and event_ends_before from session if not given

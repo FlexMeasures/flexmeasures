@@ -8,3 +8,4 @@ sphinxcontrib-mermaid
 # OpenAPI Documentation
 apispec
 apispec-webframeworks
+sphinxcontrib-openapi

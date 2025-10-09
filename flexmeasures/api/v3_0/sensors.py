@@ -437,7 +437,7 @@ class SensorAPI(FlaskView):
           requestBody:
             content:
               application/json:
-                schema: PostSensorDataDescriptionSchema
+                schema: PostSensorDataSchema
                 examples:
                   post_sensor:
                     summary: Post sensor data to flexmeasures
@@ -489,9 +489,9 @@ class SensorAPI(FlaskView):
 
               ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m³/h
 
-           (you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).
+            (you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).
 
-            > **Note:** This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.
+             > **Note:** This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.
           security:
             - ApiKeyAuth: []
           parameters:

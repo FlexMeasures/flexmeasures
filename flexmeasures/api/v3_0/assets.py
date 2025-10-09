@@ -77,13 +77,13 @@ sensors_schema = SensorSchema(many=True)
 
 
 # Create FlexContext, FlexModel and AssetTrigger OpenAPI compatible schemas
-StorageFlexModelOpenAPISchema = make_openapi_compatible(StorageFlexModelSchema)
-FlexContextOpenAPISchema = make_openapi_compatible(FlexContextSchema)
+storage_flex_model_schema_openAPI = make_openapi_compatible(StorageFlexModelSchema)
+flex_context_schema_openAPI = make_openapi_compatible(FlexContextSchema)
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
-    flex_context = fields.Nested(FlexContextOpenAPISchema, required=True)
-    flex_model = fields.Nested(StorageFlexModelOpenAPISchema, required=True)
+    flex_context = fields.Nested(flex_context_schema_openAPI, required=True)
+    flex_model = fields.Nested(storage_flex_model_schema_openAPI, required=True)
 
 
 class AssetChartKwargsSchema(Schema):
@@ -478,7 +478,7 @@ class AssetAPI(FlaskView):
         """
         ---
         post:
-          summary: Create new asset.
+          summary: Creates a new asset.
           description: |
             This endpoint creates a new asset.
 
@@ -636,7 +636,7 @@ class AssetAPI(FlaskView):
           requestBody:
             content:
               application/json:
-                schema: patch_asset_schema
+                schema: AssetSchema
                 examples:
                   single_asset:
                     summary: One asset being updated
@@ -737,9 +737,12 @@ class AssetAPI(FlaskView):
         get:
           summary: Download a chart with time series
           description: |
-            This api returns a chart with time series for an asset, but can also be embedded in an HTML page to render the chart.
+            This endpoint returns a chart with time series for an asset.
 
-            To know more about embedded charts read more on [the documentation](https://flexmeasures.readthedocs.io/latest/tut/building_uis.html#embedding-charts).
+            The response contains the HTML and JavaScript needed to embedded and render the chart in an HTML page.
+            This is used by the FlexMeasures UI.
+
+            To learn how to embed the response in your web page, see [this section](https://flexmeasures.readthedocs.io/latest/tut/building_uis.html#embedding-charts) in the developer documentation.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -849,7 +852,7 @@ class AssetAPI(FlaskView):
         """
         ---
         get:
-          summary: API endpoint to get audit logs of an asset actions.
+          summary: API endpoint to get history of asset related actions.
           description: |
             The endpoint is paginated and supports search filters.
               - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
@@ -1023,10 +1026,10 @@ class AssetAPI(FlaskView):
         post:
           summary: Update the default asset view
           description: |
-            Update the default asseet page to show for the current user session. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).
+            Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).
 
             This endpoint sets the default asset view for the current user session if `use_as_default` is true.
-            If `use_as_default` is false, it clears the session variable for the default asset view.
+            If `use_as_default` is `false`, it clears the session variable for the default asset view.
 
             ## Example values for `default_asset_view`:
             - "Audit Log"
@@ -1034,7 +1037,6 @@ class AssetAPI(FlaskView):
             - "Graphs"
             - "Properties"
             - "Status"
-
           security:
             - ApiKeyAuth: []
           requestBody:
@@ -1042,7 +1044,16 @@ class AssetAPI(FlaskView):
             content:
               application/json:
                 schema: DefaultAssetViewJSONSchema
-
+                examples:
+                  default_asset_view:
+                    summary: Setting the user's default asset view to "Graphs"
+                    value:
+                      default_asset_view: "Graphs"
+                      use_as_default: true
+                  resetting_default_view:
+                    summary: resetting the user's default asset view (will return to use system default)
+                    value:
+                      use_as_default: false
           responses:
             200:
               description: PROCESSED
@@ -1146,8 +1157,7 @@ class AssetAPI(FlaskView):
           requestBody:
               content:
                   application/json:
-                    schema:
-                      $ref: "#/components/schemas/AssetTriggerOpenAPISchema"
+                    schema: AssetTriggerOpenAPISchema
                     examples:
                       storage_asset:
                         description: |
@@ -1215,6 +1225,7 @@ class AssetAPI(FlaskView):
 
           tags:
               - Assets
+        .. :quickref: Assets; trigger scheduling job for an asset
         """
         end_of_schedule = start_of_schedule + duration
 

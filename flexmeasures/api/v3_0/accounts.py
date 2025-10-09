@@ -256,7 +256,7 @@ class AccountAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema: partial_account_schema
+                schema: AccountSchema
                 example:
                   name: Test Account Updated
                   primary_color: '#1a3443'

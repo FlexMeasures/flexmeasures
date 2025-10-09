@@ -181,9 +181,7 @@ def add_jinja_variables(app):
     )
     app.jinja_env.globals["openapi_docs_exist"] = (
         True
-        if os.path.exists(
-            "%s/static/documentation/openapi-specs.json" % flexmeasures_ui.root_path
-        )
+        if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path)
         else False
     )
 

@@ -21,14 +21,13 @@ from flexmeasures.api.v3_0.health import HealthAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
 from flexmeasures.api.v3_0.assets import (
-    AssetTriggerOpenAPISchema,
-    StorageFlexModelOpenAPISchema,
-    FlexContextOpenAPISchema,
+    flex_context_schema_openAPI,
     AssetAPIQuerySchema,
     DefaultAssetViewJSONSchema,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
-from flexmeasures.api.v3_0.accounts import AccountSchema, AccountAPIQuerySchema
+from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema
 
 
@@ -61,24 +60,20 @@ def create_openapi_specs(app: Flask):
         "type": "apiKey",
         "in": "header",
         "name": "Authorization",
-    }  # TODO: should we stop making this configurable?
+    }  # TODO: should we stop making this a configurable parameter?
     spec.components.security_scheme("ApiKeyAuth", api_key_scheme)
 
-    # Register OpenAPI-compatible schemas
+    # explicitly register OpenAPI-compatible schemas
     spec.components.schema(
-        "AssetTriggerOpenAPISchema", schema=AssetTriggerOpenAPISchema
+        "FlexContextOpenAPISchema", schema=flex_context_schema_openAPI
     )
-    spec.components.schema(
-        "StorageFlexModelOpenAPISchema", schema=StorageFlexModelOpenAPISchema
-    )
-    spec.components.schema("FlexContextOpenAPISchema", schema=FlexContextOpenAPISchema)
     spec.components.schema("UserAPIQuerySchema", schema=UserAPIQuerySchema)
     spec.components.schema("AssetAPIQuerySchema", schema=AssetAPIQuerySchema)
     spec.components.schema("AssetSchema", schema=AssetSchema)
     spec.components.schema(
         "DefaultAssetViewJSONSchema", schema=DefaultAssetViewJSONSchema
     )
-    spec.components.schema("partial_account_schema", schema=AccountSchema(partial=True))
+    spec.components.schema("AccountSchema", schema=AccountSchema(partial=True))
     spec.components.schema("AccountAPIQuerySchema", schema=AccountAPIQuerySchema)
 
     with app.test_request_context():
@@ -95,7 +90,7 @@ def create_openapi_specs(app: Flask):
                     except Exception as e:
                         print(f"❌ Failed to document {rule.rule}: {e}")
 
-    output_path = Path("flexmeasures/ui/static/documentation/openapi-specs.json")
+    output_path = Path("flexmeasures/ui/static/openapi-specs.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(output_path, "w") as f:
@@ -109,7 +104,7 @@ def register_swagger_ui(app: Flask):
     Register the Swagger UI blueprint to view the OpenAPI specs.
     """
     SWAGGER_URL = "/api/v3_0/docs"  # URL for exposing Swagger UI (without trailing '/')
-    API_URL = "/ui/static/documentation/openapi-specs.json"
+    API_URL = "/ui/static/openapi-specs.json"
 
     # Call factory function to create our blueprint
     swaggerui_blueprint = get_swaggerui_blueprint(

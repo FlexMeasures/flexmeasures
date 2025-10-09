@@ -20,9 +20,9 @@ def make_openapi_compatible(schema_cls: type[Schema]) -> type[Schema]:
             new_fields[name] = fields.String()
 
     # Build schema dynamically, based only on safe fields
-    OpenAPISchema = type(
+    openAPI_schema = type(
         f"{schema_cls.__name__}OpenAPI",
         (Schema,),
         new_fields,
     )
-    return OpenAPISchema
+    return openAPI_schema
