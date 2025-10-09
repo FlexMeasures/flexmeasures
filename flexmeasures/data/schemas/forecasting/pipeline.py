@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 from datetime import timedelta
@@ -145,6 +146,9 @@ class ForecasterParametersSchema(Schema):
         max_training_period = data.get("max_training_period") or timedelta(days=365)
         if train_period_in_hours > max_training_period // timedelta(hours=1):
             train_period_in_hours = max_training_period // timedelta(hours=1)
+            logging.warning(
+                f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
+            )
 
         if data.get("retrain_frequency") is None:
             retrain_frequency_in_hours = int(
