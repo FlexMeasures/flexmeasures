@@ -13,6 +13,7 @@ New features
 * New CLI command for scheduling, with full flex-context and flex-model support as well as the option to set your scheduler class [see `PR #1713 <https://github.com/FlexMeasures/flexmeasures/pull/1713>`_]
 * Added a UI editor (form modal) to edit an asset's flex-model [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_ and `PR #1565 <https://github.com/FlexMeasures/flexmeasures/pull/1565>`_]
 * Full coverage of flex-context fields in the UI editor [see `PR #1689 <https://www.github.com/FlexMeasures/flexmeasures/pull/1689>`_]
+* Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
 * Touch up the KPI cards [see `PR #1731 <https://www.github.com/FlexMeasures/flexmeasures/pull/1731>`_]
 * Touch up asset context page [see `PR #1732 <https://www.github.com/FlexMeasures/flexmeasures/pull/1732>`_]
 * Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
