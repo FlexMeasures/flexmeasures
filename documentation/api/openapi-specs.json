@@ -354,7 +354,7 @@
     },
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
-        "summary": "Download schedule for one device",
+        "summary": "Get schedule for one device",
         "description": "Get a schedule from FlexMeasures.\nOptional fields\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n",
         "security": [
           {
@@ -527,7 +527,7 @@
     "/api/v3_0/sensors/{id}/status": {
       "get": {
         "summary": "Get sensor status",
-        "description": "This endpoint fetches the current status data for the specified sensor.\nThe status includes information about the sensor's status, staleness and resolution.\n",
+        "description": "This endpoint fetches the current status of data for the specified sensor.\nThe status includes information about the sensor data's status, staleness and resolution.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1159,7 +1159,7 @@
     },
     "/api/v3_0/accounts/{id}": {
       "get": {
-        "summary": "Get a specific account by ID.",
+        "summary": "Fetch one account.",
         "description": "This endpoint retrieves a single account, given its ID in the path.\nAccess is restricted: only admins, consultants, and users belonging to the account itself are authorized to use this endpoint.\n",
         "security": [
           {
@@ -1213,7 +1213,7 @@
         ]
       },
       "patch": {
-        "summary": "Update an existing account by ID.",
+        "summary": "Update an existing account.",
         "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n**Restrictions on Fields:**\n- The **id** field is read-only and cannot be updated.\n- The **consultancy_account_id** field can only be edited if the current user has an **admin** role.\n",
         "security": [
           {
@@ -1421,7 +1421,7 @@
     },
     "/api/v3_0/users/{id}/auditlog": {
       "get": {
-        "summary": "API endpoint to get history of user actions.",
+        "summary": "Get history of user actions.",
         "description": "The endpoint is paginated and supports search filters.\n  - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per_page` (default is 10).\n  - If `sort_by` (field name) and `sort_dir` (\"asc\" or \"desc\") are provided, the list will be sorted.\n  - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.\n    The response schema for pagination is inspired by https://datatables.net/manual/server-side\n",
         "parameters": [
           {
@@ -1602,7 +1602,7 @@
         ]
       },
       "patch": {
-        "summary": "API endpoint to patch user data.",
+        "summary": "Update a user.",
         "description": "This endpoint sets data for an existing user.\nIt has to be used by the user themselves, admins, consultant or account-admins (of the same account).\nAny subset of user fields can be sent.\nIf the user is not an (account-)admin, they can only edit a few of their own fields.\nUser roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.\n\nThe following fields are not allowed to be updated at all:\n- id\n- account_id\n",
         "security": [
           {
@@ -1689,7 +1689,7 @@
     },
     "/api/v3_0/users": {
       "get": {
-        "summary": "API endpoint to list all users.",
+        "summary": "List users.",
         "description": "This endpoint returns all accessible users.\nBy default, only active users are returned.\nThe `account_id` query parameter can be used to filter the users of\na given account.\nThe `include_inactive` query parameter can be used to also fetch\ninactive users.\nAccessible users are users in the same account as the current user.\nOnly admins can use this endpoint to fetch users from a different account (by using the `account_id` query parameter).\n",
         "security": [
           {
@@ -2669,7 +2669,7 @@
     "/api/v3_0/assets/{id}/kpis": {
       "get": {
         "summary": "API endpoint to get KPIs for an asset.",
-        "description": "Gets statistics for sensors for the given time range. The sensors are expected to have a daily resolution, suitable for KPIs.\nEach sensor has a preferred function to downsample the daily values to the KPI value.\n\nThis endpoint returns a list of KPIs for the asset.\n",
+        "description": "Gets statistics for sensors for the given time range.\nThe asset attribute `sensors_to_show_as_kpis` determines which sensors are considered.\nRead more [here](https://flexmeasures.readthedocs.io/latest/views/asset-data.html#showing-daily-kpis).\n\nThe sensors are expected to have a daily resolution, suitable for KPIs.\nEach sensor has a preferred function to downsample the daily values to the KPI value.\n\nThis endpoint returns a list of KPIs for the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []

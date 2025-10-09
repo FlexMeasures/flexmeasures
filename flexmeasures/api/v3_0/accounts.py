@@ -50,6 +50,7 @@ class AccountAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
+        .. :quickref: Accounts; List all accounts accessible to the current user.
         ---
         get:
           summary: List all accounts accessible to the current user.
@@ -181,9 +182,10 @@ class AccountAPI(FlaskView):
     @as_json
     def get(self, id: int, account: Account):
         """
+        .. :quickref: Accounts; Fetch a given account.
         ---
         get:
-          summary: Get a specific account by ID.
+          summary: Fetch one account.
           description: |
             This endpoint retrieves a single account, given its ID in the path.
             Access is restricted: only admins, consultants, and users belonging to the account itself are authorized to use this endpoint.
@@ -229,9 +231,10 @@ class AccountAPI(FlaskView):
     @as_json
     def patch(self, account_data: dict, id: int, account: Account):
         """
+        .. :quickref: Accounts; Update an account.
         ---
         patch:
-          summary: Update an existing account by ID.
+          summary: Update an existing account.
           description: |
             This endpoint updates the details for an existing account.
 
@@ -358,6 +361,7 @@ class AccountAPI(FlaskView):
     @as_json
     def auditlog(self, id: int, account: Account):
         """
+        .. :quickref: Accounts; Get the history of actions for a specific account.
         ---
         get:
           summary: Get the history of actions for a specific account.

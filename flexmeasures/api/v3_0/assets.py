@@ -741,7 +741,7 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart(self, id: int, asset: GenericAsset, **kwargs):
         """
-        .. :quickref: Assets; Download an embeddable chart with time series data
+        .. :quickref: Charts; Download an embeddable chart with time series data
         ---
         get:
           summary: Download an embeddable chart with time series data
@@ -805,7 +805,7 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_data(self, id: int, asset: GenericAsset, **kwargs):
         """
-        .. :quickref: Assets; Download time series for use in charts
+        .. :quickref: Chartx; Download time series for use in charts
         ---
         get:
           summary: Download time series for use in charts
@@ -1124,7 +1124,7 @@ class AssetAPI(FlaskView):
         **kwargs,
     ):
         """
-        .. :quickref: Assets; Trigger scheduling job for any number of devices
+        .. :quickref: Schedules; Trigger scheduling job for any number of devices
         ---
         post:
           summary: Trigger scheduling job for any number of devices
@@ -1282,12 +1282,16 @@ class AssetAPI(FlaskView):
     )
     def get_kpis(self, id: int, asset: GenericAsset, start, end):
         """
-        .. :quickref: Assets; API endpoint to get KPIs for an asset.
+        .. :quickref: Assets; Get KPIs for an asset.
         ---
         get:
           summary: API endpoint to get KPIs for an asset.
           description: |
-            Gets statistics for sensors for the given time range. The sensors are expected to have a daily resolution, suitable for KPIs.
+            Gets statistics for sensors for the given time range.
+            The asset attribute `sensors_to_show_as_kpis` determines which sensors are considered.
+            Read more [here](https://flexmeasures.readthedocs.io/latest/views/asset-data.html#showing-daily-kpis).
+
+            The sensors are expected to have a daily resolution, suitable for KPIs.
             Each sensor has a preferred function to downsample the daily values to the KPI value.
 
             This endpoint returns a list of KPIs for the asset.

@@ -68,9 +68,10 @@ class UserAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
+        .. :quickref: Users; List users.
         ---
         get:
-          summary: API endpoint to list all users.
+          summary: List users.
           description: |
             This endpoint returns all accessible users.
             By default, only active users are returned.
@@ -208,6 +209,7 @@ class UserAPI(FlaskView):
     )
     def post(self, user_data):
         """
+        .. :quickref: Users; Create new user
         ---
         post:
           summary: Create new user
@@ -287,6 +289,7 @@ class UserAPI(FlaskView):
     @as_json
     def get(self, id: int, user: UserModel):
         """
+        .. :quickref: Users; Fetch a user
         ---
         get:
           summary: Get a user
@@ -341,9 +344,10 @@ class UserAPI(FlaskView):
     @as_json
     def patch(self, id: int, user: UserModel, **user_data):  # noqa C901
         """
+        .. :quickref: Users; Update a user
         ---
         patch:
-          summary: API endpoint to patch user data.
+          summary: Update a user.
           description: |
             This endpoint sets data for an existing user.
             It has to be used by the user themselves, admins, consultant or account-admins (of the same account).
@@ -463,6 +467,7 @@ class UserAPI(FlaskView):
     @as_json
     def reset_user_password(self, id: int, user: UserModel):
         """
+        .. :quickref: Users; Password reset
         ---
         patch:
           summary: Password reset
@@ -518,9 +523,10 @@ class UserAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
+        .. :quickref: Users; Get history of user actions.
         ---
         get:
-          summary: API endpoint to get history of user actions.
+          summary: Get history of user actions.
           description: |
             The endpoint is paginated and supports search filters.
               - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).

@@ -114,6 +114,7 @@ class SensorAPI(FlaskView):
         unit: str | None = None,
     ):
         """
+        .. :quickref: Sensors; Get list of sensors
         ---
         get:
           summary: Get list of sensors
@@ -328,6 +329,7 @@ class SensorAPI(FlaskView):
         self, data: list[tb.BeliefsDataFrame], filenames: list[str], **kwargs
     ):
         """
+        .. :quickref: Data; Upload sensor data by file
         ---
         post:
           summary: Upload sensor data by file
@@ -412,6 +414,7 @@ class SensorAPI(FlaskView):
     )
     def post_data(self, id: int, bdf: tb.BeliefsDataFrame):
         """
+        .. :quickref: Data; Post sensor data
         ---
         post:
           summary: Post sensor data
@@ -472,6 +475,7 @@ class SensorAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_data(self, id: int, **sensor_data_description: dict):
         """
+        .. :quickref: Data; Get sensor data
         ---
         get:
           summary: Get sensor data
@@ -541,6 +545,7 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
+        .. :quickref: Schedules; Trigger scheduling job for one device
         ---
         post:
           summary: Trigger scheduling job for one device
@@ -753,9 +758,10 @@ class SensorAPI(FlaskView):
         self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs
     ):
         """
+        .. :quickref: Schedules; Get schedule for one device
         ---
         get:
-          summary: Download schedule for one device
+          summary: Get schedule for one device
           description: |
             Get a schedule from FlexMeasures.
             Optional fields
@@ -943,6 +949,7 @@ class SensorAPI(FlaskView):
     @as_json
     def fetch_one(self, id, sensor: Sensor):
         """
+        .. :quickref: Sensors; Fetch a given sensor
         ---
         get:
           summary: Fetch a given sensor
@@ -985,6 +992,7 @@ class SensorAPI(FlaskView):
     )
     def post(self, sensor_data: dict):
         """
+        .. :quickref: Sensors; Create a new sensor
         ---
         post:
           summary: Create a new Sensor
@@ -1050,6 +1058,7 @@ class SensorAPI(FlaskView):
     @as_json
     def patch(self, sensor_data: dict, id: int, sensor: Sensor):
         """
+        .. :quickref: Sensors; Update a sensor
         ---
         patch:
           summary: Update a sensor
@@ -1131,7 +1140,7 @@ class SensorAPI(FlaskView):
     @as_json
     def delete(self, id: int, sensor: Sensor):
         """Delete a sensor given its identifier.
-
+        .. :quickref: Sensors; Delete a sensor
         ---
         delete:
           summary: Delete a sensor
@@ -1181,6 +1190,7 @@ class SensorAPI(FlaskView):
     @as_json
     def delete_data(self, id: int, sensor: Sensor):
         """
+        .. :quickref: Sensors; Delete sensor data
         ---
         delete:
           summary: Delete sensor data
@@ -1237,6 +1247,7 @@ class SensorAPI(FlaskView):
         sort_keys: bool,
     ):
         """
+        .. :quickref: Sensors; Get sensor stats
         ---
         get:
           summary: Get sensor stats
@@ -1307,12 +1318,13 @@ class SensorAPI(FlaskView):
     @as_json
     def get_status(self, id, sensor):
         """
+        .. :quickref: Data; Get status of sensor data
         ---
         get:
           summary: Get sensor status
           description: |
-            This endpoint fetches the current status data for the specified sensor.
-            The status includes information about the sensor's status, staleness and resolution.
+            This endpoint fetches the current status of data for the specified sensor.
+            The status includes information about the sensor data's status, staleness and resolution.
           security:
             - ApiKeyAuth: []
           parameters:
