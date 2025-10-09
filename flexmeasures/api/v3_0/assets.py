@@ -151,6 +151,7 @@ class AssetTypesAPI(FlaskView):
     @as_json
     def index(self):
         """
+        .. :quickref: Assets; Get list of available asset types
         ---
         get:
           summary: Get list of available asset types
@@ -201,6 +202,7 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
+        .. :quickref: Assets; List all assets owned  by user's accounts, or a certain account or all accessible accounts.
         ---
         get:
           summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
@@ -331,6 +333,7 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
+        .. :quickref: Assets; Return all sensors under an asset.
         ---
         get:
           summary: Return all sensors under an asset.
@@ -446,6 +449,7 @@ class AssetAPI(FlaskView):
     @as_json
     def public(self):
         """
+        .. :quickref: Assets; Return all public assets.
         ---
         get:
           summary: Return all public assets.
@@ -476,6 +480,7 @@ class AssetAPI(FlaskView):
     @use_args(asset_schema)
     def post(self, asset_data: dict):
         """
+        .. :quickref: Assets; Creates a new asset.
         ---
         post:
           summary: Creates a new asset.
@@ -561,6 +566,7 @@ class AssetAPI(FlaskView):
     @as_json
     def fetch_one(self, id, asset):
         """
+        .. :quickref: Assets; Fetch a given asset.
         ---
         get:
           summary: Fetch a given asset.
@@ -615,6 +621,7 @@ class AssetAPI(FlaskView):
     @as_json
     def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
         """
+        .. :quickref: Assets; Update an asset given its identifier.
         ---
         patch:
           summary: Update an asset given its identifier.
@@ -690,9 +697,10 @@ class AssetAPI(FlaskView):
     @as_json
     def delete(self, id: int, asset: GenericAsset):
         """
+        .. :quickref: Assets; Delete an asset.
         ---
         delete:
-          summary: Delete an asset given its identifier.
+          summary: Delete an asset.
           description: This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.
           security:
             - ApiKeyAuth: []
@@ -733,9 +741,10 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart(self, id: int, asset: GenericAsset, **kwargs):
         """
+        .. :quickref: Assets; Download an embeddable chart with time series data
         ---
         get:
-          summary: Download a chart with time series
+          summary: Download an embeddable chart with time series data
           description: |
             This endpoint returns a chart with time series for an asset.
 
@@ -796,6 +805,7 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_data(self, id: int, asset: GenericAsset, **kwargs):
         """
+        .. :quickref: Assets; Download time series for use in charts
         ---
         get:
           summary: Download time series for use in charts
@@ -850,6 +860,7 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
+        .. :quickref: Assets; API endpoint to get history of asset related actions.
         ---
         get:
           summary: API endpoint to get history of asset related actions.
@@ -958,6 +969,7 @@ class AssetAPI(FlaskView):
     @as_json
     def get_jobs(self, id: int, asset: GenericAsset):
         """
+        .. :quickref: Assets; API endpoint to get all jobs of an asset.
         ---
         get:
           summary: API endpoint to get all jobs of an asset.
@@ -1022,6 +1034,7 @@ class AssetAPI(FlaskView):
     @use_kwargs(DefaultAssetViewJSONSchema, location="json")
     def update_default_asset_view(self, **kwargs):
         """
+        .. :quickref: Assets; Update the default asset view
         ---
         post:
           summary: Update the default asset view
@@ -1111,6 +1124,7 @@ class AssetAPI(FlaskView):
         **kwargs,
     ):
         """
+        .. :quickref: Assets; Trigger scheduling job for any number of devices
         ---
         post:
           summary: Trigger scheduling job for any number of devices
@@ -1225,7 +1239,6 @@ class AssetAPI(FlaskView):
 
           tags:
               - Assets
-        .. :quickref: Assets; trigger scheduling job for an asset
         """
         end_of_schedule = start_of_schedule + duration
 
@@ -1269,6 +1282,7 @@ class AssetAPI(FlaskView):
     )
     def get_kpis(self, id: int, asset: GenericAsset, start, end):
         """
+        .. :quickref: Assets; API endpoint to get KPIs for an asset.
         ---
         get:
           summary: API endpoint to get KPIs for an asset.

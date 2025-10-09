@@ -2202,7 +2202,7 @@
     },
     "/api/v3_0/assets/{id}": {
       "delete": {
-        "summary": "Delete an asset given its identifier.",
+        "summary": "Delete an asset.",
         "description": "This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.",
         "security": [
           {
@@ -2376,7 +2376,7 @@
     },
     "/api/v3_0/assets/{id}/chart": {
       "get": {
-        "summary": "Download a chart with time series",
+        "summary": "Download an embeddable chart with time series data",
         "description": "This endpoint returns a chart with time series for an asset.\n\nThe response contains the HTML and JavaScript needed to embedded and render the chart in an HTML page.\nThis is used by the FlexMeasures UI.\n\nTo learn how to embed the response in your web page, see [this section](https://flexmeasures.readthedocs.io/latest/tut/building_uis.html#embedding-charts) in the developer documentation.\n",
         "security": [
           {
