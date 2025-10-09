@@ -28,7 +28,7 @@ from flexmeasures.api.v3_0.assets import (
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
-from flexmeasures.api.v3_0.users import UserAPIQuerySchema
+from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
 
 
 def register_at(app: Flask):
@@ -75,12 +75,23 @@ def create_openapi_specs(app: Flask):
     )
     spec.components.schema("AccountSchema", schema=AccountSchema(partial=True))
     spec.components.schema("AccountAPIQuerySchema", schema=AccountAPIQuerySchema)
+    spec.components.schema("AuthRequestSchema", schema=AuthRequestSchema)
 
     with app.test_request_context():
         documented_endpoints_counter = 0
         # Document ALL API endpoints under /api/v3_0/
         for rule in app.url_map.iter_rules():
             if rule.rule.startswith("/api/v3_0/"):
+                endpoint_name = rule.endpoint
+                if endpoint_name in app.view_functions:
+                    try:
+                        view_function = app.view_functions[endpoint_name]
+                        spec.path(view=view_function)
+                        documented_endpoints_counter += 1
+                    except Exception as e:
+                        print(f"❌ Failed to document {rule.rule}: {e}")
+            # Document API endpoint /api/requestAuthToken
+            if rule.rule == "/api/requestAuthToken":
                 endpoint_name = rule.endpoint
                 if endpoint_name in app.view_functions:
                     try:

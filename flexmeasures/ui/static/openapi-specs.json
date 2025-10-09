@@ -1,5 +1,47 @@
 {
   "paths": {
+    "/api/requestAuthToken": {
+      "post": {
+        "summary": "Obtain a fresh authentication access token.",
+        "description": "Retrieve a short-lived authentication token using email and password.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token successfully generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authentication_token": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v3_0/sensors/{id}": {
       "delete": {
         "summary": "Delete a sensor",
@@ -3257,7 +3299,7 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.28.0.dev49"
+    "version": "0.28.1.dev56"
   },
   "openapi": "3.0.2",
   "components": {
@@ -3691,6 +3733,24 @@
             ]
           }
         },
+        "additionalProperties": false
+      },
+      "AuthRequestSchema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The user's email address."
+          },
+          "password": {
+            "type": "string",
+            "description": "The user's password."
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
         "additionalProperties": false
       },
       "Sensor1": {
