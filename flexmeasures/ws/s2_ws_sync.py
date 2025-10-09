@@ -7,7 +7,7 @@ import logging
 import traceback
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional, Type, List
 
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
@@ -49,6 +49,7 @@ class FRBCDeviceData:
         self.storage_status: Optional[FRBCStorageStatus] = None
         self.actuator_statuses: Dict[str, FRBCActuatorStatus] = {}  # Changed to dict by actuator_id
         self.resource_id: Optional[str] = None
+        self.instructions: Optional[List[FRBCInstruction]] = []
 
     def is_complete(self) -> bool:
         """Check if we have received all necessary data to generate instructions."""
