@@ -38,6 +38,7 @@ class HealthAPI(FlaskView):
     @as_json
     def is_ready(self):
         """
+        .. :quickref: Public; Check readiness status
         ---
         get:
           summary: Get readiness status

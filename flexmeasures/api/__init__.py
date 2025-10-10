@@ -31,6 +31,7 @@ flexmeasures_api = Blueprint("flexmeasures_api", __name__)
 @as_json
 def request_auth_token():
     """
+    .. :quickref: Auth; Obtain authentication token
     ---
     post:
       summary: Obtain a fresh authentication access token.
@@ -97,6 +98,7 @@ def request_auth_token():
 @as_json
 def get_versions() -> dict:
     """
+    .. :quickref: Public; List available API versions
     ---
     get:
       summary: List available API versions
