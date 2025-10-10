@@ -37,7 +37,7 @@ def _validate_primitive_payload(args, kwargs):
             )
 
 
-class PandasMethodCall(Schema):
+class Transformation(Schema):
 
     df_input = fields.Str()
     df_output = fields.Str()
@@ -184,7 +184,7 @@ class PandasReporterConfigSchema(ReporterConfigSchema):
     required_output = fields.List(
         fields.Nested(RequiredOutput()), validate=validate.Length(min=1)
     )
-    transformations = fields.List(fields.Nested(PandasMethodCall()), required=True)
+    transformations = fields.List(fields.Nested(Transformation()), required=True)
 
     droplevels = fields.Bool(required=False, load_default=False)
 
