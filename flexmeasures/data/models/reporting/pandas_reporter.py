@@ -338,6 +338,7 @@ class PandasReporter(Reporter):
             )  # default is OUTPUT = INPUT.method()
 
             method = transformation.get("method")
+            _property = transformation.get("_property")
             args = self._process_pandas_args(transformation.get("args", []), method)
             kwargs = self._process_pandas_kwargs(
                 transformation.get("kwargs", {}), method
@@ -349,11 +350,11 @@ class PandasReporter(Reporter):
             if (_any_empty(args) or _any_empty(kwargs.values())) and skip_if_empty:
                 self.data[df_output] = self.data[df_input]
             else:
-                try:
+                if _property:
+                    self.data[df_output] = getattr(self.data[df_input], _property)
+                else:
                     self.data[df_output] = getattr(self.data[df_input], method)(
                         *args, **kwargs
                     )
-                except TypeError:
-                    self.data[df_output] = getattr(self.data[df_input], method)
 
             previous_df = df_output
