@@ -7,9 +7,6 @@ from pathlib import Path
 from flask import Flask
 import json
 
-from apispec import APISpec
-from apispec.ext.marshmallow import MarshmallowPlugin
-from apispec_webframeworks.flask import FlaskPlugin
 from flask_swagger_ui import get_swaggerui_blueprint
 
 from flexmeasures import __version__ as fm_version
@@ -49,7 +46,14 @@ def register_at(app: Flask):
 
 
 def create_openapi_specs(app: Flask):
-    """ """
+    """
+    Create OpenAPI specs for the API and save them to a JSON file in the static folder.
+    This function should be called when generating docs (and needs extra dependencies).
+    """
+    from apispec import APISpec
+    from apispec.ext.marshmallow import MarshmallowPlugin
+    from apispec_webframeworks.flask import FlaskPlugin
+
     spec = APISpec(
         title="FlexMeasures",
         version=fm_version,

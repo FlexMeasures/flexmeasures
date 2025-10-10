@@ -6,6 +6,7 @@ Version 3.0
 Summary
 -------
 
+.. The qrefs make links very similar to the openapi plugin, but we have to run a sed command after the fact to make them exactly alike (see Makefile)
 .. qrefflask:: flexmeasures.app:create(env="documentation")
     :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.accounts, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
     :order: path
@@ -16,7 +17,8 @@ Summary
 API Details
 -----------
 
-.. openapi:: openapi-specs.json
+.. we are using the specs which are located in the UI static folder, as that location is needed to serve it with each instance.
+.. openapi:: ../../flexmeasures/ui/static/openapi-specs.json
     :format:
       markdown
     :group:

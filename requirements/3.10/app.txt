@@ -10,12 +10,6 @@ altair==5.5.0
     # via -r requirements/app.in
 annotated-types==0.7.0
     # via pydantic
-apispec[yaml]==6.8.3
-    # via
-    #   -r requirements/app.in
-    #   apispec-webframeworks
-apispec-webframeworks==1.2.0
-    # via -r requirements/app.in
 argon2-cffi==25.1.0
     # via -r requirements/app.in
 argon2-cffi-bindings==25.1.0
@@ -236,7 +230,6 @@ openturns==1.25
 packaging==25.0
     # via
     #   altair
-    #   apispec
     #   marshmallow
     #   matplotlib
     #   sktime
@@ -309,9 +302,7 @@ pytz==2025.2
     #   timely-beliefs
     #   timetomodel
 pyyaml==6.0.2
-    # via
-    #   -r requirements/app.in
-    #   apispec
+    # via -r requirements/app.in
 qrcode==8.2
     # via flask-security-too
 readchar==4.2.1
