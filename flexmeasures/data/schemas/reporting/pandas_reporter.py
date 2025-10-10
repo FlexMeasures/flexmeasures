@@ -47,6 +47,21 @@ class Transformation(Schema):
     kwargs = fields.Dict()
     skip_if_empty = fields.Bool()
 
+    def _update_signature_methods(self):
+        skip_sig = set(DEFAULT_SKIP_SIGNATURE_METHODS)
+
+        user_defined_methods = app.config.get(
+            "FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS", []
+        )
+        if isinstance(user_defined_methods, str):
+            user_defined_methods = user_defined_methods.split(",")
+            user_defined_methods = [method.strip() for method in user_defined_methods]
+
+        user_defined_methods = set(user_defined_methods)
+        skip_sig.update(user_defined_methods)
+
+        return skip_sig
+
     @validates_schema
     def validate_method_call(self, data, **kwargs):
         """Validates the method name and its arguments against a set of base classes.
@@ -67,22 +82,13 @@ class Transformation(Schema):
         """
 
         method = data["method"]
-        skip_sig = set(DEFAULT_SKIP_SIGNATURE_METHODS)
-
-        user_defined_methods = app.config.get(
-            "FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS", []
-        )
-        if isinstance(user_defined_methods, str):
-            user_defined_methods = user_defined_methods.split(",")
-            user_defined_methods = [method.strip() for method in user_defined_methods]
-
-        user_defined_methods = set(user_defined_methods)
-        skip_sig.update(user_defined_methods)
 
         # Enforce primitive-only payload always
         args = data.get("args", []).copy()
         kwargs = data.get("kwargs", {}).copy()
         _validate_primitive_payload(args, kwargs)
+
+        skip_sig = self._update_signature_methods()
 
         # If this method is in the "skip-signature" list, do custom validation and stop
         if method in skip_sig:
