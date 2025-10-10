@@ -49,11 +49,6 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
         "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
     )
-    variables["sphinx_docs_exist"] = False
-    if os.path.exists(
-        "%s/static/documentation/html/index.html" % flexmeasures_ui.root_path
-    ):
-        variables["sphinx_docs_exist"] = True
     variables["openapi_docs_exist"] = False
     if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path):
         variables["openapi_docs_exist"] = True
