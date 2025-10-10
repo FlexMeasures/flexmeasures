@@ -370,17 +370,42 @@ class SensorAPI(FlaskView):
                       description: |
                         If the data sent is new and is not already processed by FlexMeasures, the response will be as above.
                       value:
-                        "message": "Request has been processed."
-                        "status": "PROCESSED"
+                        message: "Request has been processed."
+                        status: "PROCESSED"
                     processed_previously_received:
                       summary: Previously received data
                       description: |
                         If some of the data sent was already received and successfully processed by FlexMeasures, the response will be as above.
                         Note that in this case, the data is still processed, but the already received data points are ignored.
                       value:
-                        "message": "Some of the data has already been received and successfully processed."
-                        "results": "PROCESSED"
-                        "status": "ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED"
+                        message: "Some of the data has already been received and successfully processed."
+                        results: "PROCESSED"
+                        status: "ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED"
+                    returned_graph_data:
+                      summary: Returned graph data
+                      description: |
+                        Example of how the processed data may be returned.
+                      value:
+                        data:
+                          - ts: 1759669200000
+                            sid: 3
+                            val: 12.4
+                            sf: 1.0
+                            src: 1
+                            bh: -427962881
+                        sensors:
+                          "3":
+                            name: "TempSensor_A1X"
+                            unit: "°C"
+                            description: "TempSensor_A1X (toy-account)"
+                            asset_id: 1
+                            asset_description: "toy-account"
+                        sources:
+                          "1":
+                            name: "toy-user"
+                            model: ""
+                            type: "other"
+                            description: "toy-user"
             400:
               description: INVALID_REQUEST
             401:

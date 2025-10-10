@@ -29,7 +29,7 @@ flexmeasures_api = Blueprint("flexmeasures_api", __name__)
 @flexmeasures_api.route("/requestAuthToken", methods=["POST"])
 @use_args(AuthRequestSchema, location="json")
 @as_json
-def request_auth_token():
+def request_auth_token(args) -> tuple[dict, int]:
     """
     .. :quickref: Auth; Obtain authentication token
     ---
