@@ -1,10 +1,9 @@
-from marshmallow import validates, ValidationError, validate, fields
+from marshmallow import validates, ValidationError, validate
 from pytz import all_timezones
 
 from flexmeasures.data import db, ma
 from flexmeasures.data.models.user import User as UserModel
 from flexmeasures.data.schemas.times import AwareDateTimeField
-from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
 
 class SQLAlchemySchema(ma.SQLAlchemySchema):
@@ -36,10 +35,3 @@ class UserSchema(SQLAlchemySchema):
     flexmeasures_roles = ma.auto_field()
     last_login_at = AwareDateTimeField()
     last_seen_at = AwareDateTimeField()
-
-
-class UserPaginationSchema(PaginationSchema):
-    sort_by = fields.Str(
-        required=False,
-        validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
-    )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from flask_classful import FlaskView, route
-from marshmallow import fields, Schema
+from marshmallow import fields, Schema, validate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, select, func, or_
 from flask_sqlalchemy.pagination import SelectPagination
@@ -17,7 +17,7 @@ from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
 from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.data.queries.users import query_users_by_search_terms
 from flexmeasures.data.schemas.account import AccountSchema
-from flexmeasures.data.schemas.users import UserSchema, UserPaginationSchema
+from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     reset_password,
     remove_cookie_and_token_access,
@@ -26,6 +26,8 @@ from flexmeasures.data.services.users import (
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.utils.time_utils import server_now, naturalized_datetime_str
+from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
+
 
 """
 API endpoints to manage users.
@@ -49,7 +51,18 @@ class AuthRequestSchema(Schema):
     )
 
 
+class UserPaginationSchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
+    )
+
+
 class UserAPIQuerySchema(UserPaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
+    )
     account = AccountIdField(data_key="account_id", load_default=None)
     include_inactive = fields.Bool(load_default=False)
 
