@@ -805,7 +805,7 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_data(self, id: int, asset: GenericAsset, **kwargs):
         """
-        .. :quickref: Chartx; Download time series for use in charts
+        .. :quickref: Chart; Download time series for use in charts
         ---
         get:
           summary: Download time series for use in charts
