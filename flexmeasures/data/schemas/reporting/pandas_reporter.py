@@ -17,7 +17,7 @@ from pandas.core.groupby.grouper import Grouper
 
 # Methods whose Python signature we choose NOT to bind against.
 # We’ll do our own strict payload checks instead.
-DEFAULT_SKIP_SIGNATURE_METHODS = {"get_attribute", "sensor"}
+DEFAULT_SKIP_SIGNATURE_METHODS = {"get_attribute"}
 
 
 # Helper: ensure args/kwargs are "primitive-only" (no callables/objects)
@@ -42,7 +42,8 @@ class Transformation(Schema):
     df_input = fields.Str()
     df_output = fields.Str()
 
-    method = fields.Str(required=True)
+    method = fields.Str(required=False)
+    _property = fields.Str(required=False, data_key="property")
     args = fields.List(fields.Raw())
     kwargs = fields.Dict()
     skip_if_empty = fields.Bool()
@@ -63,6 +64,35 @@ class Transformation(Schema):
         return skip_sig
 
     @validates_schema
+    def validate_method_or_property(self, data, **kwargs):
+        """Exactly one of 'method' or 'property' must be provided.
+        Additionally, 'args'/'kwargs' are only allowed when 'method' is provided.
+        """
+        method = data.get("method")
+        prop = data.get("_property")  # internal name for data_key="property"
+
+        # Enforce exactly-one rule
+        if bool(method) == bool(prop):
+            # both set or both missing
+            raise ValidationError(
+                "Exactly one of 'method' or 'property' must be provided.",
+                field_name="method",
+            )
+
+        # If no method (i.e., using 'property'), args/kwargs must be empty/absent
+        if not method:
+            if data.get("args"):
+                raise ValidationError(
+                    "'args' can only be set when 'method' is provided.",
+                    field_name="args",
+                )
+            if data.get("kwargs"):
+                raise ValidationError(
+                    "'kwargs' can only be set when 'method' is provided.",
+                    field_name="kwargs",
+                )
+
+    @validates_schema
     def validate_method_call(self, data, **kwargs):
         """Validates the method name and its arguments against a set of base classes.
 
@@ -81,7 +111,9 @@ class Transformation(Schema):
                              if the provided arguments do not match the method signature.
         """
 
-        method = data["method"]
+        method = data.get("method")
+        if method is None:
+            return
 
         # Enforce primitive-only payload always
         args = data.get("args", []).copy()
