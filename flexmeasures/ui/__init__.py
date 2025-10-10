@@ -172,13 +172,19 @@ def add_jinja_variables(app):
         ("FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS", ""),
     ):
         app.jinja_env.globals[v] = app.config.get(v, d)
-    app.jinja_env.globals["documentation_exists"] = (
+    app.jinja_env.globals["sphinx_docs_exist"] = (
         True
         if os.path.exists(
             "%s/static/documentation/html/index.html" % flexmeasures_ui.root_path
         )
         else False
     )
+    app.jinja_env.globals["openapi_docs_exist"] = (
+        True
+        if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path)
+        else False
+    )
+
     for role_name in (
         "ADMIN_ROLE",
         "ADMIN_READER_ROLE",

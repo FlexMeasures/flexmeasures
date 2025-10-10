@@ -55,6 +55,7 @@ extensions = [
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
     "sphinxcontrib.mermaid",
+    "sphinxcontrib.openapi",
 ]
 
 autodoc_default_options = {}

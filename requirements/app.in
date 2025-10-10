@@ -50,6 +50,7 @@ Flask-Login
 Flask-Classful>=0.16
 Flask-Marshmallow
 Flask-Cors
+flask-swagger-ui
 sentry-sdk[flask]
 marshmallow>=3
 # See GH#1450 (failing tests on older Python versions)

@@ -117,11 +117,12 @@ def check_audit_log_event(
     asset: Asset,
 ):
     """Make sure the event is registered in the audit log."""
-    assert db.session.execute(
+    logs = db.session.execute(
         select(AssetAuditLog).filter_by(
             event=event,
             active_user_id=user.id,
             active_user_name=user.username,
             affected_asset_id=asset.id,
         )
-    ).scalar_one_or_none(), f"expected audit log event: {event}"
+    ).scalar()
+    assert logs, f"expected audit log event: {event}"

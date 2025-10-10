@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+
+v3.0-28 | 2025-10-XX
+""""""""""""""""""""
+- Moved documentation to OpenAPI standard (incl. smaller improvements), each instance now provides a Swagger UI.
+
 v3.0-27 | 2025-09-16
 """"""""""""""""""""
 - Fix schema validation in ``PATCH /assets/<id>``.

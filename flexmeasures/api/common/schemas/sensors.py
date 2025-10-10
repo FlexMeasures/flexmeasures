@@ -1,5 +1,5 @@
 from flask import abort
-from marshmallow import fields, ValidationError
+from marshmallow import Schema, fields, ValidationError
 from sqlalchemy import select
 
 from flexmeasures.data import db
@@ -31,6 +31,10 @@ class SensorIdField(fields.Integer):
 
     def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
         return sensor.id
+
+
+class SensorId(Schema):
+    id = SensorIdField(required=True)
 
 
 class SensorEntityAddressField(fields.Str):

@@ -5,13 +5,17 @@ from typing import Sequence
 from datetime import timedelta
 
 from flask import current_app
+from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
 from psycopg2.errors import UniqueViolation
 from rq.job import Job
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.utils import save_to_db
+from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
     invalid_replacement,
     ResponseTuple,
@@ -112,3 +116,15 @@ def catch_timed_belief_replacements(error: IntegrityError):
 
     # Forward to our generic error handler
     return error_handling_router(error)
+
+
+def get_accessible_accounts() -> list[Account]:
+    accounts = []
+    for _account in db.session.scalars(select(Account)).all():
+        try:
+            check_access(_account, "read")
+            accounts.append(_account)
+        except (Forbidden, Unauthorized):
+            pass
+
+    return accounts
