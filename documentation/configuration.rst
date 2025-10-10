@@ -689,4 +689,4 @@ Extend this list if you want to permit additional pseudo-methods in reporter pip
 
 .. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
 
-Default: `["sensor", "get_attribute"]`
+Default: `["get_attribute"]`
