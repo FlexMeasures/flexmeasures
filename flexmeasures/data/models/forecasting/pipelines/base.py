@@ -605,6 +605,19 @@ class BasePipeline:
         dfs = []
 
         for sensor, sensor_name in zip(sensors, sensor_names):
+
+            # check missing data before filling
+            if sensor_name in df.columns:
+                n_missing = df[sensor_name].isna().sum()
+                total = len(df)
+                missing_fraction = n_missing / total if total > 0 else 1.0
+
+                if missing_fraction > self.missing_threshold:
+                    raise ValueError(
+                        f"Sensor {sensor_name} has {missing_fraction*100:.1f}% missing values "
+                        f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
+                    )
+
             if df.empty:
                 last_event_start = end - pd.Timedelta(
                     hours=sensor.event_resolution.total_seconds() / 3600
