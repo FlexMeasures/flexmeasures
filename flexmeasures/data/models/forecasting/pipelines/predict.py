@@ -38,6 +38,7 @@ class PredictPipeline(BasePipeline):
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         data_source: Source = None,
+        missing_threshold: float = 1.0,
     ) -> None:
         """
         Initialize the PredictPipeline.
