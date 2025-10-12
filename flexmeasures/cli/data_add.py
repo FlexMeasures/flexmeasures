@@ -1164,7 +1164,10 @@ def add_holidays(
 @click.option(
     "--missing-threshold",
     default=1.0,
-    help="Max fraction of missing data allowed before failure. missing data under the threshold will be filled with our interpolation methods.",
+    help=(
+        "Maximum fraction of missing data allowed before raising an error. "
+        "Missing data under this threshold will be filled using forward filling or linear interpolation."
+    )
 )
 @with_appcontext
 def train_predict_pipeline(
