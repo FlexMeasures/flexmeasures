@@ -67,6 +67,7 @@ class BasePipeline:
         event_ends_before: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
+        missing_threshold: float = 1.0,
     ) -> None:
         self.future = future_regressors
         self.past = past_regressors
@@ -96,6 +97,7 @@ class BasePipeline:
             / 3600
         )  # convert max_forecast_horizon to hours
         self.forecast_frequency = forecast_frequency
+        self.missing_threshold = missing_threshold
 
     def load_data_all_beliefs(self) -> pd.DataFrame:
         """
