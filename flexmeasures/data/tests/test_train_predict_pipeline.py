@@ -205,7 +205,7 @@ def test_train_predict_pipeline(
 # Test that max_training_period caps train_period and logs a warning
 @pytest.mark.parametrize(
     ["config", "params"],
-    [   # Target sensor has missing data
+    [  # Target sensor has missing data
         (
             {
                 # "model": "CustomLGBM",
@@ -288,4 +288,6 @@ def test_missing_data_logs_warning(
         # Expect CustomException when missing data exceeds threshold
         with pytest.raises(CustomException) as excinfo:
             pipeline.compute(parameters=params)
-        assert "missing values" in str(excinfo.value), "Expected CustomException for missing data threshold"
+        assert "missing values" in str(
+            excinfo.value
+        ), "Expected CustomException for missing data threshold"
