@@ -57,6 +57,8 @@ class PredictPipeline(BasePipeline):
         :param predict_end: Only save events ending before this time.
         :param forecast_frequency: Create a forecast every Nth interval.
         :param data_source: Data source to attribute the forecasts to.
+        :param probabilistic: Whether to use a probabilistic model.
+        :param sensor_to_save: Sensor to which the predictions will be attributed.
         """
         super().__init__(
             future_regressors=future_regressors,
