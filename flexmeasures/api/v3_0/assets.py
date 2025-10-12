@@ -774,7 +774,7 @@ class AssetAPI(FlaskView):
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
-            - Assets, Charts
+            - Assets
         """
         # Store selected time range as session variables, for a consistent UX across UI page loads
         set_session_variables("event_starts_after", "event_ends_before")
@@ -836,7 +836,7 @@ class AssetAPI(FlaskView):
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
-            - Assets, Charts
+            - Assets
         """
         sensors = flatten_unique(asset.validate_sensors_to_show())
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
@@ -860,10 +860,10 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; API endpoint to get history of asset related actions.
+        .. :quickref: Assets; Get history of asset related actions.
         ---
         get:
-          summary: API endpoint to get history of asset related actions.
+          summary: Get history of asset related actions.
           description: |
             The endpoint is paginated and supports search filters.
               - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
@@ -969,10 +969,10 @@ class AssetAPI(FlaskView):
     @as_json
     def get_jobs(self, id: int, asset: GenericAsset):
         """
-        .. :quickref: Assets; API endpoint to get all jobs of an asset.
+        .. :quickref: Assets; Get all background jobs related to an asset.
         ---
         get:
-          summary: API endpoint to get all jobs of an asset.
+          summary: Get all background jobs related to an asset.
           description: |
             The response will be a list of jobs.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
@@ -1034,10 +1034,10 @@ class AssetAPI(FlaskView):
     @use_kwargs(DefaultAssetViewJSONSchema, location="json")
     def update_default_asset_view(self, **kwargs):
         """
-        .. :quickref: Assets; Update the default asset view
+        .. :quickref: Assets; Update the default asset view for the current user
         ---
         post:
-          summary: Update the default asset view
+          summary: Update the default asset view for the current user
           description: |
             Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).
 
@@ -1282,10 +1282,10 @@ class AssetAPI(FlaskView):
     )
     def get_kpis(self, id: int, asset: GenericAsset, start, end):
         """
-        .. :quickref: Assets; Get KPIs for an asset.
+        .. :quickref: Assets; Get daily KPIs for an asset.
         ---
         get:
-          summary: API endpoint to get KPIs for an asset.
+          summary: Get daily KPIs for an asset.
           description: |
             Gets statistics for sensors for the given time range.
             The asset attribute `sensors_to_show_as_kpis` determines which sensors are considered.

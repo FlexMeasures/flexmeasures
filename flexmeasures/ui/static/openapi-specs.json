@@ -1134,6 +1134,39 @@
                       "results": "PROCESSED",
                       "status": "ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED"
                     }
+                  },
+                  "returned_graph_data": {
+                    "summary": "Returned graph data",
+                    "description": "Example of how the processed data may be returned.\n",
+                    "value": {
+                      "data": [
+                        {
+                          "ts": 1759669200000,
+                          "sid": 3,
+                          "val": 12.4,
+                          "sf": 1.0,
+                          "src": 1,
+                          "bh": -427962881
+                        }
+                      ],
+                      "sensors": {
+                        "3": {
+                          "name": "TempSensor_A1X",
+                          "unit": "\u00b0C",
+                          "description": "TempSensor_A1X (toy-account)",
+                          "asset_id": 1,
+                          "asset_description": "toy-account"
+                        }
+                      },
+                      "sources": {
+                        "1": {
+                          "name": "toy-user",
+                          "model": "",
+                          "type": "other",
+                          "description": "toy-user"
+                        }
+                      }
+                    }
                   }
                 }
               }

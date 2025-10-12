@@ -789,7 +789,8 @@ class SensorAPI(FlaskView):
           summary: Get schedule for one device
           description: |
             Get a schedule from FlexMeasures.
-            Optional fields
+
+            Optional fields:
 
             - "duration" (6 hours by default; can be increased to plan further into the future)
           security:
