@@ -1167,7 +1167,7 @@ def add_holidays(
     help=(
         "Maximum fraction of missing data allowed before raising an error. "
         "Missing data under this threshold will be filled using forward filling or linear interpolation."
-    )
+    ),
 )
 @with_appcontext
 def train_predict_pipeline(
