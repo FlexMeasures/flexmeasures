@@ -103,6 +103,13 @@ def setup_fresh_test_forecast_data(
 ) -> dict[str, Sensor]:
     return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=False)
 
+@pytest.fixture(scope="function")
+def setup_fresh_test_forecast_data_with_missing_data(
+    fresh_db,
+    app,
+) -> dict[str, Sensor]:
+    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=True)
+
 
 def add_test_solar_sensor_and_irradiance_with_forecasts(
     db: SQLAlchemy,
