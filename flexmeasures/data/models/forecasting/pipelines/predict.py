@@ -69,6 +69,7 @@ class PredictPipeline(BasePipeline):
             forecast_frequency=forecast_frequency,
             predict_start=predict_start,
             predict_end=predict_end,
+            missing_threshold=missing_threshold,
         )
         self.model_path = model_path
         self.output_path = output_path
