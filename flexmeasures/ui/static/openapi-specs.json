@@ -3,7 +3,7 @@
     "/api/requestAuthToken": {
       "post": {
         "summary": "Obtain a fresh authentication access token.",
-        "description": "Retrieve a short-lived authentication token using email and password.\n",
+        "description": "Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting\nSECURITY_TOKEN_MAX_AGE.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -440,7 +440,7 @@
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
-        "description": "Get a schedule from FlexMeasures.\nOptional fields\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2204,7 +2204,7 @@
     },
     "/api/v3_0/assets/{id}/auditlog": {
       "get": {
-        "summary": "API endpoint to get history of asset related actions.",
+        "summary": "Get history of asset related actions.",
         "description": "The endpoint is paginated and supports search filters.\n  - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If `sort_by` (field name) and `sort_dir` (\"asc\" or \"desc\") are provided, the list will be sorted.\n  - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.\n    The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side)\n",
         "security": [
           {
@@ -2615,7 +2615,7 @@
           }
         },
         "tags": [
-          "Assets, Charts"
+          "Assets"
         ]
       }
     },
@@ -2716,13 +2716,13 @@
           }
         },
         "tags": [
-          "Assets, Charts"
+          "Assets"
         ]
       }
     },
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
-        "summary": "API endpoint to get all jobs of an asset.",
+        "summary": "Get all background jobs related to an asset.",
         "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n",
         "security": [
           {
@@ -2786,7 +2786,7 @@
     },
     "/api/v3_0/assets/{id}/kpis": {
       "get": {
-        "summary": "API endpoint to get KPIs for an asset.",
+        "summary": "Get daily KPIs for an asset.",
         "description": "Gets statistics for sensors for the given time range.\nThe asset attribute `sensors_to_show_as_kpis` determines which sensors are considered.\nRead more [here](https://flexmeasures.readthedocs.io/latest/views/asset-data.html#showing-daily-kpis).\n\nThe sensors are expected to have a daily resolution, suitable for KPIs.\nEach sensor has a preferred function to downsample the daily values to the KPI value.\n\nThis endpoint returns a list of KPIs for the asset.\n",
         "security": [
           {
@@ -3268,7 +3268,7 @@
     },
     "/api/v3_0/assets/default_asset_view": {
       "post": {
-        "summary": "Update the default asset view",
+        "summary": "Update the default asset view for the current user",
         "description": "Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).\n\nThis endpoint sets the default asset view for the current user session if `use_as_default` is true.\nIf `use_as_default` is `false`, it clears the session variable for the default asset view.\n\n## Example values for `default_asset_view`:\n- \"Audit Log\"\n- \"Context\"\n- \"Graphs\"\n- \"Properties\"\n- \"Status\"\n",
         "security": [
           {
@@ -3413,7 +3413,7 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.28.1.dev82"
+    "version": "0.28.1.dev56"
   },
   "openapi": "3.0.2",
   "components": {

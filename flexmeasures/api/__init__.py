@@ -36,13 +36,14 @@ def request_auth_token(args) -> tuple[dict, int]:
     post:
       summary: Obtain a fresh authentication access token.
       description: |
-          Retrieve a short-lived authentication token using email and password.
+          Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting
+          SECURITY_TOKEN_MAX_AGE.
+
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/AuthRequestSchema"
+            schema: AuthRequestSchema
       responses:
         200:
           description: Token successfully generated
