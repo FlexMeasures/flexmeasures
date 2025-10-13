@@ -13,6 +13,8 @@ New features
 * New CLI command for scheduling, with full flex-context and flex-model support as well as the option to set your scheduler class [see `PR #1713 <https://github.com/FlexMeasures/flexmeasures/pull/1713>`_]
 * Added a UI editor (form modal) to edit an asset's flex-model [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_ and `PR #1565 <https://github.com/FlexMeasures/flexmeasures/pull/1565>`_]
 * Full coverage of flex-context fields in the UI editor [see `PR #1689 <https://www.github.com/FlexMeasures/flexmeasures/pull/1689>`_]
+* Touch up the KPI cards [see `PR #1731 <https://www.github.com/FlexMeasures/flexmeasures/pull/1731>`_]
+* Touch up asset context page [see `PR #1732 <https://www.github.com/FlexMeasures/flexmeasures/pull/1732>`_]
 * Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
 * The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period [see `PR #1720 <https://www.github.com/FlexMeasures/flexmeasures/pull/1720>`_]
 
@@ -23,6 +25,9 @@ Infrastructure / Support
 * Upgraded Docker Image Ubuntu 24, which uses Python 3.12 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
 * Improved flex-context modal UI and UI-backend functionalities&structure [see `PR #1704 <https://github.com/FlexMeasures/flexmeasures/pull/1704>`_]
+* Removed the use of ``consumption_price_sensor`` from the ``ProcessScheduler`` and replaced with now mandatory ``consumption_price`` in the ``flex-context`` [see `PR #1729 <https://github.com/FlexMeasures/flexmeasures/pull/1729>`_]
+* Removed obsolete UI view [see `PR #1743 <https://github.com/FlexMeasures/flexmeasures/pull/1743>`_]
+
 
 Bugfixes
 -----------

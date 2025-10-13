@@ -20,7 +20,8 @@ jobs:
           POSTGRES_PASSWORD: flexmeasures_test
           POSTGRES_USER: flexmeasures_test
         image: postgres:latest
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s
+        options:
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s
           --health-retries 5
         ports:
           - 5432:5432
@@ -30,12 +31,14 @@ jobs:
       - name: Build Docker Image
         run: docker build -t flexmeasures:latest -f Dockerfile .
       - name: Generate random secret key
-        run: echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+        run:
+          echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
           >> .env
       - name: Generate random totp secret
         run: echo "SECURITY_TOTP_SECRETS={\"1\":\"$(python3 -c 'import secrets; print(secrets.token_hex(24))')\"}" >> .env
       - name: Export SQLALCHEMY_DATABASE_URI
-        run: echo "SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test"
+        run:
+          echo "SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test"
           >> .env
       - name: Keep running flexmeasures container in background
         run: docker run -t -d --env-file .env --network=host --name fm-container flexmeasures:latest
@@ -61,3 +64,10 @@ jobs:
           docker exec --env-file .env fm-container flexmeasures \
             add schedule --sensor 2 --start ${TOMORROW}T07:00+01:00 \
             --duration PT12H --soc-at-start 50% --flex-model '{"roundtrip-efficiency": "90%"}'
+      - name: Add Toy Account for process
+        run: docker exec --env-file .env fm-container flexmeasures add toy-account --kind process
+      - name: Add Process schedule
+        run: |
+          docker exec --env-file .env fm-container flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
+            --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --flex-context '{"consumption-price": {"sensor": 1}}' \
+            --flex-model "{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}"
