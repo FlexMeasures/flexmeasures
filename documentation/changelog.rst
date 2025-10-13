@@ -25,7 +25,9 @@ Infrastructure / Support
 * Upgraded Docker Image Ubuntu 24, which uses Python 3.12 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
 * Improved flex-context modal UI and UI-backend functionalities&structure [see `PR #1704 <https://github.com/FlexMeasures/flexmeasures/pull/1704>`_]
+* Removed the use of ``consumption_price_sensor`` from the ``ProcessScheduler`` and replaced with now mandatory ``consumption_price`` in the ``flex-context`` [see `PR #1729 <https://github.com/FlexMeasures/flexmeasures/pull/1729>`_]
 * Removed obsolete UI view [see `PR #1743 <https://github.com/FlexMeasures/flexmeasures/pull/1743>`_]
+
 
 Bugfixes
 -----------
