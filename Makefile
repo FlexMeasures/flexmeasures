@@ -5,7 +5,7 @@ HIGHS_DIR = "../HiGHS"
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs update-docs-pdf generate-openapi show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
 
 
 # ---- Development ---
@@ -21,8 +21,10 @@ gen_code_docs := False # by default code documentation is not generated
 update-docs:
 	@echo "Creating docs environment ..."
 	make install-docs-dependencies
+	make generate-openapi
 	@echo "Creating documentation ..."
 	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
+	sed -i 's/(id)/id/g' flexmeasures/ui/static/documentation/html/api/v3_0.html # make sphinxcontrib-httpdomain links point to openapi-sphinx links
 
 update-docs-pdf:
 	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
@@ -30,6 +32,10 @@ update-docs-pdf:
 	make install-docs-dependencies
 	@echo "Creating documentation ..."
 	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
+
+generate-openapi:
+	@echo "Generating OpenAPI specifications..."
+	python flexmeasures/api/scripts/generate_open_api_specs.py
 
 # ---- Installation ---
 

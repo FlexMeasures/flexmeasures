@@ -1,0 +1,4203 @@
+{
+  "paths": {
+    "/api/requestAuthToken": {
+      "post": {
+        "summary": "Obtain a fresh authentication access token.",
+        "description": "Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting\nSECURITY_TOKEN_MAX_AGE.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token successfully generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authentication_token": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/": {
+      "get": {
+        "summary": "List available API versions",
+        "description": "Public endpoint to list all available FlexMeasures API versions.\n\nThis can be used to programmatically discover which API versions\nare currently supported and their base URLs.\n",
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved available API versions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "For these API versions a public endpoint is available, listing its service."
+                    },
+                    "versions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "v3_0"
+                      ]
+                    },
+                    "flexmeasures_version": {
+                      "type": "string",
+                      "example": "0.18.3"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/ops/ping": {},
+    "/api/ops/getLatestTaskRun": {},
+    "/api/ops/postLatestTaskRun": {},
+    "/api/v3_0/sensors/{id}": {
+      "delete": {
+        "summary": "Delete a sensor",
+        "description": "This endpoint deletes an existing sensor, as well as all measurements recorded for it.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "DELETED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      },
+      "get": {
+        "summary": "Fetch a given sensor",
+        "description": "Fetch a given sensor by its ID.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One Sensor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sensor1"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      },
+      "patch": {
+        "summary": "Update a sensor",
+        "description": "This endpoint updates the descriptive data of an existing sensor.\n\nAny subset of sensor fields can be sent.\nHowever, the following fields are not allowed to be updated:\n- id\n- generic_asset_id\n- entity_address\n\nOnly admin users have rights to update the sensor fields. Be aware that changing unit, event resolution and knowledge horizon should currently only be done on sensors without existing belief data (to avoid a serious mismatch), or if you really know what you are doing.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Sensor1"
+              },
+              "examples": {
+                "update_sensor": {
+                  "summary": "Update sensor name",
+                  "description": "Update the name of a sensor",
+                  "value": {
+                    "name": "POWER"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated Sensor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sensor1"
+                },
+                "examples": {
+                  "update_sensor": {
+                    "summary": "Update sensor name",
+                    "description": "Update the name of a sensor",
+                    "value": {
+                      "name": "POWER",
+                      "unit": "m\u00b3/h",
+                      "entity_address": "ea1.2023-08.localhost:fm1.1",
+                      "event_resolution": "PT10M",
+                      "generic_asset_id": 4,
+                      "timezone": "UTC",
+                      "id": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/data": {
+      "delete": {
+        "summary": "Delete sensor data",
+        "description": "This endpoint deletes all data for a sensor.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "SENSOR_DATA_DELETED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      },
+      "get": {
+        "summary": "Get sensor data",
+        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > **Note:** This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "duration",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "horizon",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "prior",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "unit",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      },
+      "post": {
+        "summary": "Post sensor data",
+        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\n",
+        "security": [
+          {
+            "ApiAuthKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostSensorData"
+              },
+              "examples": {
+                "post_sensor": {
+                  "summary": "Post sensor data to flexmeasures",
+                  "value": {
+                    "values": [
+                      -11.28,
+                      -11.28,
+                      -11.28,
+                      -11.28
+                    ],
+                    "start": "2021-06-07T00:00:00+02:00",
+                    "duration": "PT1H",
+                    "unit": "m\u00b3/h"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/schedules/{uuid}": {
+      "get": {
+        "summary": "Get schedule for one device",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "uuid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "duration",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "schedule": {
+                    "summary": "Schedule response",
+                    "description": "This message contains a schedule indicating to consume at various power\nrates from 10am UTC onward for a duration of 45 minutes.\n",
+                    "value": {
+                      "values": [
+                        2.15,
+                        3,
+                        2
+                      ],
+                      "start": "2015-06-02T10:00:00+00:00",
+                      "duration": "PT45M",
+                      "unit": "MW"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_TIMEZONE, INVALID_DOMAIN, INVALID_UNIT, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "405": {
+            "description": "INVALID_METHOD"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/stats": {
+      "get": {
+        "summary": "Get sensor stats",
+        "description": "This endpoint fetches sensor stats for all the historical data.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "event_start_time",
+            "description": "Start of the period to fetch stats for, in ISO 8601 format.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_end_time",
+            "description": "End of the period to fetch stats for, in ISO 8601 format.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_keys",
+            "description": "Whether to sort the stats by keys.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "successful_response": {
+                    "summary": "Successful response",
+                    "description": "A successful response with sensor stats",
+                    "value": {
+                      "some data source": {
+                        "First event start": "2015-06-02T10:00:00+00:00",
+                        "Last event end": "2015-10-02T10:00:00+00:00",
+                        "Last recorded": "2015-10-02T10:01:12+00:00",
+                        "Min value": 0.0,
+                        "Max value": 100.0,
+                        "Mean value": 50.0,
+                        "Sum over values": 500.0,
+                        "Number of values": 10
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/status": {
+      "get": {
+        "summary": "Get sensor status",
+        "description": "This endpoint fetches the current status of data for the specified sensor.\nThe status includes information about the sensor data's status, staleness and resolution.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "successful_response": {
+                    "summary": "Successful response",
+                    "description": "A successful response with sensor status data",
+                    "value": [
+                      {
+                        "staleness": "2 hours",
+                        "stale": true,
+                        "staleness_since": "2024-01-15T14:30:00+00:00",
+                        "reason": "data is outdated",
+                        "source_type": "forecast",
+                        "id": 64907,
+                        "name": "temperature",
+                        "resolution": "5 minutes",
+                        "asset_name": "Building A",
+                        "relation": "sensor belongs to this asset"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "ASSET_NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors": {
+      "get": {
+        "summary": "Get list of sensors",
+        "description": "This endpoint returns all accessible sensors.\nBy default, \"accessible sensors\" means all sensors in the same account as the current user (if they have read permission to the account).\n\nYou can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the\nspecified account will be retrieved, and the sensors associated with these assets will be returned.\n\nAlternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified\nasset and its sub-assets are retrieved, provided the user has read access to the asset.\n\n> **Note:** You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is\n> part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).\n\nFinally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.\nThis is only possible if the user has the role of a consultant.\n\nOnly admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).\n\nThe `filter` parameter allows you to search for sensors by name or account name.\nThe `unit` parameter allows you to filter by unit.\n\nFor the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger\npagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "asset_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include_consultancy_clients",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include_public_assets",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "unit",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED - List of sensors (paginated or direct list)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "description": "Direct list when no pagination requested",
+                      "items": {
+                        "$ref": "#/components/schemas/Sensor"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "description": "Paginated response",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Sensor"
+                          }
+                        },
+                        "num-records": {
+                          "type": "integer",
+                          "description": "Total number of records in query result"
+                        },
+                        "filtered-records": {
+                          "type": "integer",
+                          "description": "Total number of records after filtering and pagination"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "num-records",
+                        "filtered-records"
+                      ]
+                    }
+                  ]
+                },
+                "examples": {
+                  "direct_list": {
+                    "summary": "Direct sensor list",
+                    "description": "Example of direct response with one sensor",
+                    "value": {
+                      "data": [
+                        {
+                          "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
+                          "event_resolution": "PT15M",
+                          "generic_asset_id": 1,
+                          "name": "Gas demand",
+                          "timezone": "Europe/Amsterdam",
+                          "unit": "m\u00b3/h",
+                          "id": 2
+                        }
+                      ]
+                    }
+                  },
+                  "paginated_response": {
+                    "summary": "Paginated sensor list",
+                    "description": "Example of paginated response with one sensor",
+                    "value": {
+                      "data": [
+                        {
+                          "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
+                          "event_resolution": "PT15M",
+                          "generic_asset_id": 1,
+                          "name": "Gas demand",
+                          "timezone": "Europe/Amsterdam",
+                          "unit": "m\u00b3/h",
+                          "id": 2
+                        }
+                      ],
+                      "num-records": 1,
+                      "filtered-records": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      },
+      "post": {
+        "summary": "Create a new Sensor",
+        "description": "This endpoint creates a new sensor for a given asset.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Sensor1"
+              },
+              "examples": {
+                "create_sensor": {
+                  "summary": "Create power sensor",
+                  "description": "Create a power sensor for an asset",
+                  "value": {
+                    "name": "power",
+                    "event_resolution": "PT1H",
+                    "unit": "kWh",
+                    "generic_asset_id": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "New Sensor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sensor1"
+                },
+                "examples": {
+                  "create_sensor": {
+                    "summary": "Power sensor response",
+                    "description": "The whole sensor is returned in the response",
+                    "value": {
+                      "name": "power",
+                      "unit": "kWh",
+                      "entity_address": "ea1.2023-08.localhost:fm1.1",
+                      "event_resolution": "PT1H",
+                      "generic_asset_id": 1,
+                      "timezone": "UTC",
+                      "id": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/schedules/trigger": {
+      "post": {
+        "summary": "Trigger scheduling job for one device",
+        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerScheduleKwargs"
+              },
+              "examples": {
+                "simple_schedule": {
+                  "summary": "Simple storage schedule",
+                  "description": "This message triggers a schedule for a storage asset, starting at 10.00am,\nat which time the state of charge (soc) is 12.1 kWh.\nThe asset is further limited by a maximum soc of 25 kWh.\nThe optimization is done with reference to a fixed price for consumption.\n\nThis is close to the minimal set of information that needs to be provided to trigger a schedule.\nIt requires no external data series, like dynamic prices in a sensor - look to the complex example for that.\nObviously, the outcome of this scheduling problem will be as bland as the input.\n",
+                  "value": {
+                    "start": "2025-06-02T10:00:00+00:00",
+                    "flex-context": {
+                      "consumption-price": ".2 EUR/kWh"
+                    },
+                    "flex-model": {
+                      "soc-at-start": "12.1 kWh",
+                      "soc-max": "25 kWh"
+                    }
+                  }
+                },
+                "complex_schedule": {
+                  "summary": "Complex 24-hour schedule",
+                  "description": "In this complex example, let's really show off a lot of potential configurations.\n\nThis message triggers a 24-hour schedule for a storage asset, starting at 10.00am,\nat which the state of charge (soc) is 12.1 kWh, with a target state of charge of 25 kWh at 4.00pm.\n\nThe charging efficiency is constant (120%) and the discharging efficiency is determined by the contents of sensor\nwith id 98. If just the ``roundtrip-efficiency`` is known, it can be described with its own field.\nThe global minimum and maximum soc are set to 10 and 25 kWh, respectively.\n\nTo guarantee a minimum SOC in the period prior, the sensor with ID 300 contains beliefs at 2.00pm and 3.00pm, for 15kWh and 20kWh, respectively.\nStorage efficiency is set to 99.99%, denoting the state of charge left after each time step equal to the sensor's resolution.\nAggregate consumption (of all devices within this EMS) should be priced by sensor 9,\nand aggregate production should be priced by sensor 10,\nwhere the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,\nand the power sensor of the flexible device being optimized (referenced in the endpoint URL).\n\n\nThe battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).\n\nFinally, the (contractual and physical) situation of the site is part of the flex-context.\nThe site has a physical power capacity of 100 kVA, but the production capacity is limited to 80 kW,\nwhile the consumption capacity is limited by a dynamic capacity contract whose values are recorded under sensor 32.\nBreaching either capacity is penalized heavily in the optimization problem, with a price of 1000 EUR/kW.\nFinally, peaks over 50 kW in either direction are penalized with a price of 260 EUR/MW.\n\nThese penalties can be used to steer the schedule into a certain behavior (e.g. avoiding breaches and peaks),\neven if no direct financial impacts are expected at the given prices in the real world.\n\nFor example, site owners may be requested by their network operators to reduce stress on the grid,\nbe it explicitly or under a social contract.\n\nNote that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.\n",
+                  "value": {
+                    "start": "2015-06-02T10:00:00+00:00",
+                    "duration": "PT24H",
+                    "flex-model": {
+                      "soc-at-start": "12.1 kWh",
+                      "state-of-charge": {
+                        "sensor": 24
+                      },
+                      "soc-targets": [
+                        {
+                          "value": "25 kWh",
+                          "datetime": "2015-06-02T16:00:00+00:00"
+                        }
+                      ],
+                      "soc-minima": {
+                        "sensor": 300
+                      },
+                      "soc-min": "10 kWh",
+                      "soc-max": "25 kWh",
+                      "charging-efficiency": "120%",
+                      "discharging-efficiency": {
+                        "sensor": 98
+                      },
+                      "storage-efficiency": 0.9999,
+                      "power-capacity": "25kW",
+                      "consumption-capacity": {
+                        "sensor": 42
+                      },
+                      "production-capacity": "30 kW"
+                    },
+                    "flex-context": {
+                      "consumption-price": {
+                        "sensor": 9
+                      },
+                      "production-price": {
+                        "sensor": 10
+                      },
+                      "inflexible-device-sensors": [
+                        13,
+                        14,
+                        15
+                      ],
+                      "site-power-capacity": "100 kVA",
+                      "site-production-capacity": "80 kW",
+                      "site-consumption-capacity": {
+                        "sensor": 32
+                      },
+                      "site-production-breach-price": "1000 EUR/kW",
+                      "site-consumption-breach-price": "1000 EUR/kW",
+                      "site-peak-consumption": "50 kW",
+                      "site-peak-production": "50 kW",
+                      "site-peak-consumption-price": "260 EUR/MW",
+                      "site-peak-production-price": "260 EUR/MW"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "schedule_created": {
+                    "summary": "Schedule response",
+                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
+                    "value": {
+                      "status": "PROCESSED",
+                      "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "message": "Request has been processed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_DATA"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "405": {
+            "description": "INVALID_METHOD"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/data/upload": {
+      "post": {
+        "summary": "Upload sensor data by file",
+        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SensorDataFileDescription"
+              },
+              "encoding": {
+                "uploaded-files": {
+                  "contentType": "application/octet-stream"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "new_data": {
+                    "summary": "New data",
+                    "description": "If the data sent is new and is not already processed by FlexMeasures, the response will be as above.\n",
+                    "value": {
+                      "message": "Request has been processed.",
+                      "status": "PROCESSED"
+                    }
+                  },
+                  "processed_previously_received": {
+                    "summary": "Previously received data",
+                    "description": "If some of the data sent was already received and successfully processed by FlexMeasures, the response will be as above.\nNote that in this case, the data is still processed, but the already received data points are ignored.\n",
+                    "value": {
+                      "message": "Some of the data has already been received and successfully processed.",
+                      "results": "PROCESSED",
+                      "status": "ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED"
+                    }
+                  },
+                  "returned_graph_data": {
+                    "summary": "Returned graph data",
+                    "description": "Example of how the processed data may be returned.\n",
+                    "value": {
+                      "data": [
+                        {
+                          "ts": 1759669200000,
+                          "sid": 3,
+                          "val": 12.4,
+                          "sf": 1.0,
+                          "src": 1,
+                          "bh": -427962881
+                        }
+                      ],
+                      "sensors": {
+                        "3": {
+                          "name": "TempSensor_A1X",
+                          "unit": "\u00b0C",
+                          "description": "TempSensor_A1X (toy-account)",
+                          "asset_id": 1,
+                          "asset_description": "toy-account"
+                        }
+                      },
+                      "sources": {
+                        "1": {
+                          "name": "toy-user",
+                          "model": "",
+                          "type": "other",
+                          "description": "toy-user"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/accounts/{id}/auditlog": {
+      "get": {
+        "summary": "Get the history of actions for a specific account.",
+        "description": "This endpoint retrieves a log of historical actions and events associated with the account, identified by its ID.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the account whose history is being requested.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "event": {
+                        "type": "string",
+                        "description": "Description of the action or event that occurred."
+                      },
+                      "event_datetime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Timestamp when the event occurred."
+                      },
+                      "active_user_id": {
+                        "type": "integer",
+                        "description": "The ID of the user who performed the action."
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "account_history_list": {
+                    "summary": "A list of account history events",
+                    "value": [
+                      {
+                        "event": "User test user deleted",
+                        "event_datetime": "2021-01-01T00:00:00",
+                        "active_user_id": 1
+                      },
+                      {
+                        "event": "Account name changed to \"New Corp\"",
+                        "event_datetime": "2021-01-02T10:30:00",
+                        "active_user_id": 5
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, or UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/v3_0/accounts/{id}": {
+      "get": {
+        "summary": "Fetch one account.",
+        "description": "This endpoint retrieves a single account, given its ID in the path.\nAccess is restricted: only admins, consultants, and users belonging to the account itself are authorized to use this endpoint.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the account to retrieve.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 1,
+                  "name": "Test Account",
+                  "account_roles": [
+                    1,
+                    3
+                  ],
+                  "consultancy_account_id": 2
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, or UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing account.",
+        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n**Restrictions on Fields:**\n- The **id** field is read-only and cannot be updated.\n- The **consultancy_account_id** field can only be edited if the current user has an **admin** role.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the account to update.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Account data to be updated.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Account1"
+              },
+              "example": {
+                "name": "Test Account Updated",
+                "primary_color": "#1a3443",
+                "secondary_color": "#f1a122",
+                "logo_url": "https://example.com/logo.png",
+                "consultancy_account_id": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "UPDATED (The entire updated account object is returned)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 1,
+                  "name": "Test Account Updated",
+                  "account_roles": [
+                    1,
+                    3
+                  ],
+                  "primary_color": "#1a3443",
+                  "secondary_color": "#f1a122",
+                  "logo_url": "https://example.com/logo.png",
+                  "consultancy_account_id": 2
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, or UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' without admin rights)"
+          }
+        },
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/v3_0/accounts": {
+      "get": {
+        "summary": "List all accounts accessible to the current user.",
+        "description": "This endpoint returns all accounts the current user has access to.\nAccessible accounts include the user's own account, accounts for which the user is a consultant, and all accounts if the user has admin privileges.\n\nThe endpoint supports pagination of the account list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all accounts are returned, without pagination information. The result will be a list of accounts.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of accounts per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out accounts where each search term is either present in their name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "id",
+                "name",
+                "assets",
+                "users"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "single_account": {
+                    "summary": "One account being returned (no pagination requested)",
+                    "value": [
+                      {
+                        "id": 1,
+                        "name": "Test Account",
+                        "account_roles": [
+                          1,
+                          3
+                        ],
+                        "consultancy_account_id": 2,
+                        "primary_color": "#1a3443",
+                        "secondary_color": "#f1a122",
+                        "logo_url": "https://example.com/logo.png"
+                      }
+                    ]
+                  },
+                  "paginated_accounts": {
+                    "summary": "A paginated list of accounts being returned",
+                    "value": {
+                      "data": [
+                        {
+                          "id": 1,
+                          "name": "Test Account",
+                          "account_roles": [
+                            1,
+                            3
+                          ],
+                          "consultancy_account_id": 2,
+                          "primary_color": "#1a3443",
+                          "secondary_color": "#f1a122",
+                          "logo_url": "https://example.com/logo.png"
+                        }
+                      ],
+                      "num-records": 1,
+                      "filtered-records": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/v3_0/users/{id}/auditlog": {
+      "get": {
+        "summary": "Get history of user actions.",
+        "description": "The endpoint is paginated and supports search filters.\n  - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per_page` (default is 10).\n  - If `sort_by` (field name) and `sort_dir` (\"asc\" or \"desc\") are provided, the list will be sorted.\n  - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.\n    The response schema for pagination is inspired by https://datatables.net/manual/server-side\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "username",
+                "email",
+                "lastLogin",
+                "lastSeen"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "paginated_response": {
+                    "value": {
+                      "data": [
+                        {
+                          "event": "User test user deleted",
+                          "event_datetime": "2021-01-01T00:00:00",
+                          "active_user_name": "Test user"
+                        }
+                      ],
+                      "num-records": 1,
+                      "filtered-records": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v3_0/users/{id}": {
+      "get": {
+        "summary": "Get a user",
+        "description": "This endpoint gets a user.\nOnly admins or the members of the same account can use this endpoint.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                },
+                "examples": {
+                  "single_user": {
+                    "summary": "Single user response",
+                    "value": {
+                      "data": {
+                        "active": true,
+                        "email": "test_prosumer@seita.nl",
+                        "account_id": 1,
+                        "flexmeasures_roles": [
+                          1,
+                          3
+                        ],
+                        "id": 1,
+                        "timezone": "Europe/Amsterdam",
+                        "username": "Test Prosumer User",
+                        "last_login_at": "2022-05-09T10:47:13.410321",
+                        "last_seen_at": "2022-05-09T10:47:13.410321"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      },
+      "patch": {
+        "summary": "Update a user.",
+        "description": "This endpoint sets data for an existing user.\nIt has to be used by the user themselves, admins, consultant or account-admins (of the same account).\nAny subset of user fields can be sent.\nIf the user is not an (account-)admin, they can only edit a few of their own fields.\nUser roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.\n\nThe following fields are not allowed to be updated at all:\n- id\n- account_id\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/User"
+              },
+              "examples": {
+                "update_active": {
+                  "value": {
+                    "active": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "UPDATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                },
+                "examples": {
+                  "single_user": {
+                    "description": "An example of one user being returned",
+                    "value": {
+                      "data": [
+                        {
+                          "active": true,
+                          "email": "test_prosumer@seita.nl",
+                          "account_id": 1,
+                          "flexmeasures_roles": [
+                            1,
+                            3
+                          ],
+                          "id": 1,
+                          "timezone": "Europe/Amsterdam",
+                          "username": "Test Prosumer User",
+                          "last_login_at": "2022-05-09T10:47:13.410321",
+                          "last_seen_at": "2022-05-09T10:47:13.410321"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v3_0/users": {
+      "get": {
+        "summary": "List users.",
+        "description": "This endpoint returns all accessible users.\nBy default, only active users are returned.\nThe `account_id` query parameter can be used to filter the users of\na given account.\nThe `include_inactive` query parameter can be used to also fetch\ninactive users.\nAccessible users are users in the same account as the current user.\nOnly admins can use this endpoint to fetch users from a different account (by using the `account_id` query parameter).\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "username",
+                "email",
+                "lastLogin",
+                "lastSeen"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "account_id",
+            "schema": {
+              "type": "integer",
+              "default": null,
+              "nullable": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "single_user": {
+                    "description": "An example of one user being returned",
+                    "value": {
+                      "data": [
+                        {
+                          "active": true,
+                          "email": "test_prosumer@seita.nl",
+                          "account_id": 13,
+                          "account": {
+                            "account_roles": [],
+                            "consultancy_account_id": null,
+                            "id": 29,
+                            "logo_url": null,
+                            "name": "AutoZoomAccount",
+                            "primary_color": null,
+                            "secondary_color": null
+                          },
+                          "flexmeasures_roles": [
+                            1,
+                            3
+                          ],
+                          "id": 1,
+                          "timezone": "Europe/Amsterdam",
+                          "username": "Test Prosumer User",
+                          "last_login_at": "2022-05-09T10:47:13.410321",
+                          "last_seen_at": "2022-05-09T10:47:13.410321"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      },
+      "post": {
+        "summary": "Create new user",
+        "description": "This endpoint creates a new user.\n\nThe following fields are required:\n- email\n- username\n- account_id\n\nOther attributes/fields such as password and roles can be assigned or reset later.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "example": "test_user@seita.nl"
+                  },
+                  "username": {
+                    "type": "string",
+                    "example": "Test User"
+                  },
+                  "account_id": {
+                    "type": "integer",
+                    "example": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "CREATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                },
+                "examples": {
+                  "single_user": {
+                    "description": "An example of one user being returned",
+                    "value": {
+                      "data": [
+                        {
+                          "active": true,
+                          "email": "test_user@seita.nl",
+                          "account_id": 1,
+                          "flexmeasures_roles": [
+                            1,
+                            3
+                          ],
+                          "id": 1,
+                          "timezone": "Europe/Amsterdam",
+                          "username": "Test User"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v3_0/users/{id}/password-reset": {
+      "patch": {
+        "summary": "Password reset",
+        "description": "Reset the user's password, and send them instructions on how to reset the password.\nThis endpoint is useful from a security standpoint, in case of worries the password might be compromised.\nIt sets the current password to something random, invalidates cookies and auth tokens,\nand also sends an email for resetting the password to the user.\n\nUsers can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/sensors": {
+      "get": {
+        "summary": "Return all sensors under an asset.",
+        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to fetch sensors for",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "id",
+                "name",
+                "resolution"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "single_asset": {
+                    "summary": "One asset being returned in the response",
+                    "value": {
+                      "data": [
+                        {
+                          "id": 1,
+                          "name": "Test battery",
+                          "latitude": 10,
+                          "longitude": 100,
+                          "account_id": 2,
+                          "generic_asset_type": {
+                            "id": 1,
+                            "name": "battery"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "paginated_assets": {
+                    "summary": "A paginated list of assets being returned in the response",
+                    "value": {
+                      "data": [
+                        {
+                          "id": 1,
+                          "name": "Test battery",
+                          "latitude": 10,
+                          "longitude": 100,
+                          "account_id": 2,
+                          "generic_asset_type": {
+                            "id": 1,
+                            "name": "battery"
+                          }
+                        }
+                      ],
+                      "num-records": 1,
+                      "filtered-records": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/auditlog": {
+      "get": {
+        "summary": "Get history of asset related actions.",
+        "description": "The endpoint is paginated and supports search filters.\n  - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If `sort_by` (field name) and `sort_dir` (\"asc\" or \"desc\") are provided, the list will be sorted.\n  - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.\n    The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side)\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset to get the history for.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "event_datetime"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "examples": {
+                    "pagination": {
+                      "summary": "Pagination response",
+                      "value": {
+                        "data": [
+                          {
+                            "event": "Asset test asset deleted",
+                            "event_datetime": "2021-01-01T00:00:00",
+                            "active_user_name": "Test user"
+                          }
+                        ],
+                        "num_records": "1,",
+                        "filtered_records": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}": {
+      "delete": {
+        "summary": "Delete an asset.",
+        "description": "This endpoint deletes an existing asset, as well as all sensors and measurements recorded for it.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to delete.",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "DELETED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "get": {
+        "summary": "Fetch a given asset.",
+        "description": "This endpoint gets an asset.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to fetch.",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "single_asset": {
+                    "summary": "One asset being returned in the response",
+                    "value": {
+                      "generic_asset_type_id": 2,
+                      "name": "Test battery",
+                      "id": 1,
+                      "latitude": 10,
+                      "longitude": 100,
+                      "account_id": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "patch": {
+        "summary": "Update an asset given its identifier.",
+        "description": "This endpoint sets data for an existing asset.\nAny subset of asset fields can be sent.\n\nThe following fields are not allowed to be updated:\n- id\n- account_id\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to update.",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetSchema"
+              },
+              "examples": {
+                "single_asset": {
+                  "summary": "One asset being updated",
+                  "value": {
+                    "latitude": 11.1,
+                    "longitude": 99.9
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "single_asset": {
+                    "summary": "the whole asset is returned in the response",
+                    "value": {
+                      "generic_asset_type_id": 2,
+                      "name": "Test battery",
+                      "id": 1,
+                      "latitude": 11.1,
+                      "longitude": 99.9,
+                      "account_id": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/chart": {
+      "get": {
+        "summary": "Download an embeddable chart with time series data",
+        "description": "This endpoint returns a chart with time series for an asset.\n\nThe response contains the HTML and JavaScript needed to embedded and render the chart in an HTML page.\nThis is used by the FlexMeasures UI.\n\nTo learn how to embed the response in your web page, see [this section](https://flexmeasures.readthedocs.io/latest/tut/building_uis.html#embedding-charts) in the developer documentation.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to download a chart for.",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "event_starts_after",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "event_ends_before",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "beliefs_after",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "beliefs_before",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include_data",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "combine_legend",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "dataset_name",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "height",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "width",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "chart_type",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/chart_data": {
+      "get": {
+        "summary": "Download time series for use in charts",
+        "description": "Data for use in charts (in case you have the chart specs already).",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to download data for.",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "event_starts_after",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "event_ends_before",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "beliefs_after",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "beliefs_before",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "most_recent_beliefs_only",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "compress_json",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/jobs": {
+      "get": {
+        "summary": "Get all background jobs related to an asset.",
+        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset to get the jobs for.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "jobs": {
+                    "summary": "List of jobs",
+                    "value": {
+                      "jobs": {
+                        "-job_id": 1,
+                        "queue": "scheduling",
+                        "asset_or_sensor_type": "asset",
+                        "asset_id": 1,
+                        "status": "finished",
+                        "err": null,
+                        "enqueued_at": "2023-10-01T00:00:00",
+                        "metadata_hash": "abc123"
+                      },
+                      "redis_connection_err": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/kpis": {
+      "get": {
+        "summary": "Get daily KPIs for an asset.",
+        "description": "Gets statistics for sensors for the given time range.\nThe asset attribute `sensors_to_show_as_kpis` determines which sensors are considered.\nRead more [here](https://flexmeasures.readthedocs.io/latest/views/asset-data.html#showing-daily-kpis).\n\nThe sensors are expected to have a daily resolution, suitable for KPIs.\nEach sensor has a preferred function to downsample the daily values to the KPI value.\n\nThis endpoint returns a list of KPIs for the asset.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Start time for KPI calculation",
+            "example": "2015-06-02T00:00:00+00:00"
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "End time for KPI calculation",
+            "example": "2015-06-09T00:00:00+00:00"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "kpi_response": {
+                    "summary": "KPI response",
+                    "value": {
+                      "data": [
+                        {
+                          "sensor": 145046,
+                          "title": "My KPI",
+                          "unit": "MW",
+                          "downsample_value": 0,
+                          "downsample_function": "sum"
+                        },
+                        {
+                          "sensor": 141053,
+                          "title": "Raw PowerKPI",
+                          "unit": "kW",
+                          "downsample_value": 816.67,
+                          "downsample_function": "sum"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_DATA"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "405": {
+            "description": "INVALID_METHOD"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets": {
+      "get": {
+        "summary": "List all assets owned  by user's accounts, or a certain account or all accessible accounts.",
+        "description": "This endpoint returns all accessible assets by accounts.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out assets where each search term is either present in their name or account name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "id",
+                "name",
+                "owner"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "account_id",
+            "schema": {
+              "type": "integer",
+              "default": null,
+              "nullable": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "all_accessible",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include_public",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "single_asset": {
+                    "summary": "One asset being returned in the response",
+                    "value": {
+                      "data": [
+                        {
+                          "id": 1,
+                          "name": "Test battery",
+                          "latitude": 10,
+                          "longitude": 100,
+                          "account_id": 2,
+                          "generic_asset_type": {
+                            "id": 1,
+                            "name": "battery"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "paginated_assets": {
+                    "summary": "A paginated list of assets being returned in the response",
+                    "value": {
+                      "data": [
+                        {
+                          "id": 1,
+                          "name": "Test battery",
+                          "latitude": 10,
+                          "longitude": 100,
+                          "account_id": 2,
+                          "generic_asset_type": {
+                            "id": 1,
+                            "name": "battery"
+                          }
+                        }
+                      ],
+                      "num-records": 1,
+                      "filtered-records": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "post": {
+        "summary": "Creates a new asset.",
+        "description": "This endpoint creates a new asset.\n\nTo establish a hierarchical relationship, you can optionally include the **parent_asset_id** in the request body to make the new asset a child of an existing asset.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetSchema"
+              },
+              "examples": {
+                "single_asset": {
+                  "summary": "Request to create a standalone asset",
+                  "value": {
+                    "name": "Test battery",
+                    "generic_asset_type_id": 2,
+                    "account_id": 2,
+                    "latitude": 40,
+                    "longitude": 170.3
+                  }
+                },
+                "child_asset": {
+                  "summary": "Request to create an asset with a parent",
+                  "value": {
+                    "name": "Test battery",
+                    "generic_asset_type_id": 2,
+                    "account_id": 2,
+                    "parent_asset_id": 10,
+                    "latitude": 40,
+                    "longitude": 170.3
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "single_asset": {
+                    "summary": "One asset being returned in the response",
+                    "value": {
+                      "generic_asset_type_id": 2,
+                      "name": "Test battery",
+                      "id": 1,
+                      "latitude": 10,
+                      "longitude": 100,
+                      "account_id": 1
+                    }
+                  },
+                  "child_asset": {
+                    "summary": "A child asset being returned in the response",
+                    "value": {
+                      "generic_asset_type_id": 2,
+                      "name": "Test battery",
+                      "id": 1,
+                      "latitude": 10,
+                      "longitude": 100,
+                      "account_id": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/public": {
+      "get": {
+        "summary": "Return all public assets.",
+        "description": "This endpoint returns all public assets.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/schedules/trigger": {
+      "post": {
+        "summary": "Trigger scheduling job for any number of devices",
+        "description": "Trigger FlexMeasures to create a schedule for this asset.\nThe flex-model needs to reference the power sensors of flexible devices, which must belong to the given asset,\neither directly or indirectly, by being assigned to one of the asset's (grand)children.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, [see describing_flexibility](https://flexmeasures.readthedocs.io/stable/features/scheduling.html#describing-flexibility).\nBelow, we'll also list some examples.\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors). The examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** This endpoint supports scheduling an EMS with multiple flexible devices at once.\n> It can do so jointly (the default) or sequentially\n> (considering previously scheduled sensors as inflexible).\n> To use sequential scheduling, use ``sequential=true`` in the JSON body.\n\nThe length of the schedule can be set explicitly through the 'duration' field.\nOtherwise, it is set by the config setting [see planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.\nIf the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\nFinally, the schedule length is limited by [see max_planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.\nTargets that exceed the max planning horizon are not accepted.\n\nThe appropriate algorithm is chosen by FlexMeasures (based on asset type).\nIt's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).\n\nIf you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset to schedule.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetTriggerOpenAPI"
+              },
+              "examples": {
+                "storage_asset": {
+                  "description": "This message triggers a schedule for a storage asset (with power sensor 931),\nstarting at 10.00am, with the state of charge (soc) sensor being 74.\nThis also schedules a curtailable production asset (with power sensor 932),\nwhose production forecasts are recorded under sensor 760.\n\nAggregate consumption (of all devices within this EMS) should be priced by sensor 9,\nand aggregate production should be priced by sensor 10,\nwhere the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,\nand the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).\n\nThe battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).\nFinally, the site consumption capacity is limited by sensor 32.\n",
+                  "value": {
+                    "start": "2015-06-02T10:00:00+00:00",
+                    "flex-model": [
+                      {
+                        "sensor": 931,
+                        "soc-at-start": 12.1,
+                        "state-of-charge": {
+                          "sensor": 74
+                        },
+                        "soc-unit": "kWh",
+                        "power-capacity": "25kW",
+                        "consumption-capacity": {
+                          "sensor": 42
+                        },
+                        "production-capacity": "30 kW"
+                      },
+                      {
+                        "sensor": 932,
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {
+                          "sensor": 760
+                        }
+                      }
+                    ],
+                    "flex-context": {
+                      "consumption-price": {
+                        "sensor": 9
+                      },
+                      "production-price": {
+                        "sensor": 10
+                      },
+                      "inflexible-device-sensors": [
+                        13,
+                        14,
+                        15
+                      ],
+                      "site-power-capacity": "100kW",
+                      "site-production-capacity": "80kW",
+                      "site-consumption-capacity": {
+                        "sensor": 32
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "successful_response": {
+                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
+                    "value": {
+                      "status": "PROCESSED",
+                      "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "message": "Request has been processed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_DATA"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "405": {
+            "description": "INVALID_METHOD"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/default_asset_view": {
+      "post": {
+        "summary": "Update the default asset view for the current user",
+        "description": "Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).\n\nThis endpoint sets the default asset view for the current user session if `use_as_default` is true.\nIf `use_as_default` is `false`, it clears the session variable for the default asset view.\n\n## Example values for `default_asset_view`:\n- \"Audit Log\"\n- \"Context\"\n- \"Graphs\"\n- \"Properties\"\n- \"Status\"\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefaultAssetViewJSONSchema"
+              },
+              "examples": {
+                "default_asset_view": {
+                  "summary": "Setting the user's default asset view to \"Graphs\"",
+                  "value": {
+                    "default_asset_view": "Graphs",
+                    "use_as_default": true
+                  }
+                },
+                "resetting_default_view": {
+                  "summary": "resetting the user's default asset view (will return to use system default)",
+                  "value": {
+                    "use_as_default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "message": {
+                    "summary": "Message",
+                    "value": {
+                      "message": "Default asset view updated successfully."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/types": {
+      "get": {
+        "summary": "Get list of available asset types",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "single_asset_type": {
+                    "summary": "One asset type being returned in the response",
+                    "value": [
+                      {
+                        "id": 1,
+                        "name": "solar",
+                        "description": "solar panel(s)"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/health/ready": {
+      "get": {
+        "summary": "Get readiness status",
+        "description": "Health check endpoint to verify if core services required by FlexMeasures are ready.\n",
+        "responses": {
+          "200": {
+            "description": "All required services are operational.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "database_sql": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "database_redis": {
+                      "type": "boolean",
+                      "example": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v3_0": {},
+    "/api/v3_0/sensors/data": {},
+    "/api/v3_0/docs/dist/{filename}": {},
+    "/api/v3_0/docs/{path}": {},
+    "/api/dev/sensor/{id}": {},
+    "/api/dev/sensor/{id}/chart": {},
+    "/api/dev/sensor/{id}/chart_annotations": {},
+    "/api/dev/sensor/{id}/chart_data": {},
+    "/api/dev/asset/{id}": {},
+    "/api/v2_0/user/{id}/password-reset": {},
+    "/": {}
+  },
+  "info": {
+    "title": "FlexMeasures",
+    "version": "0.28.1.dev82"
+  },
+  "openapi": "3.0.2",
+  "components": {
+    "schemas": {
+      "FlexContextOpenAPISchema": {
+        "type": "object",
+        "properties": {
+          "consumption_breach_price": {
+            "type": "string"
+          },
+          "production_breach_price": {
+            "type": "string"
+          },
+          "soc_minima_breach_price": {
+            "type": "string"
+          },
+          "soc_maxima_breach_price": {
+            "type": "string"
+          },
+          "relax-constraints": {
+            "type": "boolean",
+            "default": false
+          },
+          "relax-soc-constraints": {
+            "type": "boolean",
+            "default": false
+          },
+          "relax-capacity-constraints": {
+            "type": "boolean",
+            "default": false
+          },
+          "relax-site-capacity-constraints": {
+            "type": "boolean",
+            "default": false
+          },
+          "ems_power_capacity_in_mw": {
+            "type": "string"
+          },
+          "consumption_price_sensor": {
+            "type": "string"
+          },
+          "production_price_sensor": {
+            "type": "string"
+          },
+          "consumption_price": {
+            "type": "string"
+          },
+          "production_price": {
+            "type": "string"
+          },
+          "ems_production_capacity_in_mw": {
+            "type": "string"
+          },
+          "ems_consumption_capacity_in_mw": {
+            "type": "string"
+          },
+          "ems_consumption_breach_price": {
+            "type": "string"
+          },
+          "ems_production_breach_price": {
+            "type": "string"
+          },
+          "ems_peak_consumption_in_mw": {
+            "type": "string"
+          },
+          "ems_peak_consumption_price": {
+            "type": "string"
+          },
+          "ems_peak_production_in_mw": {
+            "type": "string"
+          },
+          "ems_peak_production_price": {
+            "type": "string"
+          },
+          "inflexible-device-sensors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserAPIQuerySchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1
+          },
+          "filter": {
+            "type": "string"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "username",
+              "email",
+              "lastLogin",
+              "lastSeen"
+            ]
+          },
+          "sort_dir": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          },
+          "account_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "include_inactive": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetAPIQuerySchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1
+          },
+          "filter": {
+            "type": "string"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "id",
+              "name",
+              "owner"
+            ]
+          },
+          "sort_dir": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          },
+          "account_id": {
+            "type": "integer",
+            "default": null,
+            "nullable": true
+          },
+          "all_accessible": {
+            "type": "boolean",
+            "default": false
+          },
+          "include_public": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "Account": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "nullable": true
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "GenericAssetType": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenericAsset": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "account_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "generic_asset_type": {
+            "readOnly": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GenericAssetType"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "Sensor": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "AssetSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "account_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "owner": {
+            "readOnly": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Account"
+              }
+            ]
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "generic_asset_type_id": {
+            "type": "integer"
+          },
+          "generic_asset_type": {
+            "readOnly": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GenericAssetType"
+              }
+            ]
+          },
+          "attributes": {},
+          "parent_asset_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "child_assets": {
+            "readOnly": true,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GenericAsset"
+            }
+          },
+          "sensors": {
+            "readOnly": true,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Sensor"
+            }
+          },
+          "sensors_to_show": {},
+          "flex_context": {},
+          "flex_model": {},
+          "sensors_to_show_as_kpis": {}
+        },
+        "required": [
+          "generic_asset_type_id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "DefaultAssetViewJSONSchema": {
+        "type": "object",
+        "properties": {
+          "default_asset_view": {
+            "type": "string",
+            "enum": [
+              "Audit Log",
+              "Context",
+              "Graphs",
+              "Properties",
+              "Status"
+            ],
+            "description": "The default asset view to show."
+          },
+          "use_as_default": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to use this view as default."
+          }
+        },
+        "required": [
+          "default_asset_view"
+        ],
+        "additionalProperties": false
+      },
+      "AccountRole": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "nullable": true
+          },
+          "primary_color": {
+            "type": "string",
+            "maxLength": 7,
+            "nullable": true
+          },
+          "secondary_color": {
+            "type": "string",
+            "maxLength": 7,
+            "nullable": true
+          },
+          "logo_url": {
+            "type": "string",
+            "maxLength": 255,
+            "nullable": true
+          },
+          "account_roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountRole"
+            }
+          },
+          "consultancy_account_id": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountAPIQuerySchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1
+          },
+          "filter": {
+            "type": "string"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "id",
+              "name",
+              "assets",
+              "users"
+            ]
+          },
+          "sort_dir": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuthRequestSchema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The user's email address."
+          },
+          "password": {
+            "type": "string",
+            "description": "The user's password."
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "Sensor1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "event_resolution": {
+            "type": "string"
+          },
+          "entity_address": {
+            "type": "string",
+            "readOnly": true
+          },
+          "attributes": {},
+          "generic_asset_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "event_resolution",
+          "generic_asset_id",
+          "name",
+          "unit"
+        ],
+        "additionalProperties": false
+      },
+      "PostSensorData": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration": {
+            "type": "string"
+          },
+          "horizon": {
+            "type": "string"
+          },
+          "prior": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "sensor": {
+            "type": "integer"
+          },
+          "values": {},
+          "type": {
+            "type": "string",
+            "enum": [
+              "PostSensorDataRequest",
+              "PostMeterDataRequest",
+              "PostPrognosisRequest",
+              "PostPriceDataRequest",
+              "PostWeatherDataRequest"
+            ]
+          }
+        },
+        "required": [
+          "duration",
+          "sensor",
+          "start",
+          "unit"
+        ],
+        "additionalProperties": false
+      },
+      "TriggerScheduleKwargs": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "prior": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration": {
+            "type": "string"
+          },
+          "flex-model": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "flex-context": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "force_new_job_creation": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "start"
+        ],
+        "additionalProperties": false
+      },
+      "SensorDataFileDescription": {
+        "type": "object",
+        "properties": {
+          "uploaded-files": {
+            "type": "array",
+            "items": {
+              "type": "file"
+            }
+          },
+          "belief-time-measured-instantly": {
+            "type": "boolean",
+            "default": false,
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Account1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "nullable": true
+          },
+          "primary_color": {
+            "type": "string",
+            "maxLength": 7,
+            "nullable": true
+          },
+          "secondary_color": {
+            "type": "string",
+            "maxLength": 7,
+            "nullable": true
+          },
+          "logo_url": {
+            "type": "string",
+            "maxLength": 255,
+            "nullable": true
+          },
+          "account_roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountRole"
+            }
+          },
+          "consultancy_account_id": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 255,
+            "nullable": true
+          },
+          "account_id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "active": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 255,
+            "nullable": true
+          },
+          "flexmeasures_roles": {
+            "type": "array",
+            "items": {}
+          },
+          "last_login_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "account_id",
+          "email",
+          "username"
+        ],
+        "additionalProperties": false
+      },
+      "StorageFlexModelSchemaOpenAPI": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "string"
+          },
+          "soc_at_start": {
+            "type": "string"
+          },
+          "soc_min": {
+            "type": "string"
+          },
+          "soc_max": {
+            "type": "string"
+          },
+          "power_capacity_in_mw": {
+            "type": "string"
+          },
+          "consumption_capacity": {
+            "type": "string"
+          },
+          "production_capacity": {
+            "type": "string"
+          },
+          "prefer-curtailing-later": {
+            "type": "boolean",
+            "default": true
+          },
+          "prefer-charging-sooner": {
+            "type": "boolean",
+            "default": true
+          },
+          "soc_maxima": {
+            "type": "string"
+          },
+          "soc_minima": {
+            "type": "string"
+          },
+          "soc_targets": {
+            "type": "string"
+          },
+          "soc-unit": {
+            "type": "string",
+            "enum": [
+              "kWh",
+              "MWh"
+            ]
+          },
+          "state_of_charge": {
+            "type": "string"
+          },
+          "charging_efficiency": {
+            "type": "string"
+          },
+          "discharging_efficiency": {
+            "type": "string"
+          },
+          "roundtrip_efficiency": {
+            "type": "string"
+          },
+          "storage_efficiency": {
+            "type": "string"
+          },
+          "soc-gain": {
+            "type": "array",
+            "minItems": 1,
+            "items": {}
+          },
+          "soc-usage": {
+            "type": "array",
+            "minItems": 1,
+            "items": {}
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetTriggerOpenAPI": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "prior": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration": {
+            "type": "string"
+          },
+          "flex_model": {
+            "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
+          },
+          "flex_context": {
+            "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+          },
+          "sequential": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "flex_context",
+          "flex_model",
+          "start"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization"
+      }
+    }
+  }
+}
