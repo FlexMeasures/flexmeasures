@@ -20,6 +20,8 @@ from s2python.common import (
     HandshakeResponse,
     ReceptionStatus,
     ReceptionStatusValues,
+    RevokableObjects,
+    RevokeObject,
     SelectControlType,
     ResourceManagerDetails,
 )
@@ -77,6 +79,7 @@ class ConnectionState:
         self.last_compute_time: Optional[datetime] = None
         self.resource_id: Optional[str] = None
         self.last_operation_mode: Optional[uuid.UUID] = None
+        self.sent_instructions: List[FRBCInstruction] = []  # Store sent instructions for revocation
 
     def can_compute(self, replanning_frequency: timedelta) -> bool:
         """Check if enough time has passed since the last compute call."""
@@ -319,6 +322,31 @@ class S2FlaskWSServerSync:
             websocket.send(s2_msg.to_json())
         except ConnectionClosed:
             self.app.logger.warning("Connection closed while sending message (sync)")
+
+    def _revoke_previous_instructions(
+        self, connection_state: ConnectionState, websocket: Sock
+    ) -> None:
+        """Revoke all previously sent instructions before sending new ones."""
+        if not connection_state.sent_instructions:
+            return
+
+        self.app.logger.info(
+            f"Revoking {len(connection_state.sent_instructions)} previous instructions"
+        )
+
+        for instruction in connection_state.sent_instructions:
+            revoke_msg = RevokeObject(
+                message_id=uuid.uuid4(),
+                object_type=RevokableObjects.FRBC_Instruction,
+                object_id=instruction.message_id,
+            )
+            self._send_and_forget(revoke_msg, websocket)
+            self.app.logger.info(
+                f"Sent RevokeObject for instruction {instruction.message_id}"
+            )
+
+        # Clear the list of sent instructions after revoking
+        connection_state.sent_instructions.clear()
 
     def _filter_instructions_by_operation_mode(
         self, instructions: list, connection_state: ConnectionState
@@ -565,6 +593,10 @@ class S2FlaskWSServerSync:
                     frbc_instructions, connection_state
                 )
 
+                # Revoke previous instructions before sending new ones
+                self._revoke_previous_instructions(connection_state, websocket)
+
+                # Send new instructions and store them
                 for instruction in filtered_instructions:
                     self._send_and_forget(instruction, websocket)
                     self.app.logger.info(
@@ -572,6 +604,9 @@ class S2FlaskWSServerSync:
                     )
                     # Update the last operation mode for this connection
                     connection_state.last_operation_mode = instruction.operation_mode
+                
+                # Store the sent instructions for future revocation
+                connection_state.sent_instructions = filtered_instructions.copy()
 
                 # Log filtering results
                 if len(frbc_instructions) > len(filtered_instructions):
