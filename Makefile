@@ -35,8 +35,7 @@ update-docs-pdf:
 
 generate-openapi:
 	@echo "Generating OpenAPI specifications..."
-	python flexmeasures/utils/generate_open_api_specs.py
-	@echo "OpenAPI specs generated successfully"
+	python flexmeasures/api/scripts/generate_open_api_specs.py
 
 # ---- Installation ---
 

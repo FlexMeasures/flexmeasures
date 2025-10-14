@@ -1421,7 +1421,6 @@
             "name": "page",
             "schema": {
               "type": "integer",
-              "default": 1,
               "minimum": 1
             },
             "required": false
@@ -1555,7 +1554,6 @@
             "name": "page",
             "schema": {
               "type": "integer",
-              "default": 1,
               "minimum": 1
             },
             "required": false
@@ -1820,7 +1818,6 @@
             "name": "page",
             "schema": {
               "type": "integer",
-              "default": 1,
               "minimum": 1
             },
             "required": false
@@ -2087,7 +2084,6 @@
             "name": "page",
             "schema": {
               "type": "integer",
-              "default": 1,
               "minimum": 1
             },
             "required": false
@@ -2226,7 +2222,6 @@
             "name": "page",
             "schema": {
               "type": "integer",
-              "default": 1,
               "minimum": 1
             },
             "required": false
@@ -2887,7 +2882,6 @@
             "name": "page",
             "schema": {
               "type": "integer",
-              "default": 1,
               "minimum": 1
             },
             "required": false
@@ -3413,7 +3407,7 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.28.1.dev56"
+    "version": "0.28.1.dev82"
   },
   "openapi": "3.0.2",
   "components": {
@@ -3502,7 +3496,6 @@
         "properties": {
           "page": {
             "type": "integer",
-            "default": 1,
             "minimum": 1
           },
           "per_page": {
@@ -3546,7 +3539,6 @@
         "properties": {
           "page": {
             "type": "integer",
-            "default": 1,
             "minimum": 1
           },
           "per_page": {
@@ -3819,7 +3811,6 @@
         "properties": {
           "page": {
             "type": "integer",
-            "default": 1,
             "minimum": 1
           },
           "per_page": {
