@@ -147,18 +147,29 @@ def show_queues():
     queue_data = [
         (
             q.name,
-            q.started_job_registry.count,
             q.count,
             q.deferred_job_registry.count,
             q.scheduled_job_registry.count,
+            q.started_job_registry.count,
+            q.finished_job_registry.count,
             q.failed_job_registry.count,
+            q.canceled_job_registry.count,
         )
         for q in app.queues.values()
     ]
     click.echo(
         tabulate(
             queue_data,
-            headers=["Queue", "Started", "Queued", "Deferred", "Scheduled", "Failed"],
+            headers=[
+                "Queue",
+                "Queued jobs",
+                "Deferred jobs",
+                "Scheduled jobs",
+                "Started jobs",
+                "Finished jobs",
+                "Failed jobs",
+                "Canceled jobs",
+            ],
         )
     )
 

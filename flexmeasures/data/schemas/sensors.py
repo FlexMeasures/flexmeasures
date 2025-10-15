@@ -411,8 +411,27 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         return super().convert(_value, param, ctx, **kwargs)
 
-    def _get_unit(self, variable_quantity: ur.Quantity | list[dict | Sensor]) -> str:
-        """Obtain the unit from the variable quantity."""
+    def _get_original_unit(
+        self,
+        serialized_variable_quantity: str | list[dict] | dict,
+        deserialized_variable_quantity: ur.Quantity | list[dict] | Sensor,
+    ) -> str:
+        """Obtain the original unit from the still serialized variable quantity."""
+        if isinstance(serialized_variable_quantity, str):
+            unit = str(ur.Quantity(serialized_variable_quantity).units)
+        elif isinstance(serialized_variable_quantity, list):
+            unit = str(ur.Quantity(serialized_variable_quantity[0]["value"]).units)
+        elif isinstance(serialized_variable_quantity, dict):
+            # use deserialized quantity to avoid another Sensor query; the serialized quantity only has the sensor ID
+            unit = deserialized_variable_quantity.unit
+        else:
+            raise NotImplementedError(
+                f"Unexpected type '{type(serialized_variable_quantity)}' for serialized_variable_quantity describing '{self.data_key}': {serialized_variable_quantity}."
+            )
+        return unit
+
+    def _get_unit(self, variable_quantity: ur.Quantity | list[dict] | Sensor) -> str:
+        """Obtain the unit from the (deserialized) variable quantity."""
         if isinstance(variable_quantity, ur.Quantity):
             unit = str(variable_quantity.units)
         elif isinstance(variable_quantity, list):
@@ -465,7 +484,13 @@ class TimeSeriesOrSensor(VariableQuantityField):
         super().__init__(return_magnitude=True, *args, **kwargs)
 
 
-class SensorDataFileSchema(Schema):
+class SensorDataFileDescriptionSchema(Schema):
+    """
+    Schema for uploading a file with sensor data.
+    This one describes only the file upload part, not the sensor itself.
+    See SensorDataFileSchema for the full schema.
+    """
+
     uploaded_files = fields.List(
         fields.Raw(metadata={"type": "file"}),
         data_key="uploaded-files",
@@ -478,6 +503,9 @@ class SensorDataFileSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+
+
+class SensorDataFileSchema(SensorDataFileDescriptionSchema):
     sensor = SensorIdField(data_key="id")
 
     _valid_content_types = {

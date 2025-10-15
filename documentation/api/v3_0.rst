@@ -1,20 +1,42 @@
 .. _v3_0:
 
 Version 3.0
-===========
+================
 
 Summary
 -------
 
+A quick overview of the available endpoints. For more details, click their names.
+
+.. The qrefs make links very similar to the openapi plugin, but we have to run a sed command after the fact to make them exactly alike (see Makefile)
 .. qrefflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
+    :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.accounts, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
     :order: path
     :include-empty-docstring:
+
+
+OpenAPI & SwaggerUI
+-------------------
+
+We also provide interactive SwaggerUI documentation with each instance at `/api/v3_0/docs`. See a screenshot below.
+
+To access it, click on the book icon on the upper right or visit `https://<your-instance>/api/v3_0/docs`.
+If authenticated, you can try out the endpoints directly from there.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/swagger-ui.png
+    :align: center
+
+|
+
 
 API Details
 -----------
 
-.. autoflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
-    :order: path
-    :include-empty-docstring:
+Below, each endpoint is described in detail.
+
+.. we are using the specs which are located in the UI static folder, as that location is needed to serve it with each instance.
+.. openapi:: ../../flexmeasures/ui/static/openapi-specs.json
+    :format:
+      markdown
+    :group:
+    :examples:

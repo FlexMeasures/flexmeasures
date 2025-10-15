@@ -19,12 +19,6 @@
         {% endif %}
 
         {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
-        <button class="btn p-2 border-0 {% if user.active %} btn-warning {% else %} btn-success {% endif %}"
-          type="button" title="Toggle activation status of this user."
-          onclick="window.location.href='/users/toggle_active/{{ user.id }}'">
-          {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
-        </button>
-
         <button class="btn p-2 border-0 btn-info" type="button"
           title="Reset the password and send instructions how to choose a new one."
           onclick="window.location.href='/users/reset_password_for/{{ user.id }}'">

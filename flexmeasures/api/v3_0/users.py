@@ -1,11 +1,10 @@
 from __future__ import annotations
 from flask_classful import FlaskView, route
-from marshmallow import fields
-import marshmallow.validate as validate
+from marshmallow import fields, Schema, validate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, select, func, or_
 from flask_sqlalchemy.pagination import SelectPagination
-from webargs.flaskparser import use_kwargs
+from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
@@ -15,18 +14,20 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
-from flexmeasures.api.common.schemas.search import SearchFilterField
-from flexmeasures.api.v3_0.assets import get_accessible_accounts
+from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.data.queries.users import query_users_by_search_terms
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
-    set_random_password,
+    reset_password,
     remove_cookie_and_token_access,
+    set_random_password,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.utils.time_utils import server_now, naturalized_datetime_str
+from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
+
 
 """
 API endpoints to manage users.
@@ -41,32 +42,42 @@ partial_user_schema = UserSchema(partial=True)
 account_schema = AccountSchema()
 
 
+class AuthRequestSchema(Schema):
+    email = fields.Str(
+        required=True, metadata={"description": "The user's email address."}
+    )
+    password = fields.Str(
+        required=True, metadata={"description": "The user's password."}
+    )
+
+
+class UserPaginationSchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
+    )
+
+
+class UserAPIQuerySchema(UserPaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
+    )
+    account = AccountIdField(data_key="account_id", load_default=None)
+    include_inactive = fields.Bool(load_default=False)
+
+
+class UserId(Schema):
+    user = UserIdField(required=False, data_key="id")
+
+
 class UserAPI(FlaskView):
     route_base = "/users"
     trailing_slash = False
     decorators = [auth_required()]
 
     @route("", methods=["GET"])
-    @use_kwargs(
-        {
-            "account": AccountIdField(data_key="account_id", load_default=None),
-            "include_inactive": fields.Bool(load_default=False),
-            "page": fields.Int(required=False, validate=validate.Range(min=1)),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=1
-            ),
-            "filter": SearchFilterField(required=False),
-            "sort_by": fields.Str(
-                required=False,
-                validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
-            ),
-            "sort_dir": fields.Str(
-                required=False,
-                validate=validate.OneOf(["asc", "desc"]),
-            ),
-        },
-        location="query",
-    )
+    @use_kwargs(UserAPIQuerySchema, location="query")
     @as_json
     def index(
         self,
@@ -79,45 +90,62 @@ class UserAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        API endpoint to list all users.
-
-        .. :quickref: User; Download user list
-
-        This endpoint returns all accessible users.
-        By default, only active users are returned.
-        The `account_id` query parameter can be used to filter the users of
-        a given account.
-        The `include_inactive` query parameter can be used to also fetch
-        inactive users.
-        Accessible users are users in the same account as the current user.
-        Only admins can use this endpoint to fetch users from a different account (by using the `account_id` query parameter).
-
-        **Example response**
-
-        An example of one user being returned:
-
-        .. sourcecode:: json
-
-            [
-                {
-                    'active': True,
-                    'email': 'test_prosumer@seita.nl',
-                    'account_id': 13,
-                    'flexmeasures_roles': [1, 3],
-                    'id': 1,
-                    'timezone': 'Europe/Amsterdam',
-                    'username': 'Test Prosumer User'
-                }
-            ]
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+        .. :quickref: Users; List users.
+        ---
+        get:
+          summary: List users.
+          description: |
+            This endpoint returns all accessible users.
+            By default, only active users are returned.
+            The `account_id` query parameter can be used to filter the users of
+            a given account.
+            The `include_inactive` query parameter can be used to also fetch
+            inactive users.
+            Accessible users are users in the same account as the current user.
+            Only admins can use this endpoint to fetch users from a different account (by using the `account_id` query parameter).
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: query
+              schema: UserAPIQuerySchema
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    single_user:
+                      description:
+                        An example of one user being returned
+                      value:
+                        data:
+                        - active: true
+                          email: test_prosumer@seita.nl
+                          account_id: 13
+                          account:
+                            account_roles: []
+                            consultancy_account_id: null
+                            id: 29
+                            logo_url: null
+                            name: AutoZoomAccount
+                            primary_color: null
+                            secondary_color: null
+                          flexmeasures_roles: [1, 3]
+                          id: 1
+                          timezone: Europe/Amsterdam
+                          username: Test Prosumer User
+                          last_login_at: "2022-05-09T10:47:13.410321"
+                          last_seen_at: "2022-05-09T10:47:13.410321"
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Users
         """
         if account is not None:
             check_access(account, "read")
@@ -190,95 +218,214 @@ class UserAPI(FlaskView):
 
         return response, 200
 
+    @route("", methods=["POST"])
+    @use_args(
+        {
+            "email": fields.Email(required=True),
+            "username": fields.Str(required=True),
+            "account": AccountIdField(required=True, data_key="account_id"),
+        }
+    )
+    @permission_required_for_context(
+        "create-children", ctx_arg_pos=1, ctx_arg_name="account"
+    )
+    def post(self, user_data):
+        """
+        .. :quickref: Users; Create new user
+        ---
+        post:
+          summary: Create new user
+          description: |
+            This endpoint creates a new user.
+
+            The following fields are required:
+            - email
+            - username
+            - account_id
+
+            Other attributes/fields such as password and roles can be assigned or reset later.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    email:
+                      type: string
+                      example: "test_user@seita.nl"
+                    username:
+                      type: string
+                      example: "Test User"
+                    account_id:
+                      type: integer
+                      example: 1
+          responses:
+            201:
+              description: CREATED
+              content:
+                application/json:
+                  schema: UserSchema
+                  examples:
+                    single_user:
+                      description:
+                        An example of one user being returned
+                      value:
+                        data:
+                        - active: true
+                          email: test_user@seita.nl
+                          account_id: 1
+                          flexmeasures_roles: [1, 3]
+                          id: 1
+                          timezone: Europe/Amsterdam
+                          username: Test User
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Users
+        """
+        from flexmeasures.data.services.users import create_user
+
+        created_user = create_user(
+            username=user_data["username"],
+            email=user_data["email"],
+            account_name=user_data["account"].name,
+            password=user_data["email"],  # This will be set to a random password below
+            user_roles=[],
+        )
+        set_random_password(created_user)
+        send_reset_password_instructions(created_user)
+        db.session.commit()
+        return user_schema.dump(created_user), 201
+
     @route("/<id>")
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs(UserId, location="path")
     @permission_required_for_context("read", ctx_arg_name="user")
     @as_json
     def get(self, id: int, user: UserModel):
-        """API endpoint to get a user.
-
-        .. :quickref: User; Get a user
-
-        This endpoint gets a user.
-        Only admins or the members of the same account can use this endpoint.
-
-        **Example response**
-
-        .. sourcecode:: json
-
-            {
-                'account_id': 1,
-                'active': True,
-                'email': 'test_prosumer@seita.nl',
-                'flexmeasures_roles': [1, 3],
-                'id': 1,
-                'timezone': 'Europe/Amsterdam',
-                'username': 'Test Prosumer User'
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+        """
+        .. :quickref: Users; Fetch a user
+        ---
+        get:
+          summary: Get a user
+          description: |
+            This endpoint gets a user.
+            Only admins or the members of the same account can use this endpoint.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              schema: UserId
+              description: ID of the user to get.
+              required: true
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema: UserSchema
+                  examples:
+                    single_user:
+                      summary: Single user response
+                      value:
+                        data:
+                          active: true
+                          email: test_prosumer@seita.nl
+                          account_id: 1
+                          flexmeasures_roles: [1, 3]
+                          id: 1
+                          timezone: Europe/Amsterdam
+                          username: Test Prosumer User
+                          last_login_at: "2022-05-09T10:47:13.410321"
+                          last_seen_at: "2022-05-09T10:47:13.410321"
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Users
         """
         return user_schema.dump(user), 200
 
     @route("/<id>", methods=["PATCH"])
     @use_kwargs(partial_user_schema)
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs(UserId, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def patch(self, id: int, user: UserModel, **user_data):  # noqa C901
-        """API endpoint to patch user data.
+        """
+        .. :quickref: Users; Update a user
+        ---
+        patch:
+          summary: Update a user.
+          description: |
+            This endpoint sets data for an existing user.
+            It has to be used by the user themselves, admins, consultant or account-admins (of the same account).
+            Any subset of user fields can be sent.
+            If the user is not an (account-)admin, they can only edit a few of their own fields.
+            User roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.
 
-        .. :quickref: User; Patch data for an existing user
-
-        This endpoint sets data for an existing user.
-        It has to be used by the user themselves, admins, consultant or account-admins (of the same account).
-        Any subset of user fields can be sent.
-        If the user is not an (account-)admin, they can only edit a few of their own fields.
-        User roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.
-
-        The following fields are not allowed to be updated at all:
-         - id
-         - account_id
-
-        **Example request**
-
-        .. sourcecode:: json
-
-            {
-                "active": false,
-            }
-
-        **Example response**
-
-        The following user fields are returned:
-
-        .. sourcecode:: json
-
-            {
-                'account_id': 1,
-                'active': True,
-                'email': 'test_prosumer@seita.nl',
-                'flexmeasures_roles': [1, 3],
-                'id': 1,
-                'timezone': 'Europe/Amsterdam',
-                'username': 'Test Prosumer User'
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: UPDATED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+            The following fields are not allowed to be updated at all:
+            - id
+            - account_id
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the user to update.
+              schema: UserId
+          requestBody:
+            content:
+              application/json:
+                schema: UserSchema
+                examples:
+                  update_active:
+                    value:
+                      active: false
+          responses:
+            200:
+              description: UPDATED
+              content:
+                application/json:
+                  schema: UserSchema
+                  examples:
+                    single_user:
+                      description: An example of one user being returned
+                      value:
+                        data:
+                        - active: true
+                          email: test_prosumer@seita.nl
+                          account_id: 1
+                          flexmeasures_roles: [1, 3]
+                          id: 1
+                          timezone: Europe/Amsterdam
+                          username: Test Prosumer User
+                          last_login_at: "2022-05-09T10:47:13.410321"
+                          last_seen_at: "2022-05-09T10:47:13.410321"
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Users
         """
         allowed_fields = [
             "email",
@@ -337,63 +484,55 @@ class UserAPI(FlaskView):
         return user_schema.dump(user), 200
 
     @route("/<id>/password-reset", methods=["PATCH"])
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs(UserId, location="path")
     @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def reset_user_password(self, id: int, user: UserModel):
-        """API endpoint to reset the user's current password, cookies and auth tokens, and to email a password reset link to the user.
-
-        .. :quickref: User; Password reset
-
-        Reset the user's password, and send them instructions on how to reset the password.
-        This endpoint is useful from a security standpoint, in case of worries the password might be compromised.
-        It sets the current password to something random, invalidates cookies and auth tokens,
-        and also sends an email for resetting the password to the user.
-
-        Users can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
         """
-        set_random_password(user)
-        remove_cookie_and_token_access(user)
-        send_reset_password_instructions(user)
+        .. :quickref: Users; Password reset
+        ---
+        patch:
+          summary: Password reset
+          description: |
+            Reset the user's password, and send them instructions on how to reset the password.
+            This endpoint is useful from a security standpoint, in case of worries the password might be compromised.
+            It sets the current password to something random, invalidates cookies and auth tokens,
+            and also sends an email for resetting the password to the user.
 
+            Users can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.
+          parameters:
+            - in: path
+              name: id
+              required: true
+              schema: UserId
+              description: ID of the user to reset the password for.
+          responses:
+            200:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Users
+        """
+        reset_password(user)
         # commit only if sending instructions worked, as well
         db.session.commit()
 
     @route("/<id>/auditlog")
-    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @use_kwargs(UserId, location="path")
     @permission_required_for_context(
         "read",
         ctx_arg_name="user",
         pass_ctx_to_loader=True,
         ctx_loader=AuditLog.user_table_acl,
     )
-    @use_kwargs(
-        {
-            "page": fields.Int(required=False, validate=validate.Range(min=1)),
-            "per_page": fields.Int(
-                required=False, validate=validate.Range(min=1), load_default=10
-            ),
-            "filter": SearchFilterField(required=False),
-            "sort_by": fields.Str(
-                required=False,
-                validate=validate.OneOf(["event_datetime"]),
-            ),
-            "sort_dir": fields.Str(
-                required=False,
-                validate=validate.OneOf(["asc", "desc"]),
-            ),
-        },
-        location="query",
-    )
+    @use_kwargs(UserPaginationSchema, location="query")
     @as_json
     def auditlog(
         self,
@@ -405,40 +544,53 @@ class UserAPI(FlaskView):
         sort_by: str | None = None,
         sort_dir: str | None = None,
     ):
-        """API endpoint to get history of user actions.
-
-        .. :quickref: User; Get audit log
-
-        The endpoint is paginated and supports search filters.
-            - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per_page` (default is 10).
-            - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
-            - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
-              The response schema for pagination is inspired by https://datatables.net/manual/server-side
-
-        **Example response**
-
-        .. sourcecode:: json
-            {
-                "data" : [
-                    {
-                        'event': 'User test user deleted',
-                        'event_datetime': '2021-01-01T00:00:00',
-                        'active_user_name': 'Test user',
-                    }
-                ],
-                "num-records" : 1,
-                "filtered-records" : 1
-            }
-
-        :reqheader Authorization: The authentication token
-        :reqheader Content-Type: application/json
-        :resheader Content-Type: application/json
-        :status 200: PROCESSED
-        :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-        :status 401: UNAUTHORIZED
-        :status 403: INVALID_SENDER
-        :status 422: UNPROCESSABLE_ENTITY
+        """
+        .. :quickref: Users; Get history of user actions.
+        ---
+        get:
+          summary: Get history of user actions.
+          description: |
+            The endpoint is paginated and supports search filters.
+              - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per_page` (default is 10).
+              - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
+              - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
+                The response schema for pagination is inspired by https://datatables.net/manual/server-side
+          parameters:
+            - in: path
+              name: id
+              required: true
+              schema: UserId
+              description: ID of the user to get the audit log for.
+            - in: query
+              name: kwargs
+              schema: UserPaginationSchema
+          security:
+            - ApiKeyAuth: []
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    paginated_response:
+                      value:
+                        data:
+                          - event: 'User test user deleted'
+                            event_datetime: '2021-01-01T00:00:00'
+                            active_user_name: 'Test user'
+                        num-records: 1
+                        filtered-records: 1
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Users
         """
         query_statement = AuditLog.affected_user_id == user.id
         query = select(AuditLog).filter(query_statement)

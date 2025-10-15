@@ -1,5 +1,5 @@
 from flask import abort
-from marshmallow import fields, ValidationError
+from marshmallow import Schema, fields, ValidationError
 from sqlalchemy import select
 
 from flexmeasures.data import db
@@ -33,8 +33,14 @@ class SensorIdField(fields.Integer):
         return sensor.id
 
 
-class SensorField(fields.Str):
-    """Field that de-serializes to a Sensor,
+class SensorId(Schema):
+    id = SensorIdField(required=True)
+
+
+class SensorEntityAddressField(fields.Str):
+    """
+    Deprecated: Entity addresses are not needed in the API anymore.
+    Field that de-serializes to a Sensor,
     and serializes a Sensor into an entity address (string).
     """
 
