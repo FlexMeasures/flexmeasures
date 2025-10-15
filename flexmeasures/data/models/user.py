@@ -87,11 +87,11 @@ class Account(db.Model, AuthModelMixin):
 
     def __acl__(self):
         """
-        Only account admins can create things in the account (e.g. users or assets).
-        Consultants (i.e. users with the consultant role) can read things in the account,
-        but only if their organisation is set as a consultancy for the given account.
+        Only account admins and consultants can create things in the account (e.g. users or assets).
+        Consultants (i.e. users with the consultant role) can read and update things in the account,
+        but only if their organization is set as a consultancy for the given account.
         Within same account, everyone can read and update.
-        Creation and deletion of accounts are left to site admins in CLI.
+        Deletion of accounts is left to site admins, using the CLI.
         """
 
         read_access = [f"account:{self.id}"]
