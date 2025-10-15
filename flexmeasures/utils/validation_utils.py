@@ -1,5 +1,8 @@
 import re
 
+from flexmeasures import Sensor
+from flexmeasures.utils.unit_utils import ur
+
 
 def validate_color_hex(value):
     """
@@ -51,3 +54,23 @@ def validate_url(value):
         )
 
     return value
+
+
+def validate_sensor_or_fixed(value, unit_validator):
+    """
+    Check if a given value is a sensor or a fixed value (e.g string), then
+    validate with the unit validator.
+
+    Parameters:
+    :value: The value to be validated.
+    :unit_validator: The validation function used to validate teh value's unit.
+    """
+
+    if isinstance(value, ur.Quantity):
+        if not unit_validator(str(value)):
+            return False
+    elif isinstance(value, Sensor):
+        if not unit_validator(value.unit):
+            return False
+
+    return True

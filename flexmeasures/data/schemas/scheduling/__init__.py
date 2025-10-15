@@ -28,6 +28,22 @@ from flexmeasures.utils.unit_utils import (
     is_power_unit,
     is_energy_unit,
 )
+from flexmeasures.utils.validation_utils import validate_sensor_or_fixed
+
+
+class CommitmentSchema(Schema):
+    baseline = VariableQuantityField(
+        "MW", required=True, data_key="baseline", value_validator=validate.Range(min=0)
+    )
+    up_price = VariableQuantityField(
+        "/MW", required=True, data_key="up-price", value_validator=validate.Range(min=0)
+    )
+    down_price = VariableQuantityField(
+        "/MW",
+        required=True,
+        data_key="down-price",
+        value_validator=validate.Range(min=0),
+    )
 
 
 class FlexContextSchema(Schema):
@@ -149,6 +165,10 @@ class FlexContextSchema(Schema):
         value_validator=validate.Range(min=0),
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
+
+    commitments = fields.Nested(
+        CommitmentSchema, data_key="commitments", required=False, many=True
+    )
 
     inflexible_device_sensors = fields.List(
         SensorIdField(), data_key="inflexible-device-sensors"
@@ -440,6 +460,7 @@ class DBFlexContextSchema(FlexContextSchema):
         self._validate_price_fields(data)
         self._validate_power_fields(data)
         self._validate_inflexible_device_sensors(data)
+        self._validate_commitments_field(data)
 
     def _validate_price_fields(self, data: dict):
         """Validate price fields."""
@@ -483,6 +504,32 @@ class DBFlexContextSchema(FlexContextSchema):
         for field in power_fields:
             if field in data:
                 self._validate_field(data, "power", field, is_power_unit)
+
+    def _validate_commitments_field(self, data: dict):
+        """Validate commitments field."""
+        if "commitments" in data:
+            for commitment in data["commitments"]:
+                if not validate_sensor_or_fixed(commitment.baseline, is_power_unit):
+                    raise ValidationError(
+                        "Commitment baseline must have an energy unit.",
+                        field_name="commitments",
+                    )
+
+                if not validate_sensor_or_fixed(
+                    commitment.up_price, is_capacity_price_unit
+                ):
+                    raise ValidationError(
+                        "Commitment up-price must have a power price unit.",
+                        field_name="commitments",
+                    )
+
+                if not validate_sensor_or_fixed(
+                    commitment.down_price, is_capacity_price_unit
+                ):
+                    raise ValidationError(
+                        "Commitment down-price must have a power price unit.",
+                        field_name="commitments",
+                    )
 
     def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
         """Validate fields based on type and unit validator."""
