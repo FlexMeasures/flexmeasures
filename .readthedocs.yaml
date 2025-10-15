@@ -20,7 +20,7 @@ build:
     post_create_environment:
       - pip install . --no-deps  # as python install step, RTD installs deps eagerly
     post_build:
-      - bash -c "sed -i 's/\id)/id/g' $READTHEDOCS_OUTPUT/html/api/v3_0.html" # make sphinxcontrib-httpdomain links point to openapi-sphinx links
+      - bash -c "sed -i 's/\(id\)/id/g' $READTHEDOCS_OUTPUT/html/api/v3_0.html" # make sphinxcontrib-httpdomain links point to openapi-sphinx links
 python: 
   install:
     - requirements: requirements/3.9/app.txt
