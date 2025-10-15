@@ -208,27 +208,27 @@ def test_keep_last_version():
 
 def test_keep_latest_version_preserves_probabilistic_splits():
     sensor = tb.Sensor("X", event_resolution=timedelta(hours=1))
-    s1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
+    s1v1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
     # Two probabilistic splits for the same event
     event_start = "2025-10-15T14:00:00+02"
     h = "PT1H"
-    b1 = tb.TimedBelief(
-        sensor=sensor,
-        source=s1,
-        event_start=event_start,
-        belief_horizon=h,
-        cp=0.3,
-        event_value=10.0,
-    )
-    b2 = tb.TimedBelief(
-        sensor=sensor,
-        source=s1,
-        event_start=event_start,
-        belief_horizon=h,
-        cp=0.7,
-        event_value=20.0,
-    )
-    bdf = tb.BeliefsDataFrame([b1, b2])
+
+    def create_bdf(probabilistic_values: list[tuple[float, float]], source: DataSource):
+        return tb.BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=event_start,
+                    belief_horizon=h,
+                    cp=cp,
+                    event_value=v,
+                )
+                for cp, v in probabilistic_values
+            ]
+        )
+
+    bdf = create_bdf([(0.3, 10.0), (0.7, 20.0)], s1v1)
     # We expect to keep *both* splits (or at least both until further resolution)
     kept = keep_latest_version(bdf, one_deterministic_belief_per_event=False)
     # Check that both cumulative probabilities remain
