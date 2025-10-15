@@ -206,9 +206,6 @@ def test_keep_last_version():
     np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s1])
 
 
-@pytest.mark.xfail(
-    reason="Regression: probabilistic beliefs get dropped", raises=AssertionError
-)
 def test_keep_latest_version_preserves_probabilistic_splits():
     sensor = tb.Sensor("X", event_resolution=timedelta(hours=1))
     s1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
