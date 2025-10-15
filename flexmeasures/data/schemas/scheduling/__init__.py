@@ -509,14 +509,14 @@ class DBFlexContextSchema(FlexContextSchema):
         """Validate commitments field."""
         if "commitments" in data:
             for commitment in data["commitments"]:
-                if not validate_sensor_or_fixed(commitment.baseline, is_power_unit):
+                if not validate_sensor_or_fixed(commitment["baseline"], is_power_unit):
                     raise ValidationError(
                         "Commitment baseline must have an energy unit.",
                         field_name="commitments",
                     )
 
                 if not validate_sensor_or_fixed(
-                    commitment.up_price, is_capacity_price_unit
+                    commitment["up_price"], is_capacity_price_unit
                 ):
                     raise ValidationError(
                         "Commitment up-price must have a power price unit.",
@@ -524,7 +524,7 @@ class DBFlexContextSchema(FlexContextSchema):
                     )
 
                 if not validate_sensor_or_fixed(
-                    commitment.down_price, is_capacity_price_unit
+                    commitment["down_price"], is_capacity_price_unit
                 ):
                     raise ValidationError(
                         "Commitment down-price must have a power price unit.",

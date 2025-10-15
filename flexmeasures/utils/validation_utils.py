@@ -67,7 +67,7 @@ def validate_sensor_or_fixed(value, unit_validator):
     """
 
     if isinstance(value, ur.Quantity):
-        if not unit_validator(str(value)):
+        if not unit_validator(str(value.units)):
             return False
     elif isinstance(value, Sensor):
         if not unit_validator(value.unit):
