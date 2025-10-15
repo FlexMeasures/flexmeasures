@@ -15,7 +15,7 @@ sphinx:
 build:
   os: ubuntu-20.04
   tools:
-    python: "3.11"
+    python: "3.9"
   jobs:
     post_create_environment:
       - pip install . --no-deps  # as python install step, RTD installs deps eagerly
@@ -23,6 +23,6 @@ build:
       - sed -i 's/(id)/id/g' $READTHEDOCS_OUTPUT/html/api/v3_0.html # make sphinxcontrib-httpdomain links point to openapi-sphinx links
 python: 
   install:
-    - requirements: requirements/3.11/app.txt
-    - requirements: requirements/3.11/docs.txt
+    - requirements: requirements/3.9/app.txt
+    - requirements: requirements/3.9/docs.txt
 
