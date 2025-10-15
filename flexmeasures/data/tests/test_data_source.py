@@ -6,7 +6,7 @@ from flexmeasures.data.models.reporting import Reporter
 
 from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pytz import UTC
 
 import numpy as np
@@ -204,3 +204,38 @@ def test_keep_last_version():
     # repeated source
     bdf = create_dummy_frame([s1, s1])
     np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s1])
+
+
+@pytest.mark.xfail(
+    reason="Regression: probabilistic beliefs get dropped", raises=AssertionError
+)
+def test_keep_latest_version_preserves_probabilistic_splits():
+    sensor = tb.Sensor("X", event_resolution=timedelta(hours=1))
+    s1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
+    # Two probabilistic splits for the same event
+    event_start = "2025-10-15T14:00:00+02"
+    h = "PT1H"
+    b1 = tb.TimedBelief(
+        sensor=sensor,
+        source=s1,
+        event_start=event_start,
+        belief_horizon=h,
+        cp=0.3,
+        event_value=10.0,
+    )
+    b2 = tb.TimedBelief(
+        sensor=sensor,
+        source=s1,
+        event_start=event_start,
+        belief_horizon=h,
+        cp=0.7,
+        event_value=20.0,
+    )
+    bdf = tb.BeliefsDataFrame([b1, b2])
+    # We expect to keep *both* splits (or at least both until further resolution)
+    kept = keep_latest_version(bdf, one_deterministic_belief_per_event=False)
+    # Check that both cumulative probabilities remain
+    probs = set(kept.index.get_level_values("cumulative_probability").tolist())
+    assert probs == {0.3, 0.7}
+    # Also check that two rows survived
+    assert len(kept) == 2
