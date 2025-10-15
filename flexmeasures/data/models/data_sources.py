@@ -445,7 +445,6 @@ def keep_latest_version(
         pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     )
     bdf["_" + event_column] = bdf.index.get_level_values(event_column)
-    bdf["_cp"] = bdf.index.get_level_values("cumulative_probability")
     # Sort by event_start and version, keeping only the latest version
     bdf = bdf.sort_values(
         by=["_" + event_column, "source.version"], ascending=[True, False]
@@ -454,14 +453,17 @@ def keep_latest_version(
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
     unique_columns = [
         "_" + event_column,
-        "_cp",
         "source.name",
         "source.type",
         "source.model",
     ]
     if not one_deterministic_belief_per_event and belief_column in bdf.columns:
         unique_columns += [belief_column]
-    bdf = bdf.drop_duplicates(unique_columns)
+    # Keep probabilistic beliefs intact
+    unique_keys = (
+        bdf[unique_columns].drop_duplicates().droplevel("cumulative_probability")
+    )
+    bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
 
     # Remove temporary columns and restore the original index
     bdf = bdf.drop(
@@ -470,7 +472,6 @@ def keep_latest_version(
             "source.type",
             "source.model",
             "source.version",
-            "_cp",
             "_" + event_column,
         ]
     )
