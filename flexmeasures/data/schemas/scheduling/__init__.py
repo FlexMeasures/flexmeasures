@@ -25,6 +25,7 @@ from flexmeasures.utils.unit_utils import (
     units_are_convertible,
     is_capacity_price_unit,
     is_energy_price_unit,
+    get_unit_dimension,
     is_power_unit,
     is_energy_unit,
 )
@@ -509,17 +510,38 @@ class DBFlexContextSchema(FlexContextSchema):
         """Validate commitments field."""
         if "commitments" in data:
             for commitment in data["commitments"]:
-                if not validate_sensor_or_fixed(commitment["baseline"], is_power_unit):
+                baseline_unit = get_unit_dimension(commitment["baseline"])
+                baseline_validator = None
+                price_validator = None
+                unit_type = None
+
+                if baseline_unit == "power":
+                    baseline_validator = is_power_unit
+                    price_validator = is_capacity_price_unit
+                    unit_type = "power"
+                elif baseline_unit == "energy":
+                    baseline_validator = is_energy_unit
+                    price_validator = is_energy_price_unit
+                    unit_type = "energy"
+                else:
                     raise ValidationError(
-                        "Commitment baseline must have an energy unit.",
+                        "Commitment baseline must have either a power or energy unit.",
                         field_name="commitments",
                     )
 
                 if not validate_sensor_or_fixed(
-                    commitment["up_price"], is_capacity_price_unit
+                    commitment["baseline"], baseline_validator
                 ):
                     raise ValidationError(
-                        "Commitment up-price must have a power price unit.",
+                        f"Commitment baseline must have {unit_type} unit.",
+                        field_name="commitments",
+                    )
+
+                if not validate_sensor_or_fixed(
+                    commitment["up_price"], price_validator
+                ):
+                    raise ValidationError(
+                        f"Commitment up-price must have {unit_type} unit.",
                         field_name="commitments",
                     )
 
@@ -527,7 +549,7 @@ class DBFlexContextSchema(FlexContextSchema):
                     commitment["down_price"], is_capacity_price_unit
                 ):
                     raise ValidationError(
-                        "Commitment down-price must have a power price unit.",
+                        f"Commitment down-price must have {unit_type} unit.",
                         field_name="commitments",
                     )
 
