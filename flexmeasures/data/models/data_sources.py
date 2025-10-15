@@ -471,6 +471,5 @@ def keep_latest_version(
             "_" + event_column,
         ]
     )
-    # bdf = bdf.set_index(index_levels)
 
     return bdf
