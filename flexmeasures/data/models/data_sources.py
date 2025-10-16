@@ -395,15 +395,14 @@ def keep_latest_version(
     bdf: tb.BeliefsDataFrame,
     one_deterministic_belief_per_event: bool = False,
 ) -> tb.BeliefsDataFrame:
-    """Filters the BeliefsDataFrame to keep the latest version of each source, for each event.
+    """Filters the BeliefsDataFrame to keep the latest version of each source per event or per belief.
 
     The function performs the following steps:
-    1. Resets the index to flatten the DataFrame.
-    2. Adds columns for the source's name, type, model, and version.
-    3. Sorts the rows by `event_start` and `source.version` in descending order.
-    4. Removes duplicates based on `event_start`, `source.name`, `source.type`, and `source.model`, keeping the latest version.
-    5. Drops the temporary columns added for source attributes.
-    6. Restores the original index.
+    1. Adds columns for the source's name, type, model, and version.
+    2. Sorts the rows by `source.version` in descending order.
+    3. Removes duplicates based on `source.name`, `source.type`, and `source.model`,
+       keeping the latest version for each `event_start` (and `belief_time`).
+    4. Drops the temporary columns added for source attributes.
 
     Parameters:
     -----------
@@ -413,8 +412,7 @@ def keep_latest_version(
     Returns:
     --------
     `tb.BeliefsDataFrame`
-        A new `BeliefsDataFrame` containing only the latest version of each source
-        for each `event_start`, with the original index restored.
+        A new `BeliefsDataFrame` containing only the latest version of each source per event or per belief.
     """
     if bdf.empty:
         return bdf
