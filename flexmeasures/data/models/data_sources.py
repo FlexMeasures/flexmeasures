@@ -398,6 +398,7 @@ def keep_latest_version(
     """Filters the BeliefsDataFrame to keep the latest version of each source per event or per belief.
 
     The function performs the following steps:
+
     1. Adds columns for the source's name, type, model, and version.
     2. Sorts the rows by `source.version` in descending order.
     3. Removes duplicates based on `source.name`, `source.type`, and `source.model`,
