@@ -419,7 +419,7 @@ def keep_latest_version(
     if bdf.empty:
         return bdf
 
-    # Remember the original index, then reset it
+    # Get the event column and belief column names
     index_levels = bdf.index.names
     belief_column = "belief_time"
     if belief_column not in index_levels:
@@ -471,7 +471,7 @@ def keep_latest_version(
     )
     bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
 
-    # Remove temporary columns and restore the original index
+    # Remove temporary columns
     bdf = bdf.drop(columns=unique_columns + ["source.version"])
 
     return bdf
