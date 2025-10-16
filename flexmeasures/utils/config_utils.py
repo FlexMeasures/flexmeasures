@@ -106,10 +106,10 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
     # Custom config: do not use any when testing (that should run completely on defaults)
     if not app.testing:
+        read_env_vars(app)
         used_path_to_config = read_custom_config(
             app, custom_path_to_config, path_to_config_home, path_to_config_instance
         )
-        read_env_vars(app)
     else:  # one exception: the ability to set where the test database is
         custom_test_db_uri = os.getenv("SQLALCHEMY_TEST_DATABASE_URI", None)
         if custom_test_db_uri:

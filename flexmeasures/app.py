@@ -11,7 +11,6 @@ from pathlib import Path
 from datetime import date
 
 from flask import Flask, g, request
-from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
@@ -57,7 +56,6 @@ def create(  # noqa C901
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     # we're loading dotenv files manually & early (can do Flask.run(load_dotenv=False)),
     # as we need to know the ENV now (for it to be recognised by Flask()).
-    load_dotenv()
     app = Flask("flexmeasures")
 
     if env is not None:  # overwrite
