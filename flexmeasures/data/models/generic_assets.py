@@ -150,7 +150,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         For non-public assets, we allow reading to whoever can read the account.
         Both creation of children (beliefs, child assets) as well as editing
         is allowed for every user in the account or consultants.
-        Deletion is only allowed for account admins, but still for consultants.
+        Deletion is only allowed for account admins, as well as for consultants.
         """
         return {
             "create-children": [
