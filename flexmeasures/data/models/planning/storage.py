@@ -233,7 +233,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        commitments = []
+        commitments = self.flex_context.get("commitments", [])
 
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
