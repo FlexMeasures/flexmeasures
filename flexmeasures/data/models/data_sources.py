@@ -472,15 +472,6 @@ def keep_latest_version(
     bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
 
     # Remove temporary columns and restore the original index
-    drop_columns = [
-        "source.name",
-        "source.type",
-        "source.model",
-        "source.version",
-        "_" + event_column,
-    ]
-    if not one_deterministic_belief_per_event:
-        drop_columns += ["_" + belief_column]
-    bdf = bdf.drop(columns=drop_columns)
+    bdf = bdf.drop(columns=unique_columns + ["source.version"])
 
     return bdf
