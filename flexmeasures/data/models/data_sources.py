@@ -408,7 +408,7 @@ def keep_latest_version(
     :param bdf: The input `BeliefsDataFrame` containing `event_start` and source information.
     :param one_deterministic_belief_per_event:
                 If `True`, keep the latest version per event.
-                If `False, keep the latest version per belief.
+                If `False`, keep the latest version per belief.
 
     :returns:   A new `BeliefsDataFrame` containing only the latest version of each source per event or belief.
     """
