@@ -1381,9 +1381,8 @@ def add_report(  # noqa: C901
     if timezone is not None:
         check_timezone(timezone)
 
-    now = pytz.timezone(
-        zone=timezone if timezone is not None else output[0]["sensor"].timezone
-    ).localize(datetime.now())
+    tz = pytz.timezone(timezone if timezone else output[0]["sensor"].timezone)
+    now = server_now().astimezone(tz)
 
     # apply offsets, if provided
     if start_offset is not None:
