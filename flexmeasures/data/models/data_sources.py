@@ -400,21 +400,21 @@ def keep_latest_version(
     The function performs the following steps:
     1. Resets the index to flatten the DataFrame.
     2. Adds columns for the source's name, type, model, and version.
-    3. Sorts the rows by event_start and source.version in descending order.
-    4. Removes duplicates based on event_start, source.name, source.type, and source.model, keeping the latest version.
+    3. Sorts the rows by `event_start` and `source.version` in descending order.
+    4. Removes duplicates based on `event_start`, `source.name`, `source.type`, and `source.model`, keeping the latest version.
     5. Drops the temporary columns added for source attributes.
     6. Restores the original index.
 
     Parameters:
     -----------
-    bdf : tb.BeliefsDataFrame
-        The input BeliefsDataFrame containing event_start and source information.
+    bdf : `tb.BeliefsDataFrame`
+        The input `BeliefsDataFrame` containing `event_start` and source information.
 
     Returns:
     --------
-    tb.BeliefsDataFrame
-        A new BeliefsDataFrame containing only the latest version of each source
-        for each event_start, with the original index restored.
+    `tb.BeliefsDataFrame`
+        A new `BeliefsDataFrame` containing only the latest version of each source
+        for each `event_start`, with the original index restored.
     """
     if bdf.empty:
         return bdf
