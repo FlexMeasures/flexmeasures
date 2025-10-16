@@ -196,5 +196,5 @@ class ForecasterParametersSchema(Schema):
             probabilistic=data["probabilistic"],
             sensor_to_save=sensor_to_save,
             ensure_positive=ensure_positive,
-            as_job=data.get("as_job")
+            as_job=data.get("as_job"),
         )
