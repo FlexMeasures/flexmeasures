@@ -93,6 +93,7 @@ flask==3.1.2
     #   flask-security-too
     #   flask-sqlalchemy
     #   flask-sslify
+    #   flask-swagger-ui
     #   flask-wtf
     #   rq-dashboard
     #   sentry-sdk
@@ -115,15 +116,15 @@ flask-migrate==4.1.0
 flask-principal==0.4.0
     # via flask-security-too
 flask-security-too[fsqla,mfa]==5.6.2
-    # via
-    #   -r requirements/app.in
-    #   flask-security-too
+    # via -r requirements/app.in
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
     #   flask-migrate
     #   flask-security-too
 flask-sslify==0.1.5
+    # via -r requirements/app.in
+flask-swagger-ui==5.21.0
     # via -r requirements/app.in
 flask-wtf==1.2.2
     # via

@@ -260,28 +260,35 @@ def test_add_process(
     the three process policies: INFLEXIBLE, SHIFTABLE and BREAKABLE.
     """
 
-    from flexmeasures.cli.data_add import add_schedule_process
+    from flexmeasures.cli.data_add import add_schedule
 
     epex_da = get_test_sensor(db)
 
     process_power_sensor_id = process_power_sensor
+    flex_context = {"consumption-price": {"sensor": epex_da.id}}
+    flex_model = {
+        "duration": "PT4H",
+        "power": "0.4",
+        "process-type": process_type,
+        "time-restrictions": [
+            {"start": "2015-01-02T00:00:00+01:00", "duration": "PT2H"}
+        ],
+    }
 
     cli_input_params = {
         "sensor": process_power_sensor_id,
         "start": "2015-01-02T00:00:00+01:00",
         "duration": "PT24H",
-        "process-duration": "PT4H",
-        "process-power": "0.4MW",
-        "process-type": process_type,
-        "consumption-price-sensor": epex_da.id,
-        "forbid": '{"start" : "2015-01-02T00:00:00+01:00", "duration" : "PT2H"}',
+        "scheduler": "ProcessScheduler",
+        "flex-context": json.dumps(flex_context),
+        "flex-model": json.dumps(flex_model),
     }
 
     cli_input = to_flags(cli_input_params)
     runner = app.test_cli_runner()
 
     # call command
-    result = runner.invoke(add_schedule_process, cli_input)
+    result = runner.invoke(add_schedule, cli_input)
     check_command_ran_without_error(result)
 
     process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
@@ -383,13 +390,13 @@ def test_add_storage_schedule(
     3. Depending on the test parameters, adjusts power capacity and efficiency settings. These settings can be
        either sensor-based (retrieved from storage_schedule_sensors fixture), manually specified quantities,
        or left undefined.
-    4. Executes the 'add_schedule_for_storage' command with the configured parameters.
+    4. Executes the 'add_schedule' command with the configured parameters.
     5. Verifies that the command executes successfully (exit code 0) and that the correct number of scheduled
        values (48 for a 12-hour period with 15-minute resolution) are created for the power sensor.
     """
     power_capacity_sensor, storage_efficiency_sensor = storage_schedule_sensors
 
-    from flexmeasures.cli.data_add import add_schedule_for_storage, add_toy_account
+    from flexmeasures.cli.data_add import add_schedule, add_toy_account
 
     runner = app.test_cli_runner()
     runner.invoke(add_toy_account)
@@ -403,40 +410,48 @@ def test_add_storage_schedule(
     power_sensor = battery.sensors[0]
     prices = add_market_prices_fresh_db["epex_da"]
 
+    flex_context = {"consumption-price": {"sensor": prices.id}}
+    flex_model = {
+        "roundtrip-efficiency": "90%",
+    }
+
     cli_input_params = {
         "start": "2014-12-31T23:00:00+00",
         "duration": "PT12H",
         "sensor": battery.sensors[0].id,
-        "consumption-price-sensor": prices.id,
+        "scheduler": "StorageScheduler",
         "soc-at-start": "50%",
-        "roundtrip-efficiency": "90%",
+        "flex-context": flex_context,
+        "flex-model": flex_model,
     }
 
     if storage_power_capacity is not None:
         if storage_power_capacity == "sensor":
-            cli_input_params["storage-consumption-capacity"] = (
-                f"sensor:{power_capacity_sensor}"
-            )
-            cli_input_params["storage-production-capacity"] = (
-                f"sensor:{power_capacity_sensor}"
-            )
+            cli_input_params["flex-model"]["consumption-capacity"] = {
+                "sensor": power_capacity_sensor
+            }
+            cli_input_params["flex-model"]["production-capacity"] = {
+                "sensor": power_capacity_sensor
+            }
         else:
-
-            cli_input_params["storage-consumption-capacity"] = "700kW"
-            cli_input_params["storage-production-capacity"] = "700kW"
+            cli_input_params["flex-model"]["consumption-capacity"] = "700kW"
+            cli_input_params["flex-model"]["production-capacity"] = "700kW"
 
     if storage_efficiency is not None:
         if storage_efficiency == "sensor":
-            cli_input_params["storage-efficiency"] = (
-                f"sensor:{storage_efficiency_sensor}"
-            )
+            cli_input_params["flex-model"]["storage-efficiency"] = {
+                "sensor": storage_efficiency_sensor
+            }
         else:
+            cli_input_params["flex-model"]["storage-efficiency"] = "90%"
 
-            cli_input_params["storage-efficiency"] = "90%"
+    # json dump flex-model and flex-context
+    cli_input_params["flex-model"] = json.dumps(cli_input_params["flex-model"])
+    cli_input_params["flex-context"] = json.dumps(cli_input_params["flex-context"])
 
     cli_input = to_flags(cli_input_params)
 
-    result = runner.invoke(add_schedule_for_storage, cli_input)
+    result = runner.invoke(add_schedule, cli_input)
 
     check_command_ran_without_error(result)
     assert len(power_sensor.search_beliefs()) == 48

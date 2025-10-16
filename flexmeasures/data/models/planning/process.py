@@ -7,7 +7,6 @@ import pytz
 import pandas as pd
 
 from flexmeasures.data.models.planning import Scheduler
-
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling.process import (
@@ -40,16 +39,21 @@ class ProcessScheduler(Scheduler):
         Parameters
         ==========
 
-        consumption_price_sensor: it defines the utility (economic, environmental, ) in each
-                     time period. It has units of quantity/energy, for example, EUR/kWh.
-        power: nominal power of the process.
-        duration: time that the process last.
+        flex-context : dict
+            A dictionary containing all the necessary parameters for the flexible
+            process scheduling. It must include the following keys:
 
-        optimization_direction: objective of the scheduler, to maximize or minimize.
-        time_restrictions: time periods in which the process cannot be schedule to.
-        process_type: INFLEXIBLE, BREAKABLE or SHIFTABLE.
+            - consumption_price (int): Defines the utility (economic, environmental, etc.) in each
+                time period. It has units of quantity/energy (e.g., EUR/kWh).
+            - power (float): The nominal power of the process.
+            - duration (int or float): The time that the process lasts.
+            - optimization_direction (str): The objective of the scheduler, either 'maximize' or 'minimize'.
+            - time_restrictions (list): Time periods (e.g., a list of timestamps or indices) in which the process
+                cannot be scheduled.
+            - process_type (str): The flexibility type of the process, one of:
+                'INFLEXIBLE', 'BREAKABLE', or 'SHIFTABLE'.
 
-        :returns:               The computed schedule.
+        :returns: The computed schedule.
         """
 
         if not self.config_deserialized:
@@ -61,9 +65,7 @@ class ProcessScheduler(Scheduler):
         belief_time = self.belief_time
         sensor = self.sensor
 
-        consumption_price_sensor: Sensor = self.flex_context.get(
-            "consumption_price_sensor", self.flex_context.get("consumption_price")
-        )
+        consumption_price: Sensor = self.flex_context.get("consumption_price")
         duration: timedelta = self.flex_model.get("duration")
         power = self.flex_model.get("power")
         optimization_direction = self.flex_model.get("optimization_direction")
@@ -71,7 +73,7 @@ class ProcessScheduler(Scheduler):
         time_restrictions = self.flex_model.get("time_restrictions")
 
         # get cost data
-        cost = consumption_price_sensor.search_beliefs(
+        cost = consumption_price.search_beliefs(
             event_starts_after=start,
             event_ends_before=end,
             resolution=resolution,

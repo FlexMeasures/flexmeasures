@@ -38,19 +38,29 @@ class HealthAPI(FlaskView):
     @as_json
     def is_ready(self):
         """
-        Get readiness status
+        .. :quickref: Public; Check readiness status
+        ---
+        get:
+          summary: Get readiness status
+          description: |
+            Health check endpoint to verify if core services required by FlexMeasures are ready.
 
-        .. :quickref: Health; Get readiness status
-
-        **Example response:**
-
-        .. sourcecode:: json
-
-            {
-                "database_sql": True,
-                "database_redis": False
-            }
-
+          responses:
+            200:
+              description: All required services are operational.
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      database_sql:
+                        type: boolean
+                        example: true
+                      database_redis:
+                        type: boolean
+                        example: false
+          tags:
+            - Public
         """
 
         status = {
