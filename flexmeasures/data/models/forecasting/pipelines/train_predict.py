@@ -211,14 +211,13 @@ class TrainPredictPipeline(Forecaster):
                 for param in cycles_job_params:
                     job = Job.create(
                         self.run_cycle,
-                        kwargs=param,
+                        kwargs={**param, **job_kwargs},
                         connection=current_app.queues[queue].connection,
                         ttl=int(
                             current_app.config.get(
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
-                        **job_kwargs,
                     )
 
                     jobs.append(job)
