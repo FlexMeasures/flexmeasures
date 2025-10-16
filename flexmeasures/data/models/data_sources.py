@@ -404,18 +404,12 @@ def keep_latest_version(
        keeping the latest version for each `event_start` (and `belief_time`).
     4. Drops the temporary columns added for source attributes.
 
-    Parameters:
-    -----------
-    bdf : `tb.BeliefsDataFrame`
-        The input `BeliefsDataFrame` containing `event_start` and source information.
-    one_deterministic_belief_per_event : bool
-        If `True`, keep the latest version per event.
-        If `False, keep the latest version per belief.
+    :param bdf: The input `BeliefsDataFrame` containing `event_start` and source information.
+    :param one_deterministic_belief_per_event:
+                If `True`, keep the latest version per event.
+                If `False, keep the latest version per belief.
 
-    Returns:
-    --------
-    `tb.BeliefsDataFrame`
-        A new `BeliefsDataFrame` containing only the latest version of each source per event or per belief.
+    :returns:   A new `BeliefsDataFrame` containing only the latest version of each source per event or belief.
     """
     if bdf.empty:
         return bdf
