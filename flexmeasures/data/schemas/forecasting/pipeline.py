@@ -50,7 +50,6 @@ class ForecasterParametersSchema(Schema):
     probabilistic = fields.Bool(required=True)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
-    as_job = fields.Bool(load_default=False)
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
@@ -196,5 +195,4 @@ class ForecasterParametersSchema(Schema):
             probabilistic=data["probabilistic"],
             sensor_to_save=sensor_to_save,
             ensure_positive=ensure_positive,
-            as_job=data.get("as_job"),
         )
