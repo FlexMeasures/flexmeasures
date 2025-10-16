@@ -408,6 +408,9 @@ def keep_latest_version(
     -----------
     bdf : `tb.BeliefsDataFrame`
         The input `BeliefsDataFrame` containing `event_start` and source information.
+    one_deterministic_belief_per_event : bool
+        If `True`, keep the latest version per event.
+        If `False, keep the latest version per belief.
 
     Returns:
     --------
