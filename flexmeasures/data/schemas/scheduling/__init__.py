@@ -12,6 +12,9 @@ from marshmallow import (
 )
 
 from flexmeasures import Sensor
+
+# from flexmeasures.data.models.planning import FlowCommitment
+# from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
@@ -45,6 +48,18 @@ class CommitmentSchema(Schema):
         data_key="down-price",
         value_validator=validate.Range(min=0),
     )
+
+    # todo: deserializing should turns the commitment into something like this:
+    # @some_decorator
+    # def convert_to_commitment(self, data, **kwargs):
+    #     commitment = FlowCommitment(
+    #         name="placeholder",  # todo: maybe extend the schema with a name identifying the commitment
+    #         quantity=data["baseline"],
+    #         upwards_deviation_price=data["up_price"],
+    #         downwards_deviation_price=data["down_price"],
+    #         index=initialize_index(start, end, resolution),  # todo: maybe extend the schema with these, or otherwise have them come from the FlexContextSchema somehow?
+    #     )
+    #     return commitment
 
 
 class FlexContextSchema(Schema):
