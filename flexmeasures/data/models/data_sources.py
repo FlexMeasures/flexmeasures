@@ -445,10 +445,16 @@ def keep_latest_version(
         pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     )
     bdf["_" + event_column] = bdf.index.get_level_values(event_column)
-    # Sort by event_start and version, keeping only the latest version
-    bdf = bdf.sort_values(
-        by=["_" + event_column, "source.version"], ascending=[True, False]
-    )
+    if not one_deterministic_belief_per_event:
+        bdf["_" + belief_column] = bdf.index.get_level_values(belief_column)
+    # Sort by event_start (belief_time) and version, keeping only the latest version
+    if one_deterministic_belief_per_event:
+        sort_by = ["_" + event_column, "source.version"]
+        ascending = [True, False]
+    else:
+        sort_by = ["_" + event_column, "_" + belief_column, "source.version"]
+        ascending = [True, True if belief_column == "belief_time" else False, False]
+    bdf = bdf.sort_values(by=sort_by, ascending=ascending)
 
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
     unique_columns = [
@@ -457,8 +463,8 @@ def keep_latest_version(
         "source.type",
         "source.model",
     ]
-    if not one_deterministic_belief_per_event and belief_column in bdf.columns:
-        unique_columns += [belief_column]
+    if not one_deterministic_belief_per_event:
+        unique_columns += ["_" + belief_column]
     # Keep probabilistic beliefs intact
     unique_keys = (
         bdf[unique_columns].drop_duplicates().droplevel("cumulative_probability")
@@ -466,14 +472,15 @@ def keep_latest_version(
     bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
 
     # Remove temporary columns and restore the original index
-    bdf = bdf.drop(
-        columns=[
-            "source.name",
-            "source.type",
-            "source.model",
-            "source.version",
-            "_" + event_column,
-        ]
-    )
+    drop_columns = [
+        "source.name",
+        "source.type",
+        "source.model",
+        "source.version",
+        "_" + event_column,
+    ]
+    if not one_deterministic_belief_per_event:
+        drop_columns += ["_" + belief_column]
+    bdf = bdf.drop(columns=drop_columns)
 
     return bdf
