@@ -419,6 +419,9 @@ def keep_latest_version(
     if bdf.empty:
         return bdf
 
+    # Sanitize BeliefsDataFrame by removing duplicate indices
+    bdf = bdf.loc[~bdf.index.duplicated(keep="first"), :]
+
     # Get the event column and belief column names
     index_levels = bdf.index.names
     belief_column = "belief_time"
