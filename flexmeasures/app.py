@@ -21,10 +21,6 @@ from rq import Queue
 
 from flexmeasures.data.services.job_cache import JobCache
 
-# This env variable prevents Flask from loading .env automatically,
-# as we do that manually and early in flexmeasures.utils.config_utils.py
-os.environ["FLASK_SKIP_DOTENV"] = "1"
-
 
 def create(  # noqa C901
     env: str | None = None,
@@ -46,6 +42,7 @@ def create(  # noqa C901
     from flexmeasures.utils.config_utils import (
         read_config,
         configure_logging,
+        load_temp_cfg,
         find_flexmeasures_cfg,
         get_flexmeasures_env,
     )
@@ -59,10 +56,19 @@ def create(  # noqa C901
     # Create app
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
+    cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
+    cfg_config = load_temp_cfg(
+        cfg_location
+    )  # load config from flexmeasures.cfg. This is a temporary step, as the final loading into the app happens later inside read_config().
     app = Flask("flexmeasures")
 
     if env is not None:  # overwrite
         app.config["FLEXMEASURES_ENV"] = env
+    else:
+        env = cfg_config.get("FLEXMEASURES_ENV", None)
+        if env is not None:
+            app.config["FLEXMEASURES_ENV"] = env
+
     if app.config.get("FLEXMEASURES_ENV") == "testing":
         app.testing = True
     if app.config.get("FLEXMEASURES_ENV") == "development":
@@ -115,7 +121,6 @@ def create(  # noqa C901
     # Some basic security measures
 
     set_secret_key(app)
-    cfg_location = find_flexmeasures_cfg()
     if app.config.get("SECURITY_TWO_FACTOR", False):
         set_totp_secrets(app)
     elif get_flexmeasures_env(app, cfg_location) == "production":
