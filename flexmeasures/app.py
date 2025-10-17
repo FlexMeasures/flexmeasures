@@ -11,7 +11,6 @@ from pathlib import Path
 from datetime import date
 
 from flask import Flask, g, request
-from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
@@ -43,6 +42,8 @@ def create(  # noqa C901
     from flexmeasures.utils.config_utils import (
         read_config,
         configure_logging,
+        load_temp_cfg,
+        find_flexmeasures_cfg,
         get_flexmeasures_env,
     )
     from flexmeasures.utils.app_utils import (
@@ -52,23 +53,31 @@ def create(  # noqa C901
     )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
-    # Create app
-
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
-    # we're loading dotenv files manually & early (can do Flask.run(load_dotenv=False)),
-    # as we need to know the ENV now (for it to be recognised by Flask()).
-    load_dotenv()
+    cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
+    cfg_config = load_temp_cfg(
+        cfg_location
+    )  # load config from flexmeasures.cfg. This is a temporary step, as the final loading into the app happens later inside read_config().
+
+    # Create app
     app = Flask("flexmeasures")
 
     if env is not None:  # overwrite
         app.config["FLEXMEASURES_ENV"] = env
+    else:
+        env = cfg_config.get("FLEXMEASURES_ENV", None)
+        if env is not None:
+            app.config["FLEXMEASURES_ENV"] = env
+    app.logger.info(
+        f"Starting FlexMeasures app in '{app.config.get('FLEXMEASURES_ENV', 'unspecified')}' environment ..."
+    )
+
     if app.config.get("FLEXMEASURES_ENV") == "testing":
         app.testing = True
     if app.config.get("FLEXMEASURES_ENV") == "development":
         app.debug = config_defaults.DevelopmentConfig.DEBUG
 
     # App configuration
-
     read_config(app, custom_path_to_config=path_to_config)
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
@@ -117,7 +126,7 @@ def create(  # noqa C901
     set_secret_key(app)
     if app.config.get("SECURITY_TWO_FACTOR", False):
         set_totp_secrets(app)
-    elif get_flexmeasures_env(app) == "production":
+    elif get_flexmeasures_env(app, cfg_location) == "production":
         app.logger.warning(
             "SECURITY_TWO_FACTOR is False. We advise to set it to True in a production environment."
         )
