@@ -21,6 +21,10 @@ from rq import Queue
 
 from flexmeasures.data.services.job_cache import JobCache
 
+# This env variable prevents Flask from loading .env automatically,
+# as we do that manually and early in flexmeasures.utils.config_utils.py
+os.environ["FLASK_SKIP_DOTENV"] = "1"
+
 
 def create(  # noqa C901
     env: str | None = None,
@@ -66,7 +70,6 @@ def create(  # noqa C901
         app.debug = config_defaults.DevelopmentConfig.DEBUG
 
     # App configuration
-
     read_config(app, custom_path_to_config=path_to_config)
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
