@@ -13,6 +13,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Updated dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_]
+* Speed up data searches by refactoring our filter for selecting data from the latest version of a data generating model [see `PR #1698 <https://github.com/FlexMeasures/flexmeasures/pull/1698>`_]
 
 Bugfixes
 -----------
