@@ -28,7 +28,6 @@ v0.29.0 | October 14, 2025
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v029-flex-model-swaggerui/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-             This upgrade may take a few minutes, depending on how much time series data you have in your database (the data will be reindexed).
 
 New features
 -------------
