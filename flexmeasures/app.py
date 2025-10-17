@@ -53,13 +53,13 @@ def create(  # noqa C901
     )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
-    # Create app
-
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
     cfg_config = load_temp_cfg(
         cfg_location
     )  # load config from flexmeasures.cfg. This is a temporary step, as the final loading into the app happens later inside read_config().
+
+    # Create app
     app = Flask("flexmeasures")
 
     if env is not None:  # overwrite
