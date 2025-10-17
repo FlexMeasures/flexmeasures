@@ -14,6 +14,7 @@ from pathlib import Path
 from flask import Flask
 from inflection import camelize
 import pandas as pd
+from dotenv import dotenv_values
 
 from flexmeasures.utils.config_defaults import (
     Config as DefaultConfig,
@@ -69,13 +70,19 @@ def check_app_env(env: str | None):
         sys.exit(2)
 
 
-def get_flexmeasures_env(app) -> str:
+def get_flexmeasures_env(app, cfg_location) -> str | None:
     """
     Determine which flexmeasures_env should be used, trying various ways in decreasing importance.
     """
-    flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
+    flexmeasures_env: str | None = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
+    cfg_config = dotenv_values(
+        cfg_location
+    )  # Extract key-value pairs from the config file
+
     if app.testing:
         flexmeasures_env = "testing"
+    elif cfg_config.get("FLEXMEASURES_ENV", None):
+        flexmeasures_env = cfg_config.get("FLEXMEASURES_ENV", None)
     elif os.getenv("FLEXMEASURES_ENV", None):
         flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
     elif os.getenv("FLASK_ENV", None):
@@ -84,13 +91,34 @@ def get_flexmeasures_env(app) -> str:
             "'FLASK_ENV' is deprecated and replaced by FLEXMEASURES_ENV"
             " Change FLASK_ENV to FLEXMEASURES_ENV in the environment variables",
         )
-    return flexmeasures_env
+
+    return flexmeasures_env or None
+
+
+def find_flexmeasures_cfg() -> str | None:
+    """
+    Try to find a flexmeasures.cfg file in the home or instance directories.
+    Return the path if found, else None.
+    """
+    path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
+    path_to_config_instance = os.path.join(
+        Flask("flexmeasures").instance_path, "flexmeasures.cfg"
+    )
+    path_to_config = path_to_config_home
+    if not os.path.exists(path_to_config):
+        path_to_config = path_to_config_instance
+
+    if path_to_config is not None:
+        return path_to_config
+    else:
+        return None
 
 
 def read_config(app: Flask, custom_path_to_config: str | None):
     """Read configuration from various expected sources, complain if not setup correctly."""
 
-    flexmeasures_env = get_flexmeasures_env(app)
+    cfg_location = find_flexmeasures_cfg()
+    flexmeasures_env = get_flexmeasures_env(app, cfg_location)
     check_app_env(flexmeasures_env)
 
     # First, load default config settings

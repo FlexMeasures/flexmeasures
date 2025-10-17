@@ -46,6 +46,7 @@ def create(  # noqa C901
     from flexmeasures.utils.config_utils import (
         read_config,
         configure_logging,
+        find_flexmeasures_cfg,
         get_flexmeasures_env,
     )
     from flexmeasures.utils.app_utils import (
@@ -58,8 +59,6 @@ def create(  # noqa C901
     # Create app
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
-    # we're loading dotenv files manually & early (can do Flask.run(load_dotenv=False)),
-    # as we need to know the ENV now (for it to be recognised by Flask()).
     app = Flask("flexmeasures")
 
     if env is not None:  # overwrite
@@ -116,9 +115,10 @@ def create(  # noqa C901
     # Some basic security measures
 
     set_secret_key(app)
+    cfg_location = find_flexmeasures_cfg()
     if app.config.get("SECURITY_TWO_FACTOR", False):
         set_totp_secrets(app)
-    elif get_flexmeasures_env(app) == "production":
+    elif get_flexmeasures_env(app, cfg_location) == "production":
         app.logger.warning(
             "SECURITY_TWO_FACTOR is False. We advise to set it to True in a production environment."
         )
