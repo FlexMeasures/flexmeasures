@@ -7,6 +7,9 @@ FlexMeasures Changelog
 v0.30.0 | November XX, 2025
 ============================
 
+.. warning:: If you make use of ``flexmeasures add report`` with the ``--start-offset`` and/or ``--end-offset`` options (for instance, in a cron job), please check whether the report period logged by the CLI command still fits your use case.
+             Your offsets may need to be adjusted in relation to your ``FLEXMEASURES_TIMEZONE`` config setting (its offset with respect to :abbr:`UTC (Coordinated Universal Time)`).
+
 New features
 -------------
 
@@ -16,6 +19,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report`` [see `PR #1758 <https://github.com/FlexMeasures/flexmeasures/pull/1758>`_]
 
 
 v0.29.0 | October 14, 2025
@@ -24,7 +28,6 @@ v0.29.0 | October 14, 2025
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v029-flex-model-swaggerui/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-             This upgrade may take a few minutes, depending on how much time series data you have in your database (the data will be reindexed).
 
 New features
 -------------
