@@ -12,6 +12,7 @@ v0.30.0 | November XX, 2025
 
 New features
 -------------
+* Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
 
 Infrastructure / Support
 ----------------------
