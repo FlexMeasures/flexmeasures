@@ -16,6 +16,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Speed up data searches by refactoring our filter for selecting data from the latest version of a data generating model [see `PR #1698 <https://github.com/FlexMeasures/flexmeasures/pull/1698>`_]
+* Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
 
 Bugfixes
 -----------
