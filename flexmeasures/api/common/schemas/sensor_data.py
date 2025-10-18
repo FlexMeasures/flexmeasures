@@ -71,17 +71,25 @@ def select_schema_to_ensure_list_of_floats(
         return SingleValueField()
 
 
-class SensorDataDescriptionSchema(ma.Schema):
+class SensorDataTimingDescriptionSchema(ma.Schema):
     """
-    Schema describing sensor data (specifically, the sensor and the timing of the data).
+    Schema describing sensor data (specifically, the timing of the data).
     """
 
-    sensor = SensorIdField(required=True)
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
     horizon = DurationField(required=False)
     prior = AwareDateTimeField(required=False, format="iso")
     unit = fields.Str(required=True)
+
+
+class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
+    """
+    Schema describing sensor data (specifically, adding the sensor to timing of the data
+    and adding validation).
+    """
+
+    sensor = SensorIdField(required=True)
 
     @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
@@ -220,12 +228,14 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
-    This schema includes data, so it can be used for POST requests
-    or GET responses.
-
-    TODO: For the GET use case, look at api/common/validators.py::get_data_downsampling_allowed
-          (sets a resolution parameter which we can pass to the data collection function).
+    This schema includes data (values) and still describes it.
     """
+
+    values = PolyField(
+        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        many=False,
+    )
 
     # Optional field that can be used for extra validation
     type = fields.Str(
@@ -239,11 +249,6 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 "PostWeatherDataRequest",
             ]
         ),
-    )
-    values = PolyField(
-        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        many=False,
     )
 
     @validates_schema

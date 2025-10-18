@@ -395,33 +395,31 @@ def keep_latest_version(
     bdf: tb.BeliefsDataFrame,
     one_deterministic_belief_per_event: bool = False,
 ) -> tb.BeliefsDataFrame:
-    """Filters the BeliefsDataFrame to keep the latest version of each source, for each event.
+    """Filters the BeliefsDataFrame to keep the latest version of each source per event or per belief.
 
     The function performs the following steps:
-    1. Resets the index to flatten the DataFrame.
-    2. Adds columns for the source's name, type, model, and version.
-    3. Sorts the rows by event_start and source.version in descending order.
-    4. Removes duplicates based on event_start, source.name, source.type, and source.model, keeping the latest version.
-    5. Drops the temporary columns added for source attributes.
-    6. Restores the original index.
 
-    Parameters:
-    -----------
-    bdf : tb.BeliefsDataFrame
-        The input BeliefsDataFrame containing event_start and source information.
+    1. Adds columns for the source's name, type, model, and version.
+    2. Sorts the rows by `source.version` in descending order.
+    3. Removes duplicates based on `source.name`, `source.type`, and `source.model`,
+       keeping the latest version for each `event_start` (and `belief_time`).
+    4. Drops the temporary columns added for source attributes.
 
-    Returns:
-    --------
-    tb.BeliefsDataFrame
-        A new BeliefsDataFrame containing only the latest version of each source
-        for each event_start, with the original index restored.
+    :param bdf: The input `BeliefsDataFrame` containing `event_start` and source information.
+    :param one_deterministic_belief_per_event:
+                If `True`, keep the latest version per event.
+                If `False`, keep the latest version per belief.
+
+    :returns:   A new `BeliefsDataFrame` containing only the latest version of each source per event or belief.
     """
     if bdf.empty:
         return bdf
 
-    # Remember the original index, then reset it
+    # Sanitize BeliefsDataFrame by removing duplicate indices
+    bdf = bdf.loc[~bdf.index.duplicated(keep="first"), :]
+
+    # Get the event column and belief column names
     index_levels = bdf.index.names
-    bdf = bdf.reset_index()
     belief_column = "belief_time"
     if belief_column not in index_levels:
         belief_column = "belief_horizon"
@@ -430,6 +428,7 @@ def keep_latest_version(
         event_column = "event_end"
 
     # Add source-related columns using vectorized operations for clarity
+    source_values = set(bdf.index.get_level_values("source").values)
     source_to_fields = {
         s: {
             "source.name": s.name,
@@ -437,32 +436,41 @@ def keep_latest_version(
             "source.model": s.model,
             "source.version": Version(s.version or "0.0.0"),
         }
-        for s in bdf["source"].unique()
+        for s in source_values
     }
-    source_expanded = bdf["source"].map(source_to_fields)
+    source_expanded = bdf.index.get_level_values("source").map(source_to_fields)
+
     bdf[["source.name", "source.type", "source.model", "source.version"]] = (
         pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     )
-
-    # Sort by event_start and version, keeping only the latest version
-    bdf = bdf.sort_values(by=[event_column, "source.version"], ascending=[True, False])
+    bdf["_" + event_column] = bdf.index.get_level_values(event_column)
+    if not one_deterministic_belief_per_event:
+        bdf["_" + belief_column] = bdf.index.get_level_values(belief_column)
+    # Sort by event_start (belief_time) and version, keeping only the latest version
+    if one_deterministic_belief_per_event:
+        sort_by = ["_" + event_column, "source.version"]
+        ascending = [True, False]
+    else:
+        sort_by = ["_" + event_column, "_" + belief_column, "source.version"]
+        ascending = [True, True if belief_column == "belief_time" else False, False]
+    bdf = bdf.sort_values(by=sort_by, ascending=ascending)
 
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
     unique_columns = [
-        event_column,
-        "cumulative_probability",
+        "_" + event_column,
         "source.name",
         "source.type",
         "source.model",
     ]
     if not one_deterministic_belief_per_event:
-        unique_columns += [belief_column]
-    bdf = bdf.drop_duplicates(unique_columns)
-
-    # Remove temporary columns and restore the original index
-    bdf = bdf.drop(
-        columns=["source.name", "source.type", "source.model", "source.version"]
+        unique_columns += ["_" + belief_column]
+    # Keep probabilistic beliefs intact
+    unique_keys = (
+        bdf[unique_columns].drop_duplicates().droplevel("cumulative_probability")
     )
-    bdf = bdf.set_index(index_levels)
+    bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
+
+    # Remove temporary columns
+    bdf = bdf.drop(columns=unique_columns + ["source.version"])
 
     return bdf

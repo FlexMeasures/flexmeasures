@@ -4,7 +4,12 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.29.0 | October XX, 2024
+since v0.30.0 | November xx, 2025
+=================================
+
+* Fix the interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report``, which was not using the correct time at which the command was run; instead, that time was off by and offset corresponding to the offset between the ``FLEXMEASURES_TIMEZONE`` config setting and :abbr:`UTC (Coordinated Universal Time)`).
+
+since v0.29.0 | October 14, 2025
 =================================
 * Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
 * The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period.
