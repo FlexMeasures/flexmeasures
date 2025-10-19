@@ -55,6 +55,7 @@ def create(  # noqa C901
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
+    # Note: We would be dropping the use of python-dotenv in the future when we drop support for python 3.11. In place of this we would use tomlib
     cfg_config: dict = dotenv_values(
         cfg_location
     )  # load config from flexmeasures.cfg. This is a temporary step, as the final loading into the app happens later inside read_config().
