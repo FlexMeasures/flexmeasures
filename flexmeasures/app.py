@@ -59,7 +59,6 @@ def create(  # noqa C901
         cfg_location
     )  # load config from flexmeasures.cfg. This is a temporary step, as the final loading into the app happens later inside read_config().
 
-    print("Loaded config from ", cfg_location, ": ", cfg_config)
     # Create app
     app = Flask("flexmeasures")
 
