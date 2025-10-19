@@ -13,6 +13,7 @@ from pathlib import Path
 
 from flask import Flask
 from inflection import camelize
+from dotenv import dotenv_values
 import pandas as pd
 
 from flexmeasures.utils.config_defaults import (
@@ -69,51 +70,13 @@ def check_app_env(env: str | None):
         sys.exit(2)
 
 
-def load_temp_cfg(cfg_location):
-    """
-    Loads configuration settings from a key=value file format (e.g., '.env') temporarily.
-
-    The primary purpose is to retrieve the FLEXMEASURES_ENV setting early in the
-    application's bootstrapping process, which allows the correct environment to be
-    determined before full application initialization.
-    """
-    cfg_config = {}
-
-    if not os.path.exists(cfg_location):
-        print(f"Cannot find config file {cfg_location}!")
-        sys.exit(2)
-
-    with open(cfg_location, "r") as f:
-        for line in f:
-            line = line.strip()
-
-            # skip empty lines and comments
-            if not line or line.startswith("#"):
-                continue
-
-            if "=" in line:
-                key, value = line.split("=", 1)  # This splits only on the first '='
-                key = key.strip()
-                value = value.strip()
-
-                # Remove surrounding quotes if present
-                if (value.startswith('"') and value.endswith('"')) or (
-                    value.startswith("'") and value.endswith("'")
-                ):
-                    value = value[1:-1]
-
-                cfg_config[key] = value
-
-    return cfg_config
-
-
 def get_flexmeasures_env(app, cfg_location) -> str | None:
     """
     Determine which flexmeasures_env should be used, trying various ways in decreasing importance.
     """
     flexmeasures_env: str | None = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
 
-    cfg_config = load_temp_cfg(cfg_location)
+    cfg_config = dotenv_values(cfg_location)
 
     if app.testing:
         flexmeasures_env = "testing"

@@ -16,6 +16,7 @@ from flask_sslify import SSLify
 from flask_json import FlaskJSON
 from flask_cors import CORS
 
+from dotenv import dotenv_values
 from redis import Redis
 from rq import Queue
 
@@ -42,7 +43,6 @@ def create(  # noqa C901
     from flexmeasures.utils.config_utils import (
         read_config,
         configure_logging,
-        load_temp_cfg,
         find_flexmeasures_cfg,
         get_flexmeasures_env,
     )
@@ -55,10 +55,11 @@ def create(  # noqa C901
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
-    cfg_config = load_temp_cfg(
+    cfg_config: dict = dotenv_values(
         cfg_location
     )  # load config from flexmeasures.cfg. This is a temporary step, as the final loading into the app happens later inside read_config().
 
+    print("Loaded config from ", cfg_location, ": ", cfg_config)
     # Create app
     app = Flask("flexmeasures")
 
