@@ -68,6 +68,9 @@ def create(  # noqa C901
         env = cfg_config.get("FLEXMEASURES_ENV", None)
         if env is not None:
             app.config["FLEXMEASURES_ENV"] = env
+    app.logger.info(
+        f"Starting FlexMeasures app in '{app.config.get('FLEXMEASURES_ENV', 'unspecified')}' environment ..."
+    )
 
     if app.config.get("FLEXMEASURES_ENV") == "testing":
         app.testing = True
