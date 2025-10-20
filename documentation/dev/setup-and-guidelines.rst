@@ -79,7 +79,8 @@ Configuration
 
 Most configuration happens in a config file, see :ref:`configuration` on where it can live and all supported settings.
 
-For now, we let it live in your home directory and we add the first two required settings: a secret key and a totp secrets:
+For now, we let it live in your home directory and we add the first settings ― two are reuiqred security settings 
+(a secret key and a totp secrets), two others are very useful to get the hosting right (the server environment and the logging level):
 
 .. code-block:: bash
 
