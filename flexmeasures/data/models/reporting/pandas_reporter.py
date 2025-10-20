@@ -338,6 +338,7 @@ class PandasReporter(Reporter):
             )  # default is OUTPUT = INPUT.method()
 
             method = transformation.get("method")
+            _property = transformation.get("_property")
             args = self._process_pandas_args(transformation.get("args", []), method)
             kwargs = self._process_pandas_kwargs(
                 transformation.get("kwargs", {}), method
@@ -346,15 +347,18 @@ class PandasReporter(Reporter):
             # Possibly skip transformation if dealing with an empty Series/DataFrame
             skip_if_empty = transformation.get("skip_if_empty", False)
 
-            if (_any_empty(args) or _any_empty(kwargs.values())) and skip_if_empty:
-                self.data[df_output] = self.data[df_input]
-            else:
-                try:
-                    self.data[df_output] = getattr(self.data[df_input], method)(
-                        *args, **kwargs
-                    )
-                except TypeError as exc:
-                    if "unhashable type" in str(exc) and method == "sum":
-                        raise TypeError("Maybe use 'add' instead of 'sum'") from exc
+            if method:
+                if (_any_empty(args) or _any_empty(kwargs.values())) and skip_if_empty:
+                    self.data[df_output] = self.data[df_input]
+                else:
+                    try:
+                        self.data[df_output] = getattr(self.data[df_input], method)(
+                            *args, **kwargs
+                        )
+                    except TypeError as exc:
+                        if "unhashable type" in str(exc) and method == "sum":
+                            raise TypeError("Maybe use 'add' instead of 'sum'") from exc
+            elif _property:
+                self.data[df_output] = getattr(self.data[df_input], _property)
 
             previous_df = df_output

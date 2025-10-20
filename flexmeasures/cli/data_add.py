@@ -1517,9 +1517,8 @@ def add_report(  # noqa: C901
     if timezone is not None:
         check_timezone(timezone)
 
-    now = pytz.timezone(
-        zone=timezone if timezone is not None else output[0]["sensor"].timezone
-    ).localize(datetime.now())
+    tz = pytz.timezone(timezone if timezone else output[0]["sensor"].timezone)
+    now = server_now().astimezone(tz)
 
     # apply offsets, if provided
     if start_offset is not None:
@@ -1900,13 +1899,13 @@ def add_toy_account(kind: str, name: str):
             **MsgStyle.SUCCESS,
         )
 
-        tz = pytz.timezone(app.config.get("FLEXMEASURES_TIMEZONE", "Europe/Amsterdam"))
-        current_year = datetime.now().year
-        start_year = datetime(current_year, 1, 1)
+        start_year = server_now().replace(
+            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
 
         belief = TimedBelief(
-            event_start=tz.localize(start_year),
-            belief_time=tz.localize(datetime.now()),
+            event_start=start_year,
+            belief_time=server_now(),
             event_value=0.5,
             source=db.session.get(DataSource, 1),
             sensor=grid_connection_capacity,
