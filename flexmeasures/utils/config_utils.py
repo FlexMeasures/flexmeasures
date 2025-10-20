@@ -135,12 +135,18 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
     path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
 
-    # Custom config: do not use any when testing (that should run completely on defaults)
+    # We only load end vars and custom config when not testing (that should run completely on defaults)
     if not app.testing:
+        # the env can be in config, but might have been explicitly set in app:create
+        preloaded_flexmeasures_env = app.config.get("FLEXMEASURES_ENV", None)
+        # First, env vars, custom config can override those
         read_env_vars(app)
         used_path_to_config = read_custom_config(
             app, custom_path_to_config, path_to_config_home, path_to_config_instance
         )
+        # make sure we keep the pre-loaded env if any
+        if preloaded_flexmeasures_env is not None:
+            app.config["FLEXMEASURES_ENV"] = preloaded_flexmeasures_env
     else:  # one exception: the ability to set where the test database is
         custom_test_db_uri = os.getenv("SQLALCHEMY_TEST_DATABASE_URI", None)
         if custom_test_db_uri:
@@ -197,16 +203,12 @@ def read_custom_config(
     else:
         path_to_config = suggested_path_to_config
     app.logger.info(f"Loading config from {path_to_config} ...")
-    #  the env can be in config, but might have been explicitly set in app:create
-    preloaded_flexmeasures_env = app.config.get("FLEXMEASURES_ENV", None)
     try:
         app.config.from_pyfile(path_to_config)
     except FileNotFoundError:
         app.logger.warning(
             f"File {path_to_config} could not be found! (work dir is {os.getcwd()})"
         )
-    if preloaded_flexmeasures_env is not None:
-        app.config["FLEXMEASURES_ENV"] = preloaded_flexmeasures_env
     return path_to_config
 
 
