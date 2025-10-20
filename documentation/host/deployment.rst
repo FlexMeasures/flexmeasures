@@ -22,6 +22,10 @@ Often, that requires a WSGI script. Below is a minimal example.
    
    # use this if you run from source, not needed if you pip-installed FlexMeasures
    project_home = u'/path/to/your/code/flexmeasures'
+   # Suggestion: Use this if you want to load your own ``.env`` file.
+   from dotenv import load_dotenv
+   load_dotenv(os.path.join(project_home, '.env'))
+
    if project_home not in sys.path:
       sys.path = [project_home] + sys.path
    
