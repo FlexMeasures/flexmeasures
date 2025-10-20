@@ -31,7 +31,7 @@ def create(  # noqa C901
     """
     Create a Flask app and configure it.
 
-    Set the environment by setting FLEXMEASURES_ENV as environment variable (also possible in .env).
+    Set the environment by setting FLEXMEASURES_ENV as environment variable.
     Or, overwrite any FLEXMEASURES_ENV setting by passing an env in directly (useful for testing for instance).
 
     A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories).

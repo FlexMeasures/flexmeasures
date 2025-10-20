@@ -43,9 +43,6 @@ A more nuanced one from our practice is this:
 
    import os
    project_home = u'/path/to/your/code/flexmeasures'
-   # use this if you want to load your own ``.env`` file.
-   from dotenv import load_dotenv
-   load_dotenv(os.path.join(project_home, '.env'))
    # use this if you run from source
    if project_home not in sys.path:
       sys.path = [project_home] + sys.path
