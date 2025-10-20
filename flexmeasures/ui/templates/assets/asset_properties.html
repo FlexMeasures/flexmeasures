@@ -303,7 +303,10 @@
                             </div>
                         </div>
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
                 <div class="px-2 pt-3 pb-2">
                     <div class="row">
@@ -525,7 +528,6 @@
                 }
             }
 
-
             addModelFieldbtn.onclick = async function () {
                 const fieldName = flexSelect.value; // value from the select dropdown
                 if (fieldName === "blank") {
@@ -566,6 +568,11 @@
 
 
             }
+
+            const saveChangesBtn = document.getElementById("saveChangesBtn");
+            saveChangesBtn.onclick = async function () {
+                await updateFlexModel();
+            };
 
             function setCardSensor(sensorId) {
                 if (!activeCard()) {
@@ -1188,11 +1195,7 @@
                 renderFlexModelForm(); // Initial render of flex model form
                 renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
             });
-
-            flexModelModal.addEventListener('hidden.bs.modal', function () {
-                updateFlexModel();
-            });
-
+            
             flexSelect.addEventListener('change', (event) => {
                 const selectedKey = event.target.value;
                 renderSelectInfoCards(selectedKey);

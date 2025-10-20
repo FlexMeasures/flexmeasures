@@ -226,7 +226,10 @@
                         </div>
                     </div>
 
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -303,6 +306,11 @@
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+
+    const saveChangesBtn = document.getElementById("saveChangesBtn");
+    saveChangesBtn.onclick = async function () {
+        await updateAssetSensorsToShow();
+    };
 
     // Fetch Account Details
     async function getAccount(accountId) {
@@ -778,10 +786,6 @@
             console.log("Show chart selection!");
             chartTypeDropdown.style.display = 'block';
         }
-    });
-
-    formModal.addEventListener('hidden.bs.modal', function () {
-        updateAssetSensorsToShow("sensorToShow");
     });
 
     formModal.addEventListener('shown.bs.modal', function () {
