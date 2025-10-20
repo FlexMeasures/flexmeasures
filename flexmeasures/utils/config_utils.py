@@ -76,7 +76,7 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
     """
     flexmeasures_env: str | None = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
 
-    # Note: We would be dropping the use of python-dotenv in the future when we drop support for python 3.11. In place of this we would use tomlib
+    # Note: We would be dropping the use of python-dotenv in the future when we drop support for python 3.10. In place of this we could investigate to use the in-built tomlib (in-built with Py3.11+)
     cfg_config = dotenv_values(cfg_location)
 
     if app.testing:
