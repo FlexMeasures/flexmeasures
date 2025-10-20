@@ -16,7 +16,6 @@ from flask_sslify import SSLify
 from flask_json import FlaskJSON
 from flask_cors import CORS
 
-from dotenv import dotenv_values
 from redis import Redis
 from rq import Queue
 
@@ -55,18 +54,13 @@ def create(  # noqa C901
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
-    # Note: We would be dropping the use of python-dotenv in the future when we drop support for python 3.11. In place of this we would use tomlib
-    cfg_config: dict = dotenv_values(
-        cfg_location
-    )  # load config from flexmeasures.cfg. This is a temporary step, as the final loading into the app happens later inside read_config().
-
     # Create app
     app = Flask("flexmeasures")
 
     if env is not None:  # overwrite
         app.config["FLEXMEASURES_ENV"] = env
     else:
-        env = cfg_config.get("FLEXMEASURES_ENV", None)
+        env = get_flexmeasures_env(app, cfg_location)
         if env is not None:
             app.config["FLEXMEASURES_ENV"] = env
     app.logger.info(
