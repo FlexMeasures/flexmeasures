@@ -118,7 +118,10 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     """Read configuration from various expected sources, complain if not setup correctly."""
 
     cfg_location = find_flexmeasures_cfg()
-    flexmeasures_env = get_flexmeasures_env(app, cfg_location)
+    if app.config.get("FLEXMEASURES_ENV", None):  # already set in app.py
+        flexmeasures_env = app.config["FLEXMEASURES_ENV"]
+    else:
+        flexmeasures_env = get_flexmeasures_env(app, cfg_location)
     check_app_env(flexmeasures_env)
 
     # First, load default config settings
@@ -194,12 +197,16 @@ def read_custom_config(
     else:
         path_to_config = suggested_path_to_config
     app.logger.info(f"Loading config from {path_to_config} ...")
+    #  the env can be in config, but might have been explicitly set in app:create
+    preloaded_flexmeasures_env = app.config.get("FLEXMEASURES_ENV", None)
     try:
         app.config.from_pyfile(path_to_config)
     except FileNotFoundError:
         app.logger.warning(
             f"File {path_to_config} could not be found! (work dir is {os.getcwd()})"
         )
+    if preloaded_flexmeasures_env is not None:
+        app.config["FLEXMEASURES_ENV"] = preloaded_flexmeasures_env
     return path_to_config
 
 
