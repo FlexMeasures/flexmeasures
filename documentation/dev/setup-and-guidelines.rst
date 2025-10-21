@@ -79,20 +79,15 @@ Configuration
 
 Most configuration happens in a config file, see :ref:`configuration` on where it can live and all supported settings.
 
-For now, we let it live in your home directory and we add the first two required settings: a secret key and a totp secrets:
+For now, we let it live in your home directory and we add the first settings ― two are required security settings 
+(a secret key and a totp secrets), two others are very useful to get the hosting right (the server environment and the logging level):
 
 .. code-block:: bash
 
    echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
    echo "SECURITY_TOTP_SECRETS={\"1\":\"$(python3 -c 'import secrets; print(secrets.token_hex(24))')\"}" >> ~/.flexmeasures.cfg
-
-   
-Also, we add some env settings in an `.env` file. Create that file in the `flexmeasures` directory (from where you'll run flexmeasures) and enter:
-
-.. code-block:: bash
-
-    FLEXMEASURES_ENV="development"
-    LOGGING_LEVEL="INFO"
+   echo "FLEXMEASURES_ENV=\"development\"" >> ~/.flexmeasures.cfg
+   echo "LOGGING_LEVEL=\"INFO\"" >> ~/.flexmeasures.cfg
 
 The development mode makes sure we don't need SSL to connect, among other things. 
 
