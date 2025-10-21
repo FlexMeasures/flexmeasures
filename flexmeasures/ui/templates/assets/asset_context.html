@@ -119,10 +119,13 @@
                 <div class="modal-header">
 
                     <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-context</h5>
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+                    <div class="dropdown">
+                        <span class="fa fa-info dropdown-toggle" 
+                            role="button" 
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false" 
+                            tabindex="0">
+                        </span>
 
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
@@ -148,8 +151,11 @@
                             </div>
                         </div>
                     </div>
-
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    
+                    <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
 
                 <div class="modal-body">
@@ -384,6 +390,11 @@
 
     }
     // ============== Add Field/Card Action Button END ============== //
+
+    const saveChangesBtn = document.getElementById("saveChangesBtn");
+    saveChangesBtn.onclick = async function () {
+        await updateFlexContext();
+    };
 
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
@@ -1020,7 +1031,6 @@
     });
 
     flexContexFormModal.addEventListener('hidden.bs.modal', function () {
-        updateFlexContext();
         localStorage.removeItem('activeCard');
         flexOptionsContainer.innerHTML = "";
         handleFlexSelectChange(null);
