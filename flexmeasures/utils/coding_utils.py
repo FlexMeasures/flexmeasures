@@ -177,3 +177,40 @@ def find_classes_modules(module, superclass, skiptest=True):
 
 def get_classes_module(module, superclass, skiptest=True) -> dict:
     return dict(find_classes_modules(module, superclass, skiptest=skiptest))
+
+
+def only_if_timer_due(kwarg_name: str | None = None):
+    """
+    Decorator that runs a method only if its timer is due.
+
+    Timer name is derived from:
+        "<function_name>" + " for <kwarg_value>" (if kwarg_name is provided)
+
+    :param kwarg_name: name of the kwarg to include in the timer name (optional)
+    """
+
+    def decorator(func):
+        sig = inspect.signature(func)  # get function signature
+
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            timer_name = func.__name__  # start with the function name
+
+            if kwarg_name:
+                bound_args = sig.bind(self, *args, **kwargs)
+                bound_args.apply_defaults()
+                if kwarg_name in bound_args.arguments:
+                    kwarg_value = bound_args.arguments[kwarg_name]
+                    timer_name += f" for {kwarg_value}"
+                else:
+                    raise ValueError(
+                        f"Keyword '{kwarg_name}' not found in function call"
+                    )
+
+            if not self._is_timer_due(timer_name):
+                return  # skip if timer not due
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator

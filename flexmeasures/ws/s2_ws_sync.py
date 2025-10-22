@@ -18,6 +18,7 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
+from flexmeasures.utils.coding_utils import only_if_timer_due
 from flexmeasures.utils.time_utils import server_now
 from s2python.common import (
     ControlType,
@@ -563,9 +564,8 @@ class S2FlaskWSServerSync:
                 f"Actuator could not be saved as an asset: {str(exc)}"
             )
 
+    @only_if_timer_due("resource_id")
     def save_fill_level(self, resource_id: str, fill_level: float):
-        if not self._is_timer_due(f"fill level for {resource_id}"):
-            return
         try:
             asset = self._assets[resource_id]
             sensor = get_or_create_model(
