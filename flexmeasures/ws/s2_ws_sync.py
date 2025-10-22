@@ -573,7 +573,7 @@ class S2FlaskWSServerSync:
                 name="fill level",
                 unit="",
                 event_resolution=timedelta(0),
-                asset=asset,
+                generic_asset=asset,
             )
             belief = TimedBelief(
                 sensor=sensor,
