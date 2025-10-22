@@ -453,6 +453,8 @@ class S2FlaskWSServerSync:
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].system_description = message
+        for actuator in message.actuators:
+            self.ensure_actuator_is_registered(actuator_id=actuator.id)
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_fill_level_target_profile(
@@ -509,9 +511,25 @@ class S2FlaskWSServerSync:
                 generic_asset_type=asset_type,
             )
         except Exception as exc:
-            self.app.logger.warning(f"Resource could not be saved as an asset: {str(exc)}")
+            self.app.logger.warning(
+                f"Resource could not be saved as an asset: {str(exc)}"
+            )
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
+
+    def ensure_actuator_is_registered(self, actuator_id: str):
+        try:
+            asset_type = get_or_create_model(AssetType, name="S2 Actuator")
+            self._assets[actuator_id] = get_or_create_model(
+                model_class=Asset,
+                name=actuator_id,
+                account_id=self.account.id,
+                generic_asset_type=asset_type,
+            )
+        except Exception as exc:
+            self.app.logger.warning(
+                f"Actuator could not be saved as an asset: {str(exc)}"
+            )
 
     def _check_and_generate_instructions(  # noqa: C901
         self, resource_id: str, websocket: Sock
