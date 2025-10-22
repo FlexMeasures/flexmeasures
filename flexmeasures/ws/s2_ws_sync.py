@@ -13,6 +13,7 @@ from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
 from flexmeasures import Asset, AssetType
+from flexmeasures.data import db
 from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
 from s2python.common import (
@@ -248,6 +249,9 @@ class S2FlaskWSServerSync:
                             websocket=websocket,
                         )
                     self._handlers.handle_message(self, s2_msg, websocket)
+
+                    # Finalize transaction
+                    db.session.commit()
                 except json.JSONDecodeError:
                     self.respond_with_reception_status(
                         subject_message_id=uuid.UUID(
