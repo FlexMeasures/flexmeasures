@@ -14,6 +14,7 @@ from timely_beliefs.beliefs.queries import query_unchanged_beliefs
 from sqlalchemy import delete, func, select
 
 
+from flexmeasures import Source
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -346,6 +347,10 @@ def delete_beliefs(  # noqa: C901
     help="Delete unchanged (time series) data for a single sensor only. Follow up with the sensor's ID. ",
 )
 @click.option(
+    "--source",
+    "source_id",
+)
+@click.option(
     "--delete-forecasts/--keep-forecasts",
     "delete_unchanged_forecasts",
     default=True,
@@ -375,6 +380,7 @@ def delete_beliefs(  # noqa: C901
 )
 def delete_unchanged_beliefs(
     sensor_id: int | None = None,
+    source_id: int | None = None,
     delete_unchanged_forecasts: bool = True,
     delete_unchanged_measurements: bool = True,
     start: datetime | None = None,
@@ -387,6 +393,9 @@ def delete_unchanged_beliefs(
         if sensor is None:
             abort(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
         q = q.filter_by(sensor_id=sensor.id)
+    if source_id:
+        source = db.session.get(Source, source_id)
+        q = q.filter_by(source_id=source.id)
     if start:
         q = q.filter(TimedBelief.event_start >= start)
     if end:
