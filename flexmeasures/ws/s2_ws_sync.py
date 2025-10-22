@@ -20,6 +20,7 @@ from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.coding_utils import only_if_timer_due
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 from flexmeasures.utils.time_utils import server_now
 from s2python.common import (
     ControlType,
@@ -567,17 +568,20 @@ class S2FlaskWSServerSync:
 
     @only_if_timer_due("resource_id")
     def save_fill_level(self, resource_id: str, fill_level: float):
+        sensor_name = "fill level"
         try:
             asset = self._assets[resource_id]
             sensor = get_or_create_model(
                 model_class=Sensor,
-                name="fill level",
+                name=sensor_name,
                 unit="",
                 event_resolution=timedelta(0),
                 generic_asset=asset,
             )
         except Exception as exc:
-            self.app.logger.warning(f"Fill level sensor could not be saved: {str(exc)}")
+            self.app.logger.warning(
+                f"{capitalize(sensor_name)} sensor could not be saved: {str(exc)}"
+            )
         try:
             data_source = get_or_create_source(self.user)
             belief = TimedBelief(
@@ -593,7 +597,7 @@ class S2FlaskWSServerSync:
 
         except Exception as exc:
             self.app.logger.warning(
-                f"Fill level could not be saved as sensor data: {str(exc)}"
+                f"{capitalize(sensor_name)} could not be saved as sensor data: {str(exc)}"
             )
 
     def _check_and_generate_instructions(  # noqa: C901
