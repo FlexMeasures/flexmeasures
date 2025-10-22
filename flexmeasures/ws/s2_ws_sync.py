@@ -18,6 +18,7 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.coding_utils import only_if_timer_due
 from flexmeasures.utils.time_utils import server_now
 from s2python.common import (
@@ -578,9 +579,10 @@ class S2FlaskWSServerSync:
         except Exception as exc:
             self.app.logger.warning(f"Fill level sensor could not be saved: {str(exc)}")
         try:
+            data_source = get_or_create_source(self.user)
             belief = TimedBelief(
                 sensor=sensor,
-                source=self.user.data_source,
+                source=data_source,
                 event_start=server_now(),
                 event_value=fill_level,
                 belief_horizon=timedelta(0),
