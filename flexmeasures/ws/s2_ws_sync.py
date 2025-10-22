@@ -455,7 +455,7 @@ class S2FlaskWSServerSync:
         self._device_data[resource_id].system_description = message
         for actuator in message.actuators:
             self.ensure_actuator_is_registered(
-                actuator_id=actuator.id, resource_id=resource_id
+                actuator_id=str(actuator.id), resource_id=resource_id
             )
         self._check_and_generate_instructions(resource_id, websocket)
 
