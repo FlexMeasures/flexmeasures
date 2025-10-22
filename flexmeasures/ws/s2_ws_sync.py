@@ -575,6 +575,9 @@ class S2FlaskWSServerSync:
                 event_resolution=timedelta(0),
                 generic_asset=asset,
             )
+        except Exception as exc:
+            self.app.logger.warning(f"Fill level sensor could not be saved: {str(exc)}")
+        try:
             belief = TimedBelief(
                 sensor=sensor,
                 source=self.user.data_source,
