@@ -22,7 +22,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.coding_utils import only_if_timer_due
 from flexmeasures.utils.flexmeasures_inflection import capitalize
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import floored_server_now
 from s2python.common import (
     ControlType,
     EnergyManagementRole,
@@ -603,7 +603,7 @@ class S2FlaskWSServerSync:
             belief = TimedBelief(
                 sensor=sensor,
                 source=data_source,
-                event_start=server_now(),
+                event_start=floored_server_now(self._minimum_measurement_period),
                 event_value=event_value,
                 belief_horizon=timedelta(0),
                 cumulative_probability=0.5,

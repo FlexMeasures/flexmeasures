@@ -21,6 +21,11 @@ def server_now() -> datetime:
     return datetime.now(get_timezone())
 
 
+def floored_server_now(resolution: timedelta) -> datetime:
+    """Return the current server time floored to the nearest multiple of `resolution`."""
+    return datetime.min + ((server_now() - datetime.min) // resolution) * resolution
+
+
 def ensure_local_timezone(
     dt: pd.Timestamp | datetime, tz_name: str = "Europe/Amsterdam"
 ) -> pd.Timestamp | datetime:
