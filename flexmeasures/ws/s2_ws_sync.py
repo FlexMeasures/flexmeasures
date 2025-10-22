@@ -484,9 +484,20 @@ class S2FlaskWSServerSync:
         self._check_and_generate_instructions(resource_id, websocket)
 
     def ensure_resource_is_registered(self, resource_id: str):
-        self._assets[resource_id] = get_or_create_model(
-            Asset, name=resource_id, account_id=self.account.id
-        )
+        try:
+            self._assets[resource_id] = get_or_create_model(
+                Asset, name=resource_id, account_id=self.account.id
+            )
+        except Exception as exc:
+            self.app.logger.warning(str(exc))
+            if hasattr(self, "account"):
+                self.app.logger.debug(f"account: {self.account}")
+                if hasattr(self.account, "id"):
+                    self.app.logger.debug(f"account ID: {self.account.id}")
+                else:
+                    self.app.logger.debug("self.account has no ID")
+            else:
+                self.app.logger.debug("self has no account")
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
 
