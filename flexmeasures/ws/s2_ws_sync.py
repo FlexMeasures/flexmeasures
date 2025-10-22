@@ -51,7 +51,9 @@ class FRBCDeviceData:
         self.system_description: Optional[FRBCSystemDescription] = None
         self.fill_level_target_profile: Optional[FRBCFillLevelTargetProfile] = None
         self.storage_status: Optional[FRBCStorageStatus] = None
-        self.actuator_statuses: Dict[str, FRBCActuatorStatus] = {}  # Changed to dict by actuator_id
+        self.actuator_statuses: Dict[str, FRBCActuatorStatus] = (
+            {}
+        )  # Changed to dict by actuator_id
         self.resource_id: Optional[str] = None
         self.instructions: Optional[List[FRBCInstruction]] = []
 
@@ -67,7 +69,9 @@ class FRBCDeviceData:
 
         # Check that we have actuator status for ALL actuators in system description
         if self.system_description.actuators:
-            required_actuator_ids = {str(actuator.id) for actuator in self.system_description.actuators}
+            required_actuator_ids = {
+                str(actuator.id) for actuator in self.system_description.actuators
+            }
             received_actuator_ids = set(self.actuator_statuses.keys())
             return required_actuator_ids.issubset(received_actuator_ids)
 
@@ -81,7 +85,9 @@ class ConnectionState:
         self.last_compute_time: Optional[datetime] = None
         self.resource_id: Optional[str] = None
         self.last_operation_mode: Optional[uuid.UUID] = None
-        self.sent_instructions: List[FRBCInstruction] = []  # Store sent instructions for revocation
+        self.sent_instructions: List[FRBCInstruction] = (
+            []
+        )  # Store sent instructions for revocation
 
     def can_compute(self, replanning_frequency: timedelta) -> bool:
         """Check if enough time has passed since the last compute call."""
@@ -212,7 +218,9 @@ class S2FlaskWSServerSync:
                 message = websocket.receive()
                 try:
                     s2_msg = self.s2_parser.parse_as_any_message(message)
-                    self.app.logger.info(f"Received {s2_msg.message_type} message from client")
+                    self.app.logger.info(
+                        f"Received {s2_msg.message_type} message from client"
+                    )
 
                     # Don't log verbose messages
                     verbose_message_types = ["FRBC.UsageForecast"]
@@ -480,7 +488,9 @@ class S2FlaskWSServerSync:
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         # Store actuator status by actuator_id to support multiple actuators
-        self._device_data[resource_id].actuator_statuses[str(message.actuator_id)] = message
+        self._device_data[resource_id].actuator_statuses[
+            str(message.actuator_id)
+        ] = message
         self._check_and_generate_instructions(resource_id, websocket)
 
     def ensure_resource_is_registered(self, resource_id: str):
@@ -520,15 +530,24 @@ class S2FlaskWSServerSync:
                 )
 
             # Debug log actuator statuses
-            if device_data.system_description and device_data.system_description.actuators:
-                required_actuators = {str(a.id) for a in device_data.system_description.actuators}
+            if (
+                device_data.system_description
+                and device_data.system_description.actuators
+            ):
+                required_actuators = {
+                    str(a.id) for a in device_data.system_description.actuators
+                }
                 received_actuators = set(device_data.actuator_statuses.keys())
                 missing_actuators = required_actuators - received_actuators
 
                 if missing_actuators:
-                    self.app.logger.debug(f"❌ actuator_status? Hold on.. Missing: {missing_actuators}")
+                    self.app.logger.debug(
+                        f"❌ actuator_status? Hold on.. Missing: {missing_actuators}"
+                    )
                 else:
-                    self.app.logger.debug(f"✅ actuator_status? Go flight! All {len(required_actuators)} actuators received")
+                    self.app.logger.debug(
+                        f"✅ actuator_status? Go flight! All {len(required_actuators)} actuators received"
+                    )
         if device_data is None or not device_data.is_complete():
             self.app.logger.info(
                 f"Waiting for more data from device {resource_id} before running the S2FlaskScheduler"
@@ -620,7 +639,7 @@ class S2FlaskWSServerSync:
                     )
                     # Update the last operation mode for this connection
                     connection_state.last_operation_mode = instruction.operation_mode
-                
+
                 # Store the sent instructions for future revocation
                 connection_state.sent_instructions = filtered_instructions.copy()
 
