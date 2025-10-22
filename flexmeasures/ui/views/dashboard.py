@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from flask import request, current_app
 from flask_security import login_required
 from flask_security.core import current_user
@@ -35,22 +37,28 @@ def dashboard_view():
 
     group_by_accounts = request.args.get("group_by_accounts", "0") != "0"
     if group_by_accounts:
-        asset_groups = get_asset_group_queries(
+        asset_group_names_with_queries = get_asset_group_queries(
             group_by_type=False, group_by_account=True
         )
     else:
-        asset_groups = get_asset_group_queries(
+        asset_group_names_with_queries = get_asset_group_queries(
             group_by_type=True, custom_aggregate_type_groups=aggregate_type_groups
         )
-
-    map_asset_groups = {}
+    # Load asset groups, which queries assets; and we count assets without location
+    asset_groups = []
     num_assets_without_location = 0
-    for asset_group_name, asset_group_query in asset_groups.items():
+    for asset_group_name, asset_group_query in asset_group_names_with_queries.items():
         asset_group = AssetGroup(asset_group_name, asset_query=asset_group_query)
-        map_asset_groups[asset_group_name] = asset_group
+        asset_groups.append(asset_group)
         for asset in asset_group.assets:
             if asset.location is None:
                 num_assets_without_location += 1
+    # Create asset group dict for template, preserving order by count of included assets (desc)
+    asset_groups.sort(key=lambda ag: ag.count, reverse=True)
+    map_asset_groups = OrderedDict()
+    for asset_group in asset_groups:
+        map_asset_groups[asset_group.name] = asset_group
+    # Get known asset types for making icons
     known_asset_types = [
         gat.name for gat in db.session.scalars(select(GenericAssetType)).all()
     ]
