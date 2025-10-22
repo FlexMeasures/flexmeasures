@@ -454,7 +454,9 @@ class S2FlaskWSServerSync:
 
         self._device_data[resource_id].system_description = message
         for actuator in message.actuators:
-            self.ensure_actuator_is_registered(actuator_id=actuator.id)
+            self.ensure_actuator_is_registered(
+                actuator_id=actuator.id, resource_id=resource_id
+            )
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_fill_level_target_profile(
@@ -517,7 +519,7 @@ class S2FlaskWSServerSync:
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
 
-    def ensure_actuator_is_registered(self, actuator_id: str):
+    def ensure_actuator_is_registered(self, actuator_id: str, resource_id: str):
         try:
             asset_type = get_or_create_model(AssetType, name="S2 Actuator")
             self._assets[actuator_id] = get_or_create_model(
@@ -525,6 +527,7 @@ class S2FlaskWSServerSync:
                 name=actuator_id,
                 account_id=self.account.id,
                 generic_asset_type=asset_type,
+                parent_asset=self._assets[resource_id],
             )
         except Exception as exc:
             self.app.logger.warning(
