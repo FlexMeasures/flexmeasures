@@ -12,10 +12,13 @@ from typing import Any, Callable, Dict, Optional, Type, List
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
-from flexmeasures import Asset, AssetType
+from flexmeasures import Account, Asset, AssetType, Sensor, User
 from flexmeasures.data import db
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.utils import save_to_db
 from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
+from flexmeasures.utils.time_utils import server_now
 from s2python.common import (
     ControlType,
     EnergyManagementRole,
@@ -39,6 +42,7 @@ from s2python.message import S2Message
 from s2python.s2_parser import S2Parser
 from s2python.s2_validation_error import S2ValidationError
 from s2python.version import S2_VERSION
+from timely_beliefs import BeliefsDataFrame
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -180,7 +184,8 @@ class S2FlaskWSServerSync:
         self._register_default_handlers()
         self.sock.route(self.ws_path)(self._ws_handler)
         self.s2_scheduler = None
-        self.account = None
+        self.account: Account | None = None
+        self.user: User | None = None
         self._assets: Dict[str, Asset] = {}
 
     def _register_default_handlers(self) -> None:
@@ -485,6 +490,10 @@ class S2FlaskWSServerSync:
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].storage_status = message
+        self.save_fill_level(
+            fill_level=message.present_fill_level,
+            resource_id=resource_id,
+        )
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_actuator_status(
@@ -532,6 +541,32 @@ class S2FlaskWSServerSync:
         except Exception as exc:
             self.app.logger.warning(
                 f"Actuator could not be saved as an asset: {str(exc)}"
+            )
+
+    def save_fill_level(self, resource_id: str, fill_level: float):
+        try:
+            asset = self._assets[resource_id]
+            sensor = get_or_create_model(
+                model_class=Sensor,
+                name="fill level",
+                unit="",
+                event_resolution=timedelta(0),
+                asset=asset,
+            )
+            belief = TimedBelief(
+                sensor=sensor,
+                source=self.user.data_source,
+                event_start=server_now(),
+                event_value=fill_level,
+                belief_horizon=timedelta(0),
+                cumulative_probability=0.5,
+            )
+            bdf = BeliefsDataFrame(beliefs=[belief])
+            save_to_db(bdf)
+
+        except Exception as exc:
+            self.app.logger.warning(
+                f"Fill level could not be saved as sensor data: {str(exc)}"
             )
 
     def _check_and_generate_instructions(  # noqa: C901
