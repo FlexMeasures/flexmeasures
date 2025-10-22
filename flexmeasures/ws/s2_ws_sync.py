@@ -564,7 +564,7 @@ class S2FlaskWSServerSync:
             )
 
     def save_fill_level(self, resource_id: str, fill_level: float):
-        if not self._is_timer_due(f"fill level"):
+        if not self._is_timer_due(f"fill level for {resource_id}"):
             return
         try:
             asset = self._assets[resource_id]
