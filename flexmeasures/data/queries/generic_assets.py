@@ -137,17 +137,33 @@ def get_asset_group_queries(
                     asset_type.name
                 )
 
-    # 3. Include a group per account (admins only)  # TODO: we can later adjust this for accounts who admin certain others, not all
+    # 3. Include a group per account
     if group_by_account:
         eligible_accounts = [current_user.account]
-        if current_user.has_role("consultant"):
-            eligible_accounts += current_user.account.consultancy_client_accounts
         if user_has_admin_access(current_user, "read"):
-            eligible_accounts = db.session.scalars(select(Account)).all()
-        for account in eligible_accounts:
-            asset_queries[account.name] = select(GenericAsset).filter_by(
-                account_id=account.id
-            )
+            # show all accounts that are not clients
+            # if they are consultants, we query assets from all their clients
+            eligible_accounts = db.session.scalars(
+                select(Account).filter(
+                    or_(
+                        Account.consultancy_account_id == None,  # noqa E711
+                        Account.consultancy_account_id == current_user.account_id,
+                    )
+                )
+            ).all()
+            for account in eligible_accounts:
+                asset_queries[account.name] = select(GenericAsset).filter(
+                    GenericAsset.account_id.in_(
+                        [account.id] + [c.id for c in account.get_all_client_accounts()]
+                    )
+                )
+        elif current_user.has_role("consultant"):
+            # show only their account and their direct clients
+            eligible_accounts += current_user.account.consultancy_client_accounts
+            for account in eligible_accounts:
+                asset_queries[account.name] = select(GenericAsset).filter_by(
+                    account_id=account.id
+                )
 
     # 4. Finally, we can group assets by location
     if group_by_location:
