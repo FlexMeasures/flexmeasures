@@ -513,8 +513,9 @@ class S2FlaskWSServerSync:
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].storage_status = message
-        self.save_fill_level(
-            fill_level=message.present_fill_level,
+        self.save_event(
+            sensor_name="fill level",
+            event_value=message.present_fill_level,
             resource_id=resource_id,
         )
         self._check_and_generate_instructions(resource_id, websocket)
@@ -566,9 +567,8 @@ class S2FlaskWSServerSync:
                 f"Actuator could not be saved as an asset: {str(exc)}"
             )
 
-    @only_if_timer_due("resource_id")
-    def save_fill_level(self, resource_id: str, fill_level: float):
-        sensor_name = "fill level"
+    @only_if_timer_due("sensor_name", "resource_id")
+    def save_event(self, sensor_name: str, resource_id: str, event_value: float):
         try:
             asset = self._assets[resource_id]
             sensor = get_or_create_model(
@@ -588,7 +588,7 @@ class S2FlaskWSServerSync:
                 sensor=sensor,
                 source=data_source,
                 event_start=server_now(),
-                event_value=fill_level,
+                event_value=event_value,
                 belief_horizon=timedelta(0),
                 cumulative_probability=0.5,
             )
