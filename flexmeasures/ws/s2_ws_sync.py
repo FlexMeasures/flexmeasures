@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Optional, Type, List
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
-from flexmeasures import Asset
+from flexmeasures import Asset, AssetType
 from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
 from s2python.common import (
@@ -497,8 +497,12 @@ class S2FlaskWSServerSync:
 
     def ensure_resource_is_registered(self, resource_id: str):
         try:
+            asset_type = get_or_create_model(AssetType, name="S2 Resource")
             self._assets[resource_id] = get_or_create_model(
-                Asset, name=resource_id, account_id=self.account.id
+                model_class=Asset,
+                name=resource_id,
+                account_id=self.account.id,
+                generic_asset_type=asset_type,
             )
         except Exception as exc:
             self.app.logger.warning(str(exc))
