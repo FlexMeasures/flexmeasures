@@ -505,15 +505,7 @@ class S2FlaskWSServerSync:
                 generic_asset_type=asset_type,
             )
         except Exception as exc:
-            self.app.logger.warning(str(exc))
-            if hasattr(self, "account"):
-                self.app.logger.debug(f"account: {self.account}")
-                if hasattr(self.account, "id"):
-                    self.app.logger.debug(f"account ID: {self.account.id}")
-                else:
-                    self.app.logger.debug("self.account has no ID")
-            else:
-                self.app.logger.debug("self has no account")
+            self.app.logger.warning(f"Resource could not be saved as an asset: {str(exc)}")
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
 
