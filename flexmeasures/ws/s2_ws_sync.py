@@ -188,6 +188,21 @@ class S2FlaskWSServerSync:
         self.user: User | None = None
         self._assets: Dict[str, Asset] = {}
 
+        self._minimum_measurement_period: timedelta = timedelta(minutes=5)
+        self._timers: dict[str, datetime] = dict()
+
+    def _is_timer_due(self, name: str):
+        now = datetime.now()
+        due_time = self._timers.get(name, now - self._minimum_measurement_period)
+        if due_time <= now:
+            self._timers[name] = now + self._minimum_measurement_period
+            return True
+        else:
+            self.app.logger.debug(
+                f"Timer for {name} is not due until {self._timers[name]}"
+            )
+            return False
+
     def _register_default_handlers(self) -> None:
         self._handlers.register_handler(Handshake, self.handle_handshake)
         self._handlers.register_handler(ReceptionStatus, self.handle_reception_status)
@@ -549,6 +564,8 @@ class S2FlaskWSServerSync:
             )
 
     def save_fill_level(self, resource_id: str, fill_level: float):
+        if not self._is_timer_due(f"fill level"):
+            return
         try:
             asset = self._assets[resource_id]
             sensor = get_or_create_model(
