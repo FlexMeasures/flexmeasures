@@ -256,7 +256,12 @@ class S2FlaskWSServerSync:
                     self._handlers.handle_message(self, s2_msg, websocket)
 
                     # Finalize transaction
-                    db.session.commit()
+                    try:
+                        db.session.commit()
+                    except Exception as exc:
+                        self.app.logger.warning(
+                            f"Session could not be committed to database: {str(exc)}"
+                        )
                 except json.JSONDecodeError:
                     self.respond_with_reception_status(
                         subject_message_id=uuid.UUID(
