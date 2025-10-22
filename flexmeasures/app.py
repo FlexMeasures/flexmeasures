@@ -257,14 +257,23 @@ def create(  # noqa C901
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header.removeprefix("Bearer ").strip()
-            user_id = app.config.get("FLEXMEASURES_S2_BEARERS", {}).get(token, None)
-            if user_id is not None:
+            try:
+                user_id = app.config.get("FLEXMEASURES_S2_BEARERS", {}).get(token, None)
+                user_can_use_ws = user_id is not None
+            except Exception as exc:
+                app.logger.warning(str(exc))
+                user_can_use_ws = token == app.config.get(
+                    "WEBSOCKET_BEARER_TOKEN", None
+                )
+            if user_can_use_ws:
 
-                user = db.session.get(User, user_id)
-
-                # Attach account to WebSocket server
-                s2_ws.account = user.account
-                app.logger.info("Account authorized for WebSocket connections")
+                try:
+                    user = db.session.get(User, user_id)
+                    # Attach account to WebSocket server
+                    s2_ws.account = user.account
+                    app.logger.info("Account authorized for WebSocket connections")
+                except:
+                    app.logger.warning("Failed to fetch User")
 
                 # Initialize S2Scheduler for this WebSocket connection if not already done
                 if getattr(s2_ws, 's2_scheduler', None) is None:
