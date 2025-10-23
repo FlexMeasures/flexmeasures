@@ -31,6 +31,7 @@ from s2python.frbc import (
     FRBCStorageStatus,
     FRBCActuatorStatus,
     FRBCInstruction,
+    FRBCInstructionStatusUpdate,
 )
 from s2python.message import S2Message
 from s2python.s2_parser import S2Parser
@@ -167,6 +168,7 @@ class S2FlaskWSServerSync:
         self._handlers.register_handler(FRBCFillLevelTargetProfile, self.handle_frbc_fill_level_target_profile)
         self._handlers.register_handler(FRBCStorageStatus, self.handle_frbc_storage_status)
         self._handlers.register_handler(FRBCActuatorStatus, self.handle_frbc_actuator_status)
+        self._handlers.register_handler(FRBCInstructionStatusUpdate, self.handle_frbc_instruction_status_update)
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
@@ -436,6 +438,33 @@ class S2FlaskWSServerSync:
         # Store actuator status by actuator_id to support multiple actuators
         self._device_data[resource_id].actuator_statuses[str(message.actuator_id)] = message
         self._check_and_generate_instructions(resource_id, websocket)
+
+    def handle_frbc_instruction_status_update(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, FRBCInstructionStatusUpdate):
+            return
+
+        # Map status types to emojis for better visibility
+        status_emojis = {
+            "NEW": "🆕",
+            "ACCEPTED": "✅",
+            "STARTED": "▶️",
+            "SUCCEEDED": "🎉",
+            "ABORTED": "🛑",
+            "REJECTED": "❌",
+            "REVOKED": "🗑️",
+        }
+
+        status_type = str(message.status_type) if hasattr(message, "status_type") else "UNKNOWN"
+        emoji = status_emojis.get(status_type, "📊")
+
+        resource_id = self._websocket_to_resource.get(websocket, "unknown")
+        self.app.logger.info(
+            f"{emoji} Instruction Status Update from {resource_id}: "
+            f"instruction_id={message.instruction_id}, status={status_type}"
+        )
+        self.app.logger.debug(message.to_json())
 
     def ensure_resource_is_registered(self, resource_id: str):
         if resource_id not in self._device_data:
