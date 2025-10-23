@@ -533,7 +533,7 @@ class S2FlaskWSServerSync:
         self.save_event(
             sensor_name="fill level",
             event_value=message.present_fill_level,
-            resource_id=resource_id,
+            resource_or_actuator_id=resource_id,
         )
         self._check_and_generate_instructions(resource_id, websocket)
 
@@ -595,9 +595,9 @@ class S2FlaskWSServerSync:
                 )
 
     @only_if_timer_due("sensor_name", "resource_id")
-    def save_event(self, sensor_name: str, resource_id: str, event_value: float):
+    def save_event(self, sensor_name: str, resource_or_actuator_id: str, event_value: float):
         try:
-            asset = self._assets[resource_id]
+            asset = self._assets[resource_or_actuator_id]
             sensor = get_or_create_model(
                 model_class=Sensor,
                 name=sensor_name,
