@@ -588,7 +588,7 @@ class S2FlaskWSServerSync:
         asset = self._assets[resource_id]
         for k, v in kwargs.items():
             try:
-                asset.set_attribute(k, v)
+                asset.attributes[k] = v
             except Exception as exc:
                 self.app.logger.warning(
                     f"Failed to save {k}: {v} as an asset attribute of {asset}: {str(exc)}"
