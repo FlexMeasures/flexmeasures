@@ -580,7 +580,7 @@ class S2FlaskWSServerSync:
                 # Update the compute time before calling the scheduler
                 connection_state.update_compute_time()
 
-                # Generate instructions using the scheduler
+                # Generate instructions using the scheduler (this may query the database for costs)
                 schedule_results = self.s2_scheduler.compute()
 
                 # Filter and send generated instructions
