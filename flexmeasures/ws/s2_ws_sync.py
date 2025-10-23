@@ -594,8 +594,10 @@ class S2FlaskWSServerSync:
                     f"Failed to save {k}: {v} as an asset attribute of {asset}: {str(exc)}"
                 )
 
-    @only_if_timer_due("sensor_name", "resource_id")
-    def save_event(self, sensor_name: str, resource_or_actuator_id: str, event_value: float):
+    @only_if_timer_due("sensor_name", "resource_or_actuator_id")
+    def save_event(
+        self, sensor_name: str, resource_or_actuator_id: str, event_value: float
+    ):
         try:
             asset = self._assets[resource_or_actuator_id]
             sensor = get_or_create_model(
