@@ -86,6 +86,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_has_admin_reader_rights"] = user_has_admin_access(
         current_user, "read"
     )
+    variables["user_is_consultant"] = current_user.has_role("consultant")
     variables["user_is_anonymous"] = (
         current_user.is_authenticated and current_user.has_role("anonymous")
     )
