@@ -23,7 +23,8 @@ def server_now() -> datetime:
 
 def floored_server_now(resolution: timedelta) -> datetime:
     """Return the current server time floored to the nearest multiple of `resolution`."""
-    return datetime.min + ((server_now() - datetime.min) // resolution) * resolution
+    reference = get_timezone().localize(datetime.min)
+    return reference + ((server_now() - reference) // resolution) * resolution
 
 
 def ensure_local_timezone(
