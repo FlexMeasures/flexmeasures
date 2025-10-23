@@ -501,6 +501,7 @@ class S2FlaskWSServerSync:
             self.ensure_actuator_is_registered(
                 actuator_id=str(actuator.id), resource_id=resource_id
             )
+        self.save_attribute(resource_id, **message.to_dict())
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_fill_level_target_profile(
@@ -582,6 +583,16 @@ class S2FlaskWSServerSync:
             self.app.logger.warning(
                 f"Actuator could not be saved as an asset: {str(exc)}"
             )
+
+    def save_attribute(self, resource_id: str, **kwargs):
+        asset = self._assets[resource_id]
+        for k, v in kwargs.items():
+            try:
+                asset.set_attribute(k, v)
+            except Exception as exc:
+                self.app.logger.warning(
+                    f"Failed to save {k}: {v} as an asset attribute of {asset}: {str(exc)}"
+                )
 
     @only_if_timer_due("sensor_name", "resource_id")
     def save_event(self, sensor_name: str, resource_id: str, event_value: float):
