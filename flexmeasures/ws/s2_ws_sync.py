@@ -501,7 +501,7 @@ class S2FlaskWSServerSync:
             self.ensure_actuator_is_registered(
                 actuator_id=str(actuator.id), resource_id=resource_id
             )
-        self.save_attribute(resource_id, **message.to_dict())
+        self.save_attribute(resource_id, **json.loads(message.to_json()))
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_fill_level_target_profile(
