@@ -21,6 +21,8 @@ from flask_cors import CORS
 from redis import Redis
 from rq import Queue
 
+from flexmeasures import User
+from flexmeasures.data import db
 from flexmeasures.data.services.job_cache import JobCache
 
 
@@ -255,34 +257,56 @@ def create(  # noqa C901
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header.removeprefix("Bearer ").strip()
-            if token == app.config.get("WEBSOCKET_BEARER_TOKEN", None):
+            try:
+                user_id = app.config.get("FLEXMEASURES_S2_BEARERS", {}).get(token, None)
+                user_can_use_ws = user_id is not None
+            except Exception as exc:
+                app.logger.warning(str(exc))
+                user_can_use_ws = token == app.config.get(
+                    "WEBSOCKET_BEARER_TOKEN", None
+                )
+            if user_can_use_ws:
+
+                try:
+                    user = db.session.get(User, user_id)
+                    # Attach account to WebSocket server
+                    s2_ws.account = user.account
+                    s2_ws.user = user
+                    app.logger.info("Account authorized for WebSocket connections")
+                except:
+                    app.logger.warning("Failed to fetch User")
+
                 # Initialize S2Scheduler for this WebSocket connection if not already done
-                if getattr(s2_ws, 's2_scheduler', None) is None:
+                if getattr(s2_ws, "s2_scheduler", None) is None:
                     from datetime import datetime, timedelta, timezone
-                    
-                    # Get S2FlaskScheduler class from registered schedulers  
-                    scheduler_class = app.data_generators["scheduler"]["S2FlaskScheduler"]
-                    
+
+                    # Get S2FlaskScheduler class from registered schedulers
+                    scheduler_class = app.data_generators["scheduler"][
+                        "S2FlaskScheduler"
+                    ]
+
                     # Create scheduler instance with minimal setup for WebSocket usage
                     scheduler = scheduler_class.__new__(scheduler_class)
-                    
+
                     # Set basic time parameters
                     now = datetime.now(timezone.utc)
-                    resolution = timedelta(minutes=5)  # Match example_schedule_frbc.py resolution
-                    
+                    resolution = timedelta(
+                        minutes=5
+                    )  # Match example_schedule_frbc.py resolution
+
                     # Align to 5-minute boundary
                     minutes_offset = now.minute % 5
                     start_aligned = now.replace(
-                        minute=now.minute - minutes_offset,
-                        second=0,
-                        microsecond=0
+                        minute=now.minute - minutes_offset, second=0, microsecond=0
                     )
-                    
+
                     # Set required attributes for scheduler
                     scheduler.sensor = None
                     scheduler.asset = None
                     scheduler.start = start_aligned
-                    scheduler.end = start_aligned + timedelta(hours=24)  # 24-hour planning window
+                    scheduler.end = start_aligned + timedelta(
+                        hours=24
+                    )  # 24-hour planning window
                     scheduler.resolution = resolution
                     scheduler.belief_time = start_aligned
                     scheduler.round_to_decimals = 6
@@ -292,14 +316,16 @@ def create(  # noqa C901
                     scheduler.info = {"scheduler": "S2FlaskScheduler"}
                     scheduler.config_deserialized = True
                     scheduler.return_multiple = True
-                    
+
                     # Initialize device states storage
                     scheduler.device_states = {}
-                    
+
                     # Attach scheduler to WebSocket server
                     s2_ws.s2_scheduler = scheduler
-                    app.logger.info("S2FlaskScheduler initialized for WebSocket connections")
-                
+                    app.logger.info(
+                        "S2FlaskScheduler initialized for WebSocket connections"
+                    )
+
                 return  # Let other before_request hooks handle it
 
         app.logger.info(
