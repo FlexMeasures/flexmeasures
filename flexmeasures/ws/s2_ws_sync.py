@@ -629,7 +629,9 @@ class S2FlaskWSServerSync:
                     sensor=sensor,
                     source=data_source,
                     event_start=floored_server_now(self._minimum_measurement_period),
-                    event_value=convert_units(event_value, event_unit, sensor_unit),
+                    event_value=convert_units(
+                        event_value, event_unit, sensor_unit, event_resolution=self.s2_scheduler.resolution
+                    ),
                     belief_time=server_now(),
                     cumulative_probability=0.5,
                 )
