@@ -615,6 +615,7 @@ class S2FlaskWSServerSync:
                 name=sensor_name,
                 unit=sensor_unit,
                 event_resolution=event_resolution,
+                timezone=self.app.config["FLEXMEASURES_TIMEZONE"],
                 generic_asset=asset,
             )
         except Exception as exc:
