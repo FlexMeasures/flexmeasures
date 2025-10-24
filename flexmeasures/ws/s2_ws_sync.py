@@ -624,21 +624,22 @@ class S2FlaskWSServerSync:
             return
         try:
             data_source = db.session.get(Source, self.data_source_id)
+            event_value = convert_units(
+                event_value, event_unit, sensor_unit, event_resolution=self.s2_scheduler.resolution
+            )
             if isinstance(event_value, float):
                 belief = TimedBelief(
                     sensor=sensor,
                     source=data_source,
                     event_start=floored_server_now(self._minimum_measurement_period),
-                    event_value=convert_units(
-                        event_value, event_unit, sensor_unit, event_resolution=self.s2_scheduler.resolution
-                    ),
+                    event_value=event_value,
                     belief_time=server_now(),
                     cumulative_probability=0.5,
                 )
                 bdf = BeliefsDataFrame(beliefs=[belief])
             elif isinstance(event_value, pd.Series):
                 bdf = BeliefsDataFrame(
-                    convert_units(event_value, event_unit, sensor_unit),
+                    event_value,
                     sensor=sensor,
                     source=data_source,
                     belief_time=server_now(),
