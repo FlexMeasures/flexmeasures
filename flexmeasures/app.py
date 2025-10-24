@@ -319,6 +319,12 @@ def create(  # noqa C901
                     scheduler.info = {"scheduler": "S2FlaskScheduler"}
                     scheduler.config_deserialized = True
                     scheduler.return_multiple = True
+                    scheduler.data_source = get_or_create_source(
+                        source="FlexMeasures",
+                        source_type="scheduler",
+                        model="S2Scheduler",
+                        version="1",
+                    )
 
                     # Initialize device states storage
                     scheduler.device_states = {}

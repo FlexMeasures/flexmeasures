@@ -535,6 +535,7 @@ class S2FlaskWSServerSync:
         self.save_event(
             sensor_name="fill level",
             event_value=message.present_fill_level,
+            data_source=db.session.get(Source, self.data_source_id),
             resource_or_actuator_id=resource_id,
         )
         self._check_and_generate_instructions(resource_id, websocket)
@@ -602,6 +603,7 @@ class S2FlaskWSServerSync:
         sensor_name: str,
         resource_or_actuator_id: str,
         event_value: float | pd.Series,
+        data_source: Source,
         event_resolution: timedelta | None = None,
         event_unit: str = "",
         sensor_unit: str = "",
@@ -624,9 +626,11 @@ class S2FlaskWSServerSync:
             )
             return
         try:
-            data_source = db.session.get(Source, self.data_source_id)
             event_value = convert_units(
-                event_value, event_unit, sensor_unit, event_resolution=self.s2_scheduler.resolution
+                event_value,
+                event_unit,
+                sensor_unit,
+                event_resolution=self.s2_scheduler.resolution,
             )
             if isinstance(event_value, float):
                 belief = TimedBelief(
@@ -804,6 +808,7 @@ class S2FlaskWSServerSync:
                                 sensor_name="power",
                                 resource_or_actuator_id=str(result["device"]),
                                 event_value=result["data"],
+                                data_source=self.s2_scheduler.data_source,
                                 event_resolution=self.s2_scheduler.resolution,
                                 event_unit=result["unit"],
                                 sensor_unit="W",
