@@ -799,6 +799,7 @@ class S2FlaskWSServerSync:
                 try:
                     for result in schedule_results:
                         if isinstance(result, dict) and "device" in result:
+                            self.app.logger.debug(f"Saving result: {result}")
                             self.save_event(
                                 sensor_name="power",
                                 resource_or_actuator_id=str(result["device"]),
