@@ -14,13 +14,12 @@ import pandas as pd
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
-from flexmeasures import Account, Asset, AssetType, Sensor, User
+from flexmeasures import Account, Asset, AssetType, Sensor, Source, User
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
-from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.coding_utils import only_if_timer_due
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 from flexmeasures.utils.time_utils import floored_server_now, server_now
@@ -192,6 +191,7 @@ class S2FlaskWSServerSync:
         self.s2_scheduler = None
         self.account: Account | None = None
         self.user: User | None = None
+        self.data_source_id: int | None = None
         self._assets: Dict[str, Asset] = {}
 
         self._minimum_measurement_period: timedelta = timedelta(minutes=5)
@@ -623,7 +623,7 @@ class S2FlaskWSServerSync:
             )
             return
         try:
-            data_source = get_or_create_source(self.user)
+            data_source = db.session.get(Source, self.data_source_id)
             if isinstance(event_value, float):
                 belief = TimedBelief(
                     sensor=sensor,
