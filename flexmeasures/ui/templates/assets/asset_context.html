@@ -1,0 +1,1072 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} {{ asset.name }} - Scenario {% endblock %}
+
+{% block divs %}
+
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8 card">
+            <div class="row">
+                <div class="col-sm-9">
+                    <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 10px;">
+                        <h1>
+                            Asset: {{ asset.name }}
+                        </h1>
+                        <div class="d-flex">
+                            <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
+                                Show sensors
+                            </button>
+                            <button class="btn btn-sm btn-primary me-2" data-bs-toggle="modal"
+                                data-bs-target="#flexContextModal">
+                                Edit flex-context
+                            </button>
+                        </div>
+                    </div>
+                    <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
+                </div>
+                <div class="col-sm-3">
+                    {% if can_delete %}
+                    <button type="button" class="btn delete-button"
+                        onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
+                    {% endif %}
+                    <!-- Tabs for toggling content -->
+                    <div class="tabs-container">
+                        <ul class="nav nav-tabs">
+                            <!-- Reorder the tabs based on the length of the assets -->
+                            {% if assets|length > 2 %}
+                            <!-- Structure tab will be first if assets length > 2 -->
+                            <li class="nav-item">
+                                <a class="nav-link active" id="structure-tab" data-bs-toggle="tab"
+                                    href="#structure">Structure</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="location-tab" data-bs-toggle="tab" href="#location">Location</a>
+                            </li>
+                            {% else %}
+                            <!-- Location tab will be first if assets length <= 2 -->
+                            <li class="nav-item">
+                                <a class="nav-link active" id="location-tab" data-bs-toggle="tab"
+                                    href="#location">Location</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="structure-tab" data-bs-toggle="tab"
+                                    href="#structure">Structure</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Tab Content (outside col-sm) -->
+            <div class="tab-content">
+                <!-- Structure Content -->
+                <div class="tab-pane fade {% if assets|length > 2 %}show active{% endif %}" id="structure">
+                    <div class="col-sm-12">
+                        {% from "_macros.html" import show_tree %}
+                        {{ show_tree(assets, asset.name) }}
+                    </div>
+                </div>
+
+                <!-- Location Content -->
+                <div class="tab-pane fade {% if assets|length <= 2 %}show active{% endif %}" id="location">
+                    <!-- Location-related content here -->
+                    <div id="mapid" style="height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-2"></div>
+
+        <!-- Bootstrap Modal for Sensors -->
+        <div class="modal fade" id="sensorsModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalTitle">Node Details</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% if user_can_create_children %}
+                        <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
+                            <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
+                        </button>
+                        {% endif %}
+                        <table id="modalTable" class="table table-bordered">
+                            <thead id="modalTableHead"></thead>
+                            <tbody id="modalTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flex Context Modal -->
+    <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+
+                    <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-context</h5>
+                    <div class="dropdown" data-bs-auto-close="outside">
+                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
+                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+
+                        <div class="dropdown-menu p-3" style="width: 400px;">
+                            <div>
+                                <strong>Help</strong>
+                                <p class="mb-2 pt-2">
+                                    Here, you can edit the flexibility context for this asset. This describes
+                                    information about the managed system as a
+                                    whole, in order to assess the value of activating flexibility. You can read more <a
+                                        href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-context">in
+                                        the documentation</a>.
+                                    <br />
+                                    <br />
+                                    These fields can also be sent via the API to FlexMeasures, but setting them here
+                                    permanently might be more convenient.
+                                    Some fields can point to sensors, so they will always represent the dynamics of the
+                                    asset's environment (as long as that sensor has current data).
+                                    <br />
+                                    <br />
+                                    To add a field, choose it from the dropdown menu in the top right corner, then click
+                                    the "Add Field" button'.
+                                    Set a value in the right panel, using the provided form to set the field's value.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Left Column -->
+                        <div class="col-5">
+                            <form id="flexContextForm">
+                            </form>
+                        </div>
+
+                        <!-- Right Column -->
+                        <div class="col-7">
+                            <div>
+                                <!-- Loading Spinner -->
+                                <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
+                                    style="height: 50vh; display: none !important;">
+                                    <div class="spinner-border text-primary" role="status"
+                                        style="width: 4rem; height: 4rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+
+                                <!-- Settings -->
+                                <div>
+                                    <div class="row">
+                                        <div class="col-10">
+                                            <select class="form-select" id="flexSelect">
+                                                <option value="blank">Select flex-context field to add</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-2 p-0">
+                                            <button id="addFieldBtn" class="btn btn-secondary btn-md">Add
+                                                Field</button>
+                                        </div>
+                                    </div>
+
+                                    <div id="flexInfoContainer" class="mt-3"></div>
+                                </div>
+
+                                <hr class="border border-dark" />
+
+                                <div id="flexOptionsContainer" class="mt-3"></div>
+
+                                <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openSensorsModal() {
+        const sensors = {{ current_asset_sensors | safe
+    }};
+    document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
+    let tableHead = document.getElementById("modalTableHead");
+    let tableBody = document.getElementById("modalTableBody");
+
+    // Clear previous content
+    tableHead.innerHTML = "";
+    tableBody.innerHTML = "";
+
+    if (sensors && sensors.length > 0) {
+        let keys = Object.keys(sensors[0]); // e.g., ['name', 'unit']
+        keys.pop("link"); // Remove the 'link' from the table
+
+        // Create table header row
+        let headerRow = document.createElement("tr");
+        keys.forEach(key => {
+            let headerText = key.charAt(0).toUpperCase() + key.slice(1);
+            let th = document.createElement("th"); // Use <th> for header cells
+            th.innerText = headerText;
+            th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
+            headerRow.appendChild(th);
+        });
+        tableHead.appendChild(headerRow);
+
+        // Force destroy the floatThead instance
+        setTimeout(function () {
+            if ($.fn.floatThead) {
+                $('#modalTable').floatThead('destroy');
+            }
+        }, 200);
+
+        // Populate table with sensor data
+        sensors.forEach(sensor => {
+            let row = document.createElement("tr");
+            keys.forEach(key => {
+                let td = document.createElement("td");
+                if (key === "name") {
+                    // Create an anchor element
+                    let a = document.createElement("a");
+                    a.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
+                    // Set the href; you can modify this as needed, for example using sensor.link if available
+                    a.href = sensor.link;
+                    td.appendChild(a);
+                } else {
+                    td.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
+                }
+                row.appendChild(td);
+            });
+            tableBody.appendChild(row);
+        });
+    } else {
+        tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
+    }
+
+    // Show Bootstrap modal
+    let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
+    modal.show();
+        }
+</script>
+
+<style>
+    details {
+        display: none;
+    }
+</style>
+
+<!-- Initialise the map -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+<script type="text/javascript">
+
+    // create map
+    var assetMap = L
+        .map('mapid', { center: ["{{ asset.latitude | replace('None', 10) }}", "{{ asset.longitude | replace('None', 10) }}"], zoom: 10 })
+        .on('popupopen', function () {
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+
+    // create marker
+    var asset_icon = new L.DivIcon({
+        className: 'map-icon',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
+        iconSize: [100, 100], // size of the icon
+        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+    });
+    var marker = L
+        .marker(
+            ["{{ asset.latitude | replace('None', 10) }}", "{{ asset.longitude | replace('None', 10) }}"],
+            { icon: asset_icon }
+        ).addTo(assetMap);
+</script>
+
+<script type="module">
+    import {
+        getFlexFieldTitle, renderSensor, getAsset, createReactiveState,
+        apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults
+    } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+
+    let hasInitialized = false;
+    const senSearchResEle = document.getElementById("sensorsSearchResults")
+    const flexContextFormEle = document.getElementById("flexContextForm")
+    const flexContexFormModal = document.getElementById('flexContextModal');
+    const flexSelect = document.getElementById('flexSelect');
+    const flexInfoContainer = document.getElementById('flexInfoContainer');
+    const flexOptionsContainer = document.getElementById('flexOptionsContainer');
+    let availableUnitsRawJSON = "{{ available_units | safe }}";
+    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+    const availableUnits = JSON.parse(availableUnitsRawJSON);
+
+    const iconMap = {
+        "sensor": "fa fa-microchip",
+        "string": "fa fa-solid fa-lock fa-lg",
+        "default": "fa fa-solid fa-question-circle",
+    }
+    
+    const schemaSpecsString = '{{ flex_context_schema | tojson | safe  }}';
+    const schemaSpecs = JSON.parse(schemaSpecsString); 
+    const assetFlexContextSchema = {};
+    for (const [key, value] of Object.entries(schemaSpecs)) {
+        assetFlexContextSchema[key] = value["default"];
+    }
+    const assetFlexContextRawJSON = { ...assetFlexContextSchema };
+    processResourceRawJSON(assetFlexContextRawJSON, "{{ asset.flex_context | safe }}");
+
+    const spinnerElement = document.getElementById('spinnerElement');
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
+
+    const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
+    const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
+
+    function reRenderForm() {
+        // Skip on first init. This code prevents the access to teh variable 'getFlexcontext'
+        // on initial run of the script as its not available at that point
+        if (!hasInitialized) {
+            hasInitialized = true;
+        } else {
+            renderFlexContextForm();
+        }
+    }
+
+    // ============= Add Field/Card Action Button START ============== //
+    const addFieldBtn = document.getElementById("addFieldBtn");
+    addFieldBtn.onclick = async function () {
+        // Clear any previously active card
+        setActiveCard(null);
+        localStorage.removeItem('activeCard');
+
+        const fieldName = flexSelect.value;
+        if (fieldName === "blank") {
+            showToast("Please select a field to add", "error");
+            return;
+        }
+        const assetFlexContext = getFlexContext();
+        assetFlexContext[fieldName] = "";
+        flexOptionsContainer.innerHTML = "";
+        setFlexContext(assetFlexContext);
+
+        // Store active card in local storage
+        localStorage.setItem('activeCard', fieldName);
+
+        setTimeout(() => {
+            const card = document.getElementById(`${fieldName}-control`);
+            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+            card.classList.add('border-on-click'); // Add border to the clicked card
+            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isOnlySensorField));
+            handleFlexSelectChange(fieldName);
+            setActiveCard(card);
+
+        }, 500);
+
+    }
+    // ============== Add Field/Card Action Button END ============== //
+
+    async function updateFlexContext() {
+        const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
+        let data = getFlexContext();
+
+        // Clean null values
+        for (const [key, value] of Object.entries(data)) {
+            if (value === null) {
+                delete data[key];
+            }
+        }
+
+        const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
+
+        const response = await fetch(apiURL, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: requestBody,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
+            showToast(`Failed to update the flex context: ${errorMessage}`, "error");
+        } else {
+            showToast("Flex context updated successfully", "success");
+        }
+    }
+
+    /* This search function is tied to the FlexContext Form */
+    async function searchSensorsFlexContextForm() {
+        const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
+        spinnerElement.style.display = 'flex';
+        senSearchResEle.style.display = 'none';
+        const flexUnitsSelectValue = document.getElementById("flexUnitsSelect").value;
+        const flexCheckBox = document.getElementById('flexCheckBox');
+
+        const params = new URLSearchParams();
+
+        if (searchValue) {
+            params.append('filter', searchValue);
+        }
+
+        if (flexCheckBox.checked) {
+            params.append('include_public_assets', true);
+        }
+
+        if (flexUnitsSelectValue != "null") {
+            params.append('unit', flexUnitsSelectValue);
+        }
+
+        const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
+
+        try {
+            const response = await fetch(apiUrl);
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch sensors');
+            }
+
+            const responseData = await response.json();
+            const filteredSensors = responseData.data;
+
+            // Render the fetched sensors
+            renderSensorSearchResults(filteredSensors, senSearchResEle, updateSensorValue);
+
+            spinnerElement.classList.add('hidden-important');
+            senSearchResEle.style.display = 'block';
+        } catch (error) {
+            const errorMessage = error?.message || error?.error || response.statusText;
+            showToast(`Failed to search sensors: ${errorMessage}`, "error");
+        }
+    }
+    // ============== Flex Context Management BEGIN ============== //
+
+    async function removeFlexContextField(fieldName) {
+        const assetFlexContext = getFlexContext();
+        getFlexContext()[fieldName] = null;
+        setFlexContext(assetFlexContext);
+    }
+
+    async function removeFlexContextSensorValue(fieldName, sensorId) {
+        const assetFlexContext = getFlexContext();
+        if (sensorId) {
+            const fieldValue = assetFlexContext[fieldName];
+            const isArray = Array.isArray(fieldValue);
+            const isKeyValueObject = typeof fieldValue === "object" &&
+                fieldValue !== null &&
+                !Array.isArray(fieldValue) && // Exclude arrays
+                Object.keys(fieldValue).length > 0;
+            if (isArray) {
+                const sensorIndex = assetFlexContext[fieldName].indexOf(sensorId);
+                assetFlexContext[fieldName].splice(sensorIndex, 1);
+            } else if (isKeyValueObject) {
+                assetFlexContext[fieldName] = "";
+            }
+        } else {
+            assetFlexContext[fieldName] = null;
+        }
+    }
+
+    async function renderFlexContextCard(fieldName) {
+        const assetFlexContext = getFlexContext();
+        senSearchResEle.innerHTML = "";
+        let fieldValue = assetFlexContext[fieldName]
+        let newFieldValue;
+        let isSensorValue = false;
+        const sensorsContent = [];
+
+        if (fieldValue === null) {
+            newFieldValue = ""
+        } else if (typeof fieldValue === "object") {
+            if (fieldValue["sensor"]) {
+                newFieldValue = `{&quot;sensor&quot;: ${fieldValue["sensor"]}}`
+                isSensorValue = true;
+            } else if (fieldValue.length > 0) {
+                newFieldValue = fieldValue.join(", ")
+            }
+        } else if (typeof fieldValue == "string") {
+            newFieldValue = fieldValue
+        }
+
+        const isString = typeof fieldValue === "string";
+        const isArray = Array.isArray(fieldValue);
+        const isKeyValueObject = typeof fieldValue === "object" &&
+            fieldValue !== null &&
+            !Array.isArray(fieldValue) && // Exclude arrays
+            Object.keys(fieldValue).length > 0;
+
+        if (isKeyValueObject) {
+            const item = convertHtmlToElement(await renderSensor(fieldValue["sensor"]));
+            sensorsContent.push(item);
+        } else if (isArray) {
+            const sensorPromises = fieldValue.map(async (sensor, sensorIndex) => {
+                const item = convertHtmlToElement(await renderSensor(sensor));
+                item.classList.add("align-items-center", "pb-2");
+
+                const closeIcon = document.createElement('i');
+                closeIcon.className = 'fa fa-times fa-lg';
+                closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+                closeIcon.setAttribute('data-bs-placement', 'top');
+                closeIcon.setAttribute('title', 'Remove');
+                closeIcon.style.cursor = 'pointer';
+                closeIcon.onclick = async () => {
+                    try {
+                        await removeFlexContextSensorValue(fieldName, sensor);
+                        item.remove();
+                    } catch (error) {
+                        console.error("Failed to remove sensor:", error);
+                    }
+                };
+
+                item.appendChild(closeIcon);
+                return item;
+            });
+            sensorsContent.push(...await Promise.all(sensorPromises));
+        }
+
+        const isActiveCard = () => {
+            const activeCard = localStorage.getItem('activeCard');
+            return activeCard && activeCard === fieldName;
+        };
+
+        const card = document.createElement("div");
+        card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
+        card.id = `${fieldName}-control`;
+
+
+        card.onclick = function () {
+            if (activeCard() && activeCard().id === card.id) {
+                if (fieldName !== "inflexible-device-sensors") {
+                    setActiveCard(null); // Deselect if the same card is clicked again
+                    // remove active card from localstorage
+                    localStorage.removeItem('activeCard');
+                    card.classList.remove('border-on-click'); // Remove the border class
+                    flexOptionsContainer.innerHTML = ""; // Clear options container
+                    senSearchResEle.innerHTML = ""; // Clear sensor search results
+                    handleFlexSelectChange(null); // Clear the info container
+                }
+                return;
+            }
+
+            flexOptionsContainer.innerHTML = "";
+            senSearchResEle.innerHTML = "";
+
+            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
+            card.classList.add("border-on-click"); // Add border to the clicked card
+            handleFlexSelectChange(fieldName);
+            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isOnlySensorField)));
+            setActiveCard(card);
+            // Store active card in local storage
+            localStorage.setItem('activeCard', fieldName);
+        }
+
+        const highlightCard = document.createElement('div');
+        card.appendChild(highlightCard);
+
+        const titleContainer = document.createElement('div');
+        titleContainer.className = 'd-flex justify-content-between align-items-center';
+        const title = document.createElement('label');
+        title.className = 'form-label fs-5 fw-semi-bold';
+        title.textContent = getFlexFieldTitle(fieldName);
+        const closeIcon = document.createElement('i');
+        closeIcon.className = 'fa fa-times fa-lg';
+        closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+        closeIcon.setAttribute('data-bs-placement', 'top');
+        closeIcon.setAttribute('title', 'Remove');
+        closeIcon.style.cursor = 'pointer';
+        closeIcon.onclick = (event) => {
+            event.stopPropagation(); // prevent click from reaching the card
+
+            assetFlexContext[fieldName] = null;
+            card.remove();
+            if (activeCard() && activeCard().id === card.id) {
+                flexOptionsContainer.innerHTML = "";
+                senSearchResEle.innerHTML = "";
+                setActiveCard(null);
+                handleFlexSelectChange(null);
+                localStorage.removeItem('activeCard');
+            }
+            setFlexContext(assetFlexContext);
+        };
+        titleContainer.appendChild(title);
+        titleContainer.appendChild(closeIcon);
+
+        let fieldIconClass = '';
+        let fieldIconTitle = '';
+        if (isKeyValueObject || isArray) {
+            fieldIconClass = iconMap["sensor"];
+            fieldIconTitle = "A dynamic signal (via a sensor)";
+        } else if (isString) {
+            fieldIconClass = iconMap["string"];
+            fieldIconTitle = "A Fixed Value";
+        } else {
+            fieldIconClass = iconMap["default"];
+            fieldIconTitle = "Unknown";
+        }
+
+        const identityIcon = document.createElement('i');
+        identityIcon.className = `${fieldIconClass} ps-1 fa-md float-end text-black-50`;
+        identityIcon.setAttribute('data-bs-toggle', 'tooltip');
+        identityIcon.setAttribute('data-bs-html', 'true');
+        identityIcon.setAttribute('title', fieldIconTitle);
+        identityIcon.style.cursor = 'pointer';
+
+        highlightCard.appendChild(titleContainer);
+
+        if (isKeyValueObject || isArray) {
+            const sensorsContainer = document.createElement('div');
+            sensorsContainer.id = `inflexible-device-sensors-container`;
+            sensorsContainer.className = 'pb-2';
+            sensorsContent.forEach(sensorItem => {
+                sensorsContainer.appendChild(sensorItem);
+            });
+            highlightCard.appendChild(sensorsContainer);
+        } else if (isString) {
+            const valueContainer = document.createElement('div');
+            valueContainer.className = 'pb-2';
+            const valueSpan = document.createElement('span');
+            valueSpan.className = 'fw-light fs-4';
+            valueSpan.innerHTML = newFieldValue ? newFieldValue : "<i>Not Set</i>";
+            valueContainer.appendChild(valueSpan);
+            highlightCard.appendChild(valueContainer);
+        }
+
+        highlightCard.appendChild(identityIcon);
+        return card;
+    }
+
+    async function renderFlexContextForm() {
+        flexContextFormEle.innerHTML = "";
+
+        // check if active card is in local storage
+        const storedActiveCard = localStorage.getItem("activeCard")
+        const assetFlexContext = getFlexContext();
+
+
+        for (const [key, value] of Object.entries(assetFlexContext)) {
+            if (value !== null) {
+                const fieldCard = await renderFlexContextCard(key);
+                flexContextFormEle.appendChild(fieldCard);
+            }
+        }
+
+        if (storedActiveCard && activeCard()) {
+            const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
+            if (assetFlexContext[storedActiveCard]) {
+                const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price");
+                setTimeout(() => {
+                    flexOptionsContainer.innerHTML = "";
+                    flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isOnlySensorField));
+                    handleFlexSelectChange(flexId);
+                    activeCard().classList.add('border-on-click'); // Add border to the clicked card
+                    const renderedActiveCard = document.getElementById(`${flexId}-control`);
+                    renderedActiveCard.classList.add('border-on-click'); // Add border to the clicked card
+                    setActiveCard(renderedActiveCard);
+                }, 300);
+
+                renderSelectInfoCards();
+            }
+        }
+        localStorage.removeItem('activeCard');
+        renderFlexSelectOptions();
+    }
+
+    // This is a bridge/middleware function to work with actionFunc interface
+    // used by the sensor search results
+    async function updateSensorValue(sensorId) {
+        await updateFlexContextFieldValue("sensor", sensorId);
+    }
+
+    async function updateFlexContextFieldValue(dataType, sensorId) {
+        let highlightedCard = document.querySelector('.border-on-click');
+        const assetFlexContext = getFlexContext();
+        if (!highlightedCard) {
+            showToast("Please select a field to update", "error");
+            return;
+        }
+
+        // get card id and remove '-control' at the end
+        const cardId = highlightedCard.id;
+        const flexId = cardId.slice(0, -8);
+        if (dataType === "fixedValue") {
+            const powerCapacityInputValue = document.getElementById("fixed-value").value;
+            // check if value is valid
+            if (powerCapacityInputValue === "") {
+                showToast("Please enter a value", "error");
+                return;
+            }
+            assetFlexContext[flexId] = powerCapacityInputValue;
+        } else if (dataType === "sensor" && sensorId) {
+            if (flexId === "inflexible-device-sensors") {
+                if (assetFlexContext[flexId]) {
+                    assetFlexContext[flexId].push(sensorId);
+                } else {
+                    assetFlexContext[flexId] = [sensorId];
+                }
+            } else {
+                assetFlexContext[flexId] = { sensor: sensorId };
+            }
+        }
+
+        localStorage.setItem('activeCard', flexId);
+
+        highlightedCard = await renderFlexContextCard(flexId);
+        flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
+        await setActiveCard(document.getElementById(`${flexId}-control`));
+        await setFlexContext(assetFlexContext);
+
+        // Update FlexContext
+        await updateFlexContext();
+    }
+
+    function renderFlexSelectOptions() {
+        // comapare the assetFlexContext with the template and get the fields that are not set
+        const assetFlexContextTemplate = Object.assign({}, assetFlexContextSchema, getFlexContext());
+        flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
+        for (const [key, value] of Object.entries(assetFlexContextTemplate)) {
+            if (value === null || value.length === 0) {
+                flexSelect.innerHTML += `<option value="${key}">${getFlexFieldTitle(key)}</option>`;
+            }
+        }
+    }
+
+    function renderFlexInputOptions(contextKey, sensorsOnly = false) {
+        if (!contextKey) {
+            flexInfoContainer.innerHTML = "";
+            return;
+        }
+
+        const tabsContainer = document.createElement("div");
+        tabsContainer.id = "flex-input-options"
+        tabsContainer.className = "card-header";
+
+        const ul = document.createElement("ul");
+        ul.className = "nav nav-tabs card-header-tabs";
+        ul.id = "pills-tab";
+        ul.setAttribute("role", "tablist");
+
+        function createTooltipIcon(title) {
+            const icon = document.createElement("i");
+            icon.className = "fa fa-info-circle ps-2";
+            icon.setAttribute("data-bs-toggle", "tooltip");
+            icon.setAttribute("data-bs-placement", "bottom");
+            icon.title = title;
+            return icon;
+        }
+
+        if (sensorsOnly) {
+            // Only the dynamic value tab
+            const li = document.createElement("li");
+            li.className = "nav-item";
+            li.setAttribute("role", "presentation");
+
+            const button = document.createElement("button");
+            button.className = "nav-link active";
+            button.id = "pills-dynamic-tab";
+            button.setAttribute("data-bs-toggle", "pill");
+            button.setAttribute("data-bs-target", "#pills-dynamic");
+            button.type = "button";
+            button.setAttribute("role", "tab");
+            button.setAttribute("aria-controls", "pills-dynamic");
+            button.setAttribute("aria-selected", "false");
+            button.textContent = "Dynamic value (a sensor)";
+
+            li.appendChild(button);
+            ul.appendChild(li);
+        } else {
+            // Fixed value tab
+            const liFixed = document.createElement("li");
+            liFixed.className = "nav-item";
+            liFixed.setAttribute("role", "presentation");
+
+            const buttonFixed = document.createElement("button");
+            buttonFixed.className = "nav-link flex-nav active";
+            buttonFixed.id = "pills-homfixed";
+            buttonFixed.setAttribute("data-bs-toggle", "pill");
+            buttonFixed.setAttribute("data-bs-target", "#pills-fixed");
+            buttonFixed.type = "button";
+            buttonFixed.setAttribute("role", "tab");
+            buttonFixed.setAttribute("aria-controls", "pills-fixed");
+            buttonFixed.setAttribute("aria-selected", "true");
+            buttonFixed.textContent = "Fixed value";
+
+            liFixed.appendChild(buttonFixed);
+            ul.appendChild(liFixed);
+
+            // Dynamic value tab
+            const liDynamic = document.createElement("li");
+            liDynamic.className = "nav-item";
+            liDynamic.setAttribute("role", "presentation");
+
+            const buttonDynamic = document.createElement("button");
+            buttonDynamic.className = "nav-link flex-nav";
+            buttonDynamic.id = "pills-dynamic-tab";
+            buttonDynamic.setAttribute("data-bs-toggle", "pill");
+            buttonDynamic.setAttribute("data-bs-target", "#pills-dynamic");
+            buttonDynamic.type = "button";
+            buttonDynamic.setAttribute("role", "tab");
+            buttonDynamic.setAttribute("aria-controls", "pills-dynamic");
+            buttonDynamic.setAttribute("aria-selected", "false");
+            buttonDynamic.textContent = "Dynamic value (a sensor)";
+
+            liDynamic.appendChild(buttonDynamic);
+            ul.appendChild(liDynamic);
+        }
+
+        tabsContainer.appendChild(ul);
+
+        // A helper function to create the sensor search block
+        function createSensorSearchBlock() {
+            const group = document.createElement("div");
+            group.id = "select-sensor-input";
+            group.className = "flex-input-group p-2";
+
+            // Label
+            const label = document.createElement("label");
+            label.htmlFor = "sensor";
+            label.className = "form-label";
+            label.innerHTML = `Look up Sensor for <b>${getFlexFieldTitle(contextKey)}</b> `;
+            label.appendChild(createTooltipIcon(
+                `
+                    Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. 
+                    Make sure that the sensor data will be available consistently, though, so scheduling will work.
+                `
+            ));
+            group.appendChild(label);
+
+            // Checkbox group
+            const formCheck = document.createElement("div");
+            formCheck.className = "form-check";
+
+            const checkbox = document.createElement("input");
+            checkbox.className = "form-check-input";
+            checkbox.type = "checkbox";
+            checkbox.value = "";
+            checkbox.id = "flexCheckBox";
+            checkbox.onchange = searchSensorsFlexContextForm;
+
+
+            const checkLabel = document.createElement("label");
+            checkLabel.className = "form-check-label";
+            checkLabel.htmlFor = "flexCheckBox";
+            checkLabel.textContent = "Include Public Assets";
+
+            formCheck.appendChild(checkbox);
+            formCheck.appendChild(checkLabel);
+            group.appendChild(formCheck);
+
+            // Row with search + units
+            const row = document.createElement("div");
+            row.className = "row";
+
+            const col8 = document.createElement("div");
+            col8.className = "col-8 pe-1";
+            const searchInput = document.createElement("input");
+            searchInput.type = "text";
+            searchInput.id = "flexContextSensorSearch";
+            searchInput.className = "form-control";
+            searchInput.placeholder = "Search sensors...";
+            searchInput.oninput = searchSensorsFlexContextForm;
+            searchInput.onkeydown = function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); // Prevent form submission
+                    searchSensorsFlexContextForm();
+                }
+            };
+
+            col8.appendChild(searchInput);
+
+            const col4 = document.createElement("div");
+            col4.className = "col-4 ps-0";
+
+            // Units select - START
+            const select = document.createElement("select");
+            select.id = "flexUnitsSelect";
+            select.className = "form-select";
+            select.onchange = searchSensorsFlexContextForm;
+
+            const defaultOption = document.createElement("option");
+            defaultOption.value = null;
+            defaultOption.selected = true;
+            defaultOption.textContent = "Units";
+            select.appendChild(defaultOption);
+
+            availableUnits.forEach(unit => {
+                const option = document.createElement("option");
+                option.value = unit;
+                option.textContent = unit;
+                select.appendChild(option);
+            });
+            col4.appendChild(select);
+            // Units select - END
+
+
+            row.appendChild(col8);
+            row.appendChild(col4);
+            group.appendChild(row);
+
+            return group;
+        }
+
+        // Create the main tab-content wrapper
+        const tabContent = document.createElement("div");
+        tabContent.className = "tab-content rounded-bottom";
+        tabContent.id = "pills-tabContent";
+        tabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
+        tabContent.style.border = '1px solid #0000002d';
+
+        if (sensorsOnly) {
+            // Dynamic tab only
+            const dynamicPane = document.createElement("div");
+            dynamicPane.className = "tab-pane fade show active";
+            dynamicPane.id = "pills-dynamic";
+            dynamicPane.setAttribute("role", "tabpanel");
+            dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
+
+            dynamicPane.appendChild(createSensorSearchBlock());
+
+            tabContent.appendChild(dynamicPane);
+        } else {
+            // Fixed value pane
+            const fixedPane = document.createElement("div");
+            fixedPane.className = "tab-pane fade show active";
+            fixedPane.id = "pills-fixed";
+            fixedPane.setAttribute("role", "tabpanel");
+            fixedPane.setAttribute("aria-labelledby", "pills-fixed-tab");
+
+            const fixedGroup = document.createElement("div");
+            fixedGroup.className = "flex-input-group p-2";
+
+            const fixedLabel = document.createElement("label");
+            fixedLabel.htmlFor = "fixed-value";
+            fixedLabel.className = "form-label";
+            fixedLabel.innerHTML = `Value for <b>${getFlexFieldTitle(contextKey)}</b> `;
+            fixedLabel.appendChild(createTooltipIcon(
+                "Enter a fixed value with a unit, e.g. '75kW' or '105 EUR'. It will be used in all schedules for this asset and its sensors."
+            ));
+
+            const fixedInput = document.createElement("input");
+            fixedInput.type = "text";
+            fixedInput.id = "fixed-value";
+            fixedInput.className = "form-control";
+            fixedInput.value = (typeof getFlexContext()[contextKey] === "string") ? getFlexContext()[contextKey] : "";
+            fixedInput.placeholder = "e.g. 15000 kW";
+            fixedInput.onkeydown = function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); // Prevent form submission
+                    updateFlexContextFieldValue('fixedValue', null);
+                }
+            };
+
+            const setButton = document.createElement("button");
+            setButton.className = "btn btn-secondary btn-sm me-2 mt-2";
+            setButton.onclick = () => updateFlexContextFieldValue('fixedValue', null);
+            setButton.textContent = "Set Value";
+
+            fixedGroup.appendChild(fixedLabel);
+            fixedGroup.appendChild(fixedInput);
+            fixedGroup.appendChild(setButton);
+            fixedPane.appendChild(fixedGroup);
+
+            tabContent.appendChild(fixedPane);
+
+            // Dynamic value pane
+            const dynamicPane = document.createElement("div");
+            dynamicPane.className = "tab-pane fade rounded-bottom";
+            dynamicPane.id = "pills-dynamic";
+            dynamicPane.setAttribute("role", "tabpanel");
+            dynamicPane.setAttribute("aria-labelledby", "pills-dynamic-tab");
+
+            dynamicPane.appendChild(createSensorSearchBlock(
+                "Look up Sensor",
+                "You can add a sensor which provides the values in a dynamic fashion. In the search form below, you can choose the right one. Make sure that the sensor data will be available consistently, though, so scheduling will work."
+            ));
+
+            tabContent.appendChild(dynamicPane);
+        }
+
+        tabsContainer.appendChild(tabContent);
+        return tabsContainer;
+    }
+    // ============== Flex Context Management END ============== //
+
+
+    // ============== Page Events ============== //
+
+    flexContexFormModal.addEventListener('shown.bs.modal', function () {
+        // Initial renders
+        renderFlexContextForm(); // Initial render of flex context form
+    });
+
+    flexContexFormModal.addEventListener('hidden.bs.modal', function () {
+        updateFlexContext();
+        localStorage.removeItem('activeCard');
+        flexOptionsContainer.innerHTML = "";
+        handleFlexSelectChange(null);
+    });
+
+    flexSelect.addEventListener('change', (event) => {
+        const selectedKey = event.target.value;
+        handleFlexSelectChange(selectedKey);
+    });
+
+    function renderSelectInfoCards(contextKey, description, exampleUnits, isArray = false) {
+        if (contextKey) {
+            return `
+                <div>
+                    <div class="alert alert-info" role="alert">
+                        <b> About ${getFlexFieldTitle(contextKey)}
+                        <div class="pt-2 fw-normal">
+                            ${description}
+                        </div>
+
+                        <div class="pt-3 fw-bold"> 
+                            Example Units: <span class="fw-normal"> ${exampleUnits.join(", ")} </span>
+                        </div>
+                        
+                    </div>
+                </div>
+            `;
+        } else {
+            flexInfoContainer.innerHTML = "";
+        }
+    }
+
+    function handleFlexSelectChange(selectedOption) {
+        flexInfoContainer.innerHTML = "";
+        if (!selectedOption) {
+            return; // No option selected, do nothing
+        }
+
+        const description = schemaSpecs[selectedOption]?.description || "No description available.";
+        const exampleUnits = schemaSpecs[selectedOption]["example-units"];
+        flexInfoContainer.innerHTML = renderSelectInfoCards(selectedOption, description, exampleUnits);
+
+        const alertStyle = "alert alert-light";
+
+    }
+    // ============== Page Events ============== //
+</script>
+
+{% endblock %}

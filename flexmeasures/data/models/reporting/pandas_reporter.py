@@ -135,7 +135,7 @@ class PandasReporter(Reporter):
         belief_time: datetime | None = kwargs.get("belief_time", None)
         belief_horizon: timedelta | None = kwargs.get("belief_horizon", None)
         output: list[dict[str, Any]] = kwargs.get("output")
-        use_latest_version_only: bool = kwargs.get("use_latest_version_only", False)
+        use_latest_version_only: bool = kwargs.get("use_latest_version_only", None)
 
         # by default, use the minimum resolution among the input sensors
         if resolution is None:
@@ -319,6 +319,12 @@ class PandasReporter(Reporter):
             ],
         """
 
+        def _any_empty(objs):
+            for o in objs:
+                if isinstance(o, (pd.Series, pd.DataFrame)) and o.empty:
+                    return True
+            return False
+
         previous_df = None
 
         for _transformation in self._config.get("transformations"):
@@ -332,10 +338,23 @@ class PandasReporter(Reporter):
             )  # default is OUTPUT = INPUT.method()
 
             method = transformation.get("method")
+            _property = transformation.get("_property")
             args = self._process_pandas_args(transformation.get("args", []), method)
             kwargs = self._process_pandas_kwargs(
                 transformation.get("kwargs", {}), method
             )
-            self.data[df_output] = getattr(self.data[df_input], method)(*args, **kwargs)
+
+            # Possibly skip transformation if dealing with an empty Series/DataFrame
+            skip_if_empty = transformation.get("skip_if_empty", False)
+
+            if method:
+                if (_any_empty(args) or _any_empty(kwargs.values())) and skip_if_empty:
+                    self.data[df_output] = self.data[df_input]
+                else:
+                    self.data[df_output] = getattr(self.data[df_input], method)(
+                        *args, **kwargs
+                    )
+            elif _property:
+                self.data[df_output] = getattr(self.data[df_input], _property)
 
             previous_df = df_output

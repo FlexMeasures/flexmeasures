@@ -257,11 +257,6 @@ function ready() {
     })
 
 
-    // Security messages styling
-
-    $('.flashes').addClass('alert alert-info');
-
-
     // Check button behaviour
 
     $("#control-check-expected-value-offshore").click(function (data) {
@@ -457,4 +452,244 @@ function replaceMultiple(str, mapObj){
     // Use the regular expression to replace matched substrings with their corresponding values from the mapObj.
     // The "g" flag makes the replacement global (replaces all occurrences), and it is case-sensitive by default.
     return str.replace(regex, matched => mapObj[matched]);
+}
+
+
+function getTimeAgo(timestamp) {
+    /**
+     * Converts a timestamp into a human-readable "time ago" format.
+     *
+     * @param {number} timestamp - The timestamp in milliseconds to convert.
+     * @returns {string} A string representing how much time has passed since the given timestamp,
+     *                   formatted as "X seconds ago", "X minutes ago", "X hours ago", or "X days ago".
+     */
+    const now = Date.now();
+    const diffInSeconds = Math.floor((now - timestamp) / 1000); // Difference in seconds
+    if (diffInSeconds < 60) {
+        return `${diffInSeconds} seconds ago`;
+    } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
+}
+
+// Renders a date in the local timezone, including day of the week.
+// e.g. "Fri, 22 May 2020"
+const dateFormatter = new Intl.DateTimeFormat(
+  [], {"year": "numeric", "month": "long", "day": "numeric"}
+)
+
+// Renders an HH:MM time in the local timezone, including timezone info.
+// e.g. "12:17 BST"
+const timeFormatter = new Intl.DateTimeFormat(
+  [], {"hour": "numeric", "minute": "numeric", "timeZoneName": "short"}
+)
+
+/** Given an ISO 8601 date string, render it as a more friendly date
+ *  in the user's timezone.
+ * 
+ *  Examples:
+ *  - "today @ 12:00 BST"
+ *  - "yesterday @ 11:00 CST"
+ *  - "Fri, 22 May 2020 @ 10:00 PST"
+ */
+function getHumanFriendlyDateString(iso8601_date_string) {
+  const date = new Date(Date.parse(iso8601_date_string));
+
+  // When are today and yesterday?
+  const today = new Date();
+  const yesterday = new Date().setDate(today.getDate() - 1);
+
+  // We have to compare the *formatted* dates rather than the actual dates --
+  // for example, if the UTC date and the localised date fall on either side
+  // of midnight.
+  if (dateFormatter.format(date) == dateFormatter.format(today)) {
+    return "today @ " + timeFormatter.format(date);
+  } else if (dateFormatter.format(date) == dateFormatter.format(yesterday)) {
+    return "yesterday @ " + timeFormatter.format(date);
+  } else {
+    return dateFormatter.format(date) + " @ " + timeFormatter.format(date);
+  }
+}
+
+/** Given an ISO 8601 date string, render a human-friendly description
+ *  of how long ago it was, if recent.
+ *
+ *  Examples:
+ *  - "just now"
+ *  - "10 seconds ago"
+ *  - "20 minutes ago"
+ * 
+ * If longer ago than 24 hours, let getHumanFriendlyDateString take over.
+ */
+function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string) {
+  const date = new Date(Date.parse(iso8601_date_string));
+  const now = new Date();
+
+  const deltaMilliseconds = now - date;
+  const deltaSeconds = Math.floor(deltaMilliseconds / 1000);
+  const deltaMinutes = Math.floor(deltaSeconds / 60);
+  const deltaHours = Math.floor(deltaMinutes / 60);
+
+  if (deltaSeconds < 5) {
+    return "just now";
+  } else if (deltaSeconds < 60) {
+    return deltaSeconds + " seconds ago";
+  } else if (deltaMinutes == 1) {
+    return "1 minute ago";
+  } else if (deltaMinutes < 60) {
+    return deltaMinutes + " minutes ago";
+  } else if (deltaHours == 1) {
+    return "> 1 hour ago";
+  } else if (deltaHours < 24) {
+    return "> " + deltaHours + " hours ago";
+  } else {
+    return getHumanFriendlyDateString(iso8601_date_string);
+  }
+}
+
+// Function to return a loading row for a table
+function getLoadingRow(id="loading-row") {
+    const loading_row = `
+        <tr id="${id}">
+            <td colspan="5" class="text-center">
+                <i class="fa fa-spinner fa-spin"></i> Loading...
+            </td>
+        </tr>
+    `;
+    return loading_row;
+}
+
+function unpackData(data) {
+    return Object.fromEntries(
+        Object.entries(data).map(([key, value]) => {
+            if (Array.isArray(value) && value.every(item => Array.isArray(item) && item.length === 2)) {
+                return [key, Object.fromEntries(value)];
+            }
+            console.error(`Invalid entry for key: ${key}`, value);
+            return [key, value];
+        })
+    );
+}
+
+function getLatestBeliefName(data) {
+    return Object.keys(data).reduce((latest, name) => {
+        const currentBeliefTime = new Date(data[name]["Last recorded"]);
+        const latestBeliefTime = latest ? new Date(data[latest]["Last recorded"]) : new Date(0);
+        return currentBeliefTime > latestBeliefTime ? name : latest;
+    }, null);
+}
+
+function updateStatsTable(stats, tableBody) {
+    tableBody.innerHTML = ''; // Clear the table body
+
+    Object.entries(stats).forEach(([key, val]) => {
+        const row = document.createElement('tr');
+        const keyCell = document.createElement('th');
+        var valueTitle = "";
+        const valueCell = document.createElement('td');
+
+        keyCell.textContent = key;
+        // Round value to 2 decimal points if it's a number
+        if (typeof val === 'number' & key != 'Number of values') {
+            valueCell.textContent = val.toFixed(4);
+        } else if (typeof val === 'string' & (key.includes("First") | key.includes("Last"))) {
+            valueCell.textContent = getHumanFriendlyDeltaOrTimeStr(val);
+            valueTitle = val;
+        } else {
+            valueCell.textContent = val;
+        }
+
+        if (valueTitle !== ""){
+            valueCell.setAttribute("title", valueTitle);
+        }
+        row.appendChild(keyCell);
+        row.appendChild(valueCell);
+        tableBody.appendChild(row);
+    });
+}
+
+function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
+    const spinner = document.getElementById('spinner-run-simulation');
+    const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
+    const tableBody = document.getElementById('statsTableBody');
+    const toggleStatsCheckbox = document.getElementById('toggleStatsCheckbox');
+    const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
+    const dropdownButton = document.getElementById('sourceKeyDropdown');
+    const noDataWarning = document.getElementById('noDataWarning');
+    const fetchError = document.getElementById('fetchError');
+    let queryParams = '?sort=false';
+    // Show the spinner
+    spinner.classList.remove('d-none');
+    if (toggleStatsCheckbox.checked) {
+        queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
+    }
+    
+    // Enable all the default behaviors on every API call.
+    dropdownMenu.innerHTML = '';
+    noDataWarning.classList.add('d-none');
+    fetchError.classList.add('d-none');
+    tableBody.innerHTML = '';
+    
+    fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)
+    .then(response => response.json())
+    .then(data => {
+        // Remove 'status' sourceKey
+        delete data['status'];
+        data = unpackData(data);
+
+        if (Object.keys(data).length > 0) {
+            // Show the header and dropdown container
+            dropdownContainer.classList.remove('d-none');
+            // Populate the dropdown menu with sourceKeys
+            Object.keys(data).forEach(sourceKey => {
+                const dropdownItem = document.createElement('li');
+                const dropdownLink = document.createElement('a');
+                dropdownLink.className = 'dropdown-item';
+                dropdownLink.href = '#';
+                dropdownLink.textContent = sourceKey;
+                dropdownLink.dataset.sourceKey = sourceKey;
+
+                dropdownLink.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const selectedSourceKey = event.target.dataset.sourceKey;
+                    dropdownButton.textContent = selectedSourceKey;
+                    updateStatsTable(data[selectedSourceKey], tableBody);
+                });
+
+                dropdownItem.appendChild(dropdownLink);
+                dropdownMenu.appendChild(dropdownItem);
+            });
+
+            // Update the table with the first sourceKey's data by default
+            const firstSourceKey = getLatestBeliefName(data);
+            dropdownButton.textContent = firstSourceKey;
+            updateStatsTable(data[firstSourceKey], tableBody);
+        } else {
+            // If the stats table is empty, make the properties table full width
+            noDataWarning.classList.remove('d-none');
+            dropdownContainer.classList.add('d-none');
+            tableBody.innerHTML = '';
+            if (toggleStatsCheckbox.checked) {
+                noDataWarning.innerHTML = 'There is no data for the selected date range.'
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        dropdownContainer.classList.add('d-none');
+        fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
+        fetchError.classList.remove('d-none');
+    })
+    .finally(() => {
+        // Hide the spinner
+        spinner.classList.add('d-none');
+    });
+
 }

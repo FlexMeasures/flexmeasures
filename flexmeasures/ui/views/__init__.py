@@ -3,10 +3,9 @@
 from flexmeasures.ui import flexmeasures_ui
 
 # Now views can register
-from flexmeasures.ui.views.new_dashboard import dashboard_view  # noqa: F401
-from flexmeasures.ui.views.control import control_view  # noqa: F401
+from flexmeasures.ui.views.dashboard import dashboard_view  # noqa: F401
 
-from flexmeasures.ui.views.logged_in_user import (  # noqa: F401  # noqa: F401
+from flexmeasures.ui.views.users.logged_in_user import (  # noqa: F401  # noqa: F401
     logged_in_user_view,
 )
 

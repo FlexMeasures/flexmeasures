@@ -32,7 +32,7 @@ ur = pint.UnitRegistry(
     ],
 )
 ur.load_definitions(custom_template)
-ur.default_format = "~P"  # short pretty
+ur.formatter.default_format = "~P"  # short pretty
 ur.define("percent = 1 / 100 = %")
 ur.define("permille = 1 / 1000 = ‰")
 
@@ -86,12 +86,66 @@ def is_valid_unit(unit: str) -> bool:
     return True
 
 
+def find_smallest_common_unit(units: list[str]) -> tuple[str, dict[str, float]]:
+    """Select the smallest unit by comparing their magnitude when converted to base units.
+
+    If the units are dimensionally incompatible (e.g. "kg" and "m"), returns "a.u." and default scaling factors of 1.
+
+    For example:
+    >>> find_smallest_common_unit(["MW", "kW", "W"])
+    ('W', {'MW': 1000000.0, 'kW': 1000.0, 'W': 1.0})
+    >>> find_smallest_common_unit(["kEUR", "EUR"])
+    ('EUR', {'kEUR': 1000.0, 'EUR': 1.0})
+    >>> find_smallest_common_unit(["cEUR/kWh", "EUR/MWh"])
+    ('EUR/MWh', {'cEUR/kWh': 10.0, 'EUR/MWh': 1.0})
+    >>> find_smallest_common_unit(["%", "dimensionless"])
+    ('%', {'%': 1.0, 'dimensionless': 100.0})
+    >>> find_smallest_common_unit(["%", ""])
+    ('%', {'%': 1.0, '': 100.0})
+    >>> find_smallest_common_unit(["h", "s"])
+    ('s', {'h': 3600.0, 's': 1.0})
+    >>> find_smallest_common_unit(["kW", "m"])
+    ('a.u.', {'kW': 1.0, 'm': 1.0})
+    >>> find_smallest_common_unit(["EUR", "AUD"])
+    ('a.u.', {'EUR': 1.0, 'AUD': 1.0})
+    """
+    if not units:
+        return "a.u.", {}
+
+    try:
+        # Convert all to quantities and check dimensionality
+        quantities = [1.0 * ur.parse_units(u) for u in units]
+        dim = quantities[0].dimensionality
+
+        if any(q.dimensionality != dim for q in quantities):
+            return "a.u.", {unit: 1.0 for unit in units}
+
+        # Get magnitudes in terms of base units
+        base_mags = [ur.Quantity(1.0, u).to_base_units().magnitude for u in units]
+        smallest_idx = base_mags.index(min(base_mags))
+        smallest_unit = units[smallest_idx]
+
+        # Compute scaling factors to smallest unit
+        factors = {
+            u: determine_unit_conversion_multiplier(u, smallest_unit) for u in units
+        }
+
+        return smallest_unit, factors
+
+    except (pint.DimensionalityError, Exception):
+        return "a.u.", {unit: 1.0 for unit in units}
+
+
 def determine_unit_conversion_multiplier(
     from_unit: str, to_unit: str, duration: timedelta | None = None
 ):
     """Determine the value multiplier for a given unit conversion.
     If needed, requires a duration to convert from units of stock change to units of flow, or vice versa.
     """
+    if from_unit == "":
+        from_unit = "dimensionless"
+    if to_unit == "":
+        to_unit = "dimensionless"
     scalar = ur.Quantity(from_unit) / ur.Quantity(to_unit)
     if scalar.dimensionality == ur.Quantity("h").dimensionality:
         # Convert a stock change to a flow
@@ -116,8 +170,10 @@ def determine_unit_conversion_multiplier(
 
 def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
     """For example:
-    >>> determine_flow_unit("m³")  # m³/h
-    >>> determine_flow_unit("kWh")  # kW
+    >>> determine_flow_unit("m³")
+    'm³/h'
+    >>> determine_flow_unit("kWh")
+    'kW'
     """
     flow = to_preferred(ur.Quantity(stock_unit) / ur.Quantity(time_unit))
     return "{:~P}".format(flow.units)
@@ -127,8 +183,10 @@ def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
     """Determine the shortest unit of stock, given a unit of flow.
 
     For example:
-    >>> determine_stock_unit("m³/h")  # m³
-    >>> determine_stock_unit("kW")  # kWh
+    >>> determine_stock_unit("m³/h")
+    'm³'
+    >>> determine_stock_unit("kW")
+    'kWh'
     """
     stock = to_preferred(ur.Quantity(flow_unit) * ur.Quantity(time_unit))
     return "{:~P}".format(stock.units)
@@ -138,10 +196,14 @@ def units_are_convertible(
     from_unit: str, to_unit: str, duration_known: bool = True
 ) -> bool:
     """For example, a sensor with W units allows data to be posted with units:
-    >>> units_are_convertible("kW", "W")  # True (units just have different prefixes)
-    >>> units_are_convertible("J/s", "W")  # True (units can be converted using some multiplier)
-    >>> units_are_convertible("Wh", "W")  # True (units that represent a stock delta can, knowing the duration, be converted to a flow)
-    >>> units_are_convertible("°C", "W")  # False
+    >>> units_are_convertible("kW", "W")  # units just have different prefixes
+    True
+    >>> units_are_convertible("J/s", "W")  # units can be converted using some multiplier
+    True
+    >>> units_are_convertible("Wh", "W")  # units that represent a stock delta can, knowing the duration, be converted to a flow
+    True
+    >>> units_are_convertible("°C", "W")
+    False
     """
     if not is_valid_unit(from_unit) or not is_valid_unit(to_unit):
         return False
@@ -190,13 +252,13 @@ def is_energy_unit(unit: str) -> bool:
 
 def is_currency_unit(unit: str | pint.Quantity | pint.Unit) -> bool:
     """For Example:
-    >>> is_energy_price_unit("EUR")
+    >>> is_currency_unit("EUR")
     True
-    >>> is_energy_price_unit("KRW")
+    >>> is_currency_unit("KRW")
     True
-    >>> is_energy_price_unit("potatoe")
+    >>> is_currency_unit("potatoe")
     False
-    >>> is_energy_price_unit("MW")
+    >>> is_currency_unit("MW")
     False
     """
     if isinstance(unit, pint.Quantity):
@@ -205,6 +267,26 @@ def is_currency_unit(unit: str | pint.Quantity | pint.Unit) -> bool:
         return is_currency_unit(str(unit))
 
     return Currency(code=unit) in list_all_currencies()
+
+
+def is_price_unit(unit: str) -> bool:
+    """For example:
+    >>> is_price_unit("EUR/MWh")
+    True
+    >>> is_price_unit("KRW/MWh")
+    True
+    >>> is_price_unit("KRW/MW")
+    True
+    >>> is_price_unit("beans/MW")
+    False
+    """
+    if (
+        unit[:3] in [str(c) for c in list_all_currencies()]
+        and len(unit) > 3
+        and unit[3] == "/"
+    ):
+        return True
+    return False
 
 
 def is_energy_price_unit(unit: str) -> bool:
@@ -218,14 +300,84 @@ def is_energy_price_unit(unit: str) -> bool:
     >>> is_energy_price_unit("beans/MW")
     False
     """
-    if (
-        unit[:3] in [str(c) for c in list_all_currencies()]
-        and len(unit) > 3
-        and unit[3] == "/"
-        and is_energy_unit(unit[4:])
-    ):
+    if is_price_unit(unit) and is_energy_unit(unit[4:]):
         return True
     return False
+
+
+def is_capacity_price_unit(unit: str) -> bool:
+    """For example:
+    >>> is_capacity_price_unit("EUR/MW")
+    True
+    >>> is_capacity_price_unit("KRW/MW")
+    True
+    >>> is_capacity_price_unit("KRW/MWh")
+    False
+    >>> is_capacity_price_unit("beans/MWh")
+    False
+    """
+    if is_price_unit(unit) and is_power_unit(unit[4:]):
+        return True
+    return False
+
+
+def is_speed_unit(unit: str) -> bool:
+    """For example:
+    >>> is_speed_unit("m/s")
+    True
+    >>> is_speed_unit("km/h")
+    True
+    >>> is_speed_unit("W")
+    False
+    >>> is_speed_unit("m/s²")
+    False
+    """
+    if not is_valid_unit(unit):
+        return False
+    return ur.Quantity(unit).dimensionality == ur.Quantity("m/s").dimensionality
+
+
+def get_unit_dimension(unit: str) -> str:
+    """For example:
+    >>> get_unit_dimension("kW")
+    'power'
+    >>> get_unit_dimension("kWh")
+    'energy'
+    >>> get_unit_dimension("EUR/MWh")
+    'energy price'
+    >>> get_unit_dimension("EUR/kW")  # e.g. a capacity price or a peak price
+    'price'
+    >>> get_unit_dimension("AUD")
+    'currency'
+    >>> get_unit_dimension("%")
+    'percentage'
+    >>> get_unit_dimension("°C")
+    'temperature'
+    >>> get_unit_dimension("m")
+    'length'
+    >>> get_unit_dimension("h")
+    'time'
+    >>> get_unit_dimension("m/s")
+    'speed'
+    """
+    if is_power_unit(unit):
+        return "power"
+    if is_energy_unit(unit):
+        return "energy"
+    if is_energy_price_unit(unit):
+        return "energy price"
+    if is_price_unit(unit):
+        return "price"
+    if is_currency_unit(unit):
+        return "currency"
+    if is_speed_unit(unit):
+        return "speed"
+    if unit == "%":
+        return "percentage"
+    dimensions = ur.Quantity(unit).dimensionality
+    if len(dimensions) == 1:
+        return list(dimensions.keys())[0][1:-1]
+    return "value"
 
 
 def _convert_time_units(

@@ -18,12 +18,10 @@ Of course, these endpoints can also be used to load historic data into FlexMeasu
 Prerequisites
 --------------
 
-- FlexMeasures needs some structural meta data for data to be understood. For example, for adding weather data we need to define a weather sensor, and what kind of weather sensors there are. You also need a user account. If you host FlexMeasures yourself, you need to add this info first. Head over to :ref:`getting_started`, where these steps are covered, study our :ref:`cli` or look into plugins which do this like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_.
+- FlexMeasures needs some structural meta data for data to be understood. For example, for adding weather data we need to define a weather sensor, and what kind of weather sensors there are. You also need a user account. If you host FlexMeasures yourself, you need to add this info first. Head over to :ref:`getting_started`, where these steps are covered, study our :ref:`cli` or look into plugins which do this like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `flexmeasures-weather <https://github.com/flexmeasures/flexmeasures-weather>`_.
 - You should be familiar with where to find your API endpoints (see :ref:`api_versions`) and how to authenticate against the API (see :ref:`api_auth`).
 
 .. note:: For deeper explanations of the data and the meta fields we'll send here, You can always read the :ref:`api_introduction`, to the FlexMeasures API, e.g. :ref:`signs`, :ref:`frequency_and_resolution`, :ref:`prognoses` and :ref:`units`.
-
-.. note:: To address assets and sensors, these tutorials assume entity addresses valid in the namespace ``fm1``. See :ref:`api_introduction` for more explanations. 
 
 
 .. _posting_sensor_data:
@@ -31,7 +29,7 @@ Prerequisites
 Posting sensor data
 -------------------
 
-Sensor data (both observations and forecasts) can be posted to `POST  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_.
+Sensor data (both observations and forecasts) can be posted to `POST  /sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-(id)-data>`_.
 This endpoint represents the basic method of getting time series data into FlexMeasures via API.
 It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that have happened in the past or will happen in the future.
 Some examples:
@@ -46,7 +44,7 @@ The exact URL will depend on your domain name, and will look approximately like 
 
 .. code-block:: html
 
-    [POST] https://company.flexmeasures.io/api/<version>/sensors/data
+    [POST] https://company.flexmeasures.io/api/v3_0/sensors/16/data
 
 This example "PostSensorDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction, registered under sensor 16.
@@ -56,7 +54,6 @@ The ``prior`` indicates that the prices were published at 3pm on December 31st 2
 
     {
         "type": "PostSensorDataRequest",
-        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.16",
         "values": [
             52.37,
             51.14,
@@ -97,8 +94,8 @@ Likewise, if the data unit does not match the sensor’s unit, FlexMeasures will
 Being explicit when posting power data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For power data, USEF specifies separate message types for observations and forecasts.
-Correspondingly, we allow the following message types to be used with the `POST  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ endpoint:
+For power data, USEF[1] specifies separate message types for observations and forecasts.
+Correspondingly, we allow the following message types to be used with the `POST  /sensors/16/data <../api/v3_0.html#post--api-v3_0-sensors-(id)-data>`_ endpoint:
 
 .. code-block:: json
 
@@ -124,7 +121,6 @@ A single average power value for a 15-minute time interval for a single sensor, 
 
     {
         "type": "PostSensorDataRequest",
-        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "value": 220,
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT0H15M",
@@ -141,7 +137,6 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
 
     {
         "type": "PostSensorDataRequest",
-        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "values": [
             220,
             210,
@@ -152,89 +147,6 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
         "horizon": "-PT5M",
         "unit": "MW"
     }
-
-..
-    todo: uncomment whenever the new sensor data API supports sending data for multiple sensors in one message
-
-    Single identical value, multiple sensors
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Single identical value for a 15-minute time interval for two sensors, posted 5 minutes after realisation.
-    Please note that both sensors consumed at 10 MW, i.e. the value does not represent the total of the two sensors.
-    We recommend to use this notation for zero values only.
-
-    .. code-block:: json
-
-        {
-            "type": "PostSensorDataRequest",
-            "sensors": [
-                "ea1.2021-01.io.flexmeasures.company:fm1.1",
-                "ea1.2021-01.io.flexmeasures.company:fm1.2"
-            ],
-            "value": 10,
-            "start": "2015-01-01T00:00:00+00:00",
-            "duration": "PT0H15M",
-            "horizon": "-PT5M",
-            "unit": "MW"
-        }
-
-    Single different values, multiple sensors
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Single different values for a 15-minute time interval for two sensors, posted 5 minutes after realisation.
-
-    .. code-block:: json
-
-        {
-            "type": "PostSensorDataRequest",
-            "groups": [
-                {
-                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
-                    "value": 220
-                },
-                {
-                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.2",
-                    "value": 300
-                }
-            ],
-            "start": "2015-01-01T00:00:00+00:00",
-            "duration": "PT0H15M",
-            "horizon": "-PT5M",
-            "unit": "MW"
-        }
-
-    Multiple values, multiple sensors
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two sensors, posted 5 minutes after each realisation.
-
-    .. code-block:: json
-
-        {
-            "type": "PostSensorDataRequest",
-            "groups": [
-                {
-                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
-                    "values": [
-                        220,
-                        210,
-                        200
-                    ]
-                },
-                {
-                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.2",
-                    "values": [
-                        300,
-                        303,
-                        306
-                    ]
-                }
-            ],
-            "start": "2015-01-01T00:00:00+00:00",
-            "duration": "PT0H45M",
-            "horizon": "-PT5M",
-            "unit": "MW"
-        }
 
 
 .. _observations_vs_forecasts
@@ -271,14 +183,18 @@ There is one more crucial kind of data that FlexMeasures needs to know about: Wh
 For example, a battery has a certain state of charge, which is relevant to describe the flexibility that the battery currently has.
 In our terminology, this is called the "flex model" and you can read more at :ref:`describing_flexibility`.
 
-Owners of such devices can post the flex model along with triggering the creation of a new schedule, to `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
+Owners of such devices can post the flex model along with triggering the creation of a new schedule, to one of two endpoints:
+
+1. `[POST] /assets/<id>/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ - for scheduling multiple devices
+2. `[POST] /sensors/<id>/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ - for scheduling a single device (which can also be done with the first endpoint)
+
 The URL might look like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/sensors/10/schedules/trigger
+    https://company.flexmeasures.io/api/v3_0/assets/10/schedules/trigger
 
-The following example triggers a schedule for a power sensor (with ID 10) of a battery asset, asking to take into account the battery's current state of charge.
+The following example triggers a schedule for a power sensor (with ID 15) of a battery asset (with ID 10), asking to take into account the battery's current state of charge.
 From this, FlexMeasures derives the energy flexibility this battery has in the next 48 hours and computes an optimal charging schedule.
 The endpoint also allows to limit the flexibility range and also to set target values.
 
@@ -286,13 +202,30 @@ The endpoint also allows to limit the flexibility range and also to set target v
 
         {
             "start": "2015-06-02T10:00:00+00:00",
-            "flex-model": {
-                "soc-at-start": "12.1 kWh"
-            }
+            "flex-model": [
+                {
+                    "sensor": 15,
+                    "soc-at-start": "12.1 kWh"
+                }
+            ]
         }
 
 .. note:: More details on supported flex models can be found in :ref:`flex_models_and_schedulers`.
 
-.. note:: Flexibility states are persisted on sensor attributes. To record a more complete history of the state of charge, set up a separate sensor and post data to it using `[POST] /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
+.. note::
+    Flexibility states posted in trigger messages are only stored temporarily to describe the scheduling job.
+    To record a more complete history of the flexibility state, set up separate sensors and post data to them using `[POST] /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
+    Then reference those sensors in your flex model.
+    For example, say you use sensor 82 to record the power-to-heat efficiency of a heating system, then use this sensor reference in your flex model:
+
+    .. code-block:: json
+
+        {
+            "charging-efficiency": {"sensor": 82}
+        }
+
 
 In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasures is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.
+
+
+[1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf

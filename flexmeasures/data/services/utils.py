@@ -10,6 +10,7 @@ import inspect
 import click
 from sqlalchemy import JSON, String, cast, literal
 from flask import current_app
+from rq import Queue
 from rq.job import Job
 from sqlalchemy import select
 
@@ -38,7 +39,11 @@ def get_scheduler_instance(
 
 
 def get_asset_or_sensor_ref(asset_or_sensor: Asset | Sensor) -> dict:
-    return {"id": asset_or_sensor.id, "class": asset_or_sensor.__class__.__name__}
+    class_name = asset_or_sensor.__class__.__name__
+    # todo: remove these two lines after renaming the GenericAsset class to Asset
+    if class_name == "GenericAsset":
+        class_name = "Asset"
+    return {"id": asset_or_sensor.id, "class": class_name}
 
 
 def get_asset_or_sensor_from_ref(asset_or_sensor: dict):
@@ -60,13 +65,13 @@ def get_asset_or_sensor_from_ref(asset_or_sensor: dict):
 
     Sensor(id=2)
     """
-    if asset_or_sensor["class"] == Asset.__name__:
+    if asset_or_sensor["class"] in (Asset.__name__, "Asset"):
         klass = Asset
     elif asset_or_sensor["class"] == Sensor.__name__:
         klass = Sensor
     else:
         raise ValueError(
-            f"Unrecognized class `{asset_or_sensor['class']}`. Please, consider using GenericAsset or Sensor."
+            f"Unrecognized class `{asset_or_sensor['class']}`. Please, consider using Asset or Sensor."
         )
 
     return db.session.get(klass, asset_or_sensor["id"])
@@ -79,10 +84,10 @@ def get_or_create_model(
 
     For example:
     >>> weather_station_type = get_or_create_model(
-    >>>     GenericAssetType,
-    >>>     name="weather station",
-    >>>     description="A weather station with various sensors.",
-    >>> )
+    ...     GenericAssetType,
+    ...     name="weather station",
+    ...     description="A weather station with various sensors.",
+    ... )
     """
 
     # unpack custom initialization parameters that map to multiple database columns
@@ -199,15 +204,16 @@ def job_cache(queue: str):
             # Get the redis connection
             connection = current_app.redis_connection
 
-            requeue = kwargs.pop("requeue", False)
+            kwargs_for_hash = kwargs.copy()
+            requeue = kwargs_for_hash.pop("requeue", False)
 
             # checking if force is an input argument of `func`
-            force_new_job_creation = kwargs.pop("force_new_job_creation", False)
-
-            # creating a hash from args and kwargs
-            args_hash = (
-                f"{queue}:{func.__name__}:{hash_function_arguments(args, kwargs)}"
+            force_new_job_creation = kwargs_for_hash.pop(
+                "force_new_job_creation", False
             )
+
+            # creating a hash from args and kwargs_for_hash
+            args_hash = f"{queue}:{func.__name__}:{hash_function_arguments(args, kwargs_for_hash)}"
 
             # check the redis connection for whether the key hash exists
             if connection.exists(args_hash) and not force_new_job_creation:
@@ -243,3 +249,13 @@ def job_cache(queue: str):
         return wrapper
 
     return decorator
+
+
+def sort_jobs(queue: Queue, jobs: list[str | Job]) -> list[Job]:
+    """Sort jobs in chronological order of creation, and return Job objects."""
+    jobs = [queue.fetch_job(job) if isinstance(job, str) else job for job in jobs]
+    jobs = [
+        job for job in jobs if job is not None
+    ]  # Remove any None entries (in case some jobs don’t exist)
+    sorted_jobs = sorted(jobs, key=lambda job: job.created_at)
+    return sorted_jobs

@@ -35,8 +35,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add beliefs``                      Load beliefs from file.
 ``flexmeasures add source``                       Add a new data source.
 ``flexmeasures add forecasts``                    Create forecasts.
-``flexmeasures add schedule for-storage``         Create a charging schedule for a storage asset.
-``flexmeasures add schedule for-process``         Create a schedule for a process asset.
+``flexmeasures add schedule``                     Create a schedule for a an asset.
 ``flexmeasures add holidays``                     Add holiday annotations to accounts and/or assets.
 ``flexmeasures add annotation``                   Add annotation to accounts, assets and/or sensors.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
@@ -57,6 +56,7 @@ of which some are referred to in this documentation.
 ``flexmeasures show beliefs``                     Plot time series data.
 ``flexmeasures show reporters``                   List available reporters.
 ``flexmeasures show schedulers``                  List available schedulers.
+``flexmeasures show chart``                       Export charts to PNG or SVG.
 ================================================= =======================================
 
 
@@ -106,8 +106,11 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures jobs run-worker``                  Start a worker process for forecasting and/or scheduling jobs.
-``flexmeasures jobs show queues``                 List job queues.
+``flexmeasures jobs show queues``                 List job queues and number of current jobs.
 ``flexmeasures jobs clear-queue``                 Clear a job queue.
+``flexmeasures jobs delete-queue``                Delete a job queue.
+``flexmeasures jobs save-last``                   Save the last n jobs of your choice to a file. 
+``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
 ================================================= =======================================
 
 

@@ -24,9 +24,8 @@ This is described by:
 - :ref:`The flex-context <flex_context>` ― information about the system as a whole, in order to assess the value of activating flexibility.
 - :ref:`Flex-models <flex_models_and_schedulers>`  ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
 
-This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
-Some of the information can also be stored on the FlexMeasures server (persisted in the database), and will be editable through the UI (that's design work in progress).
-Specifically, flex-context fields can be persisted on the asset model, while most flex-model fields can be persisted on the asset & sensor model (that's also design work in progress, especially in relation to asset hierarchies).
+This information goes beyond the usual time series recorded by an asset's sensors. It can be sent to FlexMeasures through the API when triggering schedule computation.
+Also, this information can be persisted on the FlexMeasures data model (in the db), and is editable through the UI (actually, that is design work in progress, currently possible with the flex context).
 
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
@@ -36,11 +35,18 @@ Let's dive into the details ― what can you tell FlexMeasures about your optimi
 The flex-context
 -----------------
 
-The ``flex-context`` is independent of the type of flexible device that is optimized.
+The ``flex-context`` is independent of the type of flexible device that is optimized, or which scheduler is used.
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 
+Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
+
+Where should you set these fields?
+Within requests to the API or by editing the relevant asset in the UI.
+If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
+And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
+
 
 
 .. list-table::
@@ -49,7 +55,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
    * - Field
      - Example value
-     - Description 
+     - Description
    * - ``inflexible-device-sensors``
      - ``[3,4]``
      - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -75,36 +81,57 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
        If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
-   * - ``site-consumption-breach-price``
-     - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.
-       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-production-capacity``
      - ``"0kW"``
      - Maximum production power at the grid connection point.
        If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
        If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
        Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
-   * - ``site-production-breach-price``
-     - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.
-       The price is applied both to the largest breach in the planning window and to each breach that occurs. [#penalty_field]_
    * - ``site-peak-consumption``
      - ``{"sensor": 7}``
      - Current peak consumption.
        Costs from peaks below it are considered sunk costs. Default to 0 kW.
+   * - ``relax-constraints``
+     - ``True``
+     - If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem,
+       leading to the default priority:
+
+       1. Avoid breaching the site consumption/production capacity.
+       2. Avoid not meeting SoC minima/maxima.
+       3. Avoid breaching the desired device consumption/production capacity.
+
+       We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
+       For tighter control over prices and priorities, the breach prices can also be set explicitly (see below).
+   * - ``site-consumption-breach-price``
+     - ``"1000 EUR/kW"``
+     - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
+   * - ``site-production-breach-price``
+     - ``"1000 EUR/kW"``
+     - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
+       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-peak-consumption-price``
-     - ``"260 EUR/MWh"``
+     - ``"260 EUR/MW"``
      - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
    * - ``site-peak-production``
      - ``{"sensor": 8}``
      - Current peak production.
        Costs from peaks below it are considered sunk costs. Default to 0 kW.
    * - ``site-peak-production-price``
-     - ``"260 EUR/MWh"``
+     - ``"260 EUR/MW"``
      - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
+   * - ``soc-minima-breach-price``
+     - ``"120 EUR/kWh"``
+     - Penalty for not meeting ``soc-minima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+   * - ``soc-maxima-breach-price``
+     - ``"120 EUR/kWh"``
+     - Penalty for not meeting ``soc-maxima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+   * - ``consumption-breach-price``
+     - ``"10 EUR/kW"``
+     - The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
+   * - ``production-breach-price``
+     - ``"10 EUR/kW"``
+     - The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
@@ -117,6 +144,11 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 .. [#penalty_field] Prices must share the same currency. Negative prices are not allowed (penalties only).
 
 .. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
+
+.. [#breach_field] Breach prices are applied both to (the height of) the highest breach in the planning window and to (the area of) each breach that occurs.
+                   That means both high breaches and long breaches are penalized.
+                   For example, a :abbr:`SoC (state of charge)` breach price of 120 EUR/kWh is applied as a breach price of 120 EUR/kWh on the height of the highest breach, and as a breach price of 120 EUR/kWh/h on the area (kWh*h) of each breach.
+                   For a 5-minute resolution sensor, this would amount to applying a SoC breach price of 10 EUR/kWh for breaches measured every 5 minutes (in addition to the 120 EUR/kWh applied to the highest breach only).
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
           The flexible device can still have its own power limit defined in its flex-model.
@@ -132,6 +164,11 @@ FlexMeasures comes with a storage scheduler and a process scheduler, which work 
 The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)` chargers, and is automatically selected when scheduling an asset with one of the following asset types: ``"battery"``, ``"one-way_evse"`` and ``"two-way_evse"``.
 
 The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types ``"process"`` and ``"load"``.
+
+
+We describe the respective flex models below.
+
+These fields can be configured in the UI editor on the asset properties page or sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
 
 
 Storage
@@ -171,25 +208,29 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        Enumerated option only.
    * - ``soc-min``
      - ``"2.5 kWh"``
-     - A constant lower boundary for all values in the schedule (defaults to 0). [#quantity_field]_
+     - A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0).
+       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
    * - ``soc-max``
      - ``"7 kWh"``
-     - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided). [#quantity_field]_
+     - A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided).
+       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
    * - ``soc-minima``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
-     - Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
+     - Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
    * - ``soc-maxima``
      - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
-     - Set points that form upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
+     - Set points that form user-defined upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
    * - ``soc-targets``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
-     - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
+     - Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values).
    * - ``soc-gain``
      - ``[".1kWh"]``
      - SoC gain per time step, e.g. from a secondary energy source (defaults to zero).
+       Useful if energy is inserted by an external process (in-flow).
    * - ``soc-usage``
      - ``[{"sensor": 23}]``
      - SoC reduction per time step, e.g. from a load or heat sink (defaults to zero).
+       Useful if energy is extracted by an external process or there are dissipating losses (out-flow).
    * - ``roundtrip-efficiency``
      - ``"90%"``
      - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%). [#quantity_field]_
@@ -204,7 +245,10 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
    * - ``prefer-charging-sooner``
      - ``True``
-     - Tie-breaking policy to apply if conditions are stable (defaults to True, which also signals a preference to discharge later). Boolean option only.
+     - Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.
+   * - ``prefer-curtailing-later``
+     - ``True``
+     - Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.
    * - ``power-capacity``
      - ``"50kW"``
      - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
@@ -213,7 +257,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
    * - ``production-capacity``
      - ``"0kW"`` (only consumption)
-     - Device-level power constraint on production. How much power can be supplied by this asset. [#minimum_overlap]_
+     - Device-level power constraint on production. How much power can be supplied by this asset. For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
@@ -225,9 +269,10 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
-Usually, not the whole flexibility model is needed. FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
+Usually, not the whole flexibility model is needed.
+FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
-You can add new storage schedules with the CLI command ``flexmeasures add schedule for-storage``.
+You can add new storage schedules with the CLI command ``flexmeasures add schedule``.
 
 If you model devices that *buffer* energy (e.g. thermal energy storage systems connected to heat pumps), we can use the same flexibility parameters described above for storage devices.
 However, here are some tips to model a buffer correctly:
@@ -237,15 +282,18 @@ However, here are some tips to model a buffer correctly:
    - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
-What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question! It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
-From our practical experience, we derived a ``StorageFallbackScheduler``. It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
+What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question!
+It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
+From our practical experience, we derived a ``StorageFallbackScheduler``.
+It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
 depending on the first target state of charge and the capabilities of the asset.
 
 Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
 
-For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
+For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_.
 
-Finally, are you interested in the linear programming details behind the storage scheduler? Then head over to :ref:`storage_device_scheduler`!
+Finally, are you interested in the linear programming details behind the storage scheduler?
+Then head over to :ref:`storage_device_scheduler`!
 You can also review the current flex-model for storage in the code, at ``flexmeasures.data.schemas.scheduling.storage.StorageFlexModelSchema``.
 
 
@@ -284,7 +332,7 @@ Some examples from practice (usually industry) could be:
 
 You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
 
-You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
+You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule``. Make sure to use the ``--scheduler ProcessScheduler`` option to use the in-built process scheduler.
 
 .. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 
@@ -295,6 +343,11 @@ Work on other schedulers
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
 Here are some thoughts on further innovation:
 
-- Writing your own scheduler. You can always write your own scheduler (see :ref:`plugin_customization`). You then might want to add your own flex model, as well. FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
-- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site). This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes. Thoughts welcome :)
+- Writing your own scheduler.
+  You can always write your own scheduler (see :ref:`plugin_customization`).
+  You then might want to add your own flex model, as well.
+  FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
+- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site).
+  This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
+  Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.

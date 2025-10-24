@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from pytz import utc
 
 index = pd.date_range(
-    datetime(2023, 4, 13), datetime(2023, 4, 13, 23), freq="H", tz=utc
+    datetime(2023, 4, 13), datetime(2023, 4, 13, 23), freq="h", tz=utc
 )
 
 entsoe_prices = [

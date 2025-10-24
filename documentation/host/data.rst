@@ -253,23 +253,26 @@ First, you can get the database structure with:
 
 .. note:: If you develop code (and might want to make changes to the data model), you should also check out the maintenance section about database migrations.
 
-You can create users with the ``add user`` command. Check it out:
+
+You should create some pre-determined asset types, user/account roles and data sources with this command:
+
+.. code-block:: bash
+
+   $ flexmeasures add initial-structure
+
+
+Another good first step is to create an account for yourself, plus a user to log in with:
 
 .. code-block:: bash
 
    $ flexmeasures add account --help
    $ flexmeasures add user --help
 
+Creating accounts and users for your clients would also happen this way (soon also in the UI). 
 
-You can create some pre-determined asset types and data sources with this command:
+You can also create assets in the CLI (``flexmeasures add asset``), but that is also possible in the FlexMeasures UI.
 
-.. code-block:: bash
-
-   $ flexmeasures add initial-structure
-
-You can also create assets in the FlexMeasures UI.
-
-On the command line, you can add many things. Check what data you can add yourself:
+Actually, you can add many things from the terminal. Check what data you can add yourself:
 
 .. code-block:: bash
 

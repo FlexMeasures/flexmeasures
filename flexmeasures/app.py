@@ -11,7 +11,6 @@ from pathlib import Path
 from datetime import date
 
 from flask import Flask, g, request
-from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
@@ -31,7 +30,7 @@ def create(  # noqa C901
     """
     Create a Flask app and configure it.
 
-    Set the environment by setting FLEXMEASURES_ENV as environment variable (also possible in .env).
+    Set the FlexMeasures environment this server runs in, by setting FLEXMEASURES_ENV either in your .flexmeasures.cfg config or as environment variable.
     Or, overwrite any FLEXMEASURES_ENV setting by passing an env in directly (useful for testing for instance).
 
     A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories).
@@ -40,27 +39,40 @@ def create(  # noqa C901
     """
 
     from flexmeasures.utils import config_defaults
-    from flexmeasures.utils.config_utils import read_config, configure_logging
-    from flexmeasures.utils.app_utils import set_secret_key, init_sentry
+    from flexmeasures.utils.config_utils import (
+        read_config,
+        configure_logging,
+        find_flexmeasures_cfg,
+        get_flexmeasures_env,
+    )
+    from flexmeasures.utils.app_utils import (
+        set_secret_key,
+        set_totp_secrets,
+        init_sentry,
+    )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
-    # Create app
-
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
-    # we're loading dotenv files manually & early (can do Flask.run(load_dotenv=False)),
-    # as we need to know the ENV now (for it to be recognised by Flask()).
-    load_dotenv()
+    cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
+    # Create app
     app = Flask("flexmeasures")
 
     if env is not None:  # overwrite
         app.config["FLEXMEASURES_ENV"] = env
+    else:
+        env = get_flexmeasures_env(app, cfg_location)
+        if env is not None:
+            app.config["FLEXMEASURES_ENV"] = env
+    app.logger.info(
+        f"Starting FlexMeasures app in '{app.config.get('FLEXMEASURES_ENV', 'unspecified')}' environment ..."
+    )
+
     if app.config.get("FLEXMEASURES_ENV") == "testing":
         app.testing = True
     if app.config.get("FLEXMEASURES_ENV") == "development":
         app.debug = config_defaults.DevelopmentConfig.DEBUG
 
     # App configuration
-
     read_config(app, custom_path_to_config=path_to_config)
     if plugins:
         app.config["FLEXMEASURES_PLUGINS"] += plugins
@@ -107,6 +119,12 @@ def create(  # noqa C901
     # Some basic security measures
 
     set_secret_key(app)
+    if app.config.get("SECURITY_TWO_FACTOR", False):
+        set_totp_secrets(app)
+    elif get_flexmeasures_env(app, cfg_location) == "production":
+        app.logger.warning(
+            "SECURITY_TWO_FACTOR is False. We advise to set it to True in a production environment."
+        )
     if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
         app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if app.config.get("FLEXMEASURES_FORCE_HTTPS", False):
@@ -210,7 +228,9 @@ def create(  # noqa C901
 
     @app.teardown_request
     def teardown_request(exception=None):
-        if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
+        if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False) and hasattr(
+            g, "start"
+        ):
             diff = time.time() - g.start
             if all([kw not in request.url for kw in ["/static", "favicon.ico"]]):
                 app.logger.info(
@@ -219,7 +239,7 @@ def create(  # noqa C901
                 if not hasattr(g, "profiler"):
                     return app
                 g.profiler.stop()
-                output_html = g.profiler.output_html(timeline=True)
+                output_html = g.profiler.output_html()
                 endpoint = request.endpoint
                 if endpoint is None:
                     endpoint = "unknown"

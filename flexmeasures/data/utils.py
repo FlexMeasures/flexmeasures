@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 
 
@@ -104,13 +104,16 @@ def save_to_db(
     values_saved = 0
     for timed_values in timed_values_list:
 
-        if timed_values.empty:
-            # Nothing to save
-            continue
-
         # Convert series to frame if needed
         if isinstance(timed_values, BeliefsSeries):
             timed_values = timed_values.rename("event_value").to_frame()
+
+        # Don't save NaN event values to the database
+        timed_values = timed_values.dropna(subset=["event_value"])
+
+        if timed_values.empty:
+            # Nothing to save
+            continue
 
         len_before = len(timed_values)
         if save_changed_beliefs_only:
@@ -145,3 +148,28 @@ def save_to_db(
     if values_saved == 0:
         status = "success_but_nothing_new"
     return status
+
+
+def get_downsample_function_and_value(
+    kpi: dict, sensor: Sensor, sensor_stats: dict
+) -> tuple:
+    downsample_function = kpi.get("function", None)
+    if downsample_function is None:
+        if sensor.unit == "%":
+            downsample_function = "mean"
+        else:
+            downsample_function = "sum"
+    try:
+        if downsample_function == "mean":
+            downsample_value = dict(next(iter(sensor_stats.values())))["Mean value"]
+        elif downsample_function == "max":
+            downsample_value = dict(next(iter(sensor_stats.values())))["Max value"]
+        elif downsample_function == "min":
+            downsample_value = dict(next(iter(sensor_stats.values())))["Min value"]
+        else:
+            downsample_value = dict(next(iter(sensor_stats.values())))[
+                "Sum over values"
+            ]
+    except StopIteration:
+        downsample_value = 0
+    return downsample_function, downsample_value

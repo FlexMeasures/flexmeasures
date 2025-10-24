@@ -27,7 +27,7 @@ Moreover, we'll touch upon the use of time restrictions to avoid scheduling a pr
 
 
 Setup
-.....
+-----
 
 
 Before moving forward, we'll add the `process` asset and three sensors to store the schedules resulting from following three different policies.
@@ -36,17 +36,15 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 
     $ flexmeasures add toy-account --kind process
     
-        Account '<Account Toy Account (ID:1)>' already exists. Skipping account creation. Use `flexmeasures delete account --id 1` if you need to remove it.
-        User with email toy-user@flexmeasures.io already exists in account Toy Account.
-        The sensor recording day-ahead prices is day-ahead prices (ID: 1).
-        Created <GenericAsset None: 'toy-process' (process)>
-        Created Power (INFLEXIBLE)
-        Created Power (BREAKABLE)
-        Created Power (SHIFTABLE)
-        The sensor recording the power of the INFLEXIBLE load is Power (INFLEXIBLE) (ID: 4).
-        The sensor recording the power of the BREAKABLE load is Power (BREAKABLE) (ID: 5).
-        The sensor recording the power of the SHIFTABLE load is Power (SHIFTABLE) (ID: 6).
-
+    User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
+    The sensor recording day-ahead prices is day-ahead prices (ID: 1).
+    Created <GenericAsset 5: 'toy-process' (process)>
+    Created <Sensor 4: Power (Inflexible), unit: MW res.: 0:15:00>
+    Created <Sensor 5: Power (Breakable), unit: MW res.: 0:15:00>
+    Created <Sensor 6: Power (Shiftable), unit: MW res.: 0:15:00>
+    The sensor recording the power of the inflexible load is Power (Inflexible) (ID: 4).
+    The sensor recording the power of the breakable load is Power (Breakable) (ID: 5).
+    The sensor recording the power of the shiftable load is Power (Shiftable) (ID: 6).
 
 
 Trigger an updated schedule
@@ -61,10 +59,10 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 4 --consumption-price-sensor 1\
-      --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
-      --process-power 0.2MW --process-type INFLEXIBLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
+    $ flexmeasures add schedule --sensor 4 --scheduler ProcessScheduler \
+        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
+        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"INFLEXIBLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
 
 Under the INFLEXIBLE policy, the process starts as soon as possible, in this case, coinciding with the start of the planning window.
 
@@ -72,10 +70,10 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKA
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 5 --consumption-price-sensor 1\
-      --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
-      --process-power 0.2MW --process-type BREAKABLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
+    $ flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
+        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
+        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
 
@@ -83,16 +81,17 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
 
 .. code-block:: bash
 
-    flexmeasures add schedule for-process --sensor 6 --consumption-price-sensor 1\
-      --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
-      --process-power 0.2MW --process-type SHIFTABLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
+    $ flexmeasures add schedule --sensor 6 --scheduler ProcessScheduler \
+        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
+        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"SHIFTABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 
 Results
 ---------
 
-The image below shows the resulting schedules following each of the three policies. You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/5>`_. 
+The image below shows the resulting schedules following each of the three policies.
+You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/5/graphs>`_. 
 
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png

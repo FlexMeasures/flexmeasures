@@ -29,6 +29,8 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     SQLALCHEMY_ENGINE_OPTIONS: dict = {
         "pool_recycle": 299,  # https://www.pythonanywhere.com/forums/topic/2599/
+        "pool_size": 5,  # 5 is SQLAlchemy's default for the maximum number of permanent connections to keep
+        "max_overflow": 10,  # 10 is SQLAlchemy's default for temporarily exceeding the pool_size if no connections are available
         # "pool_timeout": 20,
         "pool_pre_ping": True,  # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
         "connect_args": {
@@ -62,6 +64,25 @@ class Config(object):
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
+
+    # Two Factor Authentication
+    SECURITY_TWO_FACTOR_ENABLED_METHODS = [
+        "email"
+    ]  # 'authenticator' will be made possible later
+    SECURITY_TWO_FACTOR = False
+    SECURITY_TOTP_SECRETS: dict | None = None
+    SECURITY_TOTP_ISSUER = "FlexMeasures"
+    SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (
+        True  # False if you want to skip validation for testing
+    )
+    SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
+    SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
+    # this default probably is not what you want (default sender is usually a no-reply address)
+    SECURITY_TWO_FACTOR_RESCUE_MAIL = (
+        MAIL_DEFAULT_SENDER[1]
+        if isinstance(MAIL_DEFAULT_SENDER, tuple) and len(MAIL_DEFAULT_SENDER) > 1
+        else None
+    )
 
     # Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" here
     CORS_ORIGINS: list[str] | str = []
@@ -130,6 +151,9 @@ class Config(object):
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
         currencysymbolmap="5.1.0",
+        leaflet="1.9.4",
+        leafletmarkercluster="1.5.3",
+        leafletmarkerclusterlayersupport="2.0.1",
         # todo: expand with other js versions used in FlexMeasures
     )
     FLEXMEASURES_JSON_COMPACT = False
@@ -154,6 +178,7 @@ class Config(object):
 
 #  names of settings which cannot be None
 #  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.
+#  SECURITY_TOTP_SECRETS is also required but utils.app_utils.set_totp_secrets takes care of this better.
 required: list[str] = ["SQLALCHEMY_DATABASE_URI"]
 
 #  settings whose absence should trigger a warning
@@ -216,7 +241,11 @@ class TestingConfig(Config):
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
 
+    SECURITY_TWO_FACTOR = False  # disable 2FA
+    SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
+
 
 class DocumentationConfig(Config):
     SECRET_KEY: str = "dummy-key-for-documentation"
     SQLALCHEMY_DATABASE_URI: str = "postgresql://dummy:uri@for/documentation"
+    SECURITY_TOTP_SECRETS = {"1": "222222222222222222222222222222222"}

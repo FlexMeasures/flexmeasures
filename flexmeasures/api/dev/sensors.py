@@ -87,7 +87,10 @@ class SensorAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "resolution": DurationField(required=False),
-            "most_recent_beliefs_only": fields.Boolean(required=False, default=True),
+            "most_recent_beliefs_only": fields.Boolean(
+                required=False, load_default=True
+            ),
+            "compress_json": fields.Boolean(required=False),
         },
         location="query",
     )
@@ -105,7 +108,7 @@ class SensorAPI(FlaskView):
         - "event_ends_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
-        - "resolution" (see :ref:`resolutions`)
+        - "resolution" (see [docs about describing timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
         - "most_recent_beliefs_only" (if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
         """
         return sensor.search_beliefs(as_json=True, **kwargs)

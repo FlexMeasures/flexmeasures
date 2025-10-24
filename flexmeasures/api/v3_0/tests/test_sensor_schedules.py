@@ -136,10 +136,11 @@ def test_trigger_and_get_schedule_with_unknown_prices(
 
     # process the scheduling queue
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
-    assert (
-        Job.fetch(job_id, connection=app.queues["scheduling"].connection).is_failed
-        is True
-    )
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_failed
+
+    # Make sure that the db flex_context shows up in the job kwargs
+    assert "flex-context" not in message and job.kwargs.get("flex_context")
 
     # check results are not in the database
     scheduler_source = db.session.execute(
@@ -194,7 +195,7 @@ def test_get_schedule_fallback(
         .magnitude,
     )
     assert capacity == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
     # check that no Fallback schedule has been saved before
     models = [
@@ -250,9 +251,11 @@ def test_get_schedule_fallback(
         )
 
         # check that the job is failing
-        assert Job.fetch(
-            job_id, connection=app.queues["scheduling"].connection
-        ).is_failed
+        job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+        assert job.is_failed
+
+        # Make sure that the db flex_context shows up in the job kwargs
+        assert "flex-context" not in message and job.kwargs.get("flex_context")
 
         # the callback creates the fallback job which is still pending
         assert len(app.queues["scheduling"]) == 1
@@ -346,7 +349,7 @@ def test_get_schedule_fallback_not_redirect(
         .magnitude,
     )
     assert capacity == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
     # create a scenario that yields an infeasible problem (unreachable target SOC at 2am)
     message = {
@@ -363,7 +366,11 @@ def test_get_schedule_fallback_not_redirect(
                 "storage-efficiency", 1
             ),
             "soc-targets": [
-                {"value": target_soc, "datetime": "2015-01-02T02:00:00+01:00"}
+                {
+                    "value": target_soc,
+                    "start": "2015-01-02T02:00:00+01:00",
+                    "duration": "PT0H",
+                }
             ],
         },
     }
@@ -396,9 +403,11 @@ def test_get_schedule_fallback_not_redirect(
         )
 
         # check that the job is failing
-        assert Job.fetch(
-            job_id, connection=app.queues["scheduling"].connection
-        ).is_failed
+        job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+        assert job.is_failed
+
+        # Make sure that the db flex_context shows up in the job kwargs
+        assert "flex-context" not in message and job.kwargs.get("flex_context")
 
         # the callback creates the fallback job which is still pending
         assert len(app.queues["scheduling"]) == 1

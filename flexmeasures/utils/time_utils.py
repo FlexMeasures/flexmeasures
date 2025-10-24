@@ -325,21 +325,25 @@ def duration_isoformat(duration: timedelta):
 
 def determine_minimum_resampling_resolution(
     event_resolutions: list[timedelta],
+    fallback_resolution: timedelta = timedelta(0),
 ) -> timedelta:
-    """Return minimum non-zero event resolution, or zero resolution if none of the event resolutions is non-zero."""
+    """Return minimum non-zero event resolution, or return the fallback_resolution if none of the event resolutions is non-zero.
+
+    :param fallback_resolution: Resolution to fall back on in case of no non-zero event resolutions, defaults to 0 hours.
+    """
     condition = list(
         event_resolution
         for event_resolution in event_resolutions
         if event_resolution > timedelta(0)
     )
-    return min(condition) if any(condition) else timedelta(0)
+    return min(condition) if any(condition) else fallback_resolution
 
 
 def to_http_time(dt: pd.Timestamp | datetime) -> str:
     """Formats datetime using the Internet Message Format fixdate.
 
     >>> to_http_time(pd.Timestamp("2022-12-13 14:06:23Z"))
-    Tue, 13 Dec 2022 14:06:23 GMT
+    'Tue, 13 Dec 2022 14:06:23 GMT'
 
     References
     ----------
@@ -425,7 +429,6 @@ def to_utc_timestamp(value):
     >>> to_utc_timestamp("Sun, 28 Apr 2024 08:55:58 GMT")
     1714294558.0
     >>> to_utc_timestamp(None)
-    None
     """
     if value is None:
         return None

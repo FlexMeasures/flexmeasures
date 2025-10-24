@@ -13,6 +13,7 @@ from pathlib import Path
 
 from flask import Flask
 from inflection import camelize
+from dotenv import dotenv_values
 import pandas as pd
 
 from flexmeasures.utils.config_defaults import (
@@ -69,12 +70,19 @@ def check_app_env(env: str | None):
         sys.exit(2)
 
 
-def read_config(app: Flask, custom_path_to_config: str | None):
-    """Read configuration from various expected sources, complain if not setup correctly."""
+def get_flexmeasures_env(app, cfg_location) -> str | None:
+    """
+    Determine which flexmeasures_env should be used, trying various ways in decreasing importance.
+    """
+    flexmeasures_env: str | None = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
 
-    flexmeasures_env = DefaultConfig.FLEXMEASURES_ENV_DEFAULT
+    # Note: We would be dropping the use of python-dotenv in the future when we drop support for python 3.10. In place of this we could investigate to use the in-built tomlib (in-built with Py3.11+)
+    cfg_config = dotenv_values(cfg_location)
+
     if app.testing:
         flexmeasures_env = "testing"
+    elif cfg_config.get("FLEXMEASURES_ENV", None):
+        flexmeasures_env = cfg_config.get("FLEXMEASURES_ENV", None)
     elif os.getenv("FLEXMEASURES_ENV", None):
         flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
     elif os.getenv("FLASK_ENV", None):
@@ -84,6 +92,36 @@ def read_config(app: Flask, custom_path_to_config: str | None):
             " Change FLASK_ENV to FLEXMEASURES_ENV in the environment variables",
         )
 
+    return flexmeasures_env or None
+
+
+def find_flexmeasures_cfg() -> str | None:
+    """
+    Try to find a flexmeasures.cfg file in the home or instance directories.
+    Return the path if found, else None.
+    """
+    path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
+    path_to_config_instance = os.path.join(
+        Flask("flexmeasures").instance_path, "flexmeasures.cfg"
+    )
+    path_to_config = path_to_config_home
+    if not os.path.exists(path_to_config):
+        path_to_config = path_to_config_instance
+
+    if path_to_config is not None:
+        return path_to_config
+    else:
+        return None
+
+
+def read_config(app: Flask, custom_path_to_config: str | None):
+    """Read configuration from various expected sources, complain if not setup correctly."""
+
+    cfg_location = find_flexmeasures_cfg()
+    if app.config.get("FLEXMEASURES_ENV", None):  # already set in app.py
+        flexmeasures_env = app.config["FLEXMEASURES_ENV"]
+    else:
+        flexmeasures_env = get_flexmeasures_env(app, cfg_location)
     check_app_env(flexmeasures_env)
 
     # First, load default config settings
@@ -97,12 +135,18 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
     path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
 
-    # Custom config: do not use any when testing (that should run completely on defaults)
+    # We only load end vars and custom config when not testing (that should run completely on defaults)
     if not app.testing:
+        # the env can be in config, but might have been explicitly set in app:create
+        preloaded_flexmeasures_env = app.config.get("FLEXMEASURES_ENV", None)
+        # First, env vars, custom config can override those
+        read_env_vars(app)
         used_path_to_config = read_custom_config(
             app, custom_path_to_config, path_to_config_home, path_to_config_instance
         )
-        read_env_vars(app)
+        # make sure we keep the pre-loaded env if any
+        if preloaded_flexmeasures_env is not None:
+            app.config["FLEXMEASURES_ENV"] = preloaded_flexmeasures_env
     else:  # one exception: the ability to set where the test database is
         custom_test_db_uri = os.getenv("SQLALCHEMY_TEST_DATABASE_URI", None)
         if custom_test_db_uri:

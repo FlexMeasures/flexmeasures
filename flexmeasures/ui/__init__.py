@@ -14,6 +14,7 @@ from humanize import naturaldelta
 
 from werkzeug.exceptions import Forbidden
 
+from flexmeasures.auth import policy as auth_policy
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
@@ -43,9 +44,9 @@ flexmeasures_ui = Blueprint(
 def register_at(app: Flask):
     """This can be used to register this blueprint together with other ui-related things"""
 
-    from flexmeasures.ui.crud.assets import AssetCrudUI
-    from flexmeasures.ui.crud.users import UserCrudUI
-    from flexmeasures.ui.crud.accounts import AccountCrudUI
+    from flexmeasures.ui.views.assets import AssetCrudUI
+    from flexmeasures.ui.views.users.views import UserCrudUI
+    from flexmeasures.ui.views.accounts import AccountCrudUI
     from flexmeasures.ui.views.sensors import SensorUI
     from flexmeasures.ui.utils.color_defaults import get_color_settings
 
@@ -171,10 +172,23 @@ def add_jinja_variables(app):
         ("FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS", ""),
     ):
         app.jinja_env.globals[v] = app.config.get(v, d)
-    app.jinja_env.globals["documentation_exists"] = (
+    app.jinja_env.globals["sphinx_docs_exist"] = (
         True
         if os.path.exists(
             "%s/static/documentation/html/index.html" % flexmeasures_ui.root_path
         )
         else False
     )
+    app.jinja_env.globals["openapi_docs_exist"] = (
+        True
+        if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path)
+        else False
+    )
+
+    for role_name in (
+        "ADMIN_ROLE",
+        "ADMIN_READER_ROLE",
+        "ACCOUNT_ADMIN_ROLE",
+        "CONSULTANT_ROLE",
+    ):
+        app.jinja_env.globals[role_name] = auth_policy.__dict__[role_name]

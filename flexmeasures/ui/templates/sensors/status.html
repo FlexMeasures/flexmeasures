@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} {{asset.name}} - Status {% endblock %}
+
+{% block divs %}
+
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8">
+            <div class="card">
+                <h4>Data connectivity for sensors of {{ asset.name }}
+                  <span class="fa fa-info-circle" title="This table shows the connectivity status for all sensors under or relevant to this asset. Click the table to see the actual data. Per sensor, we report the different data source types. We only explicitly support source types 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter'.
+
+A red traffic light indicates that the last time a record was made was too long ago (it is 'stale'). Hover the light to learn more about why it is displayed red. It could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made.
+
+How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future.
+
+Sensors shown on this page are the ones relevant for correct functioning of the asset. We list the ones linked in the flex-context and the graphs page." style="margin-left: 10px;"></span>
+                </h4>
+                <table id="sensor_statuses" class="table table-striped paginate">
+                    <thead>
+                        <tr>
+                            <th>Sensor</th>
+                            <th>Data source type</th>
+                            <th class="no-sort" title="This is the knowledge time of the most recent event recorded (potentially in the future, for forecasts and schedules)">Time of latest record</th>
+                            <th class="text-right no-sort">Status</th>
+                            <th class="d-none">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- This will be populated dynamically with JavaScript -->
+                    </tbody>
+                </table>
+
+                <h4>Latest jobs of {{ asset.name }}
+                  <span class="fa fa-info-circle" title="This table shows forecasting or scheduling jobs for this asset.
+A red traffic light indicates something went wrong and should be reported to admins.
+
+Note that jobs do not live forever, so only rather recent jobs (usually younger than a day) are shown at all.
+                  " style="margin-left: 10px;"></span>
+                  <br>
+                  <span class="jobs-time-ago" data-timestamp="Loading">
+                    <small><i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i><span id="jobs_time_ago"></span></small>
+                  </span>
+                </h4>
+                <table id="scheduling_forecasting_jobs" class="table table-striped paginate nav-on-click">
+                    <thead>
+                        <tr>
+                            <th style="display:none;">Created at Timestamp</th> <!-- Hidden UTC Timestamp column for sorting, Keep at position 0 -->
+                            <th>Created at</th>
+                            <th>Queue</th>
+                            <th>Entity</th>
+                            <th class="text-right no-sort">Status</th>
+                            <th class="text-right">Info</th>
+                            <th class="d-none">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- This will be populated dynamically with JavaScript -->
+                    </tbody>
+                </table>
+                <div class="alert alert-warning d-none" id="redis_connection_err"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- hide control elements -->
+<script>
+    $(document).ready(function() {
+        $('#sensor_statuses').DataTable({
+            "searching": false,
+            "paging": false,
+            "info": false,
+            "ordering": false
+        });
+
+        if (sensors.length != 0) {
+            // Append a loading row to the sensor status table
+            $('#sensor_statuses tbody').append(getLoadingRow());
+        }
+
+        sensors.forEach(element => {
+            // Fetch and populate sensor data
+            getSensorData(element.id);
+        });
+
+        $(document).on('click', '.sensor_refresh', function() {
+            console.log('Refreshing sensor data');
+            
+            const sensorId = $(this).attr('id').split('_')[2];
+            const rowId = `row_${sensorId}`;
+
+            // Check if the sensor info text is empty
+            // This is to determine if we need to show the sensor info or not in case of refresh
+            const sensorInfoText = $(`#sensor_info_${sensorId}`);
+            const show_info = (sensorInfoText.html().trim() === "") ? false : true;
+            
+            // Add Loading Row
+            $(`#${rowId}`).replaceWith(getLoadingRow(rowId));
+
+            // Fetch and update sensor data
+            getSensorData(sensorId, rowId, show_info);
+        });
+    });
+
+    var sensors = {{ sensors | tojson }};
+    var isFirstSensor = true;
+    var lastSensorName = '';
+    var assetId = "{{ asset.id }}";
+
+    function getSensorData(sensor_id, row_id = null, show_info = false) {
+
+        /**
+         * Fetches sensor data and updates the sensor status table dynamically.
+         * 
+         * This function sends an AJAX request to fetch the current status of the sensor
+         * with the given `sensor_id`. Upon receiving the response, it processes the data 
+         * to update the sensor status table. If the `row_id` is provided, it will replace 
+         * the existing row with the updated sensor data; otherwise, it will append a new row 
+         * to the table. The table includes sensor information, source type, staleness time, 
+         * and status, as well as a dynamic "time ago" display indicating when the data was last fetched.
+         * 
+         * @param {number} sensor_id - The ID of the sensor whose status is being fetched.
+         * @param {string|null} [row_id=null] - The ID of the table row to update (optional).
+         * The row_id is basically used to make a refresh call on a particular sensor and then update only 
+         * that row in the table. If not provided, a new row will be appended to the table.
+         * @param {boolean} [show_info=false] - Whether to show sensor info or not incase of refresh.
+         * 
+         * @returns {void}
+         * 
+         * @example
+         * // To get data for sensor 123 and update the table row with ID 'row_123'
+         * getSensorData(123, 'row_123');
+         * 
+         * @example
+         * // To append a new row for a new sensor with ID 456
+         * getSensorData(456);
+         */
+
+
+        let lastCallTime = Date.now();
+        $.ajax({
+            url: `/api/v3_0/sensors/${sensor_id}/status`,
+            method: 'GET',
+            success: function(response) {
+                if (isFirstSensor) {
+                    // Clear the table body before appending the first row
+                    $('#sensor_statuses tbody').empty();
+                    isFirstSensor = false;
+                }
+                const tbody = $('#sensor_statuses tbody');
+                response.sensors_data.forEach(function(sensor) {
+                    const isNewSensorName = lastSensorName !== sensor.name;
+                    lastSensorName = sensor.name;
+
+                    const sensorInfo = (isNewSensorName || show_info)
+                        ? `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>) 
+                        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', reason for listing here: ${sensor.relation}" style="margin-left: 10px;"></span>`
+                        : '';
+
+                    const source_type = sensor.source_type
+                        ? `<span title="${sensor.source_type}">${sensor.source_type}</span>`
+                        : '<span title="None">None</span>';
+
+                    const staleness_since = sensor.staleness_since
+                        ? `<span title="${sensor.staleness_since}">${sensor.staleness_since}</span>`
+                        : '<span title="Never">Never</span>';
+
+                    const refresh_icon = `
+                        <i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>
+                    `;
+
+                    const status = sensor.stale
+                    ? `<span title="${sensor.reason}">🔴</span>`
+                    : `<span title="${sensor.reason}">🟢</span>`;
+
+                    // Add time ago to the fourth column (status column)
+                    const timeAgo = getTimeAgo(lastCallTime);
+
+                    const row = `
+                        <tr title="View data" id="row_${sensor.id}">
+                            <td id="sensor_info_${sensor.id}">${sensorInfo}</td>
+                            <td>${source_type}</td>
+                            <td>${staleness_since}</td>
+                            <td class="text-right">${status}<br><span class="time-ago" title="Refresh Sensor Status" data-timestamp="${lastCallTime}"><small>${refresh_icon}(${timeAgo})</small></span></td>
+                            <td class="hidden d-none invisible" style="display:none;">/sensors/${sensor.id}</td>
+                        </tr>
+                    `;
+                    
+                    // Update the table row if row_id is passed 
+                    if (row_id) {
+                        const old_row = $(`#${row_id}`);
+                        old_row.replaceWith(row);
+                    }
+                    else {
+                        tbody.append(row);
+                    }
+
+                    lastSensorName = sensor.name;
+                });
+
+            },
+            error: function(xhr) {
+                console.error('Error fetching sensors:', xhr);
+            }
+        });
+    }
+
+    function getAssetJobs(assetId) {
+        let lastCallTime = Date.now();
+        console.log('Fetching jobs for asset ID:', assetId);
+        $.ajax({
+            url: `/api/v3_0/assets/${assetId}/jobs`,
+            method: 'GET',
+            success: function(response) {
+                // Clear the loading row
+                $('#scheduling_forecasting_jobs tbody').empty();
+                // Check if there is redis_connection_err
+                if (response.redis_connection_err) {
+                    $('#redis_connection_err').removeClass('d-none');
+                    $('#redis_connection_err').text(response.redis_connection_err);
+                }
+                else {
+                    $('#redis_connection_err').addClass('d-none');
+                    $('#redis_connection_err').text('');
+                }
+                if (response.jobs.length > 0) {
+                    // Clear the table body before appending new data
+                    $('#scheduling_forecasting_jobs tbody').empty();
+                    const tbody = $('#scheduling_forecasting_jobs tbody');
+                    // Loop through the job data and create table rows
+                    response.jobs.forEach(function(job_data) {
+                        const jobStatusMessage = job_data.err === null || job_data.err === undefined
+                            ? job_data.status
+                            : job_data.status + ' : ' + job_data.err;
+                        const jobStatusIcon = job_data.status === 'finished'
+                            ? '🟢'
+                            : job_data.status === 'failed'
+                            ? '🔴'
+                            : '🟡';
+                        const row = `
+                            <tr title="View data">
+                                <td style="display:none;">
+                                    ${job_data.enqueued_at}
+                                </td>
+                                <td title="Enqueued at: ${job_data.enqueued_at}">
+                                    ${job_data.enqueued_at}
+                                </td>
+                                <td>
+                                    ${job_data.queue}
+                                </td>
+                                <td>
+                                    ${job_data.entity}
+                                </td>
+                                <td class="text-right"
+                                    title="${jobStatusMessage}">
+                                    <span>
+                                        ${jobStatusIcon}
+                                    </span>
+                                </td>
+                                <td class="text-right">
+                                    <a href="#" class="btn btn-default btn-success" role="button" id="job-metadata-info-button" data-bs-target="#JobMetadataModal-${job_data.metadata_hash}" data-bs-toggle="modal">
+                                        Info
+                                    </a>
+                                    
+                                    <div class="modal fade" id="JobMetadataModal-${job_data.metadata_hash}" tabindex="-1" role="dialog" aria-labelledby="JobMetadataInfo" aria-hidden="true">
+                                        <div class="modal-dialog" role="document">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title" id="JobMetadataInfo">Info</h5>
+                                                    <button id="modalCloseButton" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onmousedown="event.stopPropagation(); event.preventDefault();"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <pre>${job_data.metadata}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="hidden d-none invisible" style="display:none;">
+                                    /tasks/0/view/job/${job_data.job_id}
+                                </td>
+                            </tr>
+                        `;
+                        tbody.append(row);
+                        // Update the last call time
+                        const timeAgo = getTimeAgo(lastCallTime);
+                        $('#jobs_time_ago').html(`(${timeAgo})`);
+                        $('.jobs-time-ago').data('timestamp', lastCallTime);
+                    });
+                }
+                else {
+                    // Add No Jobs Found message
+                    $('#scheduling_forecasting_jobs tbody').append(`
+                        <tr>
+                            <td colspan="6" class="text-center">
+                                No data available in table.
+                            </td>
+                        </tr>
+                    `);
+                    // Update the last call time
+                    const timeAgo = getTimeAgo(lastCallTime);
+                    $('#jobs_time_ago').html(`(${timeAgo})`);
+                    $('.jobs-time-ago').data('timestamp', lastCallTime);
+                }
+            },
+            error: function(xhr) {
+                console.error('Error fetching jobs:', xhr);
+            }
+        })   
+    }
+    
+    $(document).ready(function() {
+        $('#scheduling_forecasting_jobs').DataTable({
+            "order": [[ 0, "desc" ]],  // Default sort by the hidden UTC Timestamp column
+            "columnDefs": [
+                { 
+                    "targets": 1,  // Target the visible "Created at" column
+                    "orderData": 0  // Use data from the first column (UTC Timestamp) for sorting
+                }
+            ],
+            "searching": false,
+            "paging": false,
+            "info": false
+        });
+
+        // Add a loading row to the jobs table
+        $('#scheduling_forecasting_jobs tbody').append(getLoadingRow());
+
+        // Initial fetch of jobs
+        getAssetJobs(assetId);
+        // Set up an interval to fetch jobs every 60 seconds
+        // This is to ensure that the table is updated with the latest job data
+        setInterval(function() {
+            getAssetJobs(assetId);
+        }, 60000); // Fetch jobs every 60 seconds
+
+        $("#refresh_jobs").click(function() {
+            getAssetJobs(assetId);
+        });
+
+        // Update time ago dynamically every 10 seconds
+        setInterval(function() {
+            $('.time-ago').each(function() {
+                const timestamp = $(this).data('timestamp');
+                $(this).html(`<small>${$(this).find('.fa-refresh').prop('outerHTML')} (${getTimeAgo(timestamp)})</small>`);
+            });
+        }, 10000);
+    
+        setInterval(function() {
+            const timestamp = $('.jobs-time-ago').data('timestamp');
+            $("#jobs_time_ago").html(`(${getTimeAgo(timestamp)})`);
+        }, 10000);
+    });
+
+</script>
+{% endblock %}

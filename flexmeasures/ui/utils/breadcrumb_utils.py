@@ -6,11 +6,50 @@ from flexmeasures.utils.flexmeasures_inflection import human_sorted
 from flask import url_for, current_app
 
 
-def get_breadcrumb_info(entity: Sensor | Asset | Account | None) -> dict:
-    return {
+def get_breadcrumb_info(
+    entity: Sensor | Asset | Account | None, current_page: str = None
+) -> dict:
+    breadcrumb = {
         "ancestors": get_ancestry(entity),
         "siblings": get_siblings(entity),
     }
+
+    if entity is not None and isinstance(entity, Asset):
+        # Add additional Views CTAs for Assets
+        try:
+            breadcrumb["current_asset_view"] = current_page
+            breadcrumb["views"] = [
+                {
+                    "url": url_for("AssetCrudUI:context", id=entity.id),
+                    "name": "Context",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:graphs", id=entity.id),
+                    "name": "Graphs",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:properties", id=entity.id),
+                    "name": "Properties",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:auditlog", id=entity.id),
+                    "name": "Audit Log",
+                    "type": "Asset",
+                },
+                {
+                    "url": url_for("AssetCrudUI:status", id=entity.id),
+                    "name": "Status",
+                    "type": "Asset",
+                },
+            ]
+
+        except Exception as e:
+            print("Error in updating breadcrumb variables:", e)
+
+    return breadcrumb
 
 
 def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
@@ -23,6 +62,14 @@ def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
     if entity is not None and not isinstance(entity, Account):
         custom_ancestry = entity.get_attribute("breadcrumb_ancestry")
     if custom_ancestry is not None and isinstance(custom_ancestry, list):
+        # Append current Asset to the custom ancestry breadcrumb
+        if entity is not None and isinstance(entity, Asset):
+            current_entity_info = {
+                "url": url_for("AssetCrudUI:get", id=entity.id),
+                "name": entity.name,
+                "type": "Asset",
+            }
+            custom_ancestry.append(current_entity_info)
         return custom_ancestry
 
     # Public account
@@ -94,11 +141,18 @@ def get_siblings(entity: Sensor | Asset | Account | None) -> list[dict]:
         if entity.parent_asset is not None:
             sibling_assets = entity.parent_asset.child_assets
         elif entity.owner is not None:
-            sibling_assets = entity.owner.generic_assets
+            session = current_app.db.session
+            sibling_assets = session.scalars(
+                select(Asset).filter(
+                    Asset.parent_asset_id.is_(None), Asset.owner == entity.owner
+                )
+            ).all()
         else:
             session = current_app.db.session
             sibling_assets = session.scalars(
-                select(Asset).filter(Asset.account_id.is_(None))
+                select(Asset).filter(
+                    Asset.account_id.is_(None), Asset.parent_asset_id.is_(None)
+                )
             ).all()
 
         siblings = [

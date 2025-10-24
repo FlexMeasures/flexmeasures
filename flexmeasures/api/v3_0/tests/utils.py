@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
-from flexmeasures import Sensor
-from flexmeasures.data import db
+from flexmeasures import Asset, User
+from flexmeasures.data.models.audit_log import AssetAuditLog
 
 
 def make_sensor_data_request_for_gas_sensor(
@@ -9,20 +9,15 @@ def make_sensor_data_request_for_gas_sensor(
     duration: str = "PT1H",
     unit: str = "m³",
     include_a_null: bool = False,
-    sensor_name: str = "some gas sensor",
 ) -> dict:
     """Creates request to post sensor data for a gas sensor.
     This particular gas sensor measures units of m³/h with a 10-minute resolution.
     """
-    sensor = db.session.execute(
-        select(Sensor).filter_by(name=sensor_name)
-    ).scalar_one_or_none()
     values = num_values * [-11.28]
     if include_a_null:
         values[0] = None
     message: dict = {
         "type": "PostSensorDataRequest",
-        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "values": values,
         "start": "2021-06-07T00:00:00+02:00",
         "duration": duration,
@@ -113,3 +108,21 @@ def message_for_trigger_schedule(
             {"value": target_value + 1, **target_time_window}
         ]
     return message
+
+
+def check_audit_log_event(
+    db,
+    event: str,
+    user: User,
+    asset: Asset,
+):
+    """Make sure the event is registered in the audit log."""
+    logs = db.session.execute(
+        select(AssetAuditLog).filter_by(
+            event=event,
+            active_user_id=user.id,
+            active_user_name=user.username,
+            affected_asset_id=asset.id,
+        )
+    ).scalar()
+    assert logs, f"expected audit log event: {event}"

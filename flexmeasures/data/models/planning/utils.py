@@ -9,18 +9,13 @@ from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
 
-from flexmeasures.data import db
+from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.planning.exceptions import (
-    UnknownMarketException,
-    UnknownPricesException,
-)
-from flexmeasures import Asset
+from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.queries.utils import simplify_index
 
 from flexmeasures.utils.flexmeasures_inflection import capitalize, pluralize
 from flexmeasures.utils.unit_utils import ur, convert_units
-from pint.errors import UndefinedUnitError, DimensionalityError
 
 
 def initialize_df(
@@ -72,12 +67,13 @@ def initialize_index(
 
 
 def add_tiny_price_slope(
-    prices: pd.DataFrame, col_name: str = "event_value", d: float = 10**-3
+    orig_prices: pd.DataFrame, col_name: str = "event_value", d: float = 10**-4
 ) -> pd.DataFrame:
     """Add tiny price slope to col_name to represent e.g. inflation as a simple linear price increase.
     This is meant to break ties, when multiple time slots have equal prices, in favour of acting sooner.
     We penalise the future with at most d times the price spread (1 per thousand by default).
     """
+    prices = orig_prices.copy()
     price_spread = prices[col_name].max() - prices[col_name].min()
     if price_spread > 0:
         max_penalty = price_spread * d
@@ -89,63 +85,15 @@ def add_tiny_price_slope(
     return prices
 
 
-def get_market(sensor: Sensor) -> Sensor:
-    """Get market sensor from the sensor's attributes."""
-    price_sensor = db.session.get(Sensor, sensor.get_attribute("market_id"))
-
-    if price_sensor is None:
-        raise UnknownMarketException
-    return price_sensor
-
-
-def get_prices(
-    query_window: tuple[datetime, datetime],
-    resolution: timedelta,
-    beliefs_before: datetime | None,
-    price_sensor: Sensor | None = None,
-    sensor: Sensor | None = None,
-    allow_trimmed_query_window: bool = True,
-) -> tuple[pd.DataFrame, tuple[datetime, datetime]]:
-    """Check for known prices or price forecasts.
-
-    If so allowed, the query window is trimmed according to the available data.
-    If not allowed, prices are extended to the edges of the query window:
-    - The first available price serves as a naive backcast.
-    - The last available price serves as a naive forecast.
-    """
-
-    # Look for the applicable price sensor
-    if price_sensor is None:
-        if sensor is None:
-            raise UnknownMarketException(
-                "Missing price sensor cannot be derived from a missing sensor"
-            )
-        price_sensor = get_market(sensor)
-
-    price_bdf: tb.BeliefsDataFrame = TimedBelief.search(
-        price_sensor,
-        event_starts_after=query_window[0],
-        event_ends_before=query_window[1],
-        resolution=to_offset(resolution).freqstr,
-        beliefs_before=beliefs_before,
-        most_recent_beliefs_only=True,
-        one_deterministic_belief_per_event=True,
-    )
-    price_df = simplify_index(price_bdf)
-    nan_prices = price_df.isnull().values
-    if nan_prices.all() or price_df.empty:
-        raise UnknownPricesException(
-            f"Prices unknown for planning window. (sensor {price_sensor.id})"
-        )
-    else:
-        price_df = extend_to_edges(
-            df=price_df,
-            query_window=query_window,
-            resolution=resolution,
-            sensor=price_sensor,
-            allow_trimmed_query_window=allow_trimmed_query_window,
-        )
-    return price_df, query_window
+def ensure_prices_are_not_empty(
+    prices: pd.DataFrame,
+    price_variable_quantity: Sensor | list[dict] | ur.Quantity | None,
+):
+    if prices.isnull().values.all() or prices.empty:
+        error_message = "Prices unknown for planning window."
+        if isinstance(price_variable_quantity, Sensor):
+            error_message += f" (sensor {price_variable_quantity.id})"
+        raise UnknownPricesException(error_message)
 
 
 def extend_to_edges(
@@ -242,7 +190,7 @@ def get_power_values(
         current_app.logger.warning(
             f"Assuming zero power values for (partially) unknown power values for planning window. (sensor {sensor.id})"
         )
-        df = df.fillna(0)
+        df = df.astype(float).fillna(0)
 
     series = convert_units(df.values, sensor.unit, "MW")
 
@@ -267,12 +215,16 @@ def fallback_charging_policy(
     while probably a decent policy for Charge Points,
     should not be considered a robust policy for other asset types.
     """
-    capacity = sensor.get_attribute(
-        "capacity_in_mw",
-        ur.Quantity(sensor.get_attribute("site-power-capacity")).to("MW").magnitude,
+    max_charge_capacity = (
+        device_constraints[["derivative max", "derivative equals"]].min().min()
     )
-    charge_power = capacity if sensor.get_attribute("is_consumer") else 0
-    discharge_power = -capacity if sensor.get_attribute("is_producer") else 0
+    max_discharge_capacity = (
+        -device_constraints[["derivative min", "derivative equals"]].max().max()
+    )
+    charge_power = max_charge_capacity if sensor.get_attribute("is_consumer") else 0
+    discharge_power = (
+        -max_discharge_capacity if sensor.get_attribute("is_producer") else 0
+    )
 
     charge_schedule = initialize_series(charge_power, start, end, resolution)
     discharge_schedule = initialize_series(discharge_power, start, end, resolution)
@@ -327,36 +279,6 @@ def idle_after_reaching_target(
     return schedule
 
 
-def get_quantity_from_attribute(
-    entity: Asset | Sensor,
-    attribute: str,
-    unit: str | ur.Quantity,
-) -> ur.Quantity:
-    """Get the value (in the given unit) of a quantity stored as an entity attribute.
-
-    :param entity:      The entity (sensor or asset) containing the attribute to retrieve the value from.
-    :param attribute:   The attribute name to extract the value from.
-    :param unit:        The unit in which the value should be returned.
-    :return:            The retrieved quantity or the provided default.
-    """
-    # Get the default value from the entity attribute
-    value: str | float | int = entity.get_attribute(attribute, np.nan)
-
-    # Try to convert it to a quantity in the desired unit
-    try:
-        q = ur.Quantity(value)
-        q = q.to(unit)
-    except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-        try:
-            # Fall back to interpreting the value in the given unit
-            q = ur.Quantity(f"{value} {unit}")
-            q = q.to(unit)
-        except (UndefinedUnitError, DimensionalityError, ValueError, AssertionError):
-            current_app.logger.warning(f"Couldn't convert {value} to `{unit}`")
-            q = np.nan * ur.Quantity(unit)  # at least return result in the desired unit
-    return q
-
-
 def get_series_from_quantity_or_sensor(
     variable_quantity: Sensor | list[dict] | ur.Quantity,
     unit: ur.Quantity | str,
@@ -398,7 +320,12 @@ def get_series_from_quantity_or_sensor(
         if np.isnan(variable_quantity.magnitude):
             magnitude = np.nan
         else:
-            magnitude = variable_quantity.to(unit).magnitude
+            magnitude = convert_units(
+                variable_quantity.magnitude,
+                str(variable_quantity.units),
+                unit,
+                resolution,
+            )
         time_series = pd.Series(magnitude, index=index, name="event_value")
     elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
@@ -413,14 +340,16 @@ def get_series_from_quantity_or_sensor(
         )
         if as_instantaneous_events:
             bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
-        time_series = simplify_index(bdf).reindex(index).squeeze()
-        time_series = convert_units(time_series, variable_quantity.unit, unit)
+        time_series = simplify_index(bdf).reindex(index).squeeze(axis=1)
+        time_series = convert_units(
+            time_series, variable_quantity.unit, unit, resolution
+        )
     elif isinstance(variable_quantity, list):
         time_series = process_time_series_segments(
             index=index,
             variable_quantity=variable_quantity,
             unit=unit,
-            resolution=resolution,
+            resolution=resolution if not as_instantaneous_events else timedelta(0),
             resolve_overlaps=resolve_overlaps,
             fill_sides=fill_sides,
         )
@@ -469,16 +398,26 @@ def process_time_series_segments(
             if np.isnan(value.magnitude):
                 value = np.nan
             else:
-                value = value.to(unit).magnitude
+                value = convert_units(
+                    value.magnitude, str(value.units), unit, resolution
+                )
         start = event["start"]
         end = event["end"]
+        same_offset = start.utcoffset() == end.utcoffset()
+        # If start and end have different UTC offsets (like crossing DST),
+        # normalize them by converting to UTC.
+        if not same_offset:
+            start = start.tz_convert("UTC")
+            end = end.tz_convert("UTC")
         # Assign the value to the corresponding segment in the DataFrame
         time_series_segments.loc[start : end - resolution, segment] = value
 
     # Resolve overlaps using the specified method
     if resolve_overlaps == "first":
         # Use backfill to fill NaNs with the first non-NaN value
-        time_series = time_series_segments.fillna(method="bfill", axis=1).iloc[:, 0]
+        time_series = (
+            time_series_segments.astype(float).fillna(method="bfill", axis=1).iloc[:, 0]
+        )
     else:
         # Use the specified method to resolve overlaps (e.g., mean, max)
         time_series = getattr(time_series_segments, resolve_overlaps)(axis=1)
@@ -494,28 +433,26 @@ def process_time_series_segments(
 
 
 def get_continuous_series_sensor_or_quantity(
-    variable_quantity: Sensor | list[dict] | ur.Quantity | None,
-    actuator: Sensor | Asset,
+    variable_quantity: Sensor | list[dict] | ur.Quantity | pd.Series | None,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None = None,
-    fallback_attribute: str | None = None,
+    min_value: float | int = np.nan,
     max_value: float | int | pd.Series = np.nan,
     as_instantaneous_events: bool = False,
     resolve_overlaps: str = "first",
     fill_sides: bool = False,
 ) -> pd.Series:
     """Creates a time series from a sensor, time series specification, or quantity within a specified window,
-    falling back to a given `fallback_attribute` and making sure no values exceed `max_value`.
+    making sure values stay within the domain [min_value, max_value].
 
     :param variable_quantity:       A sensor recording the data, a time series specification or a fixed quantity.
-    :param actuator:                The actuator from which relevant defaults are retrieved.
     :param unit:                    The desired unit of the data.
     :param query_window:            The time window (start, end) to query the data.
     :param resolution:              The resolution or time interval for the data.
     :param beliefs_before:          Timestamp for prior beliefs or knowledge.
-    :param fallback_attribute:      Attribute serving as a fallback default in case no quantity or sensor is given.
+    :param min_value:               Minimum value.
     :param max_value:               Maximum value (also replacing NaN values).
     :param as_instantaneous_events: optionally, convert to instantaneous events, in which case the passed resolution is
                                     interpreted as the desired frequency of the data.
@@ -527,12 +464,10 @@ def get_continuous_series_sensor_or_quantity(
                                     - The last available value serves as a naive forecast.
     :returns:                       time series data with missing values handled based on the chosen method.
     """
+    if isinstance(variable_quantity, pd.Series):
+        return variable_quantity
     if variable_quantity is None:
-        variable_quantity = get_quantity_from_attribute(
-            entity=actuator,
-            attribute=fallback_attribute,
-            unit=unit,
-        )
+        variable_quantity = np.nan * ur.Quantity(unit)
 
     time_series = get_series_from_quantity_or_sensor(
         variable_quantity=variable_quantity,
@@ -548,6 +483,9 @@ def get_continuous_series_sensor_or_quantity(
     # Apply upper limit
     time_series = nanmin_of_series_and_value(time_series, max_value)
 
+    # Apply lower limit
+    time_series = time_series.clip(lower=min_value)
+
     return time_series
 
 
@@ -559,4 +497,60 @@ def nanmin_of_series_and_value(s: pd.Series, value: float | pd.Series) -> pd.Ser
         # [left]:  datetime64[ns, +0000]
         # [right]: datetime64[ns, UTC]
         value = value.tz_convert("UTC")
-    return s.fillna(value).clip(upper=value)
+    return s.astype(float).fillna(value).clip(upper=value)
+
+
+def initialize_energy_commitment(
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    resolution: timedelta,
+    market_prices: list[float],
+) -> pd.DataFrame:
+    """Model energy contract for the site."""
+    commitment = initialize_df(
+        columns=[
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start=start,
+        end=end,
+        resolution=resolution,
+    )
+    commitment["quantity"] = 0
+    commitment["downwards deviation price"] = market_prices
+    commitment["upwards deviation price"] = market_prices
+    commitment["group"] = list(range(len(commitment)))
+    return commitment
+
+
+def initialize_device_commitment(
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    resolution: timedelta,
+    device: int,
+    target_datetime: str,
+    target_value: float,
+    soc_at_start: float,
+    soc_target_penalty: float,
+) -> pd.DataFrame:
+    """Model penalties for demand unmet per device."""
+    stock_commitment = initialize_df(
+        columns=[
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start=start,
+        end=end,
+        resolution=resolution,
+    )
+    stock_commitment.loc[target_datetime, "quantity"] = target_value - soc_at_start
+    stock_commitment["downwards deviation price"] = -soc_target_penalty
+    stock_commitment["upwards deviation price"] = soc_target_penalty
+    stock_commitment["group"] = list(range(len(stock_commitment)))
+    stock_commitment["device"] = device
+    stock_commitment["class"] = StockCommitment
+    return stock_commitment

@@ -59,14 +59,14 @@ class ProfitOrLossReporterConfigSchema(ReporterConfigSchema):
         return data
 
     @validates("consumption_price_sensor")
-    def validate_consumption_price_units(self, value):
+    def validate_consumption_price_units(self, value, **kwargs):
         if not value.measures_energy_price:
             raise ValidationError(
                 f"`consumption_price_sensor` has wrong units. Expected `Energy / Currency` but got `{value.unit}`"
             )
 
     @validates("production_price_sensor")
-    def validate_production_price_units(self, value):
+    def validate_production_price_units(self, value, **kwargs):
         if not value.measures_energy_price:
             raise ValidationError(
                 f"`production_price_sensor` has wrong units. Expected `Energy / Currency` but got `{value.unit}`"
@@ -98,7 +98,7 @@ class ProfitOrLossReporterParametersSchema(ReporterParametersSchema):
     input = fields.List(fields.Nested(Input()), validate=validate.Length(min=1, max=1))
 
     @validates("input")
-    def validate_input_measures_power_energy(self, value):
+    def validate_input_measures_power_energy(self, value, **kwargs):
         if not (
             value[0]["sensor"].measures_power or value[0]["sensor"].measures_energy
         ):
@@ -107,7 +107,7 @@ class ProfitOrLossReporterParametersSchema(ReporterParametersSchema):
             )
 
     @validates("output")
-    def validate_output_unit_currency(self, value):
+    def validate_output_unit_currency(self, value, **kwargs):
         for output_description in value:
             if not is_currency_unit(output_description["sensor"].unit):
                 raise ValidationError(

@@ -63,7 +63,7 @@ def already_received_and_successfully_processed(message: str) -> ResponseTuple:
 
 
 @BaseMessage(
-    "Some of the data represents a replacement, which is reserved for servers in play mode. Enable play mode or update the prior in your request."
+    "Some of the data represents a replacement, which is reserved for customized servers. If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. Alternatively, update the prior in your request."
 )
 def invalid_replacement(message: str) -> ResponseTuple:
     return (
@@ -228,11 +228,6 @@ def invalid_message_type(message_type: str) -> ResponseTuple:
     )
 
 
-@BaseMessage("Request message should include 'backup'.")
-def no_backup(message: str) -> ResponseTuple:
-    return dict(result="Rejected", status="NO_BACKUP", message=message), 400
-
-
 @BaseMessage("Request message should include 'type'.")
 def no_message_type(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="NO_MESSAGE_TYPE", message=message), 400
@@ -281,11 +276,6 @@ def invalid_flex_config(message: str) -> ResponseTuple:
         ),
         422,
     )
-
-
-@BaseMessage("The requested backup is not known.")
-def unrecognized_backup(message: str) -> ResponseTuple:
-    return dict(result="Rejected", status="UNRECOGNIZED_BACKUP", message=message), 400
 
 
 @BaseMessage("One or more connections in your request were not found in your account.")

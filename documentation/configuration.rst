@@ -92,12 +92,6 @@ Default: ``[]``
 .. note:: This setting is also recognized as environment variable (since v0.14, which is also the version required to pass this setting as a string).
 
 
-FLEXMEASURES_DB_BACKUP_PATH
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Relative path to the folder where database backups are stored if that feature is being used.
-
-Default: ``"migrations/dumps"``
 
 FLEXMEASURES_PROFILE_REQUESTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -402,6 +396,20 @@ You can also set this in a file (which some Flask tutorials advise).
 
 Default: ``None``
 
+
+.. _security_totp_secrets:
+
+SECURITY_TOTP_SECRETS
+^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary with secrets used to sign :abbr:`TOTP (time-based one-time password)` tokens.
+For example, ``{"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}``.
+
+Default: ``None``
+
+.. note:: Leave this setting set to ``None`` to get more instructions when you attempt to run FlexMeasures.
+          This setting is also recognized as environment variable.
+
 SECURITY_PASSWORD_SALT
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -543,7 +551,7 @@ Password of mail system user.
 Default: ``None``
 
 
-.. _monitoring
+.. _monitoring:
 
 Monitoring
 -----------
@@ -664,3 +672,21 @@ FLEXMEASURES_API_SUNSET_LINK
 Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
+
+.. _reporters-config:
+
+Reporters
+---------
+
+FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Type: list of strings or comma-separated string
+
+Defines the set of transformation methods in Pandas Reporters that should **skip signature validation**. These are typically “pseudo-methods” that are not native methods of Pandas or BeliefsDataFrame, but are still allowed in reporter transformations. Arguments for these methods are validated with custom rules rather than against Python method signatures.
+
+Extend this list if you want to permit additional pseudo-methods in reporter pipelines.
+
+.. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
+
+Default: `["get_attribute"]`

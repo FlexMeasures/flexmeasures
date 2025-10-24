@@ -102,5 +102,6 @@ def post_task_run():
         task_run.datetime = date_time
         task_run.status = status
     except Exception as e:
-        return {"status": "ERROR", "reason": str(e)}, 500
+        current_app.logger.error(f"Exception in /postLatestTaskRun endpoint: {e}")
+        return {"status": "ERROR", "reason": "An internal error has occurred."}, 500
     return {"status": "OK"}, 200
