@@ -602,7 +602,7 @@ class S2FlaskWSServerSync:
         sensor_name: str,
         resource_or_actuator_id: str,
         event_value: float | pd.Series,
-        event_resolution: timedelta | None,
+        event_resolution: timedelta | None = None,
         event_unit: str = "",
         sensor_unit: str = "",
     ):
