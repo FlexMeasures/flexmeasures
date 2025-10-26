@@ -354,6 +354,7 @@ def delete_beliefs(  # noqa: C901
 @click.option(
     "--source",
     type=SourceIdField,
+    required=False,
 )
 @click.option(
     "--delete-forecasts/--keep-forecasts",
