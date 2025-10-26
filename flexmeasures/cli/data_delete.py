@@ -180,7 +180,7 @@ def delete_structure(force):
     "--sensor",
     "--sensor-id",
     "sensor",
-    type=SensorIdField,
+    type=SensorIdField(),
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
@@ -210,7 +210,7 @@ def delete_measurements(
     "--sensor",
     "--sensor-id",
     "sensor",
-    type=SensorIdField,
+    type=SensorIdField(),
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
@@ -343,7 +343,7 @@ def delete_beliefs(  # noqa: C901
     "--sensor",
     "--sensor-id",
     "sensor",
-    type=SensorIdField,
+    type=SensorIdField(),
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
@@ -351,7 +351,7 @@ def delete_beliefs(  # noqa: C901
 )
 @click.option(
     "--source",
-    type=SourceIdField,
+    type=SourceIdField(),
     required=False,
     help="Delete unchanged (time series) data for a single data source only. Follow up with the source's ID.",
 )
@@ -462,7 +462,7 @@ def delete_unchanged_beliefs(
     "--sensor",
     "--sensor-id",
     "sensor",
-    type=SensorIdField,
+    type=SensorIdField(),
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
@@ -470,7 +470,7 @@ def delete_unchanged_beliefs(
 )
 @click.option(
     "--source",
-    type=SourceIdField,
+    type=SourceIdField(),
     required=False,
     help="Delete NaN time series data for a single data source only. Follow up with the source's ID.",
 )
