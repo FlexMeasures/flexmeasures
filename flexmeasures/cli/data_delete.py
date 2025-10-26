@@ -78,11 +78,11 @@ def delete_account(account: Account, force: bool):
     """
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
-        users = db.session.scalars(select(User).filter_by(account_id=id)).all()
+        users = db.session.scalars(select(User).filter_by(account_id=account.id)).all()
         if users:
             prompt += "Affected users: " + ",".join([u.username for u in users]) + "\n"
         generic_assets = db.session.scalars(
-            select(GenericAsset).filter_by(account_id=id)
+            select(GenericAsset).filter_by(account_id=account.id)
         ).all()
         if generic_assets:
             prompt += (
