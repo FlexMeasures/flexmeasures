@@ -30,6 +30,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
     abort,
 )
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
 @click.group("edit")
@@ -378,6 +379,7 @@ def transfer_parenthood(
         if asset.owner != new_parent.owner:
             click.confirm(prompt, abort=True)
 
+    changed = 0
     for asset in assets:
         if asset.parent_asset_id == new_parent.id:
             click.secho(
@@ -395,8 +397,16 @@ def transfer_parenthood(
             ),
         )
         asset.parent_asset_id = new_parent.id
+        changed += 1
         click.secho(
             f"Success! Asset '{asset.name}' ({asset.id}) is now a child of '{new_parent.name}' ({new_parent.id}).",
+            **MsgStyle.SUCCESS,
+        )
+    if changed == 0:
+        click.secho("No assets were updated.", **MsgStyle.WARN)
+    else:
+        click.secho(
+            f"Successfully transferred {pluralize('asset', changed, include_count=True)} to new parent '{new_parent.name}' (ID {new_parent.id}).",
             **MsgStyle.SUCCESS,
         )
 
