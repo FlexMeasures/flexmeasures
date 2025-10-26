@@ -379,6 +379,12 @@ def transfer_parenthood(
             click.confirm(prompt, abort=True)
 
     for asset in assets:
+        if asset.parent_asset_id == new_parent.id:
+            click.secho(
+                f"Asset {asset.id} already has asset {new_parent.id} as its parent. Skipping.",
+                **MsgStyle.WARN,
+            )
+            continue
         AssetAuditLog.add_record(
             asset,
             (
