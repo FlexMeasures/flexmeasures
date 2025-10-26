@@ -338,20 +338,19 @@ def transfer_parenthood(
     Either `--asset` or `--old-parent` must be specified (but not both).
 
     Examples
-    ========
+    --------
 
-    Goal: Move a top-level asset 1 under asset 2.
-    What happens: Asset 1 had no parent before, but will now become a child of asset 2.
-    How: `flexmeasures edit transfer-parenthood --asset 1 --new-parent 2`
+    - Move a top-level asset 1 under asset 2:
 
-    Goal: Reassign asset 1 to asset 3.
-    What happens: Asset 1 has asset 2 as its parent, but will now have asset 3 as its parent.
-    How: `flexmeasures edit transfer-parenthood --asset 1 --new-parent 3`
+          flexmeasures edit transfer-parenthood --asset 1 --new-parent 2
 
-    Goal: Reassign all children of asset 3 to asset 4.
-    What happens: Asset 3 had several children, which will now have asset 4 as their parent.
-    How: `flexmeasures edit transfer-parenthood --old-parent 3 --new-parent 4`
+    - Reassign asset 1 to asset 3:
 
+          flexmeasures edit transfer-parenthood --asset 1 --new-parent 3
+
+    - Reassign all children of asset 3 to asset 4:
+
+          flexmeasures edit transfer-parenthood --old-parent 3 --new-parent 4
     """
     if asset is None and old_parent is None:
         abort("Use either the `--asset` or `--old-parent` option.")
