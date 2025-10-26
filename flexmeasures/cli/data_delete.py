@@ -20,6 +20,7 @@ from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, U
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas import (
+    AccountIdField,
     AssetIdField,
     AwareDateTimeField,
     SensorIdField,
@@ -67,17 +68,14 @@ def delete_account_role(name: str):
 
 @fm_delete_data.command("account")
 @with_appcontext
-@click.option("--id", type=int)
+@click.option("--id", type=AccountIdField())
 @click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
-def delete_account(id: int, force: bool):
+def delete_account(account: Account, force: bool):
     """
     Delete an account, including their users & data.
     """
-    account: Account = db.session.get(Account, id)
-    if account is None:
-        abort(f"Account with ID '{id}' does not exist.")
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
         users = db.session.scalars(select(User).filter_by(account_id=id)).all()
