@@ -181,8 +181,8 @@ def delete_structure(force):
 @click.option(
     "--sensor",
     "--sensor-id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField,
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
@@ -193,14 +193,14 @@ def delete_structure(force):
 )
 def delete_measurements(
     force: bool,
-    sensor_id: int | None = None,
+    sensor: Sensor | None = None,
 ):
     """Delete measurements (ex-post beliefs, i.e. with belief_horizon <= 0)."""
     if not force:
         click.confirm(f"Sure to delete all measurements from {db.engine}?", abort=True)
     from flexmeasures.data.scripts.data_gen import depopulate_measurements
 
-    depopulate_measurements(db, sensor_id)
+    depopulate_measurements(db, sensor=sensor)
 
 
 @fm_delete_data.command("prognoses", cls=DeprecatedOptionsCommand)
@@ -211,8 +211,8 @@ def delete_measurements(
 @click.option(
     "--sensor",
     "--sensor-id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField,
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
@@ -220,14 +220,14 @@ def delete_measurements(
 )
 def delete_prognoses(
     force: bool,
-    sensor_id: int | None = None,
+    sensor: Sensor | None = None,
 ):
     """Delete forecasts and schedules (ex-ante beliefs, i.e. with belief_horizon > 0)."""
     if not force:
         click.confirm(f"Sure to delete all prognoses from {db.engine}?", abort=True)
     from flexmeasures.data.scripts.data_gen import depopulate_prognoses
 
-    depopulate_prognoses(db, sensor_id)
+    depopulate_prognoses(db, sensor=sensor)
 
 
 @fm_delete_data.command("beliefs")
@@ -344,8 +344,8 @@ def delete_beliefs(  # noqa: C901
 @click.option(
     "--sensor",
     "--sensor-id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField,
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
@@ -386,7 +386,7 @@ def delete_beliefs(  # noqa: C901
     " Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 def delete_unchanged_beliefs(
-    sensor_id: int | None = None,
+    sensor: Sensor | None = None,
     source: Source | None = None,
     delete_unchanged_forecasts: bool = True,
     delete_unchanged_measurements: bool = True,
@@ -395,10 +395,7 @@ def delete_unchanged_beliefs(
 ):
     """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
     q = select(TimedBelief)
-    if sensor_id:
-        sensor = db.session.get(Sensor, sensor_id)
-        if sensor is None:
-            abort(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
+    if sensor:
         q = q.filter_by(sensor_id=sensor.id)
     if source:
         q = q.filter_by(source_id=source.id)
@@ -466,18 +463,18 @@ def delete_unchanged_beliefs(
 @click.option(
     "--sensor",
     "--sensor-id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField,
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
     help="Delete NaN time series data for a single sensor only. Follow up with the sensor's ID.",
 )
-def delete_nan_beliefs(sensor_id: int | None = None):
+def delete_nan_beliefs(sensor: Sensor | None = None):
     """Delete NaN beliefs."""
     q = db.session.query(TimedBelief)
-    if sensor_id is not None:
-        q = q.filter(TimedBelief.sensor_id == sensor_id)
+    if sensor is not None:
+        q = q.filter(TimedBelief.sensor_id == sensor.id)
     query = q.filter(TimedBelief.event_value == float("NaN"))
     prompt = f"Delete {query.count()} NaN beliefs out of {q.count()} beliefs?"
     click.confirm(prompt, abort=True)
