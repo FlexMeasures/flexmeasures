@@ -18,13 +18,18 @@ from sqlalchemy import delete
 from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
 from flexmeasures.data.schemas.attributes import validate_special_attributes
-from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
-from flexmeasures.cli.utils import MsgStyle, DeprecatedOption, DeprecatedOptionsCommand
+from flexmeasures.cli.utils import (
+    MsgStyle,
+    DeprecatedOption,
+    DeprecatedOptionsCommand,
+    abort,
+)
 
 
 @click.group("edit")
@@ -40,7 +45,7 @@ def fm_edit_data():
     "assets",
     required=False,
     multiple=True,
-    type=GenericAssetIdField(),
+    type=AssetIdField(),
     cls=DeprecatedOption,
     deprecated=["--asset-id"],
     preferred="--asset",
@@ -263,7 +268,7 @@ def resample_sensor_data(
 @click.option(
     "--asset",
     "asset",
-    type=GenericAssetIdField(),
+    type=AssetIdField(),
     required=True,
     help="Change the ownership of this asset and its children. Follow up with the asset's ID.",
 )
@@ -276,7 +281,7 @@ def resample_sensor_data(
 )
 def transfer_ownership(asset: Asset, new_owner: Account):
     """
-    Transfer the ownership of and asset and its children to an account.
+    Transfer the ownership of an asset and its children to an account.
     """
 
     def transfer_ownership_recursive(asset: Asset, account: Account):
@@ -298,6 +303,85 @@ def transfer_ownership(asset: Asset, new_owner: Account):
         f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
         **MsgStyle.SUCCESS,
     )
+
+    db.session.commit()
+
+
+@fm_edit_data.command("transfer-parenthood")
+@with_appcontext
+@click.option(
+    "--asset",
+    "asset",
+    type=AssetIdField(),
+    required=False,
+    help="Change/set the parent of this asset. Follow up with the asset's ID.",
+)
+@click.option(
+    "--new-parent",
+    "new_parent",
+    type=AssetIdField(),
+    required=True,
+    help="New parent of the asset. Follow up with the new parent's ID.",
+)
+@click.option(
+    "--old-parent",
+    "old_parent",
+    type=AssetIdField(),
+    required=False,
+    help="Change the parent of all of this asset's children. Follow up with the old parent's ID.",
+)
+def transfer_parenthood(
+    new_parent: Asset, asset: Asset | None = None, old_parent: Asset | None = None
+):
+    """Transfer the parenthood of an asset, or of all children of a parent asset, to another asset.
+
+    Either `--asset` or `--old-parent` must be specified (but not both).
+
+    Examples
+    ========
+
+    Goal: Move a top-level asset 1 under asset 2.
+    What happens: Asset 1 had no parent before, but will now become a child of asset 2.
+    How: `flexmeasures edit transfer-parenthood --asset 1 --new-parent 2`
+
+    Goal: Reassign asset 1 to asset 3.
+    What happens: Asset 1 has asset 2 as its parent, but will now have asset 3 as its parent.
+    How: `flexmeasures edit transfer-parenthood --asset 1 --new-parent 3`
+
+    Goal: Reassign all children of asset 3 to asset 4.
+    What happens: Asset 3 had several children, which will now have asset 4 as their parent.
+    How: `flexmeasures edit transfer-parenthood --old-parent 3 --new-parent 4`
+
+    """
+    if asset is None and old_parent is None:
+        abort("Use either the `--asset` or `--old-parent` option.")
+    if asset is not None and old_parent is not None and asset.parent != old_parent:
+        abort(f"Asset {old_parent.id} is not a parent of asset {asset}.")
+
+    prompt = f"The new parent is owned by a different account: {new_parent.owner.name} (ID = {new_parent.account_id}). Are you sure?"
+    if old_parent is not None:
+        if old_parent.owner != new_parent.owner:
+            click.confirm(prompt, abort=True)
+        assets = old_parent.child_assets
+    else:
+        if asset.owner != new_parent.owner:
+            click.confirm(prompt, abort=True)
+        assets = [asset]
+
+    for asset in assets:
+        AssetAuditLog.add_record(
+            asset,
+            (
+                f"Transferred parenthood for asset '{asset.name}': {asset.id} from '{asset.parent.name}': {asset.parent.id} to '{new_parent.name}': {new_parent.id}"
+                if asset.parent_asset_id is not None
+                else f"Assign parenthood for top-level asset '{asset.name}': {asset.id} to '{new_parent.name}': {new_parent.id}"
+            ),
+        )
+        asset.parent_asset_id = new_parent.id
+        click.secho(
+            f"Success! Asset '{asset.name}' ({asset.id}) is now a child of '{new_parent.name}' ({new_parent.id}).",
+            **MsgStyle.SUCCESS,
+        )
 
     db.session.commit()
 
