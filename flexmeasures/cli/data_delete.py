@@ -470,11 +470,22 @@ def delete_unchanged_beliefs(
     preferred="--sensor",
     help="Delete NaN time series data for a single sensor only. Follow up with the sensor's ID.",
 )
-def delete_nan_beliefs(sensor: Sensor | None = None):
+@click.option(
+    "--source",
+    type=SourceIdField,
+    required=False,
+    help="Delete NaN time series data for a single data source only. Follow up with the source's ID.",
+)
+def delete_nan_beliefs(
+    sensor: Sensor | None = None,
+    source: Source | None = None,
+):
     """Delete NaN beliefs."""
     q = db.session.query(TimedBelief)
     if sensor is not None:
         q = q.filter(TimedBelief.sensor_id == sensor.id)
+    if source is not None:
+        q = q.filter(TimedBelief.source_id == source.id)
     query = q.filter(TimedBelief.event_value == float("NaN"))
     prompt = f"Delete {query.count()} NaN beliefs out of {q.count()} beliefs?"
     click.confirm(prompt, abort=True)
