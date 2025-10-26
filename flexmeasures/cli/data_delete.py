@@ -19,7 +19,12 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField, AssetIdField
+from flexmeasures.data.schemas import (
+    AssetIdField,
+    AwareDateTimeField,
+    SensorIdField,
+    SourceIdField,
+)
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 from flexmeasures.cli.utils import (
     abort,
@@ -348,7 +353,7 @@ def delete_beliefs(  # noqa: C901
 )
 @click.option(
     "--source",
-    "source_id",
+    type=SourceIdField,
 )
 @click.option(
     "--delete-forecasts/--keep-forecasts",
@@ -380,7 +385,7 @@ def delete_beliefs(  # noqa: C901
 )
 def delete_unchanged_beliefs(
     sensor_id: int | None = None,
-    source_id: int | None = None,
+    source: Source | None = None,
     delete_unchanged_forecasts: bool = True,
     delete_unchanged_measurements: bool = True,
     start: datetime | None = None,
@@ -393,8 +398,7 @@ def delete_unchanged_beliefs(
         if sensor is None:
             abort(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
         q = q.filter_by(sensor_id=sensor.id)
-    if source_id:
-        source = db.session.get(Source, source_id)
+    if source:
         q = q.filter_by(source_id=source.id)
     if start:
         q = q.filter(TimedBelief.event_start >= start)
