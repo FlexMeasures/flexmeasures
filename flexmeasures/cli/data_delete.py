@@ -216,7 +216,7 @@ def delete_measurements(
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
-    help="Delete (time series) data for a single sensor only. Follow up with the sensor's ID. ",
+    help="Delete (time series) data for a single sensor only. Follow up with the sensor's ID.",
 )
 def delete_prognoses(
     force: bool,
@@ -349,7 +349,7 @@ def delete_beliefs(  # noqa: C901
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
-    help="Delete unchanged (time series) data for a single sensor only. Follow up with the sensor's ID. ",
+    help="Delete unchanged (time series) data for a single sensor only. Follow up with the sensor's ID.",
 )
 @click.option(
     "--source",
