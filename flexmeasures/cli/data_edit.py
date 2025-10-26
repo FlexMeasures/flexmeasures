@@ -385,12 +385,13 @@ def transfer_parenthood(
                 **MsgStyle.WARN,
             )
             continue
+        old_parent_name = (
+            asset.parent.name if asset.parent_asset_id is not None else None
+        )
         AssetAuditLog.add_record(
             asset,
             (
-                f"Transferred parenthood for asset '{asset.name}': {asset.id} from '{asset.parent.name}': {asset.parent.id} to '{new_parent.name}': {new_parent.id}"
-                if asset.parent_asset_id is not None
-                else f"Assign parenthood for top-level asset '{asset.name}': {asset.id} to '{new_parent.name}': {new_parent.id}"
+                f"Parent changed for asset '{asset.name}' ({asset.id}): from '{old_parent_name}' ({asset.parent_asset_id}) to '{new_parent.name}' ({new_parent.id})"
             ),
         )
         asset.parent_asset_id = new_parent.id
