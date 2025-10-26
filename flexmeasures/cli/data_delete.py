@@ -68,7 +68,7 @@ def delete_account_role(name: str):
 
 @fm_delete_data.command("account")
 @with_appcontext
-@click.option("--id", type=AccountIdField())
+@click.option("--id", "account", type=AccountIdField())
 @click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
