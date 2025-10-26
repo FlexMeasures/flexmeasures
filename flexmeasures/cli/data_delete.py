@@ -355,6 +355,7 @@ def delete_beliefs(  # noqa: C901
     "--source",
     type=SourceIdField,
     required=False,
+    help="Delete unchanged (time series) data for a single data source only. Follow up with the source's ID.",
 )
 @click.option(
     "--delete-forecasts/--keep-forecasts",
