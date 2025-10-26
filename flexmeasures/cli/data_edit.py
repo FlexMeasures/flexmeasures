@@ -354,18 +354,25 @@ def transfer_parenthood(
     """
     if asset is None and old_parent is None:
         abort("Use either the `--asset` or `--old-parent` option.")
-    if asset is not None and old_parent is not None and asset.parent != old_parent:
-        abort(f"Asset {old_parent.id} is not a parent of asset {asset}.")
+    if asset is not None and old_parent is not None:
+        if asset.parent is None:
+            abort(
+                f"Asset {asset.id} currently has no parent (expected {old_parent.id})."
+            )
+        if asset.parent != old_parent:
+            abort(f"Asset {old_parent.id} is not the parent of asset {asset.id}.")
 
-    prompt = f"The new parent is owned by a different account: {new_parent.owner.name} (ID = {new_parent.account_id}). Are you sure?"
+    prompt = f"The new parent belongs to a different account: {new_parent.owner.name} (ID = {new_parent.account_id}). Continue?"
     if old_parent is not None:
+        assets = old_parent.child_assets
+        if not assets:
+            abort(f"Asset {old_parent.id} has no child assets.")
         if old_parent.owner != new_parent.owner:
             click.confirm(prompt, abort=True)
-        assets = old_parent.child_assets
     else:
+        assets = [asset]
         if asset.owner != new_parent.owner:
             click.confirm(prompt, abort=True)
-        assets = [asset]
 
     for asset in assets:
         AssetAuditLog.add_record(
