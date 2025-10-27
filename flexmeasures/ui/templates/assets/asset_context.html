@@ -130,7 +130,7 @@
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
                                 <strong>Help</strong>
-                                <p class="mb-2 pt-2">
+                                <p class="mb-2 pt-2"> 
                                     Here, you can edit the flexibility context for this asset. This describes
                                     information about the managed system as a
                                     whole, in order to assess the value of activating flexibility. You can read more <a
@@ -402,10 +402,16 @@
 
         // Clean null values
         for (const [key, value] of Object.entries(data)) {
-            if (value === null) {
+
+            if (
+                value === null ||
+                value === "" ||
+                (Array.isArray(value) && value.length === 0)
+            ) {
                 delete data[key];
             }
         }
+
 
         const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
 

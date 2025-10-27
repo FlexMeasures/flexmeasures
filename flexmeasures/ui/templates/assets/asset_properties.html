@@ -654,11 +654,13 @@
 
                 // Clean null values
                 for (const [key, value] of Object.entries(data)) {
-                    if (value === null) {
-                        delete data[key];
-                    } else if (Array.isArray(value) && value.length === 0) {
-                        delete data[key];
-                    } else if (typeof value === 'object' && Object.keys(value).length === 0) {
+                   if (
+                        value === null ||
+                        value === "" ||
+                        value === "Not Set" ||
+                        (Array.isArray(value) && value.length === 0) ||
+                        (typeof value === 'object' && value !== null && Object.keys(value).length === 0)
+                    ) {
                         delete data[key];
                     }
                 }
@@ -675,7 +677,7 @@
 
                 if (response.status !== 200) {
                     const errorData = await response.json();
-                    const errorMessage = errorData?.message || errorData?.error || response.statusText;
+                    const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
                     showToast(`Failed to update the flex model: ${errorMessage}`, "error");
                     reRenderForm();
                 } else {
