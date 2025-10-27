@@ -37,10 +37,10 @@ def parameterize(word):
     return inflection.parameterize(word).replace("-", "_")
 
 
-def pluralize(word, count: str | int | None = None):
-    if word.lower().split()[-1] in inflection.UNCOUNTABLES:
-        return word
-    return p.plural(word, count)
+def pluralize(word, count: str | int | None = None, include_count: bool = False):
+    if word.lower().split()[-1] not in inflection.UNCOUNTABLES:
+        word = p.plural(word, count)
+    return f"{count} {word}" if include_count else word
 
 
 def titleize(word):
