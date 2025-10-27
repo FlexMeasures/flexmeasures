@@ -366,8 +366,6 @@ def transfer_parenthood(
 
     if old_parent is not None:
         assets = old_parent.child_assets
-        if not assets:
-            abort(f"Asset {old_parent.id} has no child assets.")
         if new_parent is None:
             message = f"Orphan {len(assets)} children from asset {old_parent.id}?"
         else:
@@ -389,7 +387,9 @@ def transfer_parenthood(
         )
         if new_parent is None:
             audit_log_message = f"Orphaned asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to no parent"
-            success_message = f"Success! Asset '{asset.name}' (ID: {asset.id}) is now orphaned."
+            success_message = (
+                f"Success! Asset '{asset.name}' (ID: {asset.id}) is now orphaned."
+            )
         else:
             audit_log_message = f"Parent changed for asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to '{new_parent.name}' (ID: {new_parent.id})"
             success_message = f"Success! Asset '{asset.name}' (ID: {asset.id}) is now a child of '{new_parent.name}' (ID: {new_parent.id})."
@@ -480,12 +480,11 @@ def validate_options(asset: Asset | None, old_parent: Asset | None) -> None:
     if asset is None and old_parent is None:
         abort("Use either the `--asset` or `--old-parent` option.")
     if asset is not None and old_parent is not None:
-        if asset.parent is None:
-            abort(
-                f"Asset {asset.id} currently has no parent (expected {old_parent.id})."
-            )
-        if asset.parent != old_parent:
-            abort(f"Asset {old_parent.id} is not the parent of asset {asset.id}.")
+        abort("Use either the `--asset` or `--old-parent` option.")
+    if old_parent is not None:
+        assets = old_parent.child_assets
+        if not assets:
+            abort(f"Asset {old_parent.id} has no child assets.")
 
 
 def verify_ownership(old_owner: Account | None, new_owner: Account | None) -> None:
