@@ -400,10 +400,11 @@ def transfer_parenthood(
             success_message = f"Success! Asset '{asset.name}' (ID: {asset.id}) is now orphaned."
         else:
             audit_log_message = f"Parent changed for asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to '{new_parent.name}' (ID: {new_parent.id})"
-            success_message = (
-                f"Success! Asset '{asset.name}' (ID: {asset.id}) is now a child of '{new_parent.name}' (ID: {new_parent.id}).",
-            )
-        asset.parent_asset_id = new_parent.id
+            success_message = f"Success! Asset '{asset.name}' (ID: {asset.id}) is now a child of '{new_parent.name}' (ID: {new_parent.id})."
+        if new_parent is None:
+            asset.parent_asset_id = None
+        else:
+            asset.parent_asset_id = new_parent.id
         AssetAuditLog.add_record(asset, audit_log_message)
         click.secho(success_message, **MsgStyle.SUCCESS)
         changed += 1
