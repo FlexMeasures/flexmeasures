@@ -393,7 +393,7 @@ def transfer_parenthood(
             )
             continue
         old_parent_name = (
-            asset.parent.name if asset.parent_asset_id is not None else None
+            asset.parent_asset.name if asset.parent_asset_id is not None else None
         )
         AssetAuditLog.add_record(
             asset,
