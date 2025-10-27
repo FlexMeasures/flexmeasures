@@ -441,6 +441,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization.",
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "commitments": {
+        "default": None,
+        "description": "Work in progress",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
 }
 
 
