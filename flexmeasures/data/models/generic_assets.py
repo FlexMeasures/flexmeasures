@@ -147,9 +147,10 @@ class GenericAsset(db.Model, AuthModelMixin):
     def __acl__(self):
         """
         All logged-in users can read if the asset is public.
-        For non-public assets, we allow reading to whoever can read the account,
-        and editing for every user in the account.
-        Deletion is left to account admins.
+        For non-public assets, we allow reading to whoever can read the account.
+        Both creation of children (beliefs, child assets) as well as editing
+        is allowed for every user in the account or consultants.
+        Deletion is only allowed for account admins, as well as for consultants.
         """
         return {
             "create-children": [
