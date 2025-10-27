@@ -321,8 +321,8 @@ def transfer_ownership(asset: Asset, new_owner: Account):
     "--new-parent",
     "new_parent",
     type=AssetIdField(),
-    required=True,
-    help="New parent of the asset. Follow up with the new parent's ID.",
+    required=False,
+    help="New parent of the asset. Follow up with the new parent's ID, or omit to orphan the asset.",
 )
 @click.option(
     "--old-parent",
@@ -362,8 +362,17 @@ def transfer_parenthood(
             )
         if asset.parent != old_parent:
             abort(f"Asset {old_parent.id} is not the parent of asset {asset.id}.")
+    if new_parent is None:
+        click.confirm(
+            "No new parent specified. This will orphan the asset(s). Continue?",
+            abort=True,
+        )
+    elif (asset or old_parent).owner != new_parent.owner:
+        click.confirm(
+            f"The new parent belongs to a different account: {new_parent.owner.name} (ID = {new_parent.account_id}). Continue?",
+            abort=True,
+        )
 
-    prompt = f"The new parent belongs to a different account: {new_parent.owner.name} (ID = {new_parent.account_id}). Continue?"
     if old_parent is not None:
         assets = old_parent.child_assets
         if not assets:
@@ -372,12 +381,8 @@ def transfer_parenthood(
             f"Reassign {len(assets)} children from asset {old_parent.id} to asset {new_parent.id}?",
             abort=True,
         )
-        if old_parent.owner != new_parent.owner:
-            click.confirm(prompt, abort=True)
     else:
         assets = [asset]
-        if asset.owner != new_parent.owner:
-            click.confirm(prompt, abort=True)
 
     changed = 0
     for asset in assets:
