@@ -26,6 +26,15 @@ Bugfixes
 * Fix interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report`` [see `PR #1758 <https://github.com/FlexMeasures/flexmeasures/pull/1758>`_]
 
 
+v0.29.1 | October XX, 2025
+============================
+
+Bugfixes
+-----------
+* Fix account and assets/owned_by pages rendering, giving them asset icons [see `PR #1772 <https://github.com/FlexMeasures/flexmeasures/pull/1772>`_]
+
+
+
 v0.29.0 | October 14, 2025
 ============================
 
