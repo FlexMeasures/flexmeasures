@@ -386,7 +386,7 @@ def transfer_parenthood(
 
     changed = 0
     for asset in assets:
-        if asset.parent_asset_id == new_parent.id:
+        if new_parent is not None and asset.parent_asset_id == new_parent.id:
             click.secho(
                 f"Asset {asset.id} already has asset {new_parent.id} as its parent. Skipping.",
                 **MsgStyle.WARN,
