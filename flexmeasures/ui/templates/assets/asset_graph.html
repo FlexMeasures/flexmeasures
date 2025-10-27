@@ -693,24 +693,11 @@
         });
     }
 
-    async function updateAssetSensorsToShow(dataType) {
+    async function updateAssetSensorsToShow() {
 
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        let requestBody;
-
-        if (dataType === "sensorToShow") {
-            requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
-            // Only show the spinner if relevant to this specific data type
-            document.getElementById('spinner').style.display = 'block';
-        } else if (dataType === "flexContext") {
-            // remove null fields
-            for (const [key, value] of Object.entries(assetFlexContext)) {
-                if (value === null) {
-                    delete assetFlexContext[key];
-                }
-            }
-            requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
-        }
+        const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
+        document.getElementById('spinner').style.display = 'block';
 
         const response = await fetch(apiURL, {
             method: "PATCH",
@@ -722,7 +709,7 @@
 
         if (!response.ok) {
             const errorData = await response.json();
-            const errorMessage = errorData?.message || errorData?.error || response.statusText;
+            const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
             showToast(`Failed to update the asset: ${errorMessage}`, "error");
         } else {
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
