@@ -20,6 +20,7 @@ Infrastructure / Support
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
 * Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
 * Support skipping a ``PandasReporter`` transformation if any of its (keyword) arguments has no data [see `PR #1669 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
+* Modal UX imporovements. Addition of clear call to action buttons plus other small fix and improvements [see `PR #1764 <https://www.github.com/FlexMeasures/flexmeasures/pull/1764>`_]
 
 Bugfixes
 -----------
@@ -93,7 +94,7 @@ New features
 -------------
 
 * Display KPIs for asset sensors with daily event resolution [see `PR #1608 <https://github.com/FlexMeasures/flexmeasures/pull/1608>`_, `PR #1634 <https://github.com/FlexMeasures/flexmeasures/pull/1634>`_ and `PR #1656 <https://github.com/FlexMeasures/flexmeasures/pull/1656>`_]
-* Ability to add users via API (POST /users) and in the UI (from an account page) [See `PR #1678 <https://github.com/FlexMeasures/flexmeasures/pull/1678>`_]
+ Ability to add users via API (POST /users) and in the UI (from an account page) [See `PR #1678 <https://github.com/FlexMeasures/flexmeasures/pull/1678>`_]
 * Improved timestamp on sensor detail page to be more friendly [see `PR #1632 <https://www.github.com/FlexMeasures/flexmeasures/pull/1632>`_]
 * Asset types support: new API endpoint (`GET /assets/types`), better docs and fix CLI command `flexmeasures show asset-types` [see `PR #1663 <https://github.com/FlexMeasures/flexmeasures/pull/1663>`_]
 * Add `--combine-legend` option to flexmeasures show chart. When used, all legends are combined and displayed at the bottom of the chart. If not used (default = False), each chart will display its own separate legend (as on the asset page) [see `PR #1696 <https://github.com/FlexMeasures/flexmeasures/pull/1696>`_]
