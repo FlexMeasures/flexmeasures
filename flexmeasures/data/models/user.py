@@ -203,6 +203,18 @@ class Account(db.Model, AuthModelMixin):
             select(func.count()).where(User.account_id == self.id)
         ).scalar_one_or_none()
 
+    def get_all_client_accounts(self) -> list[Account]:
+        """Get all consultancy client accounts for this account, recursively."""
+        all_clients = []
+
+        def _get_clients(account: Account):
+            for client in account.consultancy_client_accounts:
+                all_clients.append(client)
+                _get_clients(client)
+
+        _get_clients(self)
+        return all_clients
+
 
 class RolesUsers(db.Model):
     __tablename__ = "roles_users"
