@@ -367,10 +367,9 @@ def transfer_parenthood(
             "No new parent specified. This will orphan the asset(s). Continue?",
             abort=True,
         )
-    elif (asset or old_parent).owner != new_parent.owner:
-        click.confirm(
-            f"The new parent belongs to a different account: {new_parent.owner.name} (ID = {new_parent.account_id}). Continue?",
-            abort=True,
+    else:
+        verify_ownership(
+            old_owner=(asset or old_parent).owner, new_owner=new_parent.owner
         )
 
     if old_parent is not None:
@@ -476,3 +475,27 @@ def parse_attribute_value(  # noqa: C901
 def single_true(iterable) -> bool:
     i = iter(iterable)
     return any(i) and not any(i)
+
+
+def verify_ownership(old_owner: Account | None, new_owner: Account | None) -> None:
+    if old_owner is None and new_owner is not None:
+        # public → owned
+        click.confirm(
+            f"You are moving public asset(s) under an account-owned parent: "
+            f"{new_owner.name} (ID: {new_owner.id}). Continue?",
+            abort=True,
+        )
+    elif old_owner is not None and new_owner is None:
+        # owned → public
+        click.confirm(
+            f"You are moving asset(s) from account {old_owner.name} (ID: {old_owner.id}) "
+            "under a public parent (no owner). Continue?",
+            abort=True,
+        )
+    elif old_owner != new_owner:
+        # cross-account move
+        click.confirm(
+            f"You are moving asset(s) from account {old_owner.name} (ID: {old_owner.id}) "
+            f"under a parent in a different account: {new_owner.name} (ID: {new_owner.id}). Continue?",
+            abort=True,
+        )
