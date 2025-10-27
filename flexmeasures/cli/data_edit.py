@@ -397,20 +397,20 @@ def transfer_parenthood(
         AssetAuditLog.add_record(
             asset,
             (
-                f"Parent changed for asset '{asset.name}' ({asset.id}): from '{old_parent_name}' ({asset.parent_asset_id}) to '{new_parent.name}' ({new_parent.id})"
+                f"Parent changed for asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to '{new_parent.name}' (ID: {new_parent.id})"
             ),
         )
         asset.parent_asset_id = new_parent.id
         changed += 1
         click.secho(
-            f"Success! Asset '{asset.name}' ({asset.id}) is now a child of '{new_parent.name}' ({new_parent.id}).",
+            f"Success! Asset '{asset.name}' (ID: {asset.id}) is now a child of '{new_parent.name}' (ID: {new_parent.id}).",
             **MsgStyle.SUCCESS,
         )
     if changed == 0:
         click.secho("No assets were updated.", **MsgStyle.WARN)
     else:
         click.secho(
-            f"Successfully transferred {pluralize('asset', changed, include_count=True)} to new parent '{new_parent.name}' (ID {new_parent.id}).",
+            f"Successfully transferred {pluralize('asset', changed, include_count=True)} to new parent '{new_parent.name}' (ID: {new_parent.id}).",
             **MsgStyle.SUCCESS,
         )
 
