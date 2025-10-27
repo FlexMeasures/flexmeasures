@@ -376,10 +376,11 @@ def transfer_parenthood(
         assets = old_parent.child_assets
         if not assets:
             abort(f"Asset {old_parent.id} has no child assets.")
-        click.confirm(
-            f"Reassign {len(assets)} children from asset {old_parent.id} to asset {new_parent.id}?",
-            abort=True,
-        )
+        if new_parent is None:
+            message = f"Orphan {len(assets)} children from asset {old_parent.id}?"
+        else:
+            message = f"Reassign {len(assets)} children from asset {old_parent.id} to asset {new_parent.id}?"
+        click.confirm(message, abort=True)
     else:
         assets = [asset]
 
