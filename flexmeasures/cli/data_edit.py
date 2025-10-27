@@ -353,15 +353,7 @@ def transfer_parenthood(
 
           flexmeasures edit transfer-parenthood --old-parent 3 --new-parent 4
     """
-    if asset is None and old_parent is None:
-        abort("Use either the `--asset` or `--old-parent` option.")
-    if asset is not None and old_parent is not None:
-        if asset.parent is None:
-            abort(
-                f"Asset {asset.id} currently has no parent (expected {old_parent.id})."
-            )
-        if asset.parent != old_parent:
-            abort(f"Asset {old_parent.id} is not the parent of asset {asset.id}.")
+    validate_options(asset=asset, old_parent=old_parent)
     if new_parent is None:
         click.confirm(
             "No new parent specified. This will orphan the asset(s). Continue?",
@@ -482,6 +474,18 @@ def parse_attribute_value(  # noqa: C901
 def single_true(iterable) -> bool:
     i = iter(iterable)
     return any(i) and not any(i)
+
+
+def validate_options(asset: Asset | None, old_parent: Asset | None) -> None:
+    if asset is None and old_parent is None:
+        abort("Use either the `--asset` or `--old-parent` option.")
+    if asset is not None and old_parent is not None:
+        if asset.parent is None:
+            abort(
+                f"Asset {asset.id} currently has no parent (expected {old_parent.id})."
+            )
+        if asset.parent != old_parent:
+            abort(f"Asset {old_parent.id} is not the parent of asset {asset.id}.")
 
 
 def verify_ownership(old_owner: Account | None, new_owner: Account | None) -> None:
