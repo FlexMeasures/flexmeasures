@@ -395,20 +395,25 @@ def transfer_parenthood(
         old_parent_name = (
             asset.parent_asset.name if asset.parent_asset_id is not None else None
         )
-        AssetAuditLog.add_record(
-            asset,
-            (
-                f"Parent changed for asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to '{new_parent.name}' (ID: {new_parent.id})"
-            ),
-        )
+        if new_parent is None:
+            audit_log_message = f"Orphaned asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to no parent"
+            success_message = f"Success! Asset '{asset.name}' (ID: {asset.id}) is now orphaned."
+        else:
+            audit_log_message = f"Parent changed for asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to '{new_parent.name}' (ID: {new_parent.id})"
+            success_message = (
+                f"Success! Asset '{asset.name}' (ID: {asset.id}) is now a child of '{new_parent.name}' (ID: {new_parent.id}).",
+            )
         asset.parent_asset_id = new_parent.id
+        AssetAuditLog.add_record(asset, audit_log_message)
+        click.secho(success_message, **MsgStyle.SUCCESS)
         changed += 1
-        click.secho(
-            f"Success! Asset '{asset.name}' (ID: {asset.id}) is now a child of '{new_parent.name}' (ID: {new_parent.id}).",
-            **MsgStyle.SUCCESS,
-        )
     if changed == 0:
         click.secho("No assets were updated.", **MsgStyle.WARN)
+    elif new_parent is None:
+        click.secho(
+            f"Successfully orphaned {pluralize('asset', changed, include_count=True)}.",
+            **MsgStyle.SUCCESS,
+        )
     else:
         click.secho(
             f"Successfully transferred {pluralize('asset', changed, include_count=True)} to new parent '{new_parent.name}' (ID: {new_parent.id}).",
