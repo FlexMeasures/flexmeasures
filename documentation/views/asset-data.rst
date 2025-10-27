@@ -83,7 +83,7 @@ Setting a field value
 """""""""""""""""""""
 
 1.  **Select Field (if it is not selected yet):** Click on the field in the left panel.
-2.  **Set Value:** In the right panel, use the provided form to set the field's value.
+2.  **Save Value:** In the right panel, use the provided form to set the field's value.
 
     * Some fields may only accept a sensor value.
     * Other fields may accept either a sensor or a fixed value.

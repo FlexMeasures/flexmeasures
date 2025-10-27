@@ -152,10 +152,7 @@
                         </div>
                     </div>
                     
-                    <div class="d-flex ms-auto align-items-center gap-2">
-                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
@@ -390,11 +387,6 @@
 
     }
     // ============== Add Field/Card Action Button END ============== //
-
-    const saveChangesBtn = document.getElementById("saveChangesBtn");
-    saveChangesBtn.onclick = async function () {
-        await updateFlexContext();
-    };
 
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
@@ -999,7 +991,7 @@
             const setButton = document.createElement("button");
             setButton.className = "btn btn-secondary btn-sm me-2 mt-2";
             setButton.onclick = () => updateFlexContextFieldValue('fixedValue', null);
-            setButton.textContent = "Set Value";
+            setButton.textContent = "Save Value";
 
             fixedGroup.appendChild(fixedLabel);
             fixedGroup.appendChild(fixedInput);
