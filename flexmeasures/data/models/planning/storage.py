@@ -928,7 +928,7 @@ class MetaStorageScheduler(Scheduler):
         """Convert list of FlowCommitments to DataFrame."""
         commitments = self.flex_context.get("commitments", [])
         if len(commitments) == 0:
-            return None
+            return []
 
         start = self.start
         end = self.end
