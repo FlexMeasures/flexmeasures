@@ -29,6 +29,8 @@ from s2python.common import (
     EnergyManagementRole,
     Handshake,
     HandshakeResponse,
+    InstructionStatus,
+    InstructionStatusUpdate,
     ReceptionStatus,
     ReceptionStatusValues,
     RevokableObjects,
@@ -98,6 +100,9 @@ class ConnectionState:
         self.sent_instructions: List[FRBCInstruction] = (
             []
         )  # Store sent instructions for revocation
+        self.instruction_statuses: Dict[uuid.UUID, InstructionStatus] = (
+            {}
+        )  # Track status of each instruction by instruction_id
 
     def can_compute(self, replanning_frequency: timedelta) -> bool:
         """Check if enough time has passed since the last compute call."""
@@ -110,6 +115,10 @@ class ConnectionState:
     def update_compute_time(self) -> None:
         """Update the last compute time to now."""
         self.last_compute_time = datetime.now(timezone.utc)
+    
+    def update_instruction_status(self, instruction_id: uuid.UUID, status: InstructionStatus) -> None:
+        """Update the status of an instruction."""
+        self.instruction_statuses[instruction_id] = status
 
 
 class MessageHandlersSync:
@@ -229,6 +238,9 @@ class S2FlaskWSServerSync:
         self._handlers.register_handler(ReceptionStatus, self.handle_reception_status)
         self._handlers.register_handler(
             ResourceManagerDetails, self.handle_ResourceManagerDetails
+        )
+        self._handlers.register_handler(
+            InstructionStatusUpdate, self.handle_instruction_status_update
         )
         # Register FRBC message handlers
         self._handlers.register_handler(
@@ -388,15 +400,30 @@ class S2FlaskWSServerSync:
     def _revoke_previous_instructions(
         self, connection_state: ConnectionState, websocket: Sock
     ) -> None:
-        """Revoke all previously sent instructions before sending new ones."""
+        """Revoke all previously sent instructions that are still ACCEPTED or NEW before sending new ones."""
         if not connection_state.sent_instructions:
             return
 
+        # Filter instructions to only revoke those with ACCEPTED or NEW status
+        # Instructions with other statuses have already been removed from memory
+        instructions_to_revoke = [
+            instr for instr in connection_state.sent_instructions
+            if connection_state.instruction_statuses.get(
+                instr.message_id, InstructionStatus.NEW
+            ) in (InstructionStatus.NEW, InstructionStatus.ACCEPTED)
+        ]
+
+        if not instructions_to_revoke:
+            self.app.logger.info("No instructions to revoke (all have been processed or removed)")
+            connection_state.sent_instructions.clear()
+            return
+
         self.app.logger.info(
-            f"Revoking {len(connection_state.sent_instructions)} previous instructions"
+            f"Revoking {len(instructions_to_revoke)} previous instructions "
+            f"(out of {len(connection_state.sent_instructions)} total)"
         )
 
-        for instruction in connection_state.sent_instructions:
+        for instruction in instructions_to_revoke:
             revoke_msg = RevokeObject(
                 message_id=uuid.uuid4(),
                 object_type=RevokableObjects.FRBC_Instruction,
@@ -404,7 +431,8 @@ class S2FlaskWSServerSync:
             )
             self._send_and_forget(revoke_msg, websocket)
             self.app.logger.info(
-                f"Sent RevokeObject for instruction {instruction.message_id}"
+                f"Sent RevokeObject for instruction {instruction.message_id} "
+                f"(status: {connection_state.instruction_statuses.get(instruction.message_id, InstructionStatus.NEW)})"
             )
 
         # Clear the list of sent instructions after revoking
@@ -486,6 +514,35 @@ class S2FlaskWSServerSync:
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
         self._device_data[resource_id].resource_id = resource_id
+
+    def handle_instruction_status_update(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, InstructionStatusUpdate):
+            return
+        self.app.logger.info(
+            "Received InstructionStatusUpdate: instruction_id=%s, status=%s",
+            message.instruction_id,
+            message.status_type,
+        )
+
+        # Get the connection state and update instruction status
+        connection_state = self._connection_states.get(websocket)
+        if connection_state:
+            connection_state.update_instruction_status(
+                message.instruction_id, message.status_type
+            )
+            
+            # If instruction is rejected, aborted, or revoked, remove it from sent_instructions
+            if message.status_type not in (InstructionStatus.NEW, InstructionStatus.ACCEPTED):
+                # Remove the instruction from sent_instructions list
+                connection_state.sent_instructions = [
+                    instr for instr in connection_state.sent_instructions
+                    if instr.message_id != message.instruction_id
+                ]
+                self.app.logger.info(
+                    f"Removed instruction {message.instruction_id} from memory due to status {message.status_type}"
+                )
 
     def handle_frbc_system_description(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock

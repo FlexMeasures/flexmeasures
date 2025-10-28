@@ -297,10 +297,11 @@ def create(  # noqa C901
                         minutes=5
                     )  # Match example_schedule_frbc.py resolution
 
-                    # Align to 5-minute boundary
-                    minutes_offset = now.minute % 5
-                    start_aligned = now.replace(
-                        minute=now.minute - minutes_offset, second=0, microsecond=0
+                    # Start schedule 15 minutes from now, aligned to 5-minute boundary
+                    future_time = now + timedelta(minutes=15)
+                    minutes_offset = future_time.minute % 5
+                    start_aligned = future_time.replace(
+                        minute=future_time.minute - minutes_offset, second=0, microsecond=0
                     )
 
                     # Set required attributes for scheduler
