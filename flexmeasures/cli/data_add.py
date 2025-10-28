@@ -1067,7 +1067,8 @@ def add_holidays(
     "start_predict_date",
     default=None,
     required=False,
-    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM).",
+    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
+    "If not set, defaults to now.",
 )
 @click.option(
     "--max-forecast-horizon",
