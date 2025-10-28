@@ -944,7 +944,7 @@ class MetaStorageScheduler(Scheduler):
 
         commitments = []
         for commitment_spec in commitment_specs:
-            # convert up_price and down_price to Series
+            # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             price_unit = self.flex_context["shared_currency_unit"] + "/MW"
             timing_kwargs = dict(
                 query_window=(start, end),
