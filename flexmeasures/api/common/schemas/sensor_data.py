@@ -76,7 +76,13 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
     Schema describing sensor data (specifically, the timing of the data).
     """
 
-    start = AwareDateTimeField(required=True, format="iso")
+    start = AwareDateTimeField(
+        required=True,
+        format="iso",
+        metadata={
+            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format."
+        },
+    )
     duration = DurationField(required=True)
     horizon = DurationField(required=False)
     prior = AwareDateTimeField(required=False, format="iso")
