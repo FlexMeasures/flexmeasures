@@ -973,11 +973,8 @@ class MetaStorageScheduler(Scheduler):
                     unit="MW",
                     **timing_kwargs,
                 )
-            flow_commitment = FlowCommitment(
-                **commitment,
-                index=initialize_index(start, end, resolution),
-            )
-            deserialized_commitments.append(flow_commitment)
+            commitment["index"] = initialize_index(start, end, resolution)
+            deserialized_commitments.append(FlowCommitment(**commitment))
 
         return deserialized_commitments
 
