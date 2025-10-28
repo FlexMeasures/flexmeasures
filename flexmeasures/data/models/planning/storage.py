@@ -972,9 +972,7 @@ class MetaStorageScheduler(Scheduler):
                 quantity=commitment["baseline"],
                 upwards_deviation_price=commitment["up_price"],
                 downwards_deviation_price=commitment["down_price"],
-                index=initialize_index(
-                    start, end, resolution
-                ),  # todo: maybe extend the schema with these, or otherwise have them come from the FlexContextSchema somehow?
+                index=initialize_index(start, end, resolution),
             )
             deserialized_commitments.append(flow_commitment)
 
