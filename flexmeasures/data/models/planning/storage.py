@@ -944,6 +944,29 @@ class MetaStorageScheduler(Scheduler):
 
         deserialized_commitments = []
         for commitment in commitments:
+            # convert up_price and down_price to Series
+            commitment["up_price"] = get_continuous_series_sensor_or_quantity(
+                variable_quantity=commitment["up_price"],
+                unit=self.flex_context["shared_currency_unit"] + "/MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=self.belief_time,
+            )
+            commitment["down_price"] = get_continuous_series_sensor_or_quantity(
+                variable_quantity=commitment["down_price"],
+                unit=self.flex_context["shared_currency_unit"] + "/MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=self.belief_time,
+            )
+            commitment["baseline"] = get_continuous_series_sensor_or_quantity(
+                variable_quantity=commitment["baseline"],
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=self.belief_time,
+            )
+
             flow_commitment = FlowCommitment(
                 name="placeholder",  # todo: maybe extend the schema with a name identifying the commitment
                 quantity=commitment["baseline"],
