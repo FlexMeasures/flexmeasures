@@ -51,7 +51,12 @@ class ForecasterParametersSchema(Schema):
     probabilistic = fields.Bool(required=True)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
-    as_job = fields.Bool(load_default=False)
+    as_job = fields.Bool(
+        load_default=False,
+        metadata={
+            "description": "If True, forecast using RQ jobs in the background (needs a worker assigned to the forecasting queue)."
+        },
+    )
     max_training_period = DurationField(required=False, allow_none=True)
 
     @validates_schema
