@@ -947,21 +947,25 @@ class MetaStorageScheduler(Scheduler):
             # convert up_price and down_price to Series
             price_unit = self.flex_context["shared_currency_unit"] + "/MW"
             commitment["up_price"] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=commitment.get("up_price", f"0 {price_unit}"),
+                variable_quantity=commitment.get(
+                    "up_price", ur.Quantity(f"0 {price_unit}")
+                ),
                 unit=price_unit,
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=self.belief_time,
             )
             commitment["down_price"] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=commitment.get("down_price", f"0 {price_unit}"),
+                variable_quantity=commitment.get(
+                    "down_price", ur.Quantity(f"0 {price_unit}")
+                ),
                 unit=self.flex_context["shared_currency_unit"] + "/MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=self.belief_time,
             )
             commitment["baseline"] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=commitment.get("baseline", "0 MW"),
+                variable_quantity=commitment.get("baseline", ur.Quantity("0 MW")),
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
