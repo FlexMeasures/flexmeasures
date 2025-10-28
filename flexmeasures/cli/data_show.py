@@ -15,7 +15,6 @@ import pandas as pd
 import uniplot
 import vl_convert as vlc
 from string import Template
-import pytz
 import json
 from sqlalchemy import select, func
 
@@ -33,7 +32,10 @@ from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
-from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    server_now,
+)
 from flexmeasures.cli.utils import (
     MsgStyle,
     validate_unique,
@@ -497,9 +499,6 @@ def chart(
         if isinstance(entity, GenericAsset):
             entity_type = "asset"
 
-        timezone = app.config["FLEXMEASURES_TIMEZONE"]
-        now = pytz.timezone(zone=timezone).localize(datetime.now())
-
         belief_time_str = ""
 
         if belief_time is not None:
@@ -509,7 +508,7 @@ def chart(
         filename = template.safe_substitute(
             id=entity.id,
             entity_type=entity_type,
-            now=now.strftime(datetime_format),
+            now=server_now().strftime(datetime_format),
             start=start.strftime(datetime_format),
             end=end.strftime(datetime_format),
             belief_time=belief_time_str,

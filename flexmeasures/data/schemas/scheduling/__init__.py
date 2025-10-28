@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict, Any
 
 from marshmallow import (
     Schema,
@@ -317,6 +318,96 @@ class FlexContextSchema(Schema):
         return currency
 
 
+EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
+    "energy-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
+    "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
+    "power": ["kW"],
+}
+
+UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "consumption-price": {
+        "default": None,  # Refers to default value of the field
+        "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
+    "production-price": {
+        "default": None,
+        "description": "Set the sensor that represents the production price of the site. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
+    "site-power-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"] + ["kVA", "MVA"],
+    },
+    "site-production-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can produce. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "site-consumption-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can consume. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "soc-minima-breach-price": {
+        "default": None,
+        "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge minima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site. If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. Without this value, any infeasible state-of-charge minima would prevent a complete schedule from being computed.",
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
+    "soc-maxima-breach-price": {
+        "default": None,
+        "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge maxima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an <b>internal nudge</b> to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.",
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
+    "consumption-breach-price": {
+        "default": None,
+        "description": "This <b>penalty value</b> is used to discourage the violation of the <b>consumption-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "production-breach-price": {
+        "default": None,
+        "description": "This <b>penalty value</b> is used to discourage the violation of the <b>production-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "site-consumption-breach-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "site-production-breach-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "site-peak-consumption": {
+        "default": None,
+        "description": "This value represents the peak consumption of the site. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "site-peak-production": {
+        "default": None,
+        "description": "This value represents the peak production of the site. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "site-peak-consumption-price": {
+        "default": None,
+        "description": "This value represents the price paid for increasing the site peak consumption any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "site-peak-production-price": {
+        "default": None,
+        "description": "This value represents the price paid for increasing the site peak production any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "inflexible-device-sensors": {
+        "default": [],
+        "description": "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+}
+
+
 class DBFlexContextSchema(FlexContextSchema):
     mapped_schema_keys = {
         field: FlexContextSchema().declared_fields[field].data_key
@@ -355,8 +446,12 @@ class DBFlexContextSchema(FlexContextSchema):
         energy_price_fields = [
             "consumption_price",
             "production_price",
+            "soc_minima_breach_price",
+            "soc_maxima_breach_price",
         ]
         capacity_price_fields = [
+            "consumption_breach_price",
+            "production_breach_price",
             "ems_consumption_breach_price",
             "ems_production_breach_price",
             "ems_peak_consumption_price",
@@ -460,13 +555,25 @@ class MultiSensorFlexModelSchema(Schema):
         }
     """
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(required=False)
+    asset = GenericAssetIdField(required=False)
     # it's up to the Scheduler to deserialize the underlying flex-model
     sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
 
+    @validates_schema
+    def ensure_sensor_or_asset(self, data, **kwargs):
+        if (
+            "sensor" in data
+            and "asset" in data
+            and data["sensor"].asset != data["asset"]
+        ):
+            raise ValidationError("Sensor does not belong to asset.")
+        if "sensor" not in data and "asset" not in data:
+            raise ValidationError("Specify either a sensor or an asset.")
+
     @pre_load
     def unwrap_envelope(self, data, **kwargs):
-        """Any field other than 'sensor' becomes part of the sensor's flex-model."""
+        """Any field other than 'sensor' and 'asset' becomes part of the sensor's flex-model."""
         extra = {}
         rest = {}
         for k, v in data.items():
@@ -518,7 +625,7 @@ class AssetTriggerSchema(Schema):
         """Verify that the flex-model's sensors live under the asset for which a schedule is triggered."""
         asset = data["asset"]
         sensors = []
-        for sensor_flex_model in data["flex_model"]:
+        for sensor_flex_model in data.get("flex_model", []):
             sensor = sensor_flex_model["sensor"]
             if sensor in sensors:
                 raise FMValidationError(

@@ -20,7 +20,7 @@
                     <div id="datepicker"></div>
                 </div>
             </div>
-               {% if user_can_update_asset %}
+            {% if user_can_update_asset %}
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
                 <div class="sidepanel left-sidepanel">
@@ -109,13 +109,13 @@
                 </div>
             </div>
             {% endif %}
-
+      
             <div class="header-action-button">
                 {% if user_can_delete_asset %}
                 <div>
                     <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this asset
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">Delete this
+                            asset
                         </button>
                     </form>
                     <script>
@@ -131,11 +131,19 @@
                 </div>
                 {% endif %}
             </div>
-   
         </div>
+
         <div class="col-md-8">
             <div class="sensors-asset card">
-                <h3>Asset Properties - {{ asset.name }}</h3>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3>Asset Properties - {{ asset.name }}</h3>
+
+                    <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
+                        data-bs-target="#flexModelModal">
+                        Edit Flex Model
+                    </a>
+                </div>
                 <div class="row">
                     <div class="col-md-7">
                         <table class="table table-striped table-responsive">
@@ -146,16 +154,17 @@
                                 </tr>
                             </thead>
                             <tbody>
-                            {% for key, value in asset_summary.items() %}
+                                {% for key, value in asset_summary.items() %}
                                 <tr>
                                     <td scope="row">{{ key }}</td>
                                     {% if key == "Parent Asset" and value != "No Parent" %}
-                                    <td scope="row"><a href="/assets/{{ asset.parent_asset.id }}" class="no-style-link">{{ value }}</a></td>
+                                    <td scope="row"><a href="/assets/{{ asset.parent_asset.id }}"
+                                            class="no-style-link">{{ value }}</a></td>
                                     {% else %}
                                     <td scope="row">{{ value }}</td>
                                     {% endif %}
                                 </tr>
-                            {% endfor %}
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
@@ -167,13 +176,16 @@
             </div>
 
             <div class="sensors-asset card">
-                <h3>All sensors for {{ asset.name }}
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3>All sensors for {{ asset.name }}</h3>
+
                     {% if user_can_create_children %}
-                    <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
-                        <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
-                    </button>
+                    <a href="/assets/{{asset.id}}/sensors/new"
+                        class="btn bg-primary-custom text-decoration-none text-light">
+                        Create sensor
+                    </a>
                     {% endif %}
-                </h3>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-striped paginate nav-on-click" title="View data" id="sensorsTable">
                     </table>
@@ -181,13 +193,15 @@
             </div>
 
             <div class="sensors-asset card">
-                <h3>All child assets for {{ asset.name }}
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3>All child assets for {{ asset.name }} </h3>
                     {% if user_can_create_assets %}
-                    <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
-                        <a href="/assets/new?parent_asset_id={{asset.id}}">Create asset</a>
-                    </button>
+                    <a href="/assets/new?parent_asset_id={{asset.id}}"
+                        class="btn bg-primary-custom text-decoration-none text-light" style="float:right;">
+                        Create asset
+                    </a>
                     {% endif %}
-                </h3>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-striped paginate nav-on-click w-100 mx-auto" title="View this asset">
                         <thead>
@@ -242,70 +256,999 @@
                 </div>
             </div>
         </div>
+        <div class="col-md-2">
+
+        </div>
     </div>
-</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+    <!-- FlexModel Modal -->
+    <div class="modal fade " id="flexModelModal" tabindex="-1" aria-labelledby="flexModelModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-model</h5>
+                    <div class="dropdown" data-bs-auto-close="outside">
+                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
+                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
 
-{% block leftsidepanel %} {{ super() }} {% endblock %}
+                        <div class="dropdown-menu p-3" style="width: 400px;">
+                            <div>
+                                <strong>Help</strong>
+                                <p class="mb-2 pt-2">
+                                <p>
+                                    Here, you can edit the flexibility model for this asset. This describes what
+                                    schedulers need to take into account when optimizing what this asset should do. This
+                                    includes constraints, set points, or efficiency parameters, but also additional
+                                    information like where to look up relevant data (e.g. usage). You can read more <a
+                                        href="https://flexmeasures.readthedocs.io/stable/features/scheduling.html#the-flex-models-corresponding-schedulers">
+                                        in
+                                        the documentation.
+                                    </a>
+                                </p>
+
+                                <p>
+                                    These fields can also be sent via the API to FlexMeasures, but setting them here
+                                    permanently might be more convenient. Some fields can point to sensors, so they will
+                                    always represent the dynamics of the asset's environment (as long as that sensor has
+                                    current data).
+                                </p>
+
+                                <p>
+                                    To add a field, choose it from the dropdown menu in the top right corner, then click
+                                    the "Add Field" button'. Set a value in the right panel, using the provided form to
+                                    set the field's value.
+                                </p>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="px-2 pt-3 pb-2">
+                    <div class="row">
+                        <!-- Left Column -->
+                        <div class="col-5">
+                            <div id="flexmodelContainer">
+                            </div>
+                        </div>
+
+                        <!-- Right Column -->
+                        <div class="col-7">
+                            <div class="">
+                                <!-- Loading Spinner -->
+                                <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
+                                    style="height: 50vh; display: none !important;">
+                                    <div class="spinner-border text-primary" role="status"
+                                        style="width: 4rem; height: 4rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+
+                                <!-- Settings -->
+                                <div>
+                                    <div class="row">
+                                        <div class="col-10">
+                                            <select class="form-select" id="flexSelect">
+                                                <option value="blank">Select flex-model field to add</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-2 p-0">
+                                            <button id="addModelFieldbtn" class="btn btn-secondary btn-md">Add
+                                                Field</button>
+                                        </div>
+                                    </div>
+
+                                    <div id="flexInfoContainer" class="mt-3"></div>
+                                </div>
+
+                                <hr class="border border-dark" />
+
+                                <div id="flexOptionsContainer" class="mt-3"></div>
+
+                                <div id="sensorsSearchResults" class="row mt-3" style="display: none;"></div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+
+    {% block leftsidepanel %} {{ super() }} {% endblock %}
 
 
-<!-- Initialise the map -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
-<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+    <!-- Initialise the map -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
-<script type="text/javascript">
 
-    // create map
-    var assetMap = L
-        .map('mapid', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10})
-        .on('popupopen', function () {
-            $(function () {
-                $('[data-toggle="tooltip"]').tooltip();
+    <script type="module" type="text/javascript">
+
+        import {
+            getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
+            createReactiveState, processResourceRawJSON, getAsset,
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults
+        } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+
+
+        const typeOne = [Boolean];
+        const typeTwo = [Object];
+        const typeThree = [String, Object];
+        const typeFour = [Array];
+        const typeFive = [String];
+
+
+        const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
+        const senSearchResEle = document.getElementById("sensorsSearchResults")
+
+        const iconMap = {
+            "sensor": "fa fa-microchip",
+            "string": "fa fa-solid fa-lock fa-lg",
+            "boolean": "fa fa-solid fa-flag",
+            "array": "fa fa-solid fa-list-ul",
+            "default": "fa fa-solid fa-question-circle",
+        }
+
+        const flexModelExampleUnits = {
+            "power": ["MW", "kW"],
+            "energy": ["MWh", "kWh"],
+            "boolean": ["Boolean"],
+            "efficiency": ["%"],
+        }
+
+        const assetFlexModelSchema = {
+            "soc-min": null,
+            "soc-max": null,
+            "soc-minima": null,
+            "soc-maxima": null,
+            "soc-targets": null,
+            "state-of-charge": null,
+            "soc-gain": [],
+            "soc-usage": [],
+            "roundtrip-efficiency": null,
+            "charging-efficiency": null,
+            "discharging-efficiency": null,
+            "storage-efficiency": null,
+            "prefer-charging-sooner": null,
+            "prefer-curtailing-later": null,
+            "power-capacity": null,
+            "consumption-capacity": null,
+            "production-capacity": null,
+        }
+
+        const FlexModelFieldValidTypes = {
+            "soc-min": typeThree,
+            "soc-max": typeThree,
+            "soc-minima": typeTwo,
+            "soc-maxima": typeTwo,
+            "soc-targets": typeTwo,
+            "state-of-charge": typeTwo,
+            "soc-gain": typeFour,
+            "soc-usage": typeFour,
+            "roundtrip-efficiency": typeFive,
+            "charging-efficiency": typeThree,
+            "discharging-efficiency": typeThree,
+            "storage-efficiency": typeThree,
+            "prefer-charging-sooner": typeOne,
+            "prefer-curtailing-later": typeOne,
+            "power-capacity": typeThree,
+            "consumption-capacity": typeThree,
+            "production-capacity": typeThree,
+        };
+
+        const assetFlexModelFieldDesc = {
+            "soc-min": { "units": flexModelExampleUnits.energy, "desc": "A constant lower boundary for all values in the schedule (defaults to 0).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "soc-max": { "units": flexModelExampleUnits.energy, "desc": "A constant upper boundary for all values in the schedule (defaults to max soc target, if provided).", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "soc-minima": { "units": flexModelExampleUnits.energy, "desc": "Set points that form lower boundaries, e.g. to target a full car battery in the morning", "types": "A sensor which records the set points as energy targets." },
+            "soc-maxima": { "units": flexModelExampleUnits.energy, "desc": "Set points that form upper boundaries at certain times.", "types": "A sensor which records the set points as energy targets." },
+            "soc-targets": { "units": flexModelExampleUnits.energy, "desc": "Exact set point(s) that the scheduler needs to realize.", "types": "A sensor which records the set points as energy targets." },
+            "state-of-charge": { "units": flexModelExampleUnits.energy, "desc": "Sensor used to record the scheduled state of charge.", "types": "A sensor which records the state of charge." },
+            "soc-gain": { "units": flexModelExampleUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated gain.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
+            "soc-usage": { "units": flexModelExampleUnits.power, "desc": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated usage.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
+            "roundtrip-efficiency": { "units": flexModelExampleUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be a percentage or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
+            "charging-efficiency": { "units": flexModelExampleUnits.efficiency, "desc": "Apply efficiency losses only at time of charging, not across roundtrip. Can be a percentage, ratio [0,1], or a coefficient of performance (>1). Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
+            "discharging-efficiency": { "units": flexModelExampleUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip. Can be a percentage or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
+            "storage-efficiency": {
+                "units": flexModelExampleUnits.efficiency,
+                "desc": "This can encode losses over time, so each time step the energy is held longer leads to higher losses. For example 95% (or 0.95) means a loss of 5% each step. Defaults to 100% or 1.0 (no loss). Note that the storage efficiency to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent  per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865",
+                "types": "Fixed value only."
+            },
+            "prefer-charging-sooner": { "units": flexModelExampleUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later.", "types": "Boolean option only." },
+            "prefer-curtailing-later": { "units": flexModelExampleUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True).", "types": "Boolean option only." },
+            "power-capacity": { "units": flexModelExampleUnits.power, "desc": "Device-level power constraint. How much power can be applied to this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "consumption-capacity": { "units": flexModelExampleUnits.power, "desc": "Device-level power constraint on consumption. How much power can be drawn by this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
+            "production-capacity": { "units": flexModelExampleUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment (staying within promised output), set this to reference a sensor containing PV power forecasts.", "types": "One fixed value or a dynamic signal (via a sensor)." },
+        }
+
+        let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
+        assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
+        let availableUnitsRawJSON = "{{ available_units | safe }}";
+        availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+        const availableUnits = JSON.parse(availableUnitsRawJSON);
+        let hasInitialized = false;
+
+
+        document.addEventListener('DOMContentLoaded', async function () {
+            const flexOptionsContainer = document.getElementById('flexOptionsContainer');
+            const flexmodelContainer = document.getElementById('flexmodelContainer');
+            const flexInfoContainer = document.getElementById('flexInfoContainer');
+            const addModelFieldbtn = document.getElementById('addModelFieldbtn');
+            const flexModelModal = document.getElementById('flexModelModal');
+            const flexSelect = document.getElementById('flexSelect');
+
+            const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, reRenderForm);
+            const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
+            const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
+
+            function initializeSensorsForm() {
+                const flexCheckBox = document.getElementById('flexCheckBox');
+                const sensorSearchBar = document.getElementById('sensorSearchBar');
+                const flexUnitsSelect = document.getElementById('flexUnitsSelect');
+
+                const elementsToInitialize = [
+                    { element: flexCheckBox, id: 'flexCheckBox' },
+                    { element: sensorSearchBar, id: 'sensorSearchBar', eventType: 'input', handler: searchSensors },
+                    { element: flexUnitsSelect, id: 'flexUnitsSelect', eventType: 'change', handler: searchSensors }
+                ];
+
+                elementsToInitialize.forEach(({ element, id, eventType, handler }) => {
+                    if (element) {
+                        if (!element.hasAttribute('data-listening')) {
+                            element.setAttribute('data-listening', 'true');
+                            if (eventType && handler) {
+                                element.addEventListener(eventType, handler);
+                                // console.log(`Event listener for ${id} (${eventType}) would be added.`);
+                            }
+                        } else {
+                            // console.log(`${id} element found and already listening.`);
+                        }
+                    } else {
+                        // console.warn(`${id} element not found.`);
+                    }
+                });
+            }
+
+            function reRenderForm() {
+                // Skip on first init. This code prevents the access to teh variable 'getFlexmodel'
+                // on initial run of the script as its not available at that point
+                if (!hasInitialized) {
+                    hasInitialized = true;
+                } else {
+                    renderFlexModelForm();
+                }
+            }
+
+
+            addModelFieldbtn.onclick = async function () {
+                const fieldName = flexSelect.value; // value from the select dropdown
+                if (fieldName === "blank") {
+                    showToast("Please select a field to add", "error");
+                    return;
+                }
+
+                const fieldValue = getFlexModel()[fieldName];
+                if (
+                    fieldValue !== undefined &&
+                    fieldValue !== null &&
+                    !(Array.isArray(fieldValue) && fieldValue.length === 0) &&
+                    !(typeof fieldValue === 'string' && fieldValue === '')
+                ) {
+                    showToast(`Field "${getFlexFieldTitle(fieldName)}" already exists`, "error");
+                    return;
+                }
+
+                // Initialize the field with an empty value or an empty array
+                const currentFlexmodel = getFlexModel()
+
+                if (FlexModelFieldValidTypes[fieldName].includes(Array)) {
+                    currentFlexmodel[fieldName] = ["Not Set"];
+                } else if (FlexModelFieldValidTypes[fieldName].includes(Boolean)) {
+                    currentFlexmodel[fieldName] = true;
+                } else {
+                    currentFlexmodel[fieldName] = "Not Set";
+                }
+                setFlexModel(currentFlexmodel)
+
+                setTimeout(() => {
+                    const card = document.getElementById(`${fieldName}-control`);
+                    setActiveCard(card);
+                    card.classList.add('border-on-click'); // Add border class to the card
+                    renderFlexInputOptions();
+                    renderSelectInfoCards(fieldName);
+                }, 500);
+
+
+            }
+
+            function setCardSensor(sensorId) {
+                if (!activeCard()) {
+                    showToast("Please select a field to set a sensor", "info");
+                    return;
+                }
+
+                if (!sensorId) {
+                    return;
+                }
+
+                const card = activeCard();
+                const name = card.id.replace('-control', '');
+                const flexModel = getFlexModel()
+                if (FlexModelFieldValidTypes[name].includes(Array)) {
+                    const valueIndex = selectedIndex()
+                    const fieldValues = flexModel[name];
+                    fieldValues[valueIndex] = { "sensor": sensorId };
+                    flexModel[name] = fieldValues;
+                } else {
+                    const value = flexModel[name];
+                    flexModel[name] = { "sensor": sensorId };
+                }
+
+                setFlexModel(flexModel);
+                senSearchResEle.style.display = 'none';
+            }
+
+            async function searchSensors() {
+                const searchValue = sensorSearchBar.value.toLowerCase();
+                spinnerElement.style.display = 'flex';
+                senSearchResEle.style.display = 'none';
+                const flexUnitsSelectValue = flexUnitsSelect.value;
+
+                const params = new URLSearchParams();
+
+                if (searchValue) {
+                    params.append('filter', searchValue);
+                }
+
+                if (flexCheckBox.checked) {
+                    params.append('include_public_assets', true);
+                }
+
+                if (flexUnitsSelectValue !== "null") {
+                    params.append('unit', flexUnitsSelectValue);
+                }
+
+                const apiUrl = `${sensorsApiUrl}&${params.toString()}`;
+
+                try {
+                    const response = await fetch(apiUrl);
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch sensors');
+                    }
+
+                    const responseData = await response.json();
+                    const filteredSensors = responseData.data;
+
+                    // Render the fetched sensors
+                    renderSensorSearchResults(filteredSensors, senSearchResEle, setCardSensor);
+
+                    spinnerElement.classList.add('hidden-important');
+                    senSearchResEle.style.display = 'block';
+                } catch (error) {
+                    // Ensure 'response' is defined if you try to access response.statusText
+                    const errorMessage = error?.message || error?.error || (response ? response.statusText : 'Unknown error');
+                    showToast(`Failed to search sensors: ${errorMessage}`, "error");
+                }
+            }
+
+            async function updateFlexModel() {
+                const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
+                let data = getFlexModel();
+
+                // Clean null values
+                for (const [key, value] of Object.entries(data)) {
+                    if (value === null) {
+                        delete data[key];
+                    } else if (Array.isArray(value) && value.length === 0) {
+                        delete data[key];
+                    } else if (typeof value === 'object' && Object.keys(value).length === 0) {
+                        delete data[key];
+                    }
+                }
+
+                const requestBody = JSON.stringify({ flex_model: JSON.stringify(data) });
+
+                const response = await fetch(apiURL, {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: requestBody,
+                });
+
+                if (response.status !== 200) {
+                    const errorData = await response.json();
+                    const errorMessage = errorData?.message || errorData?.error || response.statusText;
+                    showToast(`Failed to update the flex model: ${errorMessage}`, "error");
+                    reRenderForm();
+                } else {
+                    renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
+                    showToast("Flex model updated successfully", "success");
+                }
+            }
+
+            async function renderSelectInfoCards(modelKey, allowedUnits = []) {
+                if (modelKey) {
+                    flexInfoContainer.innerHTML = `
+                    <div>
+                        <div class="alert alert-info" role="alert">
+                            <b> About ${getFlexFieldTitle(modelKey)}
+                            <div class="pt-2 fw-normal">
+                                ${assetFlexModelFieldDesc[modelKey]["desc"] || "No description available."}
+                            </div>
+
+                             <div class="pt-2 fw-bold"> 
+                                Possible Types: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["types"] || "No types available."} </span> <br/>
+                                Example Units: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["units"].join(", ")} </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                } else {
+                    flexInfoContainer.innerHTML = "";
+                }
+            }
+
+            async function renderCarouselCards(fieldName, cardValues) {
+                const scrollContainer = document.createElement('div');
+                scrollContainer.id = `${fieldName}-carousel-container`;
+                scrollContainer.className = 'row flex-row flex-nowrap card-carousel-contianer';
+                scrollContainer.style.overflowY = 'auto';
+
+                for (const [index, value] of cardValues.entries()) {
+                    const isFixed = typeof value === "string"
+                    const isKeyValueObject = typeof value === "object" &&
+                        value !== null &&
+                        !Array.isArray(value) && // Exclude arrays
+                        Object.keys(value).length > 0;
+
+                    const card = document.createElement('div');
+                    card.className = 'col-10 d-flex border rounded m-1 justify-content-center flex-column';
+                    card.id = `${fieldName}-card-${index}`;
+                    card.style.padding = '5px 15px';
+                    const cardHighlight = document.createElement('div');
+                    cardHighlight.className = 'card-highlight';
+                    const cardContentContainer = document.createElement('div');
+                    cardContentContainer.className = 'd-flex justify-content-between align-items-center';
+
+                    const titleContainer = document.createElement('div');
+                    titleContainer.className = 'd-flex align-items-center py-0';
+
+                    const itemTitle = document.createElement('b');
+                    itemTitle.className = '';
+                    itemTitle.textContent = `Item ${index + 1}`;
+
+                    const selectBtn = document.createElement('button'); // ===================
+                    selectBtn.className = 'btn btn-secondary btn-sm ms-2 py-0';
+                    selectBtn.textContent = 'edit';
+                    selectBtn.onclick = function () { setSelectedIndex(index); };
+                    titleContainer.appendChild(itemTitle);
+                    titleContainer.appendChild(selectBtn);
+
+                    const component = document.createElement('div');
+
+                    if (isKeyValueObject) {
+                        const sensor = await renderSensor(value.sensor);
+                        component.innerHTML = sensor;
+                    } else if (isFixed) {
+                        component.innerHTML = `<p class="card-text fs-4">${value}</p>`;
+                    } else {
+                        showToast(`Invalid value type for card: ${value}`, "error");
+                        return;
+                    }
+
+                    const closeIcon = document.createElement('i');
+                    closeIcon.className = 'fa fa-times fa-lg';
+                    closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+                    closeIcon.setAttribute('data-bs-placement', 'top');
+                    closeIcon.setAttribute('title', 'Remove');
+                    closeIcon.style.cursor = 'pointer';
+                    closeIcon.onclick = function () {
+                        // remove value from the array
+                        cardValues.splice(index, 1);
+                        scrollContainer.removeChild(card);
+                    };
+
+                    card.appendChild(titleContainer);
+                    cardContentContainer.appendChild(component);
+                    cardContentContainer.appendChild(closeIcon);
+                    cardHighlight.appendChild(cardContentContainer);
+
+                    card.appendChild(cardHighlight);
+                    scrollContainer.appendChild(card);
+                };
+
+                return scrollContainer;
+            }
+
+            async function renderFlexModelFieldCard(name, value) {
+                const card = document.createElement('div');
+                card.className = 'card m-1 mt-0';
+                card.id = `${name}-control`;
+
+                card.onclick = function () {
+                    if (card.classList.contains('border-on-click')) {
+                        if (activeCard() && activeCard().id === card.id) {
+                            if (selectedIndex() === null && !FlexModelFieldValidTypes[name].includes(Array)) {
+                                setActiveCard(null); // Deselect if the same card is clicked again
+                                card.classList.remove('border-on-click'); // Remove the border class
+                            }
+                        }
+                        return;
+                    }
+
+                    const allCards = document.querySelectorAll('.card');
+                    allCards.forEach(c => c.classList.remove('border-on-click'));
+                    card.classList.add('border-on-click');
+                    setActiveCard(card); // Set the active card
+                    renderSelectInfoCards(name); // Render the info card for the selected field
+                    if (!FlexModelFieldValidTypes[name].includes(Array)) {
+                        renderFlexInputOptions(); // Render the input options for the selected field
+                    }
+                }
+
+                const isString = typeof value === "string";
+                const isArray = Array.isArray(value);
+                const isBool = typeof value === "boolean";
+                const isNumber = typeof value === "number";
+                const isKeyValueObject = typeof value === "object" &&
+                    value !== null &&
+                    !Array.isArray(value) && // Exclude arrays
+                    Object.keys(value).length > 0;
+
+                const highlightCard = document.createElement('div');
+                highlightCard.className = 'card-highlight';
+                card.appendChild(highlightCard);
+                const titleContainer = document.createElement('div');
+                titleContainer.className = 'd-flex justify-content-between align-items-center';
+                const title = document.createElement('h5');
+                title.className = 'card-title';
+                title.textContent = getFlexFieldTitle(name);
+                const titleSubContainer = document.createElement('div');
+                titleSubContainer.className = 'd-flex justify-content-between align-items-center';
+                titleSubContainer.appendChild(title);
+
+                let fieldIconClass = '';
+                let fieldIconTitle = '';
+                if (isKeyValueObject) {
+                    fieldIconClass = iconMap["sensor"];
+                    fieldIconTitle = "A dynamic signal (via a sensor)";
+                } else if (isBool) {
+                    fieldIconClass = iconMap["boolean"];
+                    fieldIconTitle = "True or False (a boolean)";
+                } else if (isNumber || isString) {
+                    fieldIconClass = iconMap["string"];
+                    fieldIconTitle = "A Fixed Value";
+                } else if (isArray) {
+                    fieldIconClass = iconMap["array"];
+                    fieldIconTitle = "Multiple settings possible";
+                } else {
+                    fieldIconClass = iconMap["default"];
+                    fieldIconTitle = "Unknown";
+                }
+
+                const identityIcon = document.createElement('i');
+                identityIcon.className = `${fieldIconClass} ps-1 fa-md float-end text-black-50`;
+                identityIcon.setAttribute('data-bs-toggle', 'tooltip');
+                identityIcon.setAttribute('data-bs-html', 'true');
+                identityIcon.setAttribute('title', fieldIconTitle);
+                identityIcon.style.cursor = 'pointer';
+
+                if (isArray) {
+                    const plusIcon = document.createElement('i');
+                    plusIcon.className = 'fa fa-solid fa-plus ps-1 fa-lg';
+                    plusIcon.style = 'cursor: pointer;';
+                    plusIcon.setAttribute('data-bs-toggle', 'tooltip');
+                    plusIcon.setAttribute('title', 'Add a new item');
+                    plusIcon.onclick = async function (event) {
+                        event.preventDefault();
+
+                        // add new empty item to array
+                        value.push('Not Set');
+
+                        // This re render is for when an extra item is added to the array
+                        // without this when you add a new item the carousel does not update
+                        let carouselCards = document.getElementById(`${name}-carousel-container`);
+                        carouselCards.innerHTML = '';
+                        carouselCards = await renderCarouselCards(name, value);
+                        card.querySelector('.card-highlight').appendChild(carouselCards);
+                    };
+                    titleSubContainer.appendChild(plusIcon)
+                }
+
+                const iconSubContainer = document.createElement('div');
+                iconSubContainer.className = 'd-flex column-gap-4 justify-content-between align-items-center';
+
+                const closeIcon = document.createElement('i');
+                closeIcon.className = 'fa fa-times card-close-icon fa-lg';
+                closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+                closeIcon.setAttribute('title', 'Unset this field');
+                closeIcon.style.cursor = 'pointer';
+                closeIcon.onclick = function () {
+                    // Remove this field
+                    if (activeCard() && activeCard().id === card.id) {
+                        setActiveCard(null); // Deselect if the same card is clicked again
+                        setSelectedIndex(null); // Reset selected index
+                        card.classList.remove('border-on-click'); // Remove the border class
+                    }
+
+                    card.remove(); // Remove the card from the DOM
+                    const flexModel = getFlexModel();
+                    if (Array.isArray(flexModel[name])) {
+                        flexModel[name] = [];
+                    } else {
+                        flexModel[name] = null;
+                    }
+
+                    // Update the flex model
+                    setFlexModel(flexModel);
+                    updateFlexModel();
+                }
+
+
+                iconSubContainer.appendChild(closeIcon);
+                titleContainer.appendChild(titleSubContainer);
+                titleContainer.appendChild(iconSubContainer);
+                highlightCard.appendChild(titleContainer);
+
+                const contentContainer = document.createElement('div');
+                contentContainer.innerHTML = `
+                    ${isKeyValueObject ? await renderSensor(value["sensor"]) : ''}
+                    ${isBool ? `<i>${String(value).charAt(0).toUpperCase() + String(value).slice(1)} </i>` : ''}
+                    ${isNumber || isString ? `<p class="card-text fs-4">${value}</p>` : ''}
+                `;
+
+                highlightCard.appendChild(contentContainer);
+                highlightCard.appendChild(identityIcon);
+
+                if (isArray) {
+                    const carouselCards = await renderCarouselCards(name, value);
+                    card.querySelector('.card-highlight').appendChild(carouselCards);
+                    // this re renders the icon right beneath the carousel cards
+                    card.querySelector('.card-highlight').appendChild(identityIcon);
+                }
+                flexmodelContainer.appendChild(card);
+                return card;
+            }
+
+            function renderDataTypeComponents(dataType, activeTab) {
+                const card = activeCard();
+                const name = card.id.replace('-control', '');
+                const flexModel = getFlexModel()
+                let value = flexModel[name];
+                const isArrayField = Array.isArray(value);
+
+                if (isArrayField && selectedIndex() === null) {
+                    showToast("Please select an item from the array to edit", "info");
+                    return [null, null]; // No tab for array without selected index
+                } else if (isArrayField && selectedIndex() !== null) {
+                    value = value[selectedIndex()];
+                }
+
+                let tabType;
+
+                if (dataType == Boolean) {
+                    tabType = 'bool';
+                } else if (dataType == Object) {
+                    tabType = 'object';
+                } else if (dataType == String) {
+                    tabType = 'string';
+                } else {
+                    return [null, null]; // Unsupported data type
+                }
+
+                const tab = document.createElement('li');
+                tab.className = 'nav-item';
+                tab.setAttribute('role', 'presentation');
+                const btn = document.createElement('button');
+                btn.className = `nav-link flex-nav ${activeTab ? "active" : ""}`;
+                btn.setAttribute('data-bs-toggle', 'pill');
+                btn.setAttribute('data-bs-target', `#pills-${tabType}`);
+                btn.setAttribute('type', 'button');
+                btn.setAttribute('role', 'tab');
+                btn.setAttribute('aria-controls', `pills-${tabType}`);
+                btn.setAttribute('aria-selected', activeTab ? "true" : "false");
+
+                // Add tab to the tab list
+                tab.appendChild(btn);
+
+                // Tab Content
+                const tabContent = document.createElement('div');
+                tabContent.id = `pills-${tabType}`;
+                tabContent.className = `tab-pane rounded-bottom ${activeTab ? "fade show active" : ""}`;
+                // inline style
+                tabContent.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
+                tabContent.style.border = '1px solid #0000002d';
+                tabContent.setAttribute('role', 'tabpanel');
+                tabContent.setAttribute('aria-labelledby', `pills-${tabType}-tab`);
+
+
+                if (dataType == Boolean) { // Boolean Tab =================
+                    btn.textContent = 'Your preference';
+
+                    const boolTabContentSaveBtn = document.createElement('button');
+                    boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
+                    boolTabContentSaveBtn.textContent = 'Set Value';
+                    boolTabContentSaveBtn.onclick = function () {
+                        const checkbox = document.getElementById('flexBoolInput');
+                        flexModel[name] = checkbox.checked;
+                        setFlexModel(flexModel);
+                        updateFlexModel();
+                    };
+                    tabContent.innerHTML = `
+                        <div class="flex-input-group mb-1 p-2">
+                            <label for="fixed-value" class="form-label">Value for <b>${getFlexFieldTitle(name)}</b>
+                                <i class="fa fa-info-circle ps-2"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="bottom"
+                                    title="Set a fixed value for this field. If the field is a boolean, it will be set to true or false."
+                                ></i>
+                            </label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input ps-1" style="transform: scale(1.5); margin-left: -2.1em !important" type="checkbox" id="flexBoolInput" ${value ? 'checked' : ''} />
+                            </div>
+                        </div>
+                    `;
+                    tabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
+                } else if (dataType == Object) { // Object/Senosr Tab =================
+                    btn.textContent = 'A Sensor';
+
+                    tabContent.innerHTML = `
+                        <div class="flex-input-group mb-1 p-2">
+                            <label for="flexSensorInput" class="form-label">Select a Sensor for <b>${getFlexFieldTitle(name)} ${isArrayField ? '| Item ' + (selectedIndex() + 1) : ''}</b>
+                                <i class="fa fa-info-circle ps-2"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="bottom"
+                                    title="Select a sensor to link with this field. The sensor will be used to provide data for this field."
+                                ></i>
+                            </label>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="" id="flexCheckBox">
+                                <label class="form-check-label" for="flexCheckBox">
+                                    Include Public Assets
+                                </label>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-8 pe-1">
+                                    <input
+                                    type="text"
+                                    id="sensorSearchBar"
+                                    class="form-control"
+                                    placeholder="Search sensors..."
+                                    />
+                                </div>
+                                <div class="col-4 ps-0">
+                                    <select id="flexUnitsSelect" class="form-select">
+                                        <option value="${null}" selected>Units</option>
+                                        ${availableUnits.map(unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (dataType == String) { // String Tab =================
+                    btn.textContent = 'Fixed Value';
+
+                    const stringTabContentSaveBtn = document.createElement('button');
+                    stringTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
+                    stringTabContentSaveBtn.textContent = 'Set Value';
+                    stringTabContentSaveBtn.onclick = function () {
+                        const input = document.getElementById('flexStringInput');
+                        if (!input.value) {
+                            showToast("Please enter a value", "error");
+                            return;
+                        }
+                        if (isArrayField && selectedIndex() !== null) {
+                            flexModel[name][selectedIndex()] = input.value;
+                        } else {
+                            flexModel[name] = input.value;
+                        }
+
+                        setFlexModel(flexModel);
+                        updateFlexModel();
+                    };
+
+                    const flexInputGroup = document.createElement('div');
+                    flexInputGroup.className = 'flex-input-group mb-1 p-2';
+                    const inputLabel = document.createElement('label');
+                    inputLabel.setAttribute('for', 'fixed-value');
+                    inputLabel.className = 'form-label';
+                    inputLabel.innerHTML = `Value for <b>${getFlexFieldTitle(name)} ${isArrayField ? '| Item ' + (selectedIndex() + 1) : ''}</b>
+                        <i class="fa fa-info-circle ps-2"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="bottom"
+                            title="Set a fixed value for this field. If the field is a boolean, it will be set to true or false."
+                        ></i>`;
+                    flexInputGroup.appendChild(inputLabel);
+
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'form-control';
+                    input.id = 'flexStringInput';
+                    input.placeholder = 'Enter a value';
+                    input.value = `${typeof value === 'string' ? value : ''}`;
+                    input.onkeydown = function (event) {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            stringTabContentSaveBtn.click();
+                        }
+                    };
+                    flexInputGroup.appendChild(input);
+                    flexInputGroup.appendChild(stringTabContentSaveBtn);
+                    tabContent.appendChild(flexInputGroup);
+                } else {
+                    return [null, null];
+                }
+
+                return [tab, tabContent];
+            }
+
+            async function renderFlexInputOptions() {
+                const card = activeCard();
+                if (!card && !hasInitialized) {
+                    showToast(`Cant render input options without a selected field.`, "info");
+                    return;
+                } else if (!card && hasInitialized) {
+                    return;
+                }
+
+                const name = card.id.replace('-control', '');
+                const fieldDataTypes = FlexModelFieldValidTypes[name];
+
+                // main tab components contianer
+                const tabsContainer = document.createElement('div');
+                tabsContainer.className = 'card-header';
+                // tab headers
+                const tabHeaders = document.createElement('ul');
+                tabHeaders.id = 'flexModelTabHeaders';
+                tabHeaders.className = 'nav nav-tabs card-header-tabs';
+                tabHeaders.setAttribute('role', 'tabHeaders');
+                // tab contents
+                const tabContent = document.createElement('div');
+                tabContent.id = 'flexModelTabContent';
+                tabContent.className = 'tab-content';
+
+                if (fieldDataTypes[0] === Array) {
+                    const currentCarouselindex = selectedIndex();
+                    if (currentCarouselindex >= 0) {
+                        typeThree.forEach((type, _) => {
+                            const flexModel = getFlexModel()
+                            const value = flexModel[name];
+                            const indexValue = value[currentCarouselindex];
+                            let activeTab = false;
+                            if (type === Object && typeof indexValue === 'object' && indexValue !== null) {
+                                activeTab = true;
+                            } else if (type === String && typeof indexValue === 'string') {
+                                activeTab = true;
+                            }
+                            const [fieldTabheader, fieldTabContent] = renderDataTypeComponents(type, activeTab)
+                            if (fieldTabheader && fieldTabContent) {
+                                tabHeaders.appendChild(fieldTabheader);
+                                tabContent.appendChild(fieldTabContent);
+                            }
+                        });
+                    }
+                } else {
+                    fieldDataTypes.forEach((type, index) => {
+                        const activeTab = (index === 0);
+                        const [fieldTabheader, fieldTabContent] = renderDataTypeComponents(type, activeTab)
+                        if (fieldTabheader && fieldTabContent) {
+                            tabHeaders.appendChild(fieldTabheader);
+                            tabContent.appendChild(fieldTabContent);
+                        } else {
+                            showToast(`Invalid data type for field: ${getFlexFieldTitle(name)}`);
+                            return;
+                        }
+                    });
+                }
+
+                // setup headers and contents in container
+                tabsContainer.appendChild(tabHeaders);
+                tabsContainer.appendChild(tabContent);
+
+                flexOptionsContainer.innerHTML = ""; // Clear previous content
+                flexOptionsContainer.appendChild(tabsContainer);
+
+                if (fieldDataTypes[0] !== Boolean) {
+                    initializeSensorsForm(); // Initialize the sensors form elements
+                }
+
+            }
+
+            async function renderFlexModelForm() {
+                flexOptionsContainer.innerHTML = "";
+                flexmodelContainer.innerHTML = "";
+
+                const assetFlexModel = getFlexModel();
+                for (const [key, value] of Object.entries(assetFlexModel)) {
+                    if (value !== null && (!Array.isArray(value) || value.length > 0)) {
+                        const card = await renderFlexModelFieldCard(key, value);
+                    } else if (value === "Not Set") {
+                        if (FlexModelFieldValidTypes[key].includes(Array)) {
+                            const card = await renderFlexModelFieldCard(key, []);
+                        } else {
+                            const card = await renderFlexModelFieldCard(key, null);
+                        }
+                    }
+                }
+            };
+
+
+            flexModelModal.addEventListener('shown.bs.modal', function () {
+                // Initial renders
+                renderFlexModelForm(); // Initial render of flex model form
+                renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
             });
+
+            flexModelModal.addEventListener('hidden.bs.modal', function () {
+                updateFlexModel();
+            });
+
+            flexSelect.addEventListener('change', (event) => {
+                const selectedKey = event.target.value;
+                renderSelectInfoCards(selectedKey);
+            });
+
         });
-    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+    </script>
 
-    // create marker
-    var asset_icon = new L.DivIcon({
-        className: 'map-icon',
-        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
-        iconSize: [100, 100], // size of the icon
-        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
-        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
-    });
-    var marker = L
-        .marker(
-            [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}],
-    { icon: asset_icon }
-        ).addTo(assetMap);
+    <script type="text/javascript">
+        // create map
+        var assetMap = L
+            .map('mapid', { center: ["{{ asset.latitude | replace('None', 10) }}", "{{ asset.longitude | replace('None', 10) }}"], zoom: 10 })
+            .on('popupopen', function () {
+                $(function () {
+                    $('[data-toggle="tooltip"]').tooltip();
+                });
+            });
+        addTileLayer(assetMap, '{{ mapboxAccessToken }}');
 
-    assetMap.on('click', function (e) {
-        $("#latitude").val(e.latlng.lat.toFixed(4));
-        $("#longitude").val(e.latlng.lng.toFixed(4));
-        marker.setLatLng(e.latlng);
-    });
-</script>
+        // create marker
+        var asset_icon = new L.DivIcon({
+            className: 'map-icon',
+            html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
+            iconSize: [100, 100], // size of the icon
+            iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+            popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+        });
+        var marker = L
+            .marker(
+                ["{{ asset.latitude | replace('None', 10) }}", "{{ asset.longitude | replace('None', 10) }}"],
+                { icon: asset_icon }
+            ).addTo(assetMap);
 
-<script>
-    function Sensor(
-        id,
-        name,
-        unit,
-        resolution,
-        active
-    ) {
-        this.id = id;
-        this.name = name;
-        this.unit = unit;
-        this.resolution = resolution
-        this.url = `/sensors/${id}`;
-    }
+        assetMap.on('click', function (e) {
+            $("#latitude").val(e.latlng.lat.toFixed(4));
+            $("#longitude").val(e.latlng.lng.toFixed(4));
+            marker.setLatLng(e.latlng);
+        });
+    </script>
 
-    $(document).ready(function () {
+    <script>
+        function Sensor(
+            id,
+            name,
+            unit,
+            resolution,
+            active
+        ) {
+            this.id = id;
+            this.name = name;
+            this.unit = unit;
+            this.resolution = resolution
+            this.url = `/sensors/${id}`;
+        }
+
+        $(document).ready(function () {
         let unit = "";
         // Initialize the DataTable
         const table = $("#sensorsTable").dataTable({
@@ -322,27 +1265,27 @@
                 { data: "url", title: "URL", className: "d-none" },
             ],
 
-            ajax: function (data, callback, settings) {
-                const basePath = window.location.origin;
-                let filter = data["search"]["value"];
-                let orderColumnIndex = data["order"][0]["column"]
-                let orderDirection = data["order"][0]["dir"];
-                let orderColumnName = data["columns"][orderColumnIndex]["data"];
+                ajax: function (data, callback, settings) {
+                    const basePath = window.location.origin;
+                    let filter = data["search"]["value"];
+                    let orderColumnIndex = data["order"][0]["column"]
+                    let orderDirection = data["order"][0]["dir"];
+                    let orderColumnName = data["columns"][orderColumnIndex]["data"];
 
-                let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${data["start"] / data["length"] + 1
-                    }&per_page=${data["length"]}`;
+                    let url = `${basePath}/api/v3_0/assets/{{asset.id}}/sensors?page=${data["start"] / data["length"] + 1
+                        }&per_page=${data["length"]}`;
 
-                if (orderColumnName) {
-                    url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
-                }
+                    if (orderColumnName) {
+                        url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+                    }
 
-                if (filter.length > 0) {
-                    url = `${url}&filter=${filter}`;
-                }
+                    if (filter.length > 0) {
+                        url = `${url}&filter=${filter}`;
+                    }
 
-                if (unit !== "") {
-                    url = `${url}&unit=${unit}`;
-                }
+                    if (unit !== "") {
+                        url = `${url}&unit=${unit}`;
+                    }
 
 
 
@@ -363,27 +1306,27 @@
                             )
                         );
 
-                        callback({
-                            data: clean_response,
-                            recordsTotal: response["num-records"],
-                            recordsFiltered: response["filtered-records"],
-                        });
-                    },
-                    error: function (request, status, error) {
-                        showToast(error, "error");
-                    },
-                });
-            },
+                            callback({
+                                data: clean_response,
+                                recordsTotal: response["num-records"],
+                                recordsFiltered: response["filtered-records"],
+                            });
+                        },
+                        error: function (request, status, error) {
+                            showToast(error, "error");
+                        },
+                    });
+                },
+            });
+
+
+            // Event listener for the select box
+            $("#unitFilterOptions").change(function () {
+                unit = this.value;
+                table.api().ajax.reload();
+            });
         });
+    </script>
 
-
-        // Event listener for the select box
-        $("#unitFilterOptions").change(function () {
-            unit = this.value;
-            table.api().ajax.reload();
-        });
-    });
-</script>
-
-{% block paginate_tables_script %} {{ super() }} {% endblock %}
-{% endblock %}
+    {% block paginate_tables_script %} {{ super() }} {% endblock %}
+    {% endblock %}
