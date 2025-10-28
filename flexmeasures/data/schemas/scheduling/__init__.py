@@ -36,6 +36,7 @@ from flexmeasures.utils.validation_utils import validate_sensor_or_fixed
 
 
 class CommitmentSchema(Schema):
+    name = fields.Str(required=False, data_key="name")
     baseline = VariableQuantityField(
         "MW", required=True, data_key="baseline", value_validator=validate.Range(min=0)
     )

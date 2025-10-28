@@ -968,7 +968,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
             flow_commitment = FlowCommitment(
-                name="placeholder",  # todo: maybe extend the schema with a name identifying the commitment
+                name=commitment.get("name", "unnamed"),
                 quantity=commitment["baseline"],
                 upwards_deviation_price=commitment["up_price"],
                 downwards_deviation_price=commitment["down_price"],
