@@ -10,6 +10,7 @@ v0.29.1 | October XX, 2025
 Bugfixes
 -----------
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
+* Fixed bug where removed flex-model fields didn't show up under the new fields dropdown, except after a page refresh [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1775>`_]
 * Fix bug in displaying user audit log (incl. expanding its API schema) [see `PR #1779 <https://github.com/FlexMeasures/flexmeasures/pull/1779>`_]
 
 
