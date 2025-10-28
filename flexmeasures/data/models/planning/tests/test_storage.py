@@ -55,6 +55,7 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
             "site-peak-consumption": "20 kW",
             "site-peak-production": "20 kW",
             "site-peak-consumption-price": "260 EUR/MW",
+            "commitments": '[{"name": "a sample commitment", "baseline": "0 kW", "up-price": "0 EUR/MW", "down-price": "0 EUR/MW"}]',
             # The following is a constant price, but this checks currency conversion in case a later price field is
             # set to a time series specs (i.e. a list of dicts, where each dict represents a time slot)
             "site-peak-production-price": series_to_ts_specs(
