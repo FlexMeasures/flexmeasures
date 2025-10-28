@@ -61,13 +61,13 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
                     "name": "a sample commitment penalizing peaks",
                     "baseline": "0 kW",
                     "up-price": "1 EUR/MW",
-                    "down-price": "1 EUR/MW",
+                    "down-price": "-1 EUR/MW",
                 },
                 {
                     "name": "a sample commitment penalizing demand/supply",
                     # "baseline": "0 kW",  # tests defaulting to 0
                     "up-price": "1 EUR/MWh",
-                    "down-price": "1 EUR/MWh",
+                    "down-price": "-1 EUR/MWh",
                 },
             ],
             # The following is a constant price, but this checks currency conversion in case a later price field is
