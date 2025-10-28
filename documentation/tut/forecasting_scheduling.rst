@@ -131,13 +131,13 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor 15 --consumption-price-sensor 2 \
-        --start 2022-07-05T07:00+01:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90% --as-job
+    $ flexmeasures add schedule --sensor 15 \
+        --start 2022-07-05T07:00+01:00 --duration PT12H --soc-at-start 50% --as-job \
+        --flex-context '{"consumption-price": {"sensor": 2}}' --flex-model '{"roundtrip-efficiency": "90%"}'
 
 Here, the ``--as-job`` parameter makes the difference for queueing ― without it, the schedule is computed right away.
 
-Run ``flexmeasures add schedule for-storage --help`` for more information.
+Run ``flexmeasures add schedule --help`` for more information.
 
 
 .. _getting_prognoses:

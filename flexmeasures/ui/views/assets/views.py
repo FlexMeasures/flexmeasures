@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import json
 from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 from marshmallow import ValidationError
-import json
 
 from flexmeasures.data import db
 from flexmeasures.auth.policy import check_access
@@ -175,10 +175,14 @@ class AssetCrudUI(FlaskView):
         site_asset = asset
         while site_asset.parent_asset_id:
             site_asset = site_asset.parent_asset
+
+        from flexmeasures.data.schemas.scheduling import UI_FLEX_CONTEXT_SCHEMA
+
         return render_flexmeasures_template(
             "assets/asset_context.html",
             assets=assets,
             asset=asset,
+            flex_context_schema=UI_FLEX_CONTEXT_SCHEMA,
             current_asset_sensors=current_asset_sensors,
             site_asset=site_asset,
             user_can_create_children=user_can_create_children(asset),
@@ -371,6 +375,7 @@ class AssetCrudUI(FlaskView):
 
         asset_summary = {
             "Name": asset.name,
+            "Type": asset.generic_asset_type.name,
             "Latitude": asset.latitude,
             "Longitude": asset.longitude,
             "Parent Asset": (
@@ -380,9 +385,16 @@ class AssetCrudUI(FlaskView):
             ),
         }
 
+        site_asset = asset
+        while site_asset.parent_asset_id:
+            site_asset = site_asset.parent_asset
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
+            site_asset=site_asset,
+            asset_flexmodel=json.dumps(asset.flex_model),
+            available_units=available_units(),
             asset_summary=asset_summary,
             asset_form=asset_form,
             msg=msg,

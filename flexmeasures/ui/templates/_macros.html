@@ -20,7 +20,7 @@ treeSpecs = {
   "padding": 0,
   "autosize": {"type": "fit", "resize": false},
   "signals": [
-    {"name": "nodeWidth", "value": 190},
+    {"name": "nodeWidth", "value": 240},
     {"name": "nodeHeight", "value": 40},
     {"name": "verticalNodeGap", "value": 10},
     {"name": "horizontalNodeGap", "value": 60},
@@ -29,7 +29,7 @@ treeSpecs = {
       "name": "scaledNodeHeight",
       "update": "abs(nodeHeight/ max(span(ydom),height))*height"
     },
-    {"name": "scaledNodeWidth", "update": "(nodeWidth/ span(xdom))*width"},
+    {"name": "scaledNodeWidth", "update": "(nodeWidth / span(xdom)) * width"},
     {"name": "xrange", "update": "[0, width]"},
     {"name": "yrange", "update": "[0, height]"},
     {"name": "scaledFont13", "update": "(30/ span(xdom))*width"},
@@ -52,7 +52,7 @@ treeSpecs = {
         {
           "type": "tree",
           "method": "tidy",
-          "size": [{"signal": "nodeHeight *0.1"},
+          "size": [{"signal": "nodeHeight * 0.1"},
                    {"signal": "width"}
           ],
           "separation": {"signal": "true"},
@@ -123,7 +123,7 @@ treeSpecs = {
             "signal": "datum.name === currentAssetName ? scaledNodeHeight * 1.1 : scaledNodeHeight"
           },
           "fill": {
-            "signal": "datum.name === currentAssetName ? 'gold' : datum.name === 'Add Child Asset' ? 'green' : 'lightblue'"
+            "signal": "datum.name === currentAssetName ? 'gold' : datum.name === 'Add asset' ? 'green' : 'lightblue'"
           },
           "stroke": {
             "signal": "datum.name === currentAssetName ? 'darkorange' : 'black'"
@@ -143,18 +143,18 @@ treeSpecs = {
           "name": "name",
           "encode": {
             "update": {
-              "x": {"signal": "(5/ span(xdom))*width + (scaledNodeWidth * 0.15)"}, 
+              "x": {"signal": "(5/ span(xdom))*width + (scaledNodeWidth * 0.2)"},
               "y": {"signal": "(5/ span(xdom))*width + (scaledNodeHeight * 0.15)"},
               "fontWeight": {"value": "bold"},
-              "baseline": {"value": "top"},
+              "baseline": {"value": "line-top"},
               "text": {"signal": "parent.name"},
               "fontSize": {
-                "signal": "datum.name === currentAssetName ? scaledFont13 * 1.5 : scaledFont13"
+                "signal": "datum.name === currentAssetName ? scaledFont13 * 1.4 : scaledFont13"
               },
               "fill": {
-                "signal": "parent.name === currentAssetName ? 'black' : parent.name === 'Add Child Asset' ? 'white' : 'darkblue'"
+                "signal": "parent.name === currentAssetName ? 'black' : parent.name === 'Add asset' ? 'white' : 'darkblue'"
               },
-              "limit": {"signal": "scaledNodeWidth-scaledLimit"},
+              "limit": {"signal": "scaledNodeWidth-scaledLimit * 0.9 - (scaledNodeWidth * 0.2)"},
               "font": {"value": "Calibri"},
               "href": {"signal": "datum.link"},
               "tooltip": {"signal": "parent.tooltip"}
@@ -162,17 +162,18 @@ treeSpecs = {
           }
         },
         {
-    "type": "image",
-    "encode": {
-      "update": {
-        "x": {"signal": "-(scaledNodeWidth * 0.001)"},
-        "y": {"signal": "-(scaledNodeHeight * 0.001)"},
-        "width": {"signal": "scaledNodeWidth * 0.002"},
-        "height": {"signal": "scaledNodeHeight * 0.002"},
-        "url": {"signal": "parent.icon"}
-      }
-    }
-  },
+          "type": "image",
+          "encode": {
+            "update": {
+              "x": {"signal": "-(scaledNodeWidth * 0.001)"},
+              "y": {"signal": "-(scaledNodeHeight * 0.001)"},
+              "width": {"signal": "scaledNodeWidth * 0.002"},
+              "height": {"signal": "scaledNodeHeight * 0.002"},
+              "baseline": {"value": "line-top"},
+              "url": {"signal": "parent.icon"}
+            }
+          }
+        },
       ]
     }
   ]
