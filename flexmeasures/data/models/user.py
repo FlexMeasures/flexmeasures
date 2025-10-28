@@ -87,11 +87,11 @@ class Account(db.Model, AuthModelMixin):
 
     def __acl__(self):
         """
-        Only account admins can create things in the account (e.g. users or assets).
-        Consultants (i.e. users with the consultant role) can read things in the account,
-        but only if their organisation is set as a consultancy for the given account.
+        Only account admins and consultants can create things in the account (e.g. users or assets).
+        Consultants (i.e. users with the consultant role) can read and update things in the account,
+        but only if their organization is set as a consultancy for the given account.
         Within same account, everyone can read and update.
-        Creation and deletion of accounts are left to site admins in CLI.
+        Deletion of accounts is left to site admins, using the CLI.
         """
 
         read_access = [f"account:{self.id}"]
@@ -203,6 +203,18 @@ class Account(db.Model, AuthModelMixin):
             select(func.count()).where(User.account_id == self.id)
         ).scalar_one_or_none()
 
+    def get_all_client_accounts(self) -> list[Account]:
+        """Get all consultancy client accounts for this account, recursively."""
+        all_clients = []
+
+        def _get_clients(account: Account):
+            for client in account.consultancy_client_accounts:
+                all_clients.append(client)
+                _get_clients(client)
+
+        _get_clients(self)
+        return all_clients
+
 
 class RolesUsers(db.Model):
     __tablename__ = "roles_users"
@@ -271,12 +283,18 @@ class User(db.Model, UserMixin, AuthModelMixin):
 
     def __acl__(self):
         """
-        Within same account, everyone can read.
+        Within the same account, everyone can read. Consultants as well.
         Only the user themselves, consultants or account-admins can edit their user record.
         Creation and deletion are left to site admins in CLI.
         """
         return {
-            "read": f"account:{self.account_id}",
+            "read": [
+                f"account:{self.account_id}",
+                (
+                    f"account:{self.account.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
             "update": [
                 f"user:{self.id}",
                 (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
