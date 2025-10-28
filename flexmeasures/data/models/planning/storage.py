@@ -934,7 +934,7 @@ class MetaStorageScheduler(Scheduler):
         end = self.end
         resolution = self.resolution
         if resolution is None:
-            if self.sensor.event_resolution is not None:
+            if self.sensor is not None:
                 resolution = self.sensor.event_resolution
             else:
                 resolution = determine_minimum_resampling_resolution(
