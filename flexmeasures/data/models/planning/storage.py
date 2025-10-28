@@ -924,7 +924,7 @@ class MetaStorageScheduler(Scheduler):
             commitments,
         )
 
-    def convert_to_commitments(self):
+    def convert_to_commitments(self) -> list[FlowCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
