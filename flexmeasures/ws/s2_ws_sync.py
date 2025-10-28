@@ -258,14 +258,14 @@ class S2FlaskWSServerSync:
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
-            self.app.logger.info("Received connection from client")
+            self.app.logger.info("🔌 New WebSocket connection received")
             self._handle_websocket_connection(ws)
         except Exception as e:
-            self.app.logger.error("Error in websocket handler: %s", e)
+            self.app.logger.error("❌ WebSocket handler error: %s", e)
 
     def _handle_websocket_connection(self, websocket: Sock) -> None:
         client_id = str(uuid.uuid4())
-        self.app.logger.info(f"Client {client_id} connected (sync)")
+        self.app.logger.info(f"🔗 Client connected: {client_id[:8]}...")
         self._connections[client_id] = websocket
         # Initialize connection state for rate limiting
         self._connection_states[websocket] = ConnectionState()
@@ -274,12 +274,22 @@ class S2FlaskWSServerSync:
                 message = websocket.receive()
                 try:
                     s2_msg = self.s2_parser.parse_as_any_message(message)
-                    self.app.logger.info(
-                        f"Received {s2_msg.message_type} message from client"
-                    )
+                    
+                    # Log with appropriate emoji based on message type
+                    msg_emoji = {
+                        "Handshake": "🤝",
+                        "FRBC.SystemDescription": "📋",
+                        "FRBC.FillLevelTargetProfile": "🎯",
+                        "FRBC.StorageStatus": "🔋",
+                        "FRBC.ActuatorStatus": "⚙️",
+                        "InstructionStatusUpdate": "📊",
+                        "ResourceManagerDetails": "📝",
+                    }.get(s2_msg.message_type, "📥")
+                    
+                    self.app.logger.info(f"{msg_emoji} {s2_msg.message_type}")
 
-                    # Don't log verbose messages
-                    verbose_message_types = ["FRBC.UsageForecast"]
+                    # Don't log verbose message content
+                    verbose_message_types = ["FRBC.UsageForecast", "FRBC.ActuatorStatus"]
                     if s2_msg.message_type not in verbose_message_types:
                         self.app.logger.debug(s2_msg.to_json())
                 except json.JSONDecodeError:
@@ -294,7 +304,6 @@ class S2FlaskWSServerSync:
                     continue
                 try:
                     if not isinstance(s2_msg, ReceptionStatus):
-
                         self.respond_with_reception_status(
                             subject_message_id=s2_msg.message_id,
                             status=ReceptionStatusValues.OK,
@@ -307,9 +316,7 @@ class S2FlaskWSServerSync:
                     try:
                         db.session.commit()
                     except Exception as exc:
-                        self.app.logger.warning(
-                            f"Session could not be committed to database: {str(exc)}"
-                        )
+                        self.app.logger.warning(f"⚠️ DB commit failed: {str(exc)}")
                 except json.JSONDecodeError:
                     self.respond_with_reception_status(
                         subject_message_id=uuid.UUID(
@@ -342,7 +349,7 @@ class S2FlaskWSServerSync:
                     self.app.logger.error("Error processing message: %s", str(e))
                     raise
         except ConnectionClosed:
-            self.app.logger.info(f"Connection with client {client_id} closed (sync)")
+            self.app.logger.info(f"🔌 Connection closed: {client_id[:8]}...")
         finally:
             if client_id in self._connections:
                 del self._connections[client_id]
@@ -367,7 +374,7 @@ class S2FlaskWSServerSync:
             if websocket in self._connection_states:
                 del self._connection_states[websocket]
 
-            self.app.logger.info(f"Client {client_id} disconnected (sync)")
+            self.app.logger.info(f"🚪 Client disconnected: {client_id[:8]}...")
 
     def respond_with_reception_status(
         self,
@@ -381,21 +388,18 @@ class S2FlaskWSServerSync:
             status=status,
             diagnostic_label=diagnostic_label,
         )
-        self.app.logger.info(
-            f"Sending reception status {status} for message {subject_message_id} (sync)",
-        )
+        status_emoji = "✅" if status == ReceptionStatusValues.OK else "❌"
+        self.app.logger.debug(f"{status_emoji} ReceptionStatus: {status}")
         try:
             websocket.send(response.to_json())
         except ConnectionClosed:
-            self.app.logger.warning(
-                "Connection closed while sending reception status (sync)"
-            )
+            self.app.logger.warning("⚠️ Connection closed during response")
 
     def _send_and_forget(self, s2_msg: S2Message, websocket: Sock) -> None:
         try:
             websocket.send(s2_msg.to_json())
         except ConnectionClosed:
-            self.app.logger.warning("Connection closed while sending message (sync)")
+            self.app.logger.warning("⚠️ Connection closed during send")
 
     def _revoke_previous_instructions(
         self, connection_state: ConnectionState, websocket: Sock
@@ -414,13 +418,12 @@ class S2FlaskWSServerSync:
         ]
 
         if not instructions_to_revoke:
-            self.app.logger.info("No instructions to revoke (all have been processed or removed)")
+            self.app.logger.info("🔄 No instructions to revoke (all processed)")
             connection_state.sent_instructions.clear()
             return
 
         self.app.logger.info(
-            f"Revoking {len(instructions_to_revoke)} previous instructions "
-            f"(out of {len(connection_state.sent_instructions)} total)"
+            f"🗑️ Revoking {len(instructions_to_revoke)}/{len(connection_state.sent_instructions)} instructions"
         )
 
         for instruction in instructions_to_revoke:
@@ -430,10 +433,8 @@ class S2FlaskWSServerSync:
                 object_id=instruction.message_id,
             )
             self._send_and_forget(revoke_msg, websocket)
-            self.app.logger.info(
-                f"Sent RevokeObject for instruction {instruction.message_id} "
-                f"(status: {connection_state.instruction_statuses.get(instruction.message_id, InstructionStatus.NEW)})"
-            )
+            status = connection_state.instruction_statuses.get(instruction.message_id, InstructionStatus.NEW)
+            self.app.logger.debug(f"   🚫 Revoked {str(instruction.message_id)[:8]}... ({status.value})")
 
         # Clear the list of sent instructions after revoking
         connection_state.sent_instructions.clear()
@@ -447,6 +448,7 @@ class S2FlaskWSServerSync:
 
         filtered = []
         last_operation_mode = connection_state.last_operation_mode
+        skipped = 0
 
         for instruction in instructions:
             # Always include the first instruction if we haven't sent any before
@@ -457,7 +459,12 @@ class S2FlaskWSServerSync:
             ):
                 filtered.append(instruction)
                 last_operation_mode = instruction.operation_mode
+            else:
+                skipped += 1
 
+        if skipped > 0:
+            self.app.logger.info(f"🔽 Filtered: {len(instructions)} → {len(filtered)} instructions (skipped {skipped} duplicate modes)")
+        
         return filtered
 
     def handle_handshake(
@@ -465,12 +472,11 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, Handshake):
             return
-        self.app.logger.info("Received Handshake (sync)")
         self.app.logger.debug(message.to_json())
 
         if S2_VERSION not in message.supported_protocol_versions:
             raise NotImplementedError(
-                f"Server supported protocol {S2_VERSION} not supported by client. Client supports: message.supported_protocol_versions"
+                f"Server protocol {S2_VERSION} not supported by client"
             )
 
         handshake_response = HandshakeResponse(
@@ -478,18 +484,16 @@ class S2FlaskWSServerSync:
             selected_protocol_version=S2_VERSION,
         )
         self._send_and_forget(handshake_response, websocket)
-        self.app.logger.info("HandshakeResponse sent (sync)")
-        self.app.logger.debug(handshake_response)
+        self.app.logger.info(f"🤝 Handshake complete (protocol {S2_VERSION})")
+        
         # If client is RM, send control type selection
         if hasattr(message, "role") and message.role == EnergyManagementRole.RM:
-            self.app.logger.debug("Sending control type selection (sync)")
             select_control_type = SelectControlType(
                 message_id=uuid.uuid4(),
                 control_type=ControlType.FILL_RATE_BASED_CONTROL,
             )
             self._send_and_forget(select_control_type, websocket)
-            self.app.logger.info("SelectControlType sent (sync)")
-            self.app.logger.debug(select_control_type)
+            self.app.logger.info("📤 SelectControlType: FRBC")
 
     def handle_reception_status(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
@@ -503,10 +507,7 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, ResourceManagerDetails):
             return
-        self.app.logger.info(
-            "Received ResourceManagerDetails (sync): %s", message.to_json()
-        )
-
+        
         # Store the resource_id from ResourceManagerDetails for device identification
         resource_id = str(message.resource_id)
         self._websocket_to_resource[websocket] = resource_id
@@ -514,24 +515,37 @@ class S2FlaskWSServerSync:
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
         self._device_data[resource_id].resource_id = resource_id
+        
+        self.app.logger.info(f"📝 RM registered: {resource_id[:8]}... ({message.name})")
 
     def handle_instruction_status_update(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
     ) -> None:
         if not isinstance(message, InstructionStatusUpdate):
             return
-        self.app.logger.info(
-            "Received InstructionStatusUpdate: instruction_id=%s, status=%s",
-            message.instruction_id,
-            message.status_type,
-        )
-
+        
         # Get the connection state and update instruction status
         connection_state = self._connection_states.get(websocket)
         if connection_state:
             connection_state.update_instruction_status(
                 message.instruction_id, message.status_type
             )
+            
+            # Status emoji mapping
+            status_emoji = {
+                InstructionStatus.NEW: "🆕",
+                InstructionStatus.ACCEPTED: "✅",
+                InstructionStatus.REJECTED: "❌",
+                InstructionStatus.STARTED: "▶️",
+                InstructionStatus.SUCCEEDED: "🎉",
+                InstructionStatus.ABORTED: "⛔",
+                InstructionStatus.REVOKED: "🚫",
+            }.get(message.status_type, "📊")
+            
+            instr_id_full = str(message.instruction_id)
+            instr_id_short = instr_id_full[:8]
+            self.app.logger.info(f"{status_emoji} Instruction {instr_id_short}... → {message.status_type.value}")
+            self.app.logger.debug(f"   📋 Full instruction ID: {instr_id_full}")
             
             # If instruction is rejected, aborted, or revoked, remove it from sent_instructions
             if message.status_type not in (InstructionStatus.NEW, InstructionStatus.ACCEPTED):
@@ -540,27 +554,37 @@ class S2FlaskWSServerSync:
                     instr for instr in connection_state.sent_instructions
                     if instr.message_id != message.instruction_id
                 ]
-                self.app.logger.info(
-                    f"Removed instruction {message.instruction_id} from memory due to status {message.status_type}"
-                )
+                self.app.logger.debug(f"   🗑️ Removed {instr_id_short}... from memory")
 
     def handle_frbc_system_description(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
     ) -> None:
         if not isinstance(message, FRBCSystemDescription):
             return
-        self.app.logger.info("Received FRBCSystemDescription: %s", message.to_json())
 
         # Get resource_id from websocket mapping
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].system_description = message
+        n_actuators = len(message.actuators) if message.actuators else 0
+        
+        # Log details about actuators
         for actuator in message.actuators:
+            n_modes = len(actuator.operation_modes) if actuator.operation_modes else 0
+            n_transitions = len(actuator.transitions) if actuator.transitions else 0
+            n_timers = len(actuator.timers) if actuator.timers else 0
+            self.app.logger.debug(f"   ⚙️ Actuator {str(actuator.id)[:8]}...: {n_modes} modes, {n_transitions} transitions, {n_timers} timers")
             self.ensure_actuator_is_registered(
                 actuator_id=str(actuator.id), resource_id=resource_id
             )
+        
+        # Log storage details
+        if message.storage:
+            self.app.logger.debug(f"   💾 Storage: {message.storage.fill_level_range.start_of_range}-{message.storage.fill_level_range.end_of_range} {message.storage.fill_level_label or '%'}")
+        
         self.save_attribute(resource_id, **json.loads(message.to_json()))
+        self.app.logger.info(f"📋 SystemDescription: {n_actuators} actuator(s)")
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_fill_level_target_profile(
@@ -568,14 +592,24 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, FRBCFillLevelTargetProfile):
             return
-        self.app.logger.info(
-            "Received FRBCFillLevelTargetProfile: %s", message.to_json()
-        )
 
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].fill_level_target_profile = message
+        n_elements = len(message.elements) if message.elements else 0
+        
+        # Log target profile details
+        if message.elements:
+            try:
+                # Duration objects have a value in milliseconds
+                total_duration_ms = sum(int(elem.duration) for elem in message.elements)
+                total_duration_min = total_duration_ms / 60000
+                self.app.logger.debug(f"   🎯 Total duration: {total_duration_min:.0f} min, Start: {message.start_time.strftime('%H:%M:%S')}")
+            except Exception as e:
+                self.app.logger.debug(f"   🎯 Start: {message.start_time.strftime('%H:%M:%S')}")
+            
+        self.app.logger.info(f"🎯 TargetProfile: {n_elements} element(s)")
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_storage_status(
@@ -583,7 +617,6 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, FRBCStorageStatus):
             return
-        self.app.logger.info("Received FRBCStorageStatus: %s", message.to_json())
 
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         self.ensure_resource_is_registered(resource_id=resource_id)
@@ -595,6 +628,7 @@ class S2FlaskWSServerSync:
             data_source=db.session.get(Source, self.data_source_id),
             resource_or_actuator_id=resource_id,
         )
+        self.app.logger.info(f"🔋 StorageStatus: {message.present_fill_level:.1f}%")
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_actuator_status(
@@ -602,7 +636,6 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, FRBCActuatorStatus):
             return
-        self.app.logger.info("Received FRBCActuatorStatus: %s", message.to_json())
 
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         self.ensure_resource_is_registered(resource_id=resource_id)
@@ -611,6 +644,7 @@ class S2FlaskWSServerSync:
         self._device_data[resource_id].actuator_statuses[
             str(message.actuator_id)
         ] = message
+        self.app.logger.debug(f"⚙️ ActuatorStatus: factor={message.operation_mode_factor}")
         self._check_and_generate_instructions(resource_id, websocket)
 
     def ensure_resource_is_registered(self, resource_id: str):
@@ -723,49 +757,68 @@ class S2FlaskWSServerSync:
         """Check if we have all required data and generate instructions if so."""
         device_data = self._device_data.get(resource_id)
         if device_data:
-            # Debug log basic attributes
-            for attr in (
-                "system_description",
-                "fill_level_target_profile",
-                "storage_status",
-            ):
-                self.app.logger.debug(
-                    f"✅ {attr}? Go flight!"
-                    if getattr(device_data, attr, None) is not None
-                    else f"❌ {attr}? Hold on.."
-                )
-
-            # Debug log actuator statuses
-            if (
-                device_data.system_description
-                and device_data.system_description.actuators
-            ):
-                required_actuators = {
-                    str(a.id) for a in device_data.system_description.actuators
-                }
+            # Build detailed status about what's missing
+            missing_items = []
+            
+            if not device_data.system_description:
+                missing_items.append("❌ SystemDescription")
+            else:
+                missing_items.append("✅ SystemDescription")
+            
+            if not device_data.fill_level_target_profile:
+                missing_items.append("❌ FillLevelTargetProfile")
+            else:
+                missing_items.append("✅ FillLevelTargetProfile")
+            
+            if not device_data.storage_status:
+                missing_items.append("❌ StorageStatus")
+            else:
+                missing_items.append("✅ StorageStatus")
+            
+            # Check actuator statuses in detail
+            if device_data.system_description and device_data.system_description.actuators:
+                required_actuators = {str(a.id) for a in device_data.system_description.actuators}
                 received_actuators = set(device_data.actuator_statuses.keys())
                 missing_actuators = required_actuators - received_actuators
-
+                
                 if missing_actuators:
-                    self.app.logger.debug(
-                        f"❌ actuator_status? Hold on.. Missing: {missing_actuators}"
-                    )
+                    missing_items.append(f"❌ ActuatorStatus ({len(received_actuators)}/{len(required_actuators)} received)")
+                    for missing_id in missing_actuators:
+                        self.app.logger.debug(f"   ⏳ Missing actuator status for: {missing_id}")
                 else:
-                    self.app.logger.debug(
-                        f"✅ actuator_status? Go flight! All {len(required_actuators)} actuators received"
-                    )
+                    missing_items.append(f"✅ ActuatorStatus (all {len(required_actuators)} received)")
+            else:
+                missing_items.append("❌ ActuatorStatus (no actuators defined)")
+            
+            # Log the status
+            status_summary = " | ".join(missing_items)
+            self.app.logger.debug(f"📊 Device readiness: {status_summary}")
+            
         if device_data is None or not device_data.is_complete():
-            self.app.logger.info(
-                f"Waiting for more data from device {resource_id} before running the S2FlaskScheduler"
-            )
+            # Log what's still missing
+            if device_data is None:
+                self.app.logger.info(f"⏳ No device data yet for {resource_id[:8]}...")
+            else:
+                missing = []
+                if not device_data.system_description:
+                    missing.append("SystemDescription")
+                if not device_data.fill_level_target_profile:
+                    missing.append("FillLevelTargetProfile")
+                if not device_data.storage_status:
+                    missing.append("StorageStatus")
+                if device_data.system_description and device_data.system_description.actuators:
+                    required = {str(a.id) for a in device_data.system_description.actuators}
+                    received = set(device_data.actuator_statuses.keys())
+                    if required - received:
+                        missing.append("ActuatorStatus")
+                
+                self.app.logger.info(f"⏳ Waiting for: {', '.join(missing)}")
             return
 
         # Check rate limiting based on FLEXMEASURES_S2_REPLANNING_FREQUENCY
         connection_state = self._connection_states.get(websocket)
         if connection_state is None:
-            self.app.logger.warning(
-                f"No connection state found for device {resource_id}"
-            )
+            self.app.logger.warning(f"⚠️ No connection state for {resource_id[:8]}...")
             return
 
         # Parse replanning frequency from config
@@ -794,16 +847,12 @@ class S2FlaskWSServerSync:
                 datetime.now(timezone.utc) - connection_state.last_compute_time
             )
             remaining_time = replanning_frequency - time_since_last
-            self.app.logger.info(
-                f"Rate limiting: Cannot generate instructions for device {resource_id}. "
-                f"Last compute was {time_since_last.total_seconds():.1f}s ago. "
-                f"Need to wait {remaining_time.total_seconds():.1f}s more."
+            self.app.logger.debug(
+                f"⏱️ Rate limit: wait {remaining_time.total_seconds():.0f}s (last: {time_since_last.total_seconds():.0f}s ago)"
             )
             return
 
-        self.app.logger.info(
-            f"All data received for device {resource_id}, generating instructions"
-        )
+        self.app.logger.info(f"🎯 Generating instructions for {resource_id[:8]}...")
 
         try:
             # Use the S2FlaskScheduler to create and store device state
@@ -837,30 +886,51 @@ class S2FlaskWSServerSync:
                 # Revoke previous instructions before sending new ones
                 self._revoke_previous_instructions(connection_state, websocket)
 
+                # Log instruction summary before sending
+                if filtered_instructions:
+                    self.app.logger.info(f"📤 Sending {len(filtered_instructions)} instruction(s):")
+                
                 # Send new instructions and store them
-                for instruction in filtered_instructions:
+                for idx, instruction in enumerate(filtered_instructions, 1):
                     self._send_and_forget(instruction, websocket)
-                    self.app.logger.info(
-                        f"Sent FRBC instruction: {instruction.to_json()}"
-                    )
+                    
+                    # Full IDs
+                    instr_id_full = str(instruction.message_id)
+                    mode_id_full = str(instruction.operation_mode)
+                    actuator_id_full = str(instruction.actuator_id)
+                    
+                    # Short IDs for compact display
+                    instr_id_short = instr_id_full[:8]
+                    mode_id_short = mode_id_full[:8]
+                    actuator_short = actuator_id_full[:8]
+                    
+                    exec_time = instruction.execution_time.strftime("%H:%M:%S") if hasattr(instruction.execution_time, 'strftime') else str(instruction.execution_time)
+                    factor = instruction.operation_mode_factor
+                    
+                    # Log with short IDs for readability
+                    self.app.logger.info(f"   {idx}. {instr_id_short}... | mode: {mode_id_short}... | factor: {factor:.2f} | actuator: {actuator_short}... | exec: {exec_time}")
+                    
+                    # Log full IDs at debug level
+                    self.app.logger.debug(f"      📋 Full instruction ID: {instr_id_full}")
+                    self.app.logger.debug(f"      🔧 Full operation mode ID: {mode_id_full}")
+                    self.app.logger.debug(f"      ⚙️  Full actuator ID: {actuator_id_full}")
+                    
                     # Update the last operation mode for this connection
                     connection_state.last_operation_mode = instruction.operation_mode
 
                 # Store the sent instructions for future revocation
                 connection_state.sent_instructions = filtered_instructions.copy()
 
-                # Log filtering results
-                if len(frbc_instructions) > len(filtered_instructions):
-                    self.app.logger.info(
-                        f"Filtered instructions: {len(frbc_instructions)} -> {len(filtered_instructions)} "
-                        f"(reduced by {len(frbc_instructions) - len(filtered_instructions)})"
-                    )
-
                 # Process non-instruction results
                 try:
+                    energy_data_count = 0
                     for result in schedule_results:
                         if isinstance(result, dict) and "device" in result:
-                            self.app.logger.debug(f"Saving result: {result}")
+                            energy_data_count += 1
+                            device_short = str(result["device"])[:8]
+                            if isinstance(result.get("data"), pd.Series):
+                                n_values = len(result["data"])
+                                self.app.logger.debug(f"   💾 Saving {n_values} energy values for device {device_short}... ({result.get('unit', '?')})")
                             self.save_event(
                                 sensor_name="power",
                                 resource_or_actuator_id=str(result["device"]),
@@ -870,10 +940,10 @@ class S2FlaskWSServerSync:
                                 event_unit=result["unit"],
                                 sensor_unit="W",
                             )
+                    if energy_data_count > 0:
+                        self.app.logger.info(f"💾 Saved energy data for {energy_data_count} device(s)")
                 except Exception as exc:
-                    self.app.logger.warning(
-                        f"Processing non-instruction results failed: {str(exc)}"
-                    )
+                    self.app.logger.warning(f"⚠️ Energy data save failed: {str(exc)}")
             else:
                 # Scheduler not available - log warning and skip instruction generation
                 self.app.logger.warning(
