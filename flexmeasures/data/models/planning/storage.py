@@ -926,8 +926,8 @@ class MetaStorageScheduler(Scheduler):
 
     def convert_to_commitments(self):
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
-        commitments = self.flex_context.get("commitments", [])
-        if len(commitments) == 0:
+        commitment_specs = self.flex_context.get("commitments", [])
+        if len(commitment_specs) == 0:
             return []
 
         start = self.start
@@ -942,8 +942,8 @@ class MetaStorageScheduler(Scheduler):
                     fallback_resolution=timedelta(minutes=15),
                 )
 
-        deserialized_commitments = []
-        for commitment in commitments:
+        commitments = []
+        for commitment_spec in commitment_specs:
             # convert up_price and down_price to Series
             price_unit = self.flex_context["shared_currency_unit"] + "/MW"
             timing_kwargs = dict(
@@ -951,32 +951,32 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=self.belief_time,
             )
-            if "up_price" in commitment:
-                commitment["upwards_deviation_price"] = (
+            if "up_price" in commitment_spec:
+                commitment_spec["upwards_deviation_price"] = (
                     get_continuous_series_sensor_or_quantity(
-                        variable_quantity=commitment.pop("up_price"),
+                        variable_quantity=commitment_spec.pop("up_price"),
                         unit=price_unit,
                         **timing_kwargs,
                     )
                 )
-            if "down_price" in commitment:
-                commitment["downwards_deviation_price"] = (
+            if "down_price" in commitment_spec:
+                commitment_spec["downwards_deviation_price"] = (
                     get_continuous_series_sensor_or_quantity(
-                        variable_quantity=commitment.pop("down_price"),
+                        variable_quantity=commitment_spec.pop("down_price"),
                         unit=self.flex_context["shared_currency_unit"] + "/MW",
                         **timing_kwargs,
                     )
                 )
-            if "baseline" in commitment:
-                commitment["quantity"] = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=commitment.pop("baseline"),
+            if "baseline" in commitment_spec:
+                commitment_spec["quantity"] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=commitment_spec.pop("baseline"),
                     unit="MW",
                     **timing_kwargs,
                 )
-            commitment["index"] = initialize_index(start, end, resolution)
-            deserialized_commitments.append(FlowCommitment(**commitment))
+            commitment_spec["index"] = initialize_index(start, end, resolution)
+            commitments.append(FlowCommitment(**commitment_spec))
 
-        return deserialized_commitments
+        return commitments
 
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes
