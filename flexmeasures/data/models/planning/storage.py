@@ -951,31 +951,30 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=self.belief_time,
             )
-            commitment["up_price"] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=commitment.get(
-                    "up_price", ur.Quantity(f"0 {price_unit}")
-                ),
-                unit=price_unit,
-                **timing_kwargs,
-            )
-            commitment["down_price"] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=commitment.get(
-                    "down_price", ur.Quantity(f"0 {price_unit}")
-                ),
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
-                **timing_kwargs,
-            )
-            commitment["baseline"] = get_continuous_series_sensor_or_quantity(
-                variable_quantity=commitment.get("baseline", ur.Quantity("0 MW")),
-                unit="MW",
-                **timing_kwargs,
-            )
-
+            if "up_price" in commitment:
+                commitment["upwards_deviation_price"] = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=commitment.pop("up_price"),
+                        unit=price_unit,
+                        **timing_kwargs,
+                    )
+                )
+            if "down_price" in commitment:
+                commitment["downwards_deviation_price"] = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=commitment.pop("down_price"),
+                        unit=self.flex_context["shared_currency_unit"] + "/MW",
+                        **timing_kwargs,
+                    )
+                )
+            if "baseline" in commitment:
+                commitment["quantity"] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=commitment.pop("baseline"),
+                    unit="MW",
+                    **timing_kwargs,
+                )
             flow_commitment = FlowCommitment(
-                name=commitment.get("name", "unnamed"),
-                quantity=commitment["baseline"],
-                upwards_deviation_price=commitment["up_price"],
-                downwards_deviation_price=commitment["down_price"],
+                **commitment,
                 index=initialize_index(start, end, resolution),
             )
             deserialized_commitments.append(flow_commitment)
