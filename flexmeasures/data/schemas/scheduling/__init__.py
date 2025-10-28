@@ -49,18 +49,6 @@ class CommitmentSchema(Schema):
         value_validator=validate.Range(min=0),
     )
 
-    # todo: deserializing should turns the commitment into something like this:
-    # @some_decorator
-    # def convert_to_commitment(self, data, **kwargs):
-    #     commitment = FlowCommitment(
-    #         name="placeholder",  # todo: maybe extend the schema with a name identifying the commitment
-    #         quantity=data["baseline"],
-    #         upwards_deviation_price=data["up_price"],
-    #         downwards_deviation_price=data["down_price"],
-    #         index=initialize_index(start, end, resolution),  # todo: maybe extend the schema with these, or otherwise have them come from the FlexContextSchema somehow?
-    #     )
-    #     return commitment
-
 
 class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""

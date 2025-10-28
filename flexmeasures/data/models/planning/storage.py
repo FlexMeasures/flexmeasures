@@ -233,7 +233,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        commitments = self.flex_context.get("commitments", [])
+        commitments = self.convert_to_commitments()
 
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
@@ -923,6 +923,39 @@ class MetaStorageScheduler(Scheduler):
             ems_constraints,
             commitments,
         )
+
+    def convert_to_commitments(self):
+        """Convert list of FlowCommitments to DataFrame."""
+        commitments = self.flex_context.get("commitments", [])
+        if len(commitments) == 0:
+            return None
+
+        start = self.start
+        end = self.end
+        resolution = self.resolution
+        if resolution is None:
+            if self.sensor.event_resolution is not None:
+                resolution = self.sensor.event_resolution
+            else:
+                resolution = determine_minimum_resampling_resolution(
+                    [s.event_resolution for s in self.sensors if s is not None],
+                    fallback_resolution=timedelta(minutes=15),
+                )
+
+        deserialized_commitments = []
+        for commitment in commitments:
+            flow_commitment = FlowCommitment(
+                name="placeholder",  # todo: maybe extend the schema with a name identifying the commitment
+                quantity=commitment["baseline"],
+                upwards_deviation_price=commitment["up_price"],
+                downwards_deviation_price=commitment["down_price"],
+                index=initialize_index(
+                    start, end, resolution
+                ),  # todo: maybe extend the schema with these, or otherwise have them come from the FlexContextSchema somehow?
+            )
+            deserialized_commitments.append(flow_commitment)
+
+        return deserialized_commitments
 
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes
