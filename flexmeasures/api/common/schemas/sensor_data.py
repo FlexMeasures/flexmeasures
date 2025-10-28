@@ -79,9 +79,7 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
     start = AwareDateTimeField(
         required=True,
         format="iso",
-        metadata={
-            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format."
-        },
+        description="Start time of the first event described in the time series data, in ISO 8601 datetime format.",
     )
     duration = DurationField(required=True)
     horizon = DurationField(required=False)
