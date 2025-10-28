@@ -23,6 +23,7 @@ from rq import Queue
 
 from flexmeasures import User
 from flexmeasures.data import db
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.job_cache import JobCache
 
 
@@ -272,6 +273,8 @@ def create(  # noqa C901
                     # Attach account to WebSocket server
                     s2_ws.account = user.account
                     s2_ws.user = user
+                    data_source = get_or_create_source(user)
+                    s2_ws.data_source_id = data_source.id
                     app.logger.info("Account authorized for WebSocket connections")
                 except:
                     app.logger.warning("Failed to fetch User")
@@ -316,6 +319,12 @@ def create(  # noqa C901
                     scheduler.info = {"scheduler": "S2FlaskScheduler"}
                     scheduler.config_deserialized = True
                     scheduler.return_multiple = True
+                    scheduler.data_source = get_or_create_source(
+                        source="FlexMeasures",
+                        source_type="scheduler",
+                        model="S2Scheduler",
+                        version="1",
+                    )
 
                     # Initialize device states storage
                     scheduler.device_states = {}

@@ -23,7 +23,9 @@ def server_now() -> datetime:
 
 def floored_server_now(resolution: timedelta) -> datetime:
     """Return the current server time floored to the nearest multiple of `resolution`."""
-    return datetime.min + ((server_now() - datetime.min) // resolution) * resolution
+    ref = pytz.utc.localize(datetime.min)
+    _tz = get_timezone()
+    return (ref + ((server_now() - ref) // resolution) * resolution).astimezone(_tz)
 
 
 def ensure_local_timezone(

@@ -10,19 +10,20 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional, Type, List
 
+import pandas as pd
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
-from flexmeasures import Account, Asset, AssetType, Sensor, User
+from flexmeasures import Account, Asset, AssetType, Sensor, Source, User
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
-from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.coding_utils import only_if_timer_due
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 from flexmeasures.utils.time_utils import floored_server_now, server_now
+from flexmeasures.utils.unit_utils import convert_units
 from s2python.common import (
     ControlType,
     EnergyManagementRole,
@@ -190,6 +191,7 @@ class S2FlaskWSServerSync:
         self.s2_scheduler = None
         self.account: Account | None = None
         self.user: User | None = None
+        self.data_source_id: int | None = None
         self._assets: Dict[str, Asset] = {}
 
         self._minimum_measurement_period: timedelta = timedelta(minutes=5)
@@ -501,6 +503,7 @@ class S2FlaskWSServerSync:
             self.ensure_actuator_is_registered(
                 actuator_id=str(actuator.id), resource_id=resource_id
             )
+        self.save_attribute(resource_id, **json.loads(message.to_json()))
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_fill_level_target_profile(
@@ -532,7 +535,8 @@ class S2FlaskWSServerSync:
         self.save_event(
             sensor_name="fill level",
             event_value=message.present_fill_level,
-            resource_id=resource_id,
+            data_source=db.session.get(Source, self.data_source_id),
+            resource_or_actuator_id=resource_id,
         )
         self._check_and_generate_instructions(resource_id, websocket)
 
@@ -583,32 +587,72 @@ class S2FlaskWSServerSync:
                 f"Actuator could not be saved as an asset: {str(exc)}"
             )
 
-    @only_if_timer_due("sensor_name", "resource_id")
-    def save_event(self, sensor_name: str, resource_id: str, event_value: float):
+    def save_attribute(self, resource_id: str, **kwargs):
+        asset = self._assets[resource_id]
+        for k, v in kwargs.items():
+            try:
+                asset.attributes[k] = v
+            except Exception as exc:
+                self.app.logger.warning(
+                    f"Failed to save {k}: {v} as an asset attribute of {asset}: {str(exc)}"
+                )
+
+    @only_if_timer_due("sensor_name", "resource_or_actuator_id")
+    def save_event(
+        self,
+        sensor_name: str,
+        resource_or_actuator_id: str,
+        event_value: float | pd.Series,
+        data_source: Source,
+        event_resolution: timedelta | None = None,
+        event_unit: str = "",
+        sensor_unit: str = "",
+    ):
+        if event_resolution is None:
+            event_resolution = timedelta(0)
         try:
-            asset = self._assets[resource_id]
+            asset = self._assets[resource_or_actuator_id]
             sensor = get_or_create_model(
                 model_class=Sensor,
                 name=sensor_name,
-                unit="",
-                event_resolution=timedelta(0),
+                unit=sensor_unit,
+                event_resolution=event_resolution,
+                timezone=self.app.config["FLEXMEASURES_TIMEZONE"],
                 generic_asset=asset,
             )
         except Exception as exc:
             self.app.logger.warning(
                 f"{capitalize(sensor_name)} sensor could not be saved: {str(exc)}"
             )
+            return
         try:
-            data_source = get_or_create_source(self.user)
-            belief = TimedBelief(
-                sensor=sensor,
-                source=data_source,
-                event_start=floored_server_now(self._minimum_measurement_period),
-                event_value=event_value,
-                belief_time=server_now(),
-                cumulative_probability=0.5,
+            event_value = convert_units(
+                event_value,
+                event_unit,
+                sensor_unit,
+                event_resolution=self.s2_scheduler.resolution,
             )
-            bdf = BeliefsDataFrame(beliefs=[belief])
+            if isinstance(event_value, float):
+                belief = TimedBelief(
+                    sensor=sensor,
+                    source=data_source,
+                    event_start=floored_server_now(self._minimum_measurement_period),
+                    event_value=event_value,
+                    belief_time=server_now(),
+                    cumulative_probability=0.5,
+                )
+                bdf = BeliefsDataFrame(beliefs=[belief])
+            elif isinstance(event_value, pd.Series):
+                bdf = BeliefsDataFrame(
+                    event_value,
+                    sensor=sensor,
+                    source=data_source,
+                    belief_time=server_now(),
+                    cumulative_probability=0.5,
+                )
+            else:
+                logger.error(f"Cannot save event values of type {type(event_value)}.")
+                return
             save_to_db(bdf)
 
         except Exception as exc:
@@ -756,10 +800,23 @@ class S2FlaskWSServerSync:
                     )
 
                 # Process non-instruction results
-                for result in schedule_results:
-                    if isinstance(result, dict) and "sensor" in result:
-                        # TODO: save result["data"] to sensor if needed for FlexMeasures
-                        pass
+                try:
+                    for result in schedule_results:
+                        if isinstance(result, dict) and "device" in result:
+                            self.app.logger.debug(f"Saving result: {result}")
+                            self.save_event(
+                                sensor_name="power",
+                                resource_or_actuator_id=str(result["device"]),
+                                event_value=result["data"],
+                                data_source=self.s2_scheduler.data_source,
+                                event_resolution=self.s2_scheduler.resolution,
+                                event_unit=result["unit"],
+                                sensor_unit="W",
+                            )
+                except Exception as exc:
+                    self.app.logger.warning(
+                        f"Processing non-instruction results failed: {str(exc)}"
+                    )
             else:
                 # Scheduler not available - log warning and skip instruction generation
                 self.app.logger.warning(
