@@ -37,11 +37,11 @@ from flexmeasures.utils.validation_utils import validate_sensor_or_fixed
 
 class CommitmentSchema(Schema):
     name = fields.Str(required=False, data_key="name")
-    baseline = VariableQuantityField("MW", required=True, data_key="baseline")
-    up_price = VariableQuantityField("/MW", required=True, data_key="up-price")
+    baseline = VariableQuantityField("MW", required=False, data_key="baseline")
+    up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
     down_price = VariableQuantityField(
         "/MW",
-        required=True,
+        required=False,
         data_key="down-price",
     )
 
