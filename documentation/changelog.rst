@@ -21,7 +21,6 @@ Infrastructure / Support
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
 * Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
 * Support skipping a ``PandasReporter`` transformation if any of its (keyword) arguments has no data [see `PR #1669 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
-* Fixed bug where removed flexmodel fields didn't show up under the flexoption dropdown, except after a page refresh. [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
 
 Bugfixes
 -----------
@@ -34,6 +33,7 @@ v0.29.1 | October XX, 2025
 Bugfixes
 -----------
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
+* Fixed bug where removed flexmodel fields didn't show up under the flexoption dropdown, except after a page refresh. [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1775>`_]
 
 
 v0.29.0 | October 14, 2025
