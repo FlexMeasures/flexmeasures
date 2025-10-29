@@ -594,7 +594,6 @@ class UserAPI(FlaskView):
           tags:
             - Users
         """
-        print(f"User: {user}")
         query_statement = AuditLog.affected_user_id == user.id
         query = select(AuditLog).filter(query_statement)
 

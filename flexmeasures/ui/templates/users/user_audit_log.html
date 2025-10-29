@@ -61,7 +61,11 @@ $(document).ready(function() {
                     callback({"data": clean_response, "recordsTotal": response["num-records"], "recordsFiltered": response["filtered-records"]});
                 },
                 error: function (request, status, error) {
-                    console.log("Error: ", error)
+                    const response = JSON.parse(request.responseText);  // TODO: show all errors with message. not just 422
+                    const toastMessage = request.status === 422
+                        ? "Error calling the audit log endpoint."
+                        + JSON.stringify(response.message) : "Something went wrong!";
+                    showToast(toastMessage, "error");
                 }
             });
         }
