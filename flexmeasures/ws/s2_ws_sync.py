@@ -448,9 +448,7 @@ class S2FlaskWSServerSync:
                 skipped += 1
 
         if skipped > 0:
-            self.app.logger.info(
-                f"🔽 Filtered: {len(instructions)} → {len(filtered)} instructions (skipped {skipped} duplicate modes)"
-            )
+            self.app.logger.info(f"🔽 Filtered: {len(instructions)} → {len(filtered)} instructions (skipped {skipped} duplicate modes)")
 
         return filtered
 
@@ -938,6 +936,14 @@ class S2FlaskWSServerSync:
                                 event_resolution=self.s2_scheduler.resolution,
                                 event_unit=result["unit"],
                                 sensor_unit="W",
+                            )
+                        if isinstance(result, dict) and "fill level" in result:
+                            self.app.logger.debug(f"Saving result: {result}")
+                            self.save_event(
+                                sensor_name="fill level",
+                                resource_or_actuator_id=str(result["fill level"]),
+                                event_value=result["data"],
+                                data_source=self.s2_scheduler.data_source,
                             )
                     if energy_data_count > 0:
                         self.app.logger.info(f"💾 Saved energy data for {energy_data_count} device(s)")
