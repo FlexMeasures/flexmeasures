@@ -468,7 +468,10 @@
         }
 
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
-        assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
+        assetFlexModelRawJSON = { 
+            ...assetFlexModelSchema, 
+            ...processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON) 
+        };
         let availableUnitsRawJSON = "{{ available_units | safe }}";
         availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
         const availableUnits = JSON.parse(availableUnitsRawJSON);
@@ -1075,7 +1078,7 @@
                     input.className = 'form-control';
                     input.id = 'flexStringInput';
                     input.placeholder = 'Enter a value';
-                    input.value = `${typeof value === 'string' ? value : ''}`;
+                    input.value = `${(typeof value === 'string' && value !== "Not Set")? value : ''}`;
                     input.onkeydown = function (event) {
                         if (event.key === 'Enter') {
                             event.preventDefault();
