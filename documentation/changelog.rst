@@ -32,6 +32,7 @@ v0.29.1 | October XX, 2025
 
 Bugfixes
 -----------
+* Fix account and assets/owned_by pages rendering, giving them asset icons [see `PR #1772 <https://github.com/FlexMeasures/flexmeasures/pull/1772>`_]
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
 * Fixed bug where removed flexmodel fields didn't show up under the flexoption dropdown, except after a page refresh. [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1775>`_]
 
