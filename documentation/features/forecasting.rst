@@ -51,11 +51,13 @@ If you include ``--as-job``, the forecasting task is added to the job queue to b
 
 The main CLI parameters that control this process are:
 
-- ``start-date``: Define the start of historical data used for training.  
-- ``from-date``: Define the period for which forecasts are generated.
-- ``forecast-frequency``: How often predictions are generated within the forecast period (e.g. daily, hourly).
+- ``from-date``: Defines the first ``predict-start``.
+- ``to-date``: The global cutoff point. Training and prediction cycles continue until the ``predict-end`` reaches this date.
 - ``max-forecast-horizon``: The maximum length of a forecast into the future.
-- ``to-date``: The global cutoff point. Training and prediction cycles continue until this date is reached.
+- ``forecast-frequency``: Determines the number of prediction cycles within the forecast period (e.g. daily, hourly).
+- ``start-date``: Define the start of historical data used for training.
+
+Note that:
 
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
 ``start-date`` / ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
