@@ -63,14 +63,14 @@ The main CLI parameters that control this process are:
 Technical specs
 -----------------
 
-In a nutshell, FlexMeasures uses a LightGBM regression model (``LGBMRegressor``) as its base model to forecast future values.  
+In a nutshell, FlexMeasures uses a LightGBM regression model (``darts.models.LightGBMModel``) as its base model to forecast future values.
 
 Note that the most important factor is often the features provided to the model ― lagged values (e.g., the value at the same time yesterday) and regressors (e.g., wind speed prediction to forecast wind power production).  
 Most assets have yearly seasonality (e.g. wind, solar) and therefore forecasts benefit from at least two years of historical data.
 
 Here are more details:
 
-- The main model is a LightGBM regressor, which can be wrapped to produce probabilistic forecasts if required.
+- The main model is a LightGBM model, which can be wrapped to produce probabilistic forecasts if required.
 - Lagged outcome variables are selected based on the periodicity of the asset (e.g. hourly, daily and/or weekly).
 - Missing data is filled using linear interpolation (via the Darts ``MissingValuesFiller``, which wraps ``pandas.DataFrame.interpolate``).
 - The model is trained once per cycle for each asset and can forecast up to the maximum forecast horizon in a single run.
