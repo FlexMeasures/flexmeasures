@@ -3,7 +3,7 @@
 Forecasting
 ============
 
-Scheduling is about the future, and you need some knowledge / expectations about the future to do it.  
+Scheduling is about the future, and you need some knowledge / expectations about the future to do it.
 
 In FlexMeasures, this knowledge often comes in the form of **forecasts** — data-driven estimates of what's likely to happen next.
 
