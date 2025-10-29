@@ -471,6 +471,47 @@ def test_flex_context_schema(
             {"site-peak-consumption-price": "700 EUR/MW"},
             False,
         ),
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kWh",
+                        "up-price": "100 EUR/MW",
+                        "down-price": "120 EUR/MW",
+                    }
+                ]
+            },
+            {
+                "commitments": "{'baseline': [\"Cannot convert value `10 kWh` to 'MW'\"]}"
+            },
+        ),
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MW",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments": "Commitment down-price must have power unit."},
+        ),
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MW",
+                        "down-price": "120 EUR/MW",
+                    }
+                ]
+            },
+            False,
+        ),
     ],
 )
 def test_db_flex_context_schema(
@@ -492,16 +533,18 @@ def test_db_flex_context_schema(
     if fails:
         with pytest.raises(ValidationError) as e_info:
             schema.load(flex_context)
-        print(e_info.value.messages)
+        print("Returned error message: ", e_info.value.messages)
+        returned_err_messages = e_info.value.messages[field_name]
         for field_name, expected_message in fails.items():
             assert field_name in e_info.value.messages
             # Check all messages for the given field for the expected message
-            assert any(
-                [
-                    expected_message in message
-                    for message in e_info.value.messages[field_name]
-                ]
-            )
+            if field_name == "commitments" and isinstance(returned_err_messages, dict):
+                inner_err_msg = [name for name in returned_err_messages[0]][0]
+                assert inner_err_msg == inner_err_msg
+            else:
+                assert any(
+                    [expected_message in message for message in returned_err_messages]
+                )
     else:
         schema.load(flex_context)
 
