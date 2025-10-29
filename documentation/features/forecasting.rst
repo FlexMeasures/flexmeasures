@@ -23,16 +23,16 @@ FlexMeasures provides a **fixed-view forecasting infrastructure**.
 This means that from one (fixed) point in time, we forecast a range of events into the future (e.g. 24 hourly events for a span of one day). While the first forecast (one hour ahead) has a small horizon (1H), the last one has a large horizon (24H) and the accuracy between the two will usually differ (it is easier to forecast small horizons).   
 
 At the same time, the design we implemented in FlexMeasures is inspired by **rolling forecasts**, as training and prediction can be repeated in **cycles** until a user-specified end date is reached.  If you ask FlexMeasures for a fixed-point forecast (one cycle), the model is trained once on the most recent applicable historical period and then produces predictions for the requested future period in one go.   
-This is controlled by the ``forecast_frequency`` parameter, which specifies how often predictions are generated during the forecast period.
+This is controlled by the ``forecast-frequency`` parameter, which specifies how often predictions are generated during the forecast period.
 
 How a forecasting cycle works
 -------------
 
 A single forecasting cycle consists of the following steps:
 
-1. **Training**: Fit the model on a historical window defined by ``train_start`` and ``train_end``.  
-2. **Prediction**: Produce forecasts for a horizon defined by ``predict_start`` and ``predict_end``.  
-3. **Repeat**: If the global ``end_date`` is not yet reached, move the prediction window forward by ``forecast_frequency`` and repeat steps 1 and 2.
+1. **Training**: Fit the model on a historical window defined by ``train-start`` and ``train-end``.
+2. **Prediction**: Produce forecasts for a horizon defined by ``predict-start`` and ``predict-end``.
+3. **Repeat**: If the global ``end-date`` is not yet reached, move the prediction window forward by ``forecast-frequency`` and repeat steps 1 and 2.
 
 This way, forecasts can cover long ranges while still being based on updated training data in each cycle.
 
@@ -51,13 +51,13 @@ If you include ``--as-job``, the forecasting task is added to the job queue to b
 The main CLI parameters that control this process are:
 
 - ``start-date``: Define the start of historical data used for training.  
-- ``from_date``: Define the period for which forecasts are generated.  
-- ``forecast_frequency``: How often predictions are generated within the forecast period (e.g. daily, hourly).  
-- ``max_forecast_horizon``: The maximum length of a forecast into the future.  
-- ``to_date``: The global cutoff point. Training and prediction cycles continue until this date is reached.
+- ``from-date``: Define the period for which forecasts are generated.
+- ``forecast-frequency``: How often predictions are generated within the forecast period (e.g. daily, hourly).
+- ``max-forecast-horizon``: The maximum length of a forecast into the future.
+- ``to-date``: The global cutoff point. Training and prediction cycles continue until this date is reached.
 
-``forecast_frequency`` together with ``max_forecast_horizon`` determine how the forecasting cycles advance through time.  
-``start-date`` / ``from_date`` and ``to_date`` allow precise control over the training and prediction windows in each cycle.
+``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
+``start-date`` / ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
 
 Technical specs
 -----------------
@@ -76,7 +76,7 @@ Here are more details:
 - Forecasts are **fixed-view forecasts** — the model is trained on a given history and produces predictions for a future window in one go.  
   Training and prediction can then be repeated in **cycles** until a user-specified end date is reached.  
   This cycle-based design is inspired by rolling forecasts while keeping a fixed viewpoint.  
-  The ``forecast_frequency`` parameter controls how often predictions are generated during the forecast period.
+  The ``forecast-frequency`` parameter controls how often predictions are generated during the forecast period.
 A use case: automating solar production prediction
 -----------------------------------------------------
 
