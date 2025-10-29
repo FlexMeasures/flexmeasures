@@ -10,24 +10,27 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional, Type, List
 
+import pandas as pd
 from flask import Flask
 from flask_sock import ConnectionClosed, Sock
 
-from flexmeasures import Account, Asset, AssetType, Sensor, User
+from flexmeasures import Account, Asset, AssetType, Sensor, Source, User
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.api.common.utils.validators import parse_duration
 from flexmeasures.data.services.utils import get_or_create_model
-from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.coding_utils import only_if_timer_due
 from flexmeasures.utils.flexmeasures_inflection import capitalize
-from flexmeasures.utils.time_utils import floored_server_now
+from flexmeasures.utils.time_utils import floored_server_now, server_now
+from flexmeasures.utils.unit_utils import convert_units
 from s2python.common import (
     ControlType,
     EnergyManagementRole,
     Handshake,
     HandshakeResponse,
+    InstructionStatus,
+    InstructionStatusUpdate,
     ReceptionStatus,
     ReceptionStatusValues,
     RevokableObjects,
@@ -61,9 +64,7 @@ class FRBCDeviceData:
         self.system_description: Optional[FRBCSystemDescription] = None
         self.fill_level_target_profile: Optional[FRBCFillLevelTargetProfile] = None
         self.storage_status: Optional[FRBCStorageStatus] = None
-        self.actuator_statuses: Dict[str, FRBCActuatorStatus] = (
-            {}
-        )  # Changed to dict by actuator_id
+        self.actuator_statuses: Dict[str, FRBCActuatorStatus] = {}  # Changed to dict by actuator_id
         self.resource_id: Optional[str] = None
         self.instructions: Optional[List[FRBCInstruction]] = []
 
@@ -75,9 +76,7 @@ class FRBCDeviceData:
 
         # Check that we have actuator status for ALL actuators in system description
         if self.system_description.actuators:
-            required_actuator_ids = {
-                str(actuator.id) for actuator in self.system_description.actuators
-            }
+            required_actuator_ids = {str(actuator.id) for actuator in self.system_description.actuators}
             received_actuator_ids = set(self.actuator_statuses.keys())
             return required_actuator_ids.issubset(received_actuator_ids)
 
@@ -91,9 +90,10 @@ class ConnectionState:
         self.last_compute_time: Optional[datetime] = None
         self.resource_id: Optional[str] = None
         self.last_operation_mode: Optional[uuid.UUID] = None
-        self.sent_instructions: List[FRBCInstruction] = (
-            []
-        )  # Store sent instructions for revocation
+        self.sent_instructions: List[FRBCInstruction] = []  # Store sent instructions for revocation
+        self.instruction_statuses: Dict[uuid.UUID, InstructionStatus] = (
+            {}
+        )  # Track status of each instruction by instruction_id
 
     def can_compute(self, replanning_frequency: timedelta) -> bool:
         """Check if enough time has passed since the last compute call."""
@@ -104,6 +104,10 @@ class ConnectionState:
     def update_compute_time(self) -> None:
         """Update the last compute time to now."""
         self.last_compute_time = datetime.now(timezone.utc)
+
+    def update_instruction_status(self, instruction_id: uuid.UUID, status: InstructionStatus) -> None:
+        """Update the status of an instruction."""
+        self.instruction_statuses[instruction_id] = status
 
 
 class MessageHandlersSync:
@@ -177,6 +181,7 @@ class S2FlaskWSServerSync:
         self.s2_scheduler = None
         self.account: Account | None = None
         self.user: User | None = None
+        self.data_source_id: int | None = None
         self._assets: Dict[str, Asset] = {}
 
         self._minimum_measurement_period: timedelta = timedelta(minutes=5)
@@ -193,26 +198,21 @@ class S2FlaskWSServerSync:
             seconds_since_hour = now.minute * 60 + now.second + now.microsecond / 1e6
 
             # Ceil to next multiple of period_seconds
-            next_tick_seconds = (
-                math.ceil(seconds_since_hour / period_seconds) * period_seconds
-            )
+            next_tick_seconds = math.ceil(seconds_since_hour / period_seconds) * period_seconds
 
             # Compute next due datetime
-            next_due = now.replace(minute=0, second=0, microsecond=0) + timedelta(
-                seconds=next_tick_seconds
-            )
+            next_due = now.replace(minute=0, second=0, microsecond=0) + timedelta(seconds=next_tick_seconds)
             self._timers[name] = next_due
             return True
         else:
-            self.app.logger.debug(
-                f"Timer for {name} is not due until {self._timers[name]}"
-            )
+            self.app.logger.debug(f"Timer for {name} is not due until {self._timers[name]}")
             return False
 
     def _register_default_handlers(self) -> None:
         self._handlers.register_handler(Handshake, self.handle_handshake)
         self._handlers.register_handler(ReceptionStatus, self.handle_reception_status)
         self._handlers.register_handler(ResourceManagerDetails, self.handle_ResourceManagerDetails)
+        self._handlers.register_handler(InstructionStatusUpdate, self.handle_instruction_status_update)
         # Register FRBC message handlers
         self._handlers.register_handler(FRBCSystemDescription, self.handle_frbc_system_description)
         self._handlers.register_handler(FRBCFillLevelTargetProfile, self.handle_frbc_fill_level_target_profile)
@@ -222,14 +222,14 @@ class S2FlaskWSServerSync:
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
-            self.app.logger.info("Received connection from client")
+            self.app.logger.info("🔌 New WebSocket connection received")
             self._handle_websocket_connection(ws)
         except Exception as e:
-            self.app.logger.error("Error in websocket handler: %s", e)
+            self.app.logger.error("❌ WebSocket handler error: %s", e)
 
     def _handle_websocket_connection(self, websocket: Sock) -> None:
         client_id = str(uuid.uuid4())
-        self.app.logger.info(f"🔌 Client {client_id} connected")
+        self.app.logger.info(f" Client connected: {client_id[:8]}...")
         self._connections[client_id] = websocket
         # Initialize connection state for rate limiting
         self._connection_states[websocket] = ConnectionState()
@@ -239,10 +239,22 @@ class S2FlaskWSServerSync:
                 s2_msg = None
                 try:
                     s2_msg = self.s2_parser.parse_as_any_message(message)
-                    self.app.logger.info(f"📨 Received {s2_msg.message_type} from client {client_id}")
 
-                    # Don't log verbose messages
-                    verbose_message_types = ["FRBC.UsageForecast"]
+                    # Log with appropriate emoji based on message type
+                    msg_emoji = {
+                        "Handshake": "🤝",
+                        "FRBC.SystemDescription": "📋",
+                        "FRBC.FillLevelTargetProfile": "🎯",
+                        "FRBC.StorageStatus": "🔋",
+                        "FRBC.ActuatorStatus": "⚙️",
+                        "InstructionStatusUpdate": "📊",
+                        "ResourceManagerDetails": "📝",
+                    }.get(s2_msg.message_type, "📥")
+
+                    self.app.logger.info(f"{msg_emoji} {s2_msg.message_type}")
+
+                    # Don't log verbose message content
+                    verbose_message_types = ["FRBC.UsageForecast", "FRBC.ActuatorStatus"]
                     if s2_msg.message_type not in verbose_message_types:
                         self.app.logger.debug(s2_msg.to_json())
                 except json.JSONDecodeError:
@@ -292,11 +304,41 @@ class S2FlaskWSServerSync:
                             websocket=websocket,
                         )
                     self._handlers.handle_message(self, s2_msg, websocket)
+
+                    # Finalize transaction
+                    try:
+                        db.session.commit()
+                    except Exception as exc:
+                        self.app.logger.warning(f"⚠️ DB commit failed: {str(exc)}")
+                except json.JSONDecodeError:
+                    self.respond_with_reception_status(
+                        subject_message_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+                        status=ReceptionStatusValues.INVALID_DATA,
+                        diagnostic_label="Not valid json.",
+                        websocket=websocket,
+                    )
+                except S2ValidationError as e:
+                    json_msg = json.loads(message)
+                    message_id = json_msg.get("message_id")
+                    if message_id:
+                        self.respond_with_reception_status(
+                            subject_message_id=message_id,
+                            status=ReceptionStatusValues.INVALID_MESSAGE,
+                            diagnostic_label=str(e),
+                            websocket=websocket,
+                        )
+                    else:
+                        self.respond_with_reception_status(
+                            subject_message_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+                            status=ReceptionStatusValues.INVALID_DATA,
+                            diagnostic_label="Message appears valid json but could not find a message_id field.",
+                            websocket=websocket,
+                        )
                 except Exception as e:
                     self.app.logger.error(f"💥 Error processing message from client {client_id}: {str(e)}")
                     raise
         except ConnectionClosed:
-            self.app.logger.info(f"🔌 Client {client_id} disconnected")
+            self.app.logger.info(f"🔌 Connection closed: {client_id[:8]}...")
         finally:
             if client_id in self._connections:
                 del self._connections[client_id]
@@ -323,7 +365,8 @@ class S2FlaskWSServerSync:
             # Clean up connection state
             if websocket in self._connection_states:
                 del self._connection_states[websocket]
-                self.app.logger.debug(f"🧹 Cleaned up connection state for {client_id}")
+
+            self.app.logger.info(f"🚪 Client disconnected: {client_id[:8]}...")
 
     def respond_with_reception_status(
         self,
@@ -337,39 +380,51 @@ class S2FlaskWSServerSync:
             status=status,
             diagnostic_label=diagnostic_label,
         )
-        # Use emoji based on status
-        status_emoji = (
-            "✅"
-            if status == ReceptionStatusValues.OK
-            else "⚠️" if status == ReceptionStatusValues.INVALID_MESSAGE else "❌"
-        )
-        self.app.logger.debug(f"{status_emoji} ReceptionStatus: {status.value} for message {subject_message_id}")
+        status_emoji = "✅" if status == ReceptionStatusValues.OK else "❌"
+        self.app.logger.debug(f"{status_emoji} ReceptionStatus: {status}")
         try:
             websocket.send(response.to_json())
         except ConnectionClosed:
-            self.app.logger.warning("🔌 Connection closed while sending reception status")
+            self.app.logger.warning("⚠️ Connection closed during response")
 
     def _send_and_forget(self, s2_msg: S2Message, websocket: Sock) -> None:
         try:
             websocket.send(s2_msg.to_json())
         except ConnectionClosed:
-            self.app.logger.warning("🔌 Connection closed while sending message")
+            self.app.logger.warning("⚠️ Connection closed during send")
 
     def _revoke_previous_instructions(self, connection_state: ConnectionState, websocket: Sock) -> None:
-        """Revoke all previously sent instructions before sending new ones."""
+        """Revoke all previously sent instructions that are still ACCEPTED or NEW before sending new ones."""
         if not connection_state.sent_instructions:
             return
 
-        self.app.logger.info(f"🗑️ Revoking {len(connection_state.sent_instructions)} previous instructions")
+        # Filter instructions to only revoke those with ACCEPTED or NEW status
+        # Instructions with other statuses have already been removed from memory
+        instructions_to_revoke = [
+            instr
+            for instr in connection_state.sent_instructions
+            if connection_state.instruction_statuses.get(instr.message_id, InstructionStatus.NEW)
+            in (InstructionStatus.NEW, InstructionStatus.ACCEPTED)
+        ]
 
-        for instruction in connection_state.sent_instructions:
+        if not instructions_to_revoke:
+            self.app.logger.info("🔄 No instructions to revoke (all processed)")
+            connection_state.sent_instructions.clear()
+            return
+
+        self.app.logger.info(
+            f"🗑️ Revoking {len(instructions_to_revoke)}/{len(connection_state.sent_instructions)} instructions"
+        )
+
+        for instruction in instructions_to_revoke:
             revoke_msg = RevokeObject(
                 message_id=uuid.uuid4(),
                 object_type=RevokableObjects.FRBC_Instruction,
                 object_id=instruction.message_id,
             )
             self._send_and_forget(revoke_msg, websocket)
-            self.app.logger.debug(f"🗑️ Revoked instruction {instruction}")
+            status = connection_state.instruction_statuses.get(instruction.message_id, InstructionStatus.NEW)
+            self.app.logger.debug(f"   🚫 Revoked {str(instruction.message_id)[:8]}... ({status.value})")
 
         # Clear the list of sent instructions after revoking
         connection_state.sent_instructions.clear()
@@ -381,6 +436,7 @@ class S2FlaskWSServerSync:
 
         filtered = []
         last_operation_mode = connection_state.last_operation_mode
+        skipped = 0
 
         for instruction in instructions:
             # Always include the first instruction if we haven't sent any before
@@ -388,36 +444,39 @@ class S2FlaskWSServerSync:
             if last_operation_mode is None or instruction.operation_mode != last_operation_mode:
                 filtered.append(instruction)
                 last_operation_mode = instruction.operation_mode
+            else:
+                skipped += 1
+
+        if skipped > 0:
+            self.app.logger.info(
+                f"🔽 Filtered: {len(instructions)} → {len(filtered)} instructions (skipped {skipped} duplicate modes)"
+            )
 
         return filtered
 
     def handle_handshake(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
         if not isinstance(message, Handshake):
             return
-        self.app.logger.info("🤝 Received Handshake")
         self.app.logger.debug(message.to_json())
 
         if S2_VERSION not in message.supported_protocol_versions:
-            raise NotImplementedError(
-                f"Server supported protocol {S2_VERSION} not supported by client. Client supports: message.supported_protocol_versions"
-            )
+            raise NotImplementedError(f"Server protocol {S2_VERSION} not supported by client")
 
         handshake_response = HandshakeResponse(
             message_id=uuid.uuid4(),
             selected_protocol_version=S2_VERSION,
         )
         self._send_and_forget(handshake_response, websocket)
-        self.app.logger.info(f"🤝 HandshakeResponse sent (protocol version: {S2_VERSION})")
-        self.app.logger.debug(handshake_response)
+        self.app.logger.info(f"🤝 Handshake complete (protocol {S2_VERSION})")
+
         # If client is RM, send control type selection
         if hasattr(message, "role") and message.role == EnergyManagementRole.RM:
-            self.app.logger.info("📤 Sending control type selection (FRBC)")
             select_control_type = SelectControlType(
                 message_id=uuid.uuid4(),
                 control_type=ControlType.FILL_RATE_BASED_CONTROL,
             )
             self._send_and_forget(select_control_type, websocket)
-            self.app.logger.debug(select_control_type)
+            self.app.logger.info("📤 SelectControlType: FRBC")
 
     def handle_reception_status(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
         if not isinstance(message, ReceptionStatus):
@@ -427,8 +486,6 @@ class S2FlaskWSServerSync:
     def handle_ResourceManagerDetails(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
         if not isinstance(message, ResourceManagerDetails):
             return
-        resource_id = str(message.resource_id)
-        self.app.logger.info(f"📋 Received ResourceManagerDetails for resource: {resource_id}")
 
         # Store the resource_id from ResourceManagerDetails for device identification
         self._websocket_to_resource[websocket] = resource_id
@@ -437,21 +494,69 @@ class S2FlaskWSServerSync:
             self._device_data[resource_id] = FRBCDeviceData()
         self._device_data[resource_id].resource_id = resource_id
 
+        self.app.logger.info(f"📝 RM registered: {resource_id[:8]}... ({message.name})")
+
+    def handle_instruction_status_update(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
+        if not isinstance(message, InstructionStatusUpdate):
+            return
+
+        # Get the connection state and update instruction status
+        connection_state = self._connection_states.get(websocket)
+        if connection_state:
+            connection_state.update_instruction_status(message.instruction_id, message.status_type)
+
+            # Status emoji mapping
+            status_emoji = {
+                InstructionStatus.NEW: "🆕",
+                InstructionStatus.ACCEPTED: "✅",
+                InstructionStatus.REJECTED: "❌",
+                InstructionStatus.STARTED: "▶️",
+                InstructionStatus.SUCCEEDED: "🎉",
+                InstructionStatus.ABORTED: "⛔",
+                InstructionStatus.REVOKED: "🚫",
+            }.get(message.status_type, "📊")
+
+            instr_id_full = str(message.instruction_id)
+            instr_id_short = instr_id_full[:8]
+            self.app.logger.info(f"{status_emoji} Instruction {instr_id_short}... → {message.status_type.value}")
+            self.app.logger.debug(f"   📋 Full instruction ID: {instr_id_full}")
+
+            # If instruction is rejected, aborted, or revoked, remove it from sent_instructions
+            if message.status_type not in (InstructionStatus.NEW, InstructionStatus.ACCEPTED):
+                # Remove the instruction from sent_instructions list
+                connection_state.sent_instructions = [
+                    instr for instr in connection_state.sent_instructions if instr.message_id != message.instruction_id
+                ]
+                self.app.logger.debug(f"   🗑️ Removed {instr_id_short}... from memory")
+
     def handle_frbc_system_description(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
         if not isinstance(message, FRBCSystemDescription):
             return
-        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
-        self.app.logger.info(f"🔧 Received FRBCSystemDescription for {resource_id}")
-        self.app.logger.debug(message.to_json())
 
         # Get resource_id from websocket mapping
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].system_description = message
+        n_actuators = len(message.actuators) if message.actuators else 0
+
+        # Log details about actuators
         for actuator in message.actuators:
-            self.ensure_actuator_is_registered(
-                actuator_id=str(actuator.id), resource_id=resource_id
+            n_modes = len(actuator.operation_modes) if actuator.operation_modes else 0
+            n_transitions = len(actuator.transitions) if actuator.transitions else 0
+            n_timers = len(actuator.timers) if actuator.timers else 0
+            self.app.logger.debug(
+                f"   ⚙️ Actuator {str(actuator.id)[:8]}...: {n_modes} modes, {n_transitions} transitions, {n_timers} timers"
             )
+            self.ensure_actuator_is_registered(actuator_id=str(actuator.id), resource_id=resource_id)
+
+        # Log storage details
+        if message.storage:
+            self.app.logger.debug(
+                f"   💾 Storage: {message.storage.fill_level_range.start_of_range}-{message.storage.fill_level_range.end_of_range} {message.storage.fill_level_label or '%'}"
+            )
+
+        self.save_attribute(resource_id, **json.loads(message.to_json()))
+        self.app.logger.info(f"📋 SystemDescription: {n_actuators} actuator(s)")
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_fill_level_target_profile(
@@ -466,6 +571,21 @@ class S2FlaskWSServerSync:
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].fill_level_target_profile = message
+        n_elements = len(message.elements) if message.elements else 0
+
+        # Log target profile details
+        if message.elements:
+            try:
+                # Duration objects have a value in milliseconds
+                total_duration_ms = sum(int(elem.duration) for elem in message.elements)
+                total_duration_min = total_duration_ms / 60000
+                self.app.logger.debug(
+                    f"   🎯 Total duration: {total_duration_min:.0f} min, Start: {message.start_time.strftime('%H:%M:%S')}"
+                )
+            except Exception as e:
+                self.app.logger.debug(f"   🎯 Start: {message.start_time.strftime('%H:%M:%S')}")
+
+        self.app.logger.info(f"🎯 TargetProfile: {n_elements} element(s)")
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_storage_status(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
@@ -481,8 +601,10 @@ class S2FlaskWSServerSync:
         self.save_event(
             sensor_name="fill level",
             event_value=message.present_fill_level,
-            resource_id=resource_id,
+            data_source=db.session.get(Source, self.data_source_id),
+            resource_or_actuator_id=resource_id,
         )
+        self.app.logger.info(f"🔋 StorageStatus: {message.present_fill_level:.1f}%")
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_actuator_status(self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock) -> None:
@@ -495,9 +617,8 @@ class S2FlaskWSServerSync:
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         # Store actuator status by actuator_id to support multiple actuators
-        self._device_data[resource_id].actuator_statuses[
-            str(message.actuator_id)
-        ] = message
+        self._device_data[resource_id].actuator_statuses[str(message.actuator_id)] = message
+        self.app.logger.debug(f"⚙️ ActuatorStatus: factor={message.operation_mode_factor}")
         self._check_and_generate_instructions(resource_id, websocket)
 
     def handle_frbc_instruction_status_update(
@@ -537,9 +658,7 @@ class S2FlaskWSServerSync:
                 generic_asset_type=asset_type,
             )
         except Exception as exc:
-            self.app.logger.warning(
-                f"Resource could not be saved as an asset: {str(exc)}"
-            )
+            self.app.logger.warning(f"Resource could not be saved as an asset: {str(exc)}")
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
 
@@ -554,82 +673,143 @@ class S2FlaskWSServerSync:
                 parent_asset=self._assets[resource_id],
             )
         except Exception as exc:
-            self.app.logger.warning(
-                f"Actuator could not be saved as an asset: {str(exc)}"
-            )
+            self.app.logger.warning(f"Actuator could not be saved as an asset: {str(exc)}")
 
-    @only_if_timer_due("sensor_name", "resource_id")
-    def save_event(self, sensor_name: str, resource_id: str, event_value: float):
+    def save_attribute(self, resource_id: str, **kwargs):
+        asset = self._assets[resource_id]
+        for k, v in kwargs.items():
+            try:
+                asset.attributes[k] = v
+            except Exception as exc:
+                self.app.logger.warning(f"Failed to save {k}: {v} as an asset attribute of {asset}: {str(exc)}")
+
+    @only_if_timer_due("sensor_name", "resource_or_actuator_id")
+    def save_event(
+        self,
+        sensor_name: str,
+        resource_or_actuator_id: str,
+        event_value: float | pd.Series,
+        data_source: Source,
+        event_resolution: timedelta | None = None,
+        event_unit: str = "",
+        sensor_unit: str = "",
+    ):
+        if event_resolution is None:
+            event_resolution = timedelta(0)
         try:
-            asset = self._assets[resource_id]
+            asset = self._assets[resource_or_actuator_id]
             sensor = get_or_create_model(
                 model_class=Sensor,
                 name=sensor_name,
-                unit="",
-                event_resolution=timedelta(0),
+                unit=sensor_unit,
+                event_resolution=event_resolution,
+                timezone=self.app.config["FLEXMEASURES_TIMEZONE"],
                 generic_asset=asset,
             )
         except Exception as exc:
-            self.app.logger.warning(
-                f"{capitalize(sensor_name)} sensor could not be saved: {str(exc)}"
-            )
+            self.app.logger.warning(f"{capitalize(sensor_name)} sensor could not be saved: {str(exc)}")
+            return
         try:
-            data_source = get_or_create_source(self.user)
-            belief = TimedBelief(
-                sensor=sensor,
-                source=data_source,
-                event_start=floored_server_now(self._minimum_measurement_period),
-                event_value=event_value,
-                belief_horizon=timedelta(0),
-                cumulative_probability=0.5,
+            event_value = convert_units(
+                event_value,
+                event_unit,
+                sensor_unit,
+                event_resolution=self.s2_scheduler.resolution,
             )
-            bdf = BeliefsDataFrame(beliefs=[belief])
+            if isinstance(event_value, float):
+                belief = TimedBelief(
+                    sensor=sensor,
+                    source=data_source,
+                    event_start=floored_server_now(self._minimum_measurement_period),
+                    event_value=event_value,
+                    belief_time=server_now(),
+                    cumulative_probability=0.5,
+                )
+                bdf = BeliefsDataFrame(beliefs=[belief])
+            elif isinstance(event_value, pd.Series):
+                bdf = BeliefsDataFrame(
+                    event_value,
+                    sensor=sensor,
+                    source=data_source,
+                    belief_time=server_now(),
+                    cumulative_probability=0.5,
+                )
+            else:
+                logger.error(f"Cannot save event values of type {type(event_value)}.")
+                return
             save_to_db(bdf)
 
         except Exception as exc:
-            self.app.logger.warning(
-                f"{capitalize(sensor_name)} could not be saved as sensor data: {str(exc)}"
-            )
+            self.app.logger.warning(f"{capitalize(sensor_name)} could not be saved as sensor data: {str(exc)}")
 
-    def _check_and_generate_instructions(  # noqa: C901
-        self, resource_id: str, websocket: Sock
-    ) -> None:
+    def _check_and_generate_instructions(self, resource_id: str, websocket: Sock) -> None:  # noqa: C901
         """Check if we have all required data and generate instructions if so."""
         device_data = self._device_data.get(resource_id)
         if device_data:
-            # Debug log basic attributes
-            for attr in (
-                "system_description",
-                "fill_level_target_profile",
-                "storage_status",
-            ):
-                self.app.logger.debug(
-                    f"  ✅ {attr}" if getattr(device_data, attr, None) is not None else f"  ⏳ {attr} (waiting...)"
-                )
+            # Build detailed status about what's missing
+            missing_items = []
 
-            # Debug log actuator statuses
-            if (
-                device_data.system_description
-                and device_data.system_description.actuators
-            ):
-                required_actuators = {
-                    str(a.id) for a in device_data.system_description.actuators
-                }
+            if not device_data.system_description:
+                missing_items.append("❌ SystemDescription")
+            else:
+                missing_items.append("✅ SystemDescription")
+
+            if not device_data.fill_level_target_profile:
+                missing_items.append("❌ FillLevelTargetProfile")
+            else:
+                missing_items.append("✅ FillLevelTargetProfile")
+
+            if not device_data.storage_status:
+                missing_items.append("❌ StorageStatus")
+            else:
+                missing_items.append("✅ StorageStatus")
+
+            # Check actuator statuses in detail
+            if device_data.system_description and device_data.system_description.actuators:
+                required_actuators = {str(a.id) for a in device_data.system_description.actuators}
                 received_actuators = set(device_data.actuator_statuses.keys())
                 missing_actuators = required_actuators - received_actuators
 
                 if missing_actuators:
-                    self.app.logger.debug(f"  ⏳ actuator_status (waiting for: {missing_actuators})")
+                    missing_items.append(
+                        f"❌ ActuatorStatus ({len(received_actuators)}/{len(required_actuators)} received)"
+                    )
+                    for missing_id in missing_actuators:
+                        self.app.logger.debug(f"   ⏳ Missing actuator status for: {missing_id}")
                 else:
-                    self.app.logger.debug(f"  ✅ actuator_status (all {len(required_actuators)} received)")
+                    missing_items.append(f"✅ ActuatorStatus (all {len(required_actuators)} received)")
+            else:
+                missing_items.append("❌ ActuatorStatus (no actuators defined)")
+
+            # Log the status
+            status_summary = " | ".join(missing_items)
+            self.app.logger.debug(f"📊 Device readiness: {status_summary}")
+
         if device_data is None or not device_data.is_complete():
-            self.app.logger.debug(f"⏳ Waiting for more data from {resource_id} before scheduling")
+            # Log what's still missing
+            if device_data is None:
+                self.app.logger.info(f"⏳ No device data yet for {resource_id[:8]}...")
+            else:
+                missing = []
+                if not device_data.system_description:
+                    missing.append("SystemDescription")
+                if not device_data.fill_level_target_profile:
+                    missing.append("FillLevelTargetProfile")
+                if not device_data.storage_status:
+                    missing.append("StorageStatus")
+                if device_data.system_description and device_data.system_description.actuators:
+                    required = {str(a.id) for a in device_data.system_description.actuators}
+                    received = set(device_data.actuator_statuses.keys())
+                    if required - received:
+                        missing.append("ActuatorStatus")
+
+                self.app.logger.info(f"⏳ Waiting for: {', '.join(missing)}")
             return
 
         # Check rate limiting based on FLEXMEASURES_S2_REPLANNING_FREQUENCY
         connection_state = self._connection_states.get(websocket)
         if connection_state is None:
-            self.app.logger.warning(f"⚠️ No connection state found for {resource_id}")
+            self.app.logger.warning(f"⚠️ No connection state for {resource_id[:8]}...")
             return
 
         # Parse replanning frequency from config
@@ -651,12 +831,11 @@ class S2FlaskWSServerSync:
             time_since_last = datetime.now(timezone.utc) - connection_state.last_compute_time
             remaining_time = replanning_frequency - time_since_last
             self.app.logger.debug(
-                f"⏱️ Rate limit: Last compute {time_since_last.total_seconds():.1f}s ago, "
-                f"wait {remaining_time.total_seconds():.1f}s more"
+                f"⏱️ Rate limit: wait {remaining_time.total_seconds():.0f}s (last: {time_since_last.total_seconds():.0f}s ago)"
             )
             return
 
-        self.app.logger.info(f"🚀 All data received for {resource_id}, starting scheduler")
+        self.app.logger.info(f"🎯 Generating instructions for {resource_id[:8]}...")
 
         try:
             # Use the S2FlaskScheduler to create and store device state
@@ -674,7 +853,7 @@ class S2FlaskWSServerSync:
                 # Update the compute time before calling the scheduler
                 connection_state.update_compute_time()
 
-                # Generate instructions using the scheduler
+                # Generate instructions using the scheduler (this may query the database for costs)
                 schedule_results = self.s2_scheduler.compute()
 
                 # Filter and send generated instructions
@@ -684,33 +863,86 @@ class S2FlaskWSServerSync:
                 # Revoke previous instructions before sending new ones
                 self._revoke_previous_instructions(connection_state, websocket)
 
+                # Log instruction summary before sending
+                if filtered_instructions:
+                    self.app.logger.info(f"📤 Sending {len(filtered_instructions)} instruction(s):")
+
                 # Send new instructions and store them
-                for instruction in filtered_instructions:
+                current_time = datetime.now(timezone.utc)
+                for idx, instruction in enumerate(filtered_instructions, 1):
                     self._send_and_forget(instruction, websocket)
-                    self.app.logger.info(
-                        f"📤 Sent FRBC instruction (mode: {instruction.operation_mode}, factor: {instruction.operation_mode_factor})"
+
+                    # Full IDs
+                    instr_id_full = str(instruction.message_id)
+                    mode_id_full = str(instruction.operation_mode)
+                    actuator_id_full = str(instruction.actuator_id)
+
+                    # Short IDs for compact display
+                    instr_id_short = instr_id_full[:8]
+                    mode_id_short = mode_id_full[:8]
+                    actuator_short = actuator_id_full[:8]
+
+                    exec_time = (
+                        instruction.execution_time.strftime("%H:%M:%S")
+                        if hasattr(instruction.execution_time, "strftime")
+                        else str(instruction.execution_time)
                     )
-                    self.app.logger.debug(f"   Full instruction: {instruction.to_json()}")
+                    factor = instruction.operation_mode_factor
+
+                    # Validate that execution time is in the future
+                    if hasattr(instruction.execution_time, "tzinfo"):
+                        exec_datetime = instruction.execution_time
+                        time_until_exec = (exec_datetime - current_time).total_seconds()
+                        if time_until_exec < 0:
+                            self.app.logger.warning(
+                                f"   ⚠️ Instruction {instr_id_short}... has execution time {time_until_exec:.0f}s in the PAST!"
+                            )
+                        elif time_until_exec < 60:
+                            self.app.logger.warning(
+                                f"   ⚠️ Instruction {instr_id_short}... executes in only {time_until_exec:.0f}s (might be too soon)"
+                            )
+
+                    # Log with short IDs for readability
+                    self.app.logger.info(
+                        f"   {idx}. {instr_id_short}... | mode: {mode_id_short}... | factor: {factor:.2f} | actuator: {actuator_short}... | exec: {exec_time}"
+                    )
+
+                    # Log full IDs at debug level
+                    self.app.logger.debug(f"      📋 Full instruction ID: {instr_id_full}")
+                    self.app.logger.debug(f"      🔧 Full operation mode ID: {mode_id_full}")
+                    self.app.logger.debug(f"      ⚙️  Full actuator ID: {actuator_id_full}")
+
                     # Update the last operation mode for this connection
                     connection_state.last_operation_mode = instruction.operation_mode
 
                 # Store the sent instructions for future revocation
                 connection_state.sent_instructions = filtered_instructions.copy()
 
-                # Log filtering results
-                if len(frbc_instructions) > len(filtered_instructions):
-                    self.app.logger.info(
-                        f"🔽 Filtered instructions: {len(frbc_instructions)} → {len(filtered_instructions)} "
-                        f"(reduced by {len(frbc_instructions) - len(filtered_instructions)})"
-                    )
-                elif len(filtered_instructions) > 0:
-                    self.app.logger.info(f"✅ Sent {len(filtered_instructions)} instruction(s)")
-
                 # Process non-instruction results
-                for result in schedule_results:
-                    if isinstance(result, dict) and "sensor" in result:
-                        # TODO: save result["data"] to sensor if needed for FlexMeasures
-                        pass
+                try:
+                    energy_data_count = 0
+                    for result in schedule_results:
+                        if isinstance(result, dict) and "device" in result:
+                            energy_data_count += 1
+                            device_short = str(result["device"])[:8]
+                            if isinstance(result.get("data"), pd.Series):
+                                n_values = len(result["data"])
+                                self.app.logger.debug(
+                                    f"   💾 Saving {n_values} energy values for device {device_short}... ({result.get('unit', '?')})"
+                                )
+                            self.save_event(
+                                sensor_name="power",
+                                resource_or_actuator_id=str(result["device"]),
+                                event_value=result["data"],
+                                data_source=self.s2_scheduler.data_source,
+                                event_resolution=self.s2_scheduler.resolution,
+                                event_unit=result["unit"],
+                                sensor_unit="W",
+                            )
+                    if energy_data_count > 0:
+                        self.app.logger.info(f"💾 Saved energy data for {energy_data_count} device(s)")
+                except Exception as exc:
+                    self.app.logger.warning(f"⚠️ Energy data save failed: {str(exc)}")
             else:
                 # Scheduler not available - log warning and skip instruction generation
                 self.app.logger.warning(f"⚠️ S2FlaskScheduler not available for {resource_id}")
