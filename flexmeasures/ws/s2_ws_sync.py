@@ -944,7 +944,7 @@ class S2FlaskWSServerSync:
                             self.app.logger.debug(f"Saving result: {result}")
                             self.save_event(
                                 sensor_name="fill level",
-                                resource_or_actuator_id=str(result["device"]),
+                                resource_or_actuator_id=str(result["fill level"]),
                                 event_value=result["data"],
                                 data_source=self.s2_scheduler.data_source,
                             )
