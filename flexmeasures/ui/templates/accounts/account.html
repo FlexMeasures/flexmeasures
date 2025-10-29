@@ -1,5 +1,5 @@
 {% extends "base.html" %} {% set active_page = "accounts" %} {% block title %}
-Account overview {% endblock %} {% block divs %}
+{{ account.name }} account {% endblock %} {% block divs %}
 
 <div class="container-fluid">
   <div class="row">
@@ -522,7 +522,7 @@ $(document).ready(function () {
   });
 }); 
 
-  const asset_icon_map = JSON.parse("{{ asset_icon_map | tojson | safe }}");
+  const asset_icon_map = JSON.parse('{{ asset_icon_map | tojson | safe }}');
 
   function Asset(id, name, account, latitude, longitude, sensors, asset_type) {
     let icon = asset_icon_map[asset_type.toLowerCase()];
