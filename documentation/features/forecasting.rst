@@ -12,10 +12,10 @@ In FlexMeasures, this knowledge often comes in the form of **forecasts** — dat
 
 *Example of a 24-hour horizon forecast for solar power production.*
 
-Of course, the nicest forecasts are the one you don't have to make yourself (it's not an easy field), so do use price or usage forecasts from third parties if available, and load them into FlexMeasures. 
+Of course, the nicest forecasts are the ones you don't have to make yourself (it's not an easy field), so do use price or usage forecasts from third parties if available, and load them into FlexMeasures.
 There are even existing plugins for importing `weather forecasts <https://github.com/flexmeasures/flexmeasures-weather>`_ or `market data <https://github.com/SeitaBV/flexmeasures-entsoe>`_.
 
-If you need to make your own predictions, forecasting algorithms can be used within FlexMeasures, for instance to arrive at an expected profile of future solar power production at the site.
+If you need to make your own predictions, forecasting algorithms can be used within FlexMeasures, for instance, to arrive at an expected profile of future solar power production at the site.
 
 FlexMeasures provides a CLI command to generate forecasts (see below). An API endpoint will follow soon.
 
