@@ -19,10 +19,10 @@ If you need to make your own predictions, forecasting algorithms can be used wit
 
 FlexMeasures provides a CLI command to generate forecasts (see below). An API endpoint will follow soon.
 
-FlexMeasures provides a **fixed-view forecasting infrastructure**.  
-This means that from one (fixed) point in time, we forecast a range of events into the future (e.g. 24 hourly events for a span of one day). While the first forecast (one hour ahead) has a small horizon (1H), the last one has a large horizon (24H) and the accuracy between the two will usually differ (it is easier to forecast small horizons).   
+FlexMeasures provides a **fixed viewpoint forecasting infrastructure**.
+This means that from one point in time (the fixed viewpoint), we forecast a range of events into the future (e.g. 24 hourly events for a span of one day). While the first forecast (one hour ahead) has a small horizon (1H), the last one has a large horizon (24H) and the accuracy between the two will usually differ (it is easier to forecast small horizons).
 
-At the same time, the design we implemented in FlexMeasures is inspired by **rolling forecasts**, as training and prediction can be repeated in **cycles** until a user-specified end date is reached.  If you ask FlexMeasures for a fixed-point forecast (one cycle), the model is trained once on the most recent applicable historical period and then produces predictions for the requested future period in one go.   
+At the same time, the design we implemented in FlexMeasures is inspired by **rolling forecasts**, as training and prediction can be repeated in **cycles** until a user-specified end date is reached.  If you ask FlexMeasures for a fixed viewpoint forecast (one cycle), the model is trained once on the most recent applicable historical period and then produces predictions for the requested future period in one go.
 This is controlled by the ``forecast-frequency`` parameter, which specifies how often predictions are generated during the forecast period.
 
 How a forecasting cycle works
@@ -74,7 +74,7 @@ Here are more details:
 - Lagged outcome variables are selected based on the periodicity of the asset (e.g. hourly, daily and/or weekly).
 - Missing data is filled using linear interpolation (via the Darts ``MissingValuesFiller``, which wraps ``pandas.DataFrame.interpolate``).
 - The model is trained once per cycle for each asset and can forecast up to the maximum forecast horizon in a single run.
-- Forecasts are **fixed-view forecasts** — the model is trained on a given history and produces predictions for a future window in one go.  
+- Forecasts are **fixed viewpoint forecasts** — the model is trained on a given history and produces predictions for a future window in one go.
   Training and prediction can then be repeated in **cycles** until a user-specified end date is reached.  
   This cycle-based design is inspired by rolling forecasts while keeping a fixed viewpoint.  
   The ``forecast-frequency`` parameter controls how often predictions are generated during the forecast period.
@@ -93,10 +93,10 @@ Sensor 12 would represent the power readings of your solar power, and here you a
 The ``--as-job`` parameter is optional. If given, the computation becomes a job which a worker needs to pick up. There is some more information at :ref:`how_queue_forecasting`.
 
 
-Fixed-point vs rolling
-----------------------
+Fixed viewpoint vs rolling viewpoint
+------------------------------------
 
-Unlike previous rolling forecasts, where each prediction covers the same relative forecast horizon (but the origin keeps moving forward), the new infrastructure generates **fixed-point forecasts**:
+Unlike previous rolling forecasts, where each prediction covers the same relative forecast horizon (but the origin keeps moving forward), the new infrastructure generates **fixed viewpoint forecasts**:
 
 - One reference timestamp.
 - Predictions are made for multiple future horizons from that point.
