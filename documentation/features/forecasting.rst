@@ -31,9 +31,10 @@ How a forecasting cycle works
 A single forecasting cycle consists of the following steps:
 
 1. **Training**: Fit the model on a historical window defined by ``train-start`` and ``train-end``.
-2. **Prediction**: Produce forecasts for a horizon defined by ``predict-start`` and ``predict-end``.
-3. **Repeat**: If the global ``end-date`` is not yet reached, move the prediction window forward by ``forecast-frequency`` and repeat steps 1 and 2.
+2. **Prediction**: Produce forecasts for a time window defined by ``predict-start`` and ``predict-end``.
+3. **Repeat**: Extend the training window and move the prediction window forward, both by ``forecast-frequency``.
 
+Cycles repeat until ``predict-end`` reaches the global ``to-date``.
 This way, forecasts can cover long ranges while still being based on updated training data in each cycle.
 
 CLI Command
