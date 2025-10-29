@@ -13,8 +13,6 @@ from marshmallow import (
 
 from flexmeasures import Sensor
 
-# from flexmeasures.data.models.planning import FlowCommitment
-# from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
