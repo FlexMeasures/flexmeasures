@@ -42,7 +42,7 @@ You can create forecasts from the command line using:
 
 .. code-block:: bash
 
-    flexmeasures add forecasts --from-date 2024-02-02 --to-date 2024-02-02 --horizon 6 --sensor 12 --as-job
+    flexmeasures add forecasts --from-date 2024-02-02 --to-date 2024-02-02 --max-forecast-horizon 6 --sensor 12 --as-job
 
 This command asks FlexMeasures to generate forecasts for one day (2 February 2024)
 with a forecast horizon of 6 hours for the sensor with ID 12.
@@ -85,7 +85,7 @@ Here is how you can ask for forecasts to be made in the CLI:
 
 .. code-block:: bash
 
-    flexmeasures add forecasts --from-date 2024-02-02 --to-date 2024-02-02 --horizon 6 --sensor 12  --as-job  # add train-start
+    flexmeasures add forecasts --from-date 2024-02-02 --to-date 2024-02-02 --max-forecast-horizon 6 --sensor 12  --as-job  # add train-start
 
 Sensor 12 would represent the power readings of your solar power, and here you ask for forecasts for one day (2 February, 2024), with a forecast of 6 hours.
 
