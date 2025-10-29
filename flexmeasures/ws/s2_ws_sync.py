@@ -115,7 +115,7 @@ class ConnectionState:
     def update_compute_time(self) -> None:
         """Update the last compute time to now."""
         self.last_compute_time = datetime.now(timezone.utc)
-    
+
     def update_instruction_status(self, instruction_id: uuid.UUID, status: InstructionStatus) -> None:
         """Update the status of an instruction."""
         self.instruction_statuses[instruction_id] = status
@@ -274,7 +274,7 @@ class S2FlaskWSServerSync:
                 message = websocket.receive()
                 try:
                     s2_msg = self.s2_parser.parse_as_any_message(message)
-                    
+
                     # Log with appropriate emoji based on message type
                     msg_emoji = {
                         "Handshake": "🤝",
@@ -285,7 +285,7 @@ class S2FlaskWSServerSync:
                         "InstructionStatusUpdate": "📊",
                         "ResourceManagerDetails": "📝",
                     }.get(s2_msg.message_type, "📥")
-                    
+
                     self.app.logger.info(f"{msg_emoji} {s2_msg.message_type}")
 
                     # Don't log verbose message content
@@ -464,7 +464,7 @@ class S2FlaskWSServerSync:
 
         if skipped > 0:
             self.app.logger.info(f"🔽 Filtered: {len(instructions)} → {len(filtered)} instructions (skipped {skipped} duplicate modes)")
-        
+
         return filtered
 
     def handle_handshake(
@@ -485,7 +485,7 @@ class S2FlaskWSServerSync:
         )
         self._send_and_forget(handshake_response, websocket)
         self.app.logger.info(f"🤝 Handshake complete (protocol {S2_VERSION})")
-        
+
         # If client is RM, send control type selection
         if hasattr(message, "role") and message.role == EnergyManagementRole.RM:
             select_control_type = SelectControlType(
@@ -507,7 +507,7 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, ResourceManagerDetails):
             return
-        
+
         # Store the resource_id from ResourceManagerDetails for device identification
         resource_id = str(message.resource_id)
         self._websocket_to_resource[websocket] = resource_id
@@ -515,7 +515,7 @@ class S2FlaskWSServerSync:
         if resource_id not in self._device_data:
             self._device_data[resource_id] = FRBCDeviceData()
         self._device_data[resource_id].resource_id = resource_id
-        
+
         self.app.logger.info(f"📝 RM registered: {resource_id[:8]}... ({message.name})")
 
     def handle_instruction_status_update(
@@ -523,14 +523,14 @@ class S2FlaskWSServerSync:
     ) -> None:
         if not isinstance(message, InstructionStatusUpdate):
             return
-        
+
         # Get the connection state and update instruction status
         connection_state = self._connection_states.get(websocket)
         if connection_state:
             connection_state.update_instruction_status(
                 message.instruction_id, message.status_type
             )
-            
+
             # Status emoji mapping
             status_emoji = {
                 InstructionStatus.NEW: "🆕",
@@ -541,12 +541,12 @@ class S2FlaskWSServerSync:
                 InstructionStatus.ABORTED: "⛔",
                 InstructionStatus.REVOKED: "🚫",
             }.get(message.status_type, "📊")
-            
+
             instr_id_full = str(message.instruction_id)
             instr_id_short = instr_id_full[:8]
             self.app.logger.info(f"{status_emoji} Instruction {instr_id_short}... → {message.status_type.value}")
             self.app.logger.debug(f"   📋 Full instruction ID: {instr_id_full}")
-            
+
             # If instruction is rejected, aborted, or revoked, remove it from sent_instructions
             if message.status_type not in (InstructionStatus.NEW, InstructionStatus.ACCEPTED):
                 # Remove the instruction from sent_instructions list
@@ -568,7 +568,7 @@ class S2FlaskWSServerSync:
 
         self._device_data[resource_id].system_description = message
         n_actuators = len(message.actuators) if message.actuators else 0
-        
+
         # Log details about actuators
         for actuator in message.actuators:
             n_modes = len(actuator.operation_modes) if actuator.operation_modes else 0
@@ -578,11 +578,11 @@ class S2FlaskWSServerSync:
             self.ensure_actuator_is_registered(
                 actuator_id=str(actuator.id), resource_id=resource_id
             )
-        
+
         # Log storage details
         if message.storage:
             self.app.logger.debug(f"   💾 Storage: {message.storage.fill_level_range.start_of_range}-{message.storage.fill_level_range.end_of_range} {message.storage.fill_level_label or '%'}")
-        
+
         self.save_attribute(resource_id, **json.loads(message.to_json()))
         self.app.logger.info(f"📋 SystemDescription: {n_actuators} actuator(s)")
         self._check_and_generate_instructions(resource_id, websocket)
@@ -598,7 +598,7 @@ class S2FlaskWSServerSync:
 
         self._device_data[resource_id].fill_level_target_profile = message
         n_elements = len(message.elements) if message.elements else 0
-        
+
         # Log target profile details
         if message.elements:
             try:
@@ -608,7 +608,7 @@ class S2FlaskWSServerSync:
                 self.app.logger.debug(f"   🎯 Total duration: {total_duration_min:.0f} min, Start: {message.start_time.strftime('%H:%M:%S')}")
             except Exception as e:
                 self.app.logger.debug(f"   🎯 Start: {message.start_time.strftime('%H:%M:%S')}")
-            
+
         self.app.logger.info(f"🎯 TargetProfile: {n_elements} element(s)")
         self._check_and_generate_instructions(resource_id, websocket)
 
@@ -759,28 +759,28 @@ class S2FlaskWSServerSync:
         if device_data:
             # Build detailed status about what's missing
             missing_items = []
-            
+
             if not device_data.system_description:
                 missing_items.append("❌ SystemDescription")
             else:
                 missing_items.append("✅ SystemDescription")
-            
+
             if not device_data.fill_level_target_profile:
                 missing_items.append("❌ FillLevelTargetProfile")
             else:
                 missing_items.append("✅ FillLevelTargetProfile")
-            
+
             if not device_data.storage_status:
                 missing_items.append("❌ StorageStatus")
             else:
                 missing_items.append("✅ StorageStatus")
-            
+
             # Check actuator statuses in detail
             if device_data.system_description and device_data.system_description.actuators:
                 required_actuators = {str(a.id) for a in device_data.system_description.actuators}
                 received_actuators = set(device_data.actuator_statuses.keys())
                 missing_actuators = required_actuators - received_actuators
-                
+
                 if missing_actuators:
                     missing_items.append(f"❌ ActuatorStatus ({len(received_actuators)}/{len(required_actuators)} received)")
                     for missing_id in missing_actuators:
@@ -789,11 +789,11 @@ class S2FlaskWSServerSync:
                     missing_items.append(f"✅ ActuatorStatus (all {len(required_actuators)} received)")
             else:
                 missing_items.append("❌ ActuatorStatus (no actuators defined)")
-            
+
             # Log the status
             status_summary = " | ".join(missing_items)
             self.app.logger.debug(f"📊 Device readiness: {status_summary}")
-            
+
         if device_data is None or not device_data.is_complete():
             # Log what's still missing
             if device_data is None:
@@ -811,7 +811,7 @@ class S2FlaskWSServerSync:
                     received = set(device_data.actuator_statuses.keys())
                     if required - received:
                         missing.append("ActuatorStatus")
-                
+
                 self.app.logger.info(f"⏳ Waiting for: {', '.join(missing)}")
             return
 
@@ -889,32 +889,32 @@ class S2FlaskWSServerSync:
                 # Log instruction summary before sending
                 if filtered_instructions:
                     self.app.logger.info(f"📤 Sending {len(filtered_instructions)} instruction(s):")
-                
+
                 # Send new instructions and store them
                 for idx, instruction in enumerate(filtered_instructions, 1):
                     self._send_and_forget(instruction, websocket)
-                    
+
                     # Full IDs
                     instr_id_full = str(instruction.message_id)
                     mode_id_full = str(instruction.operation_mode)
                     actuator_id_full = str(instruction.actuator_id)
-                    
+
                     # Short IDs for compact display
                     instr_id_short = instr_id_full[:8]
                     mode_id_short = mode_id_full[:8]
                     actuator_short = actuator_id_full[:8]
-                    
+
                     exec_time = instruction.execution_time.strftime("%H:%M:%S") if hasattr(instruction.execution_time, 'strftime') else str(instruction.execution_time)
                     factor = instruction.operation_mode_factor
-                    
+
                     # Log with short IDs for readability
                     self.app.logger.info(f"   {idx}. {instr_id_short}... | mode: {mode_id_short}... | factor: {factor:.2f} | actuator: {actuator_short}... | exec: {exec_time}")
-                    
+
                     # Log full IDs at debug level
                     self.app.logger.debug(f"      📋 Full instruction ID: {instr_id_full}")
                     self.app.logger.debug(f"      🔧 Full operation mode ID: {mode_id_full}")
                     self.app.logger.debug(f"      ⚙️  Full actuator ID: {actuator_id_full}")
-                    
+
                     # Update the last operation mode for this connection
                     connection_state.last_operation_mode = instruction.operation_mode
 
@@ -939,6 +939,14 @@ class S2FlaskWSServerSync:
                                 event_resolution=self.s2_scheduler.resolution,
                                 event_unit=result["unit"],
                                 sensor_unit="W",
+                            )
+                        if isinstance(result, dict) and "fill level" in result:
+                            self.app.logger.debug(f"Saving result: {result}")
+                            self.save_event(
+                                sensor_name="fill level",
+                                resource_or_actuator_id=str(result["device"]),
+                                event_value=result["data"],
+                                data_source=self.s2_scheduler.data_source,
                             )
                     if energy_data_count > 0:
                         self.app.logger.info(f"💾 Saved energy data for {energy_data_count} device(s)")
