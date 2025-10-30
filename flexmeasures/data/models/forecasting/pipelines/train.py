@@ -44,6 +44,9 @@ class TrainPipeline(BasePipeline):
         :param max_forecast_horizon: Maximum forecast horizon in steps of 1 resolution.
         :param event_starts_after: Only consider events starting after this time.
         :param event_ends_before: Only consider events ending before this time.
+        :param forecast_frequency: Frequency of the forecast in hours.
+        :param probabilistic: Whether to use a probabilistic model.
+        :param ensure_positive: Whether to ensure that predictions are positive.
         """
         self.model_save_dir = model_save_dir
         self.probabilistic = probabilistic

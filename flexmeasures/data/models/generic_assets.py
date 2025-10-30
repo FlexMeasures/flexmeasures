@@ -15,6 +15,7 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
+from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
@@ -78,6 +79,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     flex_context = db.Column(
         MutableDict.as_mutable(db.JSON), nullable=False, default={}
     )
+    flex_model = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
     sensors_to_show_as_kpis = db.Column(
         MutableList.as_mutable(db.JSON), nullable=False, default=[]
     )
@@ -108,12 +110,47 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("assets", lazy="dynamic"),
     )
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Otherwise, the attributes only default to {} when flushing/committing to the db
+        if self.flex_model is None:
+            self.flex_model = {}
+        if self.attributes is None:
+            self.attributes = {}
+
+        # For backwards compatibility, when setting attributes that served as flex-model fields,
+        # move them to the flex_context (and don't store them as attributes)
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
+        to_delete = []
+        for attribute in self.attributes:
+            for field in DBStorageFlexModelSchema().fields.values():
+                if attribute == field.metadata.get("deprecated field"):
+                    # Move the attribute to the flex_model db column
+                    if field.data_key in self.flex_model:
+                        raise ValueError(
+                            f"Cannot move attribute {attribute} of asset {self.name} to its flex-model, because the {field.data_key} field is already set."
+                        )
+                    self.flex_model[field.data_key] = upgrade_value(
+                        attribute, self.attributes[attribute]
+                    )
+                    # Remove the original attribute
+                    current_app.logger.warning(
+                        f"Attribute {attribute} of asset {self.name} was moved to its flex-model under the {field.data_key} field."
+                    )
+                    to_delete.append(attribute)
+        for attr in to_delete:
+            del self.attributes[attr]
+
     def __acl__(self):
         """
         All logged-in users can read if the asset is public.
-        For non-public assets, we allow reading to whoever can read the account,
-        and editing for every user in the account.
-        Deletion is left to account admins.
+        For non-public assets, we allow reading to whoever can read the account.
+        Both creation of children (beliefs, child assets) as well as editing
+        is allowed for every user in the account or consultants.
+        Deletion is only allowed for account admins, as well as for consultants.
         """
         return {
             "create-children": [
@@ -374,8 +411,11 @@ class GenericAsset(db.Model, AuthModelMixin):
     def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
-        if self.flex_context and attribute in self.flex_context:
-            return self.flex_context[attribute]
+        if self.flex_model and attribute in self.flex_model:
+            return self.flex_model[attribute]
+        flex_context = self.get_flex_context()
+        if attribute in flex_context:
+            return flex_context[attribute]
         return default
 
     def has_attribute(self, attribute: str) -> bool:
@@ -403,6 +443,20 @@ class GenericAsset(db.Model, AuthModelMixin):
             flex_context = {**parent_asset.flex_context, **flex_context}
             parent_asset = parent_asset.parent_asset
         return flex_context
+
+    def get_flex_model(self) -> dict[int, dict]:
+        """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
+
+        Recursive function returning a multi-asset flex-model.
+
+        :returns: dictionary with asset IDs as keys and serialized flex-model dicts as values.
+        """
+        flex_model = {}
+        if self.flex_model:
+            flex_model[self.id] = dict(asset=self.id, **self.flex_model)
+        for child in self.child_assets:
+            flex_model = {**flex_model, **child.get_flex_model()}
+        return flex_model
 
     def get_consumption_price_sensor(self):
         """Searches for consumption_price_sensor upwards on the asset tree"""
@@ -820,19 +874,6 @@ class GenericAsset(db.Model, AuthModelMixin):
                         ),
                     ).reset_index()
 
-                    # Handle datetime conversion for seconds unit
-                    if sensor.unit == "s":
-                        time_mask = df["event_value"].notna()
-                        time_values = df.loc[time_mask, "event_value"]
-                        df["event_value"] = df["event_value"].astype(
-                            f"datetime64[ns, {self.timezone}]"
-                        )
-                        df.loc[time_mask, "event_value"] = (
-                            pd.to_datetime(time_values, unit="s", origin="unix")
-                            .dt.tz_localize("UTC")
-                            .dt.tz_convert(self.timezone)
-                        )
-
                     # VECTORIZED PROCESSING instead of for loops for speed
                     # Convert timestamps to milliseconds vectorized
                     event_start_ms = (
@@ -862,7 +903,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                             df["belief_horizon"]
                             .apply(
                                 lambda x: (
-                                    int(x.total_seconds()) if pd.notnull(x) else None
+                                    int(x.total_seconds() * 1000)
+                                    if pd.notnull(x)
+                                    else None
                                 )
                             )
                             .tolist()

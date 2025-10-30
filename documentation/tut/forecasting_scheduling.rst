@@ -71,11 +71,11 @@ There might be reasons to add forecasts of past time ranges. For instance, for v
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 
-Here we request 6-hour forecasts to be made for two sensors, for a period of two days:
+Here we request 6-hour forecasts to be made for one sensor, for a period of two days:
 
 .. code-block:: bash
 
-    $ flexmeasures add forecasts --sensor 2 --sensor 3 \
+    $ flexmeasures add forecasts --sensor 2 \
         --from-date 2015-02-01 --to-date 2015-08-31 \
         --horizon 6 --as-job
 
@@ -85,7 +85,7 @@ It can be good advice to dispatch this work in smaller chunks.
 Alternatively, note the ``--as-job`` parameter.
 If you use it, the forecasting jobs will be queued and picked up by worker processes (see above). You could run several workers (e.g. one per CPU) to get this work load done faster.
 
-Run ``flexmeasures add forecasts --help`` for more information.
+Run flexmeasures add forecasts --help for details on CLI parameters, or see :ref:forecasting to learn more about forecasting.
 
 
 .. _how_queue_scheduling:
@@ -131,13 +131,13 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor 15 --consumption-price-sensor 2 \
-        --start 2022-07-05T07:00+01:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90% --as-job
+    $ flexmeasures add schedule --sensor 15 \
+        --start 2022-07-05T07:00+01:00 --duration PT12H --soc-at-start 50% --as-job \
+        --flex-context '{"consumption-price": {"sensor": 2}}' --flex-model '{"roundtrip-efficiency": "90%"}'
 
 Here, the ``--as-job`` parameter makes the difference for queueing ― without it, the schedule is computed right away.
 
-Run ``flexmeasures add schedule for-storage --help`` for more information.
+Run ``flexmeasures add schedule --help`` for more information.
 
 
 .. _getting_prognoses:

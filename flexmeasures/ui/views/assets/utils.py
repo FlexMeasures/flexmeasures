@@ -149,7 +149,7 @@ def add_child_asset(asset: Asset, assets: list) -> list:
     """
     # Add Extra node to the current asset
     new_child_asset = {
-        "name": "Add Child Asset",
+        "name": "Add asset",
         "id": "new",
         "asset_type": asset.generic_asset_type.name,
         "link": url_for("AssetCrudUI:post", id="new", parent_asset_id=asset.id),

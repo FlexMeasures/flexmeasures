@@ -66,17 +66,17 @@
    
         </div>
         <div class="col-md-8">
-            <div id="spinner">
+            <div id="spinner" class="spinner">
                 <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                 <span class="sr-only">Loading...</span>
             </div>
             {% if has_kpis %}
             <div class="row">
                 <div class="col-md-12">
-                    <div id="kpi-cards" class="row">
+                    <div id="kpi-cards" class="row g-3">
                         {% for kpi in asset_kpis %}
-                        <div class="col-md-3">
-                            <div class="card">
+                        <div class="col-md-3 d-flex">
+                            <div class="card flex-fill">
                                 <div class="card-body">
                                     <h5 class="card-title">{{ kpi.title }}</h5>
                                     <p class="card-text">Loading...</p>
@@ -153,7 +153,7 @@
             
 
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 replay-column">
             <div class="replay-container">
                 <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
                 <div id="replay-time"></div>
