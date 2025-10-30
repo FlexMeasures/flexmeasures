@@ -391,6 +391,7 @@
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         let data = getFlexContext();
+        console.log("Updating flex context with data:", data);
 
         // Clean null values
         for (const [key, value] of Object.entries(data)) {
@@ -474,6 +475,7 @@
         const assetFlexContext = getFlexContext();
         getFlexContext()[fieldName] = null;
         setFlexContext(assetFlexContext);
+        console.log(`Removed field ${fieldName} from flex context`);
     }
 
     async function removeFlexContextSensorValue(fieldName, sensorId) {
@@ -617,6 +619,7 @@
                 localStorage.removeItem('activeCard');
             }
             setFlexContext(assetFlexContext);
+            updateFlexContext();
         };
         titleContainer.appendChild(title);
         titleContainer.appendChild(closeIcon);
