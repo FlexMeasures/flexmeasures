@@ -513,9 +513,6 @@ class DBFlexContextSchema(FlexContextSchema):
         if "commitments" in data:
             for commitment in data["commitments"]:
                 baseline_unit = get_unit_dimension(commitment["baseline"])
-                baseline_validator = None
-                price_validator = None
-                unit_type = None
 
                 if baseline_unit == "power":
                     baseline_validator = is_power_unit
