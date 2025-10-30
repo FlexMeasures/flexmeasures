@@ -51,6 +51,7 @@ class ForecasterParametersSchema(Schema):
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
     missing_threshold = fields.Float(required=False, allow_none=True, load_default=1.0)
+    as_job = fields.Bool(load_default=False)
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
@@ -197,4 +198,5 @@ class ForecasterParametersSchema(Schema):
             sensor_to_save=sensor_to_save,
             ensure_positive=ensure_positive,
             missing_threshold=data.get("missing_threshold", 1.0),
+            as_job=data.get("as_job"),
         )

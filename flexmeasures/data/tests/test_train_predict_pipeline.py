@@ -9,6 +9,8 @@ from marshmallow import ValidationError
 
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.models.forecasting.exceptions import CustomException
+from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
 @pytest.mark.parametrize(
@@ -33,6 +35,25 @@ from flexmeasures.data.models.forecasting.exceptions import CustomException
                 "probabilistic": False,
             },
             (ValidationError, "retrain-frequency must be greater than 0"),
+        ),
+        (
+            {
+                # "model": "CustomLGBM",
+            },
+            {
+                "sensor": "solar-sensor",
+                "future_regressors": ["irradiance-sensor"],
+                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output_path": None,
+                "start_date": "2025-01-01T00:00+02:00",
+                "start_predict_date": "2025-01-08T00:00+02:00",  # start_predict_date coincides with end of available data in sensor
+                "end_date": "2025-01-09T00:00+02:00",
+                "sensor_to_save": None,
+                "max_forecast_horizon": "PT1H",
+                "probabilistic": False,
+                "as_job": True,
+            },
+            None,
         ),
         (
             {
@@ -112,6 +133,7 @@ from flexmeasures.data.models.forecasting.exceptions import CustomException
     ],
 )
 def test_train_predict_pipeline(
+    app,
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
     params,  # parameters passed to the compute method of the Forecaster
@@ -155,6 +177,11 @@ def test_train_predict_pipeline(
         for attr in ("model",):
             if config.get(attr):
                 assert hasattr(pipeline, attr)
+
+        if params.get("as_job"):
+            work_on_rq(
+                app.queues["forecasting"], exc_handler=handle_forecasting_exception
+            )
 
         forecasts = sensor.search_beliefs(source_types=["forecaster"])
         dg_params = pipeline._parameters  # parameters stored in the data generator

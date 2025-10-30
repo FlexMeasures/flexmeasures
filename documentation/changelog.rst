@@ -4,21 +4,81 @@ FlexMeasures Changelog
 **********************
 
 
-v0.29.0 | October XX, 2025
+v0.30.0 | November XX, 2025
 ============================
 
+.. warning:: If you make use of ``flexmeasures add report`` with the ``--start-offset`` and/or ``--end-offset`` options (for instance, in a cron job), please check whether the report period logged by the CLI command still fits your use case.
+             Your offsets may need to be adjusted in relation to your ``FLEXMEASURES_TIMEZONE`` config setting (its offset with respect to :abbr:`UTC (Coordinated Universal Time)`).
 
 New features
 -------------
-* Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
+* Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
+* Let consultants see client assets on dashboard and group by account [see `PR #1763 <https://github.com/FlexMeasures/flexmeasures/pull/1763>`_]
 
 Infrastructure / Support
 ----------------------
-* Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
-* Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
+* Speed up data searches by refactoring our filter for selecting data from the latest version of a data generating model [see `PR #1698 <https://github.com/FlexMeasures/flexmeasures/pull/1698>`_]
+* Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
+* Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
+* Support skipping a ``PandasReporter`` transformation if any of its (keyword) arguments has no data [see `PR #1669 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
 
 Bugfixes
 -----------
+* Fix interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report`` [see `PR #1758 <https://github.com/FlexMeasures/flexmeasures/pull/1758>`_]
+
+
+v0.29.1 | October XX, 2025
+============================
+
+Bugfixes
+-----------
+* Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
+
+
+v0.29.0 | October 14, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v029-flex-model-swaggerui/>`_.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
+* Added a UI editor (form modal) to edit an asset's flex-model [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_ and `PR #1565 <https://github.com/FlexMeasures/flexmeasures/pull/1565>`_]
+* New CLI command for scheduling, with full flex-context and flex-model support as well as the option to set your scheduler class [see `PR #1713 <https://github.com/FlexMeasures/flexmeasures/pull/1713>`_]
+* Full coverage of flex-context fields in the UI editor [see `PR #1689 <https://www.github.com/FlexMeasures/flexmeasures/pull/1689>`_]
+* Touch up the KPI cards [see `PR #1731 <https://www.github.com/FlexMeasures/flexmeasures/pull/1731>`_]
+* Touch up asset context page [see `PR #1732 <https://www.github.com/FlexMeasures/flexmeasures/pull/1732>`_]
+* Allow ``PandasReporter`` configurations to skip a transformation in case any of the transformation ``args`` or ``kwargs`` is missing all data [see `PR #1717 <https://www.github.com/FlexMeasures/flexmeasures/pull/1717>`_]
+* The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period [see `PR #1720 <https://www.github.com/FlexMeasures/flexmeasures/pull/1720>`_]
+
+Infrastructure / Support
+----------------------
+* Migrate data for the ``flex-model`` of an asset to a dedicated column in the database table for assets [see `PR #1429 <https://github.com/FlexMeasures/flexmeasures/pull/1429>`_]
+* Updated dependencies [see `PR #1707 <https://www.github.com/FlexMeasures/flexmeasures/pull/1707>`_]
+* Upgraded Docker Image Ubuntu 24, which uses Python 3.12 [see `PR #1723 <https://www.github.com/FlexMeasures/flexmeasures/pull/1723>`_]
+* Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues`` [see `PR #1712 <https://github.com/FlexMeasures/flexmeasures/pull/1712>`_]
+* Improved flex-context modal UI and UI-backend functionalities&structure [see `PR #1704 <https://github.com/FlexMeasures/flexmeasures/pull/1704>`_]
+* Removed the use of ``consumption_price_sensor`` from the ``ProcessScheduler`` and replaced with now mandatory ``consumption_price`` in the ``flex-context`` [see `PR #1729 <https://github.com/FlexMeasures/flexmeasures/pull/1729>`_]
+* Removed obsolete UI view [see `PR #1743 <https://github.com/FlexMeasures/flexmeasures/pull/1743>`_]
+
+
+Bugfixes
+-----------
+* Changed 422 response for asset PATCH endpoint to the format also used elsewhere [see `PR #1722 <https://github.com/FlexMeasures/flexmeasures/pull/1722>`_]
+* Fix UI flex-context editor for flex-contexts with boolean fields (that were set through the API) [see `PR #1733 <https://www.github.com/FlexMeasures/flexmeasures/pull/1733>`_]
+* Fix floating spinner on asset graphs page [see `PR #1738 <https://www.github.com/FlexMeasures/flexmeasures/pull/1738>`_]
+* Make monitoring tasks & users robust against db issues [see `PR #1715 <https://www.github.com/FlexMeasures/flexmeasures/pull/1715>`_]
+
+
+v0.28.2 | October 3, 2025
+============================
+
+Bugfixes
+-----------
+* Fix horizons in UI chart tooltips [see `PR #1730 <https://www.github.com/FlexMeasures/flexmeasures/pull/1730>`_]
+* Fix UI chart for Charge Point sessions [see `PR #1699 <https://www.github.com/FlexMeasures/flexmeasures/pull/1699>`_]
+* Fix two audit logs in the sensor API, which were not committed to db [see `PR #1721 <https://github.com/FlexMeasures/flexmeasures/pull/1721>`_]
 
 
 v0.28.1 | September 18, 2025
@@ -46,6 +106,7 @@ New features
 * Improved timestamp on sensor detail page to be more friendly [see `PR #1632 <https://www.github.com/FlexMeasures/flexmeasures/pull/1632>`_]
 * Asset types support: new API endpoint (`GET /assets/types`), better docs and fix CLI command `flexmeasures show asset-types` [see `PR #1663 <https://github.com/FlexMeasures/flexmeasures/pull/1663>`_]
 * Add `--combine-legend` option to flexmeasures show chart. When used, all legends are combined and displayed at the bottom of the chart. If not used (default = False), each chart will display its own separate legend (as on the asset page) [see `PR #1696 <https://github.com/FlexMeasures/flexmeasures/pull/1696>`_]
+* Add support for using Swagger to generate API documentation [see `PR #1703 <https://github.com/FlexMeasures/flexmeasures/pull/1703>`_]
 
 Infrastructure / Support
 ----------------------
@@ -229,7 +290,7 @@ v0.25.0 | April 01, 2025
 
 New features
 -------------
-* Added form modal to edit an asset's ``flex_context`` [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_, `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_ and `PR #1364 <https://github.com/FlexMeasures/flexmeasures/pull/1364>`_]
+* Added a UI editor (form modal) to edit an asset's flex-context [see `PR #1320 <https://github.com/FlexMeasures/flexmeasures/pull/1320>`_, `PR #1365 <https://github.com/FlexMeasures/flexmeasures/pull/1365>`_ and `PR #1364 <https://github.com/FlexMeasures/flexmeasures/pull/1364>`_]
 * Improve asset status page - distinguish better by data source type [see `PR #1022 <https://github.com/FlexMeasures/flexmeasures/pull/1022/>`_]
 * Better y-axis titles for charts that show multiple sensors with a shared unit [see `PR #1346 <https://github.com/FlexMeasures/flexmeasures/pull/1346>`_]
 * Add CLI command ``flexmeasures jobs save-last-failed`` (since v0.26: ``flexmeasures jobs save-last``) for saving the last failed jobs [see `PR #1342 <https://www.github.com/FlexMeasures/flexmeasures/pull/1342>`_ and `PR #1359 <https://github.com/FlexMeasures/flexmeasures/pull/1359>`_]

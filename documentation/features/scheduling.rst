@@ -167,8 +167,8 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 
 
 We describe the respective flex models below.
-At the moment, they have to be sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
-We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
+
+These fields can be configured in the UI editor on the asset properties page or sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
 
 
 Storage
@@ -272,7 +272,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 Usually, not the whole flexibility model is needed.
 FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
-You can add new storage schedules with the CLI command ``flexmeasures add schedule for-storage``.
+You can add new storage schedules with the CLI command ``flexmeasures add schedule``.
 
 If you model devices that *buffer* energy (e.g. thermal energy storage systems connected to heat pumps), we can use the same flexibility parameters described above for storage devices.
 However, here are some tips to model a buffer correctly:
@@ -332,7 +332,7 @@ Some examples from practice (usually industry) could be:
 
 You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
 
-You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
+You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule``. Make sure to use the ``--scheduler ProcessScheduler`` option to use the in-built process scheduler.
 
 .. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 
