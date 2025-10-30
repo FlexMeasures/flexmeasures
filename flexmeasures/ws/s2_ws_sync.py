@@ -31,6 +31,7 @@ from s2python.common import (
     HandshakeResponse,
     InstructionStatus,
     InstructionStatusUpdate,
+    PowerMeasurement,
     ReceptionStatus,
     ReceptionStatusValues,
     RevokableObjects,
@@ -255,6 +256,9 @@ class S2FlaskWSServerSync:
         self._handlers.register_handler(
             FRBCActuatorStatus, self.handle_frbc_actuator_status
         )
+        self._handlers.register_handler(
+            PowerMeasurement, self.handle_power_measurement
+        )
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
@@ -284,6 +288,7 @@ class S2FlaskWSServerSync:
                         "FRBC.ActuatorStatus": "⚙️",
                         "InstructionStatusUpdate": "📊",
                         "ResourceManagerDetails": "📝",
+                        "PowerMeasurement": "⚡",
                     }.get(s2_msg.message_type, "📥")
 
                     self.app.logger.info(f"{msg_emoji} {s2_msg.message_type}")
@@ -612,6 +617,25 @@ class S2FlaskWSServerSync:
         self.app.logger.info(f"🎯 TargetProfile: {n_elements} element(s)")
         self._check_and_generate_instructions(resource_id, websocket)
 
+    def handle_power_measurement(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, PowerMeasurement):
+            return
+
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
+        self.ensure_resource_is_registered(resource_id=resource_id)
+
+        power_measurements = message.values
+        for measurement in power_measurements:
+            self.save_event(
+                sensor_name=measurement.commodity_quantity,
+                event_value=message.value,
+                event_start=message.measurement_timestamp,
+                data_source=db.session.get(Source, self.data_source_id),
+                resource_or_actuator_id=resource_id,
+            )
+
     def handle_frbc_storage_status(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
     ) -> None:
@@ -694,6 +718,7 @@ class S2FlaskWSServerSync:
         sensor_name: str,
         resource_or_actuator_id: str,
         event_value: float | pd.Series,
+        event_start: str,
         data_source: Source,
         event_resolution: timedelta | None = None,
         event_unit: str = "",
@@ -727,7 +752,7 @@ class S2FlaskWSServerSync:
                 belief = TimedBelief(
                     sensor=sensor,
                     source=data_source,
-                    event_start=floored_server_now(self._minimum_measurement_period),
+                    event_start=event_start or floored_server_now(self._minimum_measurement_period),
                     event_value=event_value,
                     belief_time=server_now(),
                     cumulative_probability=0.5,
