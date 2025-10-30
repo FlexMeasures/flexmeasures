@@ -54,7 +54,6 @@ class ForecasterParametersSchema(Schema):
     as_job = fields.Bool(load_default=False)
     max_training_period = DurationField(required=False, allow_none=True)
 
-
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
         start_date = data["start_date"]
