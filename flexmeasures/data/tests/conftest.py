@@ -101,11 +101,20 @@ def setup_fresh_test_forecast_data(
     fresh_db,
     app,
 ) -> dict[str, Sensor]:
-    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db)
+    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=False)
+
+
+@pytest.fixture(scope="function")
+def setup_fresh_test_forecast_data_with_missing_data(
+    fresh_db,
+    app,
+) -> dict[str, Sensor]:
+    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=True)
 
 
 def add_test_solar_sensor_and_irradiance_with_forecasts(
     db: SQLAlchemy,
+    empty: bool = False,
 ) -> dict[str, Sensor]:
     """7 days of test data (one complete sine curve) for two sensors and irradiance sensor has forecasts"""
 
@@ -169,6 +178,9 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
             random() * (1 + np.sin(x / 15)) * config["multiplier"]
             for x in range(len(time_slots))
         ]
+        if empty:
+            for i in range(0, len(values) // 2):
+                values[i] = np.nan
         beliefs = [
             TimedBelief(
                 sensor=sensor,
