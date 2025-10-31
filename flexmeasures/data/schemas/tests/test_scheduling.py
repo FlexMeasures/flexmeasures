@@ -581,6 +581,20 @@ def check_schema_loads_data(schema, data, fails):
             {"site-peak-consumption-price": "700 EUR/MW"},
             False,
         ),
+        # Energy price units with a power baseline, also works in DBFlexContext
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            False,
+        ),
         # One-day commitment not allowed in DBFlexContext
         (
             {
