@@ -29,7 +29,7 @@ from flexmeasures.utils.unit_utils import (
     is_power_unit,
     is_energy_unit,
 )
-from flexmeasures.utils.validation_utils import validate_sensor_or_fixed
+from flexmeasures.utils.validation_utils import validate_variable_quantity
 
 
 class NoTimeSeriesSpecs(Schema):
@@ -93,7 +93,11 @@ class CommitmentSchema(Schema):
         ):
             if not any(
                 [
-                    validate_sensor_or_fixed(variable_quantity, validator)
+                    validate_variable_quantity(
+                        variable_quantity=variable_quantity,
+                        unit_validator=validator,
+                        data_key=field_name,
+                    )
                     for validator in validators
                 ]
             ):

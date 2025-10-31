@@ -1,3 +1,4 @@
+from typing import Callable
 import re
 
 from flexmeasures import Sensor
@@ -56,20 +57,33 @@ def validate_url(value):
     return value
 
 
-def validate_sensor_or_fixed(value, unit_validator):
+def validate_variable_quantity(
+    variable_quantity: ur.Quantity | list[dict] | Sensor,
+    unit_validator: Callable,
+    data_key: str,
+):
     """
     Check if a given value is a sensor or a fixed value (e.g. string), then validate with the unit validator.
 
     Parameters:
-    :param value: The value to be validated.
-    :param unit_validator: The validation function used to validate the value's unit.
+    :param variable_quantity:   The value to be validated.
+    :param unit_validator:      The validation function used to validate the value's unit.
+    :param data_key:            User-facing data-key of the field that is being validated.
     """
 
-    if isinstance(value, ur.Quantity):
-        if not unit_validator(str(value.units)):
+    if isinstance(variable_quantity, ur.Quantity):
+        if not unit_validator(str(variable_quantity.units)):
             return False
-    elif isinstance(value, Sensor):
-        if not unit_validator(value.unit):
+    elif isinstance(variable_quantity, Sensor):
+        if not unit_validator(variable_quantity.unit):
             return False
+    elif isinstance(variable_quantity, list):
+        for segment in variable_quantity:
+            if not unit_validator(str(segment["value"].units)):
+                return False
+    else:
+        raise NotImplementedError(
+            f"Unexpected type '{type(variable_quantity)}' for variable_quantity describing '{data_key}': {variable_quantity}."
+        )
 
     return True
