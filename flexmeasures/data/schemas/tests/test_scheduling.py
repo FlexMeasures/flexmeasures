@@ -633,24 +633,7 @@ def test_db_flex_context_schema(
             elif field_value["sensor"] == "placeholder for price sensor":
                 flex_context[field_name]["sensor"] = price_sensor.id
 
-    if fails:
-        with pytest.raises(ValidationError) as e_info:
-            schema.load(flex_context)
-        print("Returned error message: ", e_info.value.messages)
-        returned_err_messages = e_info.value.messages[field_name]
-        for field_name, expected_message in fails.items():
-            assert field_name in e_info.value.messages
-            # Check all messages for the given field for the expected message
-            if field_name == "commitments" and isinstance(returned_err_messages, dict):
-                inner_err_msg = [name for name in returned_err_messages[0]][0]
-                # todo: this is an obvious mistake
-                assert inner_err_msg == inner_err_msg
-            else:
-                assert any(
-                    [expected_message in message for message in returned_err_messages]
-                )
-    else:
-        schema.load(flex_context)
+    check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
 
 
 @pytest.mark.parametrize(
