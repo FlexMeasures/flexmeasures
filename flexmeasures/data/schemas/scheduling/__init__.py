@@ -67,7 +67,10 @@ class CommitmentSchema(Schema):
     @validates_schema
     def check_units(self, commitment, **kwargs):
         baseline_field = self.declared_fields["baseline"]
-        baseline_unit = baseline_field._get_unit(commitment["baseline"])
+        if "baseline" in commitment:
+            baseline_unit = baseline_field._get_unit(commitment["baseline"])
+        else:
+            baseline_unit = "MW"
         if is_power_unit(baseline_unit):
             price_validators = [
                 is_capacity_price_unit,
