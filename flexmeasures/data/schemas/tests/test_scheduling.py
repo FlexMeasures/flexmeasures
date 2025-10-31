@@ -643,6 +643,7 @@ def test_db_flex_context_schema(
             # Check all messages for the given field for the expected message
             if field_name == "commitments" and isinstance(returned_err_messages, dict):
                 inner_err_msg = [name for name in returned_err_messages[0]][0]
+                # todo: this is an obvious mistake
                 assert inner_err_msg == inner_err_msg
             else:
                 assert any(
