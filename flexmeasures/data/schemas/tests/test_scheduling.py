@@ -318,9 +318,7 @@ def test_efficiency_pair(
                     }
                 ]
             },
-            {
-                "commitments": "{'baseline': [\"Cannot convert value `10 kWh` to 'MW'\"]}"
-            },
+            {"commitments.0.baseline": "Cannot convert value `10 kWh` to 'MW'"},
         ),
         # Energy price units with a power baseline
         (
@@ -432,14 +430,17 @@ def test_flex_context_schema(
             schema.load(flex_context)
         print(e_info.value.messages)
         for field_name, expected_message in fails.items():
+            field_name, *nested_field_names = field_name.split(".")
             assert field_name in e_info.value.messages
-            # Check all messages for the given field for the expected message
-            assert any(
-                [
-                    expected_message in message
-                    for message in e_info.value.messages[field_name]
-                ]
-            )
+            # Check whether the expected messages is one of the message for the given field
+            messages = e_info.value.messages[field_name]
+
+            # Look for message in nested field name, such as commitments.0.baseline
+            for nested_field_name in nested_field_names:
+                if nested_field_name.isdigit():
+                    nested_field_name = int(nested_field_name)
+                messages = messages[nested_field_name]
+            assert any(expected_message in message for message in messages)
     else:
         schema.load(flex_context)
 
