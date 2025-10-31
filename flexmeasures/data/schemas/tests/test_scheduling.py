@@ -425,10 +425,14 @@ def test_flex_context_schema(
                 field_value["sensor"]
             ].id
 
+    check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
+
+
+def check_schema_loads_data(schema, data, fails):
     if fails:
         with pytest.raises(ValidationError) as e_info:
-            schema.load(flex_context)
-        print(e_info.value.messages)
+            schema.load(data)
+        print(f"Returned error message: {e_info.value.messages}")
         for field_name, expected_message in fails.items():
             field_name, *nested_field_names = field_name.split(".")
             assert field_name in e_info.value.messages
@@ -442,7 +446,7 @@ def test_flex_context_schema(
                 messages = messages[nested_field_name]
             assert any(expected_message in message for message in messages)
     else:
-        schema.load(flex_context)
+        schema.load(data)
 
 
 # test DBFlexContextSchema
