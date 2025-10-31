@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 from datetime import timedelta
@@ -51,6 +52,7 @@ class ForecasterParametersSchema(Schema):
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
     as_job = fields.Bool(load_default=False)
+    max_training_period = DurationField(required=False, allow_none=True)
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
@@ -142,6 +144,12 @@ class ForecasterParametersSchema(Schema):
             raise ValidationError(
                 "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
+            )
+        max_training_period = data.get("max_training_period") or timedelta(days=365)
+        if train_period_in_hours > max_training_period // timedelta(hours=1):
+            train_period_in_hours = max_training_period // timedelta(hours=1)
+            logging.warning(
+                f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
             )
 
         if data.get("retrain_frequency") is None:
