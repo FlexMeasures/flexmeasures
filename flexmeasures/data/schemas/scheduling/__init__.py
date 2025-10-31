@@ -63,13 +63,13 @@ class CommitmentSchema(Schema):
         else:
             raise ValidationError(
                 "Commitment baseline must have a power unit.",
-                field_name="commitments",
+                field_name="baseline",
             )
 
         if not validate_sensor_or_fixed(commitment["baseline"], baseline_validator):
             raise ValidationError(
                 f"Commitment baseline must have {unit_type} unit.",
-                field_name="commitments",
+                field_name="baseline",
             )
 
         def _ensure_variable_quantity_passes_one_validator(
@@ -92,13 +92,13 @@ class CommitmentSchema(Schema):
         _ensure_variable_quantity_passes_one_validator(
             variable_quantity=commitment["up_price"],
             validators=price_validators,
-            field_name="commitments",
+            field_name="up-price",
             error_message=f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
         )
         _ensure_variable_quantity_passes_one_validator(
             variable_quantity=commitment["down_price"],
             validators=price_validators,
-            field_name="commitments",
+            field_name="down-price",
             error_message=f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
         )
 

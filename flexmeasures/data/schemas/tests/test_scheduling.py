@@ -407,7 +407,7 @@ def test_efficiency_pair(
                 ]
             },
             {
-                "commitments": "Commitment up-price must have a power or energy unit in its denominator."
+                "commitments.0.up-price": "Commitment up-price must have a power or energy unit in its denominator."
             },
         ),
     ],
