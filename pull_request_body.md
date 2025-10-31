@@ -1,1 +1,0 @@
-Pin pip to 25.2 in CI workflow to avoid incompatibility with pip-tools/pip-sync (see pypa/pip#13636). This change updates .github/workflows/lint-and-test.yml on branch ci/pin-pip-25.2 (ref 44767d6be9bf16943f13bb56cc8de5828be88f78).
