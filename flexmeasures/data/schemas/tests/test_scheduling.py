@@ -364,6 +364,38 @@ def test_efficiency_pair(
             },
             False,
         ),
+        # One-day commitment
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": [
+                            {
+                                "value": "10 kW",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "up-price": [
+                            {
+                                "value": "100 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "down-price": [
+                            {
+                                "value": "120 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                    }
+                ]
+            },
+            False,
+        ),
         # Ramp price units with a power baseline
         (
             {
@@ -543,6 +575,40 @@ def test_flex_context_schema(
         (
             {"site-peak-consumption-price": "700 EUR/MW"},
             False,
+        ),
+        # One-day commitment not allowed in DBFlexContext
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": [
+                            {
+                                "value": "10 kW",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "up-price": [
+                            {
+                                "value": "100 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "down-price": [
+                            {
+                                "value": "120 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                    }
+                ]
+            },
+            {
+                "commitments": "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead."
+            },
         ),
     ],
 )
