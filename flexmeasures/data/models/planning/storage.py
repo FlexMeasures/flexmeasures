@@ -1260,7 +1260,7 @@ class StorageScheduler(MetaStorageScheduler):
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
-            sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
+            sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit, event_resolution=sensor.event_resolution)
             for sensor in sensors
             if sensor is not None
         }
