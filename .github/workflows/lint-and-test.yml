@@ -51,8 +51,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
       - run: |
-        ci/setup-postgres.sh
-        sudo apt-get -y install coinor-cbc
+          ci/setup-postgres.sh
+          sudo apt-get -y install coinor-cbc
       - name: Install FlexMeasures & exact dependencies for tests
         run: make install-for-test
         if: github.event_name == 'push' && steps.cache.outputs.cache-hit != 'true'
