@@ -37,9 +37,10 @@ jobs:
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-      - name: Pin pip to 25.2
+      - name: Upgrade pip
+        # Pin due to https://github.com/pypa/pip/issues/13636
         run: |
-          python -m pip install --upgrade "pip==25.2"
+          pip3 install --upgrade "pip==25.2"
       - name: "Caching for dependencies (.txt) - restore existing or ensure new cache will be made"
         uses: actions/cache@v4
         id: cache
