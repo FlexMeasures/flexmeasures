@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Any, Callable, Dict
 
 from marshmallow import (
     Schema,
@@ -541,31 +541,35 @@ class DBFlexContextSchema(FlexContextSchema):
                         field_name="commitments",
                     )
 
-                if not any(
-                    [
-                        validate_sensor_or_fixed(
-                            commitment["up_price"], price_validator
-                        )
-                        for price_validator in price_validators
-                    ]
+                def _ensure_variable_quantity_passes_one_validator(
+                    variable_quantity: ur.Quantity | Sensor | dict,
+                    validators: list[Callable],
+                    field_name: str,
+                    error_message: str,
                 ):
-                    raise ValidationError(
-                        f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
-                        field_name="commitments",
-                    )
+                    if not any(
+                        [
+                            validate_sensor_or_fixed(variable_quantity, validator)
+                            for validator in validators
+                        ]
+                    ):
+                        raise ValidationError(
+                            message=error_message,
+                            field_name=field_name,
+                        )
 
-                if not any(
-                    [
-                        validate_sensor_or_fixed(
-                            commitment["down_price"], price_validator
-                        )
-                        for price_validator in price_validators
-                    ]
-                ):
-                    raise ValidationError(
-                        f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
-                        field_name="commitments",
-                    )
+                _ensure_variable_quantity_passes_one_validator(
+                    variable_quantity=commitment["up_price"],
+                    validators=price_validators,
+                    field_name="commitments",
+                    error_message=f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+                )
+                _ensure_variable_quantity_passes_one_validator(
+                    variable_quantity=commitment["down_price"],
+                    validators=price_validators,
+                    field_name="commitments",
+                    error_message=f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+                )
 
     def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
         """Validate fields based on type and unit validator."""
