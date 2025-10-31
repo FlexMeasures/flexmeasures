@@ -26,7 +26,6 @@ from flexmeasures.utils.unit_utils import (
     units_are_convertible,
     is_capacity_price_unit,
     is_energy_price_unit,
-    get_unit_dimension,
     is_power_unit,
     is_energy_unit,
 )
@@ -67,30 +66,22 @@ class CommitmentSchema(Schema):
 
     @validates_schema
     def check_units(self, commitment, **kwargs):
-        baseline_unit = get_unit_dimension(commitment["baseline"])
-
-        if baseline_unit == "power":
-            baseline_validator = is_power_unit
+        baseline_field = self.declared_fields["baseline"]
+        baseline_unit = baseline_field._get_unit(commitment["baseline"])
+        if is_power_unit(baseline_unit):
             price_validators = [
                 is_capacity_price_unit,
                 is_energy_price_unit,
             ]  # one of these must pass
-            unit_type = "power"
             allowed_price_units = ["power", "energy"]
         # todo: consider supporting more types of baselines here later
-        # elif baseline_unit == "energy":
+        # elif is_energy_unit(baseline_unit):
         #     baseline_validator = is_energy_unit
         #     price_validators = [is_energy_price_unit]
         #     unit_type = "energy"
         else:
             raise ValidationError(
                 "Commitment baseline must have a power unit.",
-                field_name="baseline",
-            )
-
-        if not validate_sensor_or_fixed(commitment["baseline"], baseline_validator):
-            raise ValidationError(
-                f"Commitment baseline must have {unit_type} unit.",
                 field_name="baseline",
             )
 
