@@ -356,7 +356,7 @@ def test_efficiency_pair(
                         "name": "a sample commitment",
                         "baseline": "10 kW",
                         "up-price": "100 EUR/MW",
-                        "down-price": "120 EUR/MW",
+                        "down-price": "120 EUR/MWh",
                     }
                 ]
             },
