@@ -37,9 +37,9 @@ jobs:
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-      - name: Upgrade pip
+      - name: Pin pip to 25.2
         run: |
-          pip3 install --upgrade pip
+          python -m pip install --upgrade "pip==25.2"
       - name: "Caching for dependencies (.txt) - restore existing or ensure new cache will be made"
         uses: actions/cache@v4
         id: cache
@@ -50,8 +50,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
       - run: |
-          ci/setup-postgres.sh
-          sudo apt-get -y install coinor-cbc
+        ci/setup-postgres.sh
+        sudo apt-get -y install coinor-cbc
       - name: Install FlexMeasures & exact dependencies for tests
         run: make install-for-test
         if: github.event_name == 'push' && steps.cache.outputs.cache-hit != 'true'
