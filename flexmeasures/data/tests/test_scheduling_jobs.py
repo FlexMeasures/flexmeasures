@@ -441,4 +441,6 @@ def test_scheduling_unit_conversion(
     ).all()
 
     # Verify all expected entries are created
-    assert len(power_values) == 96, "Expected 96 TimedBelief entries for 1 day at 15-min resolution"
+    assert (
+        len(power_values) == 96
+    ), "Expected 96 TimedBelief entries for 1 day at 15-min resolution"
