@@ -58,12 +58,11 @@ def validate_url(value):
 
 def validate_sensor_or_fixed(value, unit_validator):
     """
-    Check if a given value is a sensor or a fixed value (e.g string), then
-    validate with the unit validator.
+    Check if a given value is a sensor or a fixed value (e.g. string), then validate with the unit validator.
 
     Parameters:
-    :value: The value to be validated.
-    :unit_validator: The validation function used to validate teh value's unit.
+    :param value: The value to be validated.
+    :param unit_validator: The validation function used to validate the value's unit.
     """
 
     if isinstance(value, ur.Quantity):
