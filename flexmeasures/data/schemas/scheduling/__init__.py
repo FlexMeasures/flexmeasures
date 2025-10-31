@@ -43,6 +43,65 @@ class CommitmentSchema(Schema):
         data_key="down-price",
     )
 
+    @validates_schema
+    def check_units(self, commitment, **kwargs):
+        baseline_unit = get_unit_dimension(commitment["baseline"])
+
+        if baseline_unit == "power":
+            baseline_validator = is_power_unit
+            price_validators = [
+                is_capacity_price_unit,
+                is_energy_price_unit,
+            ]  # one of these must pass
+            unit_type = "power"
+            allowed_price_units = ["power", "energy"]
+        # todo: consider supporting more types of baselines here later
+        # elif baseline_unit == "energy":
+        #     baseline_validator = is_energy_unit
+        #     price_validators = [is_energy_price_unit]
+        #     unit_type = "energy"
+        else:
+            raise ValidationError(
+                "Commitment baseline must have a power unit.",
+                field_name="commitments",
+            )
+
+        if not validate_sensor_or_fixed(commitment["baseline"], baseline_validator):
+            raise ValidationError(
+                f"Commitment baseline must have {unit_type} unit.",
+                field_name="commitments",
+            )
+
+        def _ensure_variable_quantity_passes_one_validator(
+            variable_quantity: ur.Quantity | Sensor | dict,
+            validators: list[Callable],
+            field_name: str,
+            error_message: str,
+        ):
+            if not any(
+                [
+                    validate_sensor_or_fixed(variable_quantity, validator)
+                    for validator in validators
+                ]
+            ):
+                raise ValidationError(
+                    message=error_message,
+                    field_name=field_name,
+                )
+
+        _ensure_variable_quantity_passes_one_validator(
+            variable_quantity=commitment["up_price"],
+            validators=price_validators,
+            field_name="commitments",
+            error_message=f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+        )
+        _ensure_variable_quantity_passes_one_validator(
+            variable_quantity=commitment["down_price"],
+            validators=price_validators,
+            field_name="commitments",
+            error_message=f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+        )
+
 
 class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
@@ -465,7 +524,6 @@ class DBFlexContextSchema(FlexContextSchema):
         self._validate_price_fields(data)
         self._validate_power_fields(data)
         self._validate_inflexible_device_sensors(data)
-        self._validate_commitments_field(data)
 
     def _validate_price_fields(self, data: dict):
         """Validate price fields."""
@@ -509,69 +567,6 @@ class DBFlexContextSchema(FlexContextSchema):
         for field in power_fields:
             if field in data:
                 self._validate_field(data, "power", field, is_power_unit)
-
-    def _validate_commitments_field(self, data: dict):
-        """Validate commitments field."""
-        if "commitments" in data:
-            for commitment in data["commitments"]:
-                baseline_unit = get_unit_dimension(commitment["baseline"])
-
-                if baseline_unit == "power":
-                    baseline_validator = is_power_unit
-                    price_validators = [
-                        is_capacity_price_unit,
-                        is_energy_price_unit,
-                    ]  # one of these must pass
-                    unit_type = "power"
-                    allowed_price_units = ["power", "energy"]
-                # todo: consider supporting more types of baselines here later
-                # elif baseline_unit == "energy":
-                #     baseline_validator = is_energy_unit
-                #     price_validators = [is_energy_price_unit]
-                #     unit_type = "energy"
-                else:
-                    raise ValidationError(
-                        "Commitment baseline must have a power unit.",
-                        field_name="commitments",
-                    )
-
-                if not validate_sensor_or_fixed(
-                    commitment["baseline"], baseline_validator
-                ):
-                    raise ValidationError(
-                        f"Commitment baseline must have {unit_type} unit.",
-                        field_name="commitments",
-                    )
-
-                def _ensure_variable_quantity_passes_one_validator(
-                    variable_quantity: ur.Quantity | Sensor | dict,
-                    validators: list[Callable],
-                    field_name: str,
-                    error_message: str,
-                ):
-                    if not any(
-                        [
-                            validate_sensor_or_fixed(variable_quantity, validator)
-                            for validator in validators
-                        ]
-                    ):
-                        raise ValidationError(
-                            message=error_message,
-                            field_name=field_name,
-                        )
-
-                _ensure_variable_quantity_passes_one_validator(
-                    variable_quantity=commitment["up_price"],
-                    validators=price_validators,
-                    field_name="commitments",
-                    error_message=f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
-                )
-                _ensure_variable_quantity_passes_one_validator(
-                    variable_quantity=commitment["down_price"],
-                    validators=price_validators,
-                    field_name="commitments",
-                    error_message=f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
-                )
 
     def _validate_field(self, data: dict, field_type: str, field: str, unit_validator):
         """Validate fields based on type and unit validator."""
