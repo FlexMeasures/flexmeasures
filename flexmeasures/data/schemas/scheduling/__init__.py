@@ -456,6 +456,8 @@ class DBFlexContextSchema(FlexContextSchema):
                     field_name=field.data_key,
                 )
 
+        # todo: check nested VariableQuantityFields, too (such as in the commitments field)
+
     @validates_schema
     def validate_fields_unit(self, data: dict, **kwargs):
         """Check that each field value has a valid unit."""
