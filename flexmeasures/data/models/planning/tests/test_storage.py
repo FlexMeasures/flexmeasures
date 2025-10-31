@@ -59,9 +59,21 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
             "commitments": [
                 {
                     "name": "a sample commitment penalizing peaks",
-                    "baseline": "0 kW",
+                    "baseline": [
+                        {
+                            "value": "0 kW",
+                            "start": start.isoformat(),
+                            "end": end.isoformat(),
+                        }
+                    ],
                     "up-price": "1 EUR/MW",
-                    "down-price": "-1 EUR/MW",
+                    "down-price": [
+                        {
+                            "value": "-1 EUR/MW",
+                            "start": start.isoformat(),
+                            "end": end.isoformat(),
+                        }
+                    ],
                 },
                 {
                     "name": "a sample commitment penalizing demand/supply",
