@@ -103,6 +103,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("generic_assets", lazy=True),
     )
 
+    # not a FK, but representation of this asset in an external system (e.g. IoT solution)
+    external_id = db.Column(db.String(80), default="")
+
     # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",

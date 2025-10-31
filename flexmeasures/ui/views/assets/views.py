@@ -385,6 +385,8 @@ class AssetCrudUI(FlaskView):
                 else "No Parent"
             ),
         }
+        if asset.external_id:
+            asset_summary["External ID"] = asset.external_id
 
         site_asset = asset
         while site_asset.parent_asset_id:
