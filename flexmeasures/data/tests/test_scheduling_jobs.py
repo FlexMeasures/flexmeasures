@@ -392,8 +392,6 @@ def test_scheduling_unit_conversion(
     fresh_db,
     app,
     add_battery_assets_fresh_db,
-    setup_fresh_test_data,
-    add_market_prices_fresh_db,
 ):
     """Test scheduling of a battery SOC sensor with kWh units, ensuring correct data creation and unit handling."""
 
