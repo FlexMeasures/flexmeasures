@@ -394,6 +394,40 @@ def test_efficiency_pair(
             },
             False,
         ),
+        # One-day commitment with wrong baseline unit
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": [
+                            {
+                                "value": "10 kW/h",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "up-price": [
+                            {
+                                "value": "100 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "down-price": [
+                            {
+                                "value": "120 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                    }
+                ]
+            },
+            {
+                "commitments.0.baseline.0.value": "Cannot convert value `10 kW/h` to 'MW'"
+            },
+        ),
         # Ramp price units with a power baseline
         (
             {
