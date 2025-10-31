@@ -33,6 +33,28 @@ from flexmeasures.utils.unit_utils import (
 from flexmeasures.utils.validation_utils import validate_sensor_or_fixed
 
 
+class NoTimeSeriesSpecs(Schema):
+
+    @validates_schema
+    def forbid_time_series_specs(self, data: dict, **kwargs):
+        """Do not allow time series specs for the flex-context fields saved in the db."""
+
+        # List of keys to check for time series specs
+        keys_to_check = []
+        # All the keys in this list are all fields of type VariableQuantity
+        for field_var, field in self.declared_fields.items():
+            if isinstance(field, VariableQuantityField):
+                keys_to_check.append((field_var, field))
+
+        # Check each key and raise a ValidationError if it's a list
+        for field_var, field in keys_to_check:
+            if field_var in data and isinstance(data[field_var], list):
+                raise ValidationError(
+                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
+                    field_name=field.data_key,
+                )
+
+
 class CommitmentSchema(Schema):
     name = fields.Str(required=False, data_key="name")
     baseline = VariableQuantityField("MW", required=False, data_key="baseline")
@@ -103,26 +125,8 @@ class CommitmentSchema(Schema):
         )
 
 
-class DBCommitmentSchema(CommitmentSchema):
-
-    @validates_schema
-    def forbid_time_series_specs(self, data: dict, **kwargs):
-        """Do not allow time series specs for the flex-context fields saved in the db."""
-
-        # List of keys to check for time series specs
-        keys_to_check = []
-        # All the keys in this list are all fields of type VariableQuantity
-        for field_var, field in self.declared_fields.items():
-            if isinstance(field, VariableQuantityField):
-                keys_to_check.append((field_var, field))
-
-        # Check each key and raise a ValidationError if it's a list
-        for field_var, field in keys_to_check:
-            if field_var in data and isinstance(data[field_var], list):
-                raise ValidationError(
-                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
-                    field_name=field.data_key,
-                )
+class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
+    pass
 
 
 class FlexContextSchema(Schema):
@@ -512,7 +516,7 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
 }
 
 
-class DBFlexContextSchema(FlexContextSchema):
+class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
 
     commitments = fields.Nested(
         DBCommitmentSchema, data_key="commitments", required=False, many=True
@@ -521,27 +525,6 @@ class DBFlexContextSchema(FlexContextSchema):
         field: FlexContextSchema().declared_fields[field].data_key
         for field in FlexContextSchema().declared_fields
     }
-
-    @validates_schema
-    def forbid_time_series_specs(self, data: dict, **kwargs):
-        """Do not allow time series specs for the flex-context fields saved in the db."""
-
-        # List of keys to check for time series specs
-        keys_to_check = []
-        # All the keys in this list are all fields of type VariableQuantity
-        for field_var, field in self.declared_fields.items():
-            if isinstance(field, VariableQuantityField):
-                keys_to_check.append((field_var, field))
-
-        # Check each key and raise a ValidationError if it's a list
-        for field_var, field in keys_to_check:
-            if field_var in data and isinstance(data[field_var], list):
-                raise ValidationError(
-                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
-                    field_name=field.data_key,
-                )
-
-        # todo: check nested VariableQuantityFields, too (such as in the commitments field)
 
     @validates_schema
     def validate_fields_unit(self, data: dict, **kwargs):
