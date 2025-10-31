@@ -103,6 +103,28 @@ class CommitmentSchema(Schema):
         )
 
 
+class DBCommitmentSchema(CommitmentSchema):
+
+    @validates_schema
+    def forbid_time_series_specs(self, data: dict, **kwargs):
+        """Do not allow time series specs for the flex-context fields saved in the db."""
+
+        # List of keys to check for time series specs
+        keys_to_check = []
+        # All the keys in this list are all fields of type VariableQuantity
+        for field_var, field in self.declared_fields.items():
+            if isinstance(field, VariableQuantityField):
+                keys_to_check.append((field_var, field))
+
+        # Check each key and raise a ValidationError if it's a list
+        for field_var, field in keys_to_check:
+            if field_var in data and isinstance(data[field_var], list):
+                raise ValidationError(
+                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
+                    field_name=field.data_key,
+                )
+
+
 class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
@@ -491,6 +513,10 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
 
 
 class DBFlexContextSchema(FlexContextSchema):
+
+    commitments = fields.Nested(
+        DBCommitmentSchema, data_key="commitments", required=False, many=True
+    )
     mapped_schema_keys = {
         field: FlexContextSchema().declared_fields[field].data_key
         for field in FlexContextSchema().declared_fields
