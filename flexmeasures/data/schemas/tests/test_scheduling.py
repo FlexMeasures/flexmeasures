@@ -612,7 +612,7 @@ def check_schema_loads_data(schema, data, fails):
                 ]
             },
             {
-                "commitments": "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead."
+                "commitments.0.baseline": "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead."
             },
         ),
     ],
