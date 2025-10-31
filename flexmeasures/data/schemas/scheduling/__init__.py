@@ -516,15 +516,20 @@ class DBFlexContextSchema(FlexContextSchema):
 
                 if baseline_unit == "power":
                     baseline_validator = is_power_unit
-                    price_validator = is_capacity_price_unit
+                    price_validators = [
+                        is_capacity_price_unit,
+                        is_energy_price_unit,
+                    ]  # one of these must pass
                     unit_type = "power"
-                elif baseline_unit == "energy":
-                    baseline_validator = is_energy_unit
-                    price_validator = is_energy_price_unit
-                    unit_type = "energy"
+                    allowed_price_units = ["power", "energy"]
+                # todo: consider supporting more types of baselines here later
+                # elif baseline_unit == "energy":
+                #     baseline_validator = is_energy_unit
+                #     price_validators = [is_energy_price_unit]
+                #     unit_type = "energy"
                 else:
                     raise ValidationError(
-                        "Commitment baseline must have either a power or energy unit.",
+                        "Commitment baseline must have a power unit.",
                         field_name="commitments",
                     )
 
@@ -536,19 +541,29 @@ class DBFlexContextSchema(FlexContextSchema):
                         field_name="commitments",
                     )
 
-                if not validate_sensor_or_fixed(
-                    commitment["up_price"], price_validator
+                if not any(
+                    [
+                        validate_sensor_or_fixed(
+                            commitment["up_price"], price_validator
+                        )
+                        for price_validator in price_validators
+                    ]
                 ):
                     raise ValidationError(
-                        f"Commitment up-price must have {unit_type} unit.",
+                        f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
                         field_name="commitments",
                     )
 
-                if not validate_sensor_or_fixed(
-                    commitment["down_price"], is_capacity_price_unit
+                if not any(
+                    [
+                        validate_sensor_or_fixed(
+                            commitment["down_price"], price_validator
+                        )
+                        for price_validator in price_validators
+                    ]
                 ):
                     raise ValidationError(
-                        f"Commitment down-price must have {unit_type} unit.",
+                        f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
                         field_name="commitments",
                     )
 

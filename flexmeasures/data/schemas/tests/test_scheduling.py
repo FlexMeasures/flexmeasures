@@ -477,8 +477,8 @@ def test_flex_context_schema(
                     {
                         "name": "a sample commitment",
                         "baseline": "10 kWh",
-                        "up-price": "100 EUR/MW",
-                        "down-price": "120 EUR/MW",
+                        "up-price": "100 EUR/MWh",
+                        "down-price": "120 EUR/MWh",
                     }
                 ]
             },
@@ -486,19 +486,21 @@ def test_flex_context_schema(
                 "commitments": "{'baseline': [\"Cannot convert value `10 kWh` to 'MW'\"]}"
             },
         ),
+        # Energy price units with a power baseline
         (
             {
                 "commitments": [
                     {
                         "name": "a sample commitment",
                         "baseline": "10 kW",
-                        "up-price": "100 EUR/MW",
+                        "up-price": "100 EUR/MWh",
                         "down-price": "120 EUR/MWh",
                     }
                 ]
             },
-            {"commitments": "Commitment down-price must have power unit."},
+            False,
         ),
+        # Power price units with a power baseline
         (
             {
                 "commitments": [
@@ -511,6 +513,36 @@ def test_flex_context_schema(
                 ]
             },
             False,
+        ),
+        # Mixed (power and energy) price units with a power baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MW",
+                        "down-price": "120 EUR/MW",
+                    }
+                ]
+            },
+            False,
+        ),
+        # Ramp price units with a power baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MW/h",
+                        "down-price": "120 EUR/MW/h",
+                    }
+                ]
+            },
+            {
+                "commitments": "Commitment up-price must have a power or energy unit in its denominator."
+            },
         ),
     ],
 )
