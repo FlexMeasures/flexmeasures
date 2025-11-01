@@ -397,7 +397,7 @@ def test_scheduling_unit_conversion(
 ):
     """Test scheduling of a battery SOC sensor with kWh units, ensuring correct data creation and unit handling."""
 
-    battery_soc_sensor = add_battery_assets_fresh_db["Test battery"].sensors[2]
+    battery_consumption_sensor = add_battery_assets_fresh_db["Test battery"].sensors[2]
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -413,7 +413,7 @@ def test_scheduling_unit_conversion(
     )
 
     job = create_scheduling_job(
-        asset_or_sensor=battery_soc_sensor,
+        asset_or_sensor=battery_consumption_sensor,
         start=start,
         end=end,
         belief_time=start,
