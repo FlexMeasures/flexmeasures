@@ -437,7 +437,7 @@ def test_scheduling_unit_conversion(
 
     power_values = fresh_db.session.scalars(
         select(TimedBelief)
-        .filter(TimedBelief.sensor_id == battery_soc_sensor.id)
+        .filter(TimedBelief.sensor_id == battery_consumption_sensor.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
     ).all()
 
