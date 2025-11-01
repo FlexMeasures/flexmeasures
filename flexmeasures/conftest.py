@@ -969,8 +969,8 @@ def create_test_battery_assets(
     )
     db.session.add(test_battery_sensor_small)
 
-    test_battery_soc_sensor = Sensor(
-        name="state of charge",
+    test_battery_consumption_sensor = Sensor(
+        name="power",
         generic_asset=test_battery,
         event_resolution=timedelta(minutes=15),
         unit="MWh",
@@ -980,7 +980,7 @@ def create_test_battery_assets(
             yearly_seasonality=True,
         ),
     )
-    db.session.add(test_battery_soc_sensor)
+    db.session.add(test_battery_consumption_sensor)
 
     db.session.flush()
     return {
