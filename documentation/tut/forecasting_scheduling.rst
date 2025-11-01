@@ -71,11 +71,11 @@ There might be reasons to add forecasts of past time ranges. For instance, for v
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 
-Here we request 6-hour forecasts to be made for two sensors, for a period of two days:
+Here we request 6-hour forecasts to be made for one sensor, for a period of two days:
 
 .. code-block:: bash
 
-    $ flexmeasures add forecasts --sensor 2 --sensor 3 \
+    $ flexmeasures add forecasts --sensor 2 \
         --from-date 2015-02-01 --to-date 2015-08-31 \
         --horizon 6 --as-job
 
@@ -85,7 +85,7 @@ It can be good advice to dispatch this work in smaller chunks.
 Alternatively, note the ``--as-job`` parameter.
 If you use it, the forecasting jobs will be queued and picked up by worker processes (see above). You could run several workers (e.g. one per CPU) to get this work load done faster.
 
-Run ``flexmeasures add forecasts --help`` for more information.
+Run flexmeasures add forecasts --help for details on CLI parameters, or see :ref:forecasting to learn more about forecasting.
 
 
 .. _how_queue_scheduling:

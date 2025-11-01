@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -95,6 +96,16 @@ class DataGenerator:
             self._config = self._config_schema.load({})
 
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
+        """Overwrite with the actual computation of your data generator.
+
+        :returns list of dictionaries, for example:
+                 [
+                     {
+                         "sensor": 501,
+                         "data": <a BeliefsDataFrame>,
+                     },
+                 ]
+        """
         raise NotImplementedError()
 
     def compute(self, parameters: dict | None = None, **kwargs) -> list[dict[str, Any]]:
@@ -105,7 +116,8 @@ class DataGenerator:
         `parameters` cannot contain the key `parameters` at its top level, otherwise it could conflict with keyword argument `parameters`
         of the method compute when passing the `parameters` as deserialized attributes.
 
-        :param parameters: serialized `parameters` parameters, defaults to None
+        :param parameters:  Serialized parameters, defaults to None.
+        :param kwargs:      Deserialized parameters (can be used as an alternative to the `parameters` kwarg).
         """
 
         if self._parameters is None:
@@ -118,10 +130,30 @@ class DataGenerator:
 
         self._parameters = self._parameters_schema.load(self._parameters)
 
-        return self._compute(**self._parameters)
+        results = self._compute(**self._parameters)
+        results = self._assign_sensors_and_source(results)
+        return results
+
+    def _assign_sensors_and_source(
+        self, results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Assign sensors and the DataGenerator's source to the results."""
+        for result in results:
+
+            # Update the BeliefDataFrame's sensor to be the intended sensor
+            result["data"].sensor = result["sensor"]
+
+            # Update all data sources in the BeliefsDataFrame to the data source representing the configured reporter
+            result["data"].index = result["data"].index.set_levels(
+                [self.data_source] * len(result["data"]),
+                level="source",
+                verify_integrity=False,
+            )
+
+        return results
 
     @staticmethod
-    def validate_deserialized(values: dict, schema: Schema) -> bool:
+    def validate_deserialized(values: dict, schema: Schema):
         schema.load(schema.dump(values))
 
     @classmethod
@@ -177,7 +209,7 @@ class DataGenerator:
 
         Example:
 
-            An DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
+            A DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
             to be persisted.
 
             Parameters provided to the `compute` method (input of the method `_clean_parameters`):
@@ -191,8 +223,24 @@ class DataGenerator:
             Parameters persisted to the DB (output of the method `_clean_parameters`):
             parameters = {"field1" : 1,"field2" : 2}
         """
+        _parameters = deepcopy(parameters)
+        fields_to_remove = ["start", "end", "resolution", "belief_time"]
 
-        raise NotImplementedError()
+        for field in fields_to_remove:
+            _parameters.pop(field, None)
+
+        fields_to_remove_input = [
+            "event_starts_after",
+            "event_ends_before",
+            "belief_time",
+            "resolution",
+        ]
+
+        for _input in _parameters["input"]:
+            for field in fields_to_remove_input:
+                _input.pop(field, None)
+
+        return _parameters
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
