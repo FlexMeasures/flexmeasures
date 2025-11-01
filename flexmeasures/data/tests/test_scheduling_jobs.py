@@ -422,6 +422,7 @@ def test_scheduling_unit_conversion(
             "roundtrip-efficiency": "98%",
             "storage-efficiency": 0.999,
         },
+        flex_context={"inflexible-device-sensors": [battery_consumption_sensor.id]},
     )
 
     print("Job: %s" % job.id)
