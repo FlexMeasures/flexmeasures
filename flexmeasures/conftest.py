@@ -973,7 +973,7 @@ def create_test_battery_assets(
         name="state of charge",
         generic_asset=test_battery,
         event_resolution=timedelta(minutes=15),
-        unit="MWh",
+        unit="MW",
         attributes=dict(
             daily_seasonality=True,
             weekly_seasonality=True,
