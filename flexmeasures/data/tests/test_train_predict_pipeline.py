@@ -3,8 +3,6 @@ from __future__ import annotations
 import pytest
 import logging
 
-import logging
-
 from datetime import timedelta
 
 from marshmallow import ValidationError
@@ -321,6 +319,8 @@ def test_missing_data_logs_warning(
         assert "missing values" in str(
             excinfo.value
         ), "Expected CustomException for missing data threshold"
+
+
 def test_train_period_capped_logs_warning(
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
