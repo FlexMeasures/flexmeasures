@@ -75,10 +75,11 @@ services:
       MAIL_PORT: 1025        # MailHog mail port
       LOGGING_LEVEL: INFO
     volumes:
-      # a place for config and plugin code, and custom requirements.txt
-      # the 1st mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
-      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
-      - ./flexmeasures-instance/:/app/instance/:ro
+      # A place for config and plugin code, and custom requirements.txt
+      # The 1st mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
+      # We use :rw so flexmeasures CLI commands can write log files
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:rw
+      - ./flexmeasures-instance/:/app/instance/:rw
     entrypoint: ["/bin/sh", "-c"]
     command:
     - |
@@ -107,7 +108,7 @@ services:
       LOGGING_LEVEL: INFO 
     volumes:
       # a place for config and plugin code, and custom requirements.txt
-      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:rw
     entrypoint: ["/bin/sh", "-c"]
     command: 
     - |
