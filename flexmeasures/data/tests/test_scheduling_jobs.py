@@ -395,7 +395,7 @@ def test_scheduling_unit_conversion(
     setup_fresh_test_data,
     add_market_prices_fresh_db,
 ):
-    """Test scheduling of a battery SOC sensor with kWh units, ensuring correct data creation and unit handling."""
+    """Test scheduling of a battery consumption sensor with kWh units, ensuring correct data creation and unit handling."""
 
     battery_consumption_sensor = add_battery_assets_fresh_db["Test battery"].sensors[2]
 
