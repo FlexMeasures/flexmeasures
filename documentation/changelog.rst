@@ -12,6 +12,7 @@ v0.30.0 | November XX, 2025
 
 New features
 -------------
+* Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more) [see `PR #1546 <https://github.com/FlexMeasures/flexmeasures/pull/1546>`_]
 * The new ``commitments`` field in the ``flex-context`` can be used to specify previous commitments (e.g. market positions) that the scheduler needs to take into account [see `PR #1754 <https://github.com/FlexMeasures/flexmeasures/pull/1754>`_]
 * Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
 * Let consultants see client assets on dashboard and group by account [see `PR #1763 <https://github.com/FlexMeasures/flexmeasures/pull/1763>`_]
@@ -184,7 +185,6 @@ v0.27.0 | July 20, 2025
 .. note::  Preparatory warning: The following release will not support Python 3.8 anymore.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-
 
 New features
 -------------
