@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 import logging
 
+import logging
+
 from datetime import timedelta
 
 from marshmallow import ValidationError
@@ -265,6 +267,7 @@ def test_train_predict_pipeline(
                 "start_date": "2025-01-01T00:00+02:00",
                 "end_date": "2025-01-30T00:00+02:00",
                 "missing_threshold": "0.0",
+                "max_training_period": "P10D",  # cap at 10 days
                 "sensor_to_save": None,
                 "start_predict_date": "2025-01-25T00:00+02:00",
                 "retrain_frequency": "P1D",
@@ -318,3 +321,29 @@ def test_missing_data_logs_warning(
         assert "missing values" in str(
             excinfo.value
         ), "Expected CustomException for missing data threshold"
+def test_train_period_capped_logs_warning(
+    setup_fresh_test_forecast_data,
+    config,  # config passed to the Forecaster
+    params,  # parameters passed to the compute method of the Forecaster
+    caplog,
+):
+    """
+    Verify that a warning is logged when train_period exceeds max_training_period,
+    and that train_period is capped accordingly.
+    """
+    sensor = setup_fresh_test_forecast_data[params["sensor"]]
+    params["sensor"] = sensor.id
+
+    with caplog.at_level(logging.WARNING):
+        pipeline = TrainPredictPipeline(config=config)
+        pipeline.compute(parameters=params)
+
+    assert any(
+        "train-period is greater than max-training-period" in message
+        for message in caplog.messages
+    ), "Expected warning about capping train_period"
+
+    params_used = pipeline._parameters
+    assert params_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
+        hours=1
+    ), "train_period_in_hours should be capped to max_training_period"

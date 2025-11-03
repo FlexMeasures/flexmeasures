@@ -1103,6 +1103,10 @@ def add_holidays(
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
 @click.option(
+    "--max-training-period",
+    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). defaults to 1 year.",
+)
+@click.option(
     "--resolution",
     help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
 )
