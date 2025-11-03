@@ -319,6 +319,7 @@ def test_missing_data_logs_warning(
             excinfo.value
         ), "Expected CustomException for missing data threshold"
 
+
 # Test that max_training_period caps train_period and logs a warning
 @pytest.mark.parametrize(
     ["config", "params"],
