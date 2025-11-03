@@ -265,7 +265,6 @@ def test_train_predict_pipeline(
                 "start_date": "2025-01-01T00:00+02:00",
                 "end_date": "2025-01-30T00:00+02:00",
                 "missing_threshold": "0.0",
-                "max_training_period": "P10D",  # cap at 10 days
                 "sensor_to_save": None,
                 "start_predict_date": "2025-01-25T00:00+02:00",
                 "retrain_frequency": "P1D",
@@ -320,7 +319,31 @@ def test_missing_data_logs_warning(
             excinfo.value
         ), "Expected CustomException for missing data threshold"
 
-
+# Test that max_training_period caps train_period and logs a warning
+@pytest.mark.parametrize(
+    ["config", "params"],
+    [
+        (
+            {
+                # "model": "CustomLGBM",
+            },
+            {
+                "sensor": "solar-sensor",
+                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output_path": None,
+                "start_date": "2025-01-01T00:00+02:00",
+                "end_date": "2025-01-30T00:00+02:00",
+                "max_training_period": "P10D",  # cap at 10 days
+                "sensor_to_save": None,
+                "start_predict_date": "2025-01-25T00:00+02:00",
+                "retrain_frequency": "P1D",
+                "max_forecast_horizon": "PT1H",
+                "forecast_frequency": "PT1H",
+                "probabilistic": False,
+            },
+        ),
+    ],
+)
 def test_train_period_capped_logs_warning(
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
