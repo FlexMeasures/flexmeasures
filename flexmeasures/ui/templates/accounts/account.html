@@ -323,7 +323,7 @@
             <label for="email" class="form-label">Email</label>
             <input type="email" class="form-control" id="email" name="email" required>
             <small class="text-muted">
-              Your email will be used as the initial password. The user can change it after logging in.
+              The user will receive an email with a URL for setting an initial password.
             </small>
           </div>
 
@@ -522,7 +522,7 @@ $(document).ready(function () {
   });
 }); 
 
-  const asset_icon_map = JSON.parse("{{ asset_icon_map | tojson | safe }}");
+  const asset_icon_map = JSON.parse('{{ asset_icon_map | tojson | safe }}');
 
   function Asset(id, name, account, latitude, longitude, sensors, asset_type) {
     let icon = asset_icon_map[asset_type.toLowerCase()];

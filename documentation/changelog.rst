@@ -12,6 +12,7 @@ v0.30.0 | November XX, 2025
 
 New features
 -------------
+* The new ``commitments`` field in the ``flex-context`` can be used to specify previous commitments (e.g. market positions) that the scheduler needs to take into account [see `PR #1754 <https://github.com/FlexMeasures/flexmeasures/pull/1754>`_]
 * Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
 * Let consultants see client assets on dashboard and group by account [see `PR #1763 <https://github.com/FlexMeasures/flexmeasures/pull/1763>`_]
 
@@ -32,7 +33,10 @@ v0.29.1 | October XX, 2025
 
 Bugfixes
 -----------
+* Fix account and assets/owned_by pages rendering, giving them asset icons [see `PR #1772 <https://github.com/FlexMeasures/flexmeasures/pull/1772>`_]
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
+* Fixed bug where removed flexmodel fields didn't show up under the flexoption dropdown, except after a page refresh. [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1775>`_]
+* Fix bug in displaying user audit log (incl. expanding its API schema) [see `PR #1779 <https://github.com/FlexMeasures/flexmeasures/pull/1779>`_]
 
 
 v0.29.0 | October 14, 2025
