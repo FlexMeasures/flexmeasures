@@ -683,13 +683,18 @@ class BasePipeline:
             data_darts_gaps = data_darts.gaps()
 
             # Calculate number of missing rows per gap
-            data_darts_gaps["missing_rows"] = ((data_darts_gaps["gap_end"] - data_darts_gaps["gap_start"]) / sensor.event_resolution).astype(int)
+            data_darts_gaps["missing_rows"] = (
+                (data_darts_gaps["gap_end"] - data_darts_gaps["gap_start"])
+                / sensor.event_resolution
+            ).astype(int)
 
             # Total missing rows
             total_missing = data_darts_gaps["missing_rows"].sum()
 
             # Total expected rows in full dataset
-            total_expected = int((end - start) / sensor.event_resolution) + 1  # +1 if inclusive of both ends
+            total_expected = (
+                int((end - start) / sensor.event_resolution) + 1
+            )  # +1 if inclusive of both ends
 
             # Fraction of missing rows
             missing_rows_fraction = total_missing / total_expected
