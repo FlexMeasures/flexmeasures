@@ -38,7 +38,6 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.utils.time_utils import get_max_planning_horizon
-from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units
 
@@ -1867,24 +1866,3 @@ def prepend_series(series: pd.Series, value) -> pd.Series:
     # sort index to keep the time ordering
     series = series.sort_index()
     return series.shift(1)
-
-
-#####################
-# TO BE DEPRECATED #
-####################
-@deprecated(build_device_soc_values, "0.14")
-def build_device_soc_targets(
-    targets: list[dict[str, datetime | float]] | pd.Series,
-    soc_at_start: float,
-    start_of_schedule: datetime,
-    end_of_schedule: datetime,
-    resolution: timedelta,
-) -> pd.Series:
-    return build_device_soc_values(
-        targets, soc_at_start, start_of_schedule, end_of_schedule, resolution
-    )
-
-
-StorageScheduler.compute_schedule = deprecated(StorageScheduler.compute, "0.14")(
-    StorageScheduler.compute_schedule
-)
