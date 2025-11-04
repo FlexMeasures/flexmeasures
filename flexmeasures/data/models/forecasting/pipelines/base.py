@@ -682,7 +682,18 @@ class BasePipeline:
             # Identify gaps in the time index (where timestamp rows are missing)
             data_darts_gaps = data_darts.gaps()
 
-            missing_rows_fraction = len(data_darts_gaps) / len(data_darts)
+            # Calculate number of missing rows per gap
+            data_darts_gaps["missing_rows"] = ((data_darts_gaps["gap_end"] - data_darts_gaps["gap_start"]) / sensor.event_resolution).astype(int)
+
+            # Total missing rows
+            total_missing = data_darts_gaps["missing_rows"].sum()
+
+            # Total expected rows in full dataset
+            total_expected = int((end - start) / sensor.event_resolution) + 1  # +1 if inclusive of both ends
+
+            # Fraction of missing rows
+            missing_rows_fraction = total_missing / total_expected
+
             if missing_rows_fraction > self.missing_threshold:
                 raise ValueError(
                     f"Sensor {sensor_name} has {missing_rows_fraction*100:.1f}% missing values "
