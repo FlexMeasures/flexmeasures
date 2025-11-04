@@ -60,7 +60,7 @@ class PredictPipeline(BasePipeline):
         :param data_source: Data source to attribute the forecasts to.
         :param probabilistic: Whether to use a probabilistic model.
         :param sensor_to_save: Sensor to which the predictions will be attributed.
-        :param missing_threshold: Max fraction of missing data allowed before failure. missing data under the threshold will be filled with our interpolation methods.
+        :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         """
         super().__init__(
             future_regressors=future_regressors,
