@@ -369,6 +369,7 @@ def test_train_period_capped_logs_warning(
     ), "Expected warning about capping train_period"
 
     params_used = pipeline._parameters
+    assert params_used["missing_threshold"] == 1
     assert params_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
         hours=1
     ), "train_period_in_hours should be capped to max_training_period"
