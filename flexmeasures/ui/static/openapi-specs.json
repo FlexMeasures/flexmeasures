@@ -23,7 +23,8 @@
                   "type": "object",
                   "properties": {
                     "authentication_token": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Short-lived authentication token, which can be used in request headers using `{\"Authorization\": authentication_token}`.\n"
                     }
                   }
                 }
@@ -311,6 +312,7 @@
           {
             "in": "query",
             "name": "start",
+            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -1584,6 +1586,7 @@
               "enum": [
                 "username",
                 "email",
+                "event_datetime",
                 "lastLogin",
                 "lastSeen"
               ]
@@ -3407,11 +3410,23 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.30.0.dev1"
+    "version": "0.28.0.dev36"
   },
   "openapi": "3.0.2",
   "components": {
     "schemas": {
+      "Commitment": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "baseline": {},
+          "up-price": {},
+          "down-price": {}
+        },
+        "additionalProperties": false
+      },
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
@@ -3481,6 +3496,12 @@
           },
           "ems_peak_production_price": {
             "type": "string"
+          },
+          "commitments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Commitment"
+            }
           },
           "inflexible-device-sensors": {
             "type": "array",
@@ -3643,11 +3664,15 @@
         "properties": {
           "id": {
             "type": "integer",
-            "readOnly": true
+            "readOnly": true,
+            "description": "The sensor's ID, which is automatically assigned.",
+            "example": 5
           },
           "name": {
             "type": "string",
-            "maxLength": 120
+            "maxLength": 120,
+            "description": "The sensor's name.",
+            "example": "power"
           }
         },
         "required": [
@@ -3863,28 +3888,42 @@
         "properties": {
           "id": {
             "type": "integer",
-            "readOnly": true
+            "readOnly": true,
+            "description": "The sensor's ID, which is automatically assigned.",
+            "example": 5
           },
           "name": {
             "type": "string",
-            "maxLength": 120
+            "maxLength": 120,
+            "description": "The sensor's name.",
+            "example": "power"
           },
           "unit": {
             "type": "string",
-            "maxLength": 80
+            "maxLength": 80,
+            "description": "The sensor's (physical or economical) unit. Supports [<abbr title='International System of Units'>SI</abbr> units](https://en.wikipedia.org/wiki/International_System_of_Units) and [currency codes](https://en.wikipedia.org/wiki/ISO_4217).",
+            "example": "EUR/kWh"
           },
           "timezone": {
             "type": "string",
-            "maxLength": 80
+            "maxLength": 80,
+            "description": "The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone.",
+            "example": "Europe/Amsterdam"
           },
           "event_resolution": {
-            "type": "string"
+            "type": "string",
+            "description": "The duration of events recorded by the sensor.",
+            "example": "PT15M"
           },
           "entity_address": {
             "type": "string",
-            "readOnly": true
+            "readOnly": true,
+            "description": "Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
           },
-          "attributes": {},
+          "attributes": {
+            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
+            "example": "{consumption_is_positive: True}"
+          },
           "generic_asset_id": {
             "type": "integer",
             "description": "The asset that the sensor belongs to."
@@ -3903,7 +3942,8 @@
         "properties": {
           "start": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format."
           },
           "duration": {
             "type": "string"
