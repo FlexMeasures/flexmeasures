@@ -994,37 +994,37 @@ class SensorAPI(FlaskView):
                 application/json:
                   schema: SensorSchema
                   examples:
-                  a price sensor:
-                    summary: A day-ahead price sensor recording 15-minute prices.
-                    description: |
-                      A day-ahead price sensor recording the day-ahead electricity price in EUR/kWh with a 15-minute resolution.
-                      The sensor is assigned to asset 1.
-                      Data from this sensor will be show offsets corresponding to the Europe/Amsterdam timezone.
-                    value:
-                      id: 14
-                      name: day-ahead electricity price
-                      unit: EUR/kWh
-                      timezone: Europe/Amsterdam
-                      event_resolution: PT15M
-                      entity_address: ea1.2021-01.io.flexmeasures:fm1.14
-                      generic_asset_id: 1
-                  a power sensor:
-                    summary: A power sensor recording average consumption every 5 minutes.
-                    description: |
-                      A power sensor recording average power flow in kW with a 5-minute resolution.
-                      The sensor records consumption as positive values.
-                      It is assigned to asset 1.
-                      Data from this sensor will be show offsets corresponding to the Europe/Amsterdam timezone.
-                    value:
-                      id: 5
-                      name: power
-                      unit: kW
-                      timezone: Europe/Amsterdam
-                      event_resolution: PT5M
-                      entity_address: ea1.2021-01.io.flexmeasures:fm1.5
-                      attributes:
-                        consumption_is_positive: true
-                      generic_asset_id: 1
+                a price sensor:
+                  summary: A day-ahead price sensor recording 15-minute prices.
+                  description: |
+                    A day-ahead price sensor recording the day-ahead electricity price in EUR/kWh with a 15-minute resolution.
+                    The sensor is assigned to asset 1.
+                    Data from this sensor will be show offsets corresponding to the Europe/Amsterdam timezone.
+                  value:
+                    id: 14
+                    name: day-ahead electricity price
+                    unit: EUR/kWh
+                    timezone: Europe/Amsterdam
+                    event_resolution: PT15M
+                    entity_address: ea1.2021-01.io.flexmeasures:fm1.14
+                    generic_asset_id: 1
+                a power sensor:
+                  summary: A power sensor recording average consumption every 5 minutes.
+                  description: |
+                    A power sensor recording average power flow in kW with a 5-minute resolution.
+                    The sensor records consumption as positive values.
+                    It is assigned to asset 1.
+                    Data from this sensor will be show offsets corresponding to the Europe/Amsterdam timezone.
+                  value:
+                    id: 5
+                    name: power
+                    unit: kW
+                    timezone: Europe/Amsterdam
+                    event_resolution: PT5M
+                    entity_address: ea1.2021-01.io.flexmeasures:fm1.5
+                    attributes:
+                      consumption_is_positive: true
+                    generic_asset_id: 1
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
