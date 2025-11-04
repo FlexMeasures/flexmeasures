@@ -1302,8 +1302,8 @@ class StorageScheduler(MetaStorageScheduler):
                 for soc_at_start_d in soc_at_start
             ],
         )
-        if scheduler_results.solver.termination_condition == "infeasible":
-            raise InfeasibleProblemException()
+        if "infeasible" in (tc := scheduler_results.solver.termination_condition):
+            raise InfeasibleProblemException(tc)
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = {
