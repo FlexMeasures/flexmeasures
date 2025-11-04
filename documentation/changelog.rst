@@ -35,7 +35,7 @@ v0.29.1 | October XX, 2025
 
 Bugfixes
 -----------
-* Fix account and assets/owned_by pages rendering, giving them asset icons [see `PR #1772 <https://github.com/FlexMeasures/flexmeasures/pull/1772>`_]
+* Fix account and /assets/owned_by pages rendering, giving them asset icons [see `PR #1772 <https://github.com/FlexMeasures/flexmeasures/pull/1772>`_]
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
 * Fixed bug where removed flex-model fields didn't show up under the dropdown for new fields, except after a page refresh [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1775>`_]
 * Fix bug in displaying user audit log (incl. expanding its API schema) [see `PR #1779 <https://github.com/FlexMeasures/flexmeasures/pull/1779>`_]
@@ -445,7 +445,7 @@ v0.22.0 | June 29, 2024
 
 New features
 -------------
-* Add `asset/<id>/auditlog` to view asset related actions [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
+* Add `/asset/<id>/auditlog` to view asset related actions [see `PR #1067 <https://github.com/FlexMeasures/flexmeasures/pull/1067>`_]
 * On the `/sensor/id` page, allow to link to it with a date range and to copy current view as URL [see `PR #1094 <https://github.com/FlexMeasures/flexmeasures/pull/1094>`_]
 * Flex-context (price sensors and inflexible device sensors) can now be set on the asset page (and are part of GenericAsset model) [see `PR #1059 <https://github.com/FlexMeasures/flexmeasures/pull/1059/>`_]
 * On the asset page's default view, facilitate comparison by showing the two default sensors together if they record the same unit [see `PR #1066 <https://github.com/FlexMeasures/flexmeasures/pull/1066>`_]
@@ -478,8 +478,8 @@ v0.21.0 | May 16, 2024
 
 New features
 -------------
-* Add `asset/<id>/status` page to view asset statuses [see `PR #941 <https://github.com/FlexMeasures/flexmeasures/pull/941>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035>`_]
-* Add `account/<id>/auditlog` and `user/<id>/auditlog` to view user and account related actions [see `PR #1042 <https://github.com/FlexMeasures/flexmeasures/pull/1042>`_]
+* Add `/asset/<id>/status` page to view asset statuses [see `PR #941 <https://github.com/FlexMeasures/flexmeasures/pull/941>`_ and `PR #1035 <https://github.com/FlexMeasures/flexmeasures/pull/1035>`_]
+* Add `/account/<id>/auditlog` and `/user/<id>/auditlog` to view user and account related actions [see `PR #1042 <https://github.com/FlexMeasures/flexmeasures/pull/1042>`_]
 * Support ``start_date`` and ``end_date`` query parameters for the asset page [see `PR #1030 <https://github.com/FlexMeasures/flexmeasures/pull/1030>`_]
 * In plots, add the asset name to the title of the tooltip to improve the identification of the lines [see `PR #1054 <https://github.com/FlexMeasures/flexmeasures/pull/1054>`_]
 * On asset page, show sensor IDs in sensor table [see `PR #1053 <https://github.com/FlexMeasures/flexmeasures/pull/1053>`_]
@@ -1183,7 +1183,7 @@ Bugfixes
 -----------
 * Fix users resetting their own password [see `PR #195 <https://www.github.com/FlexMeasures/flexmeasures/pull/195>`_]
 * Fix scheduling for heterogeneous settings, for instance, involving sensors with different time zones and/or resolutions [see `PR #207 <https://www.github.com/FlexMeasures/flexmeasures/pull/207>`_]
-* Fix ``sensors/<id>/chart`` view [see `PR #223 <https://www.github.com/FlexMeasures/flexmeasures/pull/223>`_]
+* Fix ``/sensors/<id>/chart`` view [see `PR #223 <https://www.github.com/FlexMeasures/flexmeasures/pull/223>`_]
 
 Infrastructure / Support
 ----------------------
