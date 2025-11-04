@@ -677,7 +677,7 @@ New features
 * Chart data visible in the UI can be exported to CSV format [see `PR #849 <https://github.com/FlexMeasures/flexmeasures/pull/849>`_]
 * Sensor charts showing instantaneous observations can be interpolated by setting the ``interpolate`` sensor attribute to one of the `supported Vega-Lite interpolation methods <https://vega.github.io/vega-lite/docs/area.html#properties>`_ [see `PR #851 <https://github.com/FlexMeasures/flexmeasures/pull/851>`_]
 * API users can ask for a schedule to take into account an explicit ``power-capacity`` (flex-model) and/or ``site-power-capacity`` (flex-context), thereby overriding any existing defaults for their asset [see `PR #850 <https://github.com/FlexMeasures/flexmeasures/pull/850>`_]
-* API users (and hosts) are warned in case a fallback scheduling policy has been used to create their schedule (as part of the the `/sensors/<id>/schedules/<uuid>` (GET) response message) [see `PR #859 <https://github.com/FlexMeasures/flexmeasures/pull/859>`_]
+* API users (and hosts) are warned in case a fallback scheduling policy has been used to create their schedule (as part of the the `[GET] /sensors/<id>/schedules/<uuid>` response message) [see `PR #859 <https://github.com/FlexMeasures/flexmeasures/pull/859>`_]
 
 Infrastructure / Support
 ----------------------
@@ -727,7 +727,7 @@ New features
 -------------
 * Add ``ProcessScheduler`` class to optimize the starting time of processes one of the policies developed (``INFLEXIBLE``, ``SHIFTABLE`` and ``BREAKABLE``), accessible via the CLI command ``flexmeasures add schedule for-process`` [see `PR #729 <https://www.github.com/FlexMeasures/flexmeasures/pull/729>`_ and `PR #768 <https://www.github.com/FlexMeasures/flexmeasures/pull/768>`_]
 * Users can select a new chart type (daily heatmap) on the sensor page of the UI, showing how sensor values are distributed over the time of day [see `PR #715 <https://www.github.com/FlexMeasures/flexmeasures/pull/715>`_]
-* Added API endpoints `/sensors/<id>` (GET) for fetching a single sensor, `/sensors` (POST) for adding a sensor, `/sensors/<id>` (PATCH) for updating a sensor and `/sensors/<id>` (DELETE) for deleting a sensor [see `PR #759 <https://www.github.com/FlexMeasures/flexmeasures/pull/759>`_] and [see `PR #767 <https://www.github.com/FlexMeasures/flexmeasures/pull/767>`_] and [see `PR #773 <https://www.github.com/FlexMeasures/flexmeasures/pull/773>`_] and [see `PR #784 <https://www.github.com/FlexMeasures/flexmeasures/pull/784>`_]
+* Added API endpoints `[GET] /sensors/<id>` for fetching a single sensor, `[POST] /sensors` for adding a sensor, `/sensors/<id>` (PATCH) for updating a sensor and `/sensors/<id>` (DELETE) for deleting a sensor [see `PR #759 <https://www.github.com/FlexMeasures/flexmeasures/pull/759>`_] and [see `PR #767 <https://www.github.com/FlexMeasures/flexmeasures/pull/767>`_] and [see `PR #773 <https://www.github.com/FlexMeasures/flexmeasures/pull/773>`_] and [see `PR #784 <https://www.github.com/FlexMeasures/flexmeasures/pull/784>`_]
 * Users are warned in the UI on when the data they are seeing includes one or more :abbr:`DST (Daylight Saving Time)` transitions, and heatmaps (see previous feature) visualize these transitions intuitively [see `PR #723 <https://www.github.com/FlexMeasures/flexmeasures/pull/723>`_]
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times [see `PR #734 <https://www.github.com/FlexMeasures/flexmeasures/pull/734>`_]
 * Make it a lot easier to read off the color legend on the asset page, especially when showing many sensors, as they will now be ordered from top to bottom in the same order as they appear in the chart (as defined in the ``sensors_to_show`` attribute), rather than alphabetically [see `PR #742 <https://www.github.com/FlexMeasures/flexmeasures/pull/742>`_]
@@ -790,8 +790,8 @@ v0.14.0 | June 15, 2023
 
 New features
 -------------
-* Allow setting a storage efficiency using the new ``storage-efficiency`` field when calling `/sensors/<id>/schedules/trigger` (POST) through the API (within the ``flex-model`` field), or when calling ``flexmeasures add schedule for-storage`` through the CLI [see `PR #679 <https://www.github.com/FlexMeasures/flexmeasures/pull/679>`_]
-* Allow setting multiple :abbr:`SoC (state of charge)` maxima and minima constraints for the ``StorageScheduler``, using the new ``soc-minima`` and ``soc-maxima`` fields when calling `/sensors/<id>/schedules/trigger` (POST) through the API (within the ``flex-model`` field) [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
+* Allow setting a storage efficiency using the new ``storage-efficiency`` field when calling `[POST] /sensors/<id>/schedules/trigger` through the API (within the ``flex-model`` field), or when calling ``flexmeasures add schedule for-storage`` through the CLI [see `PR #679 <https://www.github.com/FlexMeasures/flexmeasures/pull/679>`_]
+* Allow setting multiple :abbr:`SoC (state of charge)` maxima and minima constraints for the ``StorageScheduler``, using the new ``soc-minima`` and ``soc-maxima`` fields when calling `[POST] /sensors/<id>/schedules/trigger` through the API (within the ``flex-model`` field) [see `PR #680 <https://www.github.com/FlexMeasures/flexmeasures/pull/680>`_]
 * New CLI command ``flexmeasures add report`` to calculate a custom report from sensor data and save the results to the database, with the option to export them to a CSV or Excel file [see `PR #659 <https://www.github.com/FlexMeasures/flexmeasures/pull/659>`_]
 * New CLI commands ``flexmeasures show reporters`` and ``flexmeasures show schedulers`` to list available reporters and schedulers, respectively, including any defined in registered plugins [see `PR #686 <https://www.github.com/FlexMeasures/flexmeasures/pull/686>`_ and `PR #708 <https://github.com/FlexMeasures/flexmeasures/pull/708>`_]
 * Allow creating public assets through the CLI, which are available to all users [see `PR #727 <https://github.com/FlexMeasures/flexmeasures/pull/727>`_]
@@ -867,7 +867,7 @@ Infrastructure / Support
 ----------------------
 * Support blackout tests for sunset API versions [see `PR #651 <https://www.github.com/FlexMeasures/flexmeasures/pull/651>`_]
 * Sunset API versions 1.0, 1.1, 1.2, 1.3 and 2.0 [see `PR #650 <https://www.github.com/FlexMeasures/flexmeasures/pull/650>`_]
-* Sunset several API fields for `/sensors/<id>/schedules/trigger` (POST) that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
+* Sunset several API fields for `[POST] /sensors/<id>/schedules/trigger` that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
 * Fix broken ``make show-data-model`` command [see `PR #638 <https://www.github.com/FlexMeasures/flexmeasures/pull/638>`_]
 * Bash script for a clean database to run toy-tutorial by using ``make clean-db db_name=database_name`` command [see `PR #640 <https://github.com/FlexMeasures/flexmeasures/pull/640>`_]
 
@@ -877,7 +877,7 @@ v0.12.3 | February 28, 2023
 
 Bugfixes
 -----------
-- Fix premature deserialization of ``flex-context`` field for `/sensors/<id>/schedules/trigger` (POST) [see `PR #593 <https://www.github.com/FlexMeasures/flexmeasures/pull/593>`_]
+- Fix premature deserialization of ``flex-context`` field for `[POST] /sensors/<id>/schedules/trigger` [see `PR #593 <https://www.github.com/FlexMeasures/flexmeasures/pull/593>`_]
 
 
 v0.12.2 | February 4, 2023
@@ -915,15 +915,15 @@ New features
 * The CLI command ``flexmeasures monitor latest-login`` supports to check if (bot) users who are expected to contact FlexMeasures regularly (e.g. to send data) fail to do so [see `PR #541 <https://www.github.com/FlexMeasures/flexmeasures/pull/541>`_]
 * The CLI command ``flexmeasures show beliefs`` supports showing beliefs data in a custom resolution and/or timezone, and also saving the shown beliefs data to a CSV file [see `PR #519 <https://www.github.com/FlexMeasures/flexmeasures/pull/519>`_]
 * Improved import of time series data from CSV file: 1) drop duplicate records with warning, 2) allow configuring which column contains explicit recording times for each data point (use case: import forecasts) [see `PR #501 <https://www.github.com/FlexMeasures/flexmeasures/pull/501>`_], 3) localize timezone naive data, 4) support reading in datetime and timedelta values, 5) remove rows with NaN values, and 6) filter by values in specific columns [see `PR #521 <https://www.github.com/FlexMeasures/flexmeasures/pull/521>`_]
-* Filter data by source in the API endpoint `/sensors/data` (GET) [see `PR #543 <https://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
-* Allow posting ``null`` values to `/sensors/data` (POST) to correctly space time series that include missing values (the missing values are not stored) [see `PR #549 <https://www.github.com/FlexMeasures/flexmeasures/pull/549>`_]
-* Allow setting a custom planning horizon when calling `/sensors/<id>/schedules/trigger` (POST), using the new ``duration`` field [see `PR #568 <https://www.github.com/FlexMeasures/flexmeasures/pull/568>`_]
-* New resampling functionality for instantaneous sensor data: 1) ``flexmeasures show beliefs`` can now handle showing (and saving) instantaneous sensor data and non-instantaneous sensor data together, and 2) the API endpoint `/sensors/data` (GET) now allows fetching instantaneous sensor data in a custom frequency, by using the "resolution" field [see `PR #542 <https://www.github.com/FlexMeasures/flexmeasures/pull/542>`_]
+* Filter data by source in the API endpoint `[GET] /sensors/data` [see `PR #543 <https://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
+* Allow posting ``null`` values to `[POST] /sensors/data` to correctly space time series that include missing values (the missing values are not stored) [see `PR #549 <https://www.github.com/FlexMeasures/flexmeasures/pull/549>`_]
+* Allow setting a custom planning horizon when calling `[POST] /sensors/<id>/schedules/trigger`, using the new ``duration`` field [see `PR #568 <https://www.github.com/FlexMeasures/flexmeasures/pull/568>`_]
+* New resampling functionality for instantaneous sensor data: 1) ``flexmeasures show beliefs`` can now handle showing (and saving) instantaneous sensor data and non-instantaneous sensor data together, and 2) the API endpoint `[GET] /sensors/data` now allows fetching instantaneous sensor data in a custom frequency, by using the "resolution" field [see `PR #542 <https://www.github.com/FlexMeasures/flexmeasures/pull/542>`_]
 
 Bugfixes
 -----------
 * The CLI command ``flexmeasures show beliefs`` now supports plotting time series data that includes NaN values, and provides better support for plotting multiple sensors that do not share the same unit [see `PR #516 <https://www.github.com/FlexMeasures/flexmeasures/pull/516>`_ and `PR #539 <https://www.github.com/FlexMeasures/flexmeasures/pull/539>`_]
-* Fixed JSON wrapping of return message for `/sensors/data` (GET) [see `PR #543 <https://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
+* Fixed JSON wrapping of return message for `[GET] /sensors/data` [see `PR #543 <https://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
 * Consistent CLI/UI support for asset lat/lng positions up to 7 decimal places (previously the UI rounded to 4 decimal places, whereas the CLI allowed more than 4) [see `PR #522 <https://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 * Stop trimming the planning window in response to price availability, which is a problem when :abbr:`SoC (state of charge)` targets occur outside of the available price window, by making a simplistic assumption about future prices [see `PR #538 <https://www.github.com/FlexMeasures/flexmeasures/pull/538>`_]
 * Faster loading of initial charts and calendar date selection [see `PR #533 <https://www.github.com/FlexMeasures/flexmeasures/pull/533>`_]
