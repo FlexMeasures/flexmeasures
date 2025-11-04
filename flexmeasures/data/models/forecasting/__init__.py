@@ -22,6 +22,7 @@ from flexmeasures.data.schemas.forecasting import ForecasterConfigSchema
 
 class SuppressTorchWarning(logging.Filter):
     "Suppress specific Torch warnings from Darts library about model availability."
+
     def filter(self, record):
         return "Support for Torch based models not available" not in record.getMessage()
 
