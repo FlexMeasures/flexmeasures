@@ -283,10 +283,7 @@ def test_missing_data_logs_warning(
     caplog,
 ):
     """
-    Verify that:
-    1. A warning is logged when train_period exceeds max_training_period.
-    2. The train_period is capped correctly.
-    3. A ValueError is raised if missing data exceeds the threshold.
+    Verify that a CustomException is raised (wrapping a ValueError)
     """
     sensor = setup_fresh_test_forecast_data_with_missing_data[params["sensor"]]
     params["sensor"] = sensor.id
