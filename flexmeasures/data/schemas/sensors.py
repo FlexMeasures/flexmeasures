@@ -443,7 +443,11 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         elif isinstance(variable_quantity, list):
             unit = str(variable_quantity[0]["value"].units)
             if not all(
-                units_are_convertible(str(variable_quantity[j]["value"].units), unit)
+                units_are_convertible(
+                    from_unit=str(variable_quantity[j]["value"].units),
+                    to_unit=unit,
+                    duration_known=False,  # prevent mistakes by not allowing to mix kW and kWh units within a single time series specification
+                )
                 for j in range(len(variable_quantity))
             ):
                 raise ValidationError(
