@@ -994,7 +994,7 @@ class SensorAPI(FlaskView):
                 application/json:
                   schema: SensorSchema
                   examples:
-                a price sensor:
+                price_sensor:
                   summary: A day-ahead price sensor recording 15-minute prices.
                   description: |
                     A day-ahead price sensor recording the day-ahead electricity price in EUR/kWh with a 15-minute resolution.
@@ -1008,7 +1008,7 @@ class SensorAPI(FlaskView):
                     event_resolution: PT15M
                     entity_address: ea1.2021-01.io.flexmeasures:fm1.14
                     generic_asset_id: 1
-                a power sensor:
+                power_sensor:
                   summary: A power sensor recording average consumption every 5 minutes.
                   description: |
                     A power sensor recording average power flow in kW with a 5-minute resolution.
