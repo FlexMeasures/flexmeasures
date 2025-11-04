@@ -210,6 +210,6 @@ class ForecasterParametersSchema(Schema):
             probabilistic=data["probabilistic"],
             sensor_to_save=sensor_to_save,
             ensure_positive=ensure_positive,
-            missing_threshold=data.get("missing_threshold", 1.0),
+            missing_threshold=data.get("missing_threshold"),
             as_job=data.get("as_job"),
         )
