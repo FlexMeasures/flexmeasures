@@ -1173,7 +1173,7 @@ class MetaStorageScheduler(Scheduler):
                     site_power_capacity = site_power_capacity.get("sensor", None)
                     if site_power_capacity is None:
                         raise ValueError(
-                            "site-power-capacity attribute is a dict, but has no sensor key."
+                            f"site-power-capacity attribute on asset {asset.id} is a dict, but has no sensor key."
                         )
 
                 power_capacities.append(
@@ -1181,7 +1181,9 @@ class MetaStorageScheduler(Scheduler):
                 )
                 continue
 
-            raise ValueError("Power capacity is not defined in the flex-model.")
+            raise ValueError(
+                f"Power capacity on asset {asset.id} is not defined in the flex-model."
+            )
         return power_capacities
 
     def _ensure_variable_quantity(
