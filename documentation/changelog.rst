@@ -35,6 +35,7 @@ v0.29.1 | October XX, 2025
 
 Bugfixes
 -----------
+* Support different but still compatible units in time series segments of variable quantities [see `PR #1792 <https://www.github.com/FlexMeasures/flexmeasures/pull/1792>`_]
 * Fix account and `/assets/owned_by` pages rendering, giving them asset icons [see `PR #1772 <https://github.com/FlexMeasures/flexmeasures/pull/1772>`_]
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
 * Fix bug where removed flex-model fields don't show up under the dropdown for new fields, except after a page refresh [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1775>`_]
