@@ -30,7 +30,7 @@ Bugfixes
 * Fix interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report`` [see `PR #1758 <https://github.com/FlexMeasures/flexmeasures/pull/1758>`_]
 
 
-v0.29.1 | November XX, 2025
+v0.29.1 | November 5, 2025
 ============================
 
 Bugfixes
