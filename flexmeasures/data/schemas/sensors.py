@@ -170,13 +170,37 @@ class SensorSchemaMixin(Schema):
             model = Asset
     """
 
-    id = ma.auto_field(dump_only=True)
-    name = ma.auto_field(required=True)
-    unit = ma.auto_field(required=True)
-    timezone = ma.auto_field()
-    event_resolution = DurationField(required=True)
-    entity_address = fields.String(dump_only=True)
-    attributes = JSON(required=False)
+    id = ma.auto_field(
+        dump_only=True,
+        description="The sensor's ID, which is automatically assigned.",
+        example=5,
+    )
+    name = ma.auto_field(
+        required=True, description="The sensor's name.", example="power"
+    )
+    unit = ma.auto_field(
+        required=True,
+        description="The sensor's (physical or economical) unit. Supports [<abbr title='International System of Units'>SI</abbr> units](https://en.wikipedia.org/wiki/International_System_of_Units) and [currency codes](https://en.wikipedia.org/wiki/ISO_4217).",
+        example="EUR/kWh",
+    )
+    timezone = ma.auto_field(
+        description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone.",
+        example="Europe/Amsterdam",
+    )
+    event_resolution = DurationField(
+        required=True,
+        description="The duration of events recorded by the sensor.",
+        example="PT15M",
+    )
+    entity_address = fields.String(
+        dump_only=True,
+        description="Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+    )
+    attributes = JSON(
+        required=False,
+        description="JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
+        example="{consumption_is_positive: True}",
+    )
 
     @validates("unit")
     def validate_unit(self, unit: str, **kwargs):
@@ -189,7 +213,9 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     Sensor schema with validations.
     """
 
-    generic_asset_id = fields.Integer(required=True)
+    generic_asset_id = fields.Integer(
+        required=True, description="The asset that the sensor belongs to.", example=1
+    )
 
     @validates("generic_asset_id")
     def validate_generic_asset(self, generic_asset_id: int, **kwargs):

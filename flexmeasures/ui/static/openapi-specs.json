@@ -3886,7 +3886,8 @@
           },
           "attributes": {},
           "generic_asset_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "The asset that the sensor belongs to."
           }
         },
         "required": [
