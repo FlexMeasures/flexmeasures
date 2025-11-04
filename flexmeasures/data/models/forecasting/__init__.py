@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from copy import deepcopy
 from typing import Any, Callable
 
@@ -17,6 +19,15 @@ from flexmeasures.data.models.forecasting.model_specs.linear_regression import (
 )
 from flexmeasures.data.schemas.forecasting import ForecasterConfigSchema
 
+
+class SuppressTorchWarning(logging.Filter):
+    "Suppress specific Torch warnings from Darts library about model availability."
+    def filter(self, record):
+        return "Support for Torch based models not available" not in record.getMessage()
+
+
+# Apply the filter to Darts.models loggers
+logging.getLogger("darts.models").addFilter(SuppressTorchWarning())
 
 model_map = {
     "naive": naive_specs,
