@@ -48,7 +48,7 @@ class TrainPipeline(BasePipeline):
         :param forecast_frequency: Frequency of the forecast in hours.
         :param probabilistic: Whether to use a probabilistic model.
         :param ensure_positive: Whether to ensure that predictions are positive.
-        :param missing_threshold: Max fraction of missing data allowed before failure. missing data under the threshold will be filled with our interpolation methods.
+        :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         """
         self.model_save_dir = model_save_dir
         self.probabilistic = probabilistic
