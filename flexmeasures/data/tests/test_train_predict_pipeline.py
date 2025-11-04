@@ -230,7 +230,7 @@ def test_train_predict_pipeline(
         ), "(past and future) regressors should be stored under 'past_regressors' and 'future_regressors' instead"
 
 
-# Test that max_training_period caps train_period and logs a warning
+# Test that missing data logging works and raises CustomException when threshold exceeded
 @pytest.mark.parametrize(
     ["config", "params"],
     [  # Target sensor has missing data
