@@ -694,7 +694,7 @@ class BasePipeline:
             # Total expected rows in full dataset
             total_expected = (
                 int((end - start) / sensor.event_resolution) + 1
-            )  # +1 if inclusive of both ends
+            )
 
             # Fraction of missing rows
             missing_rows_fraction = total_missing / total_expected
