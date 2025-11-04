@@ -147,14 +147,16 @@ def create(  # noqa C901
 
     register_db_at(app)
 
-    # Register Reporters and Schedulers
+    # Register Forecasters, Reporters and Schedulers
     from flexmeasures.utils.coding_utils import get_classes_module
-    from flexmeasures.data.models import reporting, planning
+    from flexmeasures import Forecaster, Reporter, Scheduler
 
-    reporters = get_classes_module("flexmeasures.data.models", reporting.Reporter)
-    schedulers = get_classes_module("flexmeasures.data.models", planning.Scheduler)
+    forecasters = get_classes_module("flexmeasures.data.models", Forecaster)
+    reporters = get_classes_module("flexmeasures.data.models", Reporter)
+    schedulers = get_classes_module("flexmeasures.data.models", Scheduler)
 
     app.data_generators = dict()
+    app.data_generators["forecaster"] = forecasters
     app.data_generators["reporter"] = copy(
         reporters
     )  # use copy to avoid mutating app.reporters

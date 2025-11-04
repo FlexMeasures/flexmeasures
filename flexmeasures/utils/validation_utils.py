@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable
 import re
 
-from flexmeasures import Sensor
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.unit_utils import ur
 
 
