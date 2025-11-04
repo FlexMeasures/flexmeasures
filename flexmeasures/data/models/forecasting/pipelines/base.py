@@ -681,6 +681,12 @@ class BasePipeline:
             )
             data_darts_gaps = data_darts.gaps()
 
+            missing_rows_fraction = len(data_darts_gaps) / len(data_darts)
+            if missing_rows_fraction > self.missing_threshold:
+                raise ValueError(
+                    f"Sensor {sensor_name} has {missing_rows_fraction*100:.1f}% missing values "
+                    f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
+                )
             if not data_darts_gaps.empty:
                 data_darts = transformer.transform(
                     data_darts, **(interpolate_kwargs or {})
