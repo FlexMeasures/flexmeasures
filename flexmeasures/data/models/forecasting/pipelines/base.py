@@ -679,6 +679,7 @@ class BasePipeline:
                 fill_missing_dates=True,
                 freq=self.target_sensor.event_resolution,
             )
+            # Identify gaps in the time index (where timestamp rows are missing)
             data_darts_gaps = data_darts.gaps()
 
             missing_rows_fraction = len(data_darts_gaps) / len(data_darts)
