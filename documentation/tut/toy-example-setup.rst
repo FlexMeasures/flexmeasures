@@ -205,9 +205,9 @@ If you want, you can inspect what you created:
     Asset toy-building (ID: 2)
     =========================
 
-    Type      Location           Attributes
-    -------   -----------------  ----------------------------
-    building  (52.374, 4.88969)
+    Type      Location           Flex-Context                  Flex-Model    Sensors to show    Attributes
+    --------  -----------------  ----------------------------  ------------  -----------------  ------------
+    building  (52.374, 4.88969)  site-power-capacity: 500 kVA
 
     ====================================
     Child assets of toy-building (ID: 2)
@@ -226,11 +226,11 @@ If you want, you can inspect what you created:
     Asset toy-battery (ID: 3)
     Child of asset toy-building (ID: 2)
     ===================================
-    Type     Location           Flex-Context                      Sensors to show      Attributes
-    -------  -----------------  --------------------------------  -------------------  -----------------------
-    battery  (52.374, 4.88969)  consumption-price: {'sensor': 1}  Prices: [1]          capacity_in_mw: 500 kVA
-                                                                  Power flows: [3, 2]  min_soc_in_mwh: 0.05
-                                                                                       max_soc_in_mwh: 0.45
+    Type     Location           Flex-Context                      Flex-Model               Sensors to show      Attributes
+    -------  -----------------  --------------------------------  -----------------------  -------------------  ------------
+    battery  (52.374, 4.88969)  consumption-price: {'sensor': 1}  power-capacity: 500 kVA  Prices: [1]
+                                                                soc-min: 50.0 kWh        Power flows: [3, 2]
+                                                                soc-max: 450.0 kWh
 
     ====================================
     Child assets of toy-battery (ID: 3)
@@ -245,6 +245,7 @@ If you want, you can inspect what you created:
        2  discharging  MW      15 minutes    Europe/Amsterdam
     
 
+    
 Yes, that is quite a large battery :) 
 You can also see that the asset has some meta information about its scheduling. Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
 

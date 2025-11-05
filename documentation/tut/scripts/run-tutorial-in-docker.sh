@@ -1,5 +1,8 @@
 #!/bin/bash
 
+echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 1 (SIMPLE BATTERY SCHEDULE)..."
+echo "-----------------------------------------------------------------"
+
 echo "[TUTORIAL-RUNNER] loading prices..."
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 echo "Hour,Price
@@ -30,14 +33,13 @@ ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
 docker cp prices-tomorrow.csv flexmeasures-server-1:/app
 
-docker exec -it flexmeasures-server-1 flexmeasures add beliefs \
-  --sensor 1 --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam
+#docker exec -it flexmeasures-server-1 flexmeasures add beliefs \
+#  --sensor 1 --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam
 
 echo "[TUTORIAL-RUNNER] creating schedule ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule \
   --sensor 2 \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-  --flex-context '{"consumption-price": {"sensor": 1}}' \
   --flex-model '{"roundtrip-efficiency": "90%"}'
 
 echo "[TUTORIAL-RUNNER] displaying schedule..."

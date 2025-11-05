@@ -1833,6 +1833,9 @@ def add_toy_account(kind: str, name: str):
         owner=db.session.get(Account, account_id),
         latitude=location[0],
         longitude=location[1],
+        flex_context={
+            "site-power-capacity": "500 kVA",
+        },
     )
     db.session.flush()
 
