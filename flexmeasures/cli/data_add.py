@@ -57,6 +57,7 @@ from flexmeasures.data.schemas import (
     LatitudeField,
     LongitudeField,
     SensorIdField,
+    AssetIdField,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -1254,8 +1255,13 @@ def train_predict_pipeline(
     "--sensor",
     "power_sensor",
     type=SensorIdField(),
-    required=True,
     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--asset",
+    "asset",
+    type=AssetIdField(),
+    help="Create schedule for this asset. The flex model arg then needs to be a list with an entry for each relevant device sensor. Follow up with the asset's ID.",
 )
 @click.option(
     "--start",
@@ -1307,11 +1313,11 @@ def train_predict_pipeline(
 )
 def add_schedule(  # noqa C901
     power_sensor: Sensor,
+    asset: GenericAsset,
     start: datetime,
     duration: timedelta,
     scheduler_class: str,
     soc_at_start: ur.Quantity,
-    state_of_charge: Sensor | None = None,
     flex_context: str | None = None,
     flex_model: str | None = None,
     as_job: bool = False,
@@ -1323,6 +1329,25 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
+    asset_or_sensor = None
+    if not power_sensor and not asset:
+        click.secho(
+            "Either --sensor or --asset is required.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if power_sensor and asset:
+        click.secho(
+            "Do not supply both --sensor as well as --asset.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if asset:
+        asset_or_sensor = asset
+        assert isinstance(flex_model, list)
+    else:
+        asset_or_sensor = power_sensor
+        assert isinstance(flex_model, dict)
 
     scheduler_module = None
 
@@ -1336,6 +1361,7 @@ def add_schedule(  # noqa C901
                 **MsgStyle.ERROR,
             )
             raise click.Abort()
+        flex_model["soc-at-start"] = soc_at_start.to("%")
 
     scheduling_kwargs = dict(
         start=start,
@@ -1351,7 +1377,9 @@ def add_schedule(  # noqa C901
     )
 
     if as_job:
-        job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
+        job = create_scheduling_job(
+            asset_or_sensor=asset_or_sensor, **scheduling_kwargs
+        )
         if job:
             click.secho(
                 f"New scheduling job {job.id} has been added to the queue.",
@@ -1359,7 +1387,7 @@ def add_schedule(  # noqa C901
             )
     else:
         success = make_schedule(
-            asset_or_sensor=get_asset_or_sensor_ref(power_sensor),
+            asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
             **scheduling_kwargs,
         )
         if success:
@@ -1762,6 +1790,7 @@ def add_toy_account(kind: str, name: str):
         unit: str = "MW",
         parent_asset_id: int | None = None,
         flex_context: dict | None = None,
+        flex_model: dict | None = None,
         **asset_attributes,
     ):
         asset_kwargs: Dict[str, Any] = {}
@@ -1769,6 +1798,8 @@ def add_toy_account(kind: str, name: str):
             asset_kwargs["parent_asset_id"] = parent_asset_id
         if flex_context is not None:
             asset_kwargs["flex_context"] = flex_context
+        if flex_model is not None:
+            asset_kwargs["flex_model"] = flex_model
 
         asset = get_or_create_model(
             GenericAsset,
@@ -1813,9 +1844,11 @@ def add_toy_account(kind: str, name: str):
             "discharging",
             parent_asset_id=building_asset.id,
             flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
-            capacity_in_mw="500 kVA",
-            min_soc_in_mwh=0.05,
-            max_soc_in_mwh=0.45,
+            flex_model={
+                "power-capacity": "500 kVA",
+                "soc-min": "50 kWh",
+                "soc-max": "450 kWh",
+            },
         )
 
         # create solar
