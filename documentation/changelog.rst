@@ -30,11 +30,12 @@ Bugfixes
 * Fix interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report`` [see `PR #1758 <https://github.com/FlexMeasures/flexmeasures/pull/1758>`_]
 
 
-v0.29.1 | October XX, 2025
+v0.29.1 | November XX, 2025
 ============================
 
 Bugfixes
 -----------
+* Support different but still compatible units in time series segments of variable quantities [see `PR #1792 <https://www.github.com/FlexMeasures/flexmeasures/pull/1792>`_]
 * Fix account and `/assets/owned_by` pages rendering, giving them asset icons [see `PR #1772 <https://github.com/FlexMeasures/flexmeasures/pull/1772>`_]
 * Fix bug when sending one sensor in flex-model when triggering schedule on asset [see `PR #1795 <https://github.com/FlexMeasures/flexmeasures/pull/1795>`_]
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
