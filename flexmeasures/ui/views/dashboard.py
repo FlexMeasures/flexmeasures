@@ -1,9 +1,10 @@
+from collections import OrderedDict
+
 from flask import request, current_app
 from flask_security import login_required
 from flask_security.core import current_user
 from sqlalchemy import select
 
-from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.data.queries.generic_assets import get_asset_group_queries
 from flexmeasures.data import db
 from flexmeasures.ui.views import flexmeasures_ui
@@ -27,8 +28,6 @@ def dashboard_view():
     or all assets if the user is an admin.
     Assets are grouped by asset type, which leads to map layers and a table with asset counts by type.
     Admins get to see all assets.
-
-    TODO: Assets for which the platform has identified upcoming balancing opportunities are highlighted.
     """
     msg = ""
     if "clear-session" in request.values:
@@ -37,21 +36,29 @@ def dashboard_view():
     aggregate_type_groups = current_app.config.get("FLEXMEASURES_ASSET_TYPE_GROUPS", {})
 
     group_by_accounts = request.args.get("group_by_accounts", "0") != "0"
-    if user_has_admin_access(current_user, "read") and group_by_accounts:
-        asset_groups = get_asset_group_queries(
+    if group_by_accounts:
+        asset_group_names_with_queries = get_asset_group_queries(
             group_by_type=False, group_by_account=True
         )
     else:
-        asset_groups = get_asset_group_queries(
+        asset_group_names_with_queries = get_asset_group_queries(
             group_by_type=True, custom_aggregate_type_groups=aggregate_type_groups
         )
-
-    map_asset_groups = {}
-    for asset_group_name, asset_group_query in asset_groups.items():
+    # Load asset groups, which queries assets; and we count assets without location
+    asset_groups = []
+    num_assets_without_location = 0
+    for asset_group_name, asset_group_query in asset_group_names_with_queries.items():
         asset_group = AssetGroup(asset_group_name, asset_query=asset_group_query)
-        if any([a.location for a in asset_group.assets]):
-            map_asset_groups[asset_group_name] = asset_group
-
+        asset_groups.append(asset_group)
+        for asset in asset_group.assets:
+            if asset.location is None:
+                num_assets_without_location += 1
+    # Create asset group dict for template, preserving order by count of included assets (desc)
+    asset_groups.sort(key=lambda ag: ag.count, reverse=True)
+    map_asset_groups = OrderedDict()
+    for asset_group in asset_groups:
+        map_asset_groups[asset_group.name] = asset_group
+    # Get known asset types for making icons
     known_asset_types = [
         gat.name for gat in db.session.scalars(select(GenericAssetType)).all()
     ]
@@ -63,6 +70,7 @@ def dashboard_view():
         map_center=get_center_location_of_assets(user=current_user),
         known_asset_types=known_asset_types,
         asset_groups=map_asset_groups,
+        num_assets_without_location=num_assets_without_location,
         aggregate_type_groups=aggregate_type_groups,
         group_by_accounts=group_by_accounts,
     )

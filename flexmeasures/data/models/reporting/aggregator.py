@@ -35,6 +35,7 @@ class AggregatorReporter(Reporter):
         output: list[dict[str, Any]],
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
+        belief_horizon: timedelta | None = None,
     ) -> list[dict[str, Any]]:
         """
         This method merges all the BeliefDataFrames into a single one, dropping
@@ -47,7 +48,7 @@ class AggregatorReporter(Reporter):
 
         dataframes = []
 
-        if belief_time is None:
+        if belief_time is None and belief_horizon is None:
             belief_time = server_now()
 
         for input_description in input:
@@ -66,6 +67,7 @@ class AggregatorReporter(Reporter):
                 event_ends_before=end,
                 resolution=resolution,
                 beliefs_before=belief_time,
+                horizons_at_most=belief_horizon,
                 source=source,
                 one_deterministic_belief_per_event=True,
                 **input_description,
@@ -115,14 +117,19 @@ class AggregatorReporter(Reporter):
 
         # convert BeliefsSeries into a BeliefsDataFrame
         output_df = output_df.to_frame("event_value")
-        output_df["belief_time"] = belief_time
+        if belief_time is not None:
+            belief_col = "belief_time"
+            output_df[belief_col] = belief_time
+        elif belief_horizon is not None:
+            belief_col = "belief_horizon"
+            output_df[belief_col] = belief_horizon
         output_df["cumulative_probability"] = 0.5
         output_df["source"] = self.data_source
         output_df.sensor = output[0]["sensor"]
         output_df.event_resolution = output[0]["sensor"].event_resolution
 
         output_df = output_df.set_index(
-            ["belief_time", "source", "cumulative_probability"], append=True
+            [belief_col, "source", "cumulative_probability"], append=True
         )
 
         return [
