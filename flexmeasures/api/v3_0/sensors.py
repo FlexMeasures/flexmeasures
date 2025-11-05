@@ -589,7 +589,7 @@ class SensorAPI(FlaskView):
             The examples below illustrate how to describe a flexibility model and context.
 
             > **Note:** To schedule an EMS with multiple flexible sensors at once,
-            > use the [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.
+            > use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.
 
             About the duration of the schedule and targets within the schedule:
 
