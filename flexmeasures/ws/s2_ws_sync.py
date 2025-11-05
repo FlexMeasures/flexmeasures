@@ -156,7 +156,7 @@ class MessageHandlersSync:
                         "message_id",
                         uuid.UUID("00000000-0000-0000-0000-000000000000"),
                     ),
-                    status=ReceptionStatusValues.PERMANENT_ERROR,
+                    status=ReceptionStatusValues.TEMPORARY_ERROR,
                     diagnostic_label=f"While processing message {message_id} an unrecoverable error occurred.",
                     websocket=websocket,
                 )
