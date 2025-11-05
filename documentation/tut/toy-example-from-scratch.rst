@@ -21,8 +21,13 @@ After going through the setup, we can finally create the schedule, which is the 
 
 We'll ask FlexMeasures for a schedule for our battery, specifically to store it on the (dis)charging sensor (ID 2).
 
-To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
+To keep this short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 There is more information being used by the scheduler, such as the battery's capacity and energy prices, but we added that when we created the sensor (see :ref:`tut_load_data`).
+
+.. note:: What should go into the flex model on the asset, and what do you want to send when asking for a schedule?
+    It is your call! Things that do not change often could be stored on the asset. Here, `roundtrip-efficiency` could actually move there, so you don't repeat yourself ...
+    
+    Do note that what you send while asking for a schedule always takes precedence over what is stored on the asset. 
 
 .. tabs::
 

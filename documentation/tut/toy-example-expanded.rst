@@ -2,17 +2,23 @@
 
 
 
-Toy example II: Adding solar production and limited grid connection
+Toy example II: Adding solar production, a limited grid connection
 ====================================================================
 
 
-So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity towards the grid. 
+So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kVA, both its own maximum charge/discharge rate, and the maximum grid capacity). 
 
 What if other devices will be using some of that capacity? Our schedules need to reflect that, so we stay within given limits.
 
-.. note:: The capacity is given by ``site-power-capacity``, an attribute we placed on the battery asset earlier (see :ref:`tut_toy_schedule`). We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``) for this capacity limit.
+We will now add solar production forecast data and then ask for a new schedule, to see the effect of solar production on the available headroom for the battery (when it plans to discharge).
+When solar production is high, less battery output can be send to the grid, as the total site power (battery + solar) cannot exceed the ``site-power-capacity``.
 
-We'll now add solar production forecast data and then ask for a new schedule, to see the effect of solar on the available headroom for the battery.
+How does it work?
+
+- We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``).
+- The battery's power capacity is not the limiting factor, but the `site-power-capacity` of the building (already a flex-context field, see :ref:`tut_toy_schedule`).
+- The flows of the building's child assets are summed up on building level, and that constraint now will play a role.
+
 
 
 Adding PV production forecasts
@@ -90,13 +96,13 @@ This will have an effect on the available headroom for the battery, given the ``
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --flex-model '{"roundtrip-efficiency": "90%"}' \
                 --flex-context '{"inflexible-device-sensors": [3]}'
+                --flex-model '{"roundtrip-efficiency": "90%"}' \
             New schedule is stored.
-
+        
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
             :emphasize-lines: 11-13
@@ -104,40 +110,13 @@ This will have an effect on the available headroom for the battery, given the ``
             {
                 "start": "2025-06-11T07:00+01:00",
                 "duration": "PT12H",
-                "flex-model": [
-                    {
-                        "sensor": 2,
-                        "soc-at-start": "50%",
-                        "roundtrip-efficiency": "90%"
-                    }
-                ],
+                "flex-model": {
+                    "soc-at-start": "225 kWh",
+                    "roundtrip-efficiency": "90%"
+                },
                 "flex-context": {
                     "inflexible-device-sensors": [3]
                 }
-            }
-
-        Alternatively, if the solar production is curtailable, move the solar production to the flex-model.
-        There, we tell the scheduler to pick any production value between 0 and the production forecast recorded on sensor 3, and to store the resulting schedule on sensor 3 as well (the FlexMeasures UI will still be able to distinguish forecasts from schedules):
-
-        .. code-block:: json
-            :emphasize-lines: 10-14,16
-
-            {
-                "start": "2025-06-11T07:00+01:00",
-                "duration": "PT12H",
-                "flex-model": [
-                    {
-                        "sensor": 2,
-                        "soc-at-start": "50%",
-                        "roundtrip-efficiency": "90%"
-                    },
-                    {
-                        "sensor": 3,
-                        "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3},
-                    }
-                ],
-                "flex-context": {}
             }
 
     .. tab:: FlexMeasures Client
@@ -152,7 +131,7 @@ This will have an effect on the available headroom for the battery, given the ``
             :emphasize-lines: 22-24
 
             import asyncio
-            from datetime import date
+            from datetime import date, timedelta
             from flexmeasures_client import FlexMeasuresClient as Client
 
             async def client_script():
@@ -162,16 +141,13 @@ This will have an effect on the available headroom for the battery, given the ``
                     host="localhost:5000",
                 )
                 schedule = await client.trigger_and_get_schedule(
-                    asset_id=2,  # Toy building (asset ID)
-                    start=f"{date.today().isoformat()}T07:00+01:00",
+                    sensor_id=2,  # Battery power (sensor ID)
+                    start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+01:00",
                     duration="PT12H",
-                    flex_model=[
-                        {
-                            "sensor": 2,  # battery power (sensor ID)
-                            "soc-at-start": "50%",
-                            "roundtrip-efficiency": "90%",
-                        },
-                    ],
+                    flex_model={
+                        "soc-at-start": "225 kWh",
+                        "roundtrip-efficiency": "90%",
+                    },
                     flex_context={
                         "inflexible-device-sensors": [3],  # solar production (sensor ID)
                     },
@@ -180,31 +156,6 @@ This will have an effect on the available headroom for the battery, given the ``
                 await client.close()
 
             asyncio.run(client_script())
-
-        Alternatively, if the solar production is curtailable, move the solar production to the flex-model:
-
-        .. code-block:: python
-            :emphasize-lines: 11-15,17
-
-            schedule = await client.trigger_and_get_schedule(
-                asset_id=2,  # Toy building (asset ID)
-                start=f"{date.today().isoformat()}T07:00+01:00",
-                duration="PT12H",
-                flex_model=[
-                    {
-                        "sensor": 2,  # battery power (sensor ID)
-                        "soc-at-start": "50%",
-                        "roundtrip-efficiency": "90%",
-                    },
-                    {
-                        "sensor": 3,  # solar production (sensor ID)
-                        "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3},
-                    },
-                ],
-                flex_context={},
-            )
-
 
 
 We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_:
@@ -244,6 +195,10 @@ A nice feature is that you can check the data connectivity status of your buildi
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center
 |
+
+
+TODO: Add PV curtailment step explicitly here. Also change the heading. Talk about multi-device scheduling, as well.
+
 
 We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
 

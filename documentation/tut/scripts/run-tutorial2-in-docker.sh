@@ -1,4 +1,6 @@
 #!/bin/bash
+echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 2 (ADDING SOLAR FORECAST) ..."
+echo "------------------------------------------------------------"
 
 echo "[TUTORIAL-RUNNER] loading solar production data..."
 
@@ -37,14 +39,13 @@ docker exec -it flexmeasures-server-1 flexmeasures add source --name "toy-foreca
 
 echo "[TUTORIAL-RUNNER] adding beliefs ..."
 docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
-
 echo "[TUTORIAL-RUNNER] showing beliefs ..."
 docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
 echo "[TUTORIAL-RUNNER] update schedule taking solar into account ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 2 \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-  --flex-context '{"inflexible-device-sensors": [3], "consumption-price": {"sensor": 1}}' \
+  --flex-context '{"inflexible-device-sensors": [3]}' \
   --flex-model '{"roundtrip-efficiency": "90%"}'
 
 echo "[TUTORIAL-RUNNER] showing schedule ..."
