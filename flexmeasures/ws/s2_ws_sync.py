@@ -440,14 +440,14 @@ class S2FlaskWSServerSync:
             revoke_msg = RevokeObject(
                 message_id=uuid.uuid4(),
                 object_type=RevokableObjects.FRBC_Instruction,
-                object_id=instruction.instruction_id,
+                object_id=instruction.id,
             )
             self._send_and_forget(revoke_msg, websocket)
             status = connection_state.instruction_statuses.get(
                 instruction.message_id, InstructionStatus.NEW
             )
             self.app.logger.debug(
-                f"   🚫 Revoked instruction {str(instruction.instruction_id)[:8]}... ({status.value})"
+                f"   🚫 Revoked instruction {str(instruction.id)[:8]}... ({status.value})"
             )
 
         # Clear the list of sent instructions after revoking
