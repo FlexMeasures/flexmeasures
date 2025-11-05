@@ -346,40 +346,49 @@
             "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2026-01-15T10:00+01:00"
             },
             "required": true
           },
           {
             "in": "query",
             "name": "duration",
+            "description": "Duration of the full set of events described in the time series data.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "example": "PT1H"
             },
             "required": true
           },
           {
             "in": "query",
             "name": "horizon",
+            "description": "All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "example": "PT2H"
             },
             "required": false
           },
           {
             "in": "query",
             "name": "prior",
+            "description": "All sensor data has been recorded prior to this belief time.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2026-01-14T20:00+01:00"
             },
             "required": false
           },
           {
             "in": "query",
             "name": "unit",
+            "description": "The unit of the sensor data, which must be convertible to the sensor unit.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "example": "m\u00b3/h"
             },
             "required": true
           }
@@ -965,7 +974,7 @@
     "/api/v3_0/sensors/{id}/schedules/trigger": {
       "post": {
         "summary": "Trigger scheduling job for one device",
-        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3975,25 +3984,44 @@
           "start": {
             "type": "string",
             "format": "date-time",
-            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format."
+            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format.",
+            "example": "2026-01-15T10:00+01:00"
           },
           "duration": {
-            "type": "string"
+            "type": "string",
+            "description": "Duration of the full set of events described in the time series data.",
+            "example": "PT1H"
           },
           "horizon": {
-            "type": "string"
+            "type": "string",
+            "description": "All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
+            "example": "PT2H"
           },
           "prior": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "All sensor data has been recorded prior to this belief time.",
+            "example": "2026-01-14T20:00+01:00"
           },
           "unit": {
-            "type": "string"
+            "type": "string",
+            "description": "The unit of the sensor data, which must be convertible to the sensor unit.",
+            "example": "m\u00b3/h"
           },
           "sensor": {
-            "type": "integer"
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded.",
+            "example": 14
           },
-          "values": {},
+          "values": {
+            "description": "The event values.",
+            "example": [
+              2.2,
+              2.6,
+              2.6,
+              2.7
+            ]
+          },
           "type": {
             "type": "string",
             "enum": [
@@ -4002,7 +4030,8 @@
               "PostPrognosisRequest",
               "PostPriceDataRequest",
               "PostWeatherDataRequest"
-            ]
+            ],
+            "description": "Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
           }
         },
         "required": [

@@ -80,11 +80,29 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
         required=True,
         format="iso",
         description="Start time of the first event described in the time series data, in ISO 8601 datetime format.",
+        example="2026-01-15T10:00+01:00",
     )
-    duration = DurationField(required=True)
-    horizon = DurationField(required=False)
-    prior = AwareDateTimeField(required=False, format="iso")
-    unit = fields.Str(required=True)
+    duration = DurationField(
+        required=True,
+        description="Duration of the full set of events described in the time series data.",
+        example="PT1H",
+    )
+    horizon = DurationField(
+        required=False,
+        description="All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
+        example="PT2H",
+    )
+    prior = AwareDateTimeField(
+        required=False,
+        format="iso",
+        description="All sensor data has been recorded prior to this belief time.",
+        example="2026-01-14T20:00+01:00",
+    )
+    unit = fields.Str(
+        required=True,
+        description="The unit of the sensor data, which must be convertible to the sensor unit.",
+        example="m³/h",
+    )
 
 
 class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
@@ -93,7 +111,11 @@ class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
     and adding validation).
     """
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(
+        required=True,
+        description="ID of the sensor on which the data is recorded.",
+        example=14,
+    )
 
     @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
@@ -239,6 +261,10 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
         serialization_schema_selector=select_schema_to_ensure_list_of_floats,
         many=False,
+        metadata=dict(
+            description="The event values.",
+            example=[2.2, 2.6, 2.6, 2.7],
+        ),
     )
 
     # Optional field that can be used for extra validation
@@ -253,6 +279,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 "PostWeatherDataRequest",
             ]
         ),
+        description="Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
     )
 
     @validates_schema
