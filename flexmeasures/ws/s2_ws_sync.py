@@ -167,7 +167,7 @@ class MessageHandlersSync:
                         "message_id",
                         uuid.UUID("00000000-0000-0000-0000-000000000000"),
                     ),
-                    status=ReceptionStatusValues.PERMANENT_ERROR,
+                    status=ReceptionStatusValues.TEMPORARY_ERROR,
                     diagnostic_label=f"While processing message {message_id} an unrecoverable error occurred.",
                     websocket=websocket,
                 )
@@ -461,14 +461,14 @@ class S2FlaskWSServerSync:
             revoke_msg = RevokeObject(
                 message_id=uuid.uuid4(),
                 object_type=RevokableObjects.FRBC_Instruction,
-                object_id=instruction.instruction_id,
+                object_id=instruction.id,
             )
             self._send_and_forget(revoke_msg, websocket)
             status = connection_state.instruction_statuses.get(
                 instruction.message_id, InstructionStatus.NEW
             )
             self.app.logger.debug(
-                f"   🚫 Revoked instruction {str(instruction.instruction_id)[:8]}... ({status.value})"
+                f"   🚫 Revoked instruction {str(instruction.id)[:8]}... ({status.value})"
             )
 
         # Clear the list of sent instructions after revoking
@@ -674,13 +674,18 @@ class S2FlaskWSServerSync:
 
         power_measurements = message.values
         for measurement in power_measurements:
-            self.save_event(
-                sensor_name=measurement.commodity_quantity,
-                event_value=message.value,
-                event_start=message.measurement_timestamp,
-                data_source=db.session.get(Source, self.data_source_id),
-                resource_or_actuator_id=resource_id,
-            )
+            try:
+                self.save_event(
+                    sensor_name=measurement.commodity_quantity,
+                    event_value=message.values,
+                    event_start=message.measurement_timestamp,
+                    data_source=db.session.get(Source, self.data_source_id),
+                    resource_or_actuator_id=resource_id,
+                )
+            except Exception as exc:
+                self.app.logger.warning(
+                    f"PowerMeasurement could not be saved: {str(exc)}"
+                )
 
     def handle_frbc_storage_status(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
@@ -823,8 +828,8 @@ class S2FlaskWSServerSync:
         sensor_name: str,
         resource_or_actuator_id: str,
         event_value: float | pd.Series,
-        event_start: str,
         data_source: Source,
+        event_start: str | None = None,
         event_resolution: timedelta | None = None,
         event_unit: str = "",
         sensor_unit: str = "",
@@ -857,7 +862,8 @@ class S2FlaskWSServerSync:
                 belief = TimedBelief(
                     sensor=sensor,
                     source=data_source,
-                    event_start=event_start or floored_server_now(self._minimum_measurement_period),
+                    event_start=event_start
+                    or floored_server_now(self._minimum_measurement_period),
                     event_value=event_value,
                     belief_time=server_now(),
                     cumulative_probability=0.5,
@@ -1033,10 +1039,12 @@ class S2FlaskWSServerSync:
                 start_aligned = future_time.replace(
                     minute=future_time.minute - minutes_offset, second=0, microsecond=0
                 )
-                
+
                 # Update scheduler time window
                 self.s2_scheduler.start = start_aligned
-                self.s2_scheduler.end = start_aligned + timedelta(hours=24)  # 24-hour planning window
+                self.s2_scheduler.end = start_aligned + timedelta(
+                    hours=24
+                )  # 24-hour planning window
                 self.s2_scheduler.belief_time = start_aligned
                 
                 self.app.logger.debug(f"🕐 Scheduler window: {self.s2_scheduler.start.strftime('%Y-%m-%d %H:%M:%S')} → {self.s2_scheduler.end.strftime('%Y-%m-%d %H:%M:%S')}")
