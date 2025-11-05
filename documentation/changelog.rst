@@ -10,6 +10,9 @@ v0.30.0 | November XX, 2025
 .. warning:: If you make use of ``flexmeasures add report`` with the ``--start-offset`` and/or ``--end-offset`` options (for instance, in a cron job), please check whether the report period logged by the CLI command still fits your use case.
              Your offsets may need to be adjusted in relation to your ``FLEXMEASURES_TIMEZONE`` config setting (its offset with respect to :abbr:`UTC (Coordinated Universal Time)`).
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+
 New features
 -------------
 * Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
@@ -21,6 +24,8 @@ Infrastructure / Support
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
 * Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
 * Support skipping a ``PandasReporter`` transformation if any of its (keyword) arguments has no data [see `PR #1669 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
+* Assets now have a `external_id` field so data from external sources can be linked to the right FlexMeasures asset in cuastom integrations [see `PR #1774 <https://www.github.com/FlexMeasures/flexmeasures/pull/1774>`_]
+
 
 Bugfixes
 -----------
