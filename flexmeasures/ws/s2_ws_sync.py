@@ -45,6 +45,8 @@ from s2python.frbc import (
     FRBCStorageStatus,
     FRBCActuatorStatus,
     FRBCInstruction,
+    FRBCUsageForecast,
+    FRBCLeakageBehaviour,
 )
 from s2python.message import S2Message
 from s2python.s2_parser import S2Parser
@@ -67,17 +69,26 @@ class FRBCDeviceData:
         self.actuator_statuses: Dict[str, FRBCActuatorStatus] = (
             {}
         )  # Changed to dict by actuator_id
+        self.usage_forecast: Optional[FRBCUsageForecast] = None
+        self.leakage_behaviour: Optional[FRBCLeakageBehaviour] = None
         self.resource_id: Optional[str] = None
         self.instructions: Optional[List[FRBCInstruction]] = []
 
     def is_complete(self) -> bool:
         """Check if we have received all necessary data to generate instructions."""
-        # Check basic required data
+        # System description and storage status are always required
         if (
             self.system_description is None
-            or self.fill_level_target_profile is None
             or self.storage_status is None
         ):
+            return False
+
+        # Fill level target profile OR usage forecast should be provided (at least one)
+        # Both are optional individually, but at least one should exist for meaningful planning
+        has_fill_level_target = self.fill_level_target_profile is not None
+        has_usage_forecast = self.usage_forecast is not None
+        
+        if not (has_fill_level_target or has_usage_forecast):
             return False
 
         # Check that we have actuator status for ALL actuators in system description
@@ -259,6 +270,12 @@ class S2FlaskWSServerSync:
             FRBCActuatorStatus, self.handle_frbc_actuator_status
         )
         self._handlers.register_handler(
+            FRBCUsageForecast, self.handle_frbc_usage_forecast
+        )
+        self._handlers.register_handler(
+            FRBCLeakageBehaviour, self.handle_frbc_leakage_behaviour
+        )
+        self._handlers.register_handler(
             PowerMeasurement, self.handle_power_measurement
         )
 
@@ -288,6 +305,8 @@ class S2FlaskWSServerSync:
                         "FRBC.FillLevelTargetProfile": "🎯",
                         "FRBC.StorageStatus": "🔋",
                         "FRBC.ActuatorStatus": "⚙️",
+                        "FRBC.UsageForecast": "💧",
+                        "FRBC.LeakageBehaviour": "🔄",
                         "InstructionStatusUpdate": "📊",
                         "ResourceManagerDetails": "📝",
                         "PowerMeasurement": "⚡",
@@ -700,6 +719,63 @@ class S2FlaskWSServerSync:
         )
         self._check_and_generate_instructions(resource_id, websocket)
 
+    def handle_frbc_usage_forecast(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, FRBCUsageForecast):
+            return
+
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
+        self.ensure_resource_is_registered(resource_id=resource_id)
+
+        self._device_data[resource_id].usage_forecast = message
+        n_elements = len(message.elements) if message.elements else 0
+        
+        # Log usage forecast details
+        if message.elements:
+            try:
+                # Duration objects have a value in milliseconds
+                total_duration_ms = sum(int(elem.duration) for elem in message.elements)
+                total_duration_min = total_duration_ms / 60000
+                self.app.logger.debug(
+                    f"   💧 Total duration: {total_duration_min:.0f} min, Start: {message.start_time.strftime('%H:%M:%S')}"
+                )
+            except Exception as e:
+                self.app.logger.debug(
+                    f"   💧 Start: {message.start_time.strftime('%H:%M:%S')}"
+                )
+
+        self.app.logger.info(f"💧 UsageForecast: {n_elements} element(s)")
+        self._check_and_generate_instructions(resource_id, websocket)
+
+    def handle_frbc_leakage_behaviour(
+        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
+    ) -> None:
+        if not isinstance(message, FRBCLeakageBehaviour):
+            return
+
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
+        self.ensure_resource_is_registered(resource_id=resource_id)
+
+        self._device_data[resource_id].leakage_behaviour = message
+        n_elements = len(message.elements) if message.elements else 0
+        
+        # Log leakage behaviour details
+        if message.elements:
+            try:
+                # Log first element's leakage rate as example
+                first_elem = message.elements[0]
+                leakage_rate = first_elem.leakage_rate
+                fill_range = first_elem.fill_level_range
+                self.app.logger.debug(
+                    f"   🔄 Leakage rate: {leakage_rate}, Fill range: {fill_range.start_of_range}-{fill_range.end_of_range}"
+                )
+            except Exception:
+                pass
+
+        self.app.logger.info(f"🔄 LeakageBehaviour: {n_elements} element(s)")
+        self._check_and_generate_instructions(resource_id, websocket)
+
     def ensure_resource_is_registered(self, resource_id: str):
         try:
             asset_type = get_or_create_model(AssetType, name="S2 Resource")
@@ -824,6 +900,16 @@ class S2FlaskWSServerSync:
             else:
                 missing_items.append("✅ FillLevelTargetProfile")
 
+            if not device_data.usage_forecast:
+                missing_items.append("❌ UsageForecast")
+            else:
+                missing_items.append("✅ UsageForecast")
+
+            if not device_data.leakage_behaviour:
+                missing_items.append("❌ LeakageBehaviour")
+            else:
+                missing_items.append("✅ LeakageBehaviour")
+
             if not device_data.storage_status:
                 missing_items.append("❌ StorageStatus")
             else:
@@ -867,8 +953,8 @@ class S2FlaskWSServerSync:
                 missing = []
                 if not device_data.system_description:
                     missing.append("SystemDescription")
-                if not device_data.fill_level_target_profile:
-                    missing.append("FillLevelTargetProfile")
+                if not device_data.fill_level_target_profile and not device_data.usage_forecast:
+                    missing.append("FillLevelTargetProfile or UsageForecast")
                 if not device_data.storage_status:
                     missing.append("StorageStatus")
                 if (
@@ -953,7 +1039,7 @@ class S2FlaskWSServerSync:
                 self.s2_scheduler.end = start_aligned + timedelta(hours=24)  # 24-hour planning window
                 self.s2_scheduler.belief_time = start_aligned
                 
-                self.app.logger.debug(f"🕐 Scheduler window: {start_aligned.strftime('%Y-%m-%d %H:%M:%S')} → {self.s2_scheduler.end.strftime('%Y-%m-%d %H:%M:%S')}")
+                self.app.logger.debug(f"🕐 Scheduler window: {self.s2_scheduler.start.strftime('%Y-%m-%d %H:%M:%S')} → {self.s2_scheduler.end.strftime('%Y-%m-%d %H:%M:%S')}")
 
                 # Generate instructions using the scheduler (this may query the database for costs)
                 schedule_results = self.s2_scheduler.compute()
