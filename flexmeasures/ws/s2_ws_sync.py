@@ -258,9 +258,7 @@ class S2FlaskWSServerSync:
         self._handlers.register_handler(
             FRBCActuatorStatus, self.handle_frbc_actuator_status
         )
-        self._handlers.register_handler(
-            PowerMeasurement, self.handle_power_measurement
-        )
+        self._handlers.register_handler(PowerMeasurement, self.handle_power_measurement)
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
@@ -781,7 +779,8 @@ class S2FlaskWSServerSync:
                 belief = TimedBelief(
                     sensor=sensor,
                     source=data_source,
-                    event_start=event_start or floored_server_now(self._minimum_measurement_period),
+                    event_start=event_start
+                    or floored_server_now(self._minimum_measurement_period),
                     event_value=event_value,
                     belief_time=server_now(),
                     cumulative_probability=0.5,
@@ -947,13 +946,17 @@ class S2FlaskWSServerSync:
                 start_aligned = future_time.replace(
                     minute=future_time.minute - minutes_offset, second=0, microsecond=0
                 )
-                
+
                 # Update scheduler time window
                 self.s2_scheduler.start = start_aligned
-                self.s2_scheduler.end = start_aligned + timedelta(hours=24)  # 24-hour planning window
+                self.s2_scheduler.end = start_aligned + timedelta(
+                    hours=24
+                )  # 24-hour planning window
                 self.s2_scheduler.belief_time = start_aligned
-                
-                self.app.logger.debug(f"🕐 Scheduler window: {start_aligned.strftime('%Y-%m-%d %H:%M:%S')} → {self.s2_scheduler.end.strftime('%Y-%m-%d %H:%M:%S')}")
+
+                self.app.logger.debug(
+                    f"🕐 Scheduler window: {start_aligned.strftime('%Y-%m-%d %H:%M:%S')} → {self.s2_scheduler.end.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
 
                 # Generate instructions using the scheduler (this may query the database for costs)
                 schedule_results = self.s2_scheduler.compute()
