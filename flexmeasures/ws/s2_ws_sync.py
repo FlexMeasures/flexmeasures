@@ -442,14 +442,14 @@ class S2FlaskWSServerSync:
             revoke_msg = RevokeObject(
                 message_id=uuid.uuid4(),
                 object_type=RevokableObjects.FRBC_Instruction,
-                object_id=instruction.message_id,
+                object_id=instruction.instruction_id,
             )
             self._send_and_forget(revoke_msg, websocket)
             status = connection_state.instruction_statuses.get(
                 instruction.message_id, InstructionStatus.NEW
             )
             self.app.logger.debug(
-                f"   🚫 Revoked {str(instruction.message_id)[:8]}... ({status.value})"
+                f"   🚫 Revoked instruction {str(instruction.instruction_id)[:8]}... ({status.value})"
             )
 
         # Clear the list of sent instructions after revoking
@@ -939,6 +939,21 @@ class S2FlaskWSServerSync:
 
                 # Update the compute time before calling the scheduler
                 connection_state.update_compute_time()
+
+                # Recalculate scheduler start time: 15 minutes from now, aligned to 5-minute boundary
+                now = datetime.now(timezone.utc)
+                future_time = now + timedelta(minutes=15)
+                minutes_offset = future_time.minute % 5
+                start_aligned = future_time.replace(
+                    minute=future_time.minute - minutes_offset, second=0, microsecond=0
+                )
+                
+                # Update scheduler time window
+                self.s2_scheduler.start = start_aligned
+                self.s2_scheduler.end = start_aligned + timedelta(hours=24)  # 24-hour planning window
+                self.s2_scheduler.belief_time = start_aligned
+                
+                self.app.logger.debug(f"🕐 Scheduler window: {start_aligned.strftime('%Y-%m-%d %H:%M:%S')} → {self.s2_scheduler.end.strftime('%Y-%m-%d %H:%M:%S')}")
 
                 # Generate instructions using the scheduler (this may query the database for costs)
                 schedule_results = self.s2_scheduler.compute()
