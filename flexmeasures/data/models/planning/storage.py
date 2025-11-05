@@ -1031,10 +1031,6 @@ class MetaStorageScheduler(Scheduler):
             self.ensure_soc_min_max()
 
             # Now it's time to check if our flex configuration holds up to schemas
-            if "sensor" in self.flex_model:
-                del self.flex_model[
-                    "sensor"
-                ]  # if this model was part of a multi-sensor flex model
             self.flex_model = StorageFlexModelSchema(
                 start=self.start,
                 sensor=self.sensor,
