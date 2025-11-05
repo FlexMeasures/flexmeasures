@@ -653,13 +653,18 @@ class S2FlaskWSServerSync:
 
         power_measurements = message.values
         for measurement in power_measurements:
-            self.save_event(
-                sensor_name=measurement.commodity_quantity,
-                event_value=message.value,
-                event_start=message.measurement_timestamp,
-                data_source=db.session.get(Source, self.data_source_id),
-                resource_or_actuator_id=resource_id,
-            )
+            try:
+                self.save_event(
+                    sensor_name=measurement.commodity_quantity,
+                    event_value=message.values,
+                    event_start=message.measurement_timestamp,
+                    data_source=db.session.get(Source, self.data_source_id),
+                    resource_or_actuator_id=resource_id,
+                )
+            except Exception as exc:
+                self.app.logger.warning(
+                    f"PowerMeasurement could not be saved: {str(exc)}"
+                )
 
     def handle_frbc_storage_status(
         self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
