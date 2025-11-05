@@ -192,11 +192,13 @@ class Scheduler:
         asset_ids = []
         flex_model = self.flex_model.copy()
         if not isinstance(self.flex_model, list):
+            # To enable the matching of the passed flex_model with db_flex_models, we need to find out the asset ID
             if "asset" not in flex_model:
                 if self.asset is not None:
                     flex_model["asset"] = asset.id
                 else:
                     flex_model["asset"] = self.sensor.generic_asset.id
+            # Listify the flex-model for the next code block, which actually does the merging with the db_flex_model
             flex_model = [flex_model]
 
         for flex_model_d in flex_model:
@@ -213,6 +215,7 @@ class Scheduler:
             v for k, v in db_flex_model.items() if k not in asset_ids
         ]
         combined_flex_model = amended_db_flex_model + amended_flex_model
+        # For the single-asset case, revert the flex-model listification
         if len(combined_flex_model) == 1 and "sensor" not in combined_flex_model[0]:
             # Single-asset case
             self.flex_model = combined_flex_model[0]
