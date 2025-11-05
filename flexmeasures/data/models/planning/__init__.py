@@ -213,9 +213,11 @@ class Scheduler:
             v for k, v in db_flex_model.items() if k not in asset_ids
         ]
         combined_flex_model = amended_db_flex_model + amended_flex_model
-        if len(combined_flex_model) == 1:
+        if len(combined_flex_model) == 1 and "sensor" not in combined_flex_model[0]:
+            # Single-asset case
             self.flex_model = combined_flex_model[0]
         else:
+            # Multi-asset case
             self.flex_model = combined_flex_model
 
     def deserialize_config(self):
