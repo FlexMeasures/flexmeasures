@@ -65,6 +65,11 @@ class GenericAsset(db.Model, AuthModelMixin):
             "parent_asset_id",
             name="generic_asset_name_parent_asset_id_key",
         ),
+        db.UniqueConstraint(
+            "account_id",
+            "external_id",
+            name="generic_asset_account_id_external_id_key",
+        ),
     )
 
     # No relationship
