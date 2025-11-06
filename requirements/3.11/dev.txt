@@ -21,7 +21,7 @@ dictdiffer==0.9.0
     #   -r requirements/dev.in
 distlib==0.4.0
     # via virtualenv
-filelock==3.19.1
+filelock==3.20.0
     # via
     #   -c requirements/3.11/app.txt
     #   virtualenv
@@ -29,11 +29,11 @@ flake8==7.1.1
     # via -r requirements/dev.in
 flake8-blind-except==0.2.1
     # via -r requirements/dev.in
-identify==2.6.14
+identify==2.6.15
     # via pre-commit
 mccabe==0.7.0
     # via flake8
-mypy==1.17.1
+mypy==1.18.2
     # via -r requirements/dev.in
 mypy-extensions==1.1.0
     # via
@@ -53,7 +53,7 @@ pathspec==0.12.1
     # via
     #   black
     #   mypy
-platformdirs==4.4.0
+platformdirs==4.5.0
     # via
     #   -c requirements/3.11/app.txt
     #   black
@@ -70,7 +70,7 @@ pyproject-hooks==1.2.0
     # via build
 pytest-runner==6.0.1
     # via -r requirements/dev.in
-pyyaml==6.0.2
+pyyaml==6.0.3
     # via
     #   -c requirements/3.11/app.txt
     #   pre-commit
@@ -81,7 +81,7 @@ typing-extensions==4.15.0
     #   -c requirements/3.11/app.txt
     #   mypy
     #   setuptools-scm
-virtualenv==20.34.0
+virtualenv==20.35.3
     # via pre-commit
 watchdog==6.0.0
     # via -r requirements/dev.in
