@@ -449,12 +449,7 @@ class S2FlaskWSServerSync:
             )
             in (InstructionStatus.NEW, InstructionStatus.ACCEPTED)
         ]
-
-        if not instructions_to_revoke:
-            self.app.logger.info("🔄 No instructions to revoke (all processed)")
-            connection_state.sent_instructions.clear()
-            return
-
+    
         self.app.logger.info(
             f"🗑️ Revoking {len(instructions_to_revoke)}/{len(connection_state.sent_instructions)} instructions"
         )
@@ -493,7 +488,6 @@ class S2FlaskWSServerSync:
                 last_operation_mode = instruction.operation_mode
             else:
                 skipped += 1
-
         if skipped > 0:
             self.app.logger.info(
                 f"🔽 Filtered: {len(instructions)} → {len(filtered)} instructions (skipped {skipped} duplicate modes)"
@@ -766,33 +760,6 @@ class S2FlaskWSServerSync:
 
         self.app.logger.info(f"🔄 LeakageBehaviour: {n_elements} element(s)")
         self._check_and_generate_instructions(resource_id, websocket)
-
-    def handle_frbc_instruction_status_update(
-        self, _: "S2FlaskWSServerSync", message: S2Message, websocket: Sock
-    ) -> None:
-        if not isinstance(message, FRBCInstructionStatusUpdate):
-            return
-
-        # Map status types to emojis for better visibility
-        status_emojis = {
-            "NEW": "🆕",
-            "ACCEPTED": "✅",
-            "STARTED": "▶️",
-            "SUCCEEDED": "🎉",
-            "ABORTED": "🛑",
-            "REJECTED": "❌",
-            "REVOKED": "🗑️",
-        }
-
-        status_type = str(message.status_type) if hasattr(message, "status_type") else "UNKNOWN"
-        emoji = status_emojis.get(status_type, "📊")
-
-        resource_id = self._websocket_to_resource.get(websocket, "unknown")
-        self.app.logger.info(
-            f"{emoji} Instruction Status Update from {resource_id}: "
-            f"instruction_id={message.instruction_id}, status={status_type}"
-        )
-        self.app.logger.debug(message.to_json())
 
     def ensure_resource_is_registered(self, resource_id: str):
         try:
