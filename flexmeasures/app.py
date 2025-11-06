@@ -293,26 +293,17 @@ def create(  # noqa C901
 
                     # Set basic time parameters
                     now = datetime.now(timezone.utc)
-                    resolution = timedelta(
-                        minutes=5
-                    )  # Match example_schedule_frbc.py resolution
-
-                    # Start schedule 15 minutes from now, aligned to 5-minute boundary
-                    future_time = now + timedelta(minutes=15)
-                    minutes_offset = future_time.minute % 5
-                    start_aligned = future_time.replace(
-                        minute=future_time.minute - minutes_offset, second=0, microsecond=0
-                    )
+                    resolution = timedelta(minutes=5)
 
                     # Set required attributes for scheduler
+                    # Note: start, end, and belief_time will be recalculated dynamically
+                    # in s2_ws_sync.py before each scheduler call
                     scheduler.sensor = None
                     scheduler.asset = None
-                    scheduler.start = start_aligned
-                    scheduler.end = start_aligned + timedelta(
-                        hours=24
-                    )  # 24-hour planning window
+                    scheduler.start = now
+                    scheduler.end = now + timedelta(hours=24)
                     scheduler.resolution = resolution
-                    scheduler.belief_time = start_aligned
+                    scheduler.belief_time = now
                     scheduler.round_to_decimals = 6
                     scheduler.flex_model = {}
                     scheduler.flex_context = {}
