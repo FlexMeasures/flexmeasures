@@ -408,7 +408,7 @@ scikit-learn==1.7.2
     #   sktime
     #   timetomodel
     #   u8darts
-scipy==1.15.3
+scipy==1.16.2
     # via
     #   lightgbm
     #   properscoring

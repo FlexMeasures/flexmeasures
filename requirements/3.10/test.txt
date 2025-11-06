@@ -24,7 +24,7 @@ click==8.1.8
     # via
     #   -c requirements/3.10/app.txt
     #   flask
-coverage[toml]==7.11.0
+coverage[toml]==7.10.7
     # via pytest-cov
 et-xmlfile==2.0.0
     # via openpyxl
@@ -36,13 +36,13 @@ flask==3.1.2
     # via
     #   -c requirements/3.10/app.txt
     #   pytest-flask
-highspy==1.12.0
+highspy==1.11.0
     # via -r requirements/test.in
 idna==3.11
     # via
     #   -c requirements/3.10/app.txt
     #   requests
-iniconfig==2.3.0
+iniconfig==2.1.0
     # via pytest
 itsdangerous==2.2.0
     # via
@@ -52,7 +52,7 @@ jinja2==3.1.6
     # via
     #   -c requirements/3.10/app.txt
     #   flask
-lupa==2.6
+lupa==2.5
     # via -r requirements/test.in
 markupsafe==3.0.3
     # via
@@ -91,7 +91,7 @@ pytest-mock==3.15.1
     # via -r requirements/test.in
 pytest-sugar==1.1.1
     # via -r requirements/test.in
-redis==7.0.1
+redis==6.4.0
     # via
     #   -c requirements/3.10/app.txt
     #   fakeredis
@@ -104,7 +104,7 @@ requests-mock==1.12.1
     # via -r requirements/test.in
 sortedcontainers==2.4.0
     # via fakeredis
-termcolor==3.2.0
+termcolor==3.1.0
     # via pytest-sugar
 tomli==2.3.0
     # via
