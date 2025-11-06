@@ -552,6 +552,7 @@ class S2FlaskWSServerSync:
             return
 
         # Get resource_id from websocket mapping
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
         self.ensure_resource_is_registered(resource_id=resource_id)
 
         self._device_data[resource_id].system_description = message
