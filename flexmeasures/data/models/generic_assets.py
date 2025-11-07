@@ -123,7 +123,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     )
 
     # not a FK, but representation of this asset in an external system (e.g. IoT solution)
-    external_id = db.Column(db.String(80), default="")
+    external_id = db.Column(db.String(80), default=None)
 
     # Many-to-many relationships
     annotations = db.relationship(
