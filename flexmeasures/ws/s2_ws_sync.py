@@ -622,7 +622,7 @@ class S2FlaskWSServerSync:
                     sensor_name=measurement.commodity_quantity,
                     event_value=measurement.value,
                     event_start=message.measurement_timestamp,
-                    data_source=db.session.get(Source, self.data_source_id),
+                    data_source_id=self.data_source_id,
                     resource_or_actuator_id=resource_id,
                 )
             except Exception as exc:
@@ -641,7 +641,7 @@ class S2FlaskWSServerSync:
         self.save_event(
             sensor_name="fill level",
             event_value=message.present_fill_level,
-            data_source=db.session.get(Source, self.data_source_id),
+            data_source_id=self.data_source_id,
             resource_or_actuator_id=resource_id,
         )
         self.app.logger.info(f"🔋 StorageStatus: {message.present_fill_level:.1f}%")
@@ -753,14 +753,14 @@ class S2FlaskWSServerSync:
         sensor_name: str,
         resource_or_actuator_id: str,
         event_value: float | pd.Series,
-        data_source: Source,
+        data_source_id: int,
         event_start: str | None = None,
         event_resolution: timedelta | None = None,
         event_unit: str = "",
         sensor_unit: str = "",
     ):
         try:
-            data_source = db.session.get(Source, data_source.id)
+            data_source = db.session.get(Source, data_source_id)
         except Exception as exc:
             self.app.logger.warning(
                 f"Data source {data_source} could not be freshly fetched: {str(exc)}"
@@ -1030,7 +1030,7 @@ class S2FlaskWSServerSync:
                                 sensor_name="power",
                                 resource_or_actuator_id=str(result["device"]),
                                 event_value=result["data"],
-                                data_source=self.s2_scheduler.data_source,
+                                data_source=self.s2_scheduler.data_source.id,
                                 event_resolution=self.s2_scheduler.resolution,
                                 event_unit=result["unit"],
                                 sensor_unit="W",
@@ -1041,7 +1041,7 @@ class S2FlaskWSServerSync:
                                 sensor_name="fill level",
                                 resource_or_actuator_id=str(result["fill level"]),
                                 event_value=result["data"],
-                                data_source=self.s2_scheduler.data_source,
+                                data_source=self.s2_scheduler.data_source.id,
                             )
                     if energy_data_count > 0:
                         self.app.logger.info(f"💾 Saved energy data for {energy_data_count} device(s)")
