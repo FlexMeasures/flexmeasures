@@ -109,14 +109,22 @@ Interesting for developers.
 Default: ``False``
 
 
-FLEXMEASURES_PROFILE_INTERVAL
+FLEXMEASURES_PROFILER_CONFIG
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The sampling interval (in seconds) for profiling the processing time of requests.
+Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
 
 Interesting for developers.
 
-Default: ``0.01``
+Default:
+
+.. code-block:: python
+
+   dict(
+       async_mode="disabled",
+       interval=0.01,  # 10 ms sampling interval, enables coarse timer
+       use_timing_thread=True,
+   )
 
 
 UI
@@ -364,15 +372,15 @@ SQLALCHEMY_ENGINE_OPTIONS
 
 Configuration of the SQLAlchemy engine.
 
-Default: 
+Default:
 
 .. code-block:: python
 
-       {
-           "pool_recycle": 299,
-           "pool_pre_ping": True,
-           "connect_args": {"options": "-c timezone=utc"},
-       }
+   {
+       "pool_recycle": 299,
+       "pool_pre_ping": True,
+       "connect_args": {"options": "-c timezone=utc"},
+   }
 
 
 SQLALCHEMY_TEST_DATABASE_URI
