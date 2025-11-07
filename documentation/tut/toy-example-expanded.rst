@@ -197,10 +197,7 @@ A nice feature is that you can check the data connectivity status of your buildi
 |
 
 
-TODO: Add PV curtailment step explicitly here. Also change the heading. Talk about multi-device scheduling, as well.
-
-
-We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
+We hope this part of the tutorial shows how to incorporate a limited grid connection as well as other energy data streams rather easily with FlexMeasures.
 
 This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection.
 In :ref:`tut_v2g`, we will temporarily pause giving you tutorials you can follow step-by-step. We feel it is time to pay more attention to the power of the flex-model, and illustrate its effects.

@@ -247,7 +247,10 @@ If you want, you can inspect what you created:
 
     
 Yes, that is quite a large battery :) 
-You can also see that the asset has some meta information about its scheduling. Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
+You can also see that the asset has some meta information about its scheduling.
+
+- Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
+- Note also that the battery's power capacity is the same as the building's grid connection capacity (500 kVA), meaning the battery can charge or discharge at full power without overloading the connection, but no other devices can (we will come back to this limitation).
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
