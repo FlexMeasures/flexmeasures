@@ -28,7 +28,7 @@ def upgrade():
 
 def downgrade():
     with op.batch_alter_table("generic_asset", schema=None) as batch_op:
-        batch_op.drop_column("external_id")
         batch_op.drop_constraint(
             "generic_asset_account_id_external_id_key", type_="unique"
         )
+        batch_op.drop_column("external_id")
