@@ -24,14 +24,12 @@ asn1crypto==1.5.1
     # via webauthn
 async-timeout==5.0.1
     # via redis
-attrs==25.3.0
+attrs==25.4.0
     # via
     #   jsonschema
     #   referencing
 babel==2.17.0
     # via py-moneyed
-bcrypt==4.0.1
-    # via -r requirements/app.in
 blinker==1.9.0
     # via
     #   flask
@@ -40,7 +38,7 @@ blinker==1.9.0
     #   sentry-sdk
 cbor2==5.7.0
     # via webauthn
-certifi==2025.8.3
+certifi==2025.10.5
     # via
     #   requests
     #   sentry-sdk
@@ -48,7 +46,7 @@ cffi==2.0.0
     # via
     #   argon2-cffi-bindings
     #   cryptography
-charset-normalizer==3.4.3
+charset-normalizer==3.4.4
     # via requests
 click==8.1.8
     # via
@@ -70,7 +68,7 @@ coreforecast==0.0.16
     # via statsforecast
 croniter==6.0.0
     # via rq
-cryptography==45.0.7
+cryptography==46.0.2
     # via
     #   flask-security-too
     #   pyopenssl
@@ -146,7 +144,7 @@ flexcache==0.3
     # via pint
 flexparser==0.4
     # via pint
-fonttools==4.59.2
+fonttools==4.60.1
     # via matplotlib
 fs==2.4.16
     # via triad
@@ -160,7 +158,7 @@ holidays==0.75
     # via u8darts
 humanize==4.13.0
     # via -r requirements/app.in
-idna==3.10
+idna==3.11
     # via
     #   email-validator
     #   requests
@@ -214,7 +212,7 @@ lunardate==0.2.2
     # via workalendar
 mako==1.3.10
     # via alembic
-markupsafe==3.0.2
+markupsafe==3.0.3
     # via
     #   flask
     #   flask-security-too
@@ -242,7 +240,7 @@ matplotlib==3.9.4
     #   u8darts
 more-itertools==10.8.0
     # via inflect
-narwhals==2.4.0
+narwhals==2.8.0
     # via altair
 nfoursid==1.0.1
     # via u8darts
@@ -314,7 +312,7 @@ passlib==1.7.4
     # via flask-security-too
 patsy==1.0.1
     # via statsmodels
-phonenumberslite==9.0.13
+phonenumberslite==9.0.16
     # via flask-security-too
 pillow==11.3.0
     # via
@@ -332,9 +330,9 @@ pmdarima==2.0.4
     #   u8darts
 properscoring==0.1
     # via timely-beliefs
-psutil==7.0.0
+psutil==7.1.0
     # via openturns
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.11
     # via
     #   -r requirements/app.in
     #   timely-beliefs
@@ -344,9 +342,9 @@ pyarrow==20.0.0
     # via triad
 pycparser==2.23
     # via cffi
-pydantic==2.11.7
+pydantic==2.12.2
     # via -r requirements/app.in
-pydantic-core==2.33.2
+pydantic-core==2.41.4
     # via pydantic
 pyluach==2.3.0
     # via workalendar
@@ -356,9 +354,9 @@ pyod==2.0.5
     # via u8darts
 pyomo==6.8.2
     # via -r requirements/app.in
-pyopenssl==25.1.0
+pyopenssl==25.3.0
     # via webauthn
-pyparsing==3.2.3
+pyparsing==3.2.5
     # via matplotlib
 python-dateutil==2.9.0.post0
     # via
@@ -378,7 +376,7 @@ pytz==2025.2
     #   pandas
     #   timely-beliefs
     #   timetomodel
-pyyaml==6.0.2
+pyyaml==6.0.3
     # via -r requirements/app.in
 qrcode==8.2
     # via flask-security-too
@@ -413,7 +411,7 @@ rq==2.6.0
     #   rq-dashboard
 rq-dashboard==0.8.5
     # via -r requirements/app.in
-scikit-base==0.12.5
+scikit-base==0.12.6
     # via sktime
 scikit-learn==1.6.1
     # via
@@ -440,7 +438,7 @@ scipy==1.13.1
     #   timetomodel
     #   u8darts
     #   xgboost
-sentry-sdk[flask]==2.37.1
+sentry-sdk[flask]==2.42.0
     # via -r requirements/app.in
 shap==0.48.0
     # via u8darts
@@ -453,7 +451,7 @@ sktime==0.38.5
     # via timely-beliefs
 slicer==0.0.8
     # via shap
-sqlalchemy==2.0.43
+sqlalchemy==2.0.44
     # via
     #   -r requirements/app.in
     #   alembic
@@ -481,13 +479,13 @@ threadpoolctl==3.6.0
     # via
     #   scikit-learn
     #   statsforecast
-timely-beliefs[forecast]==3.2.2
+timely-beliefs[forecast]==3.2.3
     # via -r requirements/app.in
 timetomodel==0.7.3
     # via -r requirements/app.in
 tldextract==5.3.0
     # via -r requirements/app.in
-tomli==2.2.1
+tomli==2.3.0
     # via alembic
 tqdm==4.67.1
     # via
@@ -500,12 +498,13 @@ triad==0.9.8
     #   fugue
 typeguard==4.4.4
     # via inflect
-types-python-dateutil==2.9.0.20250822
+types-python-dateutil==2.9.0.20251008
     # via arrow
 typing-extensions==4.15.0
     # via
     #   alembic
     #   altair
+    #   cryptography
     #   flexcache
     #   flexparser
     #   marshmallow-sqlalchemy
@@ -520,7 +519,7 @@ typing-extensions==4.15.0
     #   typeguard
     #   typing-inspection
     #   u8darts
-typing-inspection==0.4.1
+typing-inspection==0.4.2
     # via pydantic
 tzdata==2025.2
     # via pandas
