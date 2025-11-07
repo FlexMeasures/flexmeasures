@@ -747,7 +747,7 @@ class S2FlaskWSServerSync:
             except Exception as exc:
                 self.app.logger.warning(f"Failed to save {k}: {v} as an asset attribute of {asset}: {str(exc)}")
 
-    @only_if_timer_due("sensor_name", "resource_or_actuator_id")
+    @only_if_timer_due("sensor_name", "resource_or_actuator_id", "data_source_id")
     def save_event(
         self,
         sensor_name: str,
