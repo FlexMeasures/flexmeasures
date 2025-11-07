@@ -620,7 +620,7 @@ class S2FlaskWSServerSync:
             try:
                 self.save_event(
                     sensor_name=measurement.commodity_quantity,
-                    event_value=message.value,
+                    event_value=measurement.value,
                     event_start=message.measurement_timestamp,
                     data_source=db.session.get(Source, self.data_source_id),
                     resource_or_actuator_id=resource_id,
