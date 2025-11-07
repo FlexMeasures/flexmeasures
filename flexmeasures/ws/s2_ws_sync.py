@@ -809,6 +809,7 @@ class S2FlaskWSServerSync:
                 logger.error(f"Cannot save event values of type {type(event_value)}.")
                 return
             save_to_db(bdf)
+            self.app.logger.debug(f"✅ {capitalize(sensor_name)} saved successfully: {bdf}")
 
         except Exception as exc:
             self.app.logger.warning(f"{capitalize(sensor_name)} could not be saved as sensor data: {str(exc)}")
