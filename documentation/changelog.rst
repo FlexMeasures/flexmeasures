@@ -29,6 +29,7 @@ Infrastructure / Support
 * Support skipping a ``PandasReporter`` transformation if any of its (keyword) arguments has no data [see `PR #1669 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
 * Assets now have an `external_id` field so data from external sources can be linked to the right FlexMeasures asset in custom integrations [see `PR #1774 <https://www.github.com/FlexMeasures/flexmeasures/pull/1774>`_]
 * Save buttons in UI editors (flex-model, flex-context and data dashboards) [see `PR #1764 <https://www.github.com/FlexMeasures/flexmeasures/pull/1764>`_]
+* Improve performance of the endpoint profiler and support configuration using the new ``FLEXMEASURES_PROFILER_CONFIG`` setting [see `PR #1799 <https://www.github.com/FlexMeasures/flexmeasures/pull/1799>`_]
 
 Bugfixes
 -----------
