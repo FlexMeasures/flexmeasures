@@ -225,6 +225,7 @@ class S2FlaskWSServerSync:
         self._handlers.register_handler(ReceptionStatus, self.handle_reception_status)
         self._handlers.register_handler(ResourceManagerDetails, self.handle_ResourceManagerDetails)
         self._handlers.register_handler(InstructionStatusUpdate, self.handle_instruction_status_update)
+        self._handlers.register_handler(PowerMeasurement, self.handle_power_measurement)
         # Register FRBC message handlers
         self._handlers.register_handler(FRBCSystemDescription, self.handle_frbc_system_description)
         self._handlers.register_handler(FRBCFillLevelTargetProfile, self.handle_frbc_fill_level_target_profile)
@@ -232,7 +233,6 @@ class S2FlaskWSServerSync:
         self._handlers.register_handler(FRBCActuatorStatus, self.handle_frbc_actuator_status)
         self._handlers.register_handler(FRBCUsageForecast, self.handle_frbc_usage_forecast)
         self._handlers.register_handler(FRBCLeakageBehaviour, self.handle_frbc_leakage_behaviour)
-        self._handlers.register_handler(PowerMeasurement, self.handle_power_measurement)
 
     def _ws_handler(self, ws: Sock) -> None:
         try:
@@ -620,7 +620,7 @@ class S2FlaskWSServerSync:
             try:
                 self.save_event(
                     sensor_name=measurement.commodity_quantity,
-                    event_value=message.values,
+                    event_value=message.value,
                     event_start=message.measurement_timestamp,
                     data_source=db.session.get(Source, self.data_source_id),
                     resource_or_actuator_id=resource_id,
