@@ -267,10 +267,13 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-model</h5>
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+                    <div class="dropdown">
+                        <span class="fa fa-info dropdown-toggle" 
+                            role="button" 
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false" 
+                            tabindex="0">
+                        </span>
 
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
@@ -304,6 +307,7 @@
                         </div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
                 </div>
                 <div class="px-2 pt-3 pb-2">
                     <div class="row">
@@ -468,7 +472,10 @@
         }
 
         let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
-        assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
+        assetFlexModelRawJSON = { 
+            ...assetFlexModelSchema, 
+            ...processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON) 
+        };
         let availableUnitsRawJSON = "{{ available_units | safe }}";
         availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
         const availableUnits = JSON.parse(availableUnitsRawJSON);
@@ -524,7 +531,6 @@
                     renderFlexModelForm();
                 }
             }
-
 
             addModelFieldbtn.onclick = async function () {
                 const fieldName = flexSelect.value; // value from the select dropdown
@@ -644,11 +650,13 @@
 
                 // Clean null values
                 for (const [key, value] of Object.entries(data)) {
-                    if (value === null) {
-                        delete data[key];
-                    } else if (Array.isArray(value) && value.length === 0) {
-                        delete data[key];
-                    } else if (typeof value === 'object' && Object.keys(value).length === 0) {
+                   if (
+                        value === null ||
+                        value === "" ||
+                        value === "Not Set" ||
+                        (Array.isArray(value) && value.length === 0) ||
+                        (typeof value === 'object' && value !== null && Object.keys(value).length === 0)
+                    ) {
                         delete data[key];
                     }
                 }
@@ -665,7 +673,7 @@
 
                 if (response.status !== 200) {
                     const errorData = await response.json();
-                    const errorMessage = errorData?.message || errorData?.error || response.statusText;
+                    const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
                     showToast(`Failed to update the flex model: ${errorMessage}`, "error");
                     reRenderForm();
                 } else {
@@ -975,7 +983,7 @@
 
                     const boolTabContentSaveBtn = document.createElement('button');
                     boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    boolTabContentSaveBtn.textContent = 'Set Value';
+                    boolTabContentSaveBtn.textContent = 'Save value';
                     boolTabContentSaveBtn.onclick = function () {
                         const checkbox = document.getElementById('flexBoolInput');
                         flexModel[name] = checkbox.checked;
@@ -1040,7 +1048,7 @@
 
                     const stringTabContentSaveBtn = document.createElement('button');
                     stringTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    stringTabContentSaveBtn.textContent = 'Set Value';
+                    stringTabContentSaveBtn.textContent = 'Save value';
                     stringTabContentSaveBtn.onclick = function () {
                         const input = document.getElementById('flexStringInput');
                         if (!input.value) {
@@ -1075,7 +1083,7 @@
                     input.className = 'form-control';
                     input.id = 'flexStringInput';
                     input.placeholder = 'Enter a value';
-                    input.value = `${typeof value === 'string' ? value : ''}`;
+                    input.value = `${(typeof value === 'string' && value !== "Not Set")? value : ''}`;
                     input.onkeydown = function (event) {
                         if (event.key === 'Enter') {
                             event.preventDefault();
@@ -1188,11 +1196,7 @@
                 renderFlexModelForm(); // Initial render of flex model form
                 renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
             });
-
-            flexModelModal.addEventListener('hidden.bs.modal', function () {
-                updateFlexModel();
-            });
-
+            
             flexSelect.addEventListener('change', (event) => {
                 const selectedKey = event.target.value;
                 renderSelectInfoCards(selectedKey);

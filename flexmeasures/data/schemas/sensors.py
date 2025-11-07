@@ -431,13 +431,23 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         return unit
 
     def _get_unit(self, variable_quantity: ur.Quantity | list[dict] | Sensor) -> str:
-        """Obtain the unit from the (deserialized) variable quantity."""
+        """Obtain the unit from the (deserialized) variable quantity.
+
+        >>> VariableQuantityField("MW")._get_unit(ur.Quantity("3 kWh"))
+        'kWh'
+        >>> VariableQuantityField("/MW")._get_unit([{'value': ur.Quantity("3 kEUR/MWh")}, {'value': ur.Quantity("0 EUR/kWh")}])
+        'kEUR/MWh'
+        """
         if isinstance(variable_quantity, ur.Quantity):
             unit = str(variable_quantity.units)
         elif isinstance(variable_quantity, list):
             unit = str(variable_quantity[0]["value"].units)
             if not all(
-                str(variable_quantity[j]["value"].units) == unit
+                units_are_convertible(
+                    from_unit=str(variable_quantity[j]["value"].units),
+                    to_unit=unit,
+                    duration_known=False,  # prevent mistakes by not allowing to mix kW and kWh units within a single time series specification
+                )
                 for j in range(len(variable_quantity))
             ):
                 raise ValidationError(

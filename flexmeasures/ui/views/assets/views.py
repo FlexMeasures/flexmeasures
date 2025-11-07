@@ -86,6 +86,7 @@ class AssetCrudUI(FlaskView):
             assets = account.generic_assets
         return render_flexmeasures_template(
             "assets/assets.html",
+            asset_icon_map=ICON_MAPPING,
             account=account,
             assets=assets,
             msg=msg,
