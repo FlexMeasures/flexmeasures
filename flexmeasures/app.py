@@ -226,6 +226,7 @@ def create(  # noqa C901
                 g.profiler = pyinstrument.Profiler(
                     async_mode="disabled",
                     interval=app.config["FLEXMEASURES_PROFILE_INTERVAL"],
+                    use_timing_thread=True,
                 )
                 g.profiler.start()
             except ImportError:
