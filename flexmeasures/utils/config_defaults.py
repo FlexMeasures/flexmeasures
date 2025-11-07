@@ -115,6 +115,9 @@ class Config(object):
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict[str, str] = {"flexmeasures.io": "2021-01"}
     FLEXMEASURES_PLUGINS: list[str] | str = []  # str will be checked for commas
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
+    FLEXMEASURES_PROFILE_INTERVAL: float = (
+        0.01  # 10 ms sampling interval, enables coarse timer
+    )
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_MENU_LOGO_PATH: str = ""
     FLEXMEASURES_EXTRA_CSS_PATH: str = ""

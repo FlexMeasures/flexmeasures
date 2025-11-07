@@ -109,6 +109,16 @@ Interesting for developers.
 Default: ``False``
 
 
+FLEXMEASURES_PROFILE_INTERVAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The sampling interval (in seconds) for profiling the processing time of requests.
+
+Interesting for developers.
+
+Default: ``0.01``
+
+
 UI
 --
 

@@ -223,7 +223,10 @@ def create(  # noqa C901
             try:
                 import pyinstrument  # noqa F401
 
-                g.profiler = pyinstrument.Profiler(async_mode="disabled")
+                g.profiler = pyinstrument.Profiler(
+                    async_mode="disabled",
+                    interval=app.config["FLEXMEASURES_PROFILE_INTERVAL"],
+                )
                 g.profiler.start()
             except ImportError:
                 pass
