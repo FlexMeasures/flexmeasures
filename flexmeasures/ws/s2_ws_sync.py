@@ -1031,7 +1031,7 @@ class S2FlaskWSServerSync:
                                 sensor_name="power",
                                 resource_or_actuator_id=str(result["device"]),
                                 event_value=result["data"],
-                                data_source=self.s2_scheduler.data_source.id,
+                                data_source_id=self.s2_scheduler.data_source.id,
                                 event_resolution=self.s2_scheduler.resolution,
                                 event_unit=result["unit"],
                                 sensor_unit="W",
@@ -1042,7 +1042,7 @@ class S2FlaskWSServerSync:
                                 sensor_name="fill level",
                                 resource_or_actuator_id=str(result["fill level"]),
                                 event_value=result["data"],
-                                data_source=self.s2_scheduler.data_source.id,
+                                data_source_id=self.s2_scheduler.data_source.id,
                             )
                     if energy_data_count > 0:
                         self.app.logger.info(f"💾 Saved energy data for {energy_data_count} device(s)")
