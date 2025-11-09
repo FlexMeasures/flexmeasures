@@ -48,7 +48,8 @@ Install Flexmeasures and the database
         .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it.
                   ``alias docker='sudo docker'`` enables you to still run this tutorial.
 
-        After running these commands, we can start the Postgres database and the FlexMeasures app with the following commands:
+        After running these commands, we can start the Postgres database server (with user `postgres` and a new database `flexmeasures_db`) and the FlexMeasures server.
+        That is done with the following commands:
 
         .. code-block:: bash
 
