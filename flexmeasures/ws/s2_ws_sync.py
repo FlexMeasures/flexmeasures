@@ -759,12 +759,6 @@ class S2FlaskWSServerSync:
         event_unit: str = "",
         sensor_unit: str = "",
     ):
-        try:
-            data_source = db.session.get(Source, data_source_id)
-        except Exception as exc:
-            self.app.logger.warning(
-                f"Data source {data_source} could not be freshly fetched: {str(exc)}"
-            )
         if event_resolution is None:
             event_resolution = timedelta(0)
         try:
@@ -787,6 +781,12 @@ class S2FlaskWSServerSync:
                 sensor_unit,
                 event_resolution=self.s2_scheduler.resolution,
             )
+            try:
+                data_source = db.session.get(Source, data_source_id)
+            except Exception as exc:
+                self.app.logger.warning(
+                    f"Data source {data_source_id} could not be freshly fetched: {str(exc)}"
+                )
             if isinstance(event_value, float):
                 belief = TimedBelief(
                     sensor=sensor,
