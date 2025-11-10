@@ -1160,6 +1160,14 @@ def add_holidays(
     is_flag=True,
     help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
 )
+@click.option(
+    "--missing-threshold",
+    default=1.0,
+    help=(
+        "Maximum fraction of missing data allowed before raising an error. "
+        "Missing data under this threshold will be filled using forward filling or linear interpolation."
+    ),
+)
 @with_appcontext
 def train_predict_pipeline(
     as_job,
