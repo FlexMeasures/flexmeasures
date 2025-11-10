@@ -67,6 +67,7 @@ class BasePipeline:
         event_ends_before: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
+        missing_threshold: float = 1.0,
     ) -> None:
         self.future = future_regressors
         self.past = past_regressors
@@ -96,6 +97,7 @@ class BasePipeline:
             / 3600
         )  # convert max_forecast_horizon to hours
         self.forecast_frequency = forecast_frequency
+        self.missing_threshold = missing_threshold
 
     def load_data_all_beliefs(self) -> pd.DataFrame:
         """
@@ -603,6 +605,19 @@ class BasePipeline:
         dfs = []
 
         for sensor, sensor_name in zip(sensors, sensor_names):
+
+            # check missing data before filling
+            if sensor_name in df.columns:
+                n_missing = df[sensor_name].isna().sum()
+                total = len(df)
+                missing_fraction = n_missing / total if total > 0 else 1.0
+
+                if missing_fraction > self.missing_threshold:
+                    raise ValueError(
+                        f"Sensor {sensor_name} has {missing_fraction*100:.1f}% missing values "
+                        f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
+                    )
+
             if df.empty:
                 last_event_start = end - pd.Timedelta(
                     hours=sensor.event_resolution.total_seconds() / 3600
@@ -664,8 +679,29 @@ class BasePipeline:
                 fill_missing_dates=True,
                 freq=self.target_sensor.event_resolution,
             )
+            # Identify gaps in the time index (where timestamp rows are missing)
             data_darts_gaps = data_darts.gaps()
 
+            # Calculate number of missing rows per gap
+            data_darts_gaps["missing_rows"] = (
+                (data_darts_gaps["gap_end"] - data_darts_gaps["gap_start"])
+                / sensor.event_resolution
+            ).astype(int)
+
+            # Total missing rows
+            total_missing = data_darts_gaps["missing_rows"].sum()
+
+            # Total expected rows in full dataset
+            total_expected = int((end - start) / sensor.event_resolution) + 1
+
+            # Fraction of missing rows
+            missing_rows_fraction = total_missing / total_expected
+
+            if missing_rows_fraction > self.missing_threshold:
+                raise ValueError(
+                    f"Sensor {sensor_name} has {missing_rows_fraction*100:.1f}% missing values "
+                    f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
+                )
             if not data_darts_gaps.empty:
                 data_darts = transformer.transform(
                     data_darts, **(interpolate_kwargs or {})
