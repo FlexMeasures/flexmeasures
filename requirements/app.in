@@ -11,8 +11,6 @@ inflect
 pydantic
 humanize
 psycopg2-binary
-# due to https://github.com/pallets-eco/flask-security/issues/907 (should be re-opened as of Sep 24) -> https://foss.heptapod.net/python-libs/passlib/-/issues/187
-bcrypt<=4.0.1
 # hashing backend for passlib, not sure why we need it now
 argon2_cffi
 pytz
@@ -67,4 +65,10 @@ flask>=1.0
 werkzeug
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
+
+# Concise asset audit log entries
 dictdiffer>=0.9.0
+
+# Forecaster: TrainPredictPipeline
+lightgbm
+u8darts>=0.29.0

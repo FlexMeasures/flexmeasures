@@ -18,7 +18,7 @@ Assets
 ---------
 
 Assets can represent physical objects (e.g. a car battery or an industrial machine) or "virtual" objects (e.g. a market).
-In essence, an asset is anything on which you collect data.
+In essence, an asset is anything on which you collect data, and therefore many assets have one or more sensors assigned.
 
 Assets can also have a parent-child relationship with other assets.
 So, you could model a building that contains assets like solar panels, a heat pump and EV chargers.
@@ -38,6 +38,12 @@ Here is an example of an asset with sub-assets:
         D <--> G[PV]
         D <--> H[Battery]
         D <--> I["Charge<br>Point"]
+
+Asset belong to accounts (read more on accounts below).
+
+Assets are often represented in other systems (e.g. IoT gateways / local EMS) with another ID. To link FlexMeasures' representation of assets with such external representations, you can store those IDs as `external_id`. 
+
+About asset types:
 
 We model asset types explicitly. None are required for running FlexMeasures.
 Some asset types have support in the UI (for icons, like a sun for ``"solar"``), and in the toy tutorial and test.

@@ -86,6 +86,7 @@ class AssetCrudUI(FlaskView):
             assets = account.generic_assets
         return render_flexmeasures_template(
             "assets/assets.html",
+            asset_icon_map=ICON_MAPPING,
             account=account,
             assets=assets,
             msg=msg,
@@ -375,6 +376,7 @@ class AssetCrudUI(FlaskView):
 
         asset_summary = {
             "Name": asset.name,
+            "Type": asset.generic_asset_type.name,
             "Latitude": asset.latitude,
             "Longitude": asset.longitude,
             "Parent Asset": (
@@ -383,6 +385,8 @@ class AssetCrudUI(FlaskView):
                 else "No Parent"
             ),
         }
+        if asset.external_id:
+            asset_summary["External ID"] = asset.external_id
 
         site_asset = asset
         while site_asset.parent_asset_id:

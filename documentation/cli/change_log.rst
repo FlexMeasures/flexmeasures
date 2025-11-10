@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v0.30.0 | November xx, 2025
 =================================
 
+* Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more).
 * Fix the interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report``, which was not using the correct time at which the command was run; instead, that time was off by and offset corresponding to the offset between the ``FLEXMEASURES_TIMEZONE`` config setting and :abbr:`UTC (Coordinated Universal Time)`).
 * Allow modifying asset trees with the CLI using ``flexmeasures edit transfer-parenthood``.
 
