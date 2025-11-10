@@ -51,6 +51,7 @@ class ForecasterParametersSchema(Schema):
     probabilistic = fields.Bool(required=True)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
+    missing_threshold = fields.Float(required=False, load_default=1.0)
     as_job = fields.Bool(
         load_default=False,
         metadata={
@@ -209,5 +210,6 @@ class ForecasterParametersSchema(Schema):
             probabilistic=data["probabilistic"],
             sensor_to_save=sensor_to_save,
             ensure_positive=ensure_positive,
+            missing_threshold=data.get("missing_threshold"),
             as_job=data.get("as_job"),
         )
