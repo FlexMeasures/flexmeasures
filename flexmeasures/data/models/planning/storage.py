@@ -953,7 +953,7 @@ class MetaStorageScheduler(Scheduler):
                 commitment_spec["downwards_deviation_price"] = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=commitment_spec.pop("down_price"),
-                        unit=self.flex_context["shared_currency_unit"] + "/MW",
+                        unit=price_unit,
                         **timing_kwargs,
                     )
                 )
