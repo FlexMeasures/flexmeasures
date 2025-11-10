@@ -245,6 +245,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             "is_consumer", True
         )
 
+    @property
+    def has_data_generator(self):
+        for source in self.data_sources:
+            if "data_generator" in source.attributes:
+                return True
+        return False
+
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute on the Sensor.
         If not found, looks for the attribute on the Sensor's GenericAsset.

@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type, Dict, Any
+from typing import Dict, Any
 import isodate
 import json
 import yaml
@@ -26,7 +26,9 @@ from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
 
+from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
+    get_data_generator,
     JSONOrFile,
     MsgStyle,
     DeprecatedOption,
@@ -39,7 +41,6 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
-from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
@@ -76,12 +77,10 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.cli.utils import validate_color_cli, validate_url_cli
+from flexmeasures.cli.utils import validate_color_cli, validate_url_cli, split_commas
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
-from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
-from timely_beliefs import BeliefsDataFrame
 
 
 @click.group("add")
@@ -995,43 +994,107 @@ def add_holidays(
     )
 
 
-@fm_add_data.command("forecasts", cls=DeprecatedOptionsCommand)
-@with_appcontext
+@fm_add_data.command("forecasts")
 @click.option(
     "--sensor",
-    "--sensor-id",
-    "sensor_ids",
-    multiple=True,
     required=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
     help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--from-date",
-    "from_date_str",
-    default="2015-02-08",
-    help="Forecast from date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
+    "--regressors",
+    "--regressor",
+    multiple=True,
+    callback=split_commas,
+    help="Sensor ID to be treated as a regressor. "
+    "Use this if both realizations and forecasts recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
+)
+@click.option(
+    "--future-regressors",
+    "--future-regressor",
+    multiple=True,
+    callback=split_commas,
+    help="Sensor ID to be treated only as a future regressor. "
+    "Use this if only forecasts recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
+)
+@click.option(
+    "--past-regressors",
+    "--past-regressor",
+    multiple=True,
+    callback=split_commas,
+    help="Sensor ID to be treated only as a past regressor. "
+    "Use this if only realizations recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
+)
+@click.option(
+    "--train-start",
+    "--start-date",
+    "start_date",
+    required=False,
+    help=(
+        "Timestamp marking when training data begins. "
+        "Format: YYYY-MM-DDTHH:MM:SS±HH:MM. "
+        "If not provided, it defaults to a period equal to the training duration "
+        "ending at --from-date."
+    ),
 )
 @click.option(
     "--to-date",
-    "to_date_str",
-    default="2015-12-31",
-    help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
+    "--end-date",
+    "end_date",
+    required=True,
+    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
 )
 @click.option(
-    "--resolution",
-    type=int,
-    help="Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
+    "--train-period",
+    required=False,
+    help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
+    "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
+    "If not set, derives a training period from --start-predict-date instead. "
+    "If that is also not set, defaults to 2 days.",
 )
 @click.option(
-    "--horizon",
-    "horizons_as_hours",
-    multiple=True,
-    type=click.Choice(["1", "6", "24", "48"]),
-    default=["1", "6", "24", "48"],
-    help="Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
+    "--retrain-frequency",
+    "--remodel-frequency",  # the term as used in the old forecasting tooling
+    "--predict-period",  # only used during development afaik
+    required=False,
+    help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
+    "If not set, the model is not retrained.",
+)
+@click.option(
+    "--from-date",
+    "start_predict_date",
+    default=None,
+    required=False,
+    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
+    "If not set, defaults to now.",
+)
+@click.option(
+    "--max-forecast-horizon",
+    required=False,
+    help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H'). "
+    "Defaults to 48 hours.",
+)
+@click.option(
+    "--forecast-frequency",
+    help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
+    "Defaults to 1 hour.",
+)
+@click.option(
+    "--model-save-dir",
+    default="flexmeasures/data/models/forecasting/artifacts/models",
+    help="Directory to save the trained model.",
+)
+@click.option(
+    "--output-path",
+    help="Directory to save prediction outputs.",
+)
+@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions.")
+@click.option(
+    "--sensor-to-save",
+    default=None,
+    help="Sensor ID to save forecasts into a specific sensor. By default, forecasts are saved to the target sensor.",
 )
 @click.option(
     "--as-job",
@@ -1039,69 +1102,158 @@ def add_holidays(
     help="Whether to queue a forecasting job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
-def create_forecasts(
-    sensor_ids: list[int],
-    from_date_str: str = "2015-02-08",
-    to_date_str: str = "2015-12-31",
-    horizons_as_hours: list[str] = ["1"],
-    resolution: int | None = None,
-    as_job: bool = False,
+@click.option(
+    "--max-training-period",
+    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). defaults to 1 year.",
+)
+@click.option(
+    "--resolution",
+    help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
+)
+@click.option(
+    "--horizon",
+    help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
+)
+@click.option(
+    "--ensure-positive",
+    is_flag=True,
+    help="Whether to ensure positive forecasts, by clipping out negative values.",
+)
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the configuration of the forecaster.",
+)
+@click.option(
+    "--forecaster",
+    "forecaster_class",
+    default="TrainPredictPipeline",
+    type=click.STRING,
+    help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
+    " Use the command `flexmeasures show forecasters` to list all the available forecasters.",
+)
+@click.option(
+    "--source",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="DataSource ID of the `Forecaster`.",
+)
+@click.option(
+    "--parameters",
+    "parameters_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step).",
+)
+@click.option(
+    "--edit-config",
+    "edit_config",
+    is_flag=True,
+    help="Add this flag to edit the configuration of the Forecaster in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--edit-parameters",
+    "edit_parameters",
+    is_flag=True,
+    help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--missing-threshold",
+    default=1.0,
+    help=(
+        "Maximum fraction of missing data allowed before raising an error. "
+        "Missing data under this threshold will be filled using forward filling or linear interpolation."
+    ),
+)
+@with_appcontext
+def train_predict_pipeline(
+    as_job,
+    forecaster_class: str,
+    source: DataSource | None = None,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
+    **kwargs,
 ):
     """
-    Create forecasts.
+    Generate forecasts for a target sensor.
 
-    For example:
+    \b
+    Example
+      flexmeasures add forecasts --sensor 2092 --regressors 2093
+        --start-date 2025-01-01T00:00:00+01:00 --to-date 2025-10-15T00:00:00+01:00
 
-        --from-date 2015-02-02 --to-date 2015-02-04 --horizon 6 --sensor 12 --sensor 14
+    \b
+    Workflow
+      - Training window: defaults from --start-date until the CLI execution time.
+      - Prediction window: defaults from CLI execution time until --to-date.
+      - max-forecast-horizon: defaults to the length of the prediction window.
+      - Forecasts are computed immediately; use --as-job to enqueue them.
+      - Sensor 2093 is used as a regressor in this example.
 
-        This will create forecast values from 0am on May 2nd to 0am on May 5th,
-        based on a 6-hour horizon, for sensors 12 and 14.
-
+    \b
+    Notes:
+    - Use --from-date to explicitly set when the forecasts will start.
+    - Use --train-period to set the training window, which will grow each cycle
+        until the specified --to-date is reached.
+    - Use --predict-period to set the prediction window. It rolls forward by the
+        forecast period each cycle, similar to the training window, but its size
+        does not grow.
     """
-    # make horizons
-    horizons = [timedelta(hours=int(h)) for h in horizons_as_hours]
 
-    # apply timezone and set forecast_end to be an inclusive version of to_date
-    timezone = app.config.get("FLEXMEASURES_TIMEZONE")
-    forecast_start = pd.Timestamp(from_date_str).tz_localize(timezone)
-    forecast_end = (pd.Timestamp(to_date_str) + pd.Timedelta("1D")).tz_localize(
-        timezone
+    # Deprecation warnings for CLI options specific to rolling viewpoint predictions
+    if kwargs.get("horizon") is not None:
+        click.secho(
+            "The --horizon option is deprecated since v0.28.0. Use the max-forecast-horizon option instead.",
+            **MsgStyle.WARN,
+        )
+    del kwargs["horizon"]
+    if kwargs.get("resolution") is not None:
+        click.secho(
+            "The --resolution option is deprecated since v0.28.0. The resolution of the target sensor is used instead.",
+            **MsgStyle.WARN,
+        )
+    del kwargs["resolution"]
+
+    config = dict()
+
+    if config_file:
+        config = yaml.safe_load(config_file)
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    parameters = dict()
+
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
+
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
+
+    # Move remaining kwargs to parameters
+    for k, v in kwargs.items():
+        if k not in parameters:
+            parameters[k] = v
+
+    forecaster = get_data_generator(
+        source=source,
+        model=forecaster_class,
+        config=config,
+        save_config=True,
+        data_generator_type=Forecaster,
     )
 
-    event_resolution: timedelta | None
-    if resolution is not None:
-        event_resolution = timedelta(minutes=resolution)
-    else:
-        event_resolution = None
+    try:
+        forecaster.compute(as_job=as_job, parameters=parameters)
 
-    if as_job:
-        num_jobs = 0
-        for sensor_id in sensor_ids:
-            for horizon in horizons:
-                # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
-                # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
-                jobs = create_forecasting_jobs(
-                    sensor_id=sensor_id,
-                    horizons=[horizon],
-                    start_of_roll=forecast_start - horizon,
-                    end_of_roll=forecast_end - horizon,
-                )
-                num_jobs += len(jobs)
-        click.secho(
-            f"{num_jobs} new forecasting job(s) added to the queue.",
-            **MsgStyle.SUCCESS,
-        )
-    else:
-        from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
-
-        populate_time_series_forecasts(  # this function reports its own output
-            db=app.db,
-            sensor_ids=sensor_ids,
-            horizons=horizons,
-            forecast_start=forecast_start,
-            forecast_end=forecast_end,
-            event_resolution=event_resolution,
-        )
+    except Exception as e:
+        click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
+        raise
 
 
 @fm_add_data.command("schedule")
@@ -1437,50 +1589,13 @@ def add_report(  # noqa: C901
         )
         raise click.Abort()
 
-    if source is None:
-        click.echo(
-            f"Looking for the Reporter {reporter_class} among all the registered reporters...",
-        )
-
-        # get reporter class
-        ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
-            reporter_class
-        )
-
-        # check if it exists
-        if ReporterClass is None:
-            click.secho(
-                f"Reporter class `{reporter_class}` not available.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
-
-        click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
-
-        # initialize reporter class with the reporter sensor and reporter config
-        reporter: Reporter = ReporterClass(config=config, save_config=save_config)
-
-    else:
-        try:
-            reporter: Reporter = source.data_generator  # type: ignore
-
-            if not isinstance(reporter, Reporter):
-                raise NotImplementedError(
-                    f"DataGenerator `{reporter}` is not of the type `Reporter`"
-                )
-
-            click.secho(
-                f"Reporter `{reporter.__class__.__name__}` fetched successfully from the database.",
-                **MsgStyle.SUCCESS,
-            )
-
-        except NotImplementedError:
-            click.secho(
-                f"Error! DataSource `{source}` not storing a valid Reporter.",
-                **MsgStyle.ERROR,
-            )
-
-        reporter._save_config = save_config
+    reporter = get_data_generator(
+        source=source,
+        model=reporter_class,
+        config=config,
+        save_config=save_config,
+        data_generator_type=Reporter,
+    )
 
     if ("start" not in parameters) and (start is not None):
         parameters["start"] = start.isoformat()
@@ -1492,7 +1607,7 @@ def add_report(  # noqa: C901
     click.echo("Report computation is running...")
 
     # compute the report
-    results: BeliefsDataFrame = reporter.compute(parameters=parameters)
+    results = reporter.compute(parameters=parameters)
 
     for result in results:
         data = result["data"]
