@@ -33,15 +33,15 @@ ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
 docker cp prices-tomorrow.csv flexmeasures-server-1:/app
 
-#docker exec -it flexmeasures-server-1 flexmeasures add beliefs \
-#  --sensor 1 --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam
+docker exec -it flexmeasures-server-1 flexmeasures add beliefs \
+  --sensor 1 --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam
 
 echo "[TUTORIAL-RUNNER] creating schedule ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule \
   --sensor 2 \
-  --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-  --flex-model '{"roundtrip-efficiency": "90%"}'
+  --start ${TOMORROW}T07:00+00:00 --duration PT12H --soc-at-start 50% \
+  --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] displaying schedule..."
 docker exec -it flexmeasures-server-1 flexmeasures show beliefs \
-  --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+  --sensor 2 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H

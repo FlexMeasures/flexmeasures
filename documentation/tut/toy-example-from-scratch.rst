@@ -21,11 +21,14 @@ After going through the setup, we can finally create the schedule, which is the 
 
 We'll ask FlexMeasures for a schedule for our battery, specifically to store it on the (dis)charging sensor (ID 2).
 
-To keep this short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
-There is more information being used by the scheduler, such as the battery's capacity and energy prices, but we added that when we created the sensor (see :ref:`tut_load_data`).
+To keep this short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and also that the SoC should never fall below 50 kWh.
 
-.. note:: What should go into the flex model on the asset, and what do you want to send when asking for a schedule?
-    It is your call! Things that do not change often could be stored on the asset. Here, `roundtrip-efficiency` could actually move there, so you don't repeat yourself ...
+There is more information being used by the scheduler, such as the battery's capacity, roundtrip-efficiency and energy prices, but we added that when we created the sensor (see :ref:`tut_load_data`).
+
+.. note:: 
+    You can see here that you have the choice to put such information in the flex model when asking for a schedule, or store it on the asset/sensor itself.
+    *What should go into the flex model on the asset, and what do you want to send when asking for a schedule?*
+    It is your call! Things that do not change often could be stored on the asset. Here, `soc-min` could actually move there, if you believe this usually going to be your preferred lower limit...
     
     Do note that what you send while asking for a schedule always takes precedence over what is stored on the asset. 
 
@@ -40,18 +43,18 @@ There is more information being used by the scheduler, such as the battery's cap
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --flex-model '{"roundtrip-efficiency": "90%"}'
+                --flex-model '{"soc-min": "50 kWh"}'
             New schedule is stored.
         
-        .. note:: Larger flex context and flex model data can also be stored in files instead of passing them inline. See this example below:
+        .. note:: If you ever have a larger flex context and/or flex model, this data can also be stored in files instead of passing them inline. See this example below:
 
         .. code-block:: console
 
             cat my-flex-model.json  
             {
-                "roundtrip-efficiency": "90%",
-                "soc-min": "15 kWh",
-                "soc-max": "60 kWh",
+                "roundtrip-efficiency": "80%",
+                "soc-min": "0 kWh",
+                "soc-max": "400 kWh",
                 "soc-maxima": [
                     {
                         "value": "51 kWh",
@@ -62,7 +65,7 @@ There is more information being used by the scheduler, such as the battery's cap
                 "soc-usage": [{"sensor": 73}]
             }
             
-            flexmeasures add schedule \                                      
+            $ flexmeasures add schedule \                                      
                 --sensor 2 \
                 --start 2024-02-04T07:00+01:00 \
                 --duration PT24H \
@@ -82,7 +85,7 @@ There is more information being used by the scheduler, such as the battery's cap
                 "flex-model": [
                     "sensor": 2,
                     "soc-at-start": "225kWh",
-                    "roundtrip-efficiency": "90%"
+                    "soc-min": "50 kWh"
                 ]
             }
 
@@ -114,7 +117,7 @@ There is more information being used by the scheduler, such as the battery's cap
                     duration="PT12H",
                     flex_model={
                         "soc-at-start": "225 kWh",
-                        "roundtrip-efficiency": "90%",
+                        "soc-min": "50 kWh",
                     },
                     flex_context={},
                 )
@@ -131,9 +134,9 @@ Great. Let's see what we made:
 
 .. code-block:: bash
 
-    $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+    $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H
     Beliefs for Sensor 'discharging' (ID 2).
-    Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
+    Data spans 12 hours and starts at 2025-11-11 07:00:00+00:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
     │   ▐            ▐▀▀▌                                     ▛▀▀│ 0.5MW

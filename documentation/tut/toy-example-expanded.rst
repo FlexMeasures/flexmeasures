@@ -93,11 +93,11 @@ This will have an effect on the available headroom for the battery, given the ``
 
             $ flexmeasures add schedule \
                 --sensor 2 \
-                --start ${TOMORROW}T07:00+01:00 \
+                --start ${TOMORROW}T07:00+00:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
                 --flex-context '{"inflexible-device-sensors": [3]}'
-                --flex-model '{"roundtrip-efficiency": "90%"}' \
+                --flex-model '{"soc-min": "50 kWh"}' \
             New schedule is stored.
         
     .. tab:: API
@@ -108,11 +108,11 @@ This will have an effect on the available headroom for the battery, given the ``
             :emphasize-lines: 11-13
 
             {
-                "start": "2025-06-11T07:00+01:00",
+                "start": "2025-06-11T07:00+00:00",
                 "duration": "PT12H",
                 "flex-model": {
                     "soc-at-start": "225 kWh",
-                    "roundtrip-efficiency": "90%"
+                    "soc-min": "50 kWh"
                 },
                 "flex-context": {
                     "inflexible-device-sensors": [3]
@@ -142,11 +142,11 @@ This will have an effect on the available headroom for the battery, given the ``
                 )
                 schedule = await client.trigger_and_get_schedule(
                     sensor_id=2,  # Battery power (sensor ID)
-                    start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+01:00",
+                    start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+00:00",
                     duration="PT12H",
                     flex_model={
                         "soc-at-start": "225 kWh",
-                        "roundtrip-efficiency": "90%",
+                        "soc-min": "50 kWh",
                     },
                     flex_context={
                         "inflexible-device-sensors": [3],  # solar production (sensor ID)

@@ -1355,7 +1355,8 @@ def add_schedule(  # noqa C901
         scheduler_module = "flexmeasures.data.models.planning.process"
     elif scheduler_class == "StorageScheduler":
         scheduler_module = "flexmeasures.data.models.planning.storage"
-        if soc_at_start is None:
+        if soc_at_start is None and power_sensor:
+            # for asset scheduling, soc at start should be part of the flex model
             click.secho(
                 "For StorageScheduler, --soc-at-start is required.",
                 **MsgStyle.ERROR,
@@ -1835,6 +1836,7 @@ def add_toy_account(kind: str, name: str):
         longitude=location[1],
         flex_context={
             "site-power-capacity": "500 kVA",
+            "consumption-price": {"sensor": day_ahead_sensor.id},
         },
     )
     db.session.flush()
@@ -1846,10 +1848,9 @@ def add_toy_account(kind: str, name: str):
             "battery",
             "discharging",
             parent_asset_id=building_asset.id,
-            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
             flex_model={
                 "power-capacity": "500 kVA",
-                "soc-min": "50 kWh",
+                "roundtrip-efficiency": "90%",
                 "soc-max": "450 kWh",
             },
         )
@@ -1863,6 +1864,15 @@ def add_toy_account(kind: str, name: str):
         db.session.flush()
         battery = discharging_sensor.generic_asset
         battery.sensors_to_show = [
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {
+                "title": "Power flows",
+                "sensors": [production_sensor.id, discharging_sensor.id],
+            },
+        ]
+
+        # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
+        building_asset.sensors_to_show = [
             {"title": "Prices", "sensor": day_ahead_sensor.id},
             {
                 "title": "Power flows",
