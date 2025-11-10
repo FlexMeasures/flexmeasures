@@ -2745,7 +2745,7 @@
                     "summary": "List of jobs",
                     "value": {
                       "jobs": {
-                        "-job_id": 1,
+                        "job_id": 1,
                         "queue": "scheduling",
                         "asset_or_sensor_type": "asset",
                         "asset_id": 1,
@@ -3407,7 +3407,7 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.30.0.dev1"
+    "version": "0.30.0.dev11"
   },
   "openapi": "3.0.2",
   "components": {

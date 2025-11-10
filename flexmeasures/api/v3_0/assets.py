@@ -358,7 +358,7 @@ class AssetAPI(FlaskView):
           responses:
             200:
               description: PROCESSED
-              content:
+              content:fix/latest-jobs-ordering
                 application/json:
                   examples:
                     single_asset:
@@ -995,14 +995,14 @@ class AssetAPI(FlaskView):
                       summary: List of jobs
                       value:
                         jobs:
-                          -job_id: 1
-                          queue: scheduling
-                          asset_or_sensor_type: asset
-                          asset_id: 1
-                          status: finished
-                          err: null
-                          enqueued_at: "2023-10-01T00:00:00"
-                          metadata_hash: abc123
+                         job_id: 1
+                         queue: scheduling
+                         asset_or_sensor_type: asset
+                         asset_id: 1
+                         status: finished
+                         err: null
+                         enqueued_at: "2023-10-01T00:00:00"
+                         metadata_hash: abc123
                         redis_connection_err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
@@ -1024,108 +1024,6 @@ class AssetAPI(FlaskView):
         else:
             all_jobs_data = jobs_data
 
-        all_jobs_data = [
-            {
-                "-job_id": 10,
-                "queue": "scheduling",
-                "asset_or_sensor_type": "sensor",
-                "asset_id": 1,
-                "status": "failed",
-                "err": "Invalid Input Data",
-                "enqueued_at": "2025-11-30T10:10:10Z",
-                "metadata_hash": "bcd890",
-            },
-            {
-                "-job_id": 1,
-                "queue": "scheduling",
-                "asset_or_sensor_type": "asset",
-                "asset_id": 1,
-                "status": "finished",
-                "err": None,
-                "enqueued_at": "2025-11-01T08:30:00Z",
-                "metadata_hash": "abc123",
-            },
-            {
-                "-job_id": 2,
-                "queue": "data_processing",
-                "asset_or_sensor_type": "sensor",
-                "asset_id": 105,
-                "status": "queued",
-                "err": None,
-                "enqueued_at": "2025-11-03T14:15:22Z",
-                "metadata_hash": "def456",
-            },
-            {
-                "-job_id": 4,
-                "queue": "scheduling",
-                "asset_or_sensor_type": "sensor",
-                "asset_id": 1,
-                "status": "running",
-                "err": None,
-                "enqueued_at": "2025-11-06T11:45:00Z",
-                "metadata_hash": "jkl012",
-            },
-            {
-                "-job_id": 5,
-                "queue": "data_processing",
-                "asset_or_sensor_type": "asset",
-                "asset_id": 1,
-                "status": "finished",
-                "err": None,
-                "enqueued_at": "2025-11-12T17:30:45Z",
-                "metadata_hash": "mno345",
-            },
-            {
-                "-job_id": 6,
-                "queue": "reporting",
-                "asset_or_sensor_type": "sensor",
-                "asset_id": 1,
-                "status": "finished",
-                "err": None,
-                "enqueued_at": "2025-11-12T18:05:55Z",
-                "metadata_hash": "pqr678",
-            },
-            {
-                "-job_id": 3,
-                "queue": "reporting",
-                "asset_or_sensor_type": "asset",
-                "asset_id": 1,
-                "status": "failed",
-                "err": "Connection Timeout",
-                "enqueued_at": "2025-11-06T09:00:10Z",
-                "metadata_hash": "ghi789",
-            },
-            {
-                "-job_id": 7,
-                "queue": "scheduling",
-                "asset_or_sensor_type": "asset",
-                "asset_id": 1,
-                "status": "queued",
-                "err": None,
-                "enqueued_at": "2025-11-18T22:01:03Z",
-                "metadata_hash": "stu901",
-            },
-            {
-                "-job_id": 8,
-                "queue": "data_processing",
-                "asset_or_sensor_type": "sensor",
-                "asset_id": 1,
-                "status": "running",
-                "err": None,
-                "enqueued_at": "2025-11-20T04:40:15Z",
-                "metadata_hash": "vwx234",
-            },
-            {
-                "-job_id": 9,
-                "queue": "reporting",
-                "asset_or_sensor_type": "asset",
-                "asset_id": 1,
-                "status": "finished",
-                "err": None,
-                "enqueued_at": "2025-11-25T13:20:07Z",
-                "metadata_hash": "yza567",
-            },
-        ]
         return {
             "jobs": all_jobs_data,
             "redis_connection_err": redis_connection_err,
