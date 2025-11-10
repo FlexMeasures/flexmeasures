@@ -391,6 +391,7 @@ def device_scheduler(  # noqa C901
         initialize=0,
         # bounds=[None, 1000],
     )
+    model.commitment_sign = Var(model.c, domain=Binary, initialize=0)
 
     def _get_stock_change(m, d, j):
         """Determine final stock change of device d until time j.
@@ -463,6 +464,14 @@ def device_scheduler(  # noqa C901
 
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
+
+    def commitment_up_derivative_sign(m, c):
+        """Up deviation active only if sign points up."""
+        return m.commitment_upwards_deviation[c] <= M * m.commitment_sign[c]
+
+    def commitment_down_derivative_sign(m, c):
+        """Down deviation active only if sign points down."""
+        return -m.commitment_downwards_deviation[c] <= M * (1 - m.commitment_sign[c])
 
     def device_stock_commitment_equalities(m, c, j, d):
         """Couple device stocks to each commitment."""
@@ -559,6 +568,12 @@ def device_scheduler(  # noqa C901
         model.d, model.j, rule=device_down_derivative_sign
     )
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
+    model.commitment_up_derivative_sign_con = Constraint(
+        model.c, rule=commitment_up_derivative_sign
+    )
+    model.commitment_down_derivative_sign_con = Constraint(
+        model.c, rule=commitment_down_derivative_sign
+    )
     model.ems_power_commitment_equalities = Constraint(
         model.cj, rule=ems_flow_commitment_equalities
     )
