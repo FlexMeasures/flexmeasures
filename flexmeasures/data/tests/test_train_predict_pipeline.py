@@ -209,6 +209,9 @@ def test_train_predict_pipeline(
 
         # Check DataGenerator parameters stored under DataSource attributes
         data_generator_params = source.attributes["data_generator"]["parameters"]
+        assert (
+            "missing_threshold" in data_generator_params
+        ), "data generator parameters should mention missing_threshold"
         for regressor in past_regressors:
             assert (
                 regressor.id in data_generator_params["past_regressors"]
