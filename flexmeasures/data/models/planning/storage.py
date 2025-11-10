@@ -49,6 +49,8 @@ class MetaStorageScheduler(Scheduler):
     __version__ = None
     __author__ = "Seita"
 
+    default_resolution = timedelta(minutes=15)
+
     COLUMNS = [
         "equals",
         "max",
@@ -103,7 +105,7 @@ class MetaStorageScheduler(Scheduler):
             # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
             resolution = determine_minimum_resampling_resolution(
                 [s.event_resolution for s in sensors if s is not None],
-                fallback_resolution=timedelta(minutes=15),
+                fallback_resolution=self.default_resolution,
             )
             asset = self.asset
         else:
@@ -232,7 +234,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        commitments = self.convert_to_commitments()
+        commitments = self.convert_to_commitments(start, end, resolution)
 
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
@@ -923,23 +925,16 @@ class MetaStorageScheduler(Scheduler):
             commitments,
         )
 
-    def convert_to_commitments(self) -> list[FlowCommitment]:
+    def convert_to_commitments(
+        self,
+        start: datetime,
+        end: datetime,
+        resolution: timedelta,
+    ) -> list[FlowCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
             return []
-
-        start = self.start
-        end = self.end
-        resolution = self.resolution
-        if resolution is None:
-            if self.sensor is not None:
-                resolution = self.sensor.event_resolution
-            else:
-                resolution = determine_minimum_resampling_resolution(
-                    [s.event_resolution for s in self.sensors if s is not None],
-                    fallback_resolution=timedelta(minutes=15),
-                )
 
         commitments = []
         for commitment_spec in commitment_specs:
