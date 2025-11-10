@@ -234,7 +234,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        commitments = self.convert_to_commitments(start, end, resolution)
+        commitments = self.convert_to_commitments(start, end, resolution, belief_time)
 
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
@@ -930,6 +930,7 @@ class MetaStorageScheduler(Scheduler):
         start: datetime,
         end: datetime,
         resolution: timedelta,
+        belief_time: datetime,
     ) -> list[FlowCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
@@ -943,7 +944,7 @@ class MetaStorageScheduler(Scheduler):
             timing_kwargs = dict(
                 query_window=(start, end),
                 resolution=resolution,
-                beliefs_before=self.belief_time,
+                beliefs_before=belief_time,
             )
             if "up_price" in commitment_spec:
                 commitment_spec["upwards_deviation_price"] = (
