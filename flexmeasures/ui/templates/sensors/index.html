@@ -138,7 +138,7 @@ The event_value should be a numeric value."
                               </tr>
                               <tr>
                                   <th>Unit</th>
-                                  <td>{{ sensor.unit }}</td>
+                                  <td>{{ sensor.unit if sensor.unit else 'dimensionless'}}</td>
                               </tr>
                               <tr>
                                   <th>Event resolution</th>
