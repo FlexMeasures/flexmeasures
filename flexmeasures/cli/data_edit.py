@@ -353,14 +353,14 @@ def transfer_parenthood(
 
           flexmeasures edit transfer-parenthood --old-parent 3 --new-parent 4
     """
-    validate_options(asset=asset, old_parent=old_parent)
+    validate_options_for_editing_parenthood(asset=asset, old_parent=old_parent)
     if new_parent is None:
         click.confirm(
             "No new parent specified. This will orphan the asset(s). Continue?",
             abort=True,
         )
     else:
-        verify_ownership(
+        confirm_ownership_change(
             old_owner=(asset or old_parent).owner, new_owner=new_parent.owner
         )
 
@@ -476,7 +476,9 @@ def single_true(iterable) -> bool:
     return any(i) and not any(i)
 
 
-def validate_options(asset: Asset | None, old_parent: Asset | None) -> None:
+def validate_options_for_editing_parenthood(
+    asset: Asset | None, old_parent: Asset | None
+) -> None:
     if asset is None and old_parent is None:
         abort("Use either the `--asset` or `--old-parent` option.")
     if asset is not None and old_parent is not None:
@@ -487,7 +489,9 @@ def validate_options(asset: Asset | None, old_parent: Asset | None) -> None:
             abort(f"Asset {old_parent.id} has no child assets.")
 
 
-def verify_ownership(old_owner: Account | None, new_owner: Account | None) -> None:
+def confirm_ownership_change(
+    old_owner: Account | None, new_owner: Account | None
+) -> None:
     if old_owner is None and new_owner is not None:
         # public → owned
         click.confirm(
