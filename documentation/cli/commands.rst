@@ -115,9 +115,9 @@ of which some are referred to in this documentation.
 --------------
 
 ================================================= =======================================
-``flexmeasures db-ops dump``                      Create a dump of all current data (using `pg_dump`).
-``flexmeasures db-ops load``                      Load backed-up contents (see `db-ops save`), run `reset` first.
+``flexmeasures db-ops dump``                      Create a dump of all current data (using ``pg_dump``).
+``flexmeasures db-ops load``                      Load backed-up contents (see ``db-ops save``), run ``reset`` first.
 ``flexmeasures db-ops reset``                     Reset database data and re-create tables from data model.
-``flexmeasures db-ops restore``                   Restore the dump file, see `db-ops dump` (run `reset` first).
+``flexmeasures db-ops restore``                   Restore the dump file, see ``db-ops dump`` (run ``reset`` first).
 ``flexmeasures db-ops save``                      Backup db content to files.
 ================================================= =======================================
