@@ -68,38 +68,16 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       source_type: sensor.source_type || "None",
       staleness_since: sensor.staleness_since || "Never",
       status: `${statusIcon}<br><span class="time-ago" data-timestamp="${lastCallTime}">
-        <small>${refreshIcon} (${timeAgo})</small></span>`,
+          <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
     };
   }
 
-  function JobRow(job) {
-    const jobStatusMessage = job.err ? `${job.status}: ${job.err}` : job.status;
-    const jobStatusIcon = job.status === "finished" ? "🟢" :
-                          job.status === "failed" ? "🔴" : "🟡";
-    return {
-      created_at_timestamp: job.enqueued_at,
-      created_at: job.enqueued_at,
-      queue: job.queue,
-      entity: job.entity,
-      status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
-      info: `<a href="#" class="btn btn-default btn-success" data-bs-target="#JobMetadataModal-${job.metadata_hash}" data-bs-toggle="modal">Info</a>
-        <div class="modal fade" id="JobMetadataModal-${job.metadata_hash}" tabindex="-1" role="dialog">
-          <div class="modal-dialog"><div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Info</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body"><pre>${job.metadata}</pre></div>
-          </div></div>
-        </div>`,
-      url: `/tasks/0/view/job/${job.job_id}`
-    };
-  }
+  let sensorTable;
 
   $(document).ready(function () {
     // SENSOR STATUS TABLE
-    const sensorTable = $("#sensorStatusTable").DataTable({
+    sensorTable = $("#sensorStatusTable").DataTable({
       searching: false,
       paging: false,
       info: false,
@@ -118,7 +96,6 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         }
         const allData = [];
         let completed = 0;
-
         sensors.forEach(sensor => {
           $.ajax({
             url: `/api/v3_0/sensors/${sensor.id}/status`,
@@ -143,6 +120,85 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           });
         });
       },
+    });
+
+    sensorTable.on('draw', function () {
+      // Reattach click listeners (in case DataTables wiped them)
+      $(".sensor_refresh").off("click").on("click", function () {
+        const sensorId = $(this).attr("id").split("_")[2];
+        const refreshBtn = $(this);
+        refreshBtn.addClass("fa-spin");
+
+        $.ajax({
+          url: `/api/v3_0/sensors/${sensorId}/status`,
+          method: "GET",
+          success: function (res) {
+            if (!res.sensors_data || !res.sensors_data.length) return;
+            const newRowData = SensorStatusRow(res.sensors_data[0]);
+            const rowIndex = sensorTable.rows().eq(0).filter(function (idx) {
+              const rowData = sensorTable.row(idx).data();
+              return rowData.url === `/sensors/${sensorId}`;
+            });
+
+            if (rowIndex.length > 0) {
+              sensorTable.row(rowIndex[0]).data(newRowData).invalidate().draw(false);
+            }
+          },
+          complete: function () {
+            refreshBtn.removeClass("fa-spin");
+          },
+        });
+      });
+    });
+
+    $(document).on("click", ".sensor_refresh", function () {
+      const sensorId = $(this).attr("id").split("_")[2];
+      const refreshBtn = $(this);
+      refreshBtn.addClass("fa-spin");
+
+      $.ajax({
+        url: `/api/v3_0/sensors/${sensorId}/status`,
+        method: "GET",
+        success: function (res) {
+          if (!res.sensors_data || !res.sensors_data.length) return;
+
+          const sensorData = res.sensors_data[0];
+          console.log("Refreshing sensor data:", sensorData);
+          const newRowData = SensorStatusRow(sensorData);
+
+          // find the row index (DataTables internal index)
+          const rowIndexes = sensorTable.rows().eq(0).filter(function (idx) {
+            const rowData = sensorTable.row(idx).data();
+            return rowData && rowData.url === `/sensors/${sensorId}`;
+          });
+
+          if (rowIndexes.length > 0) {
+            const idx = rowIndexes[0];
+
+            // Update only the cells we need (0..3)
+            sensorTable.cell(idx, 0).data(newRowData.sensor_info).invalidate(); // sensor_info
+            sensorTable.cell(idx, 1).data(newRowData.source_type).invalidate(); // source_type
+            sensorTable.cell(idx, 2).data(newRowData.staleness_since).invalidate(); // staleness_since
+            sensorTable.cell(idx, 3).data(newRowData.status).invalidate(); // status
+
+            // redraw once, without resetting paging/order
+            sensorTable.draw(false);
+
+            // optional visual highlight
+            $(sensorTable.row(idx).node()).addClass('table-success');
+            setTimeout(() => $(sensorTable.row(idx).node()).removeClass('table-success'), 800);
+          } else {
+            // if we can't find the row, fallback to a full table reload
+            sensorTable.ajax.reload(null, false);
+          }
+        },
+        error: function (xhr) {
+          console.error("Error refreshing sensor:", sensorId, xhr);
+        },
+        complete: function () {
+          refreshBtn.removeClass("fa-spin");
+        },
+      });
     });
 
     // JOBS TABLE
@@ -186,47 +242,41 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       },
     });
 
-    $.fn.dataTable.ext.errMode = 'none'; // This line ignores DataTables errors e.g alerts on AJAX failure
+    $.fn.dataTable.ext.errMode = 'none';
 
     function getTimeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    const intervals = [
-        { label: "year", seconds: 31536000 },
-        { label: "month", seconds: 2592000 },
-        { label: "day", seconds: 86400 },
-        { label: "hour", seconds: 3600 },
-        { label: "minute", seconds: 60 },
-    ];
-    for (const interval of intervals) {
-        const count = Math.floor(seconds / interval.seconds);
-        if (count >= 1) return `${count} ${interval.label}${count > 1 ? "s" : ""} ago`;
-    }
-    return "just now";
+      const seconds = Math.floor((Date.now() - timestamp) / 1000);
+      const intervals = [
+          { label: "year", seconds: 31536000 },
+          { label: "month", seconds: 2592000 },
+          { label: "day", seconds: 86400 },
+          { label: "hour", seconds: 3600 },
+          { label: "minute", seconds: 60 },
+      ];
+      for (const interval of intervals) {
+          const count = Math.floor(seconds / interval.seconds);
+          if (count >= 1) return `${count} ${interval.label}${count > 1 ? "s" : ""} ago`;
+      }
+      return "just now";
     }
 
-    // Periodically refresh all elements with data-timestamp to show updated "x mins ago"
     function updateTimeAgoDisplays() {
-    $(".time-ago").each(function () {
-        const timestamp = parseInt($(this).data("timestamp"), 10);
-        if (timestamp) {
-        $(this).find("small").text(`(${getTimeAgo(timestamp)})`);
-        }
-    });
-
-    // Also update job header timestamp
-    $(".jobs-time-ago").each(function () {
-        const timestamp = parseInt($(this).data("timestamp"), 10);
-        if (timestamp) {
-        $(this).find("#jobs_time_ago").text(`(${getTimeAgo(timestamp)})`);
-        }
-    });
+      $(".time-ago").each(function () {
+          const timestamp = parseInt($(this).data("timestamp"), 10);
+          if (timestamp) {
+            $(this).find(".time-text").text(`(${getTimeAgo(timestamp)})`);
+          }
+      });
+      $(".jobs-time-ago").each(function () {
+          const timestamp = parseInt($(this).data("timestamp"), 10);
+          if (timestamp) {
+          $(this).find("#jobs_time_ago").text(`(${getTimeAgo(timestamp)})`);
+          }
+      });
     }
 
-    // Refresh and periodic updates
     $("#refresh_jobs").click(() => jobsTable.ajax.reload());
-    setInterval(() => jobsTable.ajax.reload(), 60000);
     setInterval(updateTimeAgoDisplays, 10000);
   });
-
 </script>
 {% endblock %}
