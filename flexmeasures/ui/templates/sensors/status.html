@@ -66,7 +66,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       sensor_info: `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
         <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Reason: ${sensor.relation}" style="margin-left: 10px;"></span>`,
       source_type: sensor.source_type || "None",
-      staleness_since: sensor.staleness_since || "Never",
+      staleness_since: getHumanFriendlyDeltaOrTimeStr(sensor.staleness_since) || "Never",
       status: `${statusIcon}<br><span class="time-ago" data-timestamp="${lastCallTime}">
           <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
@@ -79,7 +79,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
                           job.status === "failed" ? "🔴" : "🟡";
     return {
       created_at_timestamp: job.enqueued_at,
-      created_at: job.enqueued_at,
+      created_at: getHumanFriendlyDeltaOrTimeStr(job.enqueued_at),
       queue: job.queue,
       entity: job.entity,
       status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
