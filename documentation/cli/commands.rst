@@ -66,11 +66,9 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
-``flexmeasures edit resample-data``               | Assign a new event resolution to an existing sensor
-                                                  | and resample its data accordingly.
-``flexmeasures edit transfer-parenthood``         | (Re)assign parent assets.
-``flexmeasures edit transfer-ownership``          | Transfer the ownership of an asset and its children to
-                                                  | a different account.
+``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
+``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
+``flexmeasures edit transfer-ownership``          Transfer the ownership of an asset and its children to a different account.
 ================================================= =======================================
 
 
@@ -78,11 +76,9 @@ of which some are referred to in this documentation.
 --------------
 
 ================================================= =======================================
-``flexmeasures delete structure``                 | Delete all structural (non time-series) data, 
-                                                  | like assets (types), roles and users.
+``flexmeasures delete structure``                 Delete all structural (non time-series) data, like assets (types), roles and users.
 ``flexmeasures delete account-role``              Delete a tenant account role.
-``flexmeasures delete account``                   | Delete a tenant account & also their users
-                                                  | (with assets and power measurements).
+``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
 ``flexmeasures delete asset``                     Delete an asset & also its sensors and data.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
