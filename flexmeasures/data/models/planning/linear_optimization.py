@@ -207,6 +207,16 @@ def device_scheduler(  # noqa C901
 
     commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
+    # Oversimplified check for a convex cost curve
+    df = pd.concat(commitments)[
+        ["upwards deviation price", "downwards deviation price"]
+    ]
+    df = df.groupby(level=0).sum()
+    if len(df[df["upwards deviation price"] < df["downwards deviation price"]]) == 0:
+        convex_cost_curve = True
+    else:
+        convex_cost_curve = False
+
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for M
     Md = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
@@ -570,12 +580,13 @@ def device_scheduler(  # noqa C901
         model.d, model.j, rule=device_down_derivative_sign
     )
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
-    model.commitment_up_derivative_sign_con = Constraint(
-        model.c, rule=commitment_up_derivative_sign
-    )
-    model.commitment_down_derivative_sign_con = Constraint(
-        model.c, rule=commitment_down_derivative_sign
-    )
+    if not convex_cost_curve:
+        model.commitment_up_derivative_sign_con = Constraint(
+            model.c, rule=commitment_up_derivative_sign
+        )
+        model.commitment_down_derivative_sign_con = Constraint(
+            model.c, rule=commitment_down_derivative_sign
+        )
     model.ems_power_commitment_equalities = Constraint(
         model.cj, rule=ems_flow_commitment_equalities
     )
