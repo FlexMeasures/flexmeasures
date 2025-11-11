@@ -338,8 +338,7 @@ def transfer_parenthood(
 
     Either `--asset` or `--old-parent` must be specified (but not both).
 
-    Examples
-    --------
+    Examples:
 
     - Move a top-level asset 1 under asset 2:
 
