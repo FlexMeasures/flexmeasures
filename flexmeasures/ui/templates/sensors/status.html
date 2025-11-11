@@ -15,7 +15,15 @@
         <!-- SENSOR STATUS TABLE -->
         <h4>
           Data connectivity for sensors of {{ asset.name }}
-          <span class="fa fa-info-circle" title="This table shows the connectivity status for all sensors under or relevant to this asset. Click the table to see the actual data."></span>
+          <span class="fa fa-info-circle" title="
+          This table shows the connectivity status for all sensors under or relevant to this asset. Click the table to see the actual data. Per sensor, we report the different data source types. We only explicitly support source types 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter'.
+
+A red traffic light indicates that the last time a record was made was too long ago (it is 'stale'). Hover the light to learn more about why it is displayed red. It could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made.
+
+How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future.
+
+Sensors shown on this page are the ones relevant for correct functioning of the asset. We list the ones linked in the flex-context and the graphs page.
+          "></span>
         </h4>
 
         <div class="table-responsive">

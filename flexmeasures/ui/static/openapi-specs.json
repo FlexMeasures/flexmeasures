@@ -1584,6 +1584,7 @@
               "enum": [
                 "username",
                 "email",
+                "event_datetime",
                 "lastLogin",
                 "lastSeen"
               ]
@@ -2744,16 +2745,18 @@
                   "jobs": {
                     "summary": "List of jobs",
                     "value": {
-                      "jobs": {
-                        "job_id": 1,
-                        "queue": "scheduling",
-                        "asset_or_sensor_type": "asset",
-                        "asset_id": 1,
-                        "status": "finished",
-                        "err": null,
-                        "enqueued_at": "2023-10-01T00:00:00",
-                        "metadata_hash": "abc123"
-                      },
+                      "jobs": [
+                        {
+                          "job_id": 1,
+                          "queue": "scheduling",
+                          "asset_or_sensor_type": "asset",
+                          "asset_id": 1,
+                          "status": "finished",
+                          "err": null,
+                          "enqueued_at": "2023-10-01T00:00:00",
+                          "metadata_hash": "abc123"
+                        }
+                      ],
                       "redis_connection_err": null
                     }
                   }
@@ -3407,11 +3410,23 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.30.0.dev11"
+    "version": "0.28.1.dev56"
   },
   "openapi": "3.0.2",
   "components": {
     "schemas": {
+      "Commitment": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "baseline": {},
+          "up-price": {},
+          "down-price": {}
+        },
+        "additionalProperties": false
+      },
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
@@ -3481,6 +3496,12 @@
           },
           "ems_peak_production_price": {
             "type": "string"
+          },
+          "commitments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Commitment"
+            }
           },
           "inflexible-device-sensors": {
             "type": "array",
