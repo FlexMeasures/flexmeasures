@@ -1247,7 +1247,7 @@
         ) {
             this.id = id;
             this.name = name;
-            this.unit = unit == '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : unit;
+            this.unit = unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : unit;
             this.resolution = resolution
             this.url = `/sensors/${id}`;
         }
