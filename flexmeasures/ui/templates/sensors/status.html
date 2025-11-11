@@ -73,6 +73,30 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     };
   }
 
+  function JobRow(job) {
+    const jobStatusMessage = job.err ? `${job.status}: ${job.err}` : job.status;
+    const jobStatusIcon = job.status === "finished" ? "🟢" :
+                          job.status === "failed" ? "🔴" : "🟡";
+    return {
+      created_at_timestamp: job.enqueued_at,
+      created_at: job.enqueued_at,
+      queue: job.queue,
+      entity: job.entity,
+      status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
+      info: `<a href="#" class="btn btn-default btn-success" data-bs-target="#JobMetadataModal-${job.metadata_hash}" data-bs-toggle="modal">Info</a>
+        <div class="modal fade" id="JobMetadataModal-${job.metadata_hash}" tabindex="-1" role="dialog">
+          <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Info</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body"><pre>${job.metadata}</pre></div>
+          </div></div>
+        </div>`,
+      url: `/tasks/0/view/job/${job.job_id}`
+    };
+  }
+
   let sensorTable;
 
   $(document).ready(function () {
