@@ -209,10 +209,12 @@ def device_scheduler(  # noqa C901
 
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for M
-    M = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
+    Md = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
+    Mc = np.nansum([np.nansum(d[bigM_columns].abs()) for d in device_constraints])
 
     # M has to be 1 MW, at least
-    M = max(M, 1)
+    Md = max(Md, 1)
+    Mc = max(Mc, 1)
 
     for d in range(len(device_constraints)):
         if "stock delta" not in device_constraints[d].columns:
@@ -456,22 +458,22 @@ def device_scheduler(  # noqa C901
 
     def device_up_derivative_sign(m, d, j):
         """Derivative up if sign points up, derivative not up if sign points down."""
-        return m.device_power_up[d, j] <= M * m.device_power_sign[d, j]
+        return m.device_power_up[d, j] <= Md * m.device_power_sign[d, j]
 
     def device_down_derivative_sign(m, d, j):
         """Derivative down if sign points down, derivative not down if sign points up."""
-        return -m.device_power_down[d, j] <= M * (1 - m.device_power_sign[d, j])
+        return -m.device_power_down[d, j] <= Md * (1 - m.device_power_sign[d, j])
 
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
 
     def commitment_up_derivative_sign(m, c):
         """Up deviation active only if sign points up."""
-        return m.commitment_upwards_deviation[c] <= M * m.commitment_sign[c]
+        return m.commitment_upwards_deviation[c] <= Mc * m.commitment_sign[c]
 
     def commitment_down_derivative_sign(m, c):
         """Down deviation active only if sign points down."""
-        return -m.commitment_downwards_deviation[c] <= M * (1 - m.commitment_sign[c])
+        return -m.commitment_downwards_deviation[c] <= Mc * (1 - m.commitment_sign[c])
 
     def device_stock_commitment_equalities(m, c, j, d):
         """Couple device stocks to each commitment."""
