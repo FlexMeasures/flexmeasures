@@ -674,7 +674,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         return self.unit
 
     def __repr__(self) -> str:
-        return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
+        return f"<Sensor {self.id}: {self.name}, unit: {self.unit if self.unit != '' else 'dimensionless'} res.: {self.event_resolution}>"
 
     def __str__(self) -> str:
         return self.name
