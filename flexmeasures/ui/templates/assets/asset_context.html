@@ -227,7 +227,7 @@
             keys.forEach(key => {
                 let headerText = key.charAt(0).toUpperCase() + key.slice(1);
                 let th = document.createElement("th"); // Use <th> for header cells
-                th.innerText = headerText;
+                th.innerHTML = headerText;
                 th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
                 headerRow.appendChild(th);
             });
@@ -248,12 +248,12 @@
                     if (key === "name") {
                         // Create an anchor element
                         let a = document.createElement("a");
-                        a.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
+                        a.innerHTML = sensor[key] !== undefined ? sensor[key] : "N/A";
                         // Set the href; you can modify this as needed, for example using sensor.link if available
                         a.href = sensor.link;
                         td.appendChild(a);
                     } else {
-                        td.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
+                        td.innerHTML = sensor[key] !== undefined ? sensor[key] : "N/A";
                     }
                     row.appendChild(td);
                 });

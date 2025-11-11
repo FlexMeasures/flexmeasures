@@ -670,7 +670,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def _ui_unit(self) -> str:
         """Used to customize how the sensor unit is shown in the UI."""
         if self.unit == "":
-            return "dimensionless"
+            return '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
         return self.unit
 
     def __repr__(self) -> str:
