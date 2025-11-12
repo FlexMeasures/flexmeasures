@@ -347,7 +347,4 @@ Here are some thoughts on further innovation:
   You can always write your own scheduler (see :ref:`plugin_customization`).
   You then might want to add your own flex model, as well.
   FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated.
-- We also aim to model situations with more than one flexible asset, and that have different types of flexibility (e.g. EV charging and smart heating in the same site).
-  This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
-  Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
