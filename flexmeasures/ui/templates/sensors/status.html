@@ -66,7 +66,9 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       sensor_info: `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
         <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Reason: ${sensor.relation}" style="margin-left: 10px;"></span>`,
       source_type: sensor.source_type || "None",
-      staleness_since: getHumanFriendlyDeltaOrTimeStr(sensor.staleness_since) || "Never",
+      staleness_since: sensor.staleness_since ?
+        getHumanFriendlyDeltaOrTimeStr(sensor.staleness_since) :
+        "Never",
       status: `${statusIcon}<br><span class="time-ago" data-timestamp="${lastCallTime}">
           <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
@@ -79,7 +81,9 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
                           job.status === "failed" ? "🔴" : "🟡";
     return {
       created_at_timestamp: job.enqueued_at,
-      created_at: getHumanFriendlyDeltaOrTimeStr(job.enqueued_at),
+      created_at: job.enqueued_at ?
+        getHumanFriendlyDeltaOrTimeStr(job.enqueued_at) :
+        "UnKnown",
       queue: job.queue,
       entity: job.entity,
       status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
@@ -144,6 +148,16 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           });
         });
       },
+      headerCallback: function (thead, data, start, end, display) {
+        // target the 3rd column header (index 2)
+        $(thead)
+        .find("th")
+        .eq(2)
+        .attr(
+            "title",
+            "This is the knowledge time of the most recent event recorded (potentially in the future, for forecasts and schedules)."
+        );
+    },
     });
 
     sensorTable.on('draw', function () {
@@ -267,22 +281,6 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     });
 
     $.fn.dataTable.ext.errMode = 'none';
-
-    function getTimeAgo(timestamp) {
-      const seconds = Math.floor((Date.now() - timestamp) / 1000);
-      const intervals = [
-          { label: "year", seconds: 31536000 },
-          { label: "month", seconds: 2592000 },
-          { label: "day", seconds: 86400 },
-          { label: "hour", seconds: 3600 },
-          { label: "minute", seconds: 60 },
-      ];
-      for (const interval of intervals) {
-          const count = Math.floor(seconds / interval.seconds);
-          if (count >= 1) return `${count} ${interval.label}${count > 1 ? "s" : ""} ago`;
-      }
-      return "just now";
-    }
 
     function updateTimeAgoDisplays() {
       $(".time-ago").each(function () {
