@@ -5,20 +5,35 @@
 Toy example III: Multi-asset scheduling, adding PV curtailment
 ================================================================
 
+What if the solar production is curtailable? We could turn it off when prices are negative, which happens more often now. 
+Or FlexMeasures can simply model correctly that a local gateway will shut production down if the DSO does not allow feed-in (improving FlexMeasures' scheduling w.r.t. reality on the ground).
+
+This makes the PV inverter a flexible control, so this is a good time to move our scheduling command to the building level (asset 2)
+ ― we're officially scheduling the building, and not just one flexible device, but two (PV and battery).
+
+We will do this step by step. First, we demonstrate EV curtailment by itself. Then, we will combine it with the battery scheduling from before and run a multi-asset scheduling example.
+
+
+
+EV curtailment
+---------------------------------------
+
+To make the PV asset curtailable, we tell that the PV (represented by sensor 3) can only pick production values between 0 and the production forecast recorded on sensor 3.
+We store the resulting schedule on sensor 3 as well (the FlexMeasures UI will still be able to distinguish forecasts from schedules).
+
+
+TODO: paste from script
+
+TODO: display schedule and explain
+
+
+
+Multi-asset (building-level) Scheduling
+--------------------------------------- 
+
 TODO: explain
 
-Alternatively, if the solar production is curtailable, we move the solar production to the flex-model.
-
-This makes the PV inverter a flexible control, so this is a good time to move our scheduling command to the building level (asset 2) ― we re officially scheduling the building, not just one device.
-
-There, we tell the scheduler to still work with the battery, but for the PV (represented by sensor 3) to pick any production value between 0 and the production forecast recorded on sensor 3, and to store the resulting schedule on sensor 3 as well (the FlexMeasures UI will still be able to distinguish forecasts from schedules):
-
-
-Trigger an updated schedule with curtailment
-----------------------------------------------------
-
-TODO :Now, we'll reschedule the battery while taking into account the solar production (forecast) as an inflexible device.
-This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
+TOD: adjust scripts
 
 .. tabs::
 
@@ -32,7 +47,7 @@ This will have an effect on the available headroom for the battery, given the ``
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --flex-model '[{"sensor": 2, "roundtrip-efficiency": "90%"}, {"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3}}]'
+                --flex-model '[{"sensor": 2, "soc-at-start": "225 kWh", "soc-min": "50 kWh"}, {"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3}, "soc-at-start": "225 kWh"}]'
             New schedule is stored.
 
     .. tab:: API
@@ -49,7 +64,7 @@ This will have an effect on the available headroom for the battery, given the ``
                     {
                         "sensor": 2,
                         "soc-at-start": "225 kWh",
-                        "roundtrip-efficiency": "90%"
+                        "soc-min": "50 kWh"
                     },
                     {
                         "sensor": 3,
@@ -79,7 +94,7 @@ This will have an effect on the available headroom for the battery, given the ``
                     {
                         "sensor": 2,  # battery power (sensor ID)
                         "soc-at-start": "225 kWh",
-                        "roundtrip-efficiency": "90%",
+                        "soc-min": "50 kWh",
                     },
                     {
                         "sensor": 3,  # solar production (sensor ID)
@@ -87,9 +102,8 @@ This will have an effect on the available headroom for the battery, given the ``
                         "production-capacity": {"sensor": 3},
                     },
                 ],
-                flex_context={},  # TODO: add consumption price, as we only have that on the battery so far!! (also API)
+                flex_context={},
             )
-
 
 
 We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_:

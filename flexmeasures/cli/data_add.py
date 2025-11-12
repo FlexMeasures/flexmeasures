@@ -1355,20 +1355,22 @@ def add_schedule(  # noqa C901
         scheduler_module = "flexmeasures.data.models.planning.process"
     elif scheduler_class == "StorageScheduler":
         scheduler_module = "flexmeasures.data.models.planning.storage"
-        if soc_at_start is None and power_sensor:
+        if soc_at_start is None and (
+            "soc-min" in flex_model or "soc-max" in flex_model
+        ):
             # for asset scheduling, soc at start should be part of the flex model
             click.secho(
                 "For StorageScheduler, --soc-at-start is required.",
                 **MsgStyle.ERROR,
             )
             raise click.Abort()
-        flex_model["soc-at-start"] = soc_at_start.to("%")
+        if soc_at_start:
+            flex_model["soc-at-start"] = soc_at_start.to("%")
 
     scheduling_kwargs = dict(
         start=start,
         end=start + duration,
         belief_time=server_now(),
-        resolution=power_sensor.event_resolution,
         flex_model=flex_model,
         flex_context=flex_context,
         scheduler_specs={
@@ -1376,6 +1378,9 @@ def add_schedule(  # noqa C901
             "class": scheduler_class,
         },
     )
+    if power_sensor:
+        scheduling_kwargs["resolution"] = power_sensor.event_resolution
+    # otherwise, the scheduler will infer the resolution from the asset's device sensors
 
     if as_job:
         job = create_scheduling_job(

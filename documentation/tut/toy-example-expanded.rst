@@ -108,7 +108,7 @@ This will have an effect on the available headroom for the battery, given the ``
             :emphasize-lines: 11-13
 
             {
-                "start": "2025-06-11T07:00+00:00",
+                "start": "2025-11-11T07:00+00:00",
                 "duration": "PT12H",
                 "flex-model": {
                     "soc-at-start": "225 kWh",

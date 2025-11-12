@@ -80,7 +80,7 @@ There is more information being used by the scheduler, such as the battery's cap
         .. code-block:: json
 
             {
-                "start": "2025-06-11T07:00+01:00",
+                "start": "2025-11-11T07:00+00:00",
                 "duration": "PT12H",
                 "flex-model": [
                     "sensor": 2,
@@ -113,7 +113,7 @@ There is more information being used by the scheduler, such as the battery's cap
                 )
                 schedule = await client.trigger_and_get_schedule(
                     sensor_id=2,  # battery power
-                    start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+01:00",
+                    start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+00:00",
                     duration="PT12H",
                     flex_model={
                         "soc-at-start": "225 kWh",
