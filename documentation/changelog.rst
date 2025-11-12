@@ -19,6 +19,7 @@ New features
 * The new ``commitments`` field in the ``flex-context`` can be used to specify previous commitments (e.g. market positions) that the scheduler needs to take into account [see `PR #1754 <https://github.com/FlexMeasures/flexmeasures/pull/1754>`_]
 * Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
 * Let consultants see client assets on dashboard and group by account [see `PR #1763 <https://github.com/FlexMeasures/flexmeasures/pull/1763>`_]
+* Allow modifying asset trees with the CLI using ``flexmeasures edit transfer-parenthood`` [see `PR #1773 <https://github.com/FlexMeasures/flexmeasures/pull/1773>`_]
 
 Infrastructure / Support
 ----------------------
