@@ -665,6 +665,7 @@ class AssetAPI(FlaskView):
                         latitude: 11.1
                         longitude: 99.9
                         account_id: 1
+                        external_id: ""
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:

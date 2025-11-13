@@ -199,6 +199,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     flex_context = JSON(required=False)
     flex_model = JSON(required=False)
     sensors_to_show_as_kpis = JSON(required=False)
+    external_id = fields.Str(required=False)
 
     class Meta:
         model = GenericAsset
