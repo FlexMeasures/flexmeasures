@@ -164,6 +164,7 @@ LEGIBILITY_DEFAULTS = dict(
             orient="bottom",
             columns=1,
             direction="vertical",
+            labelOffset=2 * STROKE_WIDTH,
         ),
     ),
 )
