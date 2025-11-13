@@ -722,7 +722,9 @@ def create_line_layer(
                 "field": "source.type",
                 "legend": {
                     "title": "Source",
-                    "symbolStrokeWidth": STROKE_WIDTH,
+                    "symbolSize": (
+                        100 if STROKE_WIDTH <= 2 else 100 + 800 / 3 * (STROKE_WIDTH - 2)
+                    ),
                 },
             },
             "detail": [FIELD_DEFINITIONS["source"]],

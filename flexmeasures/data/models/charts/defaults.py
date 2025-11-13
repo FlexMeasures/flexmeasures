@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import wraps
+from numpy import pi
 from typing import Callable
 
 import altair as alt
@@ -164,6 +165,10 @@ LEGIBILITY_DEFAULTS = dict(
             orient="bottom",
             columns=1,
             direction="vertical",
+            symbolSize=(
+                100 if STROKE_WIDTH <= 2 else 100 + 800 / 3 / pi * (STROKE_WIDTH - 2)
+            ),
+            symbolStrokeWidth=STROKE_WIDTH,
             labelOffset=2 * STROKE_WIDTH,
         ),
     ),
