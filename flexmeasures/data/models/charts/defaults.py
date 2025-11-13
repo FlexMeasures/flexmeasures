@@ -154,7 +154,7 @@ LEGIBILITY_DEFAULTS = dict(
         ),
         axisY={"titleAngle": 0, "titleAlign": "left", "titleY": -15, "titleX": -40},
         title=dict(
-            fontSize=FONT_SIZE,
+            fontSize=FONT_SIZE * 1.25,
         ),
         legend=dict(
             titleFontSize=FONT_SIZE,
