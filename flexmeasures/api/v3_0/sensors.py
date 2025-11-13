@@ -62,7 +62,10 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
-
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
+    TrainPredictPipelineConfigSchema,
+)
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
@@ -1395,3 +1398,87 @@ class SensorAPI(FlaskView):
         status_data = serialize_sensor_status_data(sensor=sensor)
 
         return {"sensors_data": status_data}, 200
+
+    @route("/<id>/forecasts/trigger", methods=["POST"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(ForecasterParametersSchema, location="json")
+    #@permission_required_for_context("create-children", ctx_arg_name="sensor")
+    def trigger_forecast(self, sensor: Sensor, **parameters):
+        """
+        .. :quickref: Forecasts; Trigger forecasting job for one sensor
+        ---
+        post:
+          summary: Trigger forecasting job for one sensor
+          description: |
+            Launch a forecasting pipeline for the given sensor asynchronously.
+            This reuses the same validation as the CLI command `flexmeasures add forecasts`.
+
+            Example:
+            ```
+            {
+              "sensor": 2092,
+              "end_date": "2025-10-15T00:00:00+01:00",
+              "train_period": "P7D",
+              "retrain_frequency": "PT24H",
+              "max_forecast_horizon": "PT24H",
+              "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+              "probabilistic": false
+            }
+            ```
+          responses:
+            200:
+              description: Forecasting job queued
+              content:
+                application/json:
+                  example:
+                    status: "PROCESSED"
+                    forecast_job: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    message: "Forecasting job has been queued."
+          tags:
+            - Forecasts
+        """
+
+        from flexmeasures.data.models.forecasting import Forecaster
+        from flexmeasures.cli.utils import get_data_generator
+        from flexmeasures.api.common.responses import invalid_flex_config, request_processed
+        from marshmallow import ValidationError
+
+        try:
+            # Validate forecasting parameters using your schema
+            schema = ForecasterParametersSchema()
+            parameters = schema.load({**parameters, "sensor": sensor})
+
+            # Load pipeline config (default: TrainPredictPipeline)
+            config = TrainPredictPipelineConfigSchema().load({})
+
+            # Instantiate the forecaster
+            forecaster = get_data_generator(
+                model="TrainPredictPipeline",
+                config=config,
+                save_config=True,
+                data_generator_type=Forecaster,
+            )
+
+            # Queue forecasting job
+            result = forecaster.compute(as_job=True, parameters=parameters)
+
+            # Extract job ID (UUID)
+            job_id = getattr(result, "id", None)
+
+            # Commit DB transaction
+            db.session.commit()
+
+            # Prepare response
+            response = dict(
+                status="PROCESSED",
+                forecast_job=job_id,
+                message="Forecasting job has been queued.",
+            )
+            d, s = request_processed()
+            return dict(**response, **d), s
+
+        except ValidationError as e:
+            return invalid_flex_config(e.messages)
+        except Exception as e:
+            current_app.logger.exception("Forecast job failed to enqueue.")
+            return invalid_flex_config(str(e))
