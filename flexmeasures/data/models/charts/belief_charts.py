@@ -3,7 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timedelta
 
-from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
+from flexmeasures.data.models.charts.defaults import (
+    FIELD_DEFINITIONS,
+    REPLAY_RULER,
+    STROKE_WIDTH,
+)
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
@@ -687,6 +691,7 @@ def create_line_layer(
             "type": "line",
             "interpolate": interpolate,
             "clip": True,
+            "strokeWidth": STROKE_WIDTH,
         },
         "encoding": {
             "x": event_start_field_definition,
@@ -713,6 +718,7 @@ def create_line_layer(
                 "field": "source.type",
                 "legend": {
                     "title": "Source",
+                    "symbolStrokeWidth": STROKE_WIDTH,
                 },
             },
             "detail": [FIELD_DEFINITIONS["source"]],
