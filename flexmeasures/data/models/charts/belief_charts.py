@@ -713,7 +713,11 @@ def create_line_layer(
                     # Distinguish forecasters and schedulers by line stroke
                     "domain": ["forecaster", "scheduler", "other"],
                     # Schedulers get a dashed line, forecasters get a dotted line, the rest gets a solid line
-                    "range": [[2, 2], [4, 4], [1, 0]],
+                    "range": [
+                        [STROKE_WIDTH, STROKE_WIDTH],
+                        [2 * STROKE_WIDTH, 2 * STROKE_WIDTH],
+                        [1, 0],
+                    ],
                 },
                 "field": "source.type",
                 "legend": {
