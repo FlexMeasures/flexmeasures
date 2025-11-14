@@ -1446,7 +1446,7 @@ class SensorAPI(FlaskView):
         try:
             # Load and validate JSON payload
             parameters = request.get_json()
-            parameters['as_job'] = True
+            #parameters['as_job'] = True
 
             # Instantiate the forecaster
             forecaster = get_data_generator(
