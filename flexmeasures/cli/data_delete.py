@@ -252,7 +252,8 @@ def delete_prognoses(
     type=SourceIdField(),
     required=False,
     multiple=True,
-    help="Delete time series data for a single data source only. Follow up with the source's ID.",
+    help="Delete time series data for a single data source only. Follow up with the source's ID. "
+    "This argument can be given multiple times",
 )
 @click.option(
     "--start",
@@ -367,7 +368,8 @@ def delete_beliefs(  # noqa: C901
     type=SourceIdField(),
     required=False,
     multiple=True,
-    help="Delete unchanged (time series) data for a single data source only. Follow up with the source's ID.",
+    help="Delete unchanged (time series) data for a single data source only. Follow up with the source's ID. "
+    "This argument can be given multiple times",
 )
 @click.option(
     "--delete-forecasts/--keep-forecasts",
@@ -488,7 +490,8 @@ def delete_unchanged_beliefs(
     type=SourceIdField(),
     required=False,
     multiple=True,
-    help="Delete NaN time series data for a single data source only. Follow up with the source's ID.",
+    help="Delete NaN time series data for a single data source only. Follow up with the source's ID. "
+    "This argument can be given multiple times",
 )
 def delete_nan_beliefs(
     sources: list[Source],
