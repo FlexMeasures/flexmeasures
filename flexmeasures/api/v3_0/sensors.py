@@ -1468,7 +1468,6 @@ class SensorAPI(FlaskView):
 
             # Prepare response
             response = dict(
-                status="PROCESSED",
                 forecast_job=job_id,
             )
             d, s = request_processed()
