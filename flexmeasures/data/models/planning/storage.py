@@ -1063,6 +1063,7 @@ class MetaStorageScheduler(Scheduler):
                     ),
                 ).load(sensor_flex_model["sensor_flex_model"])
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
+                self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
 
                 # Extend schedule period in case a target exceeds its end
                 self.possibly_extend_end(
