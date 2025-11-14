@@ -2,9 +2,9 @@ name: lint-and-test
 
 on:
   push:
+    branches:
+      - main
   pull_request:
-    types:
-      - opened
 jobs:
   check:
     runs-on: ubuntu-latest
