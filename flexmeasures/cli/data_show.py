@@ -247,6 +247,7 @@ def show_generic_asset(asset):
             asset.generic_asset_type.name,
             asset.location,
             "".join([f"{k}: {v}\n" for k, v in asset.flex_context.items()]),
+            "".join([f"{k}: {v}\n" for k, v in asset.flex_model.items()]),
             "".join(
                 [
                     f"{graph['title']}: {graph['sensors']} \n"
@@ -263,6 +264,7 @@ def show_generic_asset(asset):
                 "Type",
                 "Location",
                 "Flex-Context",
+                "Flex-Model",
                 "Sensors to show",
                 "Attributes",
             ],

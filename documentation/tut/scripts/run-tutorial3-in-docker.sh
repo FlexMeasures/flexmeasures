@@ -1,24 +1,54 @@
-#!/bin/bash
+
+echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 3 (PV CURTAILMENT / MORE THAN ONE FLEXIBLE ASSET) ..."
+echo "----------------------------------------------------------------------------------------"
+
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 
-echo "[TUTORIAL-RUNNER] Setting up toy account with reporters..."
-docker exec -it flexmeasures-server-1 flexmeasures add toy-account --kind process
+echo "[TUTORIAL-RUNNER] Computing schedule for PV curtailment (using artificial price schema) ..."
 
-echo "[TUTORIAL-RUNNER] Creating three process schedules ..."
-docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 4 --scheduler ProcessScheduler \
-  --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-  --flex-context '{"consumption-price": {"sensor": 1}}' \
-  --flex-model '{"duration": "PT4H", "process-type": "INFLEXIBLE", "power": 0.2, "time-restrictions": [{"start": "'"${TOMORROW}"'T15:00:00+02:00", "duration": "PT1H"}]}'
+echo '''{
+  "consumption-price": [
+    {"start": "'${TOMORROW}'T00:00+00", "duration": "PT24H", "value": "10 EUR/MWh"}
+  ],
+  "production-price": [
+    {"start": "'${TOMORROW}'T05:00+00", "duration": "PT7H", "value": "4 EUR/MWh"},
+    {"start": "'${TOMORROW}'T12:00+00", "duration": "PT2H", "value": "-10 EUR/MWh"},
+    {"start": "'${TOMORROW}'T14:00+00", "duration": "PT7H", "value": "4 EUR/MWh"}
+  ]
+}''' > tutorial3-flex-context.json
+docker cp tutorial3-flex-context.json flexmeasures-server-1:/app/ 
 
-docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
-  --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-  --flex-context '{"consumption-price": {"sensor": 1}}' \
-  --flex-model '{"duration": "PT4H", "process-type": "BREAKABLE", "power": 0.2, "time-restrictions": [{"start": "'"${TOMORROW}"'T15:00:00+02:00", "duration": "PT1H"}]}'
+# this is the one we want
+docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 3 \
+  --start ${TOMORROW}T07:00+00:00 --duration PT12H \
+  --flex-model '{"consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}'\
+  --flex-context tutorial3-flex-context.json 
+echo "[TUTORIAL-RUNNER] showing PV schedule ..."
+docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H
 
-docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 6 --scheduler ProcessScheduler \
-  --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-  --flex-context '{"consumption-price": {"sensor": 1}}' \
-  --flex-model '{"duration": "PT4H", "process-type": "SHIFTABLE", "power": 0.2, "time-restrictions": [{"start": "'"${TOMORROW}"'T15:00:00+02:00", "duration": "PT1H"}]}'
+# hack
+docker exec -it flexmeasures-server-1 flexmeasures delete beliefs --sensor 3
+docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 
-echo "Now visit http://localhost:5000/assets/5/graphs to see all three schedules."
+docker exec -it flexmeasures-server-1 flexmeasures add schedule --asset 2 \
+  --start ${TOMORROW}T07:00+00:00 --duration PT12H \
+  --flex-model '[{"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"sensor": 2, "soc-at-start": "225 kWh", "soc-min": "0 kWh"}]'\
+  --flex-context tutorial3-flex-context.json 
+echo "[TUTORIAL-RUNNER] showing PV schedule ..."
+docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --sensor 2 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H
+
+exit
+
+
+echo "[TUTORIAL-RUNNER] Re-computing schedule in multi-asset manner ..."
+
+#docker exec -it flexmeasures-server-1 flexmeasures add schedule --asset 2 \
+#  --start ${TOMORROW}T07:00+00:00 --duration PT12H \
+#  --flex-model '[{"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3}}]'\
+#  --flex-context '{"production-price": [{"start": "2025-11-12T00:00+00", "duration": "PT12H", "value": "4 EUR/MWh"}, {"start": "2025-11-12T12:00+00", "duration": "PT2H", "value": "-10 EUR/MWh"}, {"start": "2025-11-12T14:00+00", "duration": "PT10H", "value": "4 EUR/MWh"}]}'
+#--flex-model '[{"sensor": 2, "soc-at-start": "223 kWh", "soc-min": "50 kWh"}, {"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3}}]'\
+#--flex-context '{"production-price": "0 EUR/kWh"}'
+
+echo "[TUTORIAL-RUNNER] showing battery and PV schedules ..."
+docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 2 --sensor 3 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H

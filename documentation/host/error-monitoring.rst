@@ -40,7 +40,7 @@ For illustration, here is one example of how we monitor the latest run times of 
 
     $ flexmeasures monitor latest-run --task get_weather_forecasts 60 --task get_recent_meter_data 6  --task import_epex_prices 1440
 
-The first task (get_weather_forecasts) is actually supported within FlexMeasures, while the other two sit in plugins we wrote.
+These tasks are defined in plugins we wrote - the weather forecast you will find in the flexmeasures/flexmeasures-weather repository.
 
 This task status monitoring is enabled by decorating the functions behind these tasks with:
 
