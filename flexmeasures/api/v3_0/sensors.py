@@ -1470,7 +1470,6 @@ class SensorAPI(FlaskView):
             response = dict(
                 status="PROCESSED",
                 forecast_job=job_id,
-                message="Forecasting job has been queued.",
             )
             d, s = request_processed()
             return dict(**response, **d), s
