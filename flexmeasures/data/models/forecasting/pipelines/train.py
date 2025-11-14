@@ -31,6 +31,7 @@ class TrainPipeline(BasePipeline):
         event_ends_before: datetime | None = None,
         probabilistic: bool = False,
         ensure_positive: bool = False,
+        missing_threshold: float = 1.0,
     ) -> None:
         """
         Initialize the TrainPipeline.
@@ -47,6 +48,7 @@ class TrainPipeline(BasePipeline):
         :param forecast_frequency: Frequency of the forecast in hours.
         :param probabilistic: Whether to use a probabilistic model.
         :param ensure_positive: Whether to ensure that predictions are positive.
+        :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         """
         self.model_save_dir = model_save_dir
         self.probabilistic = probabilistic
@@ -63,6 +65,7 @@ class TrainPipeline(BasePipeline):
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,
             forecast_frequency=forecast_frequency,
+            missing_threshold=missing_threshold,
         )
 
     def train_model(
