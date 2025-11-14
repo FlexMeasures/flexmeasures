@@ -3,7 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timedelta
 
-from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
+from flexmeasures.data.models.charts.defaults import (
+    FIELD_DEFINITIONS,
+    REPLAY_RULER,
+    STROKE_WIDTH,
+)
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
@@ -687,6 +691,7 @@ def create_line_layer(
             "type": "line",
             "interpolate": interpolate,
             "clip": True,
+            "strokeWidth": STROKE_WIDTH,
         },
         "encoding": {
             "x": event_start_field_definition,
@@ -708,11 +713,18 @@ def create_line_layer(
                     # Distinguish forecasters and schedulers by line stroke
                     "domain": ["forecaster", "scheduler", "other"],
                     # Schedulers get a dashed line, forecasters get a dotted line, the rest gets a solid line
-                    "range": [[2, 2], [4, 4], [1, 0]],
+                    "range": [
+                        [STROKE_WIDTH, STROKE_WIDTH],
+                        [2 * STROKE_WIDTH, 2 * STROKE_WIDTH],
+                        [1, 0],
+                    ],
                 },
                 "field": "source.type",
                 "legend": {
                     "title": "Source",
+                    "symbolSize": (
+                        100 if STROKE_WIDTH <= 2 else 100 + 800 / 3 * (STROKE_WIDTH - 2)
+                    ),
                 },
             },
             "detail": [FIELD_DEFINITIONS["source"]],
