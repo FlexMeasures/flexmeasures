@@ -192,7 +192,12 @@ def get_power_values(
         )
         df = df.astype(float).fillna(0)
 
-    series = convert_units(df.values, sensor.unit, "MW")
+    series = convert_units(
+        df.values,
+        sensor.unit,
+        "MW",
+        event_resolution=sensor.event_resolution,
+    )
 
     if sensor.get_attribute(
         "consumption_is_positive", False
