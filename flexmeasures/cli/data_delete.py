@@ -248,8 +248,10 @@ def delete_prognoses(
 )
 @click.option(
     "--source",
+    "sources",
     type=SourceIdField(),
     required=False,
+    multiple=True,
     help="Delete time series data for a single data source only. Follow up with the source's ID.",
 )
 @click.option(
@@ -270,7 +272,7 @@ def delete_prognoses(
 def delete_beliefs(  # noqa: C901
     generic_assets: list[GenericAsset],
     sensors: list[Sensor],
-    source: Source | None = None,
+    sources: list[Source],
     start: datetime | None = None,
     end: datetime | None = None,
     offspring: bool = False,
@@ -315,8 +317,8 @@ def delete_beliefs(  # noqa: C901
     # Create query
     q = select(TimedBelief).join(Sensor).where(*entity_filters, *event_filters)
 
-    if source is not None:
-        q = q.filter(TimedBelief.source_id == source.id)
+    if sources:
+        q = q.filter(TimedBelief.source_id.in_([source.id for source in sources]))
 
     # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
@@ -361,8 +363,10 @@ def delete_beliefs(  # noqa: C901
 )
 @click.option(
     "--source",
+    "sources",
     type=SourceIdField(),
     required=False,
+    multiple=True,
     help="Delete unchanged (time series) data for a single data source only. Follow up with the source's ID.",
 )
 @click.option(
@@ -394,8 +398,8 @@ def delete_beliefs(  # noqa: C901
     " Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 def delete_unchanged_beliefs(
+    sources: list[Source],
     sensor: Sensor | None = None,
-    source: Source | None = None,
     delete_unchanged_forecasts: bool = True,
     delete_unchanged_measurements: bool = True,
     start: datetime | None = None,
@@ -405,8 +409,8 @@ def delete_unchanged_beliefs(
     q = select(TimedBelief)
     if sensor:
         q = q.filter_by(sensor_id=sensor.id)
-    if source:
-        q = q.filter_by(source_id=source.id)
+    if sources:
+        q = q.filter(TimedBelief.source_id.in_([source.id for source in sources]))
     if start:
         q = q.filter(TimedBelief.event_start >= start)
     if end:
@@ -480,20 +484,22 @@ def delete_unchanged_beliefs(
 )
 @click.option(
     "--source",
+    "sources",
     type=SourceIdField(),
     required=False,
+    multiple=True,
     help="Delete NaN time series data for a single data source only. Follow up with the source's ID.",
 )
 def delete_nan_beliefs(
+    sources: list[Source],
     sensor: Sensor | None = None,
-    source: Source | None = None,
 ):
     """Delete NaN beliefs."""
     q = db.session.query(TimedBelief)
     if sensor is not None:
         q = q.filter(TimedBelief.sensor_id == sensor.id)
-    if source is not None:
-        q = q.filter(TimedBelief.source_id == source.id)
+    if sources:
+        q = q.filter(TimedBelief.source_id.in_([source.id for source in sources]))
     query = q.filter(TimedBelief.event_value == float("NaN"))
     prompt = f"Delete {query.count()} NaN beliefs out of {q.count()} beliefs?"
     click.confirm(prompt, abort=True)
