@@ -1399,11 +1399,10 @@ class SensorAPI(FlaskView):
 
         return {"sensors_data": status_data}, 200
 
-    @route("/<id>/forecasts/trigger", methods=["POST"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @use_kwargs(ForecasterParametersSchema, location="json")
-    #@permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def trigger_forecast(self, sensor: Sensor, **parameters):
+    @route("/<sensor>/forecasts/trigger", methods=["POST"])
+    @use_kwargs({"sensor": SensorIdField()}, location="path")
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    def trigger_forecast(self, sensor: Sensor):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
         ---
@@ -1438,23 +1437,22 @@ class SensorAPI(FlaskView):
             - Forecasts
         """
 
+        from flask import request
+        from marshmallow import ValidationError
         from flexmeasures.data.models.forecasting import Forecaster
         from flexmeasures.cli.utils import get_data_generator
         from flexmeasures.api.common.responses import invalid_flex_config, request_processed
-        from marshmallow import ValidationError
 
         try:
-            # Validate forecasting parameters using your schema
-            schema = ForecasterParametersSchema()
-            parameters = schema.load({**parameters, "sensor": sensor})
-
-            # Load pipeline config (default: TrainPredictPipeline)
-            config = TrainPredictPipelineConfigSchema().load({})
+            # Load and validate JSON payload
+            parameters = request.get_json()
+            parameters['as_job'] = True
 
             # Instantiate the forecaster
             forecaster = get_data_generator(
+                source=None,
                 model="TrainPredictPipeline",
-                config=config,
+                config={},
                 save_config=True,
                 data_generator_type=Forecaster,
             )
