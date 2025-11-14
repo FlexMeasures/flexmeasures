@@ -254,6 +254,7 @@ def show_generic_asset(asset):
                 ]
             ),
             "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
+            asset.external_id,
         )
     ]
     click.echo(
@@ -265,6 +266,7 @@ def show_generic_asset(asset):
                 "Flex-Context",
                 "Sensors to show",
                 "Attributes",
+                "External ID",
             ],
         )
     )
