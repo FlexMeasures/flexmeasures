@@ -247,6 +247,12 @@ def delete_prognoses(
     help="Delete all beliefs associated with this sensor.",
 )
 @click.option(
+    "--source",
+    type=SourceIdField(),
+    required=False,
+    help="Delete time series data for a single data source only. Follow up with the source's ID.",
+)
+@click.option(
     "--start",
     "start",
     type=AwareDateTimeField(),
@@ -264,6 +270,7 @@ def delete_prognoses(
 def delete_beliefs(  # noqa: C901
     generic_assets: list[GenericAsset],
     sensors: list[Sensor],
+    source: Source | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
     offspring: bool = False,
@@ -307,6 +314,9 @@ def delete_beliefs(  # noqa: C901
 
     # Create query
     q = select(TimedBelief).join(Sensor).where(*entity_filters, *event_filters)
+
+    if source is not None:
+        q = q.filter(TimedBelief.source_id == source.id)
 
     # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
