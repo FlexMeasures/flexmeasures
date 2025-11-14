@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from functools import wraps
+from numpy import pi
 from typing import Callable
 
 import altair as alt
 
 
 FONT_SIZE = 16
+STROKE_WIDTH = 2
 ANNOTATION_MARGIN = 16
 HEIGHT = 300
 WIDTH = "container"
@@ -154,7 +156,7 @@ LEGIBILITY_DEFAULTS = dict(
         ),
         axisY={"titleAngle": 0, "titleAlign": "left", "titleY": -15, "titleX": -40},
         title=dict(
-            fontSize=FONT_SIZE,
+            fontSize=FONT_SIZE * 1.25,
         ),
         legend=dict(
             titleFontSize=FONT_SIZE,
@@ -163,6 +165,11 @@ LEGIBILITY_DEFAULTS = dict(
             orient="bottom",
             columns=1,
             direction="vertical",
+            symbolSize=(
+                100 if STROKE_WIDTH <= 2 else 100 + 800 / 3 / pi * (STROKE_WIDTH - 2)
+            ),
+            symbolStrokeWidth=STROKE_WIDTH,
+            labelOffset=2 * STROKE_WIDTH,
         ),
     ),
 )

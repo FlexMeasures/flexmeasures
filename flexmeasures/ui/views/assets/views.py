@@ -167,7 +167,7 @@ class AssetCrudUI(FlaskView):
         current_asset_sensors = [
             {
                 "name": sensor.name,
-                "unit": sensor.unit,
+                "unit": sensor._ui_unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
             for sensor in asset.sensors
