@@ -261,7 +261,7 @@ def run_test_charge_discharge_sign(
         commitments,
     ) = scheduler._prepare(skip_validation=True)
 
-    _, _, results, model = device_scheduler(
+    planned_power_per_device, planned_costs, results, model = device_scheduler(
         device_constraints=device_constraints,
         ems_constraints=ems_constraints,
         commitments=commitments,

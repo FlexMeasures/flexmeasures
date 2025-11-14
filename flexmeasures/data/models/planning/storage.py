@@ -49,6 +49,8 @@ class MetaStorageScheduler(Scheduler):
     __version__ = None
     __author__ = "Seita"
 
+    default_resolution = timedelta(minutes=15)
+
     COLUMNS = [
         "equals",
         "max",
@@ -103,7 +105,7 @@ class MetaStorageScheduler(Scheduler):
             # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
             resolution = determine_minimum_resampling_resolution(
                 [s.event_resolution for s in sensors if s is not None],
-                fallback_resolution=timedelta(minutes=15),
+                fallback_resolution=self.default_resolution,
             )
             asset = self.asset
         else:
@@ -232,7 +234,9 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        commitments = self.convert_to_commitments()
+        commitments = self.convert_to_commitments(
+            query_window=(start, end), resolution=resolution, beliefs_before=belief_time
+        )
 
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
@@ -923,33 +927,20 @@ class MetaStorageScheduler(Scheduler):
             commitments,
         )
 
-    def convert_to_commitments(self) -> list[FlowCommitment]:
+    def convert_to_commitments(
+        self,
+        **timing_kwargs,
+    ) -> list[FlowCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
             return []
 
-        start = self.start
-        end = self.end
-        resolution = self.resolution
-        if resolution is None:
-            if self.sensor is not None:
-                resolution = self.sensor.event_resolution
-            else:
-                resolution = determine_minimum_resampling_resolution(
-                    [s.event_resolution for s in self.sensors if s is not None],
-                    fallback_resolution=timedelta(minutes=15),
-                )
-
+        start, end = timing_kwargs["query_window"]
+        price_unit = self.flex_context["shared_currency_unit"] + "/MW"
         commitments = []
         for commitment_spec in commitment_specs:
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
-            price_unit = self.flex_context["shared_currency_unit"] + "/MW"
-            timing_kwargs = dict(
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=self.belief_time,
-            )
             if "up_price" in commitment_spec:
                 commitment_spec["upwards_deviation_price"] = (
                     get_continuous_series_sensor_or_quantity(
@@ -962,7 +953,7 @@ class MetaStorageScheduler(Scheduler):
                 commitment_spec["downwards_deviation_price"] = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=commitment_spec.pop("down_price"),
-                        unit=self.flex_context["shared_currency_unit"] + "/MW",
+                        unit=price_unit,
                         **timing_kwargs,
                     )
                 )
@@ -972,7 +963,9 @@ class MetaStorageScheduler(Scheduler):
                     unit="MW",
                     **timing_kwargs,
                 )
-            commitment_spec["index"] = initialize_index(start, end, resolution)
+            commitment_spec["index"] = initialize_index(
+                start, end, timing_kwargs["resolution"]
+            )
             commitments.append(FlowCommitment(**commitment_spec))
 
         return commitments
@@ -1266,7 +1259,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
 
 
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "5"
+    __version__ = "6"
     __author__ = "Seita"
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
@@ -1303,8 +1296,8 @@ class StorageScheduler(MetaStorageScheduler):
                 for soc_at_start_d in soc_at_start
             ],
         )
-        if scheduler_results.solver.termination_condition == "infeasible":
-            raise InfeasibleProblemException()
+        if "infeasible" in (tc := scheduler_results.solver.termination_condition):
+            raise InfeasibleProblemException(tc)
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = {

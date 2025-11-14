@@ -55,7 +55,7 @@ class NoTimeSeriesSpecs(Schema):
 
 
 class CommitmentSchema(Schema):
-    name = fields.Str(required=False, data_key="name")
+    name = fields.Str(required=True, data_key="name")
     baseline = VariableQuantityField("MW", required=False, data_key="baseline")
     up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
     down_price = VariableQuantityField(
@@ -109,18 +109,20 @@ class CommitmentSchema(Schema):
                     field_name=field_name,
                 )
 
-        _ensure_variable_quantity_passes_one_validator(
-            variable_quantity=commitment["up_price"],
-            validators=price_validators,
-            field_name="up-price",
-            error_message=f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
-        )
-        _ensure_variable_quantity_passes_one_validator(
-            variable_quantity=commitment["down_price"],
-            validators=price_validators,
-            field_name="down-price",
-            error_message=f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
-        )
+        if "up_price" in commitment:
+            _ensure_variable_quantity_passes_one_validator(
+                variable_quantity=commitment["up_price"],
+                validators=price_validators,
+                field_name="up-price",
+                error_message=f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+            )
+        if "down_price" in commitment:
+            _ensure_variable_quantity_passes_one_validator(
+                variable_quantity=commitment["down_price"],
+                validators=price_validators,
+                field_name="down-price",
+                error_message=f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+            )
 
 
 class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
