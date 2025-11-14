@@ -82,6 +82,7 @@ of which some are referred to in this documentation.
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
 ``flexmeasures delete asset``                     Delete an asset & also its sensors and data.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
+``flexmeasures delete beliefs``                   Delete time series data (beliefs).
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).
 ``flexmeasures delete prognoses``                 Delete forecasts and schedules (forecasts > 0).
 ``flexmeasures delete unchanged-beliefs``         Delete unchanged beliefs.
