@@ -6,7 +6,7 @@ echo "[TUTORIAL-RUNNER] loading solar production data..."
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 
-echo "Hour,Price
+echo "Hour,Production
 ${TOMORROW}T00:00:00,0.0
 ${TOMORROW}T01:00:00,0.0
 ${TOMORROW}T02:00:00,0.0

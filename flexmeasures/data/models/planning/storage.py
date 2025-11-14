@@ -42,6 +42,9 @@ from flexmeasures.utils.time_utils import determine_minimum_resampling_resolutio
 from flexmeasures.utils.unit_utils import ur, convert_units
 
 
+storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
+
+
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
     flex-model, flex-context, and sensor and asset attributes"""
@@ -981,13 +984,15 @@ class MetaStorageScheduler(Scheduler):
         """Store new soc info as GenericAsset attributes
 
         This method should become obsolete when all SoC information is recorded on a sensor, instead.
+
+        Deprecated: get rid of this when moving to v1.0
         """
         if self.sensor is not None:
             self.sensor.generic_asset.set_attribute(
                 "soc_datetime", self.start.isoformat()
             )
             self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model["soc_at_start"]
+                "soc_in_mwh", self.flex_model.get("soc_at_start")
             )
 
     def deserialize_flex_config(self):
@@ -1016,19 +1021,24 @@ class MetaStorageScheduler(Scheduler):
             if (
                 "soc-at-start" not in self.flex_model
                 or self.flex_model["soc-at-start"] is None
-            ):
+            ) and self.sensor is not None:
                 if (
-                    self.sensor is not None
-                    and self.start == self.sensor.get_attribute("soc_datetime")
+                    self.start == self.sensor.get_attribute("soc_datetime")
                     and self.sensor.get_attribute("soc_in_mwh") is not None
                 ):
                     self.flex_model["soc-at-start"] = self.sensor.get_attribute(
                         "soc_in_mwh"
                     )
-                else:
+                elif self.sensor.generic_asset.asset_type in storage_asset_types and (
+                    "soc-min" in self.flex_model or "soc-max" in self.flex_model
+                ):
                     self.flex_model["soc-at-start"] = 0
 
-            self.ensure_soc_min_max()
+            if (
+                self.sensor is not None
+                and self.sensor.generic_asset.asset_type in storage_asset_types
+            ):
+                self.ensure_soc_min_max()
 
             # Now it's time to check if our flex configuration holds up to schemas
             self.flex_model = StorageFlexModelSchema(

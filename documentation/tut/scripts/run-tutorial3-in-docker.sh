@@ -9,7 +9,7 @@ echo "[TUTORIAL-RUNNER] Computing schedule for PV curtailment (using artificial 
 
 echo '''{
   "consumption-price": [
-    {"start": "'${TOMORROW}'T00:00+00", "duration": "PT24H", "value": "0 EUR/MWh"}
+    {"start": "'${TOMORROW}'T00:00+00", "duration": "PT24H", "value": "10 EUR/MWh"}
   ],
   "production-price": [
     {"start": "'${TOMORROW}'T05:00+00", "duration": "PT7H", "value": "4 EUR/MWh"},
@@ -19,12 +19,24 @@ echo '''{
 }''' > tutorial3-flex-context.json
 docker cp tutorial3-flex-context.json flexmeasures-server-1:/app/ 
 
+# this is the one we want
 docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 3 \
   --start ${TOMORROW}T07:00+00:00 --duration PT12H \
-  --flex-model '{"consumption-capacity": "0 kW", "production-capacity": {"sensor": 3}}'\
+  --flex-model '{"consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}'\
   --flex-context tutorial3-flex-context.json 
 echo "[TUTORIAL-RUNNER] showing PV schedule ..."
 docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H
+
+# hack
+docker exec -it flexmeasures-server-1 flexmeasures delete beliefs --sensor 3
+docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
+
+docker exec -it flexmeasures-server-1 flexmeasures add schedule --asset 2 \
+  --start ${TOMORROW}T07:00+00:00 --duration PT12H \
+  --flex-model '[{"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"sensor": 2, "soc-at-start": "225 kWh", "soc-min": "0 kWh"}]'\
+  --flex-context tutorial3-flex-context.json 
+echo "[TUTORIAL-RUNNER] showing PV schedule ..."
+docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --sensor 2 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H
 
 exit
 
