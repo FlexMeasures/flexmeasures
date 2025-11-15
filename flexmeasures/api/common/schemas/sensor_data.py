@@ -84,7 +84,7 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
     )
     duration = DurationField(
         required=True,
-        description="Duration of the full set of events described in the time series data.",
+        description="Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
         example="PT1H",
     )
     horizon = DurationField(

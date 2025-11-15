@@ -354,7 +354,7 @@
           {
             "in": "query",
             "name": "duration",
-            "description": "Duration of the full set of events described in the time series data.",
+            "description": "Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
             "schema": {
               "type": "string",
               "example": "PT1H"
@@ -4033,7 +4033,7 @@
           },
           "duration": {
             "type": "string",
-            "description": "Duration of the full set of events described in the time series data.",
+            "description": "Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
             "example": "PT1H"
           },
           "horizon": {
