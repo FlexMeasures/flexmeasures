@@ -724,12 +724,10 @@ class AssetTriggerSchema(Schema):
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
         data_key="flex-model",
-        description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
     )
     flex_context = fields.Dict(
         required=False,
         data_key="flex-context",
-        description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
     )
     sequential = fields.Bool(
         load_default=False,

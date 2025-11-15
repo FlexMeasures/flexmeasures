@@ -4336,10 +4336,20 @@
             "example": "PT24H"
           },
           "flex_model": {
-            "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
+            "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
+              }
+            ]
           },
           "flex_context": {
-            "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+            "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+              }
+            ]
           },
           "sequential": {
             "type": "boolean",

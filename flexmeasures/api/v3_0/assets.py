@@ -82,8 +82,16 @@ flex_context_schema_openAPI = make_openapi_compatible(FlexContextSchema)
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
-    flex_context = fields.Nested(flex_context_schema_openAPI, required=True)
-    flex_model = fields.Nested(storage_flex_model_schema_openAPI, required=True)
+    flex_context = fields.Nested(
+        flex_context_schema_openAPI,
+        required=True,
+        description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+    )
+    flex_model = fields.Nested(
+        storage_flex_model_schema_openAPI,
+        required=True,
+        description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
+    )
 
 
 class AssetChartKwargsSchema(Schema):
