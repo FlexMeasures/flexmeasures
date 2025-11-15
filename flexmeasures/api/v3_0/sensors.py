@@ -110,11 +110,11 @@ class TriggerScheduleKwargsSchema(Schema):
     flex_context = fields.Dict(
         required=False,
         data_key="flex-context",
-        description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
+        description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
     )
     force_new_job_creation = fields.Boolean(
         required=False,
-        description="If True, bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
+        description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
     )
 
 
