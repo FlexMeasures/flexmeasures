@@ -95,7 +95,7 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
     prior = AwareDateTimeField(
         required=False,
         format="iso",
-        description="All sensor data has been recorded prior to this belief time.",
+        description="All sensor data has been recorded prior to this [belief time](https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#beliefs-in-physics).",
         example="2026-01-14T20:00+01:00",
     )
     unit = fields.Str(
