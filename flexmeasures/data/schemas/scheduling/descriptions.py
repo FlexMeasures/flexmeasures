@@ -1,3 +1,9 @@
+"""
+These descriptions are used in documentation/features/scheduling.rst and in OpenAPI.
+If you need to use a new .rst directive, update make_openapi_compatible accordingly, so it shows up nicely in OpenAPI.
+For instance, the :abbr:`X (Y)` directive is converted to a <abbr title="Y">X</abbr> HTML tag.
+"""
+
 SOC_AT_START = (
     "The (estimated) state of charge at the beginning of the schedule (defaults to 0)."
 )
