@@ -698,18 +698,43 @@ class AssetTriggerSchema(Schema):
     }
     """
 
-    asset = GenericAssetIdField(data_key="id")
-    start_of_schedule = AwareDateTimeField(
-        data_key="start", format="iso", required=True
+    asset = GenericAssetIdField(
+        data_key="id",
+        description="ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account.",
     )
-    belief_time = AwareDateTimeField(format="iso", data_key="prior")
-    duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
+    start_of_schedule = AwareDateTimeField(
+        data_key="start",
+        format="iso",
+        required=True,
+        description="Start time of the schedule, in ISO 8601 datetime format.",
+        example="2026-01-15T10:00+01:00",
+    )
+    belief_time = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+        "By default, the most recent sensor data is used. This field is especially useful for running simulations",
+        example="2026-01-15T10:00+01:00",
+    )
+    duration = PlanningDurationField(
+        description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+        example="PT24H",
+        load_default=PlanningDurationField.load_default,
+    )
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
         data_key="flex-model",
+        description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
     )
-    flex_context = fields.Dict(required=False, data_key="flex-context")
-    sequential = fields.Bool(load_default=False)
+    flex_context = fields.Dict(
+        required=False,
+        data_key="flex-context",
+        description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+    )
+    sequential = fields.Bool(
+        load_default=False,
+        description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previous schedules as inflexible device.",
+    )
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):
