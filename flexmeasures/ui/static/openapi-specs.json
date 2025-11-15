@@ -4256,7 +4256,8 @@
             "type": "string"
           },
           "consumption_capacity": {
-            "type": "string"
+            "type": "string",
+            "description": "Device-level power constraint on consumption. How much power can be drawn by this asset."
           },
           "production_capacity": {
             "type": "string",

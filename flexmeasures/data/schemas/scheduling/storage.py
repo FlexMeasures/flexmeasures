@@ -106,7 +106,10 @@ class StorageFlexModelSchema(Schema):
     )
 
     consumption_capacity = VariableQuantityField(
-        "MW", data_key="consumption-capacity", required=False
+        "MW",
+        data_key="consumption-capacity",
+        required=False,
+        description=descriptions.CONSUMPTION_CAPACITY,
     )
     production_capacity = VariableQuantityField(
         "MW",

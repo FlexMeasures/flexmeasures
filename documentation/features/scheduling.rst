@@ -252,7 +252,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
    * - ``consumption-capacity``
      - ``{"sensor": 56}``
-     - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
+     - |CONSUMPTION_CAPACITY| [#minimum_overlap]_
    * - ``production-capacity``
      - ``"0kW"`` (only consumption)
      - |PRODUCTION_CAPACITY| [#minimum_overlap]_
