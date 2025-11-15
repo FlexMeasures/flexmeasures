@@ -171,7 +171,7 @@ FlexMeasures offers a command to create a toy account with a battery:
 
 And with that, we're done with the structural data for this tutorial!
 
-If you want, you can inspect what you created:
+If you want, you can inspect what you created in the CLI (we'll also show the UI later):
 
 .. code-block:: bash
 
@@ -209,7 +209,7 @@ If you want, you can inspect what you created:
     Type      Location           Flex-Context                      Flex-Model    Sensors to show      Attributes
     --------  -----------------  --------------------------------  ------------  -------------------  ------------
     building  (52.374, 4.88969)  site-power-capacity: 500 kVA                    Prices: [1]
-                              consumption-price: {'sensor': 1}                Power flows: [3, 2]
+                                 consumption-price: {'sensor': 1}                Power flows: [3, 2]
 
 
     ====================================
@@ -228,6 +228,7 @@ You can see that this building asset has some meta information about how FlexMea
 - Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
 - Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this value.
 
+Now let's look at the battery asset, as well:
 
 .. code-block:: bash
     :emphasize-lines: 10-12
@@ -276,6 +277,27 @@ Visit `http://localhost:5000/ <http://localhost:5000/>`_ (username is "toy-user@
 |
 
 .. note:: You won't see the map tiles, as we have not configured the :ref:`MAPBOX_ACCESS_TOKEN`. If you have one, you can configure it via ``flexmeasures.cfg`` (for Docker, see :ref:`docker_configuration`).
+
+And here is the context view of the building:
+
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-site-structure.png
+    :align: center
+|
+
+The flex-context of the building (which you can edit here in the UI, as well):
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-building-flex-context.png
+    :align: center
+|
+
+And on the flex-model of the battery can be seen on its properties page (and is editable as well):
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-battery-flex-model.png
+    :align: center
+|
+
+
 
 
 .. _tut_toy_schedule_price_data:

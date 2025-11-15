@@ -169,7 +169,7 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
     :align: center
 |
 
-Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
+Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. This battery can fully charge in around an hour, and therefore, it runs two cycles. For instance, in the second cycle it buys at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
 The `battery's graph dashboard <http://localhost:5000/assets/3/graphs>`_ shows both prices and the schedule.
 
