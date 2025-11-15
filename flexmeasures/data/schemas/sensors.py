@@ -200,8 +200,10 @@ class SensorSchemaMixin(Schema):
     )
     attributes = JSON(
         required=False,
-        description="JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
-        example="{consumption_is_positive: True}",
+        metadata=dict(
+            description="JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
+            example="{consumption_is_positive: True}",
+        ),
     )
 
     @validates("unit")
