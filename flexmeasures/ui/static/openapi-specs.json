@@ -4315,18 +4315,25 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account."
           },
           "start": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Start time of the schedule, in ISO 8601 datetime format.",
+            "example": "2026-01-15T10:00+01:00"
           },
           "prior": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations",
+            "example": "2026-01-15T10:00+01:00"
           },
           "duration": {
-            "type": "string"
+            "type": "string",
+            "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            "example": "PT24H"
           },
           "flex_model": {
             "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
@@ -4336,7 +4343,8 @@
           },
           "sequential": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previous schedules as inflexible device."
           }
         },
         "required": [
