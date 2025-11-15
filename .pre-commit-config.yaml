@@ -17,3 +17,10 @@ repos:
         language: script
         entry: ci/run_mypy.sh
         verbose: true
+  - repo: local
+    hooks:
+      - id: generate-openapi-specs
+        name: Generate OpenAPI specs
+        pass_filenames: false
+        language: system
+        entry: python flexmeasures/api/scripts/generate_open_api_specs.py
