@@ -194,7 +194,9 @@ class SensorSchemaMixin(Schema):
     )
     entity_address = fields.String(
         dump_only=True,
-        description="Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+        metadata=dict(
+            description="Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+        ),
     )
     attributes = JSON(
         required=False,
