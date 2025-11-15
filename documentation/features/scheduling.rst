@@ -200,12 +200,10 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Description 
    * - ``soc-at-start``
      - ``"3.1 kWh"``
-     - The (estimated) state of charge at the beginning of the schedule (defaults to 0). [#quantity_field]_
+     - |SOC_AT_START| [#quantity_field]_
    * - ``soc-unit``
      - ``"kWh"`` or ``"MWh"``
-     - The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).
-       However, we advise to mention the unit in each field explicitly (for instance, ``"3.1 kWh"`` rather than ``3.1``).
-       Enumerated option only.
+     - |SOC_UNIT|
    * - ``soc-min``
      - ``"2.5 kWh"``
      - A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0).
@@ -257,7 +255,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
    * - ``production-capacity``
      - ``"0kW"`` (only consumption)
-     - Device-level power constraint on production. How much power can be supplied by this asset. For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
+     - |PRODUCTION_CAPACITY| [#minimum_overlap]_
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 

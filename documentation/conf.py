@@ -13,6 +13,8 @@ from datetime import datetime
 from pkg_resources import get_distribution
 import sphinx_fontawesome
 
+from flexmeasures.data.schemas.scheduling import descriptions as desc_module
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -260,3 +262,47 @@ def setup(sphinx_app):
         create(
             env="documentation"
         )  # we need to create the app for when sphinx imports modules that use current_app
+
+
+# Build rst_epilog substitutions for every UPPERCASE constant
+sub_lines = []
+for name in dir(desc_module):
+    if not name.isupper():
+        continue
+    value = getattr(desc_module, name)
+    if not isinstance(value, str):
+        # skip non-string constants
+        continue
+
+    # Normalize CRLFs and strip trailing newlines
+    value = value.replace("\r\n", "\n").rstrip("\n")
+
+    # We want Sphinx to accept the replacement both inline and as a multi-line
+    # paragraph. The `replace::` directive must have the replacement text on
+    # the same line or on following indented lines. We put the first line on
+    # the directive line and indent the following lines so they render as a
+    # paragraph (and work inside table cells).
+    lines = value.split("\n")
+    if len(lines) == 1:
+        # single-line replacement: keep it all on one line
+        replacement = lines[0]
+        sub_lines.append(f".. |{name}| replace:: {replacement}")
+    else:
+        # multi-line: first line on directive, then indent subsequent lines
+        first, rest = lines[0], lines[1:]
+        indented_rest = "\n   ".join(rest)
+        # If subsequent lines are present, prepend them with a newline+3 spaces
+        sub_lines.append(f".. |{name}| replace:: {first}\n   {indented_rest}")
+
+rst_epilog = "\n".join(sub_lines)
+print(rst_epilog)
+
+# # Fill in field descriptions from our schemas
+# descriptions = importlib.import_module("flexmeasures.data.schemas.scheduling.descriptions")
+# rst_epilog = ""
+# for name in dir(descriptions):
+#     if name.isupper():
+#         value = getattr(descriptions, name)
+#         # Escape special characters in multi-line text for RST
+#         escaped_value = value.replace("\n", "\n   ")
+#         rst_epilog += f".. |{name}| replace:: {escaped_value}\n"
