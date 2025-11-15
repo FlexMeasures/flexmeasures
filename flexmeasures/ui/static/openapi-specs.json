@@ -513,7 +513,7 @@
             "in": "query",
             "name": "duration",
             "required": false,
-            "description": "Duration of the schedule to retrieve.\nIf omitted, the default is 6 hours.\nThe maximum allowed value is limited by the `FLEXMEASURES_PLANNING_HORIZON` configuration option\n(default: 2 days).\nWhile a full-horizon schedule is available, it is usually not useful to fetch it entirely.\nA better approach is to request only the near-term part of the schedule,\nand to refresh the schedule as new information becomes relevant.\n",
+            "description": "Duration of the schedule to retrieve.\nIf omitted, the default is 6 hours.\nThe maximum allowed value is limited by the `FLEXMEASURES_PLANNING_HORIZON` configuration option\n(default: 48 hours).\nWhile a full-horizon schedule is available, it is usually not useful to fetch it entirely.\nA better approach is to request only the near-term part of the schedule,\nand to refresh the schedule as new information becomes relevant.\n",
             "example": "PT24H",
             "schema": {
               "type": "string"

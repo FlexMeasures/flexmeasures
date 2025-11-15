@@ -817,7 +817,7 @@ class SensorAPI(FlaskView):
                 Duration of the schedule to retrieve.
                 If omitted, the default is 6 hours.
                 The maximum allowed value is limited by the `FLEXMEASURES_PLANNING_HORIZON` configuration option
-                (default: 2 days).
+                (default: 48 hours).
                 While a full-horizon schedule is available, it is usually not useful to fetch it entirely.
                 A better approach is to request only the near-term part of the schedule,
                 and to refresh the schedule as new information becomes relevant.
