@@ -799,16 +799,29 @@ class SensorAPI(FlaskView):
             - in: path
               name: id
               required: true
+              description: ID of the sensor for which to retrieve the schedule.
+              example: 5
               schema:
-                type: string
+                type: int
             - in: path
               name: uuid
               required: true
+              description: UUID of the scheduling job, which was returned by the [Sensor scheduling endpoint](#/Sensors/post_api_v3_0_sensors__id__schedules_trigger) or the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger).
+              example: 5d28df1b-9f16-4177-ae43-6e750d80fad3
               schema:
                 type: string
             - in: query
               name: duration
               required: false
+              description: |
+                Duration of the schedule to retrieve.
+                If omitted, the default is 6 hours.
+                The maximum allowed value is limited by the `FLEXMEASURES_PLANNING_HORIZON` configuration option
+                (default: 2 days).
+                While a full-horizon schedule is available, it is usually not useful to fetch it entirely.
+                A better approach is to request only the near-term part of the schedule,
+                and to refresh the schedule as new information becomes relevant.
+              example: PT24H
               schema:
                 type: string
           responses:
@@ -818,6 +831,39 @@ class SensorAPI(FlaskView):
                 application/json:
                   schema:
                     type: object
+                    properties:
+                      scheduler_info:
+                        type: object
+                        description: Information about the scheduler that executed the job.
+                        additionalProperties: true
+
+                      values:
+                        type: array
+                        items:
+                          type: number
+                        description: The scheduled values as a list of floats.
+
+                      start:
+                        type: string
+                        format: date-time
+                        description: Start time of the schedule (ISO 8601).
+
+                      duration:
+                        type: string
+                        description: Duration covered by the schedule, expressed as an ISO 8601 duration.
+
+                      unit:
+                        type: string
+                        description: Unit of the schedule's values.
+
+                      status:
+                        type: string
+                        enum: ["PROCESSED"]
+                        description: Processing status of the request.
+
+                      message:
+                        type: string
+                        description: Human-readable message about request processing.
                   examples:
                     schedule:
                       summary: Schedule response
