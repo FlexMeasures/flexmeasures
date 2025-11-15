@@ -95,7 +95,7 @@ class TriggerScheduleKwargsSchema(Schema):
         format="iso",
         data_key="prior",
         description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
-        "By default, the most recent sensor data is used. This field is especially useful for running simulations",
+        "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
         example="2026-01-15T10:00+01:00",
     )
     duration = PlanningDurationField(
