@@ -4091,25 +4091,34 @@
         "properties": {
           "start": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Start time of the schedule, in ISO 8601 datetime format.",
+            "example": "2026-01-15T10:00+01:00"
           },
           "prior": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations",
+            "example": "2026-01-15T10:00+01:00"
           },
           "duration": {
-            "type": "string"
+            "type": "string",
+            "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            "example": "PT24H"
           },
           "flex-model": {
             "type": "object",
+            "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
             "additionalProperties": {}
           },
           "flex-context": {
             "type": "object",
+            "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
             "additionalProperties": {}
           },
           "force_new_job_creation": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "If True, bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered."
           }
         },
         "required": [
