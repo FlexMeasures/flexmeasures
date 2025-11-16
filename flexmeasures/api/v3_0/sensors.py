@@ -1434,7 +1434,7 @@ class SensorAPI(FlaskView):
                     forecast_job: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                     message: "Forecasting job has been queued."
           tags:
-            - Forecasts
+            - Sensors
         """
 
         from flask import request
