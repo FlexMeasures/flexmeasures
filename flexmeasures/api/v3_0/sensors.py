@@ -62,10 +62,6 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
-from flexmeasures.data.schemas.forecasting.pipeline import (
-    ForecasterParametersSchema,
-    TrainPredictPipelineConfigSchema,
-)
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
