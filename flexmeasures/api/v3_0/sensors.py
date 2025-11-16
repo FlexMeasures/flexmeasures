@@ -1441,14 +1441,17 @@ class SensorAPI(FlaskView):
         from marshmallow import ValidationError
         from flexmeasures.data.models.forecasting import Forecaster
         from flexmeasures.cli.utils import get_data_generator
-        from flexmeasures.api.common.responses import invalid_flex_config, request_processed
+        from flexmeasures.api.common.responses import (
+            invalid_flex_config,
+            request_processed,
+        )
 
         try:
             # Load and validate JSON payload
             parameters = request.get_json()
 
             # Ensure the forecast is run as a job on a forecasting queue
-            parameters['as_job'] = True
+            parameters["as_job"] = True
 
             # Instantiate the forecaster
             forecaster = get_data_generator(
