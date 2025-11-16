@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Any, Callable, Dict
 
 from marshmallow import (
     Schema,
@@ -12,6 +12,7 @@ from marshmallow import (
 )
 
 from flexmeasures import Sensor
+
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
@@ -28,6 +29,102 @@ from flexmeasures.utils.unit_utils import (
     is_power_unit,
     is_energy_unit,
 )
+from flexmeasures.utils.validation_utils import validate_variable_quantity
+
+
+class NoTimeSeriesSpecs(Schema):
+
+    @validates_schema
+    def forbid_time_series_specs(self, data: dict, **kwargs):
+        """Do not allow time series specs for the flex-context fields saved in the db."""
+
+        # List of keys to check for time series specs
+        keys_to_check = []
+        # All the keys in this list are all fields of type VariableQuantity
+        for field_var, field in self.declared_fields.items():
+            if isinstance(field, VariableQuantityField):
+                keys_to_check.append((field_var, field))
+
+        # Check each key and raise a ValidationError if it's a list
+        for field_var, field in keys_to_check:
+            if field_var in data and isinstance(data[field_var], list):
+                raise ValidationError(
+                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
+                    field_name=field.data_key,
+                )
+
+
+class CommitmentSchema(Schema):
+    name = fields.Str(required=False, data_key="name")
+    baseline = VariableQuantityField("MW", required=False, data_key="baseline")
+    up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
+    down_price = VariableQuantityField(
+        "/MW",
+        required=False,
+        data_key="down-price",
+    )
+
+    @validates_schema
+    def check_units(self, commitment, **kwargs):
+        baseline_field = self.declared_fields["baseline"]
+        if "baseline" in commitment:
+            baseline_unit = baseline_field._get_unit(commitment["baseline"])
+        else:
+            baseline_unit = "MW"
+        if is_power_unit(baseline_unit):
+            price_validators = [
+                is_capacity_price_unit,
+                is_energy_price_unit,
+            ]  # one of these must pass
+            allowed_price_units = ["power", "energy"]
+        # todo: consider supporting more types of baselines here later
+        # elif is_energy_unit(baseline_unit):
+        #     baseline_validator = is_energy_unit
+        #     price_validators = [is_energy_price_unit]
+        #     unit_type = "energy"
+        else:
+            raise ValidationError(
+                "Commitment baseline must have a power unit.",
+                field_name="baseline",
+            )
+
+        def _ensure_variable_quantity_passes_one_validator(
+            variable_quantity: ur.Quantity | Sensor | dict,
+            validators: list[Callable],
+            field_name: str,
+            error_message: str,
+        ):
+            if not any(
+                [
+                    validate_variable_quantity(
+                        variable_quantity=variable_quantity,
+                        unit_validator=validator,
+                        data_key=field_name,
+                    )
+                    for validator in validators
+                ]
+            ):
+                raise ValidationError(
+                    message=error_message,
+                    field_name=field_name,
+                )
+
+        _ensure_variable_quantity_passes_one_validator(
+            variable_quantity=commitment["up_price"],
+            validators=price_validators,
+            field_name="up-price",
+            error_message=f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+        )
+        _ensure_variable_quantity_passes_one_validator(
+            variable_quantity=commitment["down_price"],
+            validators=price_validators,
+            field_name="down-price",
+            error_message=f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+        )
+
+
+class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
+    pass
 
 
 class FlexContextSchema(Schema):
@@ -149,6 +246,10 @@ class FlexContextSchema(Schema):
         value_validator=validate.Range(min=0),
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
+
+    commitments = fields.Nested(
+        CommitmentSchema, data_key="commitments", required=False, many=True
+    )
 
     inflexible_device_sensors = fields.List(
         SensorIdField(), data_key="inflexible-device-sensors"
@@ -410,33 +511,23 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization.",
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "commitments": {
+        "default": None,
+        "description": "Work in progress",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
 }
 
 
-class DBFlexContextSchema(FlexContextSchema):
+class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
+
+    commitments = fields.Nested(
+        DBCommitmentSchema, data_key="commitments", required=False, many=True
+    )
     mapped_schema_keys = {
         field: FlexContextSchema().declared_fields[field].data_key
         for field in FlexContextSchema().declared_fields
     }
-
-    @validates_schema
-    def forbid_time_series_specs(self, data: dict, **kwargs):
-        """Do not allow time series specs for the flex-context fields saved in the db."""
-
-        # List of keys to check for time series specs
-        keys_to_check = []
-        # All the keys in this list are all fields of type VariableQuantity
-        for field_var, field in self.declared_fields.items():
-            if isinstance(field, VariableQuantityField):
-                keys_to_check.append((field_var, field))
-
-        # Check each key and raise a ValidationError if it's a list
-        for field_var, field in keys_to_check:
-            if field_var in data and isinstance(data[field_var], list):
-                raise ValidationError(
-                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
-                    field_name=field.data_key,
-                )
 
     @validates_schema
     def validate_fields_unit(self, data: dict, **kwargs):

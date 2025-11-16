@@ -75,6 +75,7 @@ class TrainPredictPipeline(Forecaster):
             event_ends_before=train_end,
             probabilistic=self._parameters["probabilistic"],
             ensure_positive=self._parameters["ensure_positive"],
+            missing_threshold=self._parameters.get("missing_threshold"),
         )
 
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
@@ -114,6 +115,7 @@ class TrainPredictPipeline(Forecaster):
             predict_end=predict_end,
             sensor_to_save=self._parameters["sensor_to_save"],
             data_source=self.data_source,
+            missing_threshold=self._parameters.get("missing_threshold"),
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
@@ -211,14 +213,13 @@ class TrainPredictPipeline(Forecaster):
                 for param in cycles_job_params:
                     job = Job.create(
                         self.run_cycle,
-                        kwargs=param,
+                        kwargs={**param, **job_kwargs},
                         connection=current_app.queues[queue].connection,
                         ttl=int(
                             current_app.config.get(
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
-                        **job_kwargs,
                     )
 
                     jobs.append(job)

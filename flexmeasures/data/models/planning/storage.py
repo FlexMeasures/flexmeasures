@@ -38,7 +38,6 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.utils.time_utils import get_max_planning_horizon
-from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units
 
@@ -233,7 +232,7 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        commitments = []
+        commitments = self.convert_to_commitments()
 
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
@@ -924,6 +923,60 @@ class MetaStorageScheduler(Scheduler):
             commitments,
         )
 
+    def convert_to_commitments(self) -> list[FlowCommitment]:
+        """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
+        commitment_specs = self.flex_context.get("commitments", [])
+        if len(commitment_specs) == 0:
+            return []
+
+        start = self.start
+        end = self.end
+        resolution = self.resolution
+        if resolution is None:
+            if self.sensor is not None:
+                resolution = self.sensor.event_resolution
+            else:
+                resolution = determine_minimum_resampling_resolution(
+                    [s.event_resolution for s in self.sensors if s is not None],
+                    fallback_resolution=timedelta(minutes=15),
+                )
+
+        commitments = []
+        for commitment_spec in commitment_specs:
+            # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
+            price_unit = self.flex_context["shared_currency_unit"] + "/MW"
+            timing_kwargs = dict(
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=self.belief_time,
+            )
+            if "up_price" in commitment_spec:
+                commitment_spec["upwards_deviation_price"] = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=commitment_spec.pop("up_price"),
+                        unit=price_unit,
+                        **timing_kwargs,
+                    )
+                )
+            if "down_price" in commitment_spec:
+                commitment_spec["downwards_deviation_price"] = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=commitment_spec.pop("down_price"),
+                        unit=self.flex_context["shared_currency_unit"] + "/MW",
+                        **timing_kwargs,
+                    )
+                )
+            if "baseline" in commitment_spec:
+                commitment_spec["quantity"] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=commitment_spec.pop("baseline"),
+                    unit="MW",
+                    **timing_kwargs,
+                )
+            commitment_spec["index"] = initialize_index(start, end, resolution)
+            commitments.append(FlowCommitment(**commitment_spec))
+
+        return commitments
+
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes
 
@@ -1119,7 +1172,7 @@ class MetaStorageScheduler(Scheduler):
                     site_power_capacity = site_power_capacity.get("sensor", None)
                     if site_power_capacity is None:
                         raise ValueError(
-                            "site-power-capacity attribute is a dict, but has no sensor key."
+                            f"site-power-capacity attribute on asset {asset.id} is a dict, but has no sensor key."
                         )
 
                 power_capacities.append(
@@ -1127,7 +1180,9 @@ class MetaStorageScheduler(Scheduler):
                 )
                 continue
 
-            raise ValueError("Power capacity is not defined in the flex-model.")
+            raise ValueError(
+                f"Power capacity on asset {asset.id} is not defined in the flex-model."
+            )
         return power_capacities
 
     def _ensure_variable_quantity(
@@ -1813,24 +1868,3 @@ def prepend_series(series: pd.Series, value) -> pd.Series:
     # sort index to keep the time ordering
     series = series.sort_index()
     return series.shift(1)
-
-
-#####################
-# TO BE DEPRECATED #
-####################
-@deprecated(build_device_soc_values, "0.14")
-def build_device_soc_targets(
-    targets: list[dict[str, datetime | float]] | pd.Series,
-    soc_at_start: float,
-    start_of_schedule: datetime,
-    end_of_schedule: datetime,
-    resolution: timedelta,
-) -> pd.Series:
-    return build_device_soc_values(
-        targets, soc_at_start, start_of_schedule, end_of_schedule, resolution
-    )
-
-
-StorageScheduler.compute_schedule = deprecated(StorageScheduler.compute, "0.14")(
-    StorageScheduler.compute_schedule
-)

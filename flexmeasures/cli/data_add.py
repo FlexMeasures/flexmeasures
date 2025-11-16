@@ -1006,7 +1006,7 @@ def add_holidays(
     multiple=True,
     callback=split_commas,
     help="Sensor ID to be treated as a regressor. "
-    "Use this if only forecasts recorded on this sensor matter as a regressor. "
+    "Use this if both realizations and forecasts recorded on this sensor matter as a regressor. "
     "This argument can be given multiple times, but can also be set to a comma-separated list.",
 )
 @click.option(
@@ -1024,7 +1024,7 @@ def add_holidays(
     multiple=True,
     callback=split_commas,
     help="Sensor ID to be treated only as a past regressor. "
-    "Use this if only forecasts recorded on this sensor matter as a regressor. "
+    "Use this if only realizations recorded on this sensor matter as a regressor. "
     "This argument can be given multiple times, but can also be set to a comma-separated list.",
 )
 @click.option(
@@ -1059,23 +1059,27 @@ def add_holidays(
     "--remodel-frequency",  # the term as used in the old forecasting tooling
     "--predict-period",  # only used during development afaik
     required=False,
-    help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H').",
+    help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
+    "If not set, the model is not retrained.",
 )
 @click.option(
     "--from-date",
     "start_predict_date",
     default=None,
     required=False,
-    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM).",
+    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
+    "If not set, defaults to now.",
 )
 @click.option(
     "--max-forecast-horizon",
     required=False,
-    help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H').",
+    help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H'). "
+    "Defaults to 48 hours.",
 )
 @click.option(
     "--forecast-frequency",
-    help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts.",
+    help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
+    "Defaults to 1 hour.",
 )
 @click.option(
     "--model-save-dir",
@@ -1097,6 +1101,10 @@ def add_holidays(
     is_flag=True,
     help="Whether to queue a forecasting job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
+)
+@click.option(
+    "--max-training-period",
+    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). defaults to 1 year.",
 )
 @click.option(
     "--resolution",
@@ -1151,6 +1159,14 @@ def add_holidays(
     "edit_parameters",
     is_flag=True,
     help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--missing-threshold",
+    default=1.0,
+    help=(
+        "Maximum fraction of missing data allowed before raising an error. "
+        "Missing data under this threshold will be filled using forward filling or linear interpolation."
+    ),
 )
 @with_appcontext
 def train_predict_pipeline(
