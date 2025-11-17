@@ -228,14 +228,14 @@
                 </ul>
             </li>
             <div class="row" style="margin-left: auto;">
-                <div class="col form-check" title="Set this asset view as your default when visiting asset pages.">
+                <div class="col-auto form-check" title="Set this asset view as your default when visiting asset pages.">
                     <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
-                    <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+                    <label class="form-check-label" for="defaultAssetView">Set as default view</label>
                 </div>
 
-                <div class="col form-check" title="This setting only applies where there are 7 or fewer sensors to show.">
+                <div class="col-auto form-check" title="This setting only applies where there are 7 or fewer sensors to show/grpahs.">
                     <input class="form-check-input" type="checkbox" {% if session.get("default_legend_position") %} checked {% endif %} id="defaultLedgendPosition" onchange="setDefaultLedgendPosition(this)">
-                    <label class="form-check-label" for="defaultLedgendPosition">Move ledgends below graph</label>
+                    <label class="form-check-label" for="defaultLedgendPosition">Show legends below</label>
                 </div>
             </div>
             {% endif %}
