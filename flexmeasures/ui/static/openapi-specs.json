@@ -1584,6 +1584,7 @@
               "enum": [
                 "username",
                 "email",
+                "event_datetime",
                 "lastLogin",
                 "lastSeen"
               ]
@@ -3328,6 +3329,59 @@
         ]
       }
     },
+    "/api/v3_0/assets/default_ledgend_position": {
+      "post": {
+        "summary": "Update the default legend position for graphs for the current user",
+        "description": "This endpoint sets the default legend position for graphs either at the right or at the bottom of the chart.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "default_legend_position": {
+                    "type": "boolean",
+                    "description": "Whether to use the default legend position (bottom) or not (right)."
+                  }
+                },
+                "required": [
+                  "default_legend_position"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "message": {
+                    "summary": "Message",
+                    "value": {
+                      "message": "Default legend position updated successfully."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
     "/api/v3_0/assets/types": {
       "get": {
         "summary": "Get list of available asset types",
@@ -3407,11 +3461,23 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.30.0.dev1"
+    "version": "0.28.1.dev56"
   },
   "openapi": "3.0.2",
   "components": {
     "schemas": {
+      "Commitment": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "baseline": {},
+          "up-price": {},
+          "down-price": {}
+        },
+        "additionalProperties": false
+      },
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
@@ -3481,6 +3547,12 @@
           },
           "ems_peak_production_price": {
             "type": "string"
+          },
+          "commitments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Commitment"
+            }
           },
           "inflexible-device-sensors": {
             "type": "array",

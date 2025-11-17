@@ -1107,6 +1107,67 @@ class AssetAPI(FlaskView):
             "message": "Default asset view updated successfully.",
         }, 200
 
+    @route("/default_ledgend_position", methods=["POST"])
+    @as_json
+    @use_kwargs(
+        {"default_legend_position": fields.Boolean(required=False)}, location="json"
+    )
+    def update_default_ledgend_position(self, **kwargs):
+        """
+        .. :quickref: Assets; Update the default legend position for graphs for the current user
+        ---
+        post:
+          summary: Update the default legend position for graphs for the current user
+          description: |
+            This endpoint sets the default legend position for graphs either at the right or at the bottom of the chart.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    default_legend_position:
+                      type: boolean
+                      description: Whether to use the default legend position (bottom) or not (right).
+                  required:
+                    - default_legend_position
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Default legend position updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+          tags:
+            - Assets
+        """
+        # Update the request.values
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        default_legend_position = kwargs.get("default_legend_position", True)
+        if default_legend_position:
+            # Set the default legend position for asset charts for the current user session
+            set_session_variables(
+                "default_legend_position",
+            )
+        else:
+            # Remove the default legend position from the session
+            clear_session(keys_to_clear=["default_legend_position"])
+
+        return {
+            "message": "Default legend position updated successfully.",
+        }, 200
+
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
