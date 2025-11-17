@@ -93,7 +93,7 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
         storage_flex_model_schema_openAPI,
         required=True,
         metadata=dict(
-            description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
+            description="The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
         ),
     )
 
