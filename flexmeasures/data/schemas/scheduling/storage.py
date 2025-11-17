@@ -81,8 +81,10 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
         data_key="soc-at-start",
-        description=descriptions.SOC_AT_START,
-        example="3.1 kWh",
+        metadata=dict(
+            description=descriptions.SOC_AT_START,
+            example="3.1 kWh",
+        ),
     )
 
     soc_min = QuantityField(
@@ -109,13 +111,17 @@ class StorageFlexModelSchema(Schema):
         "MW",
         data_key="consumption-capacity",
         required=False,
-        description=descriptions.CONSUMPTION_CAPACITY,
+        metadata=dict(
+            description=descriptions.CONSUMPTION_CAPACITY,
+        ),
     )
     production_capacity = VariableQuantityField(
         "MW",
         data_key="production-capacity",
         required=False,
-        description=descriptions.PRODUCTION_CAPACITY,
+        metadata=dict(
+            description=descriptions.PRODUCTION_CAPACITY,
+        ),
     )
 
     # Activation prices
@@ -158,8 +164,10 @@ class StorageFlexModelSchema(Schema):
         ),
         data_key="soc-unit",
         required=False,
-        description=descriptions.SOC_UNIT,
-        example="kWh",
+        metadata=dict(
+            description=descriptions.SOC_UNIT,
+            example="kWh",
+        ),
     )
 
     state_of_charge = VariableQuantityField(

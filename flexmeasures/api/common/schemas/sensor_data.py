@@ -79,29 +79,39 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
     start = AwareDateTimeField(
         required=True,
         format="iso",
-        description="Start time of the first event described in the time series data, in ISO 8601 datetime format.",
-        example="2026-01-15T10:00+01:00",
+        metadata=dict(
+            description="Start time of the first event described in the time series data, in ISO 8601 datetime format.",
+            example="2026-01-15T10:00+01:00",
+        ),
     )
     duration = DurationField(
         required=True,
-        description="Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
-        example="PT1H",
+        metadata=dict(
+            description="Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
+            example="PT1H",
+        ),
     )
     horizon = DurationField(
         required=False,
-        description="All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
-        example="PT2H",
+        metadata=dict(
+            description="All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
+            example="PT2H",
+        ),
     )
     prior = AwareDateTimeField(
         required=False,
         format="iso",
-        description="All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
-        example="2026-01-14T20:00+01:00",
+        metadata=dict(
+            description="All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            example="2026-01-14T20:00+01:00",
+        ),
     )
     unit = fields.Str(
         required=True,
-        description="The unit of the sensor data, which must be convertible to the sensor unit.",
-        example="m³/h",
+        metadata=dict(
+            description="The unit of the sensor data, which must be convertible to the sensor unit.",
+            example="m³/h",
+        ),
     )
 
 
@@ -113,8 +123,10 @@ class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
 
     sensor = SensorIdField(
         required=True,
-        description="ID of the sensor on which the data is recorded.",
-        example=14,
+        metadata=dict(
+            description="ID of the sensor on which the data is recorded.",
+            example=14,
+        ),
     )
 
     @validates_schema
@@ -279,7 +291,9 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 "PostWeatherDataRequest",
             ]
         ),
-        description="Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+        metadata=dict(
+            description="Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+        ),
     )
 
     @validates_schema

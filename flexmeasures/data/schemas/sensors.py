@@ -172,25 +172,33 @@ class SensorSchemaMixin(Schema):
 
     id = ma.auto_field(
         dump_only=True,
-        description="The sensor's ID, which is automatically assigned.",
-        example=5,
+        metadata=dict(
+            description="The sensor's ID, which is automatically assigned.",
+            example=5,
+        ),
     )
     name = ma.auto_field(
-        required=True, description="The sensor's name.", example="power"
+        required=True, metadata=dict(description="The sensor's name.", example="power")
     )
     unit = ma.auto_field(
         required=True,
-        description="The sensor's (physical or economical) unit. Supports [<abbr title='International System of Units'>SI</abbr> units](https://en.wikipedia.org/wiki/International_System_of_Units) and [currency codes](https://en.wikipedia.org/wiki/ISO_4217).",
-        example="EUR/kWh",
+        metadata=dict(
+            description="The sensor's (physical or economical) unit. Supports [<abbr title='International System of Units'>SI</abbr> units](https://en.wikipedia.org/wiki/International_System_of_Units) and [currency codes](https://en.wikipedia.org/wiki/ISO_4217).",
+            example="EUR/kWh",
+        ),
     )
     timezone = ma.auto_field(
-        description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
-        example="Europe/Amsterdam",
+        metadata=dict(
+            description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
+            example="Europe/Amsterdam",
+        )
     )
     event_resolution = DurationField(
         required=True,
-        description="The duration of events recorded by the sensor.",
-        example="PT15M",
+        metadata=dict(
+            description="The duration of events recorded by the sensor.",
+            example="PT15M",
+        ),
     )
     entity_address = fields.String(
         dump_only=True,
@@ -218,7 +226,8 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
 
     generic_asset_id = fields.Integer(
-        required=True, description="The asset that the sensor belongs to.", example=1
+        required=True,
+        metadata=dict(description="The asset that the sensor belongs to.", example=1),
     )
 
     @validates("generic_asset_id")

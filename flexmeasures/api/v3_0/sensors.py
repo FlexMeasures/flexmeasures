@@ -88,33 +88,45 @@ class TriggerScheduleKwargsSchema(Schema):
         data_key="start",
         format="iso",
         required=True,
-        description="Start time of the schedule, in ISO 8601 datetime format.",
-        example="2026-01-15T10:00+01:00",
+        metadata=dict(
+            description="Start time of the schedule, in ISO 8601 datetime format.",
+            example="2026-01-15T10:00+01:00",
+        ),
     )
     belief_time = AwareDateTimeField(
         format="iso",
         data_key="prior",
-        description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
-        "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
-        example="2026-01-15T10:00+01:00",
+        metadata=dict(
+            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            example="2026-01-15T10:00+01:00",
+        ),
     )
     duration = PlanningDurationField(
-        description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
-        example="PT24H",
         load_default=PlanningDurationField.load_default,
+        metadata=dict(
+            description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            example="PT24H",
+        ),
     )
     flex_model = fields.Dict(
         data_key="flex-model",
-        description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
+        metadata=dict(
+            description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
+        ),
     )
     flex_context = fields.Dict(
         required=False,
         data_key="flex-context",
-        description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+        metadata=dict(
+            description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+        ),
     )
     force_new_job_creation = fields.Boolean(
         required=False,
-        description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
+        metadata=dict(
+            description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
+        ),
     )
 
 
