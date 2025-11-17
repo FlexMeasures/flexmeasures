@@ -4239,7 +4239,8 @@
         "type": "object",
         "properties": {
           "asset": {
-            "type": "string"
+            "type": "string",
+            "description": "ID of the asset that is requested to be scheduled."
           },
           "soc_at_start": {
             "type": "string",
@@ -4247,13 +4248,16 @@
             "example": "3.1 kWh"
           },
           "soc_min": {
-            "type": "string"
+            "type": "string",
+            "description": "A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0). If used, this is regarded as an unsurpassable physical limitation."
           },
           "soc_max": {
-            "type": "string"
+            "type": "string",
+            "description": "A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided). If used, this is regarded as an unsurpassable physical limitation."
           },
           "power_capacity_in_mw": {
-            "type": "string"
+            "type": "string",
+            "description": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``)."
           },
           "consumption_capacity": {
             "type": "string",
@@ -4265,20 +4269,25 @@
           },
           "prefer-curtailing-later": {
             "type": "boolean",
-            "default": true
+            "default": true,
+            "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only."
           },
           "prefer-charging-sooner": {
             "type": "boolean",
-            "default": true
+            "default": true,
+            "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only."
           },
           "soc_maxima": {
-            "type": "string"
+            "type": "string",
+            "description": "Set points that form user-defined upper boundaries at certain times (defaults to NaN values)."
           },
           "soc_minima": {
-            "type": "string"
+            "type": "string",
+            "description": "Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values)."
           },
           "soc_targets": {
-            "type": "string"
+            "type": "string",
+            "description": "Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values)."
           },
           "soc-unit": {
             "type": "string",
@@ -4290,28 +4299,35 @@
             "example": "kWh"
           },
           "state_of_charge": {
-            "type": "string"
+            "type": "string",
+            "description": "If given, the scheduled state of charge is stored on this sensor."
           },
           "charging_efficiency": {
-            "type": "string"
+            "type": "string",
+            "description": "Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%)."
           },
           "discharging_efficiency": {
-            "type": "string"
+            "type": "string",
+            "description": "Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%)."
           },
           "roundtrip_efficiency": {
-            "type": "string"
+            "type": "string",
+            "description": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%)."
           },
           "storage_efficiency": {
-            "type": "string"
+            "type": "string",
+            "description": "This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read about applying this value per time step across longer time spans."
           },
           "soc-gain": {
             "type": "array",
             "minItems": 1,
+            "description": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). Useful if energy is inserted by an external process (in-flow).",
             "items": {}
           },
           "soc-usage": {
             "type": "array",
             "minItems": 1,
+            "description": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). Useful if energy is extracted by an external process or there are dissipating losses (out-flow).",
             "items": {}
           }
         },

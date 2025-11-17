@@ -73,7 +73,10 @@ class StorageFlexModelSchema(Schema):
     You can use StorageScheduler.deserialize_flex_config to get that filled in.
     """
 
-    asset = GenericAssetIdField(required=False)
+    asset = GenericAssetIdField(
+        required=False,
+        metadata=dict(description="ID of the asset that is requested to be scheduled."),
+    )
 
     soc_at_start = QuantityField(
         required=False,
@@ -95,16 +98,21 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
         data_key="soc-min",
+        metadata=dict(description=descriptions.SOC_MIN),
     )
     soc_max = QuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
         data_key="soc-max",
+        metadata=dict(description=descriptions.SOC_MAX),
     )
 
     power_capacity_in_mw = VariableQuantityField(
-        "MW", required=False, data_key="power-capacity"
+        "MW",
+        required=False,
+        data_key="power-capacity",
+        metadata=dict(description=descriptions.POWER_CAPACITY),
     )
 
     consumption_capacity = VariableQuantityField(
@@ -126,10 +134,14 @@ class StorageFlexModelSchema(Schema):
 
     # Activation prices
     prefer_curtailing_later = fields.Bool(
-        data_key="prefer-curtailing-later", load_default=True
+        data_key="prefer-curtailing-later",
+        load_default=True,
+        metadata=dict(description=descriptions.PREFER_CURTAILING_LATER),
     )
     prefer_charging_sooner = fields.Bool(
-        data_key="prefer-charging-sooner", load_default=True
+        data_key="prefer-charging-sooner",
+        load_default=True,
+        metadata=dict(description=descriptions.PREFER_CHARGING_SOONER),
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
@@ -138,6 +150,7 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
         data_key="soc-maxima",
+        metadata=dict(description=descriptions.SOC_MAXIMA),
     )
 
     soc_minima = VariableQuantityField(
@@ -146,6 +159,7 @@ class StorageFlexModelSchema(Schema):
         timezone="placeholder",
         data_key="soc-minima",
         value_validator=validate.Range(min=0),
+        metadata=dict(description=descriptions.SOC_MINIMA),
     )
 
     soc_targets = VariableQuantityField(
@@ -153,6 +167,7 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
         data_key="soc-targets",
+        metadata=dict(description=descriptions.SOC_TARGETS),
     )
 
     soc_unit = fields.Str(
@@ -174,32 +189,47 @@ class StorageFlexModelSchema(Schema):
         to_unit="MWh",
         data_key="state-of-charge",
         required=False,
+        metadata=dict(description=descriptions.STATE_OF_CHARGE),
     )
 
     charging_efficiency = VariableQuantityField(
-        "%", data_key="charging-efficiency", required=False
+        "%",
+        data_key="charging-efficiency",
+        required=False,
+        metadata=dict(description=descriptions.CHARGING_EFFICIENCY),
     )
     discharging_efficiency = VariableQuantityField(
-        "%", data_key="discharging-efficiency", required=False
+        "%",
+        data_key="discharging-efficiency",
+        required=False,
+        metadata=dict(description=descriptions.DISCHARGING_EFFICIENCY),
     )
 
     roundtrip_efficiency = EfficiencyField(
-        data_key="roundtrip-efficiency", required=False
+        data_key="roundtrip-efficiency",
+        required=False,
+        metadata=dict(description=descriptions.ROUNDTRIP_EFFICIENCY),
     )
 
-    storage_efficiency = VariableQuantityField("%", data_key="storage-efficiency")
+    storage_efficiency = VariableQuantityField(
+        "%",
+        data_key="storage-efficiency",
+        metadata=dict(description=descriptions.STORAGE_EFFICIENCY),
+    )
 
     soc_gain = fields.List(
         VariableQuantityField("MW"),
         data_key="soc-gain",
         required=False,
         validate=validate.Length(min=1),
+        metadata=dict(description=descriptions.SOC_GAIN),
     )
     soc_usage = fields.List(
         VariableQuantityField("MW"),
         data_key="soc-usage",
         required=False,
         validate=validate.Length(min=1),
+        metadata=dict(description=descriptions.SOC_USAGE),
     )
 
     def __init__(

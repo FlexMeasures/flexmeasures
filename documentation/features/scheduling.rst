@@ -206,50 +206,46 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - |SOC_UNIT|
    * - ``soc-min``
      - ``"2.5 kWh"``
-     - A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0).
-       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
+     - |SOC_MIN| [#quantity_field]_
    * - ``soc-max``
      - ``"7 kWh"``
-     - A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided).
-       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
+     - |SOC_MAX| [#quantity_field]_
    * - ``soc-minima``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
-     - Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
+     - |SOC_MINIMA| [#maximum_overlap]_
    * - ``soc-maxima``
      - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
-     - Set points that form user-defined upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
+     - |SOC_MAXIMA| [#minimum_overlap]_
    * - ``soc-targets``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
-     - Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values).
+     - |SOC_TARGETS|
    * - ``soc-gain``
      - ``[".1kWh"]``
-     - SoC gain per time step, e.g. from a secondary energy source (defaults to zero).
-       Useful if energy is inserted by an external process (in-flow).
+     - |SOC_GAIN|
    * - ``soc-usage``
      - ``[{"sensor": 23}]``
-     - SoC reduction per time step, e.g. from a load or heat sink (defaults to zero).
-       Useful if energy is extracted by an external process or there are dissipating losses (out-flow).
+     - |SOC_USAGE|
    * - ``roundtrip-efficiency``
      - ``"90%"``
-     - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%). [#quantity_field]_
+     - |ROUNDTRIP_EFFICIENCY| [#quantity_field]_
    * - ``charging-efficiency``
      - ``".9"``
-     - Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).
+     - |CHARGING_EFFICIENCY|
    * - ``discharging-efficiency``
      - ``"90%"``
-     - Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).
+     - |DISCHARGING_EFFICIENCY|
    * - ``storage-efficiency``
      - ``"99.9%"``
-     - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
+     - |STORAGE_EFFICIENCY| [#storage_efficiency]_
    * - ``prefer-charging-sooner``
      - ``True``
-     - Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.
+     - |PREFER_CHARGING_SOONER|
    * - ``prefer-curtailing-later``
      - ``True``
-     - Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.
+     - |PREFER_CURTAILING_LATER|
    * - ``power-capacity``
      - ``"50kW"``
-     - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
+     - |POWER_CAPACITY| [#minimum_overlap]_
    * - ``consumption-capacity``
      - ``{"sensor": 56}``
      - |CONSUMPTION_CAPACITY| [#minimum_overlap]_
