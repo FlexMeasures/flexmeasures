@@ -4300,7 +4300,10 @@
           },
           "state_of_charge": {
             "type": "string",
-            "description": "If given, the scheduled state of charge is stored on this sensor."
+            "description": "If given, the scheduled state of charge is stored on this sensor.",
+            "example": {
+              "sensor": 12
+            }
           },
           "charging_efficiency": {
             "type": "string",

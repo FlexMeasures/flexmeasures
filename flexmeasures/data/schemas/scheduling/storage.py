@@ -189,7 +189,7 @@ class StorageFlexModelSchema(Schema):
         to_unit="MWh",
         data_key="state-of-charge",
         required=False,
-        metadata=dict(description=descriptions.STATE_OF_CHARGE),
+        metadata=dict(description=descriptions.STATE_OF_CHARGE, example={"sensor": 12}),
     )
 
     charging_efficiency = VariableQuantityField(
