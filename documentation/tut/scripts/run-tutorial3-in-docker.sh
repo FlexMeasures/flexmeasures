@@ -5,7 +5,7 @@ echo "--------------------------------------------------------------------------
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 
-echo "[TUTORIAL-RUNNER] Computing schedule for PV curtailment (using artificial price schema) ..."
+echo "[TUTORIAL-RUNNER] Computing schedule for PV curtailment (using artificial price profile) ..."
 
 echo '''{
   "consumption-price": [
