@@ -700,14 +700,18 @@ class AssetTriggerSchema(Schema):
 
     asset = GenericAssetIdField(
         data_key="id",
-        description="ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account.",
+        metadata=dict(
+            description="ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account.",
+        ),
     )
     start_of_schedule = AwareDateTimeField(
         data_key="start",
         format="iso",
         required=True,
-        description="Start time of the schedule, in ISO 8601 datetime format.",
-        example="2026-01-15T10:00+01:00",
+        metadata=dict(
+            description="Start time of the schedule, in ISO 8601 datetime format.",
+            example="2026-01-15T10:00+01:00",
+        ),
     )
     belief_time = AwareDateTimeField(
         format="iso",
@@ -717,9 +721,11 @@ class AssetTriggerSchema(Schema):
         example="2026-01-15T10:00+01:00",
     )
     duration = PlanningDurationField(
-        description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
-        example="PT24H",
         load_default=PlanningDurationField.load_default,
+        metadata=dict(
+            description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            example="PT24H",
+        ),
     )
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
@@ -731,7 +737,9 @@ class AssetTriggerSchema(Schema):
     )
     sequential = fields.Bool(
         load_default=False,
-        description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previous schedules as inflexible device.",
+        metadata=dict(
+            description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previous schedules as inflexible device.",
+        ),
     )
 
     @validates_schema
