@@ -1033,6 +1033,8 @@ class MetaStorageScheduler(Scheduler):
                     "soc-min" in self.flex_model or "soc-max" in self.flex_model
                 ):
                     self.flex_model["soc-at-start"] = 0
+            elif "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
+                self.flex_model["soc-min"] = 0
 
             if (
                 self.sensor is not None
