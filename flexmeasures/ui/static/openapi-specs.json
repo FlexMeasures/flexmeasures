@@ -4325,12 +4325,24 @@
             "type": "array",
             "minItems": 1,
             "description": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). Useful if energy is inserted by an external process (in-flow).",
+            "example": [
+              "100 W",
+              {
+                "sensor": 34
+              }
+            ],
             "items": {}
           },
           "soc-usage": {
             "type": "array",
             "minItems": 1,
             "description": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). Useful if energy is extracted by an external process or there are dissipating losses (out-flow).",
+            "example": [
+              "100 W",
+              {
+                "sensor": 35
+              }
+            ],
             "items": {}
           }
         },

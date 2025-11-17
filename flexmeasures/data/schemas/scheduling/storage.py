@@ -222,14 +222,18 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-gain",
         required=False,
         validate=validate.Length(min=1),
-        metadata=dict(description=descriptions.SOC_GAIN),
+        metadata=dict(
+            description=descriptions.SOC_GAIN, example=["100 W", {"sensor": 34}]
+        ),
     )
     soc_usage = fields.List(
         VariableQuantityField("MW"),
         data_key="soc-usage",
         required=False,
         validate=validate.Length(min=1),
-        metadata=dict(description=descriptions.SOC_USAGE),
+        metadata=dict(
+            description=descriptions.SOC_USAGE, example=["100 W", {"sensor": 35}]
+        ),
     )
 
     def __init__(
