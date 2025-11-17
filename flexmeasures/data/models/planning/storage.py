@@ -985,7 +985,7 @@ class MetaStorageScheduler(Scheduler):
 
         This method should become obsolete when all SoC information is recorded on a sensor, instead.
 
-        Deprecated: get rid of this when moving to v1.0
+        Deprecated: get rid of this when moving to v1.0 (requiring to also remove attributes from test data assets)
         """
         if self.sensor is not None:
             self.sensor.generic_asset.set_attribute(
@@ -1013,32 +1013,11 @@ class MetaStorageScheduler(Scheduler):
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
         if isinstance(self.flex_model, dict):
-            # Check state of charge.
-            # Preferably, a starting soc is given.
-            # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
-            # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
-            # and without soc targets and limits the starting soc doesn't matter).
+            if self.sensor.generic_asset.asset_type.name in storage_asset_types:
+                self.ensure_soc_at_start()
             if (
-                "soc-at-start" not in self.flex_model
-                or self.flex_model["soc-at-start"] is None
-            ) and self.sensor is not None:
-                if (
-                    self.start == self.sensor.get_attribute("soc_datetime")
-                    and self.sensor.get_attribute("soc_in_mwh") is not None
-                ):
-                    self.flex_model["soc-at-start"] = self.sensor.get_attribute(
-                        "soc_in_mwh"
-                    )
-                elif self.sensor.generic_asset.asset_type in storage_asset_types and (
-                    "soc-min" in self.flex_model or "soc-max" in self.flex_model
-                ):
-                    self.flex_model["soc-at-start"] = 0
-            elif "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
-                self.flex_model["soc-min"] = 0
-
-            if (
-                self.sensor is not None
-                and self.sensor.generic_asset.asset_type in storage_asset_types
+                self.sensor.generic_asset.asset_type.name in storage_asset_types
+                or self.has_soc_at_start()
             ):
                 self.ensure_soc_min_max()
 
@@ -1080,6 +1059,12 @@ class MetaStorageScheduler(Scheduler):
 
         return self.flex_model
 
+    def has_soc_at_start(self) -> bool:
+        return (
+            "soc-at-start" in self.flex_model
+            and self.flex_model["soc-at-start"] is not None
+        )
+
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
         """Extend schedule period in case a target exceeds its end.
 
@@ -1101,6 +1086,28 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     self.end = max_target_datetime
 
+    def ensure_soc_at_start(self):
+        """
+        Ensure we have a starting state of charge - if needed.
+        Preferably, a starting soc is given.
+        Otherwise, we try to retrieve the current state of charge from the (old-style) attribute (if that is the valid one at the start).
+        If that doesn't work, we default the starting soc to be 0 (only if there are soc limits, though, as some assets don't use the concept of a state of charge,
+        and without soc targets and limits the starting soc doesn't matter).
+        """
+        if not self.has_soc_at_start() and self.sensor is not None:
+            # TODO: remove this check when moving to v1.0 (requiring to also remove attributes from test data assets)
+            if (
+                self.start == self.sensor.get_attribute("soc_datetime")
+                and self.sensor.get_attribute("soc_in_mwh") is not None
+            ):
+                self.flex_model["soc-at-start"] = self.sensor.get_attribute(
+                    "soc_in_mwh"
+                )
+        if not self.has_soc_at_start() and (
+            "soc-min" in self.flex_model or "soc-max" in self.flex_model
+        ):
+            self.flex_model["soc-at-start"] = 0
+
     def get_min_max_targets(self) -> tuple[float | None, float | None]:
         """This happens before deserializing the flex-model."""
         min_target = None
@@ -1119,31 +1126,33 @@ class MetaStorageScheduler(Scheduler):
             )
         return min_target, max_target
 
-    def get_min_max_soc_from_db(self) -> tuple[str | None, str | None]:
+    def get_min_max_soc_from_asset(self) -> tuple[str | None, str | None]:
         """This happens before deserializing the flex-model."""
         if self.asset is not None:
             return self.asset.flex_model.get("soc-min"), self.asset.flex_model.get(
                 "soc-max"
             )
-        return self.sensor.generic_asset.flex_model.get(
-            "soc-min"
-        ), self.sensor.generic_asset.flex_model.get("soc-max")
+        if self.sensor is not None:
+            return self.sensor.generic_asset.flex_model.get(
+                "soc-min"
+            ), self.sensor.generic_asset.flex_model.get("soc-max")
+        return None, None
 
     def ensure_soc_min_max(self):
         """
         Make sure we have min and max SOC.
-        If not passed directly, then get default from sensor or targets.
+        If not passed directly, then get default from asset or targets.
         This happens before deserializing the flex-model.
         """
-        _, max_target = self.get_min_max_targets()
-        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_from_db()
+        soc_min_asset, soc_max_asset = self.get_min_max_soc_from_asset()
         if "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
             # Default is 0 - can't drain the storage by more than it contains
-            self.flex_model["soc-min"] = soc_min_sensor if soc_min_sensor else 0
+            self.flex_model["soc-min"] = soc_min_asset if soc_min_asset else 0
         if "soc-max" not in self.flex_model or self.flex_model["soc-max"] is None:
-            self.flex_model["soc-max"] = soc_max_sensor
+            self.flex_model["soc-max"] = soc_max_asset
             # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
             if self.flex_model["soc-max"] is None:
+                _, max_target = self.get_min_max_targets()
                 if max_target:
                     self.flex_model["soc-max"] = max_target
                 else:
