@@ -112,7 +112,10 @@ class StorageFlexModelSchema(Schema):
         "MW",
         required=False,
         data_key="power-capacity",
-        metadata=dict(description=descriptions.POWER_CAPACITY),
+        metadata=dict(
+            description=descriptions.POWER_CAPACITY,
+            example="80 kVA",
+        ),
     )
 
     consumption_capacity = VariableQuantityField(
@@ -121,6 +124,7 @@ class StorageFlexModelSchema(Schema):
         required=False,
         metadata=dict(
             description=descriptions.CONSUMPTION_CAPACITY,
+            example="64 kW",
         ),
     )
     production_capacity = VariableQuantityField(
@@ -129,6 +133,7 @@ class StorageFlexModelSchema(Schema):
         required=False,
         metadata=dict(
             description=descriptions.PRODUCTION_CAPACITY,
+            example="0 kW",
         ),
     )
 
