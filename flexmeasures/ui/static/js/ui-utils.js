@@ -107,7 +107,7 @@ export async function renderSensor(sensorId) {
         <div class="d-flex justify-content-between">
             <div>
                 <b>Sensor:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
-                <b>Unit:</b> ${sensorData.unit},
+                <b>Unit:</b> ${sensorData.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensorData.unit},
                 <b>Name:</b> ${sensorData.name},
                 <div style="padding-top: 1px;"></div>
                 <b>Asset:</b> ${Asset.name},
@@ -187,7 +187,7 @@ export function renderSensorSearchResults(sensors, resultContainer, actionFunc) 
                         <h5 class="card-title">${sensor.name}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                            <b>Unit:</b> ${sensor.unit},
+                            <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                             <b>Asset:</b> ${Asset.name},
                             <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </p>

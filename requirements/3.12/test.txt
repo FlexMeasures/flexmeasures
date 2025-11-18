@@ -30,7 +30,7 @@ flask==3.1.2
     # via
     #   -c requirements/3.12/app.txt
     #   pytest-flask
-highspy==1.11.0
+highspy==1.12.0
     # via -r requirements/test.in
 idna==3.11
     # via

@@ -644,7 +644,7 @@
                     <h5 class="card-title">${sensor.name}</h5>
                     <p class="card-text">
                         <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                        <b>Unit:</b> ${sensor.unit},
+                        <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                         <b>Asset:</b> ${Asset.name},
                         <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                     </p>
@@ -680,11 +680,11 @@
                         <h5 class="card-title">${sensor.name}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                            <b>Unit:</b> ${sensor.unit},
+                            <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                             <b>Asset:</b> ${Asset.name},
                             <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </p>
-                        <button class="btn btn-primary btn-sm" onclick="udpateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
+                        <button class="btn btn-primary btn-sm" onclick="updateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
                     </div>
                 </div>
             `;
