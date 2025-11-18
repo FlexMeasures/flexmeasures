@@ -3270,7 +3270,7 @@
                         "state-of-charge": {
                           "sensor": 74
                         },
-                        "power-capacity": "25kW",
+                        "power-capacity": "25 kW",
                         "consumption-capacity": {
                           "sensor": 42
                         },
@@ -3297,7 +3297,7 @@
                         15
                       ],
                       "site-power-capacity": "100 kVA",
-                      "site-production-capacity": "80kW",
+                      "site-production-capacity": "80 kW",
                       "site-consumption-capacity": {
                         "sensor": 32
                       }

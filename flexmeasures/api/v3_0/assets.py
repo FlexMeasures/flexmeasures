@@ -1207,7 +1207,7 @@ class AssetAPI(FlaskView):
                             - "sensor": 931
                               "soc-at-start": "12.1 kWh"
                               "state-of-charge": {"sensor": 74}
-                              "power-capacity": "25kW"
+                              "power-capacity": "25 kW"
                               "consumption-capacity" : {"sensor": 42}
                               "production-capacity" : "30 kW"
                             - "sensor": 932
@@ -1218,7 +1218,7 @@ class AssetAPI(FlaskView):
                             "production-price": {"sensor": 10}
                             "inflexible-device-sensors": [13, 14, 15]
                             "site-power-capacity": "100 kVA"
-                            "site-production-capacity": "80kW"
+                            "site-production-capacity": "80 kW"
                             "site-consumption-capacity": {"sensor": 32}
 
           responses:
