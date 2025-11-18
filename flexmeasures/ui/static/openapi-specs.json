@@ -3303,6 +3303,55 @@
                       }
                     }
                   }
+                },
+                "heat_buffer": {
+                  "description": "This message triggers a schedule for a heat buffer (with power sensor 931),\nstarting at 10.00am, with the state of charge (soc) sensor being 74, recording thermal energy.\nThis also schedules a curtailable production asset (with power sensor 932),\nwhose production forecasts are recorded under sensor 760.\n\nAggregate consumption (of all devices within this EMS) should be priced by sensor 9,\nand aggregate production should be priced by sensor 10,\nwhere the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,\nand the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).\n\nThe heat buffer's consumption power capacity is limited by sensor 42, and it cannot produce electricity.\nIt has a constant heat demand of 5 kW thermal, and a storage efficiency of 99.7%.\nFinally, the site consumption capacity is limited by sensor 32.\n",
+                  "value": {
+                    "start": "2015-06-02T10:00:00+00:00",
+                    "flex-model": [
+                      {
+                        "sensor": 931,
+                        "soc-at-start": "12.1 kWh",
+                        "state-of-charge": {
+                          "sensor": 74
+                        },
+                        "power-capacity": "25 kW",
+                        "consumption-capacity": {
+                          "sensor": 42
+                        },
+                        "production-capacity": "0 kW",
+                        "soc-usage": [
+                          "5 kW"
+                        ],
+                        "storage-efficiency": "99.7%"
+                      },
+                      {
+                        "sensor": 932,
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {
+                          "sensor": 760
+                        }
+                      }
+                    ],
+                    "flex-context": {
+                      "consumption-price": {
+                        "sensor": 9
+                      },
+                      "production-price": {
+                        "sensor": 10
+                      },
+                      "inflexible-device-sensors": [
+                        13,
+                        14,
+                        15
+                      ],
+                      "site-power-capacity": "100 kVA",
+                      "site-production-capacity": "80 kW",
+                      "site-consumption-capacity": {
+                        "sensor": 32
+                      }
+                    }
+                  }
                 }
               }
             }
