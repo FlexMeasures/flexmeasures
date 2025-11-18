@@ -771,7 +771,7 @@ class AssetTriggerSchema(Schema):
     sequential = fields.Bool(
         load_default=False,
         metadata=dict(
-            description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previous schedules as inflexible device.",
+            description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device.",
         ),
     )
 

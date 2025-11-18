@@ -4504,7 +4504,7 @@
           "sequential": {
             "type": "boolean",
             "default": false,
-            "description": "If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previous schedules as inflexible device."
+            "description": "If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device."
           }
         },
         "required": [
