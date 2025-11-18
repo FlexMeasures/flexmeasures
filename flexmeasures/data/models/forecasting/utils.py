@@ -212,7 +212,7 @@ def data_to_bdf(
     # Cleanup
     test_df = expanded[
         ["event_start", "belief_time", "forecasts", "cumulative_probability"]
-    ]
+    ].copy()
     test_df.loc[:, "event_start"] = (
         test_df["event_start"]
         .dt.tz_localize("UTC")
