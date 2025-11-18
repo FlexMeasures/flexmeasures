@@ -1205,9 +1205,8 @@ class AssetAPI(FlaskView):
                           "start": "2015-06-02T10:00:00+00:00"
                           "flex-model":
                             - "sensor": 931
-                              "soc-at-start": 12.1
+                              "soc-at-start": "12.1 kWh"
                               "state-of-charge": {"sensor": 74}
-                              "soc-unit": "kWh"
                               "power-capacity": "25kW"
                               "consumption-capacity" : {"sensor": 42}
                               "production-capacity" : "30 kW"
