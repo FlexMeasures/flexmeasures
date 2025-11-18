@@ -45,7 +45,7 @@ def make_openapi_compatible(schema_cls: type[Schema]) -> type[Schema]:
                 metadata["description"] = rst_to_openapi(metadata["description"])
 
             # Copy its name and metadata so the user knows what the actual field is and what it's for
-            new_fields[name] = fields.String(metadata=metadata)
+            new_fields[name] = fields.String(metadata=metadata, data_key=field.data_key)
 
     # Build schema dynamically, based only on safe fields
     openAPI_schema = type(

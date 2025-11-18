@@ -3518,22 +3518,22 @@
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
-          "consumption_breach_price": {
+          "consumption-breach-price": {
             "type": "string",
             "description": "The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.",
             "example": "10 EUR/kW"
           },
-          "production_breach_price": {
+          "production-breach-price": {
             "type": "string",
             "description": "The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.",
             "example": "10 EUR/kW"
           },
-          "soc_minima_breach_price": {
+          "soc-minima-breach-price": {
             "type": "string",
             "description": "Penalty for not meeting ``soc-minima`` defined in the flex-model.",
             "example": "120 EUR/kWh"
           },
-          "soc_maxima_breach_price": {
+          "soc-maxima-breach-price": {
             "type": "string",
             "description": "Penalty for not meeting ``soc-maxima`` defined in the flex-model.",
             "example": "120 EUR/kWh"
@@ -3562,69 +3562,69 @@
             "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
             "example": true
           },
-          "ems_power_capacity_in_mw": {
+          "site-power-capacity": {
             "type": "string",
             "description": "Maximum achievable power at the grid connection point, in either direction. Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.",
             "example": "45kVA"
           },
-          "consumption_price_sensor": {
+          "consumption-price-sensor": {
             "type": "string"
           },
-          "production_price_sensor": {
+          "production-price-sensor": {
             "type": "string"
           },
-          "consumption_price": {
+          "consumption-price": {
             "type": "string",
             "description": "The price of consuming energy. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field.)",
             "example": {
               "sensor": 5
             }
           },
-          "production_price": {
+          "production-price": {
             "type": "string",
             "description": "The price of producing energy. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field.)",
             "example": "0.12 EUR/kWh"
           },
-          "ems_production_capacity_in_mw": {
+          "site-production-capacity": {
             "type": "string",
             "description": "Maximum production power at the grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
             "example": "0kW"
           },
-          "ems_consumption_capacity_in_mw": {
+          "site-consumption-capacity": {
             "type": "string",
             "description": "Maximum consumption power at the grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
             "example": "45kW"
           },
-          "ems_consumption_breach_price": {
+          "site-consumption-breach-price": {
             "type": "string",
             "description": "The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.",
             "example": "1000 EUR/kW"
           },
-          "ems_production_breach_price": {
+          "site-production-breach-price": {
             "type": "string",
             "description": "The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.",
             "example": "1000 EUR/kW"
           },
-          "ems_peak_consumption_in_mw": {
+          "site-peak-consumption": {
             "type": "string",
             "description": "Current peak consumption. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
             "example": {
               "sensor": 7
             }
           },
-          "ems_peak_consumption_price": {
+          "site-peak-consumption-price": {
             "type": "string",
             "description": "Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price.",
             "example": "260 EUR/MW"
           },
-          "ems_peak_production_in_mw": {
+          "site-peak-production": {
             "type": "string",
             "description": "Current peak production. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
             "example": {
               "sensor": 8
             }
           },
-          "ems_peak_production_price": {
+          "site-peak-production-price": {
             "type": "string",
             "description": "Production peaks above the ``site-peak-production`` are penalized against this per-kW price.",
             "example": "260 EUR/MW"
@@ -4333,34 +4333,34 @@
             "type": "string",
             "description": "ID of the asset that is requested to be scheduled."
           },
-          "soc_at_start": {
+          "soc-at-start": {
             "type": "string",
             "description": "The (estimated) state of charge at the beginning of the schedule (defaults to 0).",
             "example": "3.1 kWh"
           },
-          "soc_min": {
+          "soc-min": {
             "type": "string",
             "description": "A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0). If used, this is regarded as an unsurpassable physical limitation.",
             "example": "2.5 kWh"
           },
-          "soc_max": {
+          "soc-max": {
             "type": "string",
             "description": "A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided). If used, this is regarded as an unsurpassable physical limitation.",
             "example": "7 kWh"
           },
-          "power_capacity_in_mw": {
+          "power-capacity": {
             "type": "string",
             "description": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``).",
             "example": "50 kVA"
           },
-          "consumption_capacity": {
+          "consumption-capacity": {
             "type": "string",
             "description": "Device-level power constraint on consumption. How much power can be drawn by this asset.",
             "example": {
               "sensor": 56
             }
           },
-          "production_capacity": {
+          "production-capacity": {
             "type": "string",
             "description": "Device-level power constraint on production. How much power can be supplied by this asset. For <abbr title=\"photovoltaic solar panels\">PV</abbr> curtailment, set this to reference your sensor containing PV power forecasts.",
             "example": "0 kW"
@@ -4377,7 +4377,7 @@
             "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.",
             "example": true
           },
-          "soc_maxima": {
+          "soc-maxima": {
             "type": "string",
             "description": "Set points that form user-defined upper boundaries at certain times (defaults to NaN values).",
             "example": {
@@ -4386,7 +4386,7 @@
               "end": "2024-02-05T13:30:00+01:00"
             }
           },
-          "soc_minima": {
+          "soc-minima": {
             "type": "string",
             "description": "Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).",
             "example": [
@@ -4396,7 +4396,7 @@
               }
             ]
           },
-          "soc_targets": {
+          "soc-targets": {
             "type": "string",
             "description": "Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values).",
             "example": [
@@ -4415,29 +4415,29 @@
             "description": "The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).\n       However, we advise to mention the unit in each field explicitly (for instance, ``\"3.1 kWh\"`` rather than ``3.1``).\n       Only kWh and MWh are allowed.",
             "example": "kWh"
           },
-          "state_of_charge": {
+          "state-of-charge": {
             "type": "string",
             "description": "If given, the scheduled state of charge is stored on this sensor.",
             "example": {
               "sensor": 12
             }
           },
-          "charging_efficiency": {
+          "charging-efficiency": {
             "type": "string",
             "description": "Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).",
             "example": ".9"
           },
-          "discharging_efficiency": {
+          "discharging-efficiency": {
             "type": "string",
             "description": "Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).",
             "example": "90%"
           },
-          "roundtrip_efficiency": {
+          "roundtrip-efficiency": {
             "type": "string",
             "description": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%).",
             "example": "90%"
           },
-          "storage_efficiency": {
+          "storage-efficiency": {
             "type": "string",
             "description": "This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read about applying this value per time step across longer time spans.",
             "example": "99.9%"
