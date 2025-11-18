@@ -167,7 +167,7 @@ class AssetCrudUI(FlaskView):
         current_asset_sensors = [
             {
                 "name": sensor.name,
-                "unit": sensor.unit,
+                "unit": sensor._ui_unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
             for sensor in asset.sensors
@@ -385,6 +385,8 @@ class AssetCrudUI(FlaskView):
                 else "No Parent"
             ),
         }
+        if asset.external_id:
+            asset_summary["External ID"] = asset.external_id
 
         site_asset = asset
         while site_asset.parent_asset_id:

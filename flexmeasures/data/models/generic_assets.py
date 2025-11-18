@@ -65,6 +65,11 @@ class GenericAsset(db.Model, AuthModelMixin):
             "parent_asset_id",
             name="generic_asset_name_parent_asset_id_key",
         ),
+        db.UniqueConstraint(
+            "account_id",
+            "external_id",
+            name="generic_asset_account_id_external_id_key",
+        ),
     )
 
     # No relationship
@@ -83,6 +88,20 @@ class GenericAsset(db.Model, AuthModelMixin):
     sensors_to_show_as_kpis = db.Column(
         MutableList.as_mutable(db.JSON), nullable=False, default=[]
     )
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
+    )  # if null, asset is public
+    owner = db.relationship(
+        "Account",
+        backref=db.backref(
+            "generic_assets",
+            foreign_keys=[account_id],
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        ),
+    )
+
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
@@ -102,6 +121,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         foreign_keys=[generic_asset_type_id],
         backref=db.backref("generic_assets", lazy=True),
     )
+
+    # not a FK, but representation of this asset in an external system (e.g. IoT solution)
+    external_id = db.Column(db.String(80), default=None)
 
     # Many-to-many relationships
     annotations = db.relationship(
@@ -326,21 +348,6 @@ class GenericAsset(db.Model, AuthModelMixin):
     def asset_type(self) -> GenericAssetType:
         """This property prepares for dropping the "generic" prefix later"""
         return self.generic_asset_type
-
-    account_id = db.Column(
-        db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
-    )  # if null, asset is public
-
-    owner = db.relationship(
-        "Account",
-        backref=db.backref(
-            "generic_assets",
-            foreign_keys=[account_id],
-            lazy=True,
-            cascade="all, delete-orphan",
-            passive_deletes=True,
-        ),
-    )
 
     def get_path(self, separator: str = ">") -> str:
         if self.parent_asset is not None:

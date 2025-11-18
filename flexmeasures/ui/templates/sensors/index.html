@@ -138,7 +138,7 @@ The event_value should be a numeric value."
                               </tr>
                               <tr>
                                   <th>Unit</th>
-                                  <td>{{ sensor.unit }}</td>
+                                  <td>{{ sensor._ui_unit | safe }}</td>
                               </tr>
                               <tr>
                                   <th>Event resolution</th>
