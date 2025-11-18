@@ -1957,9 +1957,11 @@
             "in": "query",
             "name": "account_id",
             "schema": {
-              "type": "integer",
-              "default": null,
-              "nullable": true
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null
             },
             "required": false
           },
@@ -3020,9 +3022,11 @@
             "in": "query",
             "name": "account_id",
             "schema": {
-              "type": "integer",
-              "default": null,
-              "nullable": true
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null
             },
             "required": false
           },
@@ -3496,7 +3500,7 @@
     "title": "FlexMeasures",
     "version": "0.28.0.dev36"
   },
-  "openapi": "3.0.2",
+  "openapi": "3.1.2",
   "components": {
     "schemas": {
       "Commitment": {
@@ -3679,9 +3683,11 @@
             ]
           },
           "account_id": {
-            "type": "integer",
-            "default": null,
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null
           },
           "include_inactive": {
             "type": "boolean",
@@ -3721,9 +3727,11 @@
             ]
           },
           "account_id": {
-            "type": "integer",
-            "default": null,
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null
           },
           "all_accessible": {
             "type": "boolean",
@@ -3744,9 +3752,11 @@
             "readOnly": true
           },
           "name": {
-            "type": "string",
-            "maxLength": 100,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
           }
         },
         "required": [
@@ -3777,16 +3787,14 @@
             "type": "string"
           },
           "account_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "generic_asset_type": {
             "readOnly": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/GenericAssetType"
-              }
-            ]
+            "$ref": "#/components/schemas/GenericAssetType"
           }
         },
         "required": [
@@ -3826,40 +3834,40 @@
             "type": "string"
           },
           "account_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "owner": {
             "readOnly": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Account"
-              }
-            ]
+            "$ref": "#/components/schemas/Account"
           },
           "latitude": {
-            "type": "number",
-            "nullable": true
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "longitude": {
-            "type": "number",
-            "nullable": true
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "generic_asset_type_id": {
             "type": "integer"
           },
           "generic_asset_type": {
             "readOnly": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/GenericAssetType"
-              }
-            ]
+            "$ref": "#/components/schemas/GenericAssetType"
           },
           "attributes": {},
           "parent_asset_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "child_assets": {
             "readOnly": true,
@@ -3919,9 +3927,11 @@
             "readOnly": true
           },
           "name": {
-            "type": "string",
-            "maxLength": 80,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80
           }
         },
         "additionalProperties": false
@@ -3934,24 +3944,32 @@
             "readOnly": true
           },
           "name": {
-            "type": "string",
-            "maxLength": 100,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
           },
           "primary_color": {
-            "type": "string",
-            "maxLength": 7,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
           },
           "secondary_color": {
-            "type": "string",
-            "maxLength": 7,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
           },
           "logo_url": {
-            "type": "string",
-            "maxLength": 255,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
           },
           "account_roles": {
             "type": "array",
@@ -3960,8 +3978,10 @@
             }
           },
           "consultancy_account_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "additionalProperties": false
@@ -4187,9 +4207,11 @@
             }
           },
           "belief-time-measured-instantly": {
-            "type": "boolean",
-            "default": false,
-            "nullable": true
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": false
           }
         },
         "additionalProperties": false
@@ -4202,24 +4224,32 @@
             "readOnly": true
           },
           "name": {
-            "type": "string",
-            "maxLength": 100,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
           },
           "primary_color": {
-            "type": "string",
-            "maxLength": 7,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
           },
           "secondary_color": {
-            "type": "string",
-            "maxLength": 7,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
           },
           "logo_url": {
-            "type": "string",
-            "maxLength": 255,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
           },
           "account_roles": {
             "type": "array",
@@ -4228,8 +4258,10 @@
             }
           },
           "consultancy_account_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -4245,26 +4277,34 @@
             "readOnly": true
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "username": {
-            "type": "string",
-            "maxLength": 255,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
           },
           "account_id": {
             "type": "integer",
             "readOnly": true
           },
           "active": {
-            "type": "boolean",
-            "nullable": true
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "timezone": {
-            "type": "string",
-            "maxLength": 255,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
           },
           "flexmeasures_roles": {
             "type": "array",
@@ -4455,19 +4495,11 @@
           },
           "flex_model": {
             "description": "The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
-              }
-            ]
+            "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
           },
           "flex_context": {
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/FlexContextOpenAPISchema"
-              }
-            ]
+            "$ref": "#/components/schemas/FlexContextOpenAPISchema"
           },
           "sequential": {
             "type": "boolean",
