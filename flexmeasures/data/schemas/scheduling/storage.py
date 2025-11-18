@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TypedDict, cast, Callable
+from dataclasses import asdict
 from datetime import datetime, timedelta
 
 from flask import current_app
@@ -17,7 +18,7 @@ from marshmallow.validate import OneOf, ValidationError
 from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
-from flexmeasures.data.schemas.scheduling import descriptions
+from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.sensors import VariableQuantityField
 from flexmeasures.utils.unit_utils import (
     ur,
@@ -84,10 +85,7 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
         data_key="soc-at-start",
-        metadata=dict(
-            description=descriptions.SOC_AT_START,
-            example="3.1 kWh",
-        ),
+        metadata=asdict(metadata.SOC_AT_START),
     )
 
     soc_min = QuantityField(
@@ -98,55 +96,46 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
         data_key="soc-min",
-        metadata=dict(description=descriptions.SOC_MIN),
+        metadata=asdict(metadata.SOC_MIN),
     )
     soc_max = QuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
         data_key="soc-max",
-        metadata=dict(description=descriptions.SOC_MAX),
+        metadata=asdict(metadata.SOC_MAX),
     )
 
     power_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
         data_key="power-capacity",
-        metadata=dict(
-            description=descriptions.POWER_CAPACITY,
-            example="80 kVA",
-        ),
+        metadata=asdict(metadata.POWER_CAPACITY),
     )
 
     consumption_capacity = VariableQuantityField(
         "MW",
         data_key="consumption-capacity",
         required=False,
-        metadata=dict(
-            description=descriptions.CONSUMPTION_CAPACITY,
-            example="64 kW",
-        ),
+        metadata=asdict(metadata.CONSUMPTION_CAPACITY),
     )
     production_capacity = VariableQuantityField(
         "MW",
         data_key="production-capacity",
         required=False,
-        metadata=dict(
-            description=descriptions.PRODUCTION_CAPACITY,
-            example="0 kW",
-        ),
+        metadata=asdict(metadata.PRODUCTION_CAPACITY),
     )
 
     # Activation prices
     prefer_curtailing_later = fields.Bool(
         data_key="prefer-curtailing-later",
         load_default=True,
-        metadata=dict(description=descriptions.PREFER_CURTAILING_LATER),
+        metadata=asdict(metadata.PREFER_CURTAILING_LATER),
     )
     prefer_charging_sooner = fields.Bool(
         data_key="prefer-charging-sooner",
         load_default=True,
-        metadata=dict(description=descriptions.PREFER_CHARGING_SOONER),
+        metadata=asdict(metadata.PREFER_CHARGING_SOONER),
     )
 
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
@@ -155,7 +144,7 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
         data_key="soc-maxima",
-        metadata=dict(description=descriptions.SOC_MAXIMA),
+        metadata=asdict(metadata.SOC_MAXIMA),
     )
 
     soc_minima = VariableQuantityField(
@@ -164,7 +153,7 @@ class StorageFlexModelSchema(Schema):
         timezone="placeholder",
         data_key="soc-minima",
         value_validator=validate.Range(min=0),
-        metadata=dict(description=descriptions.SOC_MINIMA),
+        metadata=asdict(metadata.SOC_MINIMA),
     )
 
     soc_targets = VariableQuantityField(
@@ -172,7 +161,7 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
         data_key="soc-targets",
-        metadata=dict(description=descriptions.SOC_TARGETS),
+        metadata=asdict(metadata.SOC_TARGETS),
     )
 
     soc_unit = fields.Str(
@@ -184,42 +173,37 @@ class StorageFlexModelSchema(Schema):
         ),
         data_key="soc-unit",
         required=False,
-        metadata=dict(
-            description=descriptions.SOC_UNIT,
-            example="kWh",
-        ),
+        metadata=asdict(metadata.SOC_UNIT),
     )
 
     state_of_charge = VariableQuantityField(
         to_unit="MWh",
         data_key="state-of-charge",
         required=False,
-        metadata=dict(description=descriptions.STATE_OF_CHARGE, example={"sensor": 12}),
+        metadata=asdict(metadata.STATE_OF_CHARGE),
     )
 
     charging_efficiency = VariableQuantityField(
         "%",
         data_key="charging-efficiency",
         required=False,
-        metadata=dict(description=descriptions.CHARGING_EFFICIENCY),
+        metadata=asdict(metadata.CHARGING_EFFICIENCY),
     )
     discharging_efficiency = VariableQuantityField(
         "%",
         data_key="discharging-efficiency",
         required=False,
-        metadata=dict(description=descriptions.DISCHARGING_EFFICIENCY),
+        metadata=asdict(metadata.DISCHARGING_EFFICIENCY),
     )
 
     roundtrip_efficiency = EfficiencyField(
         data_key="roundtrip-efficiency",
         required=False,
-        metadata=dict(description=descriptions.ROUNDTRIP_EFFICIENCY),
+        metadata=asdict(metadata.ROUNDTRIP_EFFICIENCY),
     )
 
     storage_efficiency = VariableQuantityField(
-        "%",
-        data_key="storage-efficiency",
-        metadata=dict(description=descriptions.STORAGE_EFFICIENCY),
+        "%", data_key="storage-efficiency", metadata=asdict(metadata.STORAGE_EFFICIENCY)
     )
 
     soc_gain = fields.List(
@@ -227,18 +211,14 @@ class StorageFlexModelSchema(Schema):
         data_key="soc-gain",
         required=False,
         validate=validate.Length(min=1),
-        metadata=dict(
-            description=descriptions.SOC_GAIN, example=["100 W", {"sensor": 34}]
-        ),
+        metadata=asdict(metadata.SOC_GAIN),
     )
     soc_usage = fields.List(
         VariableQuantityField("MW"),
         data_key="soc-usage",
         required=False,
         validate=validate.Length(min=1),
-        metadata=dict(
-            description=descriptions.SOC_USAGE, example=["100 W", {"sensor": 35}]
-        ),
+        metadata=asdict(metadata.SOC_USAGE),
     )
 
     def __init__(

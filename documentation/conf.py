@@ -13,7 +13,7 @@ from datetime import datetime
 from pkg_resources import get_distribution
 import sphinx_fontawesome
 
-from flexmeasures.data.schemas.scheduling import descriptions as desc_module
+from flexmeasures.data.schemas.scheduling import metadata as metadata_module
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -266,33 +266,36 @@ def setup(sphinx_app):
 
 # Build rst_epilog substitutions for every UPPERCASE constant
 sub_lines = []
-for name in dir(desc_module):
+for name in dir(metadata_module):
     if not name.isupper():
         continue
-    value = getattr(desc_module, name)
-    if not isinstance(value, str):
-        # skip non-string constants
+    metadata = getattr(metadata_module, name)
+    if not isinstance(metadata, metadata_module.MetaData):
+        # skip non-MetaData objects
         continue
 
     # Normalize CRLFs and strip trailing newlines
-    value = value.replace("\r\n", "\n").rstrip("\n")
+    description = metadata.description.replace("\r\n", "\n").rstrip("\n")
 
     # We want Sphinx to accept the replacement both inline and as a multi-line
     # paragraph. The `replace::` directive must have the replacement text on
     # the same line or on following indented lines. We put the first line on
     # the directive line and indent the following lines so they render as a
     # paragraph (and work inside table cells).
-    lines = value.split("\n")
+    lines = description.split("\n")
     if len(lines) == 1:
         # single-line replacement: keep it all on one line
         replacement = lines[0]
-        sub_lines.append(f".. |{name}| replace:: {replacement}")
+        sub_lines.append(f".. |{name}.description| replace:: {replacement}")
     else:
         # multi-line: first line on directive, then indent subsequent lines
         first, rest = lines[0], lines[1:]
         indented_rest = "\n   ".join(rest)
         # If subsequent lines are present, prepend them with a newline+3 spaces
-        sub_lines.append(f".. |{name}| replace:: {first}\n   {indented_rest}")
+        sub_lines.append(
+            f".. |{name}.description| replace:: {first}\n   {indented_rest}"
+        )
+    sub_lines.append(f".. |{name}.example| replace:: ``{metadata.example}``")
 
 rst_epilog = "\n".join(sub_lines)
 print(rst_epilog)

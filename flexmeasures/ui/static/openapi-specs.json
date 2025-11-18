@@ -4249,21 +4249,25 @@
           },
           "soc_min": {
             "type": "string",
-            "description": "A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0). If used, this is regarded as an unsurpassable physical limitation."
+            "description": "A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0). If used, this is regarded as an unsurpassable physical limitation.",
+            "example": "2.5 kWh"
           },
           "soc_max": {
             "type": "string",
-            "description": "A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided). If used, this is regarded as an unsurpassable physical limitation."
+            "description": "A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided). If used, this is regarded as an unsurpassable physical limitation.",
+            "example": "7 kWh"
           },
           "power_capacity_in_mw": {
             "type": "string",
             "description": "Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``).",
-            "example": "80 kVA"
+            "example": "50 kVA"
           },
           "consumption_capacity": {
             "type": "string",
             "description": "Device-level power constraint on consumption. How much power can be drawn by this asset.",
-            "example": "64 kW"
+            "example": {
+              "sensor": 56
+            }
           },
           "production_capacity": {
             "type": "string",
@@ -4273,24 +4277,43 @@
           "prefer-curtailing-later": {
             "type": "boolean",
             "default": true,
-            "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only."
+            "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.",
+            "example": true
           },
           "prefer-charging-sooner": {
             "type": "boolean",
             "default": true,
-            "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only."
+            "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.",
+            "example": true
           },
           "soc_maxima": {
             "type": "string",
-            "description": "Set points that form user-defined upper boundaries at certain times (defaults to NaN values)."
+            "description": "Set points that form user-defined upper boundaries at certain times (defaults to NaN values).",
+            "example": {
+              "value": "51 kWh",
+              "start": "2024-02-05T12:00:00+01:00",
+              "end": "2024-02-05T13:30:00+01:00"
+            }
           },
           "soc_minima": {
             "type": "string",
-            "description": "Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values)."
+            "description": "Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).",
+            "example": [
+              {
+                "datetime": "2024-02-05T08:00:00+01:00",
+                "value": "8.2 kWh"
+              }
+            ]
           },
           "soc_targets": {
             "type": "string",
-            "description": "Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values)."
+            "description": "Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values).",
+            "example": [
+              {
+                "datetime": "2024-02-05T08:00:00+01:00",
+                "value": "3.2 kWh"
+              }
+            ]
           },
           "soc-unit": {
             "type": "string",
@@ -4298,7 +4321,7 @@
               "kWh",
               "MWh"
             ],
-            "description": "The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).\n       However, we advise to mention the unit in each field explicitly (for instance, ``\"3.1 kWh\"`` rather than ``3.1``).\n       Enumerated option only.",
+            "description": "The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).\n       However, we advise to mention the unit in each field explicitly (for instance, ``\"3.1 kWh\"`` rather than ``3.1``).\n       Only kWh and MWh are allowed.",
             "example": "kWh"
           },
           "state_of_charge": {
@@ -4310,19 +4333,23 @@
           },
           "charging_efficiency": {
             "type": "string",
-            "description": "Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%)."
+            "description": "Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).",
+            "example": ".9"
           },
           "discharging_efficiency": {
             "type": "string",
-            "description": "Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%)."
+            "description": "Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).",
+            "example": "90%"
           },
           "roundtrip_efficiency": {
             "type": "string",
-            "description": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%)."
+            "description": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%).",
+            "example": "90%"
           },
           "storage_efficiency": {
             "type": "string",
-            "description": "This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read about applying this value per time step across longer time spans."
+            "description": "This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read about applying this value per time step across longer time spans.",
+            "example": "99.9%"
           },
           "soc-gain": {
             "type": "array",
@@ -4343,7 +4370,7 @@
             "example": [
               "100 W",
               {
-                "sensor": 35
+                "sensor": 23
               }
             ],
             "items": {}

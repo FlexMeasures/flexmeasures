@@ -199,59 +199,59 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Example value
      - Description 
    * - ``soc-at-start``
-     - ``"3.1 kWh"``
-     - |SOC_AT_START| [#quantity_field]_
+     - |SOC_AT_START.example|
+     - |SOC_AT_START.description| [#quantity_field]_
    * - ``soc-unit``
-     - ``"kWh"`` or ``"MWh"``
-     - |SOC_UNIT|
+     - |SOC_UNIT.example|
+     - |SOC_UNIT.description|
    * - ``soc-min``
-     - ``"2.5 kWh"``
-     - |SOC_MIN| [#quantity_field]_
+     - |SOC_MIN.example|
+     - |SOC_MIN.description| [#quantity_field]_
    * - ``soc-max``
-     - ``"7 kWh"``
-     - |SOC_MAX| [#quantity_field]_
+     - |SOC_MAX.example|
+     - |SOC_MAX.description| [#quantity_field]_
    * - ``soc-minima``
-     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
-     - |SOC_MINIMA| [#maximum_overlap]_
+     - |SOC_MINIMA.example|
+     - |SOC_MINIMA.description| [#maximum_overlap]_
    * - ``soc-maxima``
-     - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
-     - |SOC_MAXIMA| [#minimum_overlap]_
+     - |SOC_MAXIMA.example|
+     - |SOC_MAXIMA.description| [#minimum_overlap]_
    * - ``soc-targets``
-     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
-     - |SOC_TARGETS|
+     - |SOC_TARGETS.example|
+     - |SOC_TARGETS.description|
    * - ``soc-gain``
-     - ``[".1kWh"]``
-     - |SOC_GAIN|
+     - |SOC_GAIN.example|
+     - |SOC_GAIN.description|
    * - ``soc-usage``
-     - ``[{"sensor": 23}]``
-     - |SOC_USAGE|
+     - |SOC_USAGE.example|
+     - |SOC_USAGE.description|
    * - ``roundtrip-efficiency``
-     - ``"90%"``
-     - |ROUNDTRIP_EFFICIENCY| [#quantity_field]_
+     - |ROUNDTRIP_EFFICIENCY.example|
+     - |ROUNDTRIP_EFFICIENCY.description| [#quantity_field]_
    * - ``charging-efficiency``
-     - ``".9"``
-     - |CHARGING_EFFICIENCY|
+     - |CHARGING_EFFICIENCY.example|
+     - |CHARGING_EFFICIENCY.description|
    * - ``discharging-efficiency``
-     - ``"90%"``
-     - |DISCHARGING_EFFICIENCY|
+     - |DISCHARGING_EFFICIENCY.example|
+     - |DISCHARGING_EFFICIENCY.description|
    * - ``storage-efficiency``
-     - ``"99.9%"``
-     - |STORAGE_EFFICIENCY| [#storage_efficiency]_
+     - |STORAGE_EFFICIENCY.example|
+     - |STORAGE_EFFICIENCY.description| [#storage_efficiency]_
    * - ``prefer-charging-sooner``
-     - ``True``
-     - |PREFER_CHARGING_SOONER|
+     - |PREFER_CHARGING_SOONER.example|
+     - |PREFER_CHARGING_SOONER.description|
    * - ``prefer-curtailing-later``
-     - ``True``
-     - |PREFER_CURTAILING_LATER|
+     - |PREFER_CURTAILING_LATER.example|
+     - |PREFER_CURTAILING_LATER.description|
    * - ``power-capacity``
-     - ``"50kW"``
-     - |POWER_CAPACITY| [#minimum_overlap]_
+     - |POWER_CAPACITY.example|
+     - |POWER_CAPACITY.description| [#minimum_overlap]_
    * - ``consumption-capacity``
-     - ``{"sensor": 56}``
-     - |CONSUMPTION_CAPACITY| [#minimum_overlap]_
+     - |CONSUMPTION_CAPACITY.example|
+     - |CONSUMPTION_CAPACITY.description| [#minimum_overlap]_
    * - ``production-capacity``
-     - ``"0kW"`` (only consumption)
-     - |PRODUCTION_CAPACITY| [#minimum_overlap]_
+     - |PRODUCTION_CAPACITY.example| (only consumption)
+     - |PRODUCTION_CAPACITY.description| [#minimum_overlap]_
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
