@@ -24,7 +24,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Updated dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_]
+* Updated dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_ and `PR #1820 <https://www.github.com/FlexMeasures/flexmeasures/pull/1820>`_]
 * Speed up data searches by refactoring our filter for selecting data from the latest version of a data generating model [see `PR #1698 <https://github.com/FlexMeasures/flexmeasures/pull/1698>`_]
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
 * Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
