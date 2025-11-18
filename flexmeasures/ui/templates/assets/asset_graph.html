@@ -201,10 +201,13 @@
                 <div class="modal-header">
                     <h5 class="modal-title pe-2">Edit Dashboard Graphs</h5>
 
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+                    <div class="dropdown">
+                        <span class="fa fa-info dropdown-toggle" 
+                            role="button" 
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false" 
+                            tabindex="0">
+                        </span>
 
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
@@ -226,7 +229,10 @@
                         </div>
                     </div>
 
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -303,6 +309,11 @@
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+
+    const saveChangesBtn = document.getElementById("saveChangesBtn");
+    saveChangesBtn.onclick = async function () {
+        await updateAssetSensorsToShow();
+    };
 
     // Fetch Account Details
     async function getAccount(accountId) {
@@ -633,7 +644,7 @@
                     <h5 class="card-title">${sensor.name}</h5>
                     <p class="card-text">
                         <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                        <b>Unit:</b> ${sensor.unit},
+                        <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                         <b>Asset:</b> ${Asset.name},
                         <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                     </p>
@@ -669,11 +680,11 @@
                         <h5 class="card-title">${sensor.name}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                            <b>Unit:</b> ${sensor.unit},
+                            <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                             <b>Asset:</b> ${Asset.name},
                             <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </p>
-                        <button class="btn btn-primary btn-sm" onclick="udpateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
+                        <button class="btn btn-primary btn-sm" onclick="updateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
                     </div>
                 </div>
             `;
@@ -682,24 +693,11 @@
         });
     }
 
-    async function updateAssetSensorsToShow(dataType) {
+    async function updateAssetSensorsToShow() {
 
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        let requestBody;
-
-        if (dataType === "sensorToShow") {
-            requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
-            // Only show the spinner if relevant to this specific data type
-            document.getElementById('spinner').style.display = 'block';
-        } else if (dataType === "flexContext") {
-            // remove null fields
-            for (const [key, value] of Object.entries(assetFlexContext)) {
-                if (value === null) {
-                    delete assetFlexContext[key];
-                }
-            }
-            requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
-        }
+        const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
+        document.getElementById('spinner').style.display = 'block';
 
         const response = await fetch(apiURL, {
             method: "PATCH",
@@ -711,7 +709,7 @@
 
         if (!response.ok) {
             const errorData = await response.json();
-            const errorMessage = errorData?.message || errorData?.error || response.statusText;
+            const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
             showToast(`Failed to update the asset: ${errorMessage}`, "error");
         } else {
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
@@ -778,10 +776,6 @@
             console.log("Show chart selection!");
             chartTypeDropdown.style.display = 'block';
         }
-    });
-
-    formModal.addEventListener('hidden.bs.modal', function () {
-        updateAssetSensorsToShow("sensorToShow");
     });
 
     formModal.addEventListener('shown.bs.modal', function () {
