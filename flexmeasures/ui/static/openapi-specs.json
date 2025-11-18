@@ -3515,35 +3515,53 @@
         "type": "object",
         "properties": {
           "consumption_breach_price": {
-            "type": "string"
+            "type": "string",
+            "description": "The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.",
+            "example": "10 EUR/kW"
           },
           "production_breach_price": {
-            "type": "string"
+            "type": "string",
+            "description": "The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.",
+            "example": "10 EUR/kW"
           },
           "soc_minima_breach_price": {
-            "type": "string"
+            "type": "string",
+            "description": "Penalty for not meeting ``soc-minima`` defined in the flex-model.",
+            "example": "120 EUR/kWh"
           },
           "soc_maxima_breach_price": {
-            "type": "string"
+            "type": "string",
+            "description": "Penalty for not meeting ``soc-maxima`` defined in the flex-model.",
+            "example": "120 EUR/kWh"
           },
           "relax-constraints": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures. For tighter control over prices and priorities, the breach prices can also be set explicitly (see below).\n",
+            "example": true
           },
           "relax-soc-constraints": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+            "example": true
           },
           "relax-capacity-constraints": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+            "example": true
           },
           "relax-site-capacity-constraints": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+            "example": true
           },
           "ems_power_capacity_in_mw": {
-            "type": "string"
+            "type": "string",
+            "description": "Maximum achievable power at the grid connection point, in either direction. Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.",
+            "example": "45kVA"
           },
           "consumption_price_sensor": {
             "type": "string"
@@ -3552,36 +3570,64 @@
             "type": "string"
           },
           "consumption_price": {
-            "type": "string"
+            "type": "string",
+            "description": "The price of consuming energy. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field.)",
+            "example": {
+              "sensor": 5
+            }
           },
           "production_price": {
-            "type": "string"
+            "type": "string",
+            "description": "The price of producing energy. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field.)",
+            "example": "0.12 EUR/kWh"
           },
           "ems_production_capacity_in_mw": {
-            "type": "string"
+            "type": "string",
+            "description": "Maximum production power at the grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
+            "example": "0kW"
           },
           "ems_consumption_capacity_in_mw": {
-            "type": "string"
+            "type": "string",
+            "description": "Maximum consumption power at the grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
+            "example": "45kW"
           },
           "ems_consumption_breach_price": {
-            "type": "string"
+            "type": "string",
+            "description": "The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.",
+            "example": "1000 EUR/kW"
           },
           "ems_production_breach_price": {
-            "type": "string"
+            "type": "string",
+            "description": "The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.",
+            "example": "1000 EUR/kW"
           },
           "ems_peak_consumption_in_mw": {
-            "type": "string"
+            "type": "string",
+            "description": "Current peak consumption. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
+            "example": {
+              "sensor": 7
+            }
           },
           "ems_peak_consumption_price": {
-            "type": "string"
+            "type": "string",
+            "description": "Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price.",
+            "example": "260 EUR/MW"
           },
           "ems_peak_production_in_mw": {
-            "type": "string"
+            "type": "string",
+            "description": "Current peak production. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
+            "example": {
+              "sensor": 8
+            }
           },
           "ems_peak_production_price": {
-            "type": "string"
+            "type": "string",
+            "description": "Production peaks above the ``site-peak-production`` are penalized against this per-kW price.",
+            "example": "260 EUR/MW"
           },
           "commitments": {
+            "description": "Prior commitments.",
+            "example": [],
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Commitment"
@@ -3589,6 +3635,11 @@
           },
           "inflexible-device-sensors": {
             "type": "array",
+            "description": "Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.",
+            "example": [
+              3,
+              4
+            ],
             "items": {
               "type": "integer"
             }

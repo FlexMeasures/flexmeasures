@@ -57,81 +57,56 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
      - Example value
      - Description
    * - ``inflexible-device-sensors``
-     - ``[3,4]``
-     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
-       Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.
+     - |INFLEXIBLE_DEVICE_SENSORS.example|
+     - |INFLEXIBLE_DEVICE_SENSORS.description|
    * - ``consumption-price``
-     - ``{"sensor": 5}``
-       or
-       ``"0.29 EUR/kWh"``
-     - The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field. [#old_sensor_field]_)
+     - |CONSUMPTION_PRICE.example|
+     - |CONSUMPTION_PRICE.description| [#old_sensor_field]_
    * - ``production-price``
-     - ``{"sensor": 6}``
-       or
-       ``"0.12 EUR/kWh"``
-     - The price of producing energy.
-       Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
+     - |PRODUCTION_PRICE.example|
+     - |PRODUCTION_PRICE.description| [#old_sensor_field]_
    * - ``site-power-capacity``
-     - ``"45kVA"``
-     - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_.
-       Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#minimum_capacity_overlap]_
+     - |SITE_POWER_CAPACITY.example|
+     - |SITE_POWER_CAPACITY.description| [#asymmetric]_ [#minimum_capacity_overlap]_
    * - ``site-consumption-capacity``
-     - ``"45kW"``
-     - Maximum consumption power at the grid connection point.
-       If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
-       If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
-       Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
+     - |SITE_CONSUMPTION_CAPACITY.example|
+     - |SITE_CONSUMPTION_CAPACITY.description| [#consumption]_ [#minimum_capacity_overlap]_
    * - ``site-production-capacity``
-     - ``"0kW"``
-     - Maximum production power at the grid connection point.
-       If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
-       If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
-       Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
+     - |SITE_PRODUCTION_CAPACITY.example|
+     - |SITE_PRODUCTION_CAPACITY.description| [#production]_ [#minimum_capacity_overlap]_
    * - ``site-peak-consumption``
-     - ``{"sensor": 7}``
-     - Current peak consumption.
-       Costs from peaks below it are considered sunk costs. Default to 0 kW.
+     - |SITE_PEAK_CONSUMPTION.example|
+     - |SITE_PEAK_CONSUMPTION.description|
    * - ``relax-constraints``
-     - ``True``
-     - If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem,
-       leading to the default priority:
-
-       1. Avoid breaching the site consumption/production capacity.
-       2. Avoid not meeting SoC minima/maxima.
-       3. Avoid breaching the desired device consumption/production capacity.
-
-       We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
-       For tighter control over prices and priorities, the breach prices can also be set explicitly (see below).
+     - |RELAX_CONSTRAINTS.example|
+     - |RELAX_CONSTRAINTS.description|
    * - ``site-consumption-breach-price``
-     - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
+     - |SITE_CONSUMPTION_BREACH_PRICE.example|
+     - |SITE_CONSUMPTION_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
    * - ``site-production-breach-price``
-     - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
+     - |SITE_PRODUCTION_BREACH_PRICE.example|
+     - |SITE_PRODUCTION_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
    * - ``site-peak-consumption-price``
-     - ``"260 EUR/MW"``
-     - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
+     - |SITE_PEAK_CONSUMPTION_PRICE.example|
+     - |SITE_PEAK_CONSUMPTION_PRICE.description| [#penalty_field]_
    * - ``site-peak-production``
-     - ``{"sensor": 8}``
-     - Current peak production.
-       Costs from peaks below it are considered sunk costs. Default to 0 kW.
+     - |SITE_PEAK_PRODUCTION.example|
+     - |SITE_PEAK_PRODUCTION.description|
    * - ``site-peak-production-price``
-     - ``"260 EUR/MW"``
-     - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
+     - |SITE_PEAK_PRODUCTION_PRICE.example|
+     - |SITE_PEAK_PRODUCTION_PRICE.description| [#penalty_field]_
    * - ``soc-minima-breach-price``
-     - ``"120 EUR/kWh"``
-     - Penalty for not meeting ``soc-minima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+     - |SOC_MINIMA_BREACH_PRICE.example|
+     - |SOC_MINIMA_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
    * - ``soc-maxima-breach-price``
-     - ``"120 EUR/kWh"``
-     - Penalty for not meeting ``soc-maxima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+     - |SOC_MAXIMA_BREACH_PRICE.example|
+     - |SOC_MAXIMA_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
    * - ``consumption-breach-price``
-     - ``"10 EUR/kW"``
-     - The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
+     - |CONSUMPTION_BREACH_PRICE.example|
+     - |CONSUMPTION_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
    * - ``production-breach-price``
-     - ``"10 EUR/kW"``
-     - The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
+     - |PRODUCTION_BREACH_PRICE.example|
+     - |PRODUCTION_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 

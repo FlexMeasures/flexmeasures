@@ -14,6 +14,103 @@ class MetaData:
     example: Any
 
 
+### FLEX-CONTEXT ###
+
+
+INFLEXIBLE_DEVICE_SENSORS = MetaData(
+    description="Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.",
+    example=[3, 4],
+)
+COMMITMENTS = MetaData(
+    description="Prior commitments.",
+    example=[],
+)
+CONSUMPTION_PRICE = MetaData(
+    description="The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field.)",
+    example={"sensor": 5},
+)
+PRODUCTION_PRICE = MetaData(
+    description="The price of producing energy. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field.)",
+    example="0.12 EUR/kWh",
+)
+SITE_POWER_CAPACITY = MetaData(
+    description="Maximum achievable power at the grid connection point, in either direction. Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.",
+    example="45kVA",
+)
+SITE_CONSUMPTION_CAPACITY = MetaData(
+    description="Maximum consumption power at the grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
+    example="45kW",
+)
+SITE_PRODUCTION_CAPACITY = MetaData(
+    description="Maximum production power at the grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
+    example="0kW",
+)
+SITE_PEAK_CONSUMPTION = MetaData(
+    description="Current peak consumption. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
+    example={"sensor": 7},
+)
+SITE_PEAK_CONSUMPTION_PRICE = MetaData(
+    description="Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price.",
+    example="260 EUR/MW",
+)
+SITE_PEAK_PRODUCTION = MetaData(
+    description="Current peak production. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
+    example={"sensor": 8},
+)
+SITE_PEAK_PRODUCTION_PRICE = MetaData(
+    description="Production peaks above the ``site-peak-production`` are penalized against this per-kW price.",
+    example="260 EUR/MW",
+)
+SOC_MINIMA_BREACH_PRICE = MetaData(
+    description="Penalty for not meeting ``soc-minima`` defined in the flex-model.",
+    example="120 EUR/kWh",
+)
+SOC_MAXIMA_BREACH_PRICE = MetaData(
+    description="Penalty for not meeting ``soc-maxima`` defined in the flex-model.",
+    example="120 EUR/kWh",
+)
+CONSUMPTION_BREACH_PRICE = MetaData(
+    description="The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.",
+    example="10 EUR/kW",
+)
+PRODUCTION_BREACH_PRICE = MetaData(
+    description="The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.",
+    example="10 EUR/kW",
+)
+RELAX_CONSTRAINTS = MetaData(
+    description="""If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
+
+1. Avoid breaching the site consumption/production capacity.
+2. Avoid not meeting SoC minima/maxima.
+3. Avoid breaching the desired device consumption/production capacity.
+
+We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures. For tighter control over prices and priorities, the breach prices can also be set explicitly (see below).
+""",
+    example=True,
+)
+RELAX_SOC_CONSTRAINTS = MetaData(
+    description="If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+    example=True,
+)
+RELAX_CAPACITY_CONSTRAINTS = MetaData(
+    description="If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+    example=True,
+)
+RELAX_SITE_CAPACITY_CONSTRAINTS = MetaData(
+    description="If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+    example=True,
+)
+SITE_CONSUMPTION_BREACH_PRICE = MetaData(
+    description="The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.",
+    example="1000 EUR/kW",
+)
+SITE_PRODUCTION_BREACH_PRICE = MetaData(
+    description="The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.",
+    example="1000 EUR/kW",
+)
+
+
+### FLEX-MODEL ###
 STATE_OF_CHARGE = MetaData(
     description="If given, the scheduled state of charge is stored on this sensor.",
     example={"sensor": 12},
