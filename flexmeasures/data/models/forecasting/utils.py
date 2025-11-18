@@ -213,12 +213,12 @@ def data_to_bdf(
     test_df = expanded[
         ["event_start", "belief_time", "forecasts", "cumulative_probability"]
     ]
-    test_df["event_start"] = (
+    test_df.loc[:, "event_start"] = (
         test_df["event_start"]
         .dt.tz_localize("UTC")
         .dt.tz_convert(target_sensor.timezone)
     )
-    test_df["belief_time"] = (
+    test_df.loc[:, "belief_time"] = (
         test_df["belief_time"]
         .dt.tz_localize("UTC")
         .dt.tz_convert(target_sensor.timezone)
