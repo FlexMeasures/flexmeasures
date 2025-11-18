@@ -4493,11 +4493,11 @@
             "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
             "example": "PT24H"
           },
-          "flex_model": {
+          "flex-model": {
             "description": "The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
             "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
           },
-          "flex_context": {
+          "flex-context": {
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "$ref": "#/components/schemas/FlexContextOpenAPISchema"
           },
@@ -4508,8 +4508,8 @@
           }
         },
         "required": [
-          "flex_context",
-          "flex_model",
+          "flex-context",
+          "flex-model",
           "start"
         ],
         "additionalProperties": false
