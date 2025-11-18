@@ -3323,7 +3323,7 @@
                         "soc-usage": [
                           "5 kW"
                         ],
-                        "charging-efficiency": 4,
+                        "charging-efficiency": "4",
                         "storage-efficiency": "99.7%"
                       },
                       {

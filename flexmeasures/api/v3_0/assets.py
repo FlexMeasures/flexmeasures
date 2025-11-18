@@ -1246,7 +1246,7 @@ class AssetAPI(FlaskView):
                               production-capacity: 0 kW
                               soc-usage:
                                 - "5 kW"
-                              charging-efficiency: 4  # COP
+                              charging-efficiency: "4"  # COP
                               storage-efficiency: 99.7%
                             - sensor: 932
                               consumption-capacity: 0 kW
