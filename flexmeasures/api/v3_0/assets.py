@@ -1220,10 +1220,9 @@ class AssetAPI(FlaskView):
                             site-power-capacity: 100 kVA
                             site-production-capacity: 80 kW
                             site-consumption-capacity: {sensor: 32}
-                      heat_buffer:
+                      heating_system:
                         description: |
-                          This message triggers a schedule for a heat buffer (with power sensor 931),
-                          starting at 10.00am, with the state of charge (soc) sensor being 74, recording thermal energy.
+                          This message triggers a schedule, starting at 10.00am, for a heating system that consists of a heat pump (with power sensor 931) and a heat buffer (with thermal state of charge sensor 74).
                           This also schedules a curtailable production asset (with power sensor 932),
                           whose production forecasts are recorded under sensor 760.
 
@@ -1232,8 +1231,9 @@ class AssetAPI(FlaskView):
                           where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
                           and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
 
-                          The heat buffer's consumption power capacity is limited by sensor 42, and it cannot produce electricity.
-                          It has a constant heat demand of 5 kW thermal, and a storage efficiency of 99.7%.
+                          The heat pump's consumption power capacity is limited by sensor 42, and it cannot produce electricity (only heat).
+                          It turns power to heat with a Coefficient of Performance (COP) of 4.
+                          The heat buffer has a constant heat demand of 5 kW thermal, and a storage efficiency of 99.7%.
                           Finally, the site consumption capacity is limited by sensor 32.
                         value:
                           start: "2015-06-02T10:00:00+00:00"
@@ -1246,6 +1246,7 @@ class AssetAPI(FlaskView):
                               production-capacity: 0 kW
                               soc-usage:
                                 - "5 kW"
+                              charging-efficiency: 4  # COP
                               storage-efficiency: 99.7%
                             - sensor: 932
                               consumption-capacity: 0 kW
