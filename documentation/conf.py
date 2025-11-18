@@ -288,13 +288,14 @@ for name in dir(metadata_module):
         replacement = lines[0]
         sub_lines.append(f".. |{name}.description| replace:: {replacement}")
     else:
-        # multi-line: first line on directive, then indent subsequent lines
-        first, rest = lines[0], lines[1:]
-        indented_rest = "\n   ".join(rest)
-        # If subsequent lines are present, prepend them with a newline+3 spaces
-        sub_lines.append(
-            f".. |{name}.description| replace:: {first}\n   {indented_rest}"
-        )
+        sub_lines.append(f".. |{name}.description| replace:: {' '.join(lines)}")
+        # # multi-line: first line on directive, then indent subsequent lines
+        # first, rest = lines[0], lines[1:]
+        # indented_rest = "\n   ".join(rest)
+        # # If subsequent lines are present, prepend them with a newline+3 spaces
+        # sub_lines.append(
+        #     f".. |{name}.description| replace:: {first}\n   {indented_rest}"
+        # )
     sub_lines.append(f".. |{name}.example| replace:: ``{metadata.example}``")
 
 rst_epilog = "\n".join(sub_lines)
