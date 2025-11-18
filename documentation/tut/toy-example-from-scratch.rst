@@ -40,7 +40,7 @@ There is more information being used by the scheduler, such as the battery's cap
 
             $ flexmeasures add schedule \
                 --sensor 2 \
-                --start ${TOMORROW}T07:00+01:00 \
+                --start ${TOMORROW}T07:00+00:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
                 --flex-model '{"soc-min": "50 kWh"}'
@@ -58,8 +58,8 @@ There is more information being used by the scheduler, such as the battery's cap
                 "soc-maxima": [
                     {
                         "value": "51 kWh",
-                        "start": "2024-02-04T10:35:00+01:00",
-                        "end": "2024-02-05T04:25:00+01:00"
+                        "start": "2024-02-04T10:35:00+00:00",
+                        "end": "2024-02-05T04:25:00+00:00"
                     }
                 ],
                 "soc-usage": [{"sensor": 73}]
@@ -67,7 +67,7 @@ There is more information being used by the scheduler, such as the battery's cap
             
             $ flexmeasures add schedule \                                      
                 --sensor 2 \
-                --start 2024-02-04T07:00+01:00 \
+                --start 2024-02-04T07:00+00:00 \
                 --duration PT24H \
                 --soc-at-start 50% \
                 --flex-model my-flex-model.json
