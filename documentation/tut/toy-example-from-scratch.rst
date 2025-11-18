@@ -100,10 +100,10 @@ There is more information being used by the scheduler, such as the battery's cap
             pip install flexmeasures-client
 
         .. code-block:: python
-
             import asyncio
             from datetime import date, timedelta
             from flexmeasures_client import FlexMeasuresClient as Client
+                        
 
             async def client_script():
                 client = Client(
@@ -112,12 +112,12 @@ There is more information being used by the scheduler, such as the battery's cap
                     host="localhost:5000",
                 )
                 schedule = await client.trigger_and_get_schedule(
-                    sensor_id=2,  # battery power
+                    sensor_id=2,  # battery discharging power sensor
                     start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+00:00",
                     duration="PT12H",
                     flex_model={
                         "soc-at-start": "225 kWh",
-                        "soc-min": "50 kWh",
+-                       "soc-min": "50 kWh",
                     },
                     flex_context={},
                 )
@@ -125,7 +125,7 @@ There is more information being used by the scheduler, such as the battery's cap
                 await client.close()
 
             asyncio.run(client_script())
-        
+
         .. note:: Paste this into a file and it should run! 
 
 .. note:: We already specified what to optimize against by having set the consumption price sensor in the flex-context of the battery (see :ref:`tut_load_data`).
@@ -169,7 +169,9 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
     :align: center
 |
 
-Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. This battery can fully charge in around an hour, and therefore, it runs two cycles. For instance, in the second cycle it buys at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
+Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realized (at 8pm).
+
+Our scheduler didn't have many opportunities to optimize, but it found some. This battery can fully charge in around an hour, and therefore, it runs two cycles. For instance, in the second cycle it buys at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
 The `battery's graph dashboard <http://localhost:5000/assets/3/graphs>`_ shows both prices and the schedule.
 
