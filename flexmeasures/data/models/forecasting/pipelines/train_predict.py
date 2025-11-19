@@ -210,7 +210,7 @@ class TrainPredictPipeline(Forecaster):
                 )
 
             if as_job:
-                for param in cycles_job_params:
+                for index, param in enumerate(cycles_job_params):
                     job = Job.create(
                         self.run_cycle,
                         kwargs={**param, **job_kwargs},
@@ -222,7 +222,9 @@ class TrainPredictPipeline(Forecaster):
                         ),
                     )
 
-                    jobs.append(job)
+                    # Attach job to the corresponding forecast entry
+                    if self.return_values:
+                        self.return_values[index]['job'] = job
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
