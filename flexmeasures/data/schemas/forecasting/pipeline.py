@@ -20,7 +20,13 @@ class TrainPredictPipelineConfigSchema(Schema):
 
 class ForecasterParametersSchema(Schema):
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(
+        required=True,
+        metadata={
+            "description": "ID of the sensor to forecast.",
+            "example": 2092,
+        },
+    )
     future_regressors = fields.List(
         SensorIdField(),
         required=False,
