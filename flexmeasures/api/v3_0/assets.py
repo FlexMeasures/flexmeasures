@@ -1119,7 +1119,7 @@ class AssetAPI(FlaskView):
         post:
           summary: Update the default legend position for graphs for the current user
           description: |
-            This endpoint sets the default legend position for graphs either at the right or at the bottom of the chart.
+            This endpoint sets the default legend position for graphs either at the right or at the bottom of the chart. The bottom (a combined legend) is the default.
           security:
             - ApiKeyAuth: []
           requestBody:
