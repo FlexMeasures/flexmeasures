@@ -58,7 +58,14 @@ class ForecasterParametersSchema(Schema):
             "example": "flexmeasures/data/models/forecasting/artifacts/models",
         },
     )
-    output_path = fields.Str(required=False, allow_none=True)
+    output_path = fields.Str(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Directory to save prediction outputs.",
+            "example": "flexmeasures/data/models/forecasting/artifacts/forecasts",
+        },
+    )
     start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
     train_period = DurationField(required=False, allow_none=True)
