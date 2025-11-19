@@ -166,7 +166,6 @@ def set_session_variables(*var_names: str):
     """
     for var_name in var_names:
         var = request.values.get(var_name)
-        print("Setting session variable:", var_name, "to", var)
         if var is not None:
             session[var_name] = var
 
