@@ -74,7 +74,14 @@ class ForecasterParametersSchema(Schema):
             "example": "2025-01-01T00:00:00+01:00",
         },
     )
-    end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
+    end_date = AwareDateTimeOrDateField(
+        required=True,
+        inclusive=True,
+        metadata={
+            "description": "End date for running the pipeline.",
+            "example": "2025-10-15T00:00:00+01:00",
+        },
+    )
     train_period = DurationField(required=False, allow_none=True)
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     retrain_frequency = DurationField(
