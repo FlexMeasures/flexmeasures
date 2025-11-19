@@ -296,7 +296,13 @@ for name in dir(metadata_module):
         # sub_lines.append(
         #     f".. |{name}.description| replace:: {first}\n   {indented_rest}"
         # )
-    sub_lines.append(f".. |{name}.example| replace:: ``{metadata.example}``")
+
+    # Prefer multiple examples over a single example
+    if metadata.examples:
+        example = " or ".join([f"``{e}``" for e in metadata.examples])
+    else:
+        example = f"``{metadata.example}``"
+    sub_lines.append(f".. |{name}.example| replace:: {example}")
 
 rst_epilog = "\n".join(sub_lines)
 print(rst_epilog)
