@@ -96,6 +96,7 @@
                                 <div class="form-group">
                                     {{ asset_form.external_id.label(class="col-sm-3 control-label") }}
                                     <div class="col-md-3">
+                                        <small>{{ asset_form.external_id.description }}</small>
                                         {{ asset_form.external_id(class_="form-control") }}
                                         {% for error in asset_form.errors.external_id %}
                                         <span style="color: red;">[{{error}}]</span>
