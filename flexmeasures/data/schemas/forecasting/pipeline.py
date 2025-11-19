@@ -90,7 +90,14 @@ class ForecasterParametersSchema(Schema):
             "example": "P7D",
         },
     )
-    start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
+    start_predict_date = AwareDateTimeOrDateField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Start date for predictions.",
+            "example": "2025-01-08T00:00:00+01:00",
+        },
+    )
     retrain_frequency = DurationField(
         required=False, allow_none=True
     )  # aka the predict period
