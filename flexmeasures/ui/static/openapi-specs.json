@@ -3329,7 +3329,7 @@
         ]
       }
     },
-    "/api/v3_0/assets/default_ledgend_position": {
+    "/api/v3_0/assets/default_legend_position": {
       "post": {
         "summary": "Update the default legend position for graphs for the current user",
         "description": "This endpoint sets the default legend position for graphs either at the right or at the bottom of the chart.\n",

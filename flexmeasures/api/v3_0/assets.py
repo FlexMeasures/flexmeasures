@@ -1112,7 +1112,7 @@ class AssetAPI(FlaskView):
     @use_kwargs(
         {"default_legend_position": fields.Boolean(required=False)}, location="json"
     )
-    def update_default_ledgend_position(self, **kwargs):
+    def update_default_legend_position(self, **kwargs):
         """
         .. :quickref: Assets; Update the default legend position for graphs for the current user
         ---
