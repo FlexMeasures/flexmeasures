@@ -82,6 +82,7 @@ def create_openapi_specs(app: Flask):
     for name, schema in schemas:
         spec.components.schema(name, schema=schema)
 
+    last_exception = None
     with app.test_request_context():
         documented_endpoints_counter = 0
 
@@ -99,6 +100,7 @@ def create_openapi_specs(app: Flask):
                     documented_endpoints_counter += 1
                 except Exception as e:
                     print(f"❌ Failed to document {rule.rule}: {e}")
+                    last_exception = e
 
     output_path = Path("flexmeasures/ui/static/openapi-specs.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +109,9 @@ def create_openapi_specs(app: Flask):
         json.dump(spec.to_dict(), f, indent=2)
 
     print(f"✅ Documented {documented_endpoints_counter} endpoints to {output_path}")
+    if last_exception:
+        # Reraise last exception
+        raise last_exception
 
 
 def register_swagger_ui(app: Flask):
