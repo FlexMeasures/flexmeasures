@@ -139,6 +139,14 @@ class ForecasterParametersSchema(Schema):
             "example": 2092,
         },
     )
+    ensure_positive = fields.Bool(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Whether to clip negative values in forecasts.",
+            "example": True,
+        },
+    )
     ensure_positive = fields.Bool(required=False, allow_none=True)
     missing_threshold = fields.Float(required=False, load_default=1.0)
     as_job = fields.Bool(
