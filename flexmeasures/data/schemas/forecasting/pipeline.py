@@ -162,7 +162,14 @@ class ForecasterParametersSchema(Schema):
             "example": True,
         },
     )
-    max_training_period = DurationField(required=False, allow_none=True)
+    max_training_period = DurationField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Maximum duration of the training period defaults to 1 year.",
+            "example": "P1Y",
+        },
+    )
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
