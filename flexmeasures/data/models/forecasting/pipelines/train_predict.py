@@ -44,6 +44,7 @@ class TrainPredictPipeline(Forecaster):
         for k, v in self._config.items():
             setattr(self, k, v)
         self.delete_model = delete_model
+        self.return_values = []  # To store forecasts and jobs
 
     def run_cycle(
         self,
