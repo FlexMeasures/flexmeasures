@@ -134,8 +134,8 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
-
-        return total_runtime, forecasts
+        self.return_values.append({"data": forecasts, "sensor": self._parameters["target"]})
+        return total_runtime
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
         # Run the train-and-predict pipeline
