@@ -171,8 +171,6 @@ class TrainPredictPipeline(Forecaster):
 
             cumulative_cycles_runtime = 0  # To track the cumulative runtime of TrainPredictPipeline cycles when not running as a job.
             cycles_job_params = []
-            forecasts_list = []
-            jobs = []
             while predict_end <= self._parameters["end_date"]:
                 counter += 1
 
@@ -186,8 +184,7 @@ class TrainPredictPipeline(Forecaster):
                 }
 
                 if not as_job:
-                    cycle_runtime, forecasts = self.run_cycle(**train_predict_params)
-                    forecasts_list.append({"data": forecasts, "sensor": self._parameters["target"]})
+                    cycle_runtime = self.run_cycle(**train_predict_params)
                     cumulative_cycles_runtime += cycle_runtime
                 else:
                     train_predict_params["target_sensor_id"] = self._parameters[
