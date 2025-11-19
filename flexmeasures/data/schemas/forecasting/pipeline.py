@@ -66,7 +66,14 @@ class ForecasterParametersSchema(Schema):
             "example": "flexmeasures/data/models/forecasting/artifacts/forecasts",
         },
     )
-    start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
+    start_date = AwareDateTimeOrDateField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Timestamp marking the start of training data.",
+            "example": "2025-01-01T00:00:00+01:00",
+        },
+    )
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
     train_period = DurationField(required=False, allow_none=True)
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
