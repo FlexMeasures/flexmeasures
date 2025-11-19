@@ -131,8 +131,14 @@ class ForecasterParametersSchema(Schema):
             "example": False,
         },
     )
-    probabilistic = fields.Bool(required=True)
-    sensor_to_save = SensorIdField(required=False, allow_none=True)
+    sensor_to_save = SensorIdField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Sensor ID where forecasts will be saved; defaults to target sensor.",
+            "example": 2092,
+        },
+    )
     ensure_positive = fields.Bool(required=False, allow_none=True)
     missing_threshold = fields.Float(required=False, load_default=1.0)
     as_job = fields.Bool(
