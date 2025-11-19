@@ -99,7 +99,12 @@ class ForecasterParametersSchema(Schema):
         },
     )
     retrain_frequency = DurationField(
-        required=False, allow_none=True
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration).",
+            "example": "PT24H",
+        },
     )  # aka the predict period
     max_forecast_horizon = DurationField(
         required=False, allow_none=True, load_default=timedelta(hours=48)
