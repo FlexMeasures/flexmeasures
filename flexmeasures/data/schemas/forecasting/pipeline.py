@@ -30,6 +30,10 @@ class ForecasterParametersSchema(Schema):
     future_regressors = fields.List(
         SensorIdField(),
         required=False,
+        metadata={
+            "description": "Sensor IDs to be treated only as future regressors (sensors only containing forecasts).",
+            "example": [2093, 2094],
+        },
     )
     past_regressors = fields.List(
         SensorIdField(),
