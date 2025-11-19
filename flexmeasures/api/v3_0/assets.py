@@ -1107,7 +1107,7 @@ class AssetAPI(FlaskView):
             "message": "Default asset view updated successfully.",
         }, 200
 
-    @route("/default_ledgend_position", methods=["POST"])
+    @route("/default_legend_position", methods=["POST"])
     @as_json
     @use_kwargs(
         {"default_legend_position": fields.Boolean(required=False)}, location="json"
