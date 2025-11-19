@@ -185,7 +185,7 @@ class TrainPredictPipeline(Forecaster):
 
                 if not as_job:
                     cycle_runtime, forecasts = self.run_cycle(**train_predict_params)
-                    forecasts_list.append(forecasts)
+                    forecasts_list.append({"data": forecasts, "sensor": self._parameters["target"]})
                     cumulative_cycles_runtime += cycle_runtime
                 else:
                     train_predict_params["target_sensor_id"] = self._parameters[
