@@ -42,7 +42,7 @@ class AssetForm(FlaskForm):
         "Sensors to show as KPIs (JSON)",
         default="[]",
     )
-    external_id = StringField("ID for this asset in another system", default="")
+    external_id = StringField("External ID", default="", description="ID for this asset in another system.")
 
     def validate_on_submit(self):
         if (
