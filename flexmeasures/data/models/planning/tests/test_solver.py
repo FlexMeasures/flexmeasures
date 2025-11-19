@@ -2848,19 +2848,18 @@ def test_multiple_devices_simultaneous_scheduler():
         for d, schedule in enumerate(schedules)
     ]
 
-    # Expected results with unfair unmet demand and unfair costs
+    # Expected results with unfair unmet demand and not entirely unfair costs
     expected_schedules = [
-        [0, 0.25, 0, 0, 0.25, 0.25, 0.25]
-        + [0] * 17,  # the first EV leaves later, and takes the four cheapest slots
-        [0, 0, 0.25, 0.25]
-        + [0]
-        * 20,  # the second EV leaves earlier, and takes the remaining (expensive) slots
+        # the first EV leaves later, and takes three of the cheapest slots, and one expensive slot
+        [0, 0, 0, 0.25, 0.25, 0.25, 0.25] + [0] * 17,
+        # the second EV leaves earlier, and takes one cheap slot and the remaining (expensive) slot
+        [0, 0.25, 0.25] + [0] * 21,
     ]
     total_expected_demand_unmet = (
         total_expected_demand - np.array(expected_schedules).sum()
     )
     assert total_expected_demand_unmet > 0
-    expected_individual_costs = [(0, 139.83), (1, 1357.64)]
+    expected_individual_costs = [(0, 889.51), (1, 607.96)]
 
     # Assertions
     assert all(

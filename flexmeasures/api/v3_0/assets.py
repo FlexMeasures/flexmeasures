@@ -995,14 +995,14 @@ class AssetAPI(FlaskView):
                       summary: List of jobs
                       value:
                         jobs:
-                          -job_id: 1
-                          queue: scheduling
-                          asset_or_sensor_type: asset
-                          asset_id: 1
-                          status: finished
-                          err: null
-                          enqueued_at: "2023-10-01T00:00:00"
-                          metadata_hash: abc123
+                          - job_id: 1
+                            queue: scheduling
+                            asset_or_sensor_type: asset
+                            asset_id: 1
+                            status: finished
+                            err: null
+                            enqueued_at: "2023-10-01T00:00:00"
+                            metadata_hash: abc123
                         redis_connection_err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
