@@ -579,30 +579,7 @@
     {% endif %}
 
     function createPicker(startDate, endDate, customRanges) {
-        if (startDate == null && endDate == null) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlStartTimeRaw = urlParams.get('start_time');
-            const urlEndTimeRaw = urlParams.get('end_time');
-
-            if (urlStartTimeRaw && urlEndTimeRaw) {
-                // Example: "2026-01-01T00:00:00+01:00"
-                // URLSearchParams already decoded, so no %3A etc.
-                const urlStartTime = urlStartTimeRaw.replace(' ', '+');
-                const urlEndTime = urlEndTimeRaw.replace(' ', '+');
-
-                const rawStart = new Date(urlStartTime);
-                const rawEnd = new Date(urlEndTime);
-
-                if (!isNaN(rawStart) && !isNaN(rawEnd)) {
-                    // URL end_time is exclusive; picker end is inclusive → minus 1 day
-                    rawEnd.setDate(rawEnd.getDate() - 1);
-
-                    startDate = rawStart;
-                    endDate = rawEnd;
-                }
-            }
-        }
-
+   
         picker = new Litepicker({
             element: document.getElementById('datepicker'),
             plugins: ['ranges', 'keyboardnav'],
