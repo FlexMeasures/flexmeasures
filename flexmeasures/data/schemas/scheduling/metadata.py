@@ -4,14 +4,20 @@ If you need to use a new .rst directive, update make_openapi_compatible accordin
 For instance, the :abbr:`X (Y)` directive is converted to a <abbr title="Y">X</abbr> HTML tag.
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 
 @dataclass
 class MetaData:
     description: str
-    example: Any
+    example: Any = None
+    examples: Any = None
+
+    def to_dict(self):
+        """Do not include empty fields."""
+        d = asdict(self)
+        return {k: v for k, v in d.items() if v is not None}
 
 
 ### FLEX-CONTEXT ###
@@ -28,6 +34,7 @@ COMMITMENTS = MetaData(
 CONSUMPTION_PRICE = MetaData(
     description="The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field.)",
     example={"sensor": 5},
+    # examples=[{"sensor": 5}, "0.29 EUR/kWh"],  # todo: waiting for https://github.com/marshmallow-code/apispec/pull/999
 )
 PRODUCTION_PRICE = MetaData(
     description="The price of producing energy. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field.)",

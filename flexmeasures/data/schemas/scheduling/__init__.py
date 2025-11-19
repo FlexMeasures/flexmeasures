@@ -1,5 +1,4 @@
 from __future__ import annotations
-from dataclasses import asdict
 from typing import Any, Callable, Dict
 
 from marshmallow import (
@@ -138,49 +137,49 @@ class FlexContextSchema(Schema):
         data_key="consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.CONSUMPTION_BREACH_PRICE),
+        metadata=metadata.CONSUMPTION_BREACH_PRICE.to_dict(),
     )
     production_breach_price = VariableQuantityField(
         "/MW",
         data_key="production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.PRODUCTION_BREACH_PRICE),
+        metadata=metadata.PRODUCTION_BREACH_PRICE.to_dict(),
     )
     soc_minima_breach_price = VariableQuantityField(
         "/MWh",
         data_key="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SOC_MINIMA_BREACH_PRICE),
+        metadata=metadata.SOC_MINIMA_BREACH_PRICE.to_dict(),
     )
     soc_maxima_breach_price = VariableQuantityField(
         "/MWh",
         data_key="soc-maxima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SOC_MAXIMA_BREACH_PRICE),
+        metadata=metadata.SOC_MAXIMA_BREACH_PRICE.to_dict(),
     )
     relax_constraints = fields.Bool(
         data_key="relax-constraints",
         load_default=False,
-        metadata=asdict(metadata.RELAX_CONSTRAINTS),
+        metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
     )
     # Dev fields
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
         load_default=False,
-        metadata=asdict(metadata.RELAX_SOC_CONSTRAINTS),
+        metadata=metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
     )
     relax_capacity_constraints = fields.Bool(
         data_key="relax-capacity-constraints",
         load_default=False,
-        metadata=asdict(metadata.RELAX_CAPACITY_CONSTRAINTS),
+        metadata=metadata.RELAX_CAPACITY_CONSTRAINTS.to_dict(),
     )
     relax_site_capacity_constraints = fields.Bool(
         data_key="relax-site-capacity-constraints",
         load_default=False,
-        metadata=asdict(metadata.RELAX_SITE_CAPACITY_CONSTRAINTS),
+        metadata=metadata.RELAX_SITE_CAPACITY_CONSTRAINTS.to_dict(),
     )
 
     # Energy commitments
@@ -189,7 +188,7 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-power-capacity",
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SITE_POWER_CAPACITY),
+        metadata=metadata.SITE_POWER_CAPACITY.to_dict(),
     )
     # todo: deprecated since flexmeasures==0.23
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
@@ -199,14 +198,14 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="consumption-price",
         return_magnitude=False,
-        metadata=asdict(metadata.CONSUMPTION_PRICE),
+        metadata=metadata.CONSUMPTION_PRICE.to_dict(),
     )
     production_price = VariableQuantityField(
         "/MWh",
         required=False,
         data_key="production-price",
         return_magnitude=False,
-        metadata=asdict(metadata.PRODUCTION_PRICE),
+        metadata=metadata.PRODUCTION_PRICE.to_dict(),
     )
 
     # Capacity breach commitments
@@ -215,28 +214,28 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-production-capacity",
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SITE_PRODUCTION_CAPACITY),
+        metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
     )
     ems_consumption_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
         data_key="site-consumption-capacity",
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SITE_CONSUMPTION_CAPACITY),
+        metadata=metadata.SITE_CONSUMPTION_CAPACITY.to_dict(),
     )
     ems_consumption_breach_price = VariableQuantityField(
         "/MW",
         data_key="site-consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SITE_CONSUMPTION_BREACH_PRICE),
+        metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
     )
     ems_production_breach_price = VariableQuantityField(
         "/MW",
         data_key="site-production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SITE_PRODUCTION_BREACH_PRICE),
+        metadata=metadata.SITE_PRODUCTION_BREACH_PRICE.to_dict(),
     )
 
     # Peak consumption commitment
@@ -246,14 +245,14 @@ class FlexContextSchema(Schema):
         data_key="site-peak-consumption",
         value_validator=validate.Range(min=0),
         load_default="0 kW",
-        metadata=asdict(metadata.SITE_PEAK_CONSUMPTION),
+        metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
     )
     ems_peak_consumption_price = VariableQuantityField(
         "/MW",
         data_key="site-peak-consumption-price",
         required=False,
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SITE_PEAK_CONSUMPTION_PRICE),
+        metadata=metadata.SITE_PEAK_CONSUMPTION_PRICE.to_dict(),
     )
 
     # Peak production commitment
@@ -263,14 +262,14 @@ class FlexContextSchema(Schema):
         data_key="site-peak-production",
         value_validator=validate.Range(min=0),
         load_default="0 kW",
-        metadata=asdict(metadata.SITE_PEAK_PRODUCTION),
+        metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
     )
     ems_peak_production_price = VariableQuantityField(
         "/MW",
         data_key="site-peak-production-price",
         required=False,
         value_validator=validate.Range(min=0),
-        metadata=asdict(metadata.SITE_PEAK_PRODUCTION_PRICE),
+        metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
 
@@ -279,13 +278,13 @@ class FlexContextSchema(Schema):
         data_key="commitments",
         required=False,
         many=True,
-        metadata=asdict(metadata.COMMITMENTS),
+        metadata=metadata.COMMITMENTS.to_dict(),
     )
 
     inflexible_device_sensors = fields.List(
         SensorIdField(),
         data_key="inflexible-device-sensors",
-        metadata=asdict(metadata.INFLEXIBLE_DEVICE_SENSORS),
+        metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
 
     def set_default_breach_prices(
