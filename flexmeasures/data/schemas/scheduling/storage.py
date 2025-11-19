@@ -202,7 +202,9 @@ class StorageFlexModelSchema(Schema):
     )
 
     storage_efficiency = VariableQuantityField(
-        "%", data_key="storage-efficiency", metadata=metadata.STORAGE_EFFICIENCY.to_dict()
+        "%",
+        data_key="storage-efficiency",
+        metadata=metadata.STORAGE_EFFICIENCY.to_dict(),
     )
 
     soc_gain = fields.List(
