@@ -244,7 +244,7 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-peak-consumption",
         value_validator=validate.Range(min=0),
-        load_default="0 kW",
+        load_default=ur.Quantity("0 kW"),
         metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
     )
     ems_peak_consumption_price = VariableQuantityField(
@@ -261,7 +261,7 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-peak-production",
         value_validator=validate.Range(min=0),
-        load_default="0 kW",
+        load_default=ur.Quantity("0 kW"),
         metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
     )
     ems_peak_production_price = VariableQuantityField(

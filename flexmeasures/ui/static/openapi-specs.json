@@ -3656,6 +3656,7 @@
           },
           "site-peak-consumption": {
             "type": "string",
+            "default": "0.0 MW",
             "description": "Current peak consumption. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
             "example": {
               "sensor": 7
@@ -3668,6 +3669,7 @@
           },
           "site-peak-production": {
             "type": "string",
+            "default": "0.0 MW",
             "description": "Current peak production. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
             "example": {
               "sensor": 8
