@@ -31,7 +31,7 @@ class ForecasterParametersSchema(Schema):
         SensorIdField(),
         required=False,
         metadata={
-            "description": "Sensor IDs to be treated only as future regressors (sensors only containing forecasts).",
+            "description": "Sensor IDs to be treated only as future regressors.",
             "example": [2093, 2094],
         },
     )
@@ -39,7 +39,7 @@ class ForecasterParametersSchema(Schema):
         SensorIdField(),
         required=False,
         metadata={
-            "description": "Sensor IDs to be treated only as past regressors (sensors only containing realized measurements).",
+            "description": "Sensor IDs to be treated only as past regressors.",
             "example": [2095],
         },
     )
@@ -47,7 +47,7 @@ class ForecasterParametersSchema(Schema):
         SensorIdField(),
         required=False,
         metadata={
-            "description": "Sensor IDs used as both past and future regressors (sensors containing both forecasts and realized measurements).",
+            "description": "Sensor IDs used as both past and future regressors.",
             "example": [2093, 2094, 2095],
         },
     )
@@ -62,7 +62,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Directory to save prediction outputs.",
+            "description": "Directory to save prediction outputs. Defaults to None (no outputs saved).",
             "example": "flexmeasures/data/models/forecasting/artifacts/forecasts",
         },
     )
@@ -70,7 +70,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Timestamp marking the start of training data.",
+            "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
             "example": "2025-01-01T00:00:00+01:00",
         },
     )
@@ -86,7 +86,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days).",
+            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and predict_start or defaults to 48h.",
             "example": "P7D",
         },
     )
@@ -94,7 +94,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Start date for predictions.",
+            "description": "Start date for predictions. Defaults to now floored to sensor resolution.",
             "example": "2025-01-08T00:00:00+01:00",
         },
     )
@@ -102,16 +102,16 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration).",
+            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
             "example": "PT24H",
         },
-    )  # aka the predict period
+    )
     max_forecast_horizon = DurationField(
         required=False,
         allow_none=True,
         load_default=timedelta(hours=48),
         metadata={
-            "description": "Maximum forecast horizon.",
+            "description": "Maximum forecast horizon. Defaults to 48 hours if not set.",
             "example": "PT48H",
         },
     )
@@ -120,14 +120,14 @@ class ForecasterParametersSchema(Schema):
         allow_none=True,
         load_default=timedelta(hours=1),
         metadata={
-            "description": "How often to recompute forecasts.",
+            "description": "How often to recompute forecasts. Defaults to 1 hour.",
             "example": "PT1H",
         },
     )
     probabilistic = fields.Bool(
         required=True,
         metadata={
-            "description": "Enable probabilistic predictions if True.",
+            "description": "Enable probabilistic predictions if True. Defaults to false.",
             "example": False,
         },
     )
@@ -143,7 +143,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Whether to clip negative values in forecasts.",
+            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": True,
         },
     )
@@ -151,14 +151,14 @@ class ForecasterParametersSchema(Schema):
         required=False,
         load_default=1.0,
         metadata={
-            "description": "Maximum fraction of missing data allowed before raising an error.",
+            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
             "example": 0.1,
         },
     )
     as_job = fields.Bool(
         load_default=False,
         metadata={
-            "description": "If True, compute forecasts in the background using RQ jobs (needs a worker assigned to the forecasting queue).",
+            "description": "If True, compute forecasts asynchronously using RQ jobs. Defaults to False.",
             "example": True,
         },
     )
@@ -166,7 +166,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Maximum duration of the training period defaults to 1 year.",
+            "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
             "example": "P1Y",
         },
     )
