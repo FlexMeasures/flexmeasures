@@ -46,6 +46,10 @@ class ForecasterParametersSchema(Schema):
     regressors = fields.List(
         SensorIdField(),
         required=False,
+        metadata={
+            "description": "Sensor IDs used as both past and future regressors (sensors containing both forecasts and realized measurements).",
+            "example": [2093, 2094, 2095],
+        },
     )
     model_save_dir = fields.Str(required=True)
     output_path = fields.Str(required=False, allow_none=True)
