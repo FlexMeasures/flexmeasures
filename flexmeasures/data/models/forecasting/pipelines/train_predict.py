@@ -234,6 +234,7 @@ class TrainPredictPipeline(Forecaster):
                         asset_or_sensor_type="sensor",
                     )
                 return jobs
+            return forecasts_list
         except Exception as e:
             raise CustomException(
                 f"Error running Train-Predict Pipeline: {e}", sys
