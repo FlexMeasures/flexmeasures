@@ -36,6 +36,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fix interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report`` [see `PR #1758 <https://github.com/FlexMeasures/flexmeasures/pull/1758>`_]
+* Let users search for flex context sensors on whole site tree again [see `PR #1826 <https://github.com/FlexMeasures/flexmeasures/pull/1826>`_]
 
 
 v0.29.1 | November 5, 2025
