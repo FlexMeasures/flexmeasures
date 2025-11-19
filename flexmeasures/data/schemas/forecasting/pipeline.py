@@ -126,6 +126,7 @@ class ForecasterParametersSchema(Schema):
     )
     probabilistic = fields.Bool(
         required=True,
+        load_default=False,
         metadata={
             "description": "Enable probabilistic predictions if True. Defaults to false.",
             "example": False,
