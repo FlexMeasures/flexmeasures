@@ -223,6 +223,8 @@ class TrainPredictPipeline(Forecaster):
                     # Attach job to the corresponding forecast entry
                     if self.return_values:
                         self.return_values[index]['job'] = job
+                    else:
+                        self.return_values.append({f'job-{index}': job})
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
