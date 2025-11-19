@@ -155,10 +155,8 @@ class BasePipeline:
                     logging.warning(f"Error during custom resample for {name}: {e}")
 
                 df = df.reset_index()
-                df[["event_start", "belief_time", name]] = df[
-                    ["event_start", "belief_time", "event_value"]
-                ].copy()
-                df_filtered = df[["event_start", "belief_time", name]]
+                df_filtered = df[["event_start", "belief_time", "event_value"]].copy()
+                df_filtered.rename(columns={"event_value": name}, inplace=True)
 
                 sensor_dfs.append(df_filtered)
 
