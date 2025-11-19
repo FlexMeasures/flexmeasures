@@ -1452,10 +1452,13 @@ class SensorAPI(FlaskView):
             # Set up forecaster source
             source = parameters.pop("source", None)
 
+            # Set forecaster model
+            model = parameters.pop("model", "TrainPredictPipeline")
+
             # Instantiate the forecaster
             forecaster = get_data_generator(
                 source=source,
-                model="TrainPredictPipeline",
+                model=model,
                 config={},
                 save_config=True,
                 data_generator_type=Forecaster,
