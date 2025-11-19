@@ -86,7 +86,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and predict_start or defaults to 48h.",
+            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
             "example": "P7D",
         },
     )
