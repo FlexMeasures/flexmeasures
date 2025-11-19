@@ -107,10 +107,22 @@ class ForecasterParametersSchema(Schema):
         },
     )  # aka the predict period
     max_forecast_horizon = DurationField(
-        required=False, allow_none=True, load_default=timedelta(hours=48)
+        required=False,
+        allow_none=True,
+        load_default=timedelta(hours=48),
+        metadata={
+            "description": "Maximum forecast horizon.",
+            "example": "PT48H",
+        },
     )
     forecast_frequency = DurationField(
-        required=False, allow_none=True, load_default=timedelta(hours=1)
+        required=False,
+        allow_none=True,
+        load_default=timedelta(hours=1),
+        metadata={
+            "description": "How often to recompute forecasts.",
+            "example": "PT1H",
+        },
     )
     probabilistic = fields.Bool(required=True)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
