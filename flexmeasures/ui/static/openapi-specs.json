@@ -440,7 +440,7 @@
               },
               "examples": {
                 "post_sensor": {
-                  "summary": "Post sensor data to flexmeasures",
+                  "summary": "Post sensor data to FlexMeasures",
                   "value": {
                     "values": [
                       -11.28,

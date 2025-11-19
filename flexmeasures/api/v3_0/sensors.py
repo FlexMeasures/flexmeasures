@@ -504,7 +504,7 @@ class SensorAPI(FlaskView):
                 schema: PostSensorDataSchema
                 examples:
                   post_sensor:
-                    summary: Post sensor data to flexmeasures
+                    summary: Post sensor data to FlexMeasures
                     value:
                       "values": [-11.28, -11.28, -11.28, -11.28]
                       "start": "2021-06-07T00:00:00+02:00"
