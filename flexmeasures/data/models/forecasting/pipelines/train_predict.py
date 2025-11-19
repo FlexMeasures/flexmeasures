@@ -134,7 +134,9 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
-        self.return_values.append({"data": forecasts, "sensor": self._parameters["target"]})
+        self.return_values.append(
+            {"data": forecasts, "sensor": self._parameters["target"]}
+        )
         return total_runtime
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
@@ -222,9 +224,9 @@ class TrainPredictPipeline(Forecaster):
 
                     # Attach job to the corresponding forecast entry
                     if self.return_values:
-                        self.return_values[index]['job'] = job.id
+                        self.return_values[index]["job"] = job.id
                     else:
-                        self.return_values.append({f'job-{index}': job.id})
+                        self.return_values.append({f"job-{index}": job.id})
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
