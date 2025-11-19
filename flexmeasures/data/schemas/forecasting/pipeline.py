@@ -147,12 +147,19 @@ class ForecasterParametersSchema(Schema):
             "example": True,
         },
     )
-    ensure_positive = fields.Bool(required=False, allow_none=True)
-    missing_threshold = fields.Float(required=False, load_default=1.0)
+    missing_threshold = fields.Float(
+        required=False,
+        load_default=1.0,
+        metadata={
+            "description": "Maximum fraction of missing data allowed before raising an error.",
+            "example": 0.1,
+        },
+    )
     as_job = fields.Bool(
         load_default=False,
         metadata={
-            "description": "If True, forecast using RQ jobs in the background (needs a worker assigned to the forecasting queue)."
+            "description": "If True, compute forecasts in the background using RQ jobs (needs a worker assigned to the forecasting queue).",
+            "example": True,
         },
     )
     max_training_period = DurationField(required=False, allow_none=True)
