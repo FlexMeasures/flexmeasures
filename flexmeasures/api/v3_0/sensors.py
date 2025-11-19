@@ -1465,17 +1465,19 @@ class SensorAPI(FlaskView):
             )
 
             # Queue forecasting job
-            result = forecaster.compute(parameters=parameters)
+            results = forecaster.compute(parameters=parameters)
 
             # Extract job ID (UUID)
-            job_id = getattr(result, "id", None)
+            job_ids = []
+            for result in results:
+                job_ids.extend(result.values())
 
             # Commit DB transaction
             db.session.commit()
 
             # Prepare response
             response = dict(
-                forecast_job=job_id,
+                forecast_jobs=job_ids,
             )
             d, s = request_processed()
             return dict(**response, **d), s
