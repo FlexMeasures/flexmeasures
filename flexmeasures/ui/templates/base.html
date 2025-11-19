@@ -549,12 +549,14 @@
         var datasetName = 'asset_' + {{ asset.id }};
         {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
         {% if total_sensors > 7 %}
-            combineLegend = 'true';
-        {% else %}
             {% if session.get("default_legend_position") %}
                 combineLegend = 'true';
             {% else %}
                 combineLegend = 'false';
+            {% endif %}
+        {% else %}
+            {% if not session.get("default_legend_position") %}
+                combineLegend = 'true';
             {% endif %}
         {% endif %}
     {% elif active_page == "sensors" %}
