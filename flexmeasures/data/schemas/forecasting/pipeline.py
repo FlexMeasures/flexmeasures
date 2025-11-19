@@ -124,6 +124,13 @@ class ForecasterParametersSchema(Schema):
             "example": "PT1H",
         },
     )
+    probabilistic = fields.Bool(
+        required=True,
+        metadata={
+            "description": "Enable probabilistic predictions if True.",
+            "example": False,
+        },
+    )
     probabilistic = fields.Bool(required=True)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
