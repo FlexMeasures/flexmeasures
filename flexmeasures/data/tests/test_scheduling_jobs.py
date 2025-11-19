@@ -38,6 +38,8 @@ def test_scheduling_a_battery(
 
     battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
+    # the start time does *not* match soc_datetime attribute from conftest, soc at start will be 0
+    # TODO: stop using attributes in conftest
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)

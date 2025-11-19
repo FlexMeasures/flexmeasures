@@ -1149,9 +1149,9 @@ class AssetAPI(FlaskView):
             > To use sequential scheduling, use ``sequential=true`` in the JSON body.
 
             The length of the schedule can be set explicitly through the 'duration' field.
-            Otherwise, it is set by the config setting [see planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.
+            Otherwise, it is set by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.
             If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-            Finally, the schedule length is limited by [see max_planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
+            Finally, the schedule length is limited by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
             Targets that exceed the max planning horizon are not accepted.
 
             The appropriate algorithm is chosen by FlexMeasures (based on asset type).
