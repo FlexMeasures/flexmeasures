@@ -121,7 +121,7 @@ class TrainPredictPipeline(Forecaster):
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
         )
         predict_start_time = time.time()
-        predict_pipeline.run(delete_model=self.delete_model)
+        forecasts = predict_pipeline.run(delete_model=self.delete_model)
         predict_runtime = time.time() - predict_start_time
         logging.info(
             f"{p.ordinal(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
@@ -134,7 +134,7 @@ class TrainPredictPipeline(Forecaster):
             f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
 
-        return total_runtime
+        return total_runtime, forecasts
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
         # Run the train-and-predict pipeline
@@ -170,6 +170,7 @@ class TrainPredictPipeline(Forecaster):
 
             cumulative_cycles_runtime = 0  # To track the cumulative runtime of TrainPredictPipeline cycles when not running as a job.
             cycles_job_params = []
+            forecasts_list = []
             while predict_end <= self._parameters["end_date"]:
                 counter += 1
 
@@ -183,7 +184,8 @@ class TrainPredictPipeline(Forecaster):
                 }
 
                 if not as_job:
-                    cycle_runtime = self.run_cycle(**train_predict_params)
+                    cycle_runtime, forecasts = self.run_cycle(**train_predict_params)
+                    forecasts_list.append(forecasts)
                     cumulative_cycles_runtime += cycle_runtime
                 else:
                     train_predict_params["target_sensor_id"] = self._parameters[
