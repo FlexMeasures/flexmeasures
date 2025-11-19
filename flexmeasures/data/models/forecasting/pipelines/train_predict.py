@@ -139,9 +139,7 @@ class TrainPredictPipeline(Forecaster):
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
         # Run the train-and-predict pipeline
-        self.run(**kwargs)
-        # todo: return results
-        return []
+        return self.run(**kwargs)
 
     def run(
         self,
