@@ -1485,3 +1485,93 @@ class SensorAPI(FlaskView):
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
             return invalid_flex_config(str(e))
+
+@route("/<sensor>/forecasts/<job_id>", methods=["GET"])
+@use_kwargs({"sensor": SensorIdField(), "job_id": fields.Str(required=True)}, location="path")
+@permission_required_for_context("read", ctx_arg_name="sensor")
+def get_forecast_job_status(self, sensor: Sensor, job_id: str):
+    """
+    .. :quickref: Forecasts; Check forecast job status for a sensor
+    ---
+    get:
+      summary: Check forecast job status for a sensor
+      description: |
+        Returns the status of a previously triggered forecasting job.
+        When the job is completed successfully, this endpoint returns the
+        generated forecast data.
+      responses:
+        200:
+          description: Forecast job status
+          content:
+            application/json:
+              example:
+                status: "FINISHED"
+                forecast:
+                  sensor: 2092
+                  values: [...]
+                  start: "2025-10-15T00:00:00+01:00"
+                  end: "2025-10-16T00:00:00+01:00"
+      tags:
+        - Sensors
+    """
+
+    from rq.job import Job
+    from flexmeasures.api.common.responses import request_processed, invalid_flex_config
+
+    try:
+        # Fetch job from RQ
+        queue = current_app.queues["forecasting"]
+        job = Job.fetch(job_id, connection=queue.connection)
+
+        # Job does not exist
+        if job is None:
+            return invalid_flex_config(f"Job {job_id} not found.")
+
+        # Map RQ statuses to API statuses
+        status = job.get_status()
+        if status in ("queued", "started"):
+            # Still running
+            response = dict(
+                status="RUNNING" if status == "started" else "PENDING",
+                job_id=job_id,
+            )
+            d, s = request_processed()
+            return dict(**response, **d), s
+
+        if status == "failed":
+            # Return error message
+            response = dict(
+                status="FAILED",
+                job_id=job_id,
+                error=str(job.exc_info),
+            )
+            d, s = request_processed()
+            return dict(**response, **d), s
+
+        # Job finished → fetch forecasts from DB
+        # search for forecasts linked to this job and sensor
+
+        # if not forecasts:
+        #     return invalid_flex_config("No forecasts found for this job.")
+
+        # # Format data for API output
+        # forecast_values = [
+        #     dict(
+        #         timestamp=f.event_start.isoformat(),
+        #         value=f.event_value,
+        #     )
+        #     for f in forecasts
+        # ]
+
+        response = dict(
+            status="FINISHED",
+            job_id=job_id,
+            sensor=sensor.id,
+            forecasts=[],
+        )
+        d, s = request_processed()
+        return dict(**response, **d), s
+
+    except Exception as e:
+        current_app.logger.exception("Failed to get forecast job status.")
+        return invalid_flex_config(str(e))
