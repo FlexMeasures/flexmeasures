@@ -1449,9 +1449,12 @@ class SensorAPI(FlaskView):
             # Ensure the forecast is run as a job on a forecasting queue
             parameters["as_job"] = True
 
+            # Set up forecaster source
+            source = parameters.pop("source", None)
+
             # Instantiate the forecaster
             forecaster = get_data_generator(
-                source=None,
+                source=source,
                 model="TrainPredictPipeline",
                 config={},
                 save_config=True,
