@@ -20,7 +20,7 @@ class MetaData:
         return {k: v for k, v in d.items() if v is not None}
 
 
-### FLEX-CONTEXT ###
+# FLEX-CONTEXT
 
 
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
@@ -117,7 +117,9 @@ SITE_PRODUCTION_BREACH_PRICE = MetaData(
 )
 
 
-### FLEX-MODEL ###
+# FLEX-MODEL
+
+
 STATE_OF_CHARGE = MetaData(
     description="If given, the scheduled state of charge is stored on this sensor.",
     example={"sensor": 12},
