@@ -82,7 +82,14 @@ class ForecasterParametersSchema(Schema):
             "example": "2025-10-15T00:00:00+01:00",
         },
     )
-    train_period = DurationField(required=False, allow_none=True)
+    train_period = DurationField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Duration of the initial training period (ISO 8601 format, min 2 days).",
+            "example": "P7D",
+        },
+    )
     start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     retrain_frequency = DurationField(
         required=False, allow_none=True
