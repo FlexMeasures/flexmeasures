@@ -119,6 +119,7 @@ def run_worker(queue: str, name: str | None):
     # segmentation fault due to reinitialization of SSL state in forked children.
     # SimpleWorker executes jobs in-process (no fork) and is therefore the correct
     # choice for macOS development environments.
+    # Related RQ issue: https://github.com/rq/rq/issues/2320
     if sys.platform == "darwin":
         worker = SimpleWorker(
             q_list,
