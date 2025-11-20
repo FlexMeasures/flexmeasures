@@ -34,6 +34,7 @@ Infrastructure / Support
 * Assets now have an `external_id` field so data from external sources can be linked to the right FlexMeasures asset in custom integrations [see `PR #1774 <https://www.github.com/FlexMeasures/flexmeasures/pull/1774>`_]
 * Save buttons in UI editors (flex-model, flex-context and data dashboards) [see `PR #1764 <https://www.github.com/FlexMeasures/flexmeasures/pull/1764>`_]
 * Improve performance of the endpoint profiler and support configuration using the new ``FLEXMEASURES_PROFILER_CONFIG`` setting [see `PR #1799 <https://www.github.com/FlexMeasures/flexmeasures/pull/1799>`_]
+* Use ``SimpleWorker`` instead of fork-based ``Worker`` on macOS to prevent segmentation faults when running ``flexmeasures jobs run-worker`` for development purposes on macOS. [see `PR #1818 <https://github.com/FlexMeasures/flexmeasures/pull/1818>`_]
 
 Bugfixes
 -----------
@@ -41,7 +42,6 @@ Bugfixes
 * Let users search for flex context sensors on whole site tree again [see `PR #1826 <https://github.com/FlexMeasures/flexmeasures/pull/1826>`_]
 * Fix unintended date range hopping, a UI bug where date ranges set in URL parameters would be overridden by the user's previously selected date range (a session variable) [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
 * Resolved a crash in the "latest jobs" table when sorting was applied, and corrected a typo in the Jobs API Swagger UI documentation. [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
-* Use ``SimpleWorker`` instead of fork-based ``Worker`` on macOS to prevent segmentation faults when running ``flexmeasures jobs run-worker`` for development purposes on macOS. [see `PR #1818 <https://github.com/FlexMeasures/flexmeasures/pull/1818>`_]
 
 v0.29.1 | November 5, 2025
 ============================
