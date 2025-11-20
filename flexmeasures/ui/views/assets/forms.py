@@ -49,7 +49,9 @@ class AssetForm(FlaskForm):
         Example entry: {\"title\":\"My KPI\", \"sensor\": 14, \"function\": \"mean\"}.""",
     )
     external_id = StringField(
-        "External ID", default="", description="ID for this asset in another system."
+        "External ID",
+        default="",
+        description="ID for this asset in another system. Note: not being validated here.",
     )
 
     def validate_on_submit(self):
