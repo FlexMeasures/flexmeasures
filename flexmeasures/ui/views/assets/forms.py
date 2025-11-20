@@ -45,7 +45,8 @@ class AssetForm(FlaskForm):
     sensors_to_show_as_kpis = StringField(
         "Sensors to show as KPIs (JSON)",
         default="[]",
-        description="List of sensor IDs (with daily resolution) to show as KPIs on the asset graph page.",
+        description="""List of sensor IDs (with daily resolution) to show as KPIs on the asset graph page.\n
+        Example entry: {\"title\":\"My KPI\", \"sensor\": 14, \"function\": \"mean\"}.""",
     )
     external_id = StringField(
         "External ID", default="", description="ID for this asset in another system."
@@ -59,7 +60,6 @@ class AssetForm(FlaskForm):
             self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
-
         result = super().validate_on_submit()
         return result
 
