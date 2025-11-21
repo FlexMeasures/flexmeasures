@@ -1114,7 +1114,7 @@ class AssetAPI(FlaskView):
     )
     def update_default_legend_position(self, **kwargs):
         """
-        .. :quickref: Assets; Update the default legend position for graphs for the current user
+        .. :quickref: Assets; Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
         ---
         post:
           summary: Update the default legend position for graphs for the current user
