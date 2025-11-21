@@ -91,7 +91,7 @@ class StorageFlexModelSchema(Schema):
     )
 
     soc_min = QuantityField(
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        validate=validate.Range(min=ur.Quantity("0 kWh")),
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
