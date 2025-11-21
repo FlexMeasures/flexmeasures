@@ -23,6 +23,8 @@ from marshmallow.validate import Validator
 import json
 import re
 import isodate
+from marshmallow import Schema, fields
+from marshmallow_oneofschema import OneOfSchema
 import pandas as pd
 
 from flexmeasures.data import ma, db
@@ -645,3 +647,64 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         fields["data"] = dfs
         fields["filenames"] = [file.filename for file in files]
         return fields
+
+
+class QuantitySchema(Schema):
+    """Represents a quantity string like '1 EUR/MWh'."""
+
+    quantity = fields.Str(
+        required=True,
+        metadata=dict(
+            description="Quantity string describing a fixed quantity.",
+            example="130 EUR/MWh",
+            # "examples": ["130 EUR/MWh", "230 V", "4.5 m/s"],
+        ),
+    )
+
+
+class SensorReferenceSchema(Schema):
+    """Sensor reference."""
+
+    class Meta:
+        description = "Sensor reference from which to look up a variable quantity."
+
+    sensor = SensorIdField(
+        required=True,
+        metadata=dict(
+            description="ID of the sensor on which the data is recorded.",
+        ),
+    )
+
+
+class TimeSeriesSchema(Schema):
+    """List of time series segments."""
+
+    timeseries = fields.List(
+        fields.Dict,
+        required=True,
+        metadata=dict(
+            description="Time series specification containing a list of segments that together describe a variable quantity.",
+            example=[
+                {"value": "23 kW", "start": "2025-11-20T15:15+01", "duration": "PT1H"}
+            ],
+        ),
+    )
+
+
+class VariableQuantityOpenAPISchema(OneOfSchema):
+    type_schemas = {
+        "quantity_string": QuantitySchema,
+        "sensor_reference": SensorReferenceSchema,
+        "timeseries_specs": TimeSeriesSchema,
+    }
+
+    def get_obj_type(self, obj):
+        # Required for OneOfSchema; not used during OpenAPI generation
+        if isinstance(obj, dict) and "sensor" in obj:
+            return "sensor_reference"
+        if isinstance(obj, str):
+            # Pretend incoming string maps to the string schema
+            return "quantity_string"
+        if isinstance(obj, list):
+            return "timeseries_specs"
+        return None

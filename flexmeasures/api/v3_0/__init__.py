@@ -3,11 +3,16 @@ FlexMeasures API v3
 """
 
 from pathlib import Path
+from typing import Any, Type
 
 from flask import Flask
 import json
 
+from apispec import APISpec
+from apispec_oneofschema import MarshmallowPlugin
+from apispec_webframeworks.flask import FlaskPlugin
 from flask_swagger_ui import get_swaggerui_blueprint
+from marshmallow import Schema
 
 from flexmeasures import __version__ as fm_version
 from flexmeasures.api.v3_0.sensors import SensorAPI
@@ -23,6 +28,7 @@ from flexmeasures.api.v3_0.assets import (
     DefaultAssetViewJSONSchema,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
+from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
@@ -45,14 +51,39 @@ def register_at(app: Flask):
     register_swagger_ui(app)
 
 
+def collapse_schema_to_field(
+    spec: APISpec,
+    schema_cls: Type[Schema],
+    field_name: str,
+) -> dict[str, Any]:
+    """
+    Replace the OpenAPI component named after `schema_cls` with the
+    OpenAPI schema generated for `field_name` inside that schema.
+    """
+    # 1. Find the Marshmallow plugin
+    try:
+        ma_plugin = next(p for p in spec.plugins if isinstance(p, MarshmallowPlugin))
+    except StopIteration:
+        raise RuntimeError("No MarshmallowPlugin found in spec.")
+
+    # 2. Get the field from the schema class
+    field = schema_cls._declared_fields[field_name]
+
+    # 3. Convert it to an OpenAPI schema object
+    field_schema = ma_plugin.converter.field2property(field)
+
+    # 4. Replace the component schema
+    component_name = schema_cls.__name__.replace("Schema", "")
+    spec.components.schemas[component_name] = field_schema
+
+    return field_schema
+
+
 def create_openapi_specs(app: Flask):
     """
     Create OpenAPI specs for the API and save them to a JSON file in the static folder.
     This function should be called when generating docs (and needs extra dependencies).
     """
-    from apispec import APISpec
-    from apispec.ext.marshmallow import MarshmallowPlugin
-    from apispec_webframeworks.flask import FlaskPlugin
 
     spec = APISpec(
         title="FlexMeasures",
@@ -101,6 +132,10 @@ def create_openapi_specs(app: Flask):
                 except Exception as e:
                     print(f"❌ Failed to document {rule.rule}: {e}")
                     last_exception = e
+
+    # Collapse Quantity and TimeSeries schemas to fields
+    collapse_schema_to_field(spec, QuantitySchema, "quantity")
+    collapse_schema_to_field(spec, TimeSeriesSchema, "timeseries")
 
     output_path = Path("flexmeasures/ui/static/openapi-specs.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
