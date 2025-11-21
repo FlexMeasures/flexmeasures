@@ -233,7 +233,7 @@
                     <label class="form-check-label" for="defaultAssetView">Set as default view</label>
                 </div>
                 {% if breadcrumb_info['current_asset_view'] == 'Graphs' %}
-                <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables). The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
+                <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables. The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
                     <input class="form-check-input" type="checkbox" {% if session.get("keep_legends_below_graphs") %} checked {% endif %} id="defaultlegendPosition" onchange="setDefaultlegendPosition(this)">
                     <label class="form-check-label" for="defaultlegendPosition">Keep legends below</label>
                 </div>
