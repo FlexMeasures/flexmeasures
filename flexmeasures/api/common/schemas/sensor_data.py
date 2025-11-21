@@ -303,7 +303,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @post_load()
-    def post_load_sequence(self, data: dict, **kwargs) -> BeliefsDataFrame:
+    def post_load_sequence(self, data: dict, **kwargs) -> dict[str, BeliefsDataFrame]:
         """
         If needed, upsample and convert units, then deserialize to a BeliefsDataFrame.
         Returns a dict with the BDF in it, as that is expected by webargs when used with as_kwargs=True.
