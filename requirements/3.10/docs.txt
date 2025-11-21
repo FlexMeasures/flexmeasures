@@ -10,6 +10,9 @@ apispec[yaml]==6.8.4
     # via
     #   -r requirements/docs.in
     #   apispec-webframeworks
+apispec-oneofschema==3.0.2
+    # via
+    #   -r requirements/docs.in
 apispec-webframeworks==1.2.0
     # via -r requirements/docs.in
 attrs==25.4.0
@@ -59,6 +62,9 @@ markupsafe==3.0.3
     # via
     #   -c requirements/3.10/app.txt
     #   jinja2
+marshmallow_oneofschema==3.2.0
+    # via
+    #   apispec-oneofschema
 mistune==3.1.4
     # via sphinx-mdinclude
 packaging==25.0

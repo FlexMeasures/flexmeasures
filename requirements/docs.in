@@ -7,5 +7,6 @@ sphinx-tabs
 sphinxcontrib-mermaid
 # OpenAPI Documentation
 apispec
+apispec-oneofschema
 apispec-webframeworks
 sphinxcontrib-openapi
