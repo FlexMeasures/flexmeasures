@@ -1107,12 +1107,12 @@ class AssetAPI(FlaskView):
             "message": "Default asset view updated successfully.",
         }, 200
 
-    @route("/default_legend_position", methods=["POST"])
+    @route("/keep_legends_below_graphs", methods=["POST"])
     @as_json
     @use_kwargs(
-        {"default_legend_position": fields.Boolean(required=False)}, location="json"
+        {"keep_legends_below_graphs": fields.Boolean(required=False)}, location="json"
     )
-    def update_default_legend_position(self, **kwargs):
+    def update_keep_legends_below_graphs(self, **kwargs):
         """
         .. :quickref: Assets; Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
         ---
@@ -1129,10 +1129,10 @@ class AssetAPI(FlaskView):
                 schema:
                   type: object
                   properties:
-                    default_legend_position:
+                    keep_legends_below_graphs:
                       type: boolean
                   required:
-                    - default_legend_position
+                    - keep_legends_below_graphs
           responses:
             200:
               description: PROCESSED
@@ -1153,15 +1153,15 @@ class AssetAPI(FlaskView):
         request_values.update(kwargs)
         request.values = request_values
 
-        default_legend_position = kwargs.get("default_legend_position", True)
-        if default_legend_position:
+        keep_legends_below_graphs = kwargs.get("keep_legends_below_graphs", True)
+        if keep_legends_below_graphs:
             # Set the default legend position for asset charts for the current user session
             set_session_variables(
-                "default_legend_position",
+                "keep_legends_below_graphs",
             )
         else:
             # Remove the default legend position from the session
-            clear_session(keys_to_clear=["default_legend_position"])
+            clear_session(keys_to_clear=["keep_legends_below_graphs"])
 
         return {
             "message": "Default legend position updated successfully.",

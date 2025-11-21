@@ -234,7 +234,7 @@
                 </div>
 
                 <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables). The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
-                    <input class="form-check-input" type="checkbox" {% if session.get("default_legend_position") %} checked {% endif %} id="defaultlegendPosition" onchange="setDefaultlegendPosition(this)">
+                    <input class="form-check-input" type="checkbox" {% if session.get("keep_legends_below_graphs") %} checked {% endif %} id="defaultlegendPosition" onchange="setDefaultlegendPosition(this)">
                     <label class="form-check-label" for="defaultlegendPosition">Keep legends below</label>
                 </div>
             </div>
@@ -549,13 +549,13 @@
         var datasetName = 'asset_' + {{ asset.id }};
         {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
         {% if total_sensors > 7 %}
-            {% if session.get("default_legend_position") %}
+            {% if session.get("keep_legends_below_graphs") %}
                 combineLegend = 'true';
             {% else %}
                 combineLegend = 'false';
             {% endif %}
         {% else %}
-            {% if not session.get("default_legend_position") %}
+            {% if not session.get("keep_legends_below_graphs") %}
                 combineLegend = 'true';
             {% endif %}
         {% endif %}
@@ -1146,14 +1146,14 @@
             const isChecked = checkbox.checked;
 
             const apiBasePath = window.location.origin;
-            fetch(apiBasePath + '/api/v3_0/assets/default_legend_position', {
+            fetch(apiBasePath + '/api/v3_0/assets/keep_legends_below_graphs', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': '{{ csrf_token }}',
                 },
                 body: JSON.stringify({
-                    default_legend_position: isChecked
+                    keep_legends_below_graphs: isChecked
                 })
             })
             .then(response => {
