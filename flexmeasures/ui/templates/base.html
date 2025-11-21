@@ -233,7 +233,7 @@
                     <label class="form-check-label" for="defaultAssetView">Set as default view</label>
                 </div>
 
-                <div class="col-auto form-check" title="This setting only affects graph pages with 7 or more sensors to show (with fewer sensors, the legends will be combined at the bottom anyway).">
+                <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables). The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
                     <input class="form-check-input" type="checkbox" {% if session.get("default_legend_position") %} checked {% endif %} id="defaultlegendPosition" onchange="setDefaultlegendPosition(this)">
                     <label class="form-check-label" for="defaultlegendPosition">Keep legends below</label>
                 </div>
