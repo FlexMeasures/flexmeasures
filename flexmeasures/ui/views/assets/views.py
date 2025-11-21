@@ -294,9 +294,11 @@ class AssetCrudUI(FlaskView):
                 db.session.commit()
                 session["msg"] = "Editing was successful."
             except ValidationError as ve:
+                db.session.rollback()
                 # we are redirecting to the properties page, there we cannot show errors in form
                 session["msg"] = f"Cannot edit asset: {ve.messages}"
             except Exception as exc:
+                db.session.rollback()
                 session["msg"] = "Cannot edit asset: An error occurred."
                 current_app.logger.error(exc)
 
