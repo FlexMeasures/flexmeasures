@@ -1143,7 +1143,7 @@ class AssetAPI(FlaskView):
                     message:
                       summary: Message
                       value:
-                        message: "Default legend position updated successfully."
+                        message: "Legend position preference updated successfully."
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
           tags:
