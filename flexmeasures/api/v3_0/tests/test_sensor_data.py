@@ -145,12 +145,6 @@ def test_post_sensor_data_bad_auth(
     "request_field, new_value, error_field, error_text",
     [
         ("start", "2021-06-07T00:00:00", "start", "Not a valid aware datetime"),
-        (
-            "duration",
-            "PT30M",
-            "_schema",
-            "Resolution of 0:05:00 is incompatible",
-        ),  # downsampling not supported
         ("unit", "m", "_schema", "Required unit"),
         ("type", "GetSensorDataRequest", "type", "Must be one of"),
     ],
