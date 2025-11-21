@@ -52,7 +52,7 @@ class EfficiencyField(QuantityField):
         >>> ef.deserialize("0%")
         Traceback (most recent call last):
         ...
-        marshmallow.exceptions.ValidationError: ['Must be greater than 0 % and less than or equal to 100 %.']
+        marshmallow.exceptions.ValidationError: ['Must be greater than 0 and less than or equal to 1.']
     """
 
     def __init__(self, *args, **kwargs):
