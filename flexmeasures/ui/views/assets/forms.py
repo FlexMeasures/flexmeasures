@@ -45,8 +45,9 @@ class AssetForm(FlaskForm):
     sensors_to_show_as_kpis = StringField(
         "Sensors to show as KPIs (JSON)",
         default="[]",
-        description="""List of sensor IDs (with daily resolution) to show as KPIs on the asset graph page.\n
-        Example entry: {\"title\":\"My KPI\", \"sensor\": 14, \"function\": \"mean\"}.""",
+        description="""List of sensor references to show as KPIs on the asset graph page.\n
+        Only supports sensors with a daily resolution.
+        Example entry: [{\"title\":\"My KPI\", \"sensor\": 14, \"function\": \"mean\"}].""",
     )
     external_id = StringField(
         "External ID",
