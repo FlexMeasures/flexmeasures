@@ -335,7 +335,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @validates_schema
-    def check_multiple_instantenous_values(self, data, **kwargs):
+    def check_multiple_instantaneous_values(self, data, **kwargs):
         """Ensure that we are not getting multiple instantaneous values that overlap.
         That is, two values spanning the same moment (a zero duration).
         """
