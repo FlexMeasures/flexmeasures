@@ -1131,7 +1131,6 @@ class AssetAPI(FlaskView):
                   properties:
                     default_legend_position:
                       type: boolean
-                      description: Whether to use the default legend position (bottom) or not (right). Right is only used if there are several sensors on the graphs page, in any case.
                   required:
                     - default_legend_position
           responses:
