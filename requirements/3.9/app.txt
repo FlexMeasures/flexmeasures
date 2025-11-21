@@ -225,9 +225,12 @@ marshmallow==3.26.1 ; python_version < "3.11"
     # via
     #   -r requirements/app.in
     #   flask-marshmallow
+    #   marshmallow_oneofschema
     #   marshmallow-polyfield
     #   marshmallow-sqlalchemy
     #   webargs
+marshmallow_oneofschema==3.2.0
+    # via -r requirements/app.in
 marshmallow-polyfield==5.11
     # via -r requirements/app.in
 marshmallow-sqlalchemy==1.4.2

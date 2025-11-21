@@ -66,9 +66,6 @@ markupsafe==3.0.3
     # via
     #   -c requirements/3.9/app.txt
     #   jinja2
-marshmallow_oneofschema==3.2.0
-    # via
-    #   apispec-oneofschema
 mistune==3.1.4
     # via sphinx-mdinclude
 packaging==25.0
