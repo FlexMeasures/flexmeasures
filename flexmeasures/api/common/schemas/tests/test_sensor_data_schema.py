@@ -487,7 +487,7 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
 @pytest.mark.parametrize(
     "deserialization_input, exp_length, exp_deserialization_output",
     [
-        # A single 2-hour event (spanning 3 wall-clock hours) is deserialized to a BeliefsDataFrame, to be recorded on a 1-hour sensor
+        # # A single 2-hour event (spanning 3 wall-clock hours) is deserialized to a BeliefsDataFrame, to be recorded on a 1-hour sensor
         (
             {
                 "sensor": "epex_da",  # name is used to look up the corresponding sensor ID
@@ -497,6 +497,30 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
                 "unit": "EUR/kWh",
             },
             2,
+            {},
+        ),
+        # One 5-minute event (spanning 2 wall-clock hours) is deserialized to a BeliefsDataFrame, to be recorded on a 1-hour sensor
+        (
+            {
+                "sensor": "epex_da",  # name is used to look up the corresponding sensor ID
+                "start": "2025-11-21T10:58:40+01",
+                "duration": "PT5M",
+                "values": [1],
+                "unit": "EUR/kWh",
+            },
+            2,
+            {},
+        ),
+        # One 2-minute event (spanning 1 wall-clock hour) is deserialized to a BeliefsDataFrame, to be recorded on a 1-hour sensor
+        (
+            {
+                "sensor": "epex_da",  # name is used to look up the corresponding sensor ID
+                "start": "2025-11-21T10:58:00+01",
+                "duration": "PT2M",
+                "values": [1],
+                "unit": "EUR/kWh",
+            },
+            1,
             {},
         ),
         # Six 2-minute events (spanning 2 wall-clock hours) are deserialized to a BeliefsDataFrame, to be recorded on a 1-hour sensor
