@@ -381,7 +381,12 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             event_resolution=inferred_resolution,
             **belief_timing,
         )
-        resampled_bdf = bdf.resample_events(sensor.event_resolution)
+        try:
+            resampled_bdf = bdf.resample_events(sensor.event_resolution)
+        except NotImplementedError:
+            raise ValidationError(
+                f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {sensor.event_resolution}."
+            )
         return resampled_bdf
 
 
