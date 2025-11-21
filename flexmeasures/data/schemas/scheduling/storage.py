@@ -59,10 +59,7 @@ class EfficiencyField(QuantityField):
         super().__init__(
             "%",
             validate=validate.Range(
-                min=ur.Quantity("0 %"),
-                max=ur.Quantity("100 %"),
-                min_inclusive=False,
-                max_inclusive=True,
+                min=0, max=1, min_inclusive=False, max_inclusive=True
             ),
             *args,
             **kwargs,
@@ -91,7 +88,9 @@ class StorageFlexModelSchema(Schema):
     )
 
     soc_min = QuantityField(
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        validate=validate.Range(
+            min=0
+        ),  # change to min=ur.Quantity("0 MWh") in case return_magnitude=False
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         return_magnitude=True,
@@ -152,7 +151,7 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
         data_key="soc-minima",
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MINIMA.to_dict(),
     )
 
@@ -257,7 +256,7 @@ class StorageFlexModelSchema(Schema):
             default_src_unit=default_soc_unit,
             timezone=self.timezone,
             data_key="soc-minima",
-            value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+            value_validator=validate.Range(min=0),
         )
         self.soc_targets = VariableQuantityField(
             to_unit="MWh",
@@ -367,7 +366,7 @@ class DBStorageFlexModelSchema(Schema):
         to_unit="MWh",
         data_key="soc-min",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        value_validator=validate.Range(min=0),
         metadata={"deprecated field": "min_soc_in_mwh"},
     )
 
@@ -375,7 +374,7 @@ class DBStorageFlexModelSchema(Schema):
         to_unit="MWh",
         data_key="soc-max",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        value_validator=validate.Range(min=0),
         metadata={"deprecated field": "max_soc_in_mwh"},
     )
 
@@ -383,28 +382,28 @@ class DBStorageFlexModelSchema(Schema):
         to_unit="MWh",
         data_key="soc-minima",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        value_validator=validate.Range(min=0),
     )
 
     soc_maxima = VariableQuantityField(
         to_unit="MWh",
         data_key="soc-maxima",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        value_validator=validate.Range(min=0),
     )
 
     soc_targets = VariableQuantityField(
         to_unit="MWh",
         data_key="soc-targets",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        value_validator=validate.Range(min=0),
     )
 
     state_of_charge = VariableQuantityField(
         to_unit="MWh",
         data_key="state-of-charge",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kWh")),
+        value_validator=validate.Range(min=0),
     )
 
     soc_gain = fields.List(
@@ -461,7 +460,7 @@ class DBStorageFlexModelSchema(Schema):
         to_unit="MW",
         data_key="power-capacity",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kW")),
+        value_validator=validate.Range(min=0),
         metadata={"deprecated field": "capacity_in_mw"},
     )
 
@@ -469,7 +468,7 @@ class DBStorageFlexModelSchema(Schema):
         to_unit="MW",
         data_key="consumption-capacity",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kW")),
+        value_validator=validate.Range(min=0),
         metadata={"deprecated field": "consumption_capacity"},
     )
 
@@ -477,7 +476,7 @@ class DBStorageFlexModelSchema(Schema):
         to_unit="MW",
         data_key="production-capacity",
         required=False,
-        value_validator=validate.Range(min=ur.Quantity("0 kW")),
+        value_validator=validate.Range(min=0),
         metadata={"deprecated field": "production_capacity"},
     )
 
