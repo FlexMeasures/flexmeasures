@@ -5,8 +5,4 @@ sphinx_fontawesome
 sphinx_copybutton
 sphinx-tabs
 sphinxcontrib-mermaid
-# OpenAPI Documentation
-apispec
-apispec-oneofschema
-apispec-webframeworks
 sphinxcontrib-openapi

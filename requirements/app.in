@@ -56,6 +56,12 @@ marshmallow~=3.0; python_version < "3.11"
 marshmallow_oneofschema
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
+
+# OpenAPI Documentation
+apispec
+apispec-oneofschema
+apispec-webframeworks
+
 webargs
 # Minimum version that supports datetimes on the (x-)axis.
 uniplot>=0.12.1

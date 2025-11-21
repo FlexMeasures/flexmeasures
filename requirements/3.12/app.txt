@@ -12,6 +12,15 @@ altair==5.5.0
     # via -r requirements/app.in
 annotated-types==0.7.0
     # via pydantic
+apispec[yaml]==6.8.4
+    # via
+    #   -r requirements/app.in
+    #   apispec-oneofschema
+    #   apispec-webframeworks
+apispec-oneofschema==3.0.2
+    # via -r requirements/app.in
+apispec-webframeworks==1.2.0
+    # via -r requirements/app.in
 appdirs==1.4.4
     # via fs
 argon2-cffi==25.1.0
@@ -220,13 +229,16 @@ markupsafe==3.0.3
 marshmallow==4.0.1
     # via
     #   -r requirements/app.in
+    #   apispec-oneofschema
     #   flask-marshmallow
-    #   marshmallow_oneofschema
+    #   marshmallow-oneofschema
     #   marshmallow-polyfield
     #   marshmallow-sqlalchemy
     #   webargs
-marshmallow_oneofschema==3.2.0
-    # via -r requirements/app.in
+marshmallow-oneofschema==3.2.0
+    # via
+    #   -r requirements/app.in
+    #   apispec-oneofschema
 marshmallow-polyfield==5.11
     # via -r requirements/app.in
 marshmallow-sqlalchemy==1.4.2
@@ -283,6 +295,7 @@ openturns==1.25
 packaging==25.0
     # via
     #   altair
+    #   apispec
     #   matplotlib
     #   pmdarima
     #   shap
@@ -375,7 +388,9 @@ pytz==2025.2
     #   timely-beliefs
     #   timetomodel
 pyyaml==6.0.3
-    # via -r requirements/app.in
+    # via
+    #   -r requirements/app.in
+    #   apispec
 qrcode==8.2
     # via flask-security-too
 readchar==4.2.1
