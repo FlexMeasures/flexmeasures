@@ -1117,7 +1117,7 @@ class AssetAPI(FlaskView):
         .. :quickref: Assets; Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
         ---
         post:
-          summary: Update the default legend position for graphs for the current user
+          summary: Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
           description: |
             This endpoint sets the default legend position for graphs either at the right or at the bottom of the chart. The bottom (a combined legend) is the default.
           security:
