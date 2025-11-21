@@ -1119,7 +1119,7 @@ class AssetAPI(FlaskView):
         post:
           summary: Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
           description: |
-            This endpoint sets the default legend position for graphs either at the right or at the bottom of the chart. The bottom (a combined legend) is the default.
+            This endpoint toggles whether the legend position for graphs is always at the bottom, even with many plots. The default is `False`, meaning that from 7 sensors or above, the legends will be shown to the right of graphs, for better readability. On narrow screens, users might want to turn this to `True`.
           security:
             - ApiKeyAuth: []
           requestBody:
