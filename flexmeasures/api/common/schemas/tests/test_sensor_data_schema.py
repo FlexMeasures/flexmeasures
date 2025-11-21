@@ -5,6 +5,7 @@ import pytz
 
 from marshmallow import ValidationError
 import pandas as pd
+from timely_beliefs import BeliefsDataFrame
 from unittest import mock
 
 from flexmeasures.api.common.schemas.sensor_data import (
@@ -481,3 +482,70 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
     app.queues["forecasting"].empty()
     assert app.queues["scheduling"].count == 0
     assert app.queues["forecasting"].count == 0
+
+
+@pytest.mark.parametrize(
+    "deserialization_input, exp_length, exp_deserialization_output",
+    [
+        # A single 2-hour event (spanning 3 wall-clock hours) is deserialized to a BeliefsDataFrame, to be recorded on a 1-hour sensor
+        (
+            {
+                "sensor": "epex_da",  # name is used to look up the corresponding sensor ID
+                "start": "2025-11-21T14:40+01",
+                "duration": "PT2H",
+                "values": [20.5],
+                "unit": "EUR/kWh",
+            },
+            2,
+            {},
+        ),
+        # Six 2-minute events (spanning 2 wall-clock hours) are deserialized to a BeliefsDataFrame, to be recorded on a 1-hour sensor
+        (
+            {
+                "sensor": "epex_da",  # name is used to look up the corresponding sensor ID
+                "start": "2025-11-21T10:50:40+01",
+                "duration": "PT12M",
+                "values": [1, 2, 3, 4, 5, 6],
+                "unit": "EUR/kWh",
+            },
+            2,
+            {},
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_time_series_deserialization(
+    setup_markets,
+    setup_roles_users,
+    deserialization_input,
+    exp_length,
+    exp_deserialization_output,
+    requesting_user,
+):
+    """Test loading of posted sensor data."""
+    schema = PostSensorDataSchema()
+
+    # Look up sensor by name and replace it with the sensor ID
+    sensor = setup_markets[deserialization_input["sensor"]]
+    deserialization_input["sensor"] = sensor.id
+
+    deser = schema.load(deserialization_input)
+    bdf = deser["bdf"]
+
+    assert isinstance(bdf, BeliefsDataFrame)
+    assert bdf.event_resolution == sensor.event_resolution
+    assert len(bdf) == exp_length
+
+    resolution = pd.Timedelta(deserialization_input["duration"]) / len(
+        deserialization_input["values"]
+    )
+    if resolution < sensor.event_resolution:
+        assert bdf.event_starts[0] == pd.Timestamp(
+            deserialization_input["start"]
+        ).floor(sensor.event_resolution)
+    else:
+        assert bdf.event_starts[0] == pd.Timestamp(deserialization_input["start"])
+    assert len(bdf.lineage.belief_times) == 1, "expected unique belief time"
+    # assert deser == exp_deserialization_output
