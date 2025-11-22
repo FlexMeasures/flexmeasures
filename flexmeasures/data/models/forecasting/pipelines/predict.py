@@ -315,5 +315,7 @@ class PredictPipeline(BasePipeline):
                 os.remove(self.model_path)
 
             logging.info("Prediction pipeline completed successfully.")
+
+            return bdf
         except Exception as e:
             raise CustomException(f"Error running pipeline: {e}", sys) from e
