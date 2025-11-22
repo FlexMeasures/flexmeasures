@@ -538,5 +538,14 @@ def flex_description_sequential(
         ],
         "site-production-capacity": "2kW",
         "site-consumption-capacity": "5kW",
+        # Cheap commitments that are not expected to affect the resulting schedule
+        "commitments": [
+            {
+                "name": "a sample commitment rewarding supply",
+                "baseline": "0 kW",
+                "up-price": "0 EUR/MWh",
+                "down-price": "1 EUR/MWh",
+            },
+        ],
     }
     return dict(flex_model=flex_model, flex_context=flex_context)

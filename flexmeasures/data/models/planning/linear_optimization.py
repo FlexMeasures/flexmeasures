@@ -207,12 +207,26 @@ def device_scheduler(  # noqa C901
 
     commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
-    bigM_columns = ["derivative max", "derivative min", "derivative equals"]
-    # Compute a good value for M
-    M = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
+    # Oversimplified check for a convex cost curve
+    df = pd.concat(commitments)[
+        ["upwards deviation price", "downwards deviation price"]
+    ]
+    df = df.groupby(level=0).sum()
+    if len(df[df["upwards deviation price"] < df["downwards deviation price"]]) == 0:
+        convex_cost_curve = True
+    else:
+        convex_cost_curve = False
 
-    # M has to be 1 MW, at least
-    M = max(M, 1)
+    bigM_columns = ["derivative max", "derivative min", "derivative equals"]
+    # Compute a good value for our Big-Ms
+    # Md is used to constrain the search space for device power
+    # Mc is used to constrain the search space for commitment deviations
+    Md = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
+    Mc = np.nansum([np.nansum(d[bigM_columns].abs()) for d in device_constraints])
+
+    # Both Md and Mc have to be 1 MW, at least
+    Md = max(Md, 1)
+    Mc = max(Mc, 1)
 
     for d in range(len(device_constraints)):
         if "stock delta" not in device_constraints[d].columns:
@@ -391,6 +405,7 @@ def device_scheduler(  # noqa C901
         initialize=0,
         # bounds=[None, 1000],
     )
+    model.commitment_sign = Var(model.c, domain=Binary, initialize=0)
 
     def _get_stock_change(m, d, j):
         """Determine final stock change of device d until time j.
@@ -455,14 +470,22 @@ def device_scheduler(  # noqa C901
 
     def device_up_derivative_sign(m, d, j):
         """Derivative up if sign points up, derivative not up if sign points down."""
-        return m.device_power_up[d, j] <= M * m.device_power_sign[d, j]
+        return m.device_power_up[d, j] <= Md * m.device_power_sign[d, j]
 
     def device_down_derivative_sign(m, d, j):
         """Derivative down if sign points down, derivative not down if sign points up."""
-        return -m.device_power_down[d, j] <= M * (1 - m.device_power_sign[d, j])
+        return -m.device_power_down[d, j] <= Md * (1 - m.device_power_sign[d, j])
 
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
+
+    def commitment_up_derivative_sign(m, c):
+        """Up deviation active only if sign points up."""
+        return m.commitment_upwards_deviation[c] <= Mc * m.commitment_sign[c]
+
+    def commitment_down_derivative_sign(m, c):
+        """Down deviation active only if sign points down."""
+        return -m.commitment_downwards_deviation[c] <= Mc * (1 - m.commitment_sign[c])
 
     def device_stock_commitment_equalities(m, c, j, d):
         """Couple device stocks to each commitment."""
@@ -559,6 +582,13 @@ def device_scheduler(  # noqa C901
         model.d, model.j, rule=device_down_derivative_sign
     )
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
+    if not convex_cost_curve:
+        model.commitment_up_derivative_sign_con = Constraint(
+            model.c, rule=commitment_up_derivative_sign
+        )
+        model.commitment_down_derivative_sign_con = Constraint(
+            model.c, rule=commitment_down_derivative_sign
+        )
     model.ems_power_commitment_equalities = Constraint(
         model.cj, rule=ems_flow_commitment_equalities
     )
