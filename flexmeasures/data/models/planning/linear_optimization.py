@@ -218,11 +218,13 @@ def device_scheduler(  # noqa C901
         convex_cost_curve = False
 
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
-    # Compute a good value for M
+    # Compute a good value for our Big-Ms
+    # Md is used to constrain the search space for device power
+    # Mc is used to constrain the search space for commitment deviations
     Md = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
     Mc = np.nansum([np.nansum(d[bigM_columns].abs()) for d in device_constraints])
 
-    # M has to be 1 MW, at least
+    # Both Md and Mc have to be 1 MW, at least
     Md = max(Md, 1)
     Mc = max(Mc, 1)
 
