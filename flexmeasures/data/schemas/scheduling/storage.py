@@ -59,7 +59,10 @@ class EfficiencyField(QuantityField):
         super().__init__(
             "%",
             validate=validate.Range(
-                min=0, max=1, min_inclusive=False, max_inclusive=True
+                min=ur.Quantity("0%"),
+                max=ur.Quantity("100%"),
+                min_inclusive=False,
+                max_inclusive=True,
             ),
             *args,
             **kwargs,
@@ -82,25 +85,23 @@ class StorageFlexModelSchema(Schema):
         required=False,
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
-        return_magnitude=True,
+        return_magnitude=False,
         data_key="soc-at-start",
         metadata=metadata.SOC_AT_START.to_dict(),
     )
 
     soc_min = QuantityField(
-        validate=validate.Range(
-            min=0
-        ),  # change to min=ur.Quantity("0 MWh") in case return_magnitude=False
+        validate=validate.Range(min=ur.Quantity("0 MWh")),
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
-        return_magnitude=True,
+        return_magnitude=False,
         data_key="soc-min",
         metadata=metadata.SOC_MIN.to_dict(),
     )
     soc_max = QuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
-        return_magnitude=True,
+        return_magnitude=False,
         data_key="soc-max",
         metadata=metadata.SOC_MAX.to_dict(),
     )
@@ -353,6 +354,17 @@ class StorageFlexModelSchema(Schema):
             data["roundtrip_efficiency"] = (
                 data["roundtrip_efficiency"].to(ur.Quantity("dimensionless")).magnitude
             )
+
+        # Convert soc_at_start to dimensionless
+        if data.get("soc_at_start") is not None:
+            data["soc_at_start"] = (data["soc_at_start"] / ur.Quantity("MWh")).magnitude
+
+        # Convert soc_min to dimensionless
+        if data.get("soc_min") is not None:
+            data["soc_min"] = (data["soc_min"] / ur.Quantity("MWh")).magnitude
+        # Convert soc_max to dimensionless
+        if data.get("soc_max") is not None:
+            data["soc_max"] = (data["soc_max"] / ur.Quantity("MWh")).magnitude
 
         return data
 
