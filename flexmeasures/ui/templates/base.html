@@ -227,9 +227,17 @@
                     {% endfor %}
                 </ul>
             </li>
-            <div class="form-check form-switch" style="margin-left: auto;">
-                <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
-                <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+            <div class="row" style="margin-left: auto;">
+                <div class="col-auto form-check" title="Set this asset view as your default when visiting asset pages.">
+                    <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
+                    <label class="form-check-label" for="defaultAssetView">Set as default view</label>
+                </div>
+                {% if breadcrumb_info['current_asset_view'] == 'Graphs' %}
+                <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables. The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
+                    <input class="form-check-input" type="checkbox" {% if session.get("keep_legends_below_graphs") %} checked {% endif %} id="defaultlegendPosition" onchange="setDefaultlegendPosition(this)">
+                    <label class="form-check-label" for="defaultlegendPosition">Keep legends below</label>
+                </div>
+                {% endif %}
             </div>
             {% endif %}
         </ol>
@@ -241,7 +249,8 @@
 
     {% block forecastpicker %}
 
-    <div class="form-group row">
+    <div class="form-group row">/8520k-+.
+
         <div class="col-md-2">
             <div class="col-md-1"><i class="icon-binoculars center-icon"></i></div>
         </div>
@@ -541,7 +550,15 @@
         var datasetName = 'asset_' + {{ asset.id }};
         {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
         {% if total_sensors > 7 %}
-            combineLegend = 'false';
+            {% if session.get("keep_legends_below_graphs") %}
+                combineLegend = 'true';
+            {% else %}
+                combineLegend = 'false';
+            {% endif %}
+        {% else %}
+            {% if not session.get("keep_legends_below_graphs") %}
+                combineLegend = 'true';
+            {% endif %}
         {% endif %}
     {% elif active_page == "sensors" %}
         var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
@@ -579,6 +596,7 @@
     {% endif %}
 
     function createPicker(startDate, endDate, customRanges) {
+   
         picker = new Litepicker({
             element: document.getElementById('datepicker'),
             plugins: ['ranges', 'keyboardnav'],
@@ -745,6 +763,7 @@
                 {% else %}
                     var timerangeVar = 'timerange';
                 {% endif %}
+
                 if (timerangeVar in data) {
                     var start = new Date(data[timerangeVar].start);
                     var end = new Date(data[timerangeVar].end);
@@ -752,31 +771,62 @@
                     start.setHours(0,0,0,0); // get start of first day
                     end.setHours(0,0,0,0); // get start of last day
 
-                    if (timerangeNotSetYet) {
-                        // Initialize picker to the last 2 days of sensor data
-                        var nearEnd = new Date(end)//.setDate(end.getDate() - 1);
-                        nearEnd.setDate(nearEnd.getDate() - 2);
-                        var new_start_date = nearEnd;
-                        var new_end_date = end;
-                    } else {
-                        var new_start_date = new Date('{{ event_starts_after }}');
-                        var new_end_date = new Date('{{ event_ends_before }}');
-                    }
-                    
-                    // No use looking for data in years outside timerange of sensor data
+                    {% if active_page == "assets" %}
+                        var timerangeVar = 'timerange_of_sensors_to_show';
+                    {% else %}
+                        var timerangeVar = 'timerange';
+                    {% endif %}
+
+                    // Detect if URL already specifies a range
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlStartTimeRaw = urlParams.get('start_time');
+                    const urlEndTimeRaw = urlParams.get('end_time');
+                    const urlHasRange = urlStartTimeRaw && urlEndTimeRaw;
+
                     picker.setOptions({
                         dropdowns: {
                             minYear: start.getFullYear(),
                             maxYear: end.getFullYear(),
                         },
                     });
-                    
-                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
-                    // Adjusting the date by subtracting one day to account for timezone discrepancies.
-                    new_end_date.setDate(new_end_date.getDate() - 1);
-                    picker.setDateRange(decodeURIComponent(toIsoString(new_start_date)), decodeURIComponent(toIsoString(new_end_date)));
-                    picker.gotoDate(new_end_date);
-                };
+
+                    if (urlHasRange) {
+                        const urlStartTime = urlStartTimeRaw.replace(' ', '+');
+                        const urlEndTime = urlEndTimeRaw.replace(' ', '+');
+
+                        const urlStartDate = new Date(urlStartTime);
+                        const urlEndDateExclusive = new Date(urlEndTime);
+
+                        if (!isNaN(urlStartDate) && !isNaN(urlEndDateExclusive)) {
+                            // picker end date is inclusive → subtract 1 day
+                            urlEndDateExclusive.setDate(urlEndDateExclusive.getDate() - 1);
+
+                            // This fires the 'selected' event and load graphs
+                            picker.setDateRange(urlStartDate, urlEndDateExclusive);
+                            picker.gotoDate(urlEndDateExclusive);
+                        }
+                    } else {
+                        // Original behaviour when there is no URL range
+
+                        if (timerangeNotSetYet) {
+                            // Initialize picker to the last 2 days of sensor data
+                            var nearEnd = new Date(end);
+                            nearEnd.setDate(nearEnd.getDate() - 2);
+                            var new_start_date = nearEnd;
+                            var new_end_date = end;
+                        } else {
+                            var new_start_date = new Date('{{ event_starts_after }}');
+                            var new_end_date = new Date('{{ event_ends_before }}');
+                        }
+
+                        // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                        new_end_date.setDate(new_end_date.getDate() - 1); // inclusive picker end
+                        picker.setDateRange(new_start_date, new_end_date);
+                        picker.gotoDate(new_end_date);
+                    }
+                }
+
+
             });
         }
     };
@@ -1087,6 +1137,30 @@
                 })
             })
             .then(response => response.json())
+            .catch(error => {
+                console.error('Error during API call:', error);
+            });
+        }
+
+        function setDefaultlegendPosition(checkbox) {
+            // Get the checked status of the checkbox
+            const isChecked = checkbox.checked;
+
+            const apiBasePath = window.location.origin;
+            fetch(apiBasePath + '/api/v3_0/assets/keep_legends_below_graphs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({
+                    keep_legends_below_graphs: isChecked
+                })
+            })
+            .then(response => {
+                response.json();
+                location.reload();
+            })
             .catch(error => {
                 console.error('Error during API call:', error);
             });

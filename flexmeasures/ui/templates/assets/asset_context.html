@@ -339,7 +339,7 @@
     processResourceRawJSON(assetFlexContextRawJSON, "{{ asset.flex_context | safe }}");
 
     const spinnerElement = document.getElementById('spinnerElement');
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
 
     const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
     const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
@@ -859,10 +859,8 @@
             label.className = "form-label";
             label.innerHTML = `Look up Sensor for <b>${getFlexFieldTitle(contextKey)}</b> `;
             label.appendChild(createTooltipIcon(
-                `
-                    Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. 
-                    Make sure that the sensor data will be available consistently, though, so scheduling will work.
-                `
+                `Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. 
+Make sure that the sensor data will be available consistently, though, so scheduling will work.`
             ));
             group.appendChild(label);
 
