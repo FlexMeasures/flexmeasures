@@ -260,14 +260,14 @@ def delete_prognoses(
     "start",
     type=AwareDateTimeField(),
     required=False,
-    help="Remove beliefs about events starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Delete beliefs about events starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--end",
     "end",
     type=AwareDateTimeField(),
     required=False,
-    help="Remove beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Delete beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option("--offspring", type=bool, required=False, default=False, is_flag=True)
 def delete_beliefs(  # noqa: C901
@@ -388,14 +388,14 @@ def delete_beliefs(  # noqa: C901
     "start",
     type=AwareDateTimeField(),
     required=False,
-    help="Only remove records of events starting on or after this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Delete records of events starting on or after this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--end",
     "end",
     type=AwareDateTimeField(),
     required=False,
-    help="Only remove records of events ending on or before this datetime."
+    help="Delete records of events ending on or before this datetime."
     " Instantaneous events exactly at this datetime are kept."
     " Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
