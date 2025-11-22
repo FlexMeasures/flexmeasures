@@ -13,6 +13,8 @@ from datetime import datetime
 from pkg_resources import get_distribution
 import sphinx_fontawesome
 
+from flexmeasures.data.schemas.scheduling import metadata as metadata_module
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -226,7 +228,7 @@ texinfo_documents = [
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 
-# -- Options for copybytton extension ---------------------------------------
+# -- Options for copybutton extension ---------------------------------------
 copybutton_prompt_is_regexp = True
 copybutton_prompt_text = r">>> |\.\.\. |\$ "  # Python Repl + continuation + Bash
 copybutton_line_continuation_character = "\\"
@@ -260,3 +262,57 @@ def setup(sphinx_app):
         create(
             env="documentation"
         )  # we need to create the app for when sphinx imports modules that use current_app
+
+
+# Build rst_epilog substitutions for every UPPERCASE constant
+sub_lines = []
+for name in dir(metadata_module):
+    if not name.isupper():
+        continue
+    metadata = getattr(metadata_module, name)
+    if not isinstance(metadata, metadata_module.MetaData):
+        # skip non-MetaData objects
+        continue
+
+    # Normalize CRLFs and strip trailing newlines
+    description = metadata.description.replace("\r\n", "\n").rstrip("\n")
+
+    # We want Sphinx to accept the replacement both inline and as a multi-line
+    # paragraph. The `replace::` directive must have the replacement text on
+    # the same line or on following indented lines. We put the first line on
+    # the directive line and indent the following lines so they render as a
+    # paragraph (and work inside table cells).
+    lines = description.split("\n")
+    if len(lines) == 1:
+        # single-line replacement: keep it all on one line
+        replacement = lines[0]
+        sub_lines.append(f".. |{name}.description| replace:: {replacement}")
+    else:
+        sub_lines.append(f".. |{name}.description| replace:: {' '.join(lines)}")
+        # # multi-line: first line on directive, then indent subsequent lines
+        # first, rest = lines[0], lines[1:]
+        # indented_rest = "\n   ".join(rest)
+        # # If subsequent lines are present, prepend them with a newline+3 spaces
+        # sub_lines.append(
+        #     f".. |{name}.description| replace:: {first}\n   {indented_rest}"
+        # )
+
+    # Prefer multiple examples over a single example
+    if metadata.examples:
+        example = " or ".join([f"``{e}``" for e in metadata.examples])
+    else:
+        example = f"``{metadata.example}``"
+    sub_lines.append(f".. |{name}.example| replace:: {example}")
+
+rst_epilog = "\n".join(sub_lines)
+print(rst_epilog)
+
+# # Fill in field descriptions from our schemas
+# descriptions = importlib.import_module("flexmeasures.data.schemas.scheduling.descriptions")
+# rst_epilog = ""
+# for name in dir(descriptions):
+#     if name.isupper():
+#         value = getattr(descriptions, name)
+#         # Escape special characters in multi-line text for RST
+#         escaped_value = value.replace("\n", "\n   ")
+#         rst_epilog += f".. |{name}| replace:: {escaped_value}\n"

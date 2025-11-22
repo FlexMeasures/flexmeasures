@@ -150,7 +150,7 @@
                     {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
                     class="disabled" {% endif %}>
                     <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
-                    {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
+                    {% if id in ['openapi-docs', 'docs'] %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
 

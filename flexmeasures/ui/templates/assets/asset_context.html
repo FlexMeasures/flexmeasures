@@ -345,7 +345,7 @@
     const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
 
     function reRenderForm() {
-        // Skip on first init. This code prevents the access to teh variable 'getFlexcontext'
+        // Skip on first init. This code prevents the access to the variable 'getFlexContext'
         // on initial run of the script as its not available at that point
         if (!hasInitialized) {
             hasInitialized = true;
