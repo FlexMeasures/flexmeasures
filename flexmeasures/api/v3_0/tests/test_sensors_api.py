@@ -44,7 +44,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             "power",
-            2,
+            3,
             False,
             False,
             200,
@@ -196,7 +196,10 @@ def test_fetch_sensors(
         if use_pagination:
             assert isinstance(response.json["data"][0], dict)
             assert is_valid_unit(response.json["data"][0]["unit"])
-            assert response.json["num-records"] == exp_num_results
+            assert response.json["num-records"] == exp_num_results, (
+                f"If this line fails, a conftest may have added another sensor "
+                f"accessible to {requesting_user}. Update the exp_num_results in the test parameters accordingly."
+            )
             assert response.json["filtered-records"] == exp_num_results
         else:
             assert isinstance(response.json, list)
