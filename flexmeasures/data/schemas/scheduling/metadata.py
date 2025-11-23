@@ -121,33 +121,33 @@ SITE_PRODUCTION_BREACH_PRICE = MetaData(
 
 
 STATE_OF_CHARGE = MetaData(
-    description="If given, the scheduled state of charge is stored on this sensor.",
+    description="Sensor used to record the scheduled state of charge.",
     example={"sensor": 12},
 )
 SOC_AT_START = MetaData(
-    description="The (estimated) state of charge at the beginning of the schedule (defaults to 0).",
+    description="The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).",
     example="3.1 kWh",
 )
 SOC_UNIT = MetaData(
-    description="""The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).
-       However, we advise to mention the unit in each field explicitly (for instance, ``"3.1 kWh"`` rather than ``3.1``).
+    description="""[Deprecated field] The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).
+       To avoid using this field, mention the unit in each field explicitly (for instance, ``"3.1 kWh"`` rather than ``3.1``).
        Only kWh and MWh are allowed.""",
     example="kWh",
 )
 SOC_MIN = MetaData(
-    description="A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0). If used, this is regarded as an unsurpassable physical limitation.",
+    description="A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0). If used, this is regarded as an unsurpassable physical limitation.",
     example="2.5 kWh",
 )
 SOC_MAX = MetaData(
-    description="A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided). If used, this is regarded as an unsurpassable physical limitation.",
+    description="A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided). If used, this is regarded as an unsurpassable physical limitation.",
     example="7 kWh",
 )
 SOC_MINIMA = MetaData(
-    description="Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values).",
+    description="Set points that form lower boundaries, e.g. to target a full car battery in the morning.",
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"}],
 )
 SOC_MAXIMA = MetaData(
-    description="Set points that form user-defined upper boundaries at certain times (defaults to NaN values).",
+    description="Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.",
     example={
         "value": "51 kWh",
         "start": "2024-02-05T12:00:00+01:00",
@@ -155,31 +155,31 @@ SOC_MAXIMA = MetaData(
     },
 )
 SOC_TARGETS = MetaData(
-    description="Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values).",
+    description="Exact set point(s) that the scheduler needs to realize.",
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "3.2 kWh"}],
 )
 SOC_GAIN = MetaData(
-    description="SoC gain per time step, e.g. from a secondary energy source (defaults to zero). Useful if energy is inserted by an external process (in-flow).",
-    example=["100 W", {"sensor": 34}],
+    description="SoC gain per time step, e.g. from a secondary energy source. Useful if energy is inserted by an external process (in-flow). This field allows setting multiple components, either fixed or dynamic, which add up to an aggregated gain. This field represents an energy flow (for instance, in kW) rather than saying something about an (allowed) energy state (for instance, in kWh). The SoC gain is unaffected by the charging efficiency.",
+    example=["100 Wh/h", {"sensor": 34}],
 )
 SOC_USAGE = MetaData(
-    description="SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). Useful if energy is extracted by an external process or there are dissipating losses (out-flow).",
-    example=["100 W", {"sensor": 23}],
+    description="SoC drain per time step, e.g. from a load or heat sink. Useful if energy is extracted by an external process or there are dissipating losses (out-flow). This field allows setting multiple components, either fixed or dynamic, which add up to an aggregated usage. This field represents an energy flow (for instance, in kW) rather than saying something about an (allowed) energy state (for instance, in kWh). The SoC drain is unaffected by the discharging efficiency.",
+    example=["100 Wh/h", {"sensor": 23}],
 )
 ROUNDTRIP_EFFICIENCY = MetaData(
-    description="Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%).",
+    description="Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be a percentage or a ratio in the range [0,1]. Defaults to 100% (no roundtrip loss)",
     example="90%",
 )
 CHARGING_EFFICIENCY = MetaData(
-    description="Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).",
+    description="One-way conversion efficiency from electricity to the storage's state of charge. Can be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1). Defaults to 100% (no conversion loss).",
     example=".9",
 )
 DISCHARGING_EFFICIENCY = MetaData(
-    description="Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).",
+    description="One-way conversion efficiency from the storage's state of charge to electricity. Defaults to 100% (no conversion loss).",
     example="90%",
 )
 STORAGE_EFFICIENCY = MetaData(
-    description="This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read about applying this value per time step across longer time spans.",
+    description="The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time., so each time step the energy is held longer leads to higher losses. For example, 95% (or 0.95) means a loss of 5% per time step. Defaults to 100% (no storage loss over time). Note that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.",
     example="99.9%",
 )
 PREFER_CHARGING_SOONER = MetaData(
@@ -191,7 +191,7 @@ PREFER_CURTAILING_LATER = MetaData(
     example=True,
 )
 POWER_CAPACITY = MetaData(
-    description="Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``).",
+    description="Device-level power constraint. How much power can be applied to this asset.",
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(
