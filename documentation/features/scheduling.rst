@@ -211,7 +211,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - |DISCHARGING_EFFICIENCY.description|
    * - ``storage-efficiency``
      - |STORAGE_EFFICIENCY.example|
-     - |STORAGE_EFFICIENCY.description| [#storage_efficiency]_
+     - |STORAGE_EFFICIENCY.description|
    * - ``prefer-charging-sooner``
      - |PREFER_CHARGING_SOONER.example|
      - |PREFER_CHARGING_SOONER.description|
@@ -233,8 +233,6 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 .. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected. See :ref:`variable_quantities`.
 
 .. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
-
-.. [#storage_efficiency] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
