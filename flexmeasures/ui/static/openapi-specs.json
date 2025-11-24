@@ -4522,7 +4522,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "production-capacity": {
-            "description": "Device-level power constraint on production. How much power can be supplied by this asset. For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts.",
+            "description": "Device-level power constraint on production. How much power can be supplied by this asset. For <abbr title=\"photovoltaic solar panels\">PV</abbr> curtailment, set this to reference your sensor containing PV power forecasts.",
             "example": "0 kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -4601,7 +4601,7 @@
             "example": "90%"
           },
           "storage-efficiency": {
-            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time., so each time step the energy is held longer leads to higher losses. For example, 95% (or 0.95) means a loss of 5% per time step. Defaults to 100% (no storage loss over time). Note that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.",
+            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time., so each time step the energy is held longer leads to higher losses. For example, 95% (or 0.95) means a loss of 5% per time step. Defaults to 100% (no storage loss over time). Note that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup>.",
             "example": "99.9%",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },

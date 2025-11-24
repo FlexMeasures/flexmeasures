@@ -14,19 +14,37 @@ def rst_to_openapi(text: str) -> str:
     Convert a string with RST markup to OpenAPI-safe text.
 
     - Replaces :abbr:`X (Y)` with <abbr title="Y">X</abbr>
+    - Converts :math:`base^{exp}` into HTML sup/sub notation for OpenAPI
     """
 
+    # Handle abbreviations
     def abbr_repl(match):
         content = match.group(1)
         if "(" in content and content.endswith(")"):
             abbr, title = content.split("(", 1)
-            title = title[:-1]  # remove closing parenthesis
+            title = title[:-1]
             return f'<abbr title="{title.strip()}">{abbr.strip()}</abbr>'
         else:
             return content
 
-    # Replace all :abbr:`...` directives
-    return re.sub(r":abbr:`([^`]+)`", abbr_repl, text)
+    text = re.sub(r":abbr:`([^`]+)`", abbr_repl, text)
+
+    # Handle math
+    def math_repl(match):
+        expr = match.group(1).strip()
+
+        # simple power pattern: base^{exp}
+        power_match = re.match(r"(.+?)\s*\^\s*\{(.+?)\}", expr)
+        if power_match:
+            base, exponent = power_match.groups()
+            return f"{base}<sup>{exponent}</sup>"
+
+        # fallback: drop :math:`...` wrapper and return raw content
+        return expr
+
+    text = re.sub(r":math:`([^`]+)`", math_repl, text)
+
+    return text
 
 
 def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
@@ -44,9 +62,15 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
 
         # Replace VariableQuantityField with OpenAPI compatible String field
         if isinstance(field, VariableQuantityField):
+
+            # Copy metadata, but sanitize description for OpenAPI
+            metadata = dict(field.metadata)  # make a shallow copy
+            if "description" in metadata:
+                metadata["description"] = rst_to_openapi(metadata["description"])
+
             field_copy = fields.Nested(
                 VariableQuantityOpenAPISchema,
-                metadata=field.metadata,
+                metadata=metadata,
                 data_key=field.data_key,
             )
             new_fields[name] = field_copy
