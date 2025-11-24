@@ -35,6 +35,7 @@ Infrastructure / Support
 * Save buttons in UI editors (flex-model, flex-context and data dashboards) [see `PR #1764 <https://www.github.com/FlexMeasures/flexmeasures/pull/1764>`_]
 * Improve performance of the endpoint profiler and support configuration using the new ``FLEXMEASURES_PROFILER_CONFIG`` setting [see `PR #1799 <https://www.github.com/FlexMeasures/flexmeasures/pull/1799>`_]
 * Use ``SimpleWorker`` instead of fork-based ``Worker`` on macOS to prevent segmentation faults when running ``flexmeasures jobs run-worker`` for development purposes on macOS. [see `PR #1818 <https://github.com/FlexMeasures/flexmeasures/pull/1818>`_]
+* Move flex model UI schema to server side [see `PR #1830 <https://github.com/FlexMeasures/flexmeasures/pull/1830>`_]
 
 Bugfixes
 -----------
