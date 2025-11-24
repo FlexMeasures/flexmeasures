@@ -29,18 +29,22 @@ def rst_to_openapi(text: str) -> str:
 
     text = re.sub(r":abbr:`([^`]+)`", abbr_repl, text)
 
-    # Handle math
+    # --- math superscript handling ---
     def math_repl(match):
-        expr = match.group(1).strip()
+        expr = match.group(1)
 
-        # simple power pattern: base^{exp}
-        power_match = re.match(r"(.+?)\s*\^\s*\{(.+?)\}", expr)
-        if power_match:
-            base, exponent = power_match.groups()
-            return f"{base}<sup>{exponent}</sup>"
+        # Replace ALL occurrences of base^{exp}
+        def sup_repl(power_match):
+            base = power_match.group(1)
+            exp = power_match.group(2)
+            return f"{base}<sup>{exp}</sup>"
 
-        # fallback: drop :math:`...` wrapper and return raw content
-        return expr
+        # Pattern: base^{exp}, where base may include parentheses
+        power_pattern = r"([A-Za-z0-9().+\-*/\s]+?)\s*\^\s*\{([^}]+)\}"
+
+        converted = re.sub(power_pattern, sup_repl, expr)
+
+        return converted
 
     text = re.sub(r":math:`([^`]+)`", math_repl, text)
 
