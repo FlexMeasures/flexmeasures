@@ -1170,7 +1170,6 @@ def add_holidays(
 )
 @with_appcontext
 def train_predict_pipeline(
-    as_job,
     forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
@@ -1249,7 +1248,7 @@ def train_predict_pipeline(
     )
 
     try:
-        forecaster.compute(as_job=as_job, parameters=parameters)
+        forecaster.compute(parameters=parameters)
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
