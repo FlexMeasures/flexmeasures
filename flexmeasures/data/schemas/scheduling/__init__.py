@@ -572,7 +572,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },
     "soc-gain": {
-        "default": None,
+        "default": [],
         "description": (
             "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). "
             "This field allows multiple settings, either fixed or dynamic, which add up to an aggregated gain."
@@ -584,7 +584,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "soc-usage": {
-        "default": None,
+        "default": [],
         "description": (
             "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). "
             "This field allows multiple settings, either fixed or dynamic, which add up to an aggregated usage."

@@ -392,6 +392,14 @@
             "default": "fa fa-solid fa-question-circle",
         }
 
+        // Parse available units
+        let availableUnitsRawJSON = "{{ available_units | safe }}";
+        availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+        const availableUnits = JSON.parse(availableUnitsRawJSON);
+
+
+        // This variable is used to prevent reRenderForm from running on initial load
+        let hasInitialized = false;
                 
         const schemaSpecsString = '{{ flex_model_schema | tojson | safe  }}';
         const schemaSpecs = JSON.parse(schemaSpecsString); 
@@ -418,16 +426,7 @@
         }
 
         const assetFlexModelRawJSON = { ...assetFlexModelSchema };
-        processResourceRawJSON(assetFlexModelRawJSON, "{{ asset.flex_context | safe }}");
-
-        let availableUnitsRawJSON = "{{ available_units | safe }}";
-        availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
-        const availableUnits = JSON.parse(availableUnitsRawJSON);
-
-
-        // This variable is used to prevent reRenderForm from running on initial load
-        let hasInitialized = false;
-
+        processResourceRawJSON(assetFlexModelRawJSON, '{{ asset_flexmodel | safe }}');
 
         document.addEventListener('DOMContentLoaded', async function () {
             const flexOptionsContainer = document.getElementById('flexOptionsContainer');
