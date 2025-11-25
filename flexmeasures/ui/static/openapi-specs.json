@@ -3734,14 +3734,14 @@
             "type": "integer"
           },
           "consumption-price": {
-            "description": "The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field.)",
+            "description": "The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem.",
             "example": {
               "sensor": 5
             },
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "production-price": {
-            "description": "The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field.)",
+            "description": "The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit.",
             "example": "0.12 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
