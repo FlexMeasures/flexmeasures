@@ -24,64 +24,91 @@ class MetaData:
 
 
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
-    description="Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled. Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.",
+    description="Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply."
+    "For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled. "
+    "Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. "
+    "Must be a list of integers.",
     example=[3, 4],
 )
 COMMITMENTS = MetaData(
-    description="Prior commitments.",
+    description="Prior commitments. This field is still under further development.",
     example=[],
 )
 CONSUMPTION_PRICE = MetaData(
-    description="The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field.)",
+    description="The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field.)",
     example={"sensor": 5},
     # examples=[{"sensor": 5}, "0.29 EUR/kWh"],  # todo: waiting for https://github.com/marshmallow-code/apispec/pull/999
 )
 PRODUCTION_PRICE = MetaData(
-    description="The price of producing energy. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field.)",
+    description="The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field.)",
     example="0.12 EUR/kWh",
 )
 SITE_POWER_CAPACITY = MetaData(
-    description="Maximum achievable power at the grid connection point, in either direction. Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.",
+    description="Maximum achievable power at the site's grid connection point, in either direction. Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.",
     example="45kVA",
 )
 SITE_CONSUMPTION_CAPACITY = MetaData(
-    description="Maximum consumption power at the grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
+    description="Maximum consumption power at the site's grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
     example="45kW",
 )
 SITE_PRODUCTION_CAPACITY = MetaData(
-    description="Maximum production power at the grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
+    description="Maximum production power at the site's grid connection point. If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem. Otherwise, it becomes a hard constraint.",
     example="0kW",
 )
 SITE_PEAK_CONSUMPTION = MetaData(
-    description="Current peak consumption. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
+    description="The site's previously achieved achieved peak consumption. "
+    "This value forms the baseline for new peak charges, since any peaks up to this level represent sunk costs. "
+    "Defaults to 0 kW.",
     example={"sensor": 7},
 )
 SITE_PEAK_CONSUMPTION_PRICE = MetaData(
-    description="Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price.",
+    description="Per-kW price applied to any consumption that exceeds the site's previously achieved peak consumption. "
+    "This price reflects the cost of increasing the site’s peak further and is used by the scheduler to motivate peak shaving. "
+    "It must use the same currency as the other price settings and cannot be negative. "
+    "For large connections, this price is usually stated explicitly on the tariff sheets of their network operator.",
     example="260 EUR/MW",
 )
 SITE_PEAK_PRODUCTION = MetaData(
-    description="Current peak production. Costs from peaks below it are considered sunk costs. Default to 0 kW.",
+    description="The site's previously achieved achieved peak production. "
+    "This value forms the baseline for new peak charges, since any peaks up to this level represent sunk costs. "
+    "Defaults to 0 kW.",
     example={"sensor": 8},
 )
 SITE_PEAK_PRODUCTION_PRICE = MetaData(
-    description="Production peaks above the ``site-peak-production`` are penalized against this per-kW price.",
+    description="Per-kW price applied to any production that exceeds the site's previously achieved peak production. "
+    "This price reflects the cost of increasing the site’s peak further and is used by the scheduler to motivate peak shaving. "
+    "It must use the same currency as the other price settings and cannot be negative. "
+    "For large connections, this price is usually stated explicitly on the tariff sheets of their network operator.",
     example="260 EUR/MW",
 )
 SOC_MINIMA_BREACH_PRICE = MetaData(
-    description="Penalty for not meeting ``soc-minima`` defined in the flex-model.",
+    description="This <b>penalty value</b> is used to discourage the violation of <b>:abbr:`soc-minima (state-of-charge minima)`</b> constraints in the flex-model, which the scheduler will attempt to minimize. "
+    "It must use the same currency as the other price settings and cannot be negative. "
+    "While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site. "
+    "If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. "
+    "Without this value, the soc-minima become a hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.",
     example="120 EUR/kWh",
 )
 SOC_MAXIMA_BREACH_PRICE = MetaData(
-    description="Penalty for not meeting ``soc-maxima`` defined in the flex-model.",
+    description="This <b>penalty value</b> is used to discourage the violation of <b>:abbr:`soc-maxima (state-of-charge maxima)`</b> constraints in the flex-model, which the scheduler will attempt to minimize. "
+    "It must use the same currency as the other price settings and cannot be negative. "
+    "While it's an <b>internal nudge</b> to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site."
+    "If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. "
+    "Without this value, the soc-maxima become a hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.",
     example="120 EUR/kWh",
 )
 CONSUMPTION_BREACH_PRICE = MetaData(
-    description="The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.",
+    description="This <b>penalty value</b> is used to discourage the violation of the <b>consumption-capacity</b> constraint in the flex-model. "
+    "It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. "
+    "The scheduler will attempt to minimize this cost. "
+    "It must use the same currency as the other price settings and cannot be negative.",
     example="10 EUR/kW",
 )
 PRODUCTION_BREACH_PRICE = MetaData(
-    description="The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.",
+    description="This <b>penalty value</b> is used to discourage the violation of the <b>production-capacity</b> constraint in the flex-model. "
+    "It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. "
+    "The scheduler will attempt to minimize this cost. "
+    "It must use the same currency as the other price settings and cannot be negative.",
     example="10 EUR/kW",
 )
 RELAX_CONSTRAINTS = MetaData(
@@ -108,11 +135,19 @@ RELAX_SITE_CAPACITY_CONSTRAINTS = MetaData(
     example=True,
 )
 SITE_CONSUMPTION_BREACH_PRICE = MetaData(
-    description="The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided.",
+    description="This <b>penalty value</b> is used to discourage the violation of the <b>site-consumption-capacity</b> constraint in the flex-context."
+    "It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. "
+    "The scheduler will attempt to minimize this cost. "
+    "It must use the same currency as the other price settings and cannot be negative."
+    "The field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.",
     example="1000 EUR/kW",
 )
 SITE_PRODUCTION_BREACH_PRICE = MetaData(
-    description="The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided.",
+    description="This <b>penalty value</b> is used to discourage the violation of the <b>site-production-capacity</b> constraint in the flex-context."
+    "It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. "
+    "The scheduler will attempt to minimize this cost. "
+    "It must use the same currency as the other price settings and cannot be negative."
+    "The field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.",
     example="1000 EUR/kW",
 )
 
