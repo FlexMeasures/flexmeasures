@@ -82,7 +82,7 @@ SITE_PEAK_PRODUCTION_PRICE = MetaData(
     example="260 EUR/MW",
 )
 SOC_MINIMA_BREACH_PRICE = MetaData(
-    description="This <b>penalty value</b> is used to discourage the violation of <b>:abbr:`soc-minima (state-of-charge minima)`</b> constraints in the flex-model, which the scheduler will attempt to minimize. "
+    description="This **penalty value** is used to discourage the violation of **:abbr:`soc-minima (state-of-charge minima)`** constraints in the flex-model, which the scheduler will attempt to minimize. "
     "It must use the same currency as the other price settings and cannot be negative. "
     "While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site. "
     "If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. "
@@ -90,23 +90,23 @@ SOC_MINIMA_BREACH_PRICE = MetaData(
     example="120 EUR/kWh",
 )
 SOC_MAXIMA_BREACH_PRICE = MetaData(
-    description="This <b>penalty value</b> is used to discourage the violation of <b>:abbr:`soc-maxima (state-of-charge maxima)`</b> constraints in the flex-model, which the scheduler will attempt to minimize. "
+    description="This **penalty value** is used to discourage the violation of **:abbr:`soc-maxima (state-of-charge maxima)`** constraints in the flex-model, which the scheduler will attempt to minimize. "
     "It must use the same currency as the other price settings and cannot be negative. "
-    "While it's an <b>internal nudge</b> to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site."
+    "While it's an **internal nudge** to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site."
     "If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. "
     "Without this value, the soc-maxima become a hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.",
     example="120 EUR/kWh",
 )
 CONSUMPTION_BREACH_PRICE = MetaData(
-    description="This <b>penalty value</b> is used to discourage the violation of the <b>consumption-capacity</b> constraint in the flex-model. "
-    "It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. "
+    description="This **penalty value** is used to discourage the violation of the **consumption-capacity** constraint in the flex-model. "
+    "It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost. "
     "The scheduler will attempt to minimize this cost. "
     "It must use the same currency as the other price settings and cannot be negative.",
     example="10 EUR/kW",
 )
 PRODUCTION_BREACH_PRICE = MetaData(
-    description="This <b>penalty value</b> is used to discourage the violation of the <b>production-capacity</b> constraint in the flex-model. "
-    "It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. "
+    description="This **penalty value** is used to discourage the violation of the **production-capacity** constraint in the flex-model. "
+    "It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost. "
     "The scheduler will attempt to minimize this cost. "
     "It must use the same currency as the other price settings and cannot be negative.",
     example="10 EUR/kW",
@@ -135,16 +135,16 @@ RELAX_SITE_CAPACITY_CONSTRAINTS = MetaData(
     example=True,
 )
 SITE_CONSUMPTION_BREACH_PRICE = MetaData(
-    description="This <b>penalty value</b> is used to discourage the violation of the <b>site-consumption-capacity</b> constraint in the flex-context."
-    "It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. "
+    description="This **penalty value** is used to discourage the violation of the **site-consumption-capacity** constraint in the flex-context."
+    "It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost. "
     "The scheduler will attempt to minimize this cost. "
     "It must use the same currency as the other price settings and cannot be negative."
     "The field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.",
     example="1000 EUR/kW",
 )
 SITE_PRODUCTION_BREACH_PRICE = MetaData(
-    description="This <b>penalty value</b> is used to discourage the violation of the <b>site-production-capacity</b> constraint in the flex-context."
-    "It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. "
+    description="This **penalty value** is used to discourage the violation of the **site-production-capacity** constraint in the flex-context."
+    "It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost. "
     "The scheduler will attempt to minimize this cost. "
     "It must use the same currency as the other price settings and cannot be negative."
     "The field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.",
