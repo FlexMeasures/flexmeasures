@@ -553,7 +553,7 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
 UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     "soc-min": {
         "default": None,
-        "description": "A constant lower boundary for all values in the schedule (defaults to 0).",
+        "description": metadata.SOC_MIN.description,
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
@@ -562,7 +562,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-max": {
         "default": None,
-        "description": "A constant upper boundary for all values in the schedule (defaults to max soc target, if provided).",
+        "description": metadata.SOC_MAX.description,
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
@@ -571,7 +571,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-minima": {
         "default": None,
-        "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning",
+        "description": metadata.SOC_MINIMA.description,
         "types": {
             "backend": "typeTwo",
             "ui": "A sensor which records the state of charge.",
@@ -580,7 +580,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-maxima": {
         "default": None,
-        "description": "Set points that form upper boundaries at certain times.",
+        "description": metadata.SOC_MAXIMA.description,
         "types": {
             "backend": "typeTwo",
             "ui": "A sensor which records the state of charge.",
@@ -589,7 +589,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-targets": {
         "default": None,
-        "description": "Exact set point(s) that the scheduler needs to realize.",
+        "description": metadata.SOC_TARGETS.description,
         "types": {
             "backend": "typeTwo",
             "ui": "A sensor which records the state of charge.",
@@ -598,7 +598,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "state-of-charge": {
         "default": None,
-        "description": "Sensor used to record the scheduled state of charge.",
+        "description": metadata.STATE_OF_CHARGE.description,
         "types": {
             "backend": "typeTwo",
             "ui": "A sensor which records the state of charge.",
@@ -607,10 +607,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-gain": {
         "default": [],
-        "description": (
-            "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). "
-            "This field allows multiple settings, either fixed or dynamic, which add up to an aggregated gain."
-        ),
+        "description": metadata.SOC_GAIN.description,
         "types": {
             "backend": "typeFour",
             "ui": "Multiple settings possible - either fixed values or dynamic signals (via a sensor).",
@@ -619,10 +616,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-usage": {
         "default": [],
-        "description": (
-            "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). "
-            "This field allows multiple settings, either fixed or dynamic, which add up to an aggregated usage."
-        ),
+        "description": metadata.SOC_USAGE.description,
         "types": {
             "backend": "typeFour",
             "ui": "Multiple settings possible - either fixed values or dynamic signals (via a sensor).",
@@ -631,10 +625,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "roundtrip-efficiency": {
         "default": None,
-        "description": (
-            "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. "
-            "Can be a percentage or ratio [0,1]. Defaults to 100% or 1.0 (no loss)."
-        ),
+        "description": metadata.ROUNDTRIP_EFFICIENCY.description,
         "types": {
             "backend": "typeFive",
             "ui": "Fixed value only.",
@@ -643,11 +634,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "charging-efficiency": {
         "default": None,
-        "description": (
-            "Apply efficiency losses only at time of charging, not across roundtrip. "
-            "Can be a percentage, ratio [0,1], or a coefficient of performance (>1). "
-            "Defaults to 100% or 1.0 (no loss)."
-        ),
+        "description": metadata.CHARGING_EFFICIENCY.description,
         "types": {
             "backend": "typeFive",
             "ui": "Fixed value only.",
@@ -656,10 +643,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "discharging-efficiency": {
         "default": None,
-        "description": (
-            "Apply efficiency losses only at time of discharging, not across roundtrip. "
-            "Can be a percentage or ratio [0,1]. Defaults to 100% or 1.0 (no loss)."
-        ),
+        "description": metadata.DISCHARGING_EFFICIENCY.description,
         "types": {
             "backend": "typeFive",
             "ui": "Fixed value only.",
@@ -668,13 +652,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "storage-efficiency": {
         "default": None,
-        "description": (
-            "This can encode losses over time, so each time step the energy is held longer leads to higher losses. "
-            "For example 95% (or 0.95) means a loss of 5% each step. Defaults to 100% or 1.0 (no loss). "
-            "Note that the storage efficiency to use for the schedule is applied over each time step equal to the sensor resolution. "
-            "For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, "
-            "should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865"
-        ),
+        "description": metadata.STORAGE_EFFICIENCY.description,
         "types": {
             "backend": "typeFive",
             "ui": "Fixed value only.",
@@ -683,10 +661,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "prefer-charging-sooner": {
         "default": True,
-        "description": (
-            "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner "
-            "rather than later (defaults to True). It also signals a preference to discharge later."
-        ),
+        "description": metadata.PREFER_CHARGING_SOONER.description,
         "types": {
             "backend": "typeOne",
             "ui": "Boolean option only.",
@@ -695,10 +670,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "prefer-curtailing-later": {
         "default": True,
-        "description": (
-            "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both "
-            "consumption and production later, whichever is applicable (defaults to True)."
-        ),
+        "description": metadata.PREFER_CURTAILING_LATER.description,
         "types": {
             "backend": "typeOne",
             "ui": "Boolean option only.",
@@ -707,7 +679,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "power-capacity": {
         "default": None,
-        "description": "Device-level power constraint. How much power can be applied to this asset.",
+        "description": metadata.POWER_CAPACITY.description,
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
@@ -716,7 +688,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "consumption-capacity": {
         "default": None,
-        "description": "Device-level power constraint on consumption. How much power can be drawn by this asset.",
+        "description": metadata.CONSUMPTION_CAPACITY.description,
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
@@ -725,10 +697,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "production-capacity": {
         "default": None,
-        "description": (
-            "Device-level power constraint on production. How much power can be supplied by this asset. "
-            "For PV curtailment (staying within promised output), set this to reference a sensor containing PV power forecasts."
-        ),
+        "description": metadata.PRODUCTION_CAPACITY.description,
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
