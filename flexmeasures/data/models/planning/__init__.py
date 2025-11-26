@@ -321,10 +321,29 @@ class Commitment:
                 setattr(self, series_attr, pd.Series(val, index=self.index))
 
         if self._type == "any":
-            # add all time steps to the same group
-            self.group = pd.Series(0, index=self.index)
+            # Case 1: if both prices are constant, keep one group
+            up = self.upwards_deviation_price
+            down = self.downwards_deviation_price
+
+            if up.nunique() == 1 and down.nunique() == 1:
+                # All time steps share the same group
+                self.group = pd.Series(0, index=self.index)
+            else:
+                # Case 2: create a new group whenever either price changes
+                # Detect changes
+                up_change = up != up.shift()
+                down_change = down != down.shift()
+
+                # A group boundary occurs if either price changes
+                boundary = up_change | down_change
+
+                # Start group numbering at 0 and increment at each boundary
+                group_id = boundary.cumsum() - 1
+                group_id.iloc[0] = 0  # ensure first group is 0
+
+                self.group = pd.Series(group_id.values, index=self.index)
         elif self._type == "each":
-            # add each time step to their own group
+            # Each time step forms its own group
             self.group = pd.Series(list(range(len(self.index))), index=self.index)
         else:
             raise ValueError('Commitment `_type` must be "any" or "each".')
