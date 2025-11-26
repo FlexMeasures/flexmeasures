@@ -22,7 +22,7 @@ New features
 * More explicitly represent the unit of sensors that record dimensionless data [see `PR #1802 <https://github.com/FlexMeasures/flexmeasures/pull/1802>`_]
 * Allow modifying asset trees with the CLI using ``flexmeasures edit transfer-parenthood`` [see `PR #1773 <https://github.com/FlexMeasures/flexmeasures/pull/1773>`_]
 * Expanded the sorting columns of "latest jobs" table [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
-
+* Let users specify the unit an uploaded data is based on [see `PR #1836 <https://github.com/FlexMeasures/flexmeasures/pull/1836>`_]
 
 Infrastructure / Support
 ----------------------
