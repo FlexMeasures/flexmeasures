@@ -157,8 +157,6 @@ class ForecasterParametersSchema(Schema):
             logging.warning(
                 f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
             )
-            # Override the original start-date to take the most recent max-training-period within the training period
-            data["start_date"] = predict_start - timedelta(hours=train_period_in_hours)
 
         if data.get("retrain_frequency") is None:
             retrain_frequency_in_hours = int(
