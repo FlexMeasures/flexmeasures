@@ -797,7 +797,9 @@ class AssetAPI(FlaskView):
             "event_ends_before": AwareDateTimeField(format="iso", required=False),
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
-            "use_latest_version_per_event": fields.Boolean(required=False),
+            "use_latest_version_per_event": fields.Boolean(
+                required=False, load_default=False
+            ),
             "most_recent_beliefs_only": fields.Boolean(required=False),
             "compress_json": fields.Boolean(required=False),
         },
