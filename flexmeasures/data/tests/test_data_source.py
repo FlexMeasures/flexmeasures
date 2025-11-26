@@ -209,7 +209,8 @@ def test_keep_last_version():
     # two sources with only different IDs (for instance, when they just differ by their data_generator_config)
     bdf = create_dummy_frame([s4, s5])
     np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s5])
-    bdf = create_dummy_frame([s5, s4])  # also check the reverse order
+    # also check the reverse order
+    bdf = bdf.sort_index(level="source", ascending=False, sort_remaining=False)
     np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s5])
 
     # repeated source
