@@ -87,6 +87,7 @@ class SensorAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "resolution": DurationField(required=False),
+            "use_latest_version_per_event": fields.Boolean(required=False),
             "most_recent_beliefs_only": fields.Boolean(
                 required=False, load_default=True
             ),

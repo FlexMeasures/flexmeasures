@@ -722,7 +722,7 @@
                 {% if active_subpage == "asset_graph" and has_kpis %}
                     getAssetKPIs();
                 {% endif %}
-                const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
+                const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&use_latest_version_per_event=false&compress_json=true', {
                     method: "GET",
                     headers: {"Content-Type": "application/json"},
                     signal: signal,
@@ -905,7 +905,7 @@
         Promise.all([
             playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
             // Fetch time series data (all data, not only the most recent beliefs)
-            fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false&compress_json=true', {
+            fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&use_latest_version_per_event=false&most_recent_beliefs_only=false&compress_json=true', {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
                 signal: signal,
@@ -1004,7 +1004,7 @@
             {% if active_subpage == "asset_graph" and has_kpis %}
                 getAssetKPIs();
             {% endif %}
-            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
+            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&use_latest_version_per_event=false&compress_json=true', {
                     method: "GET",
                     headers: { "Content-Type": "application/json" },
                     signal: signal,
