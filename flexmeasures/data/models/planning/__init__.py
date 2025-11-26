@@ -321,27 +321,26 @@ class Commitment:
                 setattr(self, series_attr, pd.Series(val, index=self.index))
 
         if self._type == "any":
-            # Case 1: if both prices are constant, keep one group
             up = self.upwards_deviation_price
             down = self.downwards_deviation_price
+            qty = self.quantity
 
-            if up.nunique() == 1 and down.nunique() == 1:
-                # All time steps share the same group
+            # If everything is constant, keep one group
+            if up.nunique() == 1 and down.nunique() == 1 and qty.nunique() == 1:
                 self.group = pd.Series(0, index=self.index)
             else:
-                # Case 2: create a new group whenever either price changes
-                # Detect changes
+                # Group boundaries when ANY of the three series changes
                 up_change = up != up.shift()
                 down_change = down != down.shift()
+                qty_change = qty != qty.shift()
 
-                # A group boundary occurs if either price changes
-                boundary = up_change | down_change
+                boundary = up_change | down_change | qty_change
 
-                # Start group numbering at 0 and increment at each boundary
                 group_id = boundary.cumsum() - 1
-                group_id.iloc[0] = 0  # ensure first group is 0
+                group_id.iloc[0] = 0
 
-                self.group = pd.Series(group_id.values, index=self.index)
+                self.group = pd.Series(group_id.to_numpy(), index=self.index)
+
         elif self._type == "each":
             # Each time step forms its own group
             self.group = pd.Series(list(range(len(self.index))), index=self.index)
