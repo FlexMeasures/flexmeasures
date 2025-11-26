@@ -59,15 +59,19 @@
                                 <h3>Upload {{ sensor.name }} data</h3>
                                 <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
                                 <form id="uploadForm" enctype="multipart/form-data" method="post" class="form-horizontal">
+                                    <div class="form-group pb-4">
+                                        <label for="flexUnitsSelect" class="form-label">Convert data to:</label>
+                                        <select id="flexUnitsSelect" class="form-select" name="unit"></select>
+                                    </div>
                                     <div class="form-group">
                                         <label class="custom-uploader" for="file">
                                             Choose data file
                                             <i
                                                 class="fa fa-info-circle"
                                                 title="Formats accepted: csv and xlsx.
-The file should have columns for a timestamp (event_start) and a value (event_value).
-The timestamp should be in ISO 8601 format. If the timezone offset is not provided the sensor timezone will be used.
-The event_value should be a numeric value."
+                                                    The file should have columns for a timestamp (event_start) and a value (event_value).
+                                                    The timestamp should be in ISO 8601 format. If the timezone offset is not provided the sensor timezone will be used.
+                                                    The event_value should be a numeric value."
                                                 style="margin-left: 5px; color: white;"
                                             >
                                             </i>
@@ -267,6 +271,26 @@ The event_value should be a numeric value."
 <script>
     const apiBasePath = window.location.origin;
     const parentAssetId = "{{sensor.generic_asset.id}}"
+    let availableUnitsRawJSON = "{{ available_units | safe }}";
+    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+    const availableUnits = JSON.parse(availableUnitsRawJSON);
+    
+    const flexUnitsSelect = document.getElementById('flexUnitsSelect');
+    
+    // Populate the units dropdown
+    availableUnits.forEach(unit => {
+        const option = document.createElement('option');
+        option.value = unit;
+        option.textContent = unit;
+        flexUnitsSelect.appendChild(option);
+    });
+
+    // Pre-select the current unit
+    const currentUnit = "{{ sensor.unit }}";
+    if (currentUnit) {
+        flexUnitsSelect.value = currentUnit;
+    }
+
 
     async function updateSensor(event) {
         event.preventDefault();

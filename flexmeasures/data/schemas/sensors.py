@@ -513,6 +513,10 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+    unit = fields.String(
+        required=True,
+        data_key="unit",
+    )
 
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
@@ -569,6 +573,16 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+        unit = fields.get("unit")
+
+        if unit is not None:
+            if not units_are_convertible(unit, sensor.unit):
+                raise ValidationError(
+                    {
+                        "unit": f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'."
+                    }
+                )
+
         errors = {}
         for i, file in enumerate(files):
             try:

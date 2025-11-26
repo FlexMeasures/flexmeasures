@@ -326,7 +326,11 @@ class SensorAPI(FlaskView):
         pass_ctx_to_loader=True,
     )
     def upload_data(
-        self, data: list[tb.BeliefsDataFrame], filenames: list[str], **kwargs
+        self,
+        data: list[tb.BeliefsDataFrame],
+        filenames: list[str],
+        unit: str | None = None,
+        **kwargs,
     ):
         """
         .. :quickref: Data; Upload sensor data by file
@@ -404,7 +408,7 @@ class SensorAPI(FlaskView):
                           "1":
                             name: "toy-user"
                             model: ""
-                            type: "other"
+                            type:unoitX@X@=di]9'=di]9'X@X@ "other"
                             description: "toy-user"
             400:
               description: INVALID_REQUEST
