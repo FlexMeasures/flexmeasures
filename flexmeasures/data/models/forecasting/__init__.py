@@ -112,6 +112,7 @@ class Forecaster(DataGenerator):
 
         These parameters are already contained in the TimedBelief:
 
+        - end_date:             as the event end
         - max_forecast_horizon: as the maximum belief horizon of the beliefs for a given event
         - forecast_frequency:   as the spacing between unique belief times
         - probabilistic:        as the cumulative_probability of each belief
@@ -125,6 +126,7 @@ class Forecaster(DataGenerator):
         """
         _parameters = deepcopy(parameters)
         fields_to_remove = [
+            "end_date",
             "max_forecast_horizon",
             "forecast_frequency",
             "probabilistic",
