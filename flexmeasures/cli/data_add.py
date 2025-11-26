@@ -1248,8 +1248,11 @@ def train_predict_pipeline(
     )
 
     try:
-        forecaster.compute(parameters=parameters)
-        click.secho("Successfully computed forecasts.", **MsgStyle.SUCCESS)
+        results = forecaster.compute(parameters=parameters)
+        if len(results) > 0:
+            click.secho("Successfully computed forecasts.", **MsgStyle.SUCCESS)
+        else:
+            click.secho("No forecasts were made.", **MsgStyle.WARN)
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
