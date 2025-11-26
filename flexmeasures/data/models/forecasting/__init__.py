@@ -121,6 +121,7 @@ class Forecaster(DataGenerator):
 
         - model_save_dir:       used internally for the train and predict pipelines to save and load the model
         - output_path:          for exporting forecasts to file, more of a developer feature
+        - as_job:               only indicates whether the computation was offloaded to a worker
         """
         _parameters = deepcopy(parameters)
         fields_to_remove = [
