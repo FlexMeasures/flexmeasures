@@ -158,10 +158,13 @@ def test_data_generator_save_parameters(
 
 
 def test_keep_last_version():
-    s1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
-    s2 = DataSource(name="s1", model="model 1", type="forecaster")
-    s3 = DataSource(name="s1", model="model 2", type="forecaster")
-    s4 = DataSource(name="s1", model="model 2", type="scheduler")
+    s1 = DataSource(
+        id=1, name="s1", model="model 1", type="forecaster", version="0.1.0"
+    )
+    s2 = DataSource(id=2, name="s1", model="model 1", type="forecaster")
+    s3 = DataSource(id=3, name="s1", model="model 2", type="forecaster")
+    s4 = DataSource(id=4, name="s1", model="model 2", type="scheduler")
+    s5 = DataSource(id=5, name="s1", model="model 2", type="scheduler")
 
     def create_dummy_frame(sources: list[DataSource]) -> tb.BeliefsDataFrame:
         sensor = tb.Sensor("A")
@@ -199,8 +202,15 @@ def test_keep_last_version():
     np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s1, s3])
 
     # two sources with the same model but different types
+    # (highest ID first, not really intentional)
     bdf = create_dummy_frame([s3, s4])
-    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s3, s4])
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s4, s3])
+
+    # two sources with only different IDs (for instance, when they just differ by their data_generator_config)
+    bdf = create_dummy_frame([s4, s5])
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s5])
+    bdf = create_dummy_frame([s5, s4])  # also check the reverse order
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s5])
 
     # repeated source
     bdf = create_dummy_frame([s1, s1])

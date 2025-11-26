@@ -447,8 +447,8 @@ def keep_latest_version(
 
     The function performs the following steps:
 
-    1. Adds columns for the source's name, type, model, and version.
-    2. Sorts the rows by `source.version` in descending order.
+    1. Adds columns for the source's name, type, model, version and id.
+    2. Sorts the rows by `source.version` and `source.id`, both in descending order.
     3. Removes duplicates based on `source.name`, `source.type`, and `source.model`,
        keeping the latest version for each `event_start` (and `belief_time`).
     4. Drops the temporary columns added for source attributes.
@@ -483,24 +483,35 @@ def keep_latest_version(
             "source.type": s.type,
             "source.model": s.model,
             "source.version": Version(s.version or "0.0.0"),
+            "source.id": s.id,
         }
         for s in source_values
     }
     source_expanded = bdf.index.get_level_values("source").map(source_to_fields)
 
-    bdf[["source.name", "source.type", "source.model", "source.version"]] = (
-        pd.DataFrame(source_expanded.tolist(), index=bdf.index)
-    )
+    bdf[
+        ["source.name", "source.type", "source.model", "source.version", "source.id"]
+    ] = pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     bdf["_" + event_column] = bdf.index.get_level_values(event_column)
     if not one_deterministic_belief_per_event:
         bdf["_" + belief_column] = bdf.index.get_level_values(belief_column)
-    # Sort by event_start (belief_time) and version, keeping only the latest version
+    # Sort by event_start (belief_time), version and ID, keeping only the latest version and highest ID
     if one_deterministic_belief_per_event:
-        sort_by = ["_" + event_column, "source.version"]
-        ascending = [True, False]
+        sort_by = ["_" + event_column, "source.version", "source.id"]
+        ascending = [True, False, False]
     else:
-        sort_by = ["_" + event_column, "_" + belief_column, "source.version"]
-        ascending = [True, True if belief_column == "belief_time" else False, False]
+        sort_by = [
+            "_" + event_column,
+            "_" + belief_column,
+            "source.version",
+            "source.id",
+        ]
+        ascending = [
+            True,
+            True if belief_column == "belief_time" else False,
+            False,
+            False,
+        ]
     bdf = bdf.sort_values(by=sort_by, ascending=ascending)
 
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
@@ -519,6 +530,6 @@ def keep_latest_version(
     bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
 
     # Remove temporary columns
-    bdf = bdf.drop(columns=unique_columns + ["source.version"])
+    bdf = bdf.drop(columns=unique_columns + ["source.version", "source.id"])
 
     return bdf
