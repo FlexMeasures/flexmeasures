@@ -1104,7 +1104,7 @@ def add_holidays(
 )
 @click.option(
     "--max-training-period",
-    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). defaults to 1 year.",
+    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). Defaults to 1 year.",
 )
 @click.option(
     "--resolution",
