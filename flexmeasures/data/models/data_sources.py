@@ -512,7 +512,7 @@ def keep_latest_version(
             False,
             False,
         ]
-    bdf = bdf.sort_values(by=sort_by, ascending=ascending)
+    bdf_sorted = bdf.sort_values(by=sort_by, ascending=ascending)
 
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
     unique_columns = [
@@ -525,7 +525,7 @@ def keep_latest_version(
         unique_columns += ["_" + belief_column]
     # Keep probabilistic beliefs intact
     unique_keys = (
-        bdf[unique_columns].drop_duplicates().droplevel("cumulative_probability")
+        bdf_sorted[unique_columns].drop_duplicates().droplevel("cumulative_probability")
     )
     bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
 

@@ -202,9 +202,15 @@ def test_keep_last_version():
     np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s1, s3])
 
     # two sources with the same model but different types
-    # (highest ID first, not really intentional)
     bdf = create_dummy_frame([s3, s4])
-    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s4, s3])
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s3, s4])
+    # also check the reverse order
+    bdf = bdf.sort_index(level="source", ascending=False, sort_remaining=False)
+    np.testing.assert_array_equal(
+        keep_latest_version(bdf).sources,
+        [s4, s3],
+        "Expected the original order of the data sources to be respected.",
+    )
 
     # two sources with only different IDs (for instance, when they just differ by their data_generator_config)
     bdf = create_dummy_frame([s4, s5])
