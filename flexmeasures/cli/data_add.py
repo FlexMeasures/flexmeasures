@@ -1249,6 +1249,7 @@ def train_predict_pipeline(
 
     try:
         forecaster.compute(parameters=parameters)
+        click.secho("Successfully computed forecasts.", **MsgStyle.SUCCESS)
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
