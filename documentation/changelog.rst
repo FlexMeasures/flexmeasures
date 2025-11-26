@@ -16,13 +16,15 @@ v0.30.0 | November XX, 2025
 New features
 -------------
 * Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more) [see `PR #1546 <https://github.com/FlexMeasures/flexmeasures/pull/1546>`_ and `PR #1744 <https://github.com/FlexMeasures/flexmeasures/pull/1744>`_]
-* The new ``commitments`` field in the ``flex-context`` can be used to specify previous commitments (e.g. market positions) that the scheduler needs to take into account [see `PR #1754 <https://github.com/FlexMeasures/flexmeasures/pull/1754>`_]
+* The new ``commitments`` field in the ``flex-context`` can be used to specify previous commitments (e.g. market positions) that the scheduler needs to take into account [see `PR #1754 <https://github.com/FlexMeasures/flexmeasures/pull/1754>`_ and `PR #1793 <https://github.com/FlexMeasures/flexmeasures/pull/1793>`_]
 * Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
+* The ``flexmeasures delete beliefs``, ``flexmeasures delete nan-beliefs`` and ``flexmeasures delete unchanged-beliefs`` CLI commands now support limiting the action to a given set of data sources [see `PR #1770 <https://www.github.com/FlexMeasures/flexmeasures/pull/1770>`_]
 * Let consultants see client assets on dashboard and group by account [see `PR #1763 <https://github.com/FlexMeasures/flexmeasures/pull/1763>`_]
 * More explicitly represent the unit of sensors that record dimensionless data [see `PR #1802 <https://github.com/FlexMeasures/flexmeasures/pull/1802>`_]
 * Allow modifying asset trees with the CLI using ``flexmeasures edit transfer-parenthood`` [see `PR #1773 <https://github.com/FlexMeasures/flexmeasures/pull/1773>`_]
 * Expanded the sorting columns of "latest jobs" table [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
 * Let users specify the unit an uploaded data is based on [see `PR #1836 <https://github.com/FlexMeasures/flexmeasures/pull/1836>`_]
+* Allow to keep legend combined below graphs, even with many plots (useful on narrow screens) [see `PR #1816 <https://github.com/FlexMeasures/flexmeasures/pull/1816>`_]
 
 Infrastructure / Support
 ----------------------
@@ -42,6 +44,8 @@ Bugfixes
 * Let users search for flex context sensors on whole site tree again [see `PR #1826 <https://github.com/FlexMeasures/flexmeasures/pull/1826>`_]
 * Fix unintended date range hopping, a UI bug where date ranges set in URL parameters would be overridden by the user's previously selected date range (a session variable) [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
 * Resolved a crash in the "latest jobs" table when sorting was applied, and corrected a typo in the Jobs API Swagger UI documentation. [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
+* Enhance dates on UI(sensor page) to be human friendly when representing future dates [see `PR #1832 <https://github.com/FlexMeasures/flexmeasures/pull/1832>`_]
+* Fix spinner not disappearing on the asset graph page [see `PR #1831 <https://github.com/FlexMeasures/flexmeasures/pull/1831>`_]
 
 v0.29.1 | November 5, 2025
 ============================
