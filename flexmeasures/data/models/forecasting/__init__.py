@@ -124,6 +124,8 @@ class Forecaster(DataGenerator):
         """
         _parameters = deepcopy(parameters)
         fields_to_remove = [
+            "start_date",
+            "end_date",
             "max_forecast_horizon",
             "forecast_frequency",
             "probabilistic",
