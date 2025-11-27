@@ -1352,11 +1352,20 @@ def add_schedule(  # noqa C901
         raise click.Abort()
     if asset:
         asset_or_sensor = asset
-        assert isinstance(flex_model, list)
+        if not isinstance(flex_model, list):
+            click.secho(
+                "When scheduling an asset, the flex-model is expected to be passed as a list, so that it can describe multiple devices.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
     else:
         asset_or_sensor = power_sensor
-        assert isinstance(flex_model, dict)
-
+        if not isinstance(flex_model, dict):
+            click.secho(
+                "For scheduling one device (using the --sensor option), --flex-model should be a dict - the flex-model for the device.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
     scheduler_module = None
 
     if scheduler_class == "ProcessScheduler":

@@ -50,7 +50,7 @@ There is more information being used by the scheduler, such as the battery's cap
 
         .. code-block:: console
 
-            cat my-flex-model.json  
+            $ cat my-flex-model.json  # assuming you created this file 
             {
                 "roundtrip-efficiency": "80%",
                 "soc-min": "0 kWh",

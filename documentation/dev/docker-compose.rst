@@ -161,6 +161,8 @@ Like in the original toy tutorial, we can also check in the server container's `
         $ ./documentation/tut/scripts/run-tutorial-in-docker.sh
         $ ./documentation/tut/scripts/run-tutorial2-in-docker.sh
         $ ./documentation/tut/scripts/run-tutorial3-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial4-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial5-in-docker.sh
 
 
 Email Testing

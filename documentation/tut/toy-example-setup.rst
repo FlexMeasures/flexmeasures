@@ -206,11 +206,15 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
     Asset toy-building (ID: 2)
     =========================
 
-    Type      Location           Flex-Context                      Flex-Model    Sensors to show      Attributes
-    --------  -----------------  --------------------------------  ------------  -------------------  ------------
-    building  (52.374, 4.88969)  site-power-capacity: 500 kVA                    Prices: [1]
-                                 consumption-price: {'sensor': 1}                Power flows: [3, 2]
-
+    Type      Location           Sensors to show      Attributes
+    --------  -----------------  -------------------  ------------
+    building  (52.374, 4.88969)  Prices: [1]
+                                 Power flows: [3, 2]
+    
+    Flex-Context                      Flex-Model
+    --------------------------------  ------------
+    site-power-capacity: 500 kVA
+    consumption-price: {'sensor': 1}
 
     ====================================
     Child assets of toy-building (ID: 2)
@@ -240,12 +244,16 @@ Now let's look at the battery asset, as well:
     Child of asset toy-building (ID: 2)
     ===================================
 
-    Type     Location           Flex-Context    Flex-Model                 Sensors to show      Attributes
-    -------  -----------------  --------------  -------------------------  -------------------  ------------
-    battery  (52.374, 4.88969)                  power-capacity: 500 kVA    Prices: [1]
-                                                roundtrip-efficiency: 90%  Power flows: [3, 2]
-                                                soc-max: 450 kWh
-
+    Type     Location           Sensors to show      Attributes
+    -------  -----------------  -------------------  ------------
+    battery  (52.374, 4.88969)  Prices: [1]
+                                Power flows: [3, 2]
+    
+    Flex-Context    Flex-Model
+    --------------  -------------------------
+                    power-capacity: 500 kVA
+                    roundtrip-efficiency: 90%
+                    soc-max: 450 kWh
 
     ====================================
     Child assets of toy-battery (ID: 3)

@@ -2,8 +2,8 @@
 
 
 
-Toy example II: Adding solar production, a limited grid connection
-====================================================================
+Toy example II: Adding solar production, and a limit on the grid connection
+============================================================================
 
 
 So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kVA, both its own maximum charge/discharge rate, and the maximum grid capacity). 
@@ -89,7 +89,7 @@ This will have an effect on the available headroom for the battery, given the ``
     .. tab:: CLI
 
         .. code-block:: bash
-            :emphasize-lines: 3
+            :emphasize-lines: 6
 
             $ flexmeasures add schedule \
                 --sensor 2 \

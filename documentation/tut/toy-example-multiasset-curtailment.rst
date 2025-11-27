@@ -11,7 +11,7 @@ This is useful, but also an exciting next step for our modeling: Curtailing its 
 
 We are now moving to multi-asset scheduling. We'll officially be scheduling the building (asset 2).
 
-We will do this step by step. First, we demonstrate EV curtailment by itself.
+We will do this step by step. First, we demonstrate PV curtailment by itself.
 
 Then, we will combine it with the battery scheduling from before and run a multi-asset scheduling example.
 
