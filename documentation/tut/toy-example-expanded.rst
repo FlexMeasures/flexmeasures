@@ -15,7 +15,7 @@ When solar production is high, less battery output can be send to the grid, as t
 
 How does it work?
 
-- We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``).
+- We will tell FlexMeasures to take the solar production into account (using the ``inflexible-device-sensors`` flex-context field).
 - The battery's power capacity is not the limiting factor, but the `site-power-capacity` of the building (already a flex-context field, see :ref:`tut_toy_schedule`).
 - The flows of the building's child assets are summed up on building level, and that constraint now will play a role.
 
