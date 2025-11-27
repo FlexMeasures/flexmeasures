@@ -338,9 +338,6 @@ In the hours between noon and 2pm, the profiles match well.
 
 
 
-
-
-
 Now our tutorial example has grown quite a bit. This step included scheduling multiple assets (battery and PV inverter), as well as demonstrating a different kind of flexibility: PV curtailment.
 
 In :ref:`tut_v2g`, we will temporarily pause giving you tutorials you can follow step-by-step. We feel it is time to pay more attention to the power of the flex-model, and illustrate its effects.
