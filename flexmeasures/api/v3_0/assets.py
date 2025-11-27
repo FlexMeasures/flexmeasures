@@ -797,6 +797,9 @@ class AssetAPI(FlaskView):
             "event_ends_before": AwareDateTimeField(format="iso", required=False),
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
+            "use_latest_version_per_event": fields.Boolean(
+                required=False, load_default=False
+            ),
             "most_recent_beliefs_only": fields.Boolean(required=False),
             "compress_json": fields.Boolean(required=False),
         },
@@ -995,14 +998,14 @@ class AssetAPI(FlaskView):
                       summary: List of jobs
                       value:
                         jobs:
-                          -job_id: 1
-                          queue: scheduling
-                          asset_or_sensor_type: asset
-                          asset_id: 1
-                          status: finished
-                          err: null
-                          enqueued_at: "2023-10-01T00:00:00"
-                          metadata_hash: abc123
+                          - job_id: 1
+                            queue: scheduling
+                            asset_or_sensor_type: asset
+                            asset_id: 1
+                            status: finished
+                            err: null
+                            enqueued_at: "2023-10-01T00:00:00"
+                            metadata_hash: abc123
                         redis_connection_err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
@@ -1105,6 +1108,66 @@ class AssetAPI(FlaskView):
 
         return {
             "message": "Default asset view updated successfully.",
+        }, 200
+
+    @route("/keep_legends_below_graphs", methods=["POST"])
+    @as_json
+    @use_kwargs(
+        {"keep_legends_below_graphs": fields.Boolean(required=False)}, location="json"
+    )
+    def update_keep_legends_below_graphs(self, **kwargs):
+        """
+        .. :quickref: Assets; Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
+        ---
+        post:
+          summary: Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
+          description: |
+            This endpoint toggles whether the legend position for graphs is always at the bottom, even with many plots. The default is `False`, meaning that from 7 sensors or above, the legends will be shown to the right of graphs, for better readability. On narrow screens, users might want to turn this to `True`.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    keep_legends_below_graphs:
+                      type: boolean
+                  required:
+                    - keep_legends_below_graphs
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Legend position preference updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+          tags:
+            - Assets
+        """
+        # Update the request.values
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        keep_legends_below_graphs = kwargs.get("keep_legends_below_graphs", True)
+        if keep_legends_below_graphs:
+            # Set the default legend position for asset charts for the current user session
+            set_session_variables(
+                "keep_legends_below_graphs",
+            )
+        else:
+            # Remove the default legend position from the session
+            clear_session(keys_to_clear=["keep_legends_below_graphs"])
+
+        return {
+            "message": "Default legend position updated successfully.",
         }, 200
 
     @route("/<id>/schedules/trigger", methods=["POST"])

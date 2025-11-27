@@ -1105,7 +1105,7 @@ def add_holidays(
 )
 @click.option(
     "--max-training-period",
-    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). defaults to 1 year.",
+    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). Defaults to 1 year.",
 )
 @click.option(
     "--resolution",
@@ -1171,7 +1171,6 @@ def add_holidays(
 )
 @with_appcontext
 def train_predict_pipeline(
-    as_job,
     forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
@@ -1250,7 +1249,8 @@ def train_predict_pipeline(
     )
 
     try:
-        forecaster.compute(as_job=as_job, parameters=parameters)
+        forecaster.compute(parameters=parameters)
+        click.secho("Successfully computed forecasts.", **MsgStyle.SUCCESS)
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
