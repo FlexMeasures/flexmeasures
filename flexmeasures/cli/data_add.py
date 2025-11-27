@@ -1368,7 +1368,7 @@ def add_schedule(  # noqa C901
         ):
             # for asset scheduling, soc at start should be part of the flex model
             click.secho(
-                "For StorageScheduler, --soc-at-start is required.",
+                "For a storage device with SoC constraints, --soc-at-start is required.",
                 **MsgStyle.ERROR,
             )
             raise click.Abort()
