@@ -28,7 +28,7 @@ There is more information being used by the scheduler, such as the battery's cap
 .. note:: 
     You can see here that you have the choice to put such information in the flex model when asking for a schedule, or store it on the asset/sensor itself.
     *What should go into the flex model on the asset, and what do you want to send when asking for a schedule?*
-    It is your call! Things that do not change often could be stored on the asset. Here, `soc-min` could actually move there, if you believe this usually going to be your preferred lower limit...
+    It is your call! Things that do not change often could be stored on the asset. Here, ``soc-min`` could actually move there, if you believe this is usually going to be your preferred lower limit...
     
     Do note that what you send while asking for a schedule always takes precedence over what is stored on the asset. 
 
