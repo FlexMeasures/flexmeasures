@@ -1305,11 +1305,17 @@ class StorageScheduler(MetaStorageScheduler):
             for d, sensor in enumerate(sensors)
             if sensor is not None
         }
+        # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor
+        aggregate_power_sensor = self.flex_context.get("aggregate_power", None)
+        if isinstance(aggregate_power_sensor, Sensor):
+            storage_schedule[aggregate_power_sensor] = pd.concat(
+                ems_schedule, axis=1
+            ).sum(axis=1)
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
             sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
-            for sensor in sensors
+            for sensor in storage_schedule.keys()
             if sensor is not None
         }
 
@@ -1346,7 +1352,7 @@ class StorageScheduler(MetaStorageScheduler):
                 sensor: storage_schedule[sensor]
                 .resample(sensor.event_resolution)
                 .mean()
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             }
 
@@ -1354,7 +1360,7 @@ class StorageScheduler(MetaStorageScheduler):
         if self.round_to_decimals:
             storage_schedule = {
                 sensor: storage_schedule[sensor].round(self.round_to_decimals)
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             }
             soc_schedule = {
@@ -1370,7 +1376,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "data": storage_schedule[sensor],
                     "unit": sensor.unit,
                 }
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             ]
             commitment_costs = [
