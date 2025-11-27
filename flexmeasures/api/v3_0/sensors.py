@@ -408,7 +408,7 @@ class SensorAPI(FlaskView):
                           "1":
                             name: "toy-user"
                             model: ""
-                            type:unoitX@X@=di]9'=di]9'X@X@ "other"
+                            type: "other"
                             description: "toy-user"
             400:
               description: INVALID_REQUEST
