@@ -128,7 +128,7 @@ This will have an effect on the available headroom for the battery, given the ``
             pip install flexmeasures-client
 
         .. code-block:: python
-            :emphasize-lines: 22-24
+            :emphasize-lines: 19-21
 
             import asyncio
             from datetime import date, timedelta
