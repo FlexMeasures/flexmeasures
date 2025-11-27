@@ -307,35 +307,35 @@ It should probably absorb solar power as well in the moments where it isn't sell
 .. note:: In commercial settings, the price for production (feed-in) is often lower than the price for consumption. This reduces opportunities for cycling and increases the likelihood that an optimized battery would soak up solar power.
 
 For the schedule shown below, we did not use any flex-context with blocked price profiles, but we made the battery larger (``"soc-max": "900 kWh"``) to showcase the battery soaking up solar production.
-In the hours between noon and 2pm, the profiles match well.
+We see the battery cycling twice, as before, but now it also soaks up solar production between noon and 2pm.
 
 .. code-block:: bash
 
     Beliefs for Sensors production (ID 3) and discharging (ID 2).
     Data spans 12 hours and starts at 2025-11-19 07:00:00+00:00.
     The time resolution (x-axis) is 15 minutes.
+
     ┌────────────────────────────────────────────────────────────┐
-    │                                                       ▐▀▀▀▀│
-    │                                                       ▐    │ 0.4MW
-    │▖                                                      ▐    │
-    │▝▖                                                     ▞    │
-    │ ▐             ▄▄▄▄▖   ▄▖                              ▌    │
-    │ ▐             ▌   ▌  ▐ ▌                              ▌    │
-    │ ▐            ▗▌▄▄▄▐▀▀▐▀▚▚▄▄▄▄▖                        ▌    │ 0.2MW
-    │  ▌ ▗▄▄▄▄▛▀▀▀▀▐    ▐  ▞ ▐     ▝▀▀▀▀▚▄▄▄▄▖              ▌    │
-    │▀▀▌▀▘         ▐    ▝▖ ▌ ▐               ▝▀▀▀▀▖        ▐     │
-    │  ▚           ▐     ▌ ▌ ▐                    ▝▀▀▀▀▖   ▐     │
-    │  ▐           ▌     ▌▐  ▐                         ▝▀▀▀▐▄▄▄▄▄│
-    │▁▁▐▄▄▄▄▄▄▄▄▄▄▄▌▁▁▁▁▁▚▀▁▁▝▖▁▁▁▁▁▁▁▁▁▗▄▄▖▁▗▄▄▄▄▄▄▄▄▄▄▄▄▞▀▁▁▁▁▁│ -0.0MW
-    │                         ▌         ▞  ▐ ▌                   │
-    │                         ▌         ▌   ▛                    │
-    │                         ▌        ▐                         │
-    │                         ▌        ▐                         │
-    │                         ▐▄▄▄▄▀▀▀▀▘                         │ -0.2MW
+    │                                                  ▗▄▄▖ ▐▀▀▀▀│
+    │                                                  ▐  ▚ ▐    │
+    │▀▖                                                ▐  ▐ ▞    │
+    │ ▐             ▛▀▀▀▌                              ▌  ▐ ▌    │
+    │ ▐            ▗▌▄▄▄▚▄▄▄▄▄▄▄▄▄▄▖                   ▌  ▝▖▌    │
+    │▄▄▌▄▄▀▀▀▀▀▀▀▀▀▐    ▐          ▝▀▀▀▀▀▀▀▀▀▄▄▄▄▄     ▌   ▙▘    │
+    │  ▌           ▐     ▌                        ▚▄▄▄▐▖   █     │
+    │  ▐           ▌     ▌                            ▐▝▀▀▀▐▚▄▄▄▄│
+    │▔▔▝▀▀▀▀▀▀▌▔▔▔▔▌▔▔▔▔▔▝▀▀▀▀▀▀▀▀▌▔▔▔▔▔▔▔▔▔▔▞▀▀▀▀▀▀▀▀▀▔▔▔▔▔▔▔▔▔▔│ 0.0MW
+    │         ▌   ▐               ▐         ▞                    │
+    │         ▚   ▐               ▐         ▌                    │
+    │         ▐   ▌               ▐         ▌                    │
+    │         ▐   ▌               ▝▖       ▗▘                    │
+    │         ▐  ▐                 ▌       ▐                     │
+    │          ▌ ▞                 ▌       ▐                     │
+    │          ▌ ▌                 ▌       ▌                     │
+    │          ▙▟                  ▐▄▄▄▄▄▄▄▌                     │ -0.5MW
     └────────────────────────────────────────────────────────────┘
             09:00          12:00          15:00           18:00
     ██ production (toy-solar)   ██ discharging (toy-battery)
-
 
 
 Now our tutorial example has grown quite a bit. This step included scheduling multiple assets (battery and PV inverter), as well as demonstrating a different kind of flexibility: PV curtailment.
