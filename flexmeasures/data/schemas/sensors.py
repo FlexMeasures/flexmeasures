@@ -564,6 +564,20 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         if errors:
             raise ValidationError(errors)
 
+    @validates_schema
+    def validate_unit(self, data, **kwargs):
+        """Validate unit compatibility with the sensor's unit."""
+        unit = data.get("unit")
+        sensor: Sensor = data.get("sensor")
+
+        if unit is not None:
+            if not units_are_convertible(unit, sensor.unit):
+                raise ValidationError(
+                    {
+                        "unit": f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'."
+                    }
+                )
+
     @post_load
     def post_load(self, fields, **kwargs):
         """Process the deserialized and validated fields.
@@ -573,15 +587,6 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
-        unit = fields.get("unit")
-
-        if unit is not None:
-            if not units_are_convertible(unit, sensor.unit):
-                raise ValidationError(
-                    {
-                        "unit": f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'."
-                    }
-                )
 
         errors = {}
         for i, file in enumerate(files):
