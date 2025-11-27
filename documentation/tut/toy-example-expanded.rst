@@ -105,7 +105,7 @@ This will have an effect on the available headroom for the battery, given the ``
         Example call: `[POST] http://localhost:5000/api/v3_0/sensors/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
-            :emphasize-lines: 11-13
+            :emphasize-lines: 8-10
 
             {
                 "start": "2025-11-11T07:00+00:00",
