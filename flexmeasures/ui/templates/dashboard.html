@@ -242,7 +242,7 @@
     assetMap.fitBounds({{ bounding_box | tojson }});
     {% if prompt_user_for_location %}
         const flyToPosition = (position) => {
-            assetMap.flyTo([position.coords.latitude, position.coords.longitude], zoom=9);
+            assetMap.flyTo([position.coords.latitude, position.coords.longitude], 9);
         }
         navigator.geolocation.getCurrentPosition(flyToPosition);
     {% endif %}
