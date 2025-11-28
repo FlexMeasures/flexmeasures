@@ -348,7 +348,7 @@ Tip: For testing/development purposes, you can run a mock email server locally:
 
    $ docker run -d --rm -p 8025:8025 -p 1025:1025 --name fm-mailhog mailhog/mailhog
 
-In your `~/.flexmeasures.cfg`, all you need to set is ``MAIL_PORT=1025``. Then, all emails sent to this server can be viewed in your browser at `http://localhost:8025`_.
+In your `~/.flexmeasures.cfg`, all you need to set is ``MAIL_PORT=1025``. Then, all emails sent to this server can be viewed in your browser at http://localhost:8025.
 
 For a real email server, you want to set all the MAIL_* settings in your configuration, see :ref:`mail-config`.
 
