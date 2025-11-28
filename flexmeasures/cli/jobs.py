@@ -8,6 +8,7 @@ import os
 import random
 import string
 import sys
+from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Type
 
@@ -33,6 +34,7 @@ from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.utils.time_utils import server_now
 
 
 REGISTRY_MAP = dict(
@@ -48,6 +50,102 @@ REGISTRY_MAP = dict(
 @click.group("jobs")
 def fm_jobs():
     """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("queue-wait-times")
+@with_appcontext
+@click.option(
+    "--window",
+    default=600,
+    show_default=True,
+    help="Look-back window (seconds) to estimate per-queue arrival rates.",
+)
+def queue_wait_times(window: int):
+    """
+    Compute Little's-law average waiting time for each RQ queue:
+
+        W = L / λ
+
+    where:
+        L = current queue length
+        λ = arrival rate estimated from enqueue timestamps over the most recent window.
+    """
+    click.echo(f"Estimating arrival rates using a {window}-second window...")
+
+    now = server_now()
+    cutoff = now - timedelta(seconds=window)
+
+    # FlexMeasures makes all queues available under app.queues
+    for queue_name, rq_queue in app.queues.items():
+
+        # L = current length
+        L = rq_queue.count
+
+        # λ = jobs per second
+        lambda_rate = _estimate_arrival_rate_all_registries(rq_queue, cutoff, window)
+
+        if lambda_rate <= 0:
+            click.echo(
+                f"{queue_name}: no recent arrivals → waiting time cannot be estimated."
+            )
+            continue
+
+        W = L / lambda_rate
+
+        click.echo(f"{queue_name}: L={L}, λ={lambda_rate:.4f}/s → W≈{W:.2f} seconds")
+
+
+def _estimate_arrival_rate_all_registries(
+    queue: Queue, cutoff: datetime, window: int
+) -> float:
+    """
+    Estimate arrival rate λ (jobs/sec) by looking at all jobs belonging to the queue
+    across all registries (waiting/deferred/scheduled/started/finished/failed/canceled).
+
+    Only jobs with enqueued_at >= cutoff count toward recent arrivals.
+    """
+    registries = [
+        queue,
+        queue.deferred_job_registry,
+        queue.scheduled_job_registry,
+        queue.started_job_registry,
+        queue.finished_job_registry,
+        queue.failed_job_registry,
+        queue.canceled_job_registry,
+    ]
+
+    conn = queue.connection
+    recent = 0
+
+    for reg in registries:
+        try:
+            job_ids = reg.get_job_ids()
+        except Exception:
+            # some registries (rarely) may not implement get_job_ids cleanly
+            continue
+
+        # Scan newest → oldest
+        for job_id in reversed(job_ids):
+            raw = conn.hgetall(f"rq:job:{job_id}")
+            if not raw:
+                continue
+
+            enq = raw.get(b"enqueued_at")
+            if not enq:
+                continue
+
+            try:
+                ts = datetime.fromisoformat(enq.decode("utf-8"))
+            except Exception:
+                continue
+
+            if ts >= cutoff:
+                recent += 1
+            else:
+                # Jobs only get older; stop early for this registry
+                break
+
+    return recent / float(window)
 
 
 @fm_jobs.command("run-job")
