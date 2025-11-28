@@ -125,13 +125,13 @@
     });
 
     {% if asset_form.latitude.data %}
-    // create marker for parent asset's location
-    parentLocation = [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}]
-    var marker = L.marker(parentLocation, { icon: location_icon }).addTo(assetMap);
-    assetMap.flyTo(parentLocation, zoom=6);
+        // create marker for parent asset's location
+        parentLocation = [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}]
+        var marker = L.marker(parentLocation, { icon: location_icon }).addTo(assetMap);
+        assetMap.flyTo(parentLocation, zoom=6);
     {% else %}
-    // dummy location somewhere else (so only if there is no parent asset)
-    var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+        // dummy location somewhere else (so only if there is no parent asset)
+        var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
         {% if prompt_user_for_location %}
             const flyToPosition = (position) => {
                 assetMap.flyTo([position.coords.latitude, position.coords.longitude], zoom=9);
