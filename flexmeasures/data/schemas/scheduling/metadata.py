@@ -40,12 +40,12 @@ COMMITMENTS = MetaData(
     example=[],
 )
 CONSUMPTION_PRICE = MetaData(
-    description="The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_sensor_field]_",
+    description="The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
     example={"sensor": 5},
     # examples=[{"sensor": 5}, "0.29 EUR/kWh"],  # todo: waiting for https://github.com/marshmallow-code/apispec/pull/999
 )
 PRODUCTION_PRICE = MetaData(
-    description="The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_sensor_field]_",
+    description="The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
     example="0.12 EUR/kWh",
 )
 SITE_POWER_CAPACITY = MetaData(
@@ -56,17 +56,17 @@ Becomes a hard constraint in the optimization problem, which is especially suita
 )
 SITE_CONSUMPTION_CAPACITY = MetaData(
     description="""Maximum consumption power at the site's grid connection point.
-If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.
+If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
 If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
-Otherwise, it becomes a hard constraint. [#consumption]_ [#minimum_capacity_overlap]_
+Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
 """,
     example="45kW",
 )
 SITE_PRODUCTION_CAPACITY = MetaData(
     description="""Maximum production power at the site's grid connection point.
-If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.
+If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
 If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
-Otherwise, it becomes a hard constraint. [#production]_ [#minimum_capacity_overlap]_
+Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
 """,
     example="0kW",
 )
