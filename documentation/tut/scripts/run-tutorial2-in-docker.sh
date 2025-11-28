@@ -40,13 +40,13 @@ docker exec -it flexmeasures-server-1 flexmeasures add source --name "toy-foreca
 echo "[TUTORIAL-RUNNER] adding beliefs ..."
 docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 echo "[TUTORIAL-RUNNER] showing beliefs ..."
-docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H
+docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
 echo "[TUTORIAL-RUNNER] update schedule taking solar into account ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 2 \
-  --start ${TOMORROW}T07:00+00:00 --duration PT12H --soc-at-start 50% \
+  --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
   --flex-context '{"inflexible-device-sensors": [3]}' \
   --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] showing schedule ..."
-docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H
+docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H

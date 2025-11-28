@@ -359,10 +359,10 @@ Let's look at the price data we just loaded:
 
 .. code-block:: bash
 
-    $ flexmeasures show beliefs --sensor 1 --start ${TOMORROW}T00:00:00+00:00 --duration PT24H
+    $ flexmeasures show beliefs --sensor 1 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
     
     Beliefs for Sensor 'day-ahead prices' (ID 1).
-    Data spans a day and starts at 2025-11-11 00:00:00+00:00.
+    Data spans a day and starts at 2025-11-11 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
     │       ▗▀▚▖                                                 │

@@ -39,9 +39,9 @@ docker exec -it flexmeasures-server-1 flexmeasures add beliefs \
 echo "[TUTORIAL-RUNNER] creating schedule ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule \
   --sensor 2 \
-  --start ${TOMORROW}T07:00+00:00 --duration PT12H --soc-at-start 50% \
+  --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
   --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] displaying schedule..."
 docker exec -it flexmeasures-server-1 flexmeasures show beliefs \
-  --sensor 2 --start ${TOMORROW}T07:00:00+00:00 --duration PT12H
+  --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
