@@ -111,14 +111,14 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
      - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
        Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
    * - ``site-peak-consumption-price``
-     - ``"260 EUR/MWh"``
+     - ``"260 EUR/MW"``
      - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
    * - ``site-peak-production``
      - ``{"sensor": 8}``
      - Current peak production.
        Costs from peaks below it are considered sunk costs. Default to 0 kW.
    * - ``site-peak-production-price``
-     - ``"260 EUR/MWh"``
+     - ``"260 EUR/MW"``
      - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
    * - ``soc-minima-breach-price``
      - ``"120 EUR/kWh"``
@@ -167,8 +167,8 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 
 
 We describe the respective flex models below.
-At the moment, they have to be sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
-We will soon work on the possibility to store (a subset of) these fields on the data model and edit them in the UI.
+
+These fields can be configured in the UI editor on the asset properties page or sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
 
 
 Storage
@@ -208,25 +208,29 @@ For more details on the possible formats for field values, see :ref:`variable_qu
        Enumerated option only.
    * - ``soc-min``
      - ``"2.5 kWh"``
-     - A constant lower boundary for all values in the schedule (defaults to 0). [#quantity_field]_
+     - A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0).
+       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
    * - ``soc-max``
      - ``"7 kWh"``
-     - A constant upper boundary for all values in the schedule (defaults to max soc target, if provided). [#quantity_field]_
+     - A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided).
+       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
    * - ``soc-minima``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
-     - Set points that form lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
+     - Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
    * - ``soc-maxima``
      - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
-     - Set points that form upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
+     - Set points that form user-defined upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
    * - ``soc-targets``
      - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
-     - Exact set point(s) that the scheduler needs to realize (defaults to NaN values).
+     - Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values).
    * - ``soc-gain``
      - ``[".1kWh"]``
      - SoC gain per time step, e.g. from a secondary energy source (defaults to zero).
+       Useful if energy is inserted by an external process (in-flow).
    * - ``soc-usage``
      - ``[{"sensor": 23}]``
      - SoC reduction per time step, e.g. from a load or heat sink (defaults to zero).
+       Useful if energy is extracted by an external process or there are dissipating losses (out-flow).
    * - ``roundtrip-efficiency``
      - ``"90%"``
      - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%). [#quantity_field]_
@@ -268,7 +272,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 Usually, not the whole flexibility model is needed.
 FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
-You can add new storage schedules with the CLI command ``flexmeasures add schedule for-storage``.
+You can add new storage schedules with the CLI command ``flexmeasures add schedule``.
 
 If you model devices that *buffer* energy (e.g. thermal energy storage systems connected to heat pumps), we can use the same flexibility parameters described above for storage devices.
 However, here are some tips to model a buffer correctly:
@@ -328,7 +332,7 @@ Some examples from practice (usually industry) could be:
 
 You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
 
-You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule for-process``.
+You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule``. Make sure to use the ``--scheduler ProcessScheduler`` option to use the in-built process scheduler.
 
 .. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 

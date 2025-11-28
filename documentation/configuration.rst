@@ -109,6 +109,24 @@ Interesting for developers.
 Default: ``False``
 
 
+FLEXMEASURES_PROFILER_CONFIG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
+
+Interesting for developers.
+
+Default:
+
+.. code-block:: python
+
+   dict(
+       async_mode="disabled",
+       interval=0.01,  # 10 ms sampling interval, enables coarse timer
+       use_timing_thread=True,
+   )
+
+
 UI
 --
 
@@ -364,15 +382,15 @@ SQLALCHEMY_ENGINE_OPTIONS
 
 Configuration of the SQLAlchemy engine.
 
-Default: 
+Default:
 
 .. code-block:: python
 
-       {
-           "pool_recycle": 299,
-           "pool_pre_ping": True,
-           "connect_args": {"options": "-c timezone=utc"},
-       }
+   {
+       "pool_recycle": 299,
+       "pool_pre_ping": True,
+       "connect_args": {"options": "-c timezone=utc"},
+   }
 
 
 SQLALCHEMY_TEST_DATABASE_URI
@@ -682,3 +700,21 @@ FLEXMEASURES_API_SUNSET_LINK
 Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
+
+.. _reporters-config:
+
+Reporters
+---------
+
+FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Type: list of strings or comma-separated string
+
+Defines the set of transformation methods in Pandas Reporters that should **skip signature validation**. These are typically “pseudo-methods” that are not native methods of Pandas or BeliefsDataFrame, but are still allowed in reporter transformations. Arguments for these methods are validated with custom rules rather than against Python method signatures.
+
+Extend this list if you want to permit additional pseudo-methods in reporter pipelines.
+
+.. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
+
+Default: ``["get_attribute"]``

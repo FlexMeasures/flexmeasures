@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any, Callable, Dict
 
 from marshmallow import (
     Schema,
@@ -11,6 +12,7 @@ from marshmallow import (
 )
 
 from flexmeasures import Sensor
+
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
@@ -27,6 +29,104 @@ from flexmeasures.utils.unit_utils import (
     is_power_unit,
     is_energy_unit,
 )
+from flexmeasures.utils.validation_utils import validate_variable_quantity
+
+
+class NoTimeSeriesSpecs(Schema):
+
+    @validates_schema
+    def forbid_time_series_specs(self, data: dict, **kwargs):
+        """Do not allow time series specs for the flex-context fields saved in the db."""
+
+        # List of keys to check for time series specs
+        keys_to_check = []
+        # All the keys in this list are all fields of type VariableQuantity
+        for field_var, field in self.declared_fields.items():
+            if isinstance(field, VariableQuantityField):
+                keys_to_check.append((field_var, field))
+
+        # Check each key and raise a ValidationError if it's a list
+        for field_var, field in keys_to_check:
+            if field_var in data and isinstance(data[field_var], list):
+                raise ValidationError(
+                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
+                    field_name=field.data_key,
+                )
+
+
+class CommitmentSchema(Schema):
+    name = fields.Str(required=True, data_key="name")
+    baseline = VariableQuantityField("MW", required=False, data_key="baseline")
+    up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
+    down_price = VariableQuantityField(
+        "/MW",
+        required=False,
+        data_key="down-price",
+    )
+
+    @validates_schema
+    def check_units(self, commitment, **kwargs):
+        baseline_field = self.declared_fields["baseline"]
+        if "baseline" in commitment:
+            baseline_unit = baseline_field._get_unit(commitment["baseline"])
+        else:
+            baseline_unit = "MW"
+        if is_power_unit(baseline_unit):
+            price_validators = [
+                is_capacity_price_unit,
+                is_energy_price_unit,
+            ]  # one of these must pass
+            allowed_price_units = ["power", "energy"]
+        # todo: consider supporting more types of baselines here later
+        # elif is_energy_unit(baseline_unit):
+        #     baseline_validator = is_energy_unit
+        #     price_validators = [is_energy_price_unit]
+        #     unit_type = "energy"
+        else:
+            raise ValidationError(
+                "Commitment baseline must have a power unit.",
+                field_name="baseline",
+            )
+
+        def _ensure_variable_quantity_passes_one_validator(
+            variable_quantity: ur.Quantity | Sensor | dict,
+            validators: list[Callable],
+            field_name: str,
+            error_message: str,
+        ):
+            if not any(
+                [
+                    validate_variable_quantity(
+                        variable_quantity=variable_quantity,
+                        unit_validator=validator,
+                        data_key=field_name,
+                    )
+                    for validator in validators
+                ]
+            ):
+                raise ValidationError(
+                    message=error_message,
+                    field_name=field_name,
+                )
+
+        if "up_price" in commitment:
+            _ensure_variable_quantity_passes_one_validator(
+                variable_quantity=commitment["up_price"],
+                validators=price_validators,
+                field_name="up-price",
+                error_message=f"Commitment up-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+            )
+        if "down_price" in commitment:
+            _ensure_variable_quantity_passes_one_validator(
+                variable_quantity=commitment["down_price"],
+                validators=price_validators,
+                field_name="down-price",
+                error_message=f"Commitment down-price must have a {' or '.join(allowed_price_units)} unit in its denominator.",
+            )
+
+
+class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
+    pass
 
 
 class FlexContextSchema(Schema):
@@ -149,6 +249,10 @@ class FlexContextSchema(Schema):
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
 
+    commitments = fields.Nested(
+        CommitmentSchema, data_key="commitments", required=False, many=True
+    )
+
     inflexible_device_sensors = fields.List(
         SensorIdField(), data_key="inflexible-device-sensors"
     )
@@ -169,8 +273,8 @@ class FlexContextSchema(Schema):
             )
         return data
 
-    @validates_schema
-    def check_prices(self, data: dict, **kwargs):
+    @validates_schema(pass_original=True)
+    def check_prices(self, data: dict, original_data: dict, **kwargs):
         """Check assumptions about prices.
 
         1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
@@ -221,7 +325,7 @@ class FlexContextSchema(Schema):
         # make sure that the prices fields are valid price units
 
         # All prices must share the same unit
-        data = self._try_to_convert_price_units(data)
+        data = self._try_to_convert_price_units(data, original_data)
         shared_currency = ur.Quantity(data["shared_currency_unit"])
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
@@ -265,7 +369,7 @@ class FlexContextSchema(Schema):
 
         return data
 
-    def _try_to_convert_price_units(self, data):
+    def _try_to_convert_price_units(self, data: dict, original_data: dict):
         """Convert price units to the same unit and scale if they can (incl. same currency)."""
 
         shared_currency_unit = None
@@ -287,10 +391,13 @@ class FlexContextSchema(Schema):
                     previous_field_name = price_field.data_key
                 if not units_are_convertible(currency_unit, shared_currency_unit):
                     field_name = price_field.data_key
-                    raise ValidationError(
-                        f"Prices must share the same monetary unit. '{field_name}' uses '{currency_unit}', but '{previous_field_name}' used '{shared_currency_unit}'.",
-                        field_name=field_name,
+                    original_price_unit = price_field._get_original_unit(
+                        original_data[field_name], data[field]
                     )
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{original_price_unit}') for the '{field_name}' field."
+                    if shared_currency_unit not in price_unit:
+                        error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name=field_name)
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
         elif sensor := data.get("consumption_price_sensor"):
@@ -314,30 +421,110 @@ class FlexContextSchema(Schema):
         return currency
 
 
-class DBFlexContextSchema(FlexContextSchema):
+EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
+    "energy-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
+    "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
+    "power": ["kW"],
+}
+
+UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "consumption-price": {
+        "default": None,  # Refers to default value of the field
+        "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
+    "production-price": {
+        "default": None,
+        "description": "Set the sensor that represents the production price of the site. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
+    "site-power-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"] + ["kVA", "MVA"],
+    },
+    "site-production-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can produce. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "site-consumption-capacity": {
+        "default": None,
+        "description": "This value represents the maximum power that the site can consume. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "soc-minima-breach-price": {
+        "default": None,
+        "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge minima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site. If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. Without this value, any infeasible state-of-charge minima would prevent a complete schedule from being computed.",
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
+    "soc-maxima-breach-price": {
+        "default": None,
+        "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge maxima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an <b>internal nudge</b> to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.",
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
+    "consumption-breach-price": {
+        "default": None,
+        "description": "This <b>penalty value</b> is used to discourage the violation of the <b>consumption-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "production-breach-price": {
+        "default": None,
+        "description": "This <b>penalty value</b> is used to discourage the violation of the <b>production-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "site-consumption-breach-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "site-production-breach-price": {
+        "default": None,
+        "description": "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "site-peak-consumption": {
+        "default": None,
+        "description": "This value represents the peak consumption of the site. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "site-peak-production": {
+        "default": None,
+        "description": "This value represents the peak production of the site. This value will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "site-peak-consumption-price": {
+        "default": None,
+        "description": "This value represents the price paid for increasing the site peak consumption any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "site-peak-production-price": {
+        "default": None,
+        "description": "This value represents the price paid for increasing the site peak production any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "example-units": EXAMPLE_UNIT_TYPES["power-price"],
+    },
+    "inflexible-device-sensors": {
+        "default": [],
+        "description": "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization.",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "commitments": {
+        "default": None,
+        "description": "Work in progress",
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+}
+
+
+class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
+
+    commitments = fields.Nested(
+        DBCommitmentSchema, data_key="commitments", required=False, many=True
+    )
     mapped_schema_keys = {
         field: FlexContextSchema().declared_fields[field].data_key
         for field in FlexContextSchema().declared_fields
     }
-
-    @validates_schema
-    def forbid_time_series_specs(self, data: dict, **kwargs):
-        """Do not allow time series specs for the flex-context fields saved in the db."""
-
-        # List of keys to check for time series specs
-        keys_to_check = []
-        # All the keys in this list are all fields of type VariableQuantity
-        for field_var, field in self.declared_fields.items():
-            if isinstance(field, VariableQuantityField):
-                keys_to_check.append((field_var, field))
-
-        # Check each key and raise a ValidationError if it's a list
-        for field_var, field in keys_to_check:
-            if field_var in data and isinstance(data[field_var], list):
-                raise ValidationError(
-                    "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead.",
-                    field_name=field.data_key,
-                )
 
     @validates_schema
     def validate_fields_unit(self, data: dict, **kwargs):
@@ -352,8 +539,12 @@ class DBFlexContextSchema(FlexContextSchema):
         energy_price_fields = [
             "consumption_price",
             "production_price",
+            "soc_minima_breach_price",
+            "soc_maxima_breach_price",
         ]
         capacity_price_fields = [
+            "consumption_breach_price",
+            "production_breach_price",
             "ems_consumption_breach_price",
             "ems_production_breach_price",
             "ems_peak_consumption_price",
@@ -457,13 +648,25 @@ class MultiSensorFlexModelSchema(Schema):
         }
     """
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(required=False)
+    asset = GenericAssetIdField(required=False)
     # it's up to the Scheduler to deserialize the underlying flex-model
     sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
 
+    @validates_schema
+    def ensure_sensor_or_asset(self, data, **kwargs):
+        if (
+            "sensor" in data
+            and "asset" in data
+            and data["sensor"].asset != data["asset"]
+        ):
+            raise ValidationError("Sensor does not belong to asset.")
+        if "sensor" not in data and "asset" not in data:
+            raise ValidationError("Specify either a sensor or an asset.")
+
     @pre_load
     def unwrap_envelope(self, data, **kwargs):
-        """Any field other than 'sensor' becomes part of the sensor's flex-model."""
+        """Any field other than 'sensor' and 'asset' becomes part of the sensor's flex-model."""
         extra = {}
         rest = {}
         for k, v in data.items():
@@ -515,7 +718,7 @@ class AssetTriggerSchema(Schema):
         """Verify that the flex-model's sensors live under the asset for which a schedule is triggered."""
         asset = data["asset"]
         sensors = []
-        for sensor_flex_model in data["flex_model"]:
+        for sensor_flex_model in data.get("flex_model", []):
             sensor = sensor_flex_model["sensor"]
             if sensor in sensors:
                 raise FMValidationError(

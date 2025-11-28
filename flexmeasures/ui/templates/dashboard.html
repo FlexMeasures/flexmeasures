@@ -18,12 +18,17 @@
         <div class="col-sm-12">
 
             <div id="mapid"></div>
+            {% if num_assets_without_location > 0 %}
+            <div>
+                Assets with no location: {{ num_assets_without_location }}
+            </div>
+            {% endif %}
 
             <table class="table" style="font-size: 100%;">
                 <thead>
                     <tr>
                         <th></th>
-                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        {% for asset_group_name in asset_groups if (asset_groups[asset_group_name].count > 0 or group_by_accounts) %}
                         {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
                         <th {% if asset_groups[asset_group_name].hover_label %}
                             title="{{ asset_groups[asset_group_name].hover_label | capitalize }}" {% endif %}
@@ -52,18 +57,18 @@
                             {% if user_has_admin_reader_rights %}
                                 {{ FLEXMEASURES_PLATFORM_NAME }} total:
                             {% else %}
-                                My assets:
+                                My accessible assets:
                             {% endif %}
                         </td>
 
-                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 or group_by_accounts %}
                         <td class="text-center{% if asset_group_name in aggregate_type_groups %} agg-group{% endif %}">
                             {{ asset_groups[asset_group_name].count }}</td>
                         {% endfor %}
                     </tr>
                 </tbody>
             </table>
-            {% if user_has_admin_reader_rights %}
+            {% if user_has_admin_reader_rights or user_is_consultant %}
             <div class="row">
                 <form class="col-sm-12 text-right form-inline" role="form" target="" method="get" id="dashboard-grouping-options">
                     Group by account:

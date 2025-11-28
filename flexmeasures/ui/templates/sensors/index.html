@@ -138,7 +138,7 @@ The event_value should be a numeric value."
                               </tr>
                               <tr>
                                   <th>Unit</th>
-                                  <td>{{ sensor.unit }}</td>
+                                  <td>{{ sensor._ui_unit | safe }}</td>
                               </tr>
                               <tr>
                                   <th>Event resolution</th>
@@ -188,7 +188,7 @@ The event_value should be a numeric value."
                       </div>
                   </div>
               </div>
-              <div class="col-sm-2">
+              <div class="col-sm-2 replay-column">
                   <div class="replay-container">
                     <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
                     <div id="replay-time"></div>
@@ -215,19 +215,6 @@ The event_value should be a numeric value."
                                 dif + pad(Math.floor(Math.abs(tzo) / 60)) +
                                 ':' + pad(Math.abs(tzo) % 60);
                         }
-
-                        $(window).ready(() => {
-                            picker.on('selected', (startDate, endDate) => {
-                                startDate = encodeURIComponent(toIsoString(startDate.toJSDate()));
-                                endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
-                                var base_url = window.location.href.split("?")[0];
-                                var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
-
-                                // change current url without reloading the page
-                                window.history.pushState({}, null, new_url);
-                            });
-
-                        });
 
                         function copyUrl(event) {
                             event.preventDefault();

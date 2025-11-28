@@ -39,13 +39,13 @@ def add_default_data_sources(db: SQLAlchemy):
         ("Seita", "forecaster"),
         ("Seita", "scheduler"),
     ):
-        source = db.session.execute(
+        sources = db.session.execute(
             select(DataSource).filter(
                 and_(DataSource.name == source_name, DataSource.type == source_type)
             )
-        ).scalar_one_or_none()
-        if source:
-            click.echo(f"Source {source_name} ({source_type}) already exists.")
+        ).scalar()
+        if sources:
+            click.echo(f"A source {source_name} ({source_type}) already exists.")
         else:
             db.session.add(DataSource(name=source_name, type=source_type))
 
@@ -101,7 +101,7 @@ def add_default_user_roles(db: SQLAlchemy):
             select(Role).filter_by(name=role_name)
         ).scalar_one_or_none()
         if role:
-            click.echo(f"Role {role_name} already exists.")
+            click.echo(f"User role {role_name} already exists.")
         else:
             db.session.add(Role(name=role_name, description=role_description))
 
@@ -308,13 +308,13 @@ def depopulate_structure(db: SQLAlchemy):
 @as_transaction
 def depopulate_measurements(
     db: SQLAlchemy,
-    sensor_id: id | None = None,
+    sensor: Sensor | None = None,
 ):
     click.echo("Deleting (time series) data from the database %s ..." % db.engine)
 
     query = delete(TimedBelief).filter(TimedBelief.belief_horizon <= timedelta(hours=0))
-    if sensor_id is not None:
-        query = query.filter(TimedBelief.sensor_id == sensor_id)
+    if sensor is not None:
+        query = query.filter(TimedBelief.sensor_id == sensor.id)
     deletion_result = db.session.execute(query)
     num_measurements_deleted = deletion_result.rowcount
 
@@ -324,13 +324,13 @@ def depopulate_measurements(
 @as_transaction
 def depopulate_prognoses(
     db: SQLAlchemy,
-    sensor_id: id | None = None,
+    sensor: Sensor | None = None,
 ):
     """
-    Delete all prognosis data (with an horizon > 0).
+    Delete all prognosis data (with a horizon > 0).
     This affects forecasts as well as schedules.
 
-    Pass a sensor ID to restrict to data on one sensor only.
+    Pass a sensor to restrict to data on one sensor only.
 
     If no sensor is specified, this function also deletes forecasting and scheduling jobs.
     (Doing this only for jobs which forecast/schedule one sensor is not implemented and also tricky.)
@@ -340,19 +340,19 @@ def depopulate_prognoses(
         % db.engine
     )
 
-    if not sensor_id:
+    if not sensor:
         num_forecasting_jobs_deleted = app.queues["forecasting"].empty()
         num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
     query = delete(TimedBelief).filter(TimedBelief.belief_horizon > timedelta(hours=0))
 
-    if sensor_id is not None:
-        query = query.filter(TimedBelief.sensor_id == sensor_id)
+    if sensor is not None:
+        query = query.filter(TimedBelief.sensor_id == sensor.id)
     deletion_result = db.session.execute(query)
     num_forecasts_deleted = deletion_result.rowcount
 
-    if not sensor_id:
+    if not sensor:
         click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
         click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
     click.echo("Deleted %d forecasts (ex-ante beliefs)" % num_forecasts_deleted)

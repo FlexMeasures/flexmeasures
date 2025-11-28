@@ -11,6 +11,6 @@ fakeredis
 # required with fakeredis, maybe because we use rq
 lupa
 # LP solver required to test the function device_scheduler which is used by the StorageScheduler
-highspy
+highspy>=1.12
 pytest-mock
 openpyxl

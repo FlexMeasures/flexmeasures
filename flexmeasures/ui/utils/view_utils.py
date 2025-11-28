@@ -49,19 +49,17 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
         "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
     )
-    variables["documentation_exists"] = False
-    if os.path.exists(
-        "%s/static/documentation/html/index.html" % flexmeasures_ui.root_path
-    ):
-        variables["documentation_exists"] = True
+    variables["openapi_docs_exist"] = False
+    if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path):
+        variables["openapi_docs_exist"] = True
 
-    # use event_starts_after and event_ends_before from session if not given
-    variables["event_starts_after"] = variables.get(
-        "event_starts_after"
-    ) or session.get("event_starts_after")
-    variables["event_ends_before"] = variables.get("event_ends_before") or session.get(
-        "event_ends_before"
-    )
+    # Use event_starts_after and event_ends_before from session if not given
+    # and resolve url encoding issue for timezone offsets with plus sign
+    for key in ["event_starts_after", "event_ends_before"]:
+        value = variables.get(key) or session.get(key)
+        if isinstance(value, str):
+            value = value.replace(" ", "+")
+        variables[key] = value
 
     variables["chart_type"] = session.get("chart_type", "bar_chart")
 
@@ -88,6 +86,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_has_admin_reader_rights"] = user_has_admin_access(
         current_user, "read"
     )
+    variables["user_is_consultant"] = current_user.has_role("consultant")
     variables["user_is_anonymous"] = (
         current_user.is_authenticated and current_user.has_role("anonymous")
     )

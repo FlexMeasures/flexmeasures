@@ -79,20 +79,15 @@ Configuration
 
 Most configuration happens in a config file, see :ref:`configuration` on where it can live and all supported settings.
 
-For now, we let it live in your home directory and we add the first two required settings: a secret key and a totp secrets:
+For now, we let it live in your home directory and we add the first settings ― two are required security settings 
+(a secret key and a totp secrets), two others are very useful to get the hosting right (the server environment and the logging level):
 
 .. code-block:: bash
 
    echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
    echo "SECURITY_TOTP_SECRETS={\"1\":\"$(python3 -c 'import secrets; print(secrets.token_hex(24))')\"}" >> ~/.flexmeasures.cfg
-
-   
-Also, we add some env settings in an `.env` file. Create that file in the `flexmeasures` directory (from where you'll run flexmeasures) and enter:
-
-.. code-block:: bash
-
-    FLEXMEASURES_ENV="development"
-    LOGGING_LEVEL="INFO"
+   echo "FLEXMEASURES_ENV=\"development\"" >> ~/.flexmeasures.cfg
+   echo "LOGGING_LEVEL=\"INFO\"" >> ~/.flexmeasures.cfg
 
 The development mode makes sure we don't need SSL to connect, among other things. 
 
@@ -149,6 +144,21 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 
     If you are on Windows, then running & developing FlexMeasures will not work 100%. For instance, the queueing only works if you install rq-win (https://github.com/michaelbrooks/rq-win) manually and the make tooling is difficult to get to work as well.
     We recommend to use the Windows Sub-system for Linux (https://learn.microsoft.com/en-us/windows/wsl/install) or work via Docker-compose (https://flexmeasures.readthedocs.io/en/latest/dev/docker-compose.html).
+
+
+We recommend you populate the database with some standard asset types, user roles, data sources etc.: 
+
+.. code-block:: bash
+
+   $ flexmeasures add initial-structure
+
+For instance, without an asset type, you cannot add an asset.
+
+Actually, you can add many things from the terminal. Check what data you can add yourself:
+
+.. code-block:: bash
+
+   $ flexmeasures add --help
 
 
 

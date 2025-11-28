@@ -55,6 +55,33 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
             "site-peak-consumption": "20 kW",
             "site-peak-production": "20 kW",
             "site-peak-consumption-price": "260 EUR/MW",
+            # Cheap commitments that are not expected to affect the resulting schedule
+            "commitments": [
+                {
+                    "name": "a sample commitment penalizing peaks",
+                    "baseline": [
+                        {
+                            "value": "0 kW",
+                            "start": start.isoformat(),
+                            "end": end.isoformat(),
+                        }
+                    ],
+                    "up-price": "1 EUR/MW",
+                    "down-price": [
+                        {
+                            "value": "-1 EUR/MW",
+                            "start": start.isoformat(),
+                            "end": end.isoformat(),
+                        }
+                    ],
+                },
+                {
+                    "name": "a sample commitment penalizing demand/supply",
+                    # "baseline": "0 kW",  # commented out to check defaulting to 0 also works
+                    "up-price": "1 EUR/MWh",
+                    "down-price": "-1 EUR/MWh",
+                },
+            ],
             # The following is a constant price, but this checks currency conversion in case a later price field is
             # set to a time series specs (i.e. a list of dicts, where each dict represents a time slot)
             "site-peak-production-price": series_to_ts_specs(
@@ -93,6 +120,14 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     np.testing.assert_almost_equal(costs["consumption peak"], 260 / 1000 * (25 - 20))
     # No production peak
     np.testing.assert_almost_equal(costs["production peak"], 0)
+
+    # Sample commitments
+    np.testing.assert_almost_equal(
+        costs["a sample commitment penalizing peaks"], 4 * (1 - 0.4)
+    )
+    np.testing.assert_almost_equal(
+        costs["a sample commitment penalizing demand/supply"], 1 * (1 - 0.4)
+    )
 
 
 def test_battery_relaxation(add_battery_assets, db):

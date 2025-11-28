@@ -12,7 +12,10 @@ import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.api.common.schemas.sensors import SensorField
+from flexmeasures.api.common.schemas.sensors import (
+    SensorEntityAddressField,
+    SensorIdField,
+)
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
@@ -68,17 +71,25 @@ def select_schema_to_ensure_list_of_floats(
         return SingleValueField()
 
 
-class SensorDataDescriptionSchema(ma.Schema):
+class SensorDataTimingDescriptionSchema(ma.Schema):
     """
-    Schema describing sensor data (specifically, the sensor and the timing of the data).
+    Schema describing sensor data (specifically, the timing of the data).
     """
 
-    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
     horizon = DurationField(required=False)
     prior = AwareDateTimeField(required=False, format="iso")
     unit = fields.Str(required=True)
+
+
+class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
+    """
+    Schema describing sensor data (specifically, adding the sensor to timing of the data
+    and adding validation).
+    """
+
+    sensor = SensorIdField(required=True)
 
     @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
@@ -217,12 +228,14 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
-    This schema includes data, so it can be used for POST requests
-    or GET responses.
-
-    TODO: For the GET use case, look at api/common/validators.py::get_data_downsampling_allowed
-          (sets a resolution parameter which we can pass to the data collection function).
+    This schema includes data (values) and still describes it.
     """
+
+    values = PolyField(
+        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        many=False,
+    )
 
     # Optional field that can be used for extra validation
     type = fields.Str(
@@ -236,11 +249,6 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 "PostWeatherDataRequest",
             ]
         ),
-    )
-    values = PolyField(
-        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        many=False,
     )
 
     @validates_schema
@@ -296,7 +304,10 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
 
     @post_load()
     def post_load_sequence(self, data: dict, **kwargs) -> BeliefsDataFrame:
-        """If needed, upsample and convert units, then deserialize to a BeliefsDataFrame."""
+        """
+        If needed, upsample and convert units, then deserialize to a BeliefsDataFrame.
+        Returns a dict with the BDF in it, as that is expected by webargs when used with as_kwargs=True.
+        """
         data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
         bdf = self.load_bdf(data)
@@ -310,7 +321,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             if any(h < timedelta(0) for h in bdf.belief_horizons):
                 raise ValidationError("Prognoses must lie in the future.")
 
-        return bdf
+        return dict(bdf=bdf)
 
     @staticmethod
     def possibly_convert_units(data):
@@ -391,3 +402,19 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             sensor=sensor_data["sensor"],
             **belief_timing,
         )
+
+
+class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorEntityAddressField(
+        required=True, entity_type="sensor", fm_scheme="fm1"
+    )
+
+
+class PostSensorDataSchemaEntityAddress(PostSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorEntityAddressField(
+        required=True, entity_type="sensor", fm_scheme="fm1"
+    )

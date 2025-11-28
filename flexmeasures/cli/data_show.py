@@ -15,7 +15,6 @@ import pandas as pd
 import uniplot
 import vl_convert as vlc
 from string import Template
-import pytz
 import json
 from sqlalchemy import select, func
 
@@ -33,7 +32,10 @@ from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
-from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    server_now,
+)
 from flexmeasures.cli.utils import (
     MsgStyle,
     validate_unique,
@@ -438,9 +440,10 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     required=False,
     type=str,
     default="chart-$now.png",
-    help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
-    " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
-    " Example: 'result_file_$entity_type_$id_$now.csv' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
+    help="Output filename template. You can use the following placeholders with a dollar sign ($): "
+    "$now (current timestamp), $id (sensor or asset ID), and $entity_type ('asset' or 'sensor'). "
+    "Example: 'chart_$entity_type_$id_$now.png' → 'chart_asset_1_2023-08-24T14:47:08.png'. "
+    "Note: you may need to escape the dollar sign (\\$) in your terminal.",
 )
 @click.option(
     "--resolution",
@@ -448,6 +451,15 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     type=DurationField(),
     required=False,
     help="Resolution of the data in ISO 8601 format. If not set, defaults to the minimum resolution of the sensor data. Note: Nominal durations like 'P1D' are converted to absolute timedeltas.",
+)
+@click.option(
+    "--combine-legend",
+    "combine_legend",
+    type=bool,
+    default=False,
+    required=False,
+    is_flag=True,
+    help="If True, then legend will be combined and put in the bottom of all charts, otherwise each chart for an asset can have a separate legend. Default value is False.",
 )
 def chart(
     sensors: list[Sensor] | None = None,
@@ -459,6 +471,7 @@ def chart(
     width: int | None = None,
     filename_template: str | None = None,
     resolution: timedelta | None = None,
+    combine_legend: bool = False,
 ):
     """
     Export sensor or asset charts in PNG or SVG formats. For example:
@@ -486,9 +499,6 @@ def chart(
         if isinstance(entity, GenericAsset):
             entity_type = "asset"
 
-        timezone = app.config["FLEXMEASURES_TIMEZONE"]
-        now = pytz.timezone(zone=timezone).localize(datetime.now())
-
         belief_time_str = ""
 
         if belief_time is not None:
@@ -498,7 +508,7 @@ def chart(
         filename = template.safe_substitute(
             id=entity.id,
             entity_type=entity_type,
-            now=now.strftime(datetime_format),
+            now=server_now().strftime(datetime_format),
             start=start.strftime(datetime_format),
             end=end.strftime(datetime_format),
             belief_time=belief_time_str,
@@ -518,6 +528,7 @@ def chart(
             beliefs_before=belief_time,
             include_data=True,
             resolution=resolution,
+            combine_legend=combine_legend,
         )
 
         # remove formatType as it relies on a custom JavaScript function
@@ -756,12 +767,12 @@ def find_duplicates(_list: list, attr: str | None = None) -> list:
     return [item for item in set(_list) if _list.count(item) > 1]
 
 
-def list_items(item_type):
+def list_data_generators(generator_type: str):
     """
-    Show available items of a specific type.
+    Show available data generators of a specific type.
     """
 
-    click.echo(f"{item_type.capitalize()}:\n")
+    click.echo(f"{generator_type.capitalize()}:\n")
     click.echo(
         tabulate(
             [
@@ -771,11 +782,22 @@ def list_items(item_type):
                     item_class.__author__,
                     item_class.__module__,
                 )
-                for item_name, item_class in getattr(app, item_type).items()
+                for item_name, item_class in app.data_generators[generator_type].items()
             ],
             headers=["name", "version", "author", "module"],
         )
     )
+
+
+@fm_show_data.command("forecasters")
+@with_appcontext
+def list_forecasters():
+    """
+    Show available forecasters.
+    """
+
+    with app.app_context():
+        list_data_generators("forecaster")
 
 
 @fm_show_data.command("reporters")
@@ -786,7 +808,7 @@ def list_reporters():
     """
 
     with app.app_context():
-        list_items("reporters")
+        list_data_generators("reporter")
 
 
 @fm_show_data.command("schedulers")
@@ -797,7 +819,7 @@ def list_schedulers():
     """
 
     with app.app_context():
-        list_items("schedulers")
+        list_data_generators("scheduler")
 
 
 app.cli.add_command(fm_show_data)

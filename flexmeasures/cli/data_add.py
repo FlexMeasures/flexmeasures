@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Type, Dict, Any
+from typing import Dict, Any
 import isodate
 import json
 import yaml
@@ -24,11 +24,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
-import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
+from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
-    DeprecatedDefaultGroup,
+    get_data_generator,
+    JSONOrFile,
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
@@ -40,7 +41,6 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
-from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
@@ -49,10 +49,6 @@ from flexmeasures.data.models.time_series import (
     TimedBelief,
 )
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.validation_utils import (
-    check_required_attributes,
-    MissingAttributeException,
-)
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -61,12 +57,8 @@ from flexmeasures.data.schemas import (
     LatitudeField,
     LongitudeField,
     SensorIdField,
-    TimeIntervalField,
-    VariableQuantityField,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
-from flexmeasures.data.schemas.times import TimeIntervalSchema
-from flexmeasures.data.schemas.scheduling.storage import EfficiencyField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.io import Output
 from flexmeasures.data.schemas.units import QuantityField
@@ -74,7 +66,9 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.models.user import User
 from flexmeasures.data.services.data_sources import (
     get_source_or_none,
@@ -83,12 +77,10 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.cli.utils import validate_color_cli, validate_url_cli
+from flexmeasures.cli.utils import validate_color_cli, validate_url_cli, split_commas
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
-from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
-from timely_beliefs import BeliefsDataFrame
 
 
 @click.group("add")
@@ -233,6 +225,7 @@ def new_account(
         logo_url=logo_url,
     )
     db.session.add(account)
+    db.session.flush()
     if roles:
         for role_name in roles.split(","):
             role = db.session.execute(
@@ -242,8 +235,13 @@ def new_account(
                 click.secho(f"Adding account role {role_name} ...", **MsgStyle.ERROR)
                 role = AccountRole(name=role_name)
                 db.session.add(role)
-            db.session.flush()
             db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
+    account_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"Created account '{name}' ({account.id}) via CLI",
+        affected_account_id=account.id,
+    )
+    db.session.add(account_audit_log)
     db.session.commit()
     click.secho(
         f"Account '{name}' (ID: {account.id}) successfully created.",
@@ -320,7 +318,7 @@ def new_user(
     click.secho(f"Successfully created user {created_user}", **MsgStyle.SUCCESS)
 
 
-@fm_add_data.command("sensor", cls=DeprecatedOptionsCommand)
+@fm_add_data.command("sensor")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
@@ -337,14 +335,10 @@ def new_user(
 )
 @click.option(
     "--asset",
-    "--asset-id",
-    "generic_asset_id",
+    "asset",
+    type=GenericAssetIdField(),
     required=True,
-    type=int,
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
-    help="Generic asset to assign this sensor to",
+    help="ID of the asset to assign this sensor to",
 )
 @click.option(
     "--attributes",
@@ -353,7 +347,7 @@ def new_user(
     default="{}",
     help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measure power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
 )
-def add_sensor(**args):
+def add_sensor(asset: GenericAsset, **args):
     """Add a sensor."""
     check_timezone(args["timezone"])
     try:
@@ -367,7 +361,7 @@ def add_sensor(**args):
     del args["attributes"]  # not part of schema
     if args["event_resolution"].isdigit():
         click.secho(
-            "DeprecationWarning: Use ISO8601 duration string for event-resolution, minutes in int will be depricated from v0.16.0",
+            "DeprecationWarning: Use ISO8601 duration string for event-resolution, minutes in int will be deprecated from v0.16.0",
             **MsgStyle.WARN,
         )
         timedelta_event_resolution = timedelta(minutes=int(args["event_resolution"]))
@@ -375,6 +369,8 @@ def add_sensor(**args):
             timedelta_event_resolution
         )
         args["event_resolution"] = isodate_event_resolution
+    args["generic_asset_id"] = asset.id
+
     check_errors(SensorSchema().validate(args))
 
     sensor = Sensor(**args)
@@ -383,12 +379,12 @@ def add_sensor(**args):
         raise click.Abort()
     sensor.attributes = attributes
     db.session.add(sensor)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        asset, f"Created sensor '{sensor.name}' ({sensor.id}) via CLI."
+    )
     db.session.commit()
     click.secho(f"Successfully created sensor with ID {sensor.id}", **MsgStyle.SUCCESS)
-    click.secho(
-        f"You can access it at its entity address {sensor.entity_address}",
-        **MsgStyle.SUCCESS,
-    )
 
 
 @fm_add_data.command("asset-type")
@@ -464,6 +460,11 @@ def add_asset(**args):
             **MsgStyle.WARN,
         )
     db.session.add(generic_asset)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        generic_asset,
+        f"Created asset '{generic_asset.name}' ({generic_asset.id}) via CLI.",
+    )
     db.session.commit()
     click.secho(
         f"Successfully created asset with ID {generic_asset.id}.", **MsgStyle.SUCCESS
@@ -993,43 +994,107 @@ def add_holidays(
     )
 
 
-@fm_add_data.command("forecasts", cls=DeprecatedOptionsCommand)
-@with_appcontext
+@fm_add_data.command("forecasts")
 @click.option(
     "--sensor",
-    "--sensor-id",
-    "sensor_ids",
-    multiple=True,
     required=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
     help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
-    "--from-date",
-    "from_date_str",
-    default="2015-02-08",
-    help="Forecast from date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
+    "--regressors",
+    "--regressor",
+    multiple=True,
+    callback=split_commas,
+    help="Sensor ID to be treated as a regressor. "
+    "Use this if both realizations and forecasts recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
+)
+@click.option(
+    "--future-regressors",
+    "--future-regressor",
+    multiple=True,
+    callback=split_commas,
+    help="Sensor ID to be treated only as a future regressor. "
+    "Use this if only forecasts recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
+)
+@click.option(
+    "--past-regressors",
+    "--past-regressor",
+    multiple=True,
+    callback=split_commas,
+    help="Sensor ID to be treated only as a past regressor. "
+    "Use this if only realizations recorded on this sensor matter as a regressor. "
+    "This argument can be given multiple times, but can also be set to a comma-separated list.",
+)
+@click.option(
+    "--train-start",
+    "--start-date",
+    "start_date",
+    required=False,
+    help=(
+        "Timestamp marking when training data begins. "
+        "Format: YYYY-MM-DDTHH:MM:SS±HH:MM. "
+        "If not provided, it defaults to a period equal to the training duration "
+        "ending at --from-date."
+    ),
 )
 @click.option(
     "--to-date",
-    "to_date_str",
-    default="2015-12-31",
-    help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
+    "--end-date",
+    "end_date",
+    required=True,
+    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
 )
 @click.option(
-    "--resolution",
-    type=int,
-    help="Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
+    "--train-period",
+    required=False,
+    help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
+    "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
+    "If not set, derives a training period from --start-predict-date instead. "
+    "If that is also not set, defaults to 2 days.",
 )
 @click.option(
-    "--horizon",
-    "horizons_as_hours",
-    multiple=True,
-    type=click.Choice(["1", "6", "24", "48"]),
-    default=["1", "6", "24", "48"],
-    help="Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
+    "--retrain-frequency",
+    "--remodel-frequency",  # the term as used in the old forecasting tooling
+    "--predict-period",  # only used during development afaik
+    required=False,
+    help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
+    "If not set, the model is not retrained.",
+)
+@click.option(
+    "--from-date",
+    "start_predict_date",
+    default=None,
+    required=False,
+    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
+    "If not set, defaults to now.",
+)
+@click.option(
+    "--max-forecast-horizon",
+    required=False,
+    help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H'). "
+    "Defaults to 48 hours.",
+)
+@click.option(
+    "--forecast-frequency",
+    help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
+    "Defaults to 1 hour.",
+)
+@click.option(
+    "--model-save-dir",
+    default="flexmeasures/data/models/forecasting/artifacts/models",
+    help="Directory to save the trained model.",
+)
+@click.option(
+    "--output-path",
+    help="Directory to save prediction outputs.",
+)
+@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions.")
+@click.option(
+    "--sensor-to-save",
+    default=None,
+    help="Sensor ID to save forecasts into a specific sensor. By default, forecasts are saved to the target sensor.",
 )
 @click.option(
     "--as-job",
@@ -1037,165 +1102,168 @@ def add_holidays(
     help="Whether to queue a forecasting job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
-def create_forecasts(
-    sensor_ids: list[int],
-    from_date_str: str = "2015-02-08",
-    to_date_str: str = "2015-12-31",
-    horizons_as_hours: list[str] = ["1"],
-    resolution: int | None = None,
-    as_job: bool = False,
+@click.option(
+    "--max-training-period",
+    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). Defaults to 1 year.",
+)
+@click.option(
+    "--resolution",
+    help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
+)
+@click.option(
+    "--horizon",
+    help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
+)
+@click.option(
+    "--ensure-positive",
+    is_flag=True,
+    help="Whether to ensure positive forecasts, by clipping out negative values.",
+)
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the configuration of the forecaster.",
+)
+@click.option(
+    "--forecaster",
+    "forecaster_class",
+    default="TrainPredictPipeline",
+    type=click.STRING,
+    help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
+    " Use the command `flexmeasures show forecasters` to list all the available forecasters.",
+)
+@click.option(
+    "--source",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="DataSource ID of the `Forecaster`.",
+)
+@click.option(
+    "--parameters",
+    "parameters_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step).",
+)
+@click.option(
+    "--edit-config",
+    "edit_config",
+    is_flag=True,
+    help="Add this flag to edit the configuration of the Forecaster in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--edit-parameters",
+    "edit_parameters",
+    is_flag=True,
+    help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
+)
+@click.option(
+    "--missing-threshold",
+    default=1.0,
+    help=(
+        "Maximum fraction of missing data allowed before raising an error. "
+        "Missing data under this threshold will be filled using forward filling or linear interpolation."
+    ),
+)
+@with_appcontext
+def train_predict_pipeline(
+    forecaster_class: str,
+    source: DataSource | None = None,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
+    **kwargs,
 ):
     """
-    Create forecasts.
+    Generate forecasts for a target sensor.
 
-    For example:
+    \b
+    Example
+      flexmeasures add forecasts --sensor 2092 --regressors 2093
+        --start-date 2025-01-01T00:00:00+01:00 --to-date 2025-10-15T00:00:00+01:00
 
-        --from-date 2015-02-02 --to-date 2015-02-04 --horizon 6 --sensor 12 --sensor 14
+    \b
+    Workflow
+      - Training window: defaults from --start-date until the CLI execution time.
+      - Prediction window: defaults from CLI execution time until --to-date.
+      - max-forecast-horizon: defaults to the length of the prediction window.
+      - Forecasts are computed immediately; use --as-job to enqueue them.
+      - Sensor 2093 is used as a regressor in this example.
 
-        This will create forecast values from 0am on May 2nd to 0am on May 5th,
-        based on a 6-hour horizon, for sensors 12 and 14.
-
+    \b
+    Notes:
+    - Use --from-date to explicitly set when the forecasts will start.
+    - Use --train-period to set the training window, which will grow each cycle
+        until the specified --to-date is reached.
+    - Use --predict-period to set the prediction window. It rolls forward by the
+        forecast period each cycle, similar to the training window, but its size
+        does not grow.
     """
-    # make horizons
-    horizons = [timedelta(hours=int(h)) for h in horizons_as_hours]
 
-    # apply timezone and set forecast_end to be an inclusive version of to_date
-    timezone = app.config.get("FLEXMEASURES_TIMEZONE")
-    forecast_start = pd.Timestamp(from_date_str).tz_localize(timezone)
-    forecast_end = (pd.Timestamp(to_date_str) + pd.Timedelta("1D")).tz_localize(
-        timezone
+    # Deprecation warnings for CLI options specific to rolling viewpoint predictions
+    if kwargs.get("horizon") is not None:
+        click.secho(
+            "The --horizon option is deprecated since v0.28.0. Use the max-forecast-horizon option instead.",
+            **MsgStyle.WARN,
+        )
+    del kwargs["horizon"]
+    if kwargs.get("resolution") is not None:
+        click.secho(
+            "The --resolution option is deprecated since v0.28.0. The resolution of the target sensor is used instead.",
+            **MsgStyle.WARN,
+        )
+    del kwargs["resolution"]
+
+    config = dict()
+
+    if config_file:
+        config = yaml.safe_load(config_file)
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    parameters = dict()
+
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
+
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
+
+    # Move remaining kwargs to parameters
+    for k, v in kwargs.items():
+        if k not in parameters:
+            parameters[k] = v
+
+    forecaster = get_data_generator(
+        source=source,
+        model=forecaster_class,
+        config=config,
+        save_config=True,
+        data_generator_type=Forecaster,
     )
 
-    event_resolution: timedelta | None
-    if resolution is not None:
-        event_resolution = timedelta(minutes=resolution)
-    else:
-        event_resolution = None
+    try:
+        forecaster.compute(parameters=parameters)
+        click.secho("Successfully computed forecasts.", **MsgStyle.SUCCESS)
 
-    if as_job:
-        num_jobs = 0
-        for sensor_id in sensor_ids:
-            for horizon in horizons:
-                # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
-                # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
-                jobs = create_forecasting_jobs(
-                    sensor_id=sensor_id,
-                    horizons=[horizon],
-                    start_of_roll=forecast_start - horizon,
-                    end_of_roll=forecast_end - horizon,
-                )
-                num_jobs += len(jobs)
-        click.secho(
-            f"{num_jobs} new forecasting job(s) added to the queue.",
-            **MsgStyle.SUCCESS,
-        )
-    else:
-        from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
-
-        populate_time_series_forecasts(  # this function reports its own output
-            db=app.db,
-            sensor_ids=sensor_ids,
-            horizons=horizons,
-            forecast_start=forecast_start,
-            forecast_end=forecast_end,
-            event_resolution=event_resolution,
-        )
+    except Exception as e:
+        click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
+        raise
 
 
-# todo: repurpose `flexmeasures add schedule` (deprecated since v0.12),
-#       - see https://github.com/FlexMeasures/flexmeasures/pull/537#discussion_r1048680231
-#       - hint for repurposing to invoke custom logic instead of a default subcommand:
-#             @fm_add_data.group("schedule", invoke_without_command=True)
-#             def create_schedule():
-#                 if ctx.invoked_subcommand:
-#                     ...
-@fm_add_data.group(
-    "schedule",
-    cls=DeprecatedDefaultGroup,
-    default="storage",
-    deprecation_message="The command 'flexmeasures add schedule' is deprecated. Please use `flexmeasures add schedule for-storage` instead.",
-)
-@click.pass_context
-@with_appcontext
-def create_schedule(ctx):
-    """(Deprecated) Create a new schedule for a given power sensor.
-
-    THIS COMMAND HAS BEEN RENAMED TO `flexmeasures add schedule for-storage`
-    """
-    pass
-
-
-@create_schedule.command("for-storage", cls=DeprecatedOptionsCommand)
+@fm_add_data.command("schedule")
 @with_appcontext
 @click.option(
     "--sensor",
-    "--sensor-id",
     "power_sensor",
     type=SensorIdField(),
     required=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
-)
-@click.option(
-    "--consumption-price-sensor",
-    "consumption_price_sensor",
-    type=SensorIdField(),
-    required=False,
-    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
-)
-@click.option(
-    "--production-price-sensor",
-    "production_price_sensor",
-    type=SensorIdField(),
-    required=False,
-    help="Optimize production against this sensor. Defaults to the consumption price sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
-)
-@click.option(
-    "--optimization-context-id",
-    "optimization_context_sensor",
-    type=SensorIdField(),
-    required=False,
-    help="To be deprecated. Use consumption-price-sensor instead.",
-)
-@click.option(
-    "--inflexible-device-sensor",
-    "inflexible_device_sensors",
-    type=SensorIdField(),
-    multiple=True,
-    help="Take into account the power flow of inflexible devices. Follow up with the sensor's ID."
-    " This argument can be given multiple times.",
-)
-@click.option(
-    "--site-power-capacity",
-    "site_power_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Site consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines both-ways maximum power capacity on the site level.",
-)
-@click.option(
-    "--site-consumption-capacity",
-    "site_consumption_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Site consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines the maximum consumption capacity on the site level.",
-)
-@click.option(
-    "--site-production-capacity",
-    "site_production_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Site production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines the maximum production capacity on the site level.",
 )
 @click.option(
     "--start",
@@ -1215,132 +1283,29 @@ def create_schedule(ctx):
     "--soc-at-start",
     "soc_at_start",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
-    required=True,
+    required=False,
     help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
 )
 @click.option(
-    "--state-of-charge",
-    "state_of_charge",
-    type=SensorIdField(unit="MWh"),
-    help="State of charge sensor.",
-    required=False,
-    default=None,
+    "--scheduler",
+    "scheduler_class",
+    default="StorageScheduler",
+    type=click.STRING,
+    help="Scheduler class registered in flexmeasures.data.models.planning.storage.",
 )
 @click.option(
-    "--soc-target",
-    "soc_target_strings",
-    type=click.Tuple(
-        types=[QuantityField("%", validate=validate.Range(min=0, max=1)), str]
-    ),
-    multiple=True,
+    "--flex-context",
+    "flex_context",
+    type=JSONOrFile(),
     required=False,
-    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 8601 format."
-    " This argument can be given multiple times."
-    " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
+    help="Asset FlexContext data, provided as a JSON string or a path to a JSON file.",
 )
 @click.option(
-    "--soc-min",
-    "soc_min",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    "--flex-model",
+    "flex_model",
+    type=JSONOrFile(),
     required=False,
-    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule.",
-)
-@click.option(
-    "--soc-max",
-    "soc_max",
-    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
-    required=False,
-    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule.",
-)
-@click.option(
-    "--roundtrip-efficiency",
-    "roundtrip_efficiency",
-    type=EfficiencyField(),
-    required=False,
-    default=1,
-    help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
-)
-@click.option(
-    "--charging-efficiency",
-    "charging_efficiency",
-    type=VariableQuantityField("%"),
-    required=False,
-    default=None,
-    help="Storage charging efficiency to use for the schedule."
-    "Provide a quantity with units (e.g. 94%) or a sensor storing the value with the syntax sensor:<id> (e.g. sensor:20)."
-    "Defaults to 100% (no losses).",
-)
-@click.option(
-    "--discharging-efficiency",
-    "discharging_efficiency",
-    type=VariableQuantityField("%"),
-    required=False,
-    default=None,
-    help="Storage discharging efficiency to use for the schedule."
-    "Provide a quantity with units (e.g. 94%) or a sensor storing the value with the syntax sensor:<id> (e.g. sensor:20)."
-    "Defaults to 100% (no losses).",
-)
-@click.option(
-    "--soc-gain",
-    "soc_gain",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Specify the State of Charge (SoC) gain as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
-    "This represents the rate at which storage is charged from a different source.",
-)
-@click.option(
-    "--soc-usage",
-    "soc_usage",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Specify the State of Charge (SoC) usage as a quantity in power units (e.g. 1 MW or 1000 kW) "
-    "or reference a sensor by using 'sensor:<id>' (e.g. sensor:34)."
-    "This represents the rate at which the storage is discharged from a different source.",
-)
-@click.option(
-    "--storage-power-capacity",
-    "storage_power_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Storage consumption/production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines both-ways maximum power capacity.",
-)
-@click.option(
-    "--storage-consumption-capacity",
-    "storage_consumption_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Storage consumption power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines the storage maximum consumption (charging) capacity.",
-)
-@click.option(
-    "--storage-production-capacity",
-    "storage_production_capacity",
-    type=VariableQuantityField("MW"),
-    required=False,
-    default=None,
-    help="Storage production power capacity. Provide this as a quantity in power units (e.g. 1 MW or 1000 kW)"
-    "or reference a sensor using 'sensor:<id>' (e.g. sensor:34)."
-    "It defines the storage maximum production (discharging) capacity.",
-)
-@click.option(
-    "--storage-efficiency",
-    "storage_efficiency",
-    type=VariableQuantityField("%", default_src_unit="dimensionless"),
-    required=False,
-    default="100%",
-    help="Storage efficiency (e.g. 95% or 0.95) to use for the schedule,"
-    " applied over each time step equal to the sensor resolution."
-    "This parameter also supports using a reference sensor as 'sensor:<id>' (e.g. sensor:34)."
-    " For example, a storage efficiency of 99 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.99**(1/24)."
-    " Defaults to 100% (no losses).",
+    help="Asset FlexModel data, provided as a JSON string or a path to a JSON file.",
 )
 @click.option(
     "--as-job",
@@ -1348,295 +1313,50 @@ def create_schedule(ctx):
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
-def add_schedule_for_storage(  # noqa C901
+def add_schedule(  # noqa C901
     power_sensor: Sensor,
-    consumption_price_sensor: Sensor,
-    production_price_sensor: Sensor,
-    optimization_context_sensor: Sensor,
-    inflexible_device_sensors: list[Sensor],
-    site_power_capacity: ur.Quantity | Sensor | None,
-    site_consumption_capacity: ur.Quantity | Sensor | None,
-    site_production_capacity: ur.Quantity | Sensor | None,
     start: datetime,
     duration: timedelta,
+    scheduler_class: str,
     soc_at_start: ur.Quantity,
-    charging_efficiency: ur.Quantity | Sensor | None,
-    discharging_efficiency: ur.Quantity | Sensor | None,
-    soc_gain: ur.Quantity | Sensor | None,
-    soc_usage: ur.Quantity | Sensor | None,
-    storage_power_capacity: ur.Quantity | Sensor | None,
-    storage_consumption_capacity: ur.Quantity | Sensor | None,
-    storage_production_capacity: ur.Quantity | Sensor | None,
-    soc_target_strings: list[tuple[ur.Quantity, str]],
-    soc_min: ur.Quantity | None = None,
-    soc_max: ur.Quantity | None = None,
-    roundtrip_efficiency: ur.Quantity | None = None,
-    storage_efficiency: ur.Quantity | Sensor | None = None,
     state_of_charge: Sensor | None = None,
+    flex_context: str | None = None,
+    flex_model: str | None = None,
     as_job: bool = False,
 ):
-    """Create a new schedule for a storage asset.
+    """Create a new schedule for an asset.
 
     Current limitations:
 
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
-    # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
-    tb_utils.replace_deprecated_argument(
-        "optimization-context-id",
-        optimization_context_sensor,
-        "consumption-price-sensor",
-        consumption_price_sensor,
-        required_argument=False,
-    )
 
-    # Parse input and required sensor attributes
-    if not power_sensor.measures_power:
-        click.secho(
-            f"Sensor with ID {power_sensor.id} is not a power sensor.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
-    if production_price_sensor is None and consumption_price_sensor is not None:
-        production_price_sensor = consumption_price_sensor
-    end = start + duration
+    scheduler_module = None
 
-    # Convert SoC units (we ask for % in this CLI) to MWh, given the storage capacity
-    try:
-        check_required_attributes(power_sensor, [("max_soc_in_mwh", float)])
-    except MissingAttributeException:
-        click.secho(
-            f"Sensor {power_sensor} has no max_soc_in_mwh attribute.", **MsgStyle.ERROR
-        )
-        raise click.Abort()
-    capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
-    soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
-    soc_targets = []
-    for soc_target_tuple in soc_target_strings:
-        soc_target_value_str, soc_target_datetime_str = soc_target_tuple
-        soc_target_value = convert_units(
-            soc_target_value_str.magnitude,
-            str(soc_target_value_str.units),
-            "MWh",
-            capacity=capacity_str,
-        )
-        soc_targets.append(
-            dict(value=soc_target_value, datetime=soc_target_datetime_str)
-        )
-
-    if soc_min is not None:
-        soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
-    if soc_max is not None:
-        soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
-    if roundtrip_efficiency is not None:
-        roundtrip_efficiency = roundtrip_efficiency.magnitude / 100.0
-
-    scheduling_kwargs = dict(
-        start=start,
-        end=end,
-        belief_time=server_now(),
-        resolution=power_sensor.event_resolution,
-        flex_model={
-            "soc-at-start": soc_at_start,
-            "soc-targets": soc_targets,
-            "soc-min": soc_min,
-            "soc-max": soc_max,
-            "soc-unit": "MWh",
-            "roundtrip-efficiency": roundtrip_efficiency,
-        },
-        flex_context={
-            "consumption-price": (
-                {"sensor": consumption_price_sensor.id}
-                if consumption_price_sensor
-                else None
-            ),
-            "production-price": (
-                {"sensor": production_price_sensor.id}
-                if production_price_sensor
-                else None
-            ),
-            "inflexible-device-sensors": [s.id for s in inflexible_device_sensors],
-        },
-    )
-
-    # remove None value from flex_context
-    scheduling_kwargs["flex_context"] = {
-        k: v for k, v in scheduling_kwargs["flex_context"].items() if v is not None
-    }
-
-    if state_of_charge is not None:
-        scheduling_kwargs["flex_model"]["state-of-charge"] = {
-            "sensor": state_of_charge.id
-        }
-
-    quantity_or_sensor_vars = {
-        "flex_model": {
-            "charging-efficiency": charging_efficiency,
-            "discharging-efficiency": discharging_efficiency,
-            "storage-efficiency": storage_efficiency,
-            "soc-gain": soc_gain,
-            "soc-usage": soc_usage,
-            "power-capacity": storage_power_capacity,
-            "consumption-capacity": storage_consumption_capacity,
-            "production-capacity": storage_production_capacity,
-        },
-        "flex_context": {
-            "site-power-capacity": site_power_capacity,
-            "site-consumption-capacity": site_consumption_capacity,
-            "site-production-capacity": site_production_capacity,
-        },
-    }
-
-    for key in ["flex_model", "flex_context"]:
-        for field_name, value in quantity_or_sensor_vars[key].items():
-            if value is not None:
-                if "efficiency" in field_name:
-                    unit = "%"
-                else:
-                    unit = "MW"
-
-                scheduling_kwargs[key][field_name] = VariableQuantityField(
-                    unit
-                )._serialize(value, None, None)
-
-    if as_job:
-        job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
-        if job:
+    if scheduler_class == "ProcessScheduler":
+        scheduler_module = "flexmeasures.data.models.planning.process"
+    elif scheduler_class == "StorageScheduler":
+        scheduler_module = "flexmeasures.data.models.planning.storage"
+        if soc_at_start is None:
             click.secho(
-                f"New scheduling job {job.id} has been added to the queue.",
-                **MsgStyle.SUCCESS,
+                "For StorageScheduler, --soc-at-start is required.",
+                **MsgStyle.ERROR,
             )
-    else:
-        success = make_schedule(
-            asset_or_sensor=get_asset_or_sensor_ref(power_sensor),
-            **scheduling_kwargs,
-        )
-        if success:
-            click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
-
-
-@create_schedule.command("for-process", cls=DeprecatedOptionsCommand)
-@with_appcontext
-@click.option(
-    "--sensor",
-    "--sensor-id",
-    "power_sensor",
-    type=SensorIdField(),
-    required=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
-    help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
-)
-@click.option(
-    "--consumption-price-sensor",
-    "consumption_price_sensor",
-    type=SensorIdField(),
-    required=False,
-    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
-)
-@click.option(
-    "--start",
-    "start",
-    type=AwareDateTimeField(),
-    required=True,
-    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
-)
-@click.option(
-    "--duration",
-    "duration",
-    type=DurationField(),
-    required=True,
-    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
-)
-@click.option(
-    "--process-duration",
-    "process_duration",
-    type=DurationField(),
-    required=True,
-    help="Duration of the process. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
-)
-@click.option(
-    "--process-type",
-    "process_type",
-    type=click.Choice(["INFLEXIBLE", "BREAKABLE", "SHIFTABLE"], case_sensitive=False),
-    required=False,
-    default="SHIFTABLE",
-    help="Process schedule policy: INFLEXIBLE, BREAKABLE or SHIFTABLE.",
-)
-@click.option(
-    "--process-power",
-    "process_power",
-    type=ur.Quantity,
-    required=True,
-    help="Constant power of the process during the activation period, e.g. 4kW.",
-)
-@click.option(
-    "--forbid",
-    type=TimeIntervalField(),
-    multiple=True,
-    required=False,
-    help="Add time restrictions to the optimization, where the load will not be scheduled into."
-    'Use the following format to define the restrictions: `{"start":<timezone-aware datetime in ISO 6801>, "duration":<ISO 6801 duration>}`'
-    "This options allows to define multiple time restrictions by using the --forbid for different periods.",
-)
-@click.option(
-    "--as-job",
-    is_flag=True,
-    help="Whether to queue a scheduling job instead of computing directly. "
-    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
-)
-def add_schedule_process(
-    power_sensor: Sensor,
-    consumption_price_sensor: Sensor,
-    start: datetime,
-    duration: timedelta,
-    process_duration: timedelta,
-    process_type: str,
-    process_power: ur.Quantity,
-    forbid: list | None = None,
-    as_job: bool = False,
-):
-    """Create a new schedule for a process asset.
-
-    Current limitations:
-    - Only supports consumption blocks.
-    - Not taking into account grid constraints or other processes.
-    """
-
-    if forbid is None:
-        forbid = []
-
-    # Parse input and required sensor attributes
-    if not power_sensor.measures_power:
-        click.secho(
-            f"Sensor with ID {power_sensor.id} is not a power sensor.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
-
-    end = start + duration
-
-    process_power = convert_units(process_power.magnitude, process_power.units, "MW")  # type: ignore
+            raise click.Abort()
 
     scheduling_kwargs = dict(
         start=start,
-        end=end,
+        end=start + duration,
         belief_time=server_now(),
         resolution=power_sensor.event_resolution,
-        flex_model={
-            "duration": pd.Timedelta(process_duration).isoformat(),
-            "process-type": process_type,
-            "power": process_power,
-            "time-restrictions": [TimeIntervalSchema().dump(f) for f in forbid],
+        flex_model=flex_model,
+        flex_context=flex_context,
+        scheduler_specs={
+            "module": scheduler_module,
+            "class": scheduler_class,
         },
     )
-
-    if consumption_price_sensor is not None:
-        scheduling_kwargs["flex_context"] = {
-            "consumption-price": {"sensor": consumption_price_sensor.id},
-        }
 
     if as_job:
         job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
@@ -1813,9 +1533,8 @@ def add_report(  # noqa: C901
     if timezone is not None:
         check_timezone(timezone)
 
-    now = pytz.timezone(
-        zone=timezone if timezone is not None else output[0]["sensor"].timezone
-    ).localize(datetime.now())
+    tz = pytz.timezone(timezone if timezone else output[0]["sensor"].timezone)
+    now = server_now().astimezone(tz)
 
     # apply offsets, if provided
     if start_offset is not None:
@@ -1870,50 +1589,13 @@ def add_report(  # noqa: C901
         )
         raise click.Abort()
 
-    if source is None:
-        click.echo(
-            f"Looking for the Reporter {reporter_class} among all the registered reporters...",
-        )
-
-        # get reporter class
-        ReporterClass: Type[Reporter] = app.data_generators.get("reporter").get(
-            reporter_class
-        )
-
-        # check if it exists
-        if ReporterClass is None:
-            click.secho(
-                f"Reporter class `{reporter_class}` not available.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
-
-        click.secho(f"Reporter {reporter_class} found.", **MsgStyle.SUCCESS)
-
-        # initialize reporter class with the reporter sensor and reporter config
-        reporter: Reporter = ReporterClass(config=config, save_config=save_config)
-
-    else:
-        try:
-            reporter: Reporter = source.data_generator  # type: ignore
-
-            if not isinstance(reporter, Reporter):
-                raise NotImplementedError(
-                    f"DataGenerator `{reporter}` is not of the type `Reporter`"
-                )
-
-            click.secho(
-                f"Reporter `{reporter.__class__.__name__}` fetched successfully from the database.",
-                **MsgStyle.SUCCESS,
-            )
-
-        except NotImplementedError:
-            click.secho(
-                f"Error! DataSource `{source}` not storing a valid Reporter.",
-                **MsgStyle.ERROR,
-            )
-
-        reporter._save_config = save_config
+    reporter = get_data_generator(
+        source=source,
+        model=reporter_class,
+        config=config,
+        save_config=save_config,
+        data_generator_type=Reporter,
+    )
 
     if ("start" not in parameters) and (start is not None):
         parameters["start"] = start.isoformat()
@@ -1925,7 +1607,7 @@ def add_report(  # noqa: C901
     click.echo("Report computation is running...")
 
     # compute the report
-    results: BeliefsDataFrame = reporter.compute(parameters=parameters)
+    results = reporter.compute(parameters=parameters)
 
     for result in results:
         data = result["data"]
@@ -2103,12 +1785,9 @@ def add_toy_account(kind: str, name: str):
             owner=db.session.get(Account, account_id),
             latitude=location[0],
             longitude=location[1],
+            attributes=asset_attributes,
             **asset_kwargs,
         )
-        if asset.flex_context is None:
-            asset.flex_context = {}
-        if len(asset_attributes) > 0:
-            asset.attributes = asset_attributes
 
         sensor_specs = dict(
             generic_asset=asset,
@@ -2236,13 +1915,13 @@ def add_toy_account(kind: str, name: str):
             **MsgStyle.SUCCESS,
         )
 
-        tz = pytz.timezone(app.config.get("FLEXMEASURES_TIMEZONE", "Europe/Amsterdam"))
-        current_year = datetime.now().year
-        start_year = datetime(current_year, 1, 1)
+        start_year = server_now().replace(
+            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
 
         belief = TimedBelief(
-            event_start=tz.localize(start_year),
-            belief_time=tz.localize(datetime.now()),
+            event_start=start_year,
+            belief_time=server_now(),
             event_value=0.5,
             source=db.session.get(DataSource, 1),
             sensor=grid_connection_capacity,

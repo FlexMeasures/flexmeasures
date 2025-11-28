@@ -6,7 +6,7 @@ import string
 
 from flask import current_app
 from flask_security import current_user, SQLAlchemySessionUserDatastore
-from flask_security.recoverable import update_password
+from flask_security.recoverable import update_password, send_reset_password_instructions
 from email_validator import (
     validate_email,
     EmailNotValidError,
@@ -28,7 +28,7 @@ class InvalidFlexMeasuresUser(Exception):
     pass
 
 
-def get_user(id: str) -> User:
+def get_user_by_id_or_raise_notfound(id: str) -> User:
     """Get a user, raise if not found."""
     user: User = db.session.get(User, int(id))
     if user is None:
@@ -126,7 +126,7 @@ def create_user(  # noqa: C901
         db.session.flush()
         account_audit_log = AuditLog(
             event_datetime=server_now(),
-            event=f"Account {account_name} created",
+            event=f"Account {account_name} created while creating user {username}",
             active_user_id=active_user_id,
             active_user_name=active_user_name,
             affected_account_id=account.id,
@@ -177,11 +177,21 @@ def create_user(  # noqa: C901
     return user
 
 
+def reset_password(user: User):
+    """
+    Reset the password and enable the user to set a new one.
+    Does not commit the session.
+    """
+    set_random_password(user)
+    remove_cookie_and_token_access(user)
+    send_reset_password_instructions(user)
+
+
 def set_random_password(user: User):
     """
-    Randomise a user's password.
+    Randomize a user's password.
 
-    Remember to commit the session after calling this function!
+    Does not commit the session.
     """
     new_random_password = "".join(
         [random.choice(string.ascii_lowercase) for _ in range(24)]
@@ -207,7 +217,7 @@ def remove_cookie_and_token_access(user: User):
     This might be useful if you feel their password, cookie or tokens
     are compromised. in the former case, you can also call `set_random_password`.
 
-    Remember to commit the session after calling this function!
+    Does not commit the session.
     """
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     user_datastore.reset_user_access(user)
@@ -219,7 +229,7 @@ def delete_user(user: User):
 
     Deleting oneself is not allowed.
 
-    Remember to commit the session after calling this function!
+    Does not commit the session.
     """
     if hasattr(current_user, "id") and user.id == current_user.id:
         raise Exception("You cannot delete yourself.")

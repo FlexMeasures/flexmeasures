@@ -515,13 +515,6 @@ input:checked + .slider:before {
     color: var(--light-gray);
 }
 
-i {
-    font-size: normal;
-    position: relative;
-}
-i:not(.supersize):before, i:not(.supersize):after {
-    font-size: 24px;
-}
 .supersize {
     font-size: 48px;
 }
@@ -1291,8 +1284,24 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     transform: translate(-15px, 15px);
 }
 
+/* Remove default link styling from card anchors */
+#kpi-cards a {
+  color: inherit; /* keep text color normal */
+  border: none !important; /* no dashed underline */
+}
+
+/* Hover effect for cards */
+#kpi-cards a .card {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#kpi-cards a:hover .card {
+  background-color: var(--secondary-transparent);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* subtle shadow */
+}
+
+
 .role-title-text text {
-    font-size: 20px;
     fill: var(--primary-color);
 }
 
@@ -1826,8 +1835,17 @@ div.heading-group {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  position: sticky;
+  bottom: 100px;
+  top: 100px;
 }
+
+.replay-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
 #replay-time {
   margin-top: 15px;
 }
@@ -1837,6 +1855,7 @@ div.heading-group {
   width: 50px;
   height: 50px;
   position: relative;
+  border: none;
 }
 #replay:before, #replay:after {
   content: "";
@@ -2029,4 +2048,9 @@ body.touched [title]:hover:after {
   margin-right: 1em;
   text-align: center;
   border-radius: 0.275rem;
+}
+
+.flex-nav.nav-link.active {
+  border-bottom-color: #fff;
+  background-color: #fff;
 }
