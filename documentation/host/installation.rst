@@ -340,7 +340,7 @@ This obviously depends on some conditions (like the right underlying data) being
 Mail server / set mail settings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email service that can do that (e.g. GMail).
+For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email service that can do that (e.g. Gmail).
 
 Tip: For testing/development purposes, you can run a mock email server locally:
 
