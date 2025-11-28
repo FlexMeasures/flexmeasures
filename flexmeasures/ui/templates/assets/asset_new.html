@@ -112,6 +112,7 @@
                 $('[data-toggle="tooltip"]').tooltip();
             });
         });
+    assetMap.fitBounds({{ bounding_box | tojson }});  // zoom to cover pre-existing asset portfolio
     addTileLayer(assetMap, '{{ mapboxAccessToken }}');
 
 
@@ -129,10 +130,8 @@
     var marker = L.marker(parentLocation, { icon: location_icon }).addTo(assetMap);
     assetMap.flyTo(parentLocation, zoom=6);
     {% else %}
-    // dummy location somewhere else
+    // dummy location somewhere else (so only if there is no parent asset)
     var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
-    // zoom to cover pre-existing asset portfolio (so only if there is no parent asset)
-    assetMap.fitBounds({{ bounding_box | tojson }});
         {% if prompt_user_for_location %}
             const flyToPosition = (position) => {
                 assetMap.flyTo([position.coords.latitude, position.coords.longitude], zoom=9);
