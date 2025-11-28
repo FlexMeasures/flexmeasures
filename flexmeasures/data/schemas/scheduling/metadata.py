@@ -105,7 +105,7 @@ SOC_MINIMA_BREACH_PRICE = MetaData(
 It must use the same currency as the other price settings and cannot be negative.
 While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
-Without this value, the soc-minima become a hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
+Without this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
 """,
     example="120 EUR/kWh",
 )
@@ -114,7 +114,7 @@ SOC_MAXIMA_BREACH_PRICE = MetaData(
 It must use the same currency as the other price settings and cannot be negative.
 While it's an **internal nudge** to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
-Without this value, the soc-maxima become a hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
+Without this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
 """,
     example="120 EUR/kWh",
 )
