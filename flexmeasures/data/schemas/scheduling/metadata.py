@@ -138,7 +138,7 @@ SITE_CONSUMPTION_BREACH_PRICE = MetaData(
     description="This **penalty value** is used to discourage the violation of the **site-consumption-capacity** constraint in the flex-context."
     "It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost. "
     "The scheduler will attempt to minimize this cost. "
-    "It must use the same currency as the other price settings and cannot be negative."
+    "It must use the same currency as the other price settings and cannot be negative. "
     "The field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.",
     example="1000 EUR/kW",
 )
@@ -146,7 +146,7 @@ SITE_PRODUCTION_BREACH_PRICE = MetaData(
     description="This **penalty value** is used to discourage the violation of the **site-production-capacity** constraint in the flex-context."
     "It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost. "
     "The scheduler will attempt to minimize this cost. "
-    "It must use the same currency as the other price settings and cannot be negative."
+    "It must use the same currency as the other price settings and cannot be negative. "
     "The field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.",
     example="1000 EUR/kW",
 )
