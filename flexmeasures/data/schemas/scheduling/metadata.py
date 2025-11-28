@@ -229,7 +229,10 @@ Otherwise, they become hard constraints. [#minimum_overlap]_""",
     },
 )
 SOC_TARGETS = MetaData(
-    description="Exact set point(s) that the scheduler needs to realize.",
+    description="""
+Exact set point(s) of the storage's state of charge that the scheduler needs to realize.
+These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.
+""",
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "3.2 kWh"}],
 )
 SOC_GAIN = MetaData(

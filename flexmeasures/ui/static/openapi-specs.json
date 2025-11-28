@@ -4558,7 +4558,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-targets": {
-            "description": "Exact set point(s) that the scheduler needs to realize.",
+            "description": "\nExact set point(s) of the storage's state of charge that the scheduler needs to realize.\nThese are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.\n",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
