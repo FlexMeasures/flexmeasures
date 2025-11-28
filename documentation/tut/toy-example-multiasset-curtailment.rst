@@ -32,6 +32,7 @@ Also, we want to create a situation with negative prices, so curtailment makes s
     .. tab:: CLI
 
         .. code-block:: bash
+            :emphasize-lines: 6-10
 
             $ # this flex context has negative prices between 12:00 and 14:00
             $ echo '''{
