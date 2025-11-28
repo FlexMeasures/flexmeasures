@@ -154,7 +154,7 @@ Like in the original toy tutorial, we can also check in the server container's `
 |
 
 .. note::
-    Actually, we keep scripts for the first 3 tutorial steps. You can run them easily (just do it in order):
+    Actually, we keep scripts for the first 5 tutorial steps. You can run them easily (just do it in order):
     
     .. code-block:: bash
 
