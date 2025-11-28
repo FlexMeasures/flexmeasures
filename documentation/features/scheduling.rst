@@ -108,9 +108,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
      - |PRODUCTION_BREACH_PRICE.example|
      - .. include:: ../_autodoc/PRODUCTION_BREACH_PRICE.rst
 
-.. [#old_consumption_price_field] This field replaced the consumption-price-sensor, which only accepted an integer (sensor ID).
+.. [#old_consumption_price_field] This field replaced the ``consumption-price-sensor`` field, which only accepted an integer (sensor ID).
 
-.. [#old_production_price_field] This field replaced the production-price-sensor, which only accepted an integer (sensor ID).
+.. [#old_production_price_field] This field replaced the ``production-price-sensor`` field, which only accepted an integer (sensor ID).
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
 
