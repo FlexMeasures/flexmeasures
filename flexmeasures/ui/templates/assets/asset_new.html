@@ -112,7 +112,10 @@
                 $('[data-toggle="tooltip"]').tooltip();
             });
         });
-    assetMap.fitBounds({{ bounding_box | tojson }});  // zoom to cover pre-existing asset portfolio
+    // zoom to cover pre-existing asset portfolio
+    assetMap.fitBounds({{ bounding_box | tojson }});
+    // in case of a very small bounding box, zoom out as far as you can while still making out the local buildings
+    assetMap.getZoom() === 18 ? assetMap.setZoom(17) : null
     addTileLayer(assetMap, '{{ mapboxAccessToken }}');
 
 
@@ -128,7 +131,7 @@
         // create marker for parent asset's location
         parentLocation = [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}]
         var marker = L.marker(parentLocation, { icon: location_icon }).addTo(assetMap);
-        assetMap.flyTo(parentLocation, 6);
+        assetMap.flyTo(parentLocation, 17);
     {% else %}
         // dummy location somewhere else (so only if there is no parent asset)
         var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);

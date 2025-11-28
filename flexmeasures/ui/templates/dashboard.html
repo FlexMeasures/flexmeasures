@@ -240,6 +240,9 @@
 
     // zoom to cover asset portfolio
     assetMap.fitBounds({{ bounding_box | tojson }});
+    // in case of a very small bounding box, zoom out as far as you can while still making out the local buildings
+    assetMap.getZoom() === 18 ? assetMap.setZoom(17) : null;
+
     {% if prompt_user_for_location %}
         const flyToPosition = (position) => {
             assetMap.flyTo([position.coords.latitude, position.coords.longitude], 9);
