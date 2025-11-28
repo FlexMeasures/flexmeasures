@@ -117,7 +117,7 @@ There is more information being used by the scheduler, such as the battery's cap
                     duration="PT12H",
                     flex_model={
                         "soc-at-start": "225 kWh",
--                       "soc-min": "50 kWh",
+                        "soc-min": "50 kWh",
                     },
                     flex_context={},
                 )
