@@ -89,6 +89,7 @@ Also, we want to create a situation with negative prices, so curtailment makes s
             pip install flexmeasures-client
 
         .. code-block:: python
+            :emphasize-lines: 20-24
 
             import asyncio
             from datetime import date, timedelta
