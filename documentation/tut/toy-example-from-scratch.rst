@@ -100,6 +100,7 @@ There is more information being used by the scheduler, such as the battery's cap
             pip install flexmeasures-client
 
         .. code-block:: python
+
             import asyncio
             from datetime import date, timedelta
             from flexmeasures_client import FlexMeasuresClient as Client
