@@ -3701,7 +3701,7 @@
           "relax-constraints": {
             "type": "boolean",
             "default": false,
-            "description": "If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (see below).\n",
+            "description": "If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have **breach-price** in their name).\n",
             "example": true
           },
           "relax-soc-constraints": {
@@ -3790,7 +3790,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "commitments": {
-            "description": "Prior commitments. This field is still under further development.",
+            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can study the code to learn more.",
             "example": [],
             "type": "array",
             "items": {
@@ -4495,18 +4495,18 @@
           },
           "soc-at-start": {
             "type": "string",
-            "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).",
+            "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).\nUsually added to each scheduling request.\n",
             "example": "3.1 kWh"
           },
           "soc-min": {
             "type": "string",
             "x-minimum": "0 MWh",
-            "description": "A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).\nIf used, this is regarded as an unsurpassable physical limitation.\n",
+            "description": "A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the **soc-minima** flex-model field instead together with the **soc-minima-breach-price`` field in the flex-context.\n",
             "example": "2.5 kWh"
           },
           "soc-max": {
             "type": "string",
-            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf used, this is regarded as an unsurpassable physical limitation.\n",
+            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the **soc-maxima** flex-model field instead together with the **soc-maxima-breach-price`` field in the flex-context.\n",
             "example": "7 kWh"
           },
           "power-capacity": {
@@ -4539,7 +4539,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.",
+            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
             "example": {
               "value": "51 kWh",
               "start": "2024-02-05T12:00:00+01:00",
@@ -4548,7 +4548,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
@@ -4601,7 +4601,7 @@
             "example": "90%"
           },
           "storage-efficiency": {
-            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time, so each time step the energy is held longer leads to higher losses.\nFor example, 95% (or 0.95) means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\n",
+            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\n",
             "example": "99.9%",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },

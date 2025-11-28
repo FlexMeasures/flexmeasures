@@ -36,7 +36,7 @@ Must be a list of integers.
     example=[3, 4],
 )
 COMMITMENTS = MetaData(
-    description="Prior commitments. This field is still under further development.",
+    description="Prior commitments. Support for this field in the UI is still under further development, but you can study the code to learn more.",
     example=[],
 )
 CONSUMPTION_PRICE = MetaData(
@@ -142,7 +142,7 @@ RELAX_CONSTRAINTS = MetaData(
 3. Avoid breaching the desired device consumption/production capacity.
 
 We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
-For tighter control over prices and priorities, the breach prices can also be set explicitly (see below).
+For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have **breach-price** in their name).
 """,
     example=True,
 )
@@ -186,7 +186,9 @@ STATE_OF_CHARGE = MetaData(
     example={"sensor": 12},
 )
 SOC_AT_START = MetaData(
-    description="The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0). [#quantity_field]_",
+    description="""The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).
+Usually added to each scheduling request. [#quantity_field]_
+""",
     example="3.1 kWh",
 )
 SOC_UNIT = MetaData(
@@ -198,22 +200,28 @@ Only kWh and MWh are allowed.
 )
 SOC_MIN = MetaData(
     description="""A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).
-If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
+If used, this is regarded as an unsurpassable physical limitation.
+To set softer boundaries, use the **soc-minima** flex-model field instead together with the **soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
     example="2.5 kWh",
 )
 SOC_MAX = MetaData(
     description="""A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
-If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
+If used, this is regarded as an unsurpassable physical limitation.
+To set softer boundaries, use the **soc-maxima** flex-model field instead together with the **soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
     example="7 kWh",
 )
 SOC_MINIMA = MetaData(
-    description="Set points that form lower boundaries, e.g. to target a full car battery in the morning. [#maximum_overlap]_",
+    description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
+If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
+Otherwise, they become hard constraints. [#maximum_overlap]_""",
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"}],
 )
 SOC_MAXIMA = MetaData(
-    description="Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window. [#minimum_overlap]_",
+    description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
+If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
+Otherwise, they become hard constraints. [#minimum_overlap]_""",
     example={
         "value": "51 kWh",
         "start": "2024-02-05T12:00:00+01:00",
@@ -261,8 +269,10 @@ Defaults to 100% (no conversion loss).""",
     example="90%",
 )
 STORAGE_EFFICIENCY = MetaData(
-    description="""The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time, so each time step the energy is held longer leads to higher losses.
-For example, 95% (or 0.95) means a loss of 5% per time step. Defaults to 100% (no storage loss over time).
+    description="""The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.
+As a result, each time step the energy is held longer leads to higher losses.
+This setting is crucial to some sorts of energy storage, e.g. thermal buffers.
+To give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).
 Note that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.
 For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 """,
