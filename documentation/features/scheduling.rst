@@ -58,55 +58,55 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
      - Description
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
-     - |INFLEXIBLE_DEVICE_SENSORS.description|
+     - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
    * - ``consumption-price``
      - |CONSUMPTION_PRICE.example|
-     - |CONSUMPTION_PRICE.description| [#old_sensor_field]_
+     - .. include:: ../_autodoc/CONSUMPTION_PRICE.rst
    * - ``production-price``
      - |PRODUCTION_PRICE.example|
-     - |PRODUCTION_PRICE.description| [#old_sensor_field]_
+     - .. include:: ../_autodoc/PRODUCTION_PRICE.rst
    * - ``site-power-capacity``
      - |SITE_POWER_CAPACITY.example|
-     - |SITE_POWER_CAPACITY.description| [#asymmetric]_ [#minimum_capacity_overlap]_
+     - .. include:: ../_autodoc/SITE_POWER_CAPACITY.rst
    * - ``site-consumption-capacity``
      - |SITE_CONSUMPTION_CAPACITY.example|
-     - |SITE_CONSUMPTION_CAPACITY.description| [#consumption]_ [#minimum_capacity_overlap]_
+     - .. include:: ../_autodoc/SITE_CONSUMPTION_CAPACITY.rst
    * - ``site-production-capacity``
      - |SITE_PRODUCTION_CAPACITY.example|
-     - |SITE_PRODUCTION_CAPACITY.description| [#production]_ [#minimum_capacity_overlap]_
+     - .. include:: ../_autodoc/SITE_PRODUCTION_CAPACITY.rst
    * - ``site-peak-consumption``
      - |SITE_PEAK_CONSUMPTION.example|
-     - |SITE_PEAK_CONSUMPTION.description|
+     - .. include:: ../_autodoc/SITE_PEAK_CONSUMPTION.rst
    * - ``relax-constraints``
      - |RELAX_CONSTRAINTS.example|
-     - |RELAX_CONSTRAINTS.description|
+     - .. include:: ../_autodoc/RELAX_CONSTRAINTS.rst
    * - ``site-consumption-breach-price``
      - |SITE_CONSUMPTION_BREACH_PRICE.example|
-     - |SITE_CONSUMPTION_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
+     - .. include:: ../_autodoc/SITE_CONSUMPTION_BREACH_PRICE.rst
    * - ``site-production-breach-price``
      - |SITE_PRODUCTION_BREACH_PRICE.example|
-     - |SITE_PRODUCTION_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
+     - .. include:: ../_autodoc/SITE_PRODUCTION_BREACH_PRICE.rst
    * - ``site-peak-consumption-price``
      - |SITE_PEAK_CONSUMPTION_PRICE.example|
-     - |SITE_PEAK_CONSUMPTION_PRICE.description| [#penalty_field]_
+     - .. include:: ../_autodoc/SITE_PEAK_CONSUMPTION_PRICE.rst
    * - ``site-peak-production``
      - |SITE_PEAK_PRODUCTION.example|
-     - |SITE_PEAK_PRODUCTION.description|
+     - .. include:: ../_autodoc/SITE_PEAK_PRODUCTION.rst
    * - ``site-peak-production-price``
      - |SITE_PEAK_PRODUCTION_PRICE.example|
-     - |SITE_PEAK_PRODUCTION_PRICE.description| [#penalty_field]_
+     - .. include:: ../_autodoc/SITE_PEAK_PRODUCTION_PRICE.rst
    * - ``soc-minima-breach-price``
      - |SOC_MINIMA_BREACH_PRICE.example|
-     - |SOC_MINIMA_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
+     - .. include:: ../_autodoc/SOC_MINIMA_BREACH_PRICE.rst
    * - ``soc-maxima-breach-price``
      - |SOC_MAXIMA_BREACH_PRICE.example|
-     - |SOC_MAXIMA_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
+     - .. include:: ../_autodoc/SOC_MAXIMA_BREACH_PRICE.rst
    * - ``consumption-breach-price``
      - |CONSUMPTION_BREACH_PRICE.example|
-     - |CONSUMPTION_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
+     - .. include:: ../_autodoc/CONSUMPTION_BREACH_PRICE.rst
    * - ``production-breach-price``
      - |PRODUCTION_BREACH_PRICE.example|
-     - |PRODUCTION_BREACH_PRICE.description| [#penalty_field]_ [#breach_field]_
+     - .. include:: ../_autodoc/PRODUCTION_BREACH_PRICE.rst
 
 .. [#old_sensor_field] The old field only accepted an integer (sensor ID).
 
@@ -175,58 +175,58 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Description 
    * - ``soc-at-start``
      - |SOC_AT_START.example|
-     - |SOC_AT_START.description| [#quantity_field]_
+     - .. include:: ../_autodoc/SOC_AT_START.rst
    * - ``soc-unit``
      - |SOC_UNIT.example|
-     - |SOC_UNIT.description|
+     - .. include:: ../_autodoc/SOC_UNIT.rst
    * - ``soc-min``
      - |SOC_MIN.example|
-     - |SOC_MIN.description| [#quantity_field]_
+     - .. include:: ../_autodoc/SOC_MIN.rst
    * - ``soc-max``
      - |SOC_MAX.example|
-     - |SOC_MAX.description| [#quantity_field]_
+     - .. include:: ../_autodoc/SOC_MAX.rst
    * - ``soc-minima``
      - |SOC_MINIMA.example|
-     - |SOC_MINIMA.description| [#maximum_overlap]_
+     - .. include:: ../_autodoc/SOC_MINIMA.rst
    * - ``soc-maxima``
      - |SOC_MAXIMA.example|
-     - |SOC_MAXIMA.description| [#minimum_overlap]_
+     - .. include:: ../_autodoc/SOC_MAXIMA.rst
    * - ``soc-targets``
      - |SOC_TARGETS.example|
-     - |SOC_TARGETS.description|
+     - .. include:: ../_autodoc/SOC_TARGETS.rst
    * - ``soc-gain``
      - |SOC_GAIN.example|
-     - |SOC_GAIN.description|
+     - .. include:: ../_autodoc/SOC_GAIN.rst
    * - ``soc-usage``
      - |SOC_USAGE.example|
-     - |SOC_USAGE.description|
+     - .. include:: ../_autodoc/SOC_USAGE.rst
    * - ``roundtrip-efficiency``
      - |ROUNDTRIP_EFFICIENCY.example|
-     - |ROUNDTRIP_EFFICIENCY.description| [#quantity_field]_
+     - .. include:: ../_autodoc/ROUNDTRIP_EFFICIENCY.rst
    * - ``charging-efficiency``
      - |CHARGING_EFFICIENCY.example|
-     - |CHARGING_EFFICIENCY.description|
+     - .. include:: ../_autodoc/CHARGING_EFFICIENCY.rst
    * - ``discharging-efficiency``
      - |DISCHARGING_EFFICIENCY.example|
-     - |DISCHARGING_EFFICIENCY.description|
+     - .. include:: ../_autodoc/DISCHARGING_EFFICIENCY.rst
    * - ``storage-efficiency``
      - |STORAGE_EFFICIENCY.example|
-     - |STORAGE_EFFICIENCY.description|
+     - .. include:: ../_autodoc/STORAGE_EFFICIENCY.rst
    * - ``prefer-charging-sooner``
      - |PREFER_CHARGING_SOONER.example|
-     - |PREFER_CHARGING_SOONER.description|
+     - .. include:: ../_autodoc/PREFER_CHARGING_SOONER.rst
    * - ``prefer-curtailing-later``
      - |PREFER_CURTAILING_LATER.example|
-     - |PREFER_CURTAILING_LATER.description|
+     - .. include:: ../_autodoc/PREFER_CURTAILING_LATER.rst
    * - ``power-capacity``
      - |POWER_CAPACITY.example|
-     - |POWER_CAPACITY.description| [#minimum_overlap]_
+     - .. include:: ../_autodoc/POWER_CAPACITY.rst
    * - ``consumption-capacity``
      - |CONSUMPTION_CAPACITY.example|
-     - |CONSUMPTION_CAPACITY.description| [#minimum_overlap]_
+     - .. include:: ../_autodoc/CONSUMPTION_CAPACITY.rst
    * - ``production-capacity``
      - |PRODUCTION_CAPACITY.example| (only consumption)
-     - |PRODUCTION_CAPACITY.description| [#minimum_overlap]_
+     - .. include:: ../_autodoc/PRODUCTION_CAPACITY.rst
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 

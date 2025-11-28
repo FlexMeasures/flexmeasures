@@ -264,7 +264,9 @@ def setup(sphinx_app):
         )  # we need to create the app for when sphinx imports modules that use current_app
 
 
-# Build rst_epilog substitutions for every UPPERCASE constant
+# Build rst_epilog substitutions or .rst files to include:: for every UPPERCASE constant
+output_dir = os.path.join(os.path.dirname(__file__), "_autodoc")
+os.makedirs(output_dir, exist_ok=True)
 sub_lines = []
 for name in dir(metadata_module):
     if not name.isupper():
@@ -274,29 +276,6 @@ for name in dir(metadata_module):
         # skip non-MetaData objects
         continue
 
-    # Normalize CRLFs and strip trailing newlines
-    description = metadata.description.replace("\r\n", "\n").rstrip("\n")
-
-    # We want Sphinx to accept the replacement both inline and as a multi-line
-    # paragraph. The `replace::` directive must have the replacement text on
-    # the same line or on following indented lines. We put the first line on
-    # the directive line and indent the following lines so they render as a
-    # paragraph (and work inside table cells).
-    lines = description.split("\n")
-    if len(lines) == 1:
-        # single-line replacement: keep it all on one line
-        replacement = lines[0]
-        sub_lines.append(f".. |{name}.description| replace:: {replacement}")
-    else:
-        sub_lines.append(f".. |{name}.description| replace:: {' '.join(lines)}")
-        # # multi-line: first line on directive, then indent subsequent lines
-        # first, rest = lines[0], lines[1:]
-        # indented_rest = "\n   ".join(rest)
-        # # If subsequent lines are present, prepend them with a newline+3 spaces
-        # sub_lines.append(
-        #     f".. |{name}.description| replace:: {first}\n   {indented_rest}"
-        # )
-
     # Prefer multiple examples over a single example
     if metadata.examples:
         example = " or ".join([f"``{e}``" for e in metadata.examples])
@@ -304,15 +283,10 @@ for name in dir(metadata_module):
         example = f"``{metadata.example}``"
     sub_lines.append(f".. |{name}.example| replace:: {example}")
 
-rst_epilog = "\n".join(sub_lines)
-print(rst_epilog)
+    # Create an autodoc file for the description, because the replace:: syntax does not support multi-line descriptions
+    filename = os.path.join(output_dir, f"{name}.rst")
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(f"{name}\n{'=' * len(name)}\n\n")
+        f.write(metadata.description)
 
-# # Fill in field descriptions from our schemas
-# descriptions = importlib.import_module("flexmeasures.data.schemas.scheduling.descriptions")
-# rst_epilog = ""
-# for name in dir(descriptions):
-#     if name.isupper():
-#         value = getattr(descriptions, name)
-#         # Escape special characters in multi-line text for RST
-#         escaped_value = value.replace("\n", "\n   ")
-#         rst_epilog += f".. |{name}| replace:: {escaped_value}\n"
+rst_epilog = "\n".join(sub_lines)

@@ -1,4 +1,5 @@
 import re
+from copy import copy
 from typing import Type, cast
 
 from marshmallow import Schema, fields
@@ -15,7 +16,11 @@ def rst_to_openapi(text: str) -> str:
 
     - Replaces :abbr:`X (Y)` with <abbr title="Y">X</abbr>
     - Converts :math:`base^{exp}` into HTML sup/sub notation for OpenAPI
+    - Removes any RST footnote references like [#]_ or [1]_ or [label]_
     """
+
+    # Remove footnote references
+    text = re.sub(r"\s*\[[^\]]+?\]_", "", text)
 
     # Handle abbreviations
     def abbr_repl(match):
@@ -61,8 +66,11 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
 
     new_fields = {}
     for name, field in schema_cls._declared_fields.items():
-        # Keep only standard marshmallow fields
-        new_fields[name] = field
+
+        # Copy metadata, but sanitize description for OpenAPI
+        metadata = dict(getattr(field, "metadata", {}))
+        if "description" in metadata:
+            metadata["description"] = rst_to_openapi(metadata["description"])
 
         # Replace VariableQuantityField with OpenAPI compatible String field
         if isinstance(field, VariableQuantityField):
@@ -77,7 +85,11 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
                 metadata=metadata,
                 data_key=field.data_key,
             )
-            new_fields[name] = field_copy
+        else:
+            # For other fields, just copy with sanitized metadata
+            field_copy = copy(field)
+            field_copy.metadata = metadata
+        new_fields[name] = field_copy
 
     # Build schema dynamically, based only on safe fields
     openAPI_schema = type(
