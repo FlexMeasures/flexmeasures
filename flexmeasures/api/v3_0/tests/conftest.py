@@ -234,3 +234,16 @@ def add_temperature_measurements(db, source: Source, sensor: Sensor):
         for event_start, event_value in zip(event_starts, event_values)
     ]
     db.session.add_all(beliefs)
+
+
+@pytest.fixture(scope="module")
+def setup_capacity_sensor_on_asset_in_supplier_account(db, setup_generic_assets):
+    asset = setup_generic_assets["test_wind_turbine"]
+    sensor = Sensor(
+        name="capacity",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MVA",
+    )
+    db.session.add(sensor)
+    return sensor

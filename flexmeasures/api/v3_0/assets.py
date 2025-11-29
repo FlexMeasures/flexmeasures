@@ -53,6 +53,7 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.api.common.responses import (
     invalid_flex_config,
+    invalid_sender,
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -63,6 +64,10 @@ from flexmeasures.ui.utils.view_utils import clear_session, set_session_variable
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
+)
+from flexmeasures.data.models.planning.utils import (
+    flex_context_loader,
+    flex_model_loader,
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import naturalized_datetime_str
@@ -1189,6 +1194,26 @@ class AssetAPI(FlaskView):
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_loader,
+        pass_ctx_to_loader=True,
+        error_handler=lambda context, permission, origin: invalid_sender(
+            required_permissions=[f"{permission} sensor {context.id}"],
+            field_name=origin,
+        ),
+    )
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+        error_handler=lambda context, permission, origin: invalid_sender(
+            required_permissions=[f"{permission} sensor {context.id}"],
+            field_name=origin,
+        ),
+    )
     def trigger_schedule(
         self,
         asset: GenericAsset,

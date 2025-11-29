@@ -4339,11 +4339,13 @@
           },
           "flex-model": {
             "type": "object",
+            "default": {},
             "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
             "additionalProperties": {}
           },
           "flex-context": {
             "type": "object",
+            "default": {},
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "additionalProperties": {}
           },

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from packaging import version
 from datetime import date, datetime, timedelta
 
@@ -13,6 +14,7 @@ from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.schemas.sensors import SensorIdField
 
 from flexmeasures.utils.flexmeasures_inflection import capitalize, pluralize
 from flexmeasures.utils.unit_utils import ur, convert_units
@@ -554,3 +556,81 @@ def initialize_device_commitment(
     stock_commitment["device"] = device
     stock_commitment["class"] = StockCommitment
     return stock_commitment
+
+
+def sensor_loader(
+    data: dict | list[dict], parent_key: str = ""
+) -> list[tuple[Sensor, str]]:
+    """Recursively load all sensors referenced by ID in a nested dict or list, along with the fields referring to them.
+
+    :param data:        Nested dict or list thereof.
+    :param parent_key:  The key of the parent element in the recursion, used to track the referring fields.
+                        For example, 'flex-model' or 'flex-context'.
+    :returns:           A list of tuples, each containing a sensor and the field that referred to it.
+
+    Example:
+        nested_dict = {
+            "flex-model": [
+                {
+                    "sensor": 931,
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh",
+                    "soc-targets": [
+                        {
+                            "value": 25,
+                            "datetime": "2015-06-02T16:00:00+00:00"
+                        },
+                    ],
+                    "soc-minima": {"sensor": 300},
+                    "soc-min": 10,
+                    "soc-max": 25,
+                    "charging-efficiency": "120%",
+                    "discharging-efficiency": {"sensor": 98},
+                    "storage-efficiency": 0.9999,
+                    "power-capacity": "25kW",
+                    "consumption-capacity": {"sensor": 42},
+                    "production-capacity": "30 kW"
+                },
+            ],
+        }
+
+        sensors = sensor_loader(nested_dict)
+        print(sensors)  # Output: [(<Sensor 931>, 'sensor'), (<Sensor 300>, 'soc-minima.sensor'), (<Sensor 98>, 'discharging-efficiency.sensor'), (<Sensor 42>, 'consumption-capacity.sensor')]
+    """
+    sensor_ids = []
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            new_parent_key = f"{parent_key}.{key}" if parent_key else key
+            if key[-6:] == "sensor":
+                sensor = deserialize_to_sensor_if_needed(value)
+                sensor_ids.append((sensor, new_parent_key))
+            elif key[-7:] == "sensors":
+                for v in value:
+                    sensor = deserialize_to_sensor_if_needed(v)
+                    sensor_ids.append((sensor, new_parent_key))
+            else:
+                sensor_ids.extend(sensor_loader(value, new_parent_key))
+    elif isinstance(data, list):
+        for index, item in enumerate(data):
+            new_parent_key = f"{parent_key}[{index}]"
+            sensor_ids.extend(sensor_loader(item, new_parent_key))
+
+    return sensor_ids
+
+
+def deserialize_to_sensor_if_needed(value: int | Sensor) -> Sensor:
+    """Ensure all sensor values are deserialized.
+
+    The multi-asset flex-model already deserialized the power sensors of each device.
+    Other fields still need to be deserialized.
+    """
+    if isinstance(value, Sensor):
+        sensor = value
+    else:
+        sensor = SensorIdField().deserialize(value)
+    return sensor
+
+
+flex_model_loader = partial(sensor_loader, parent_key="flex-model")
+flex_context_loader = partial(sensor_loader, parent_key="flex-context")

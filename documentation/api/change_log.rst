@@ -143,6 +143,11 @@ v3.0-19 | 2024-08-09
   - ``soc-usage``
 
 
+v3.0-19 | 2024-05-24
+""""""""""""""""""""
+- Add authorization check on sensors referred to in flex-model and flex-context fields for `/sensors/<id>/schedules/trigger` (POST).
+
+
 v3.0-18 | 2024-03-07
 """"""""""""""""""""
 

@@ -85,7 +85,7 @@ def test_trigger_schedule_with_invalid_flexmodel(
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
-        assert trigger_schedule_response.status_code == 422
+        assert trigger_schedule_response.status_code == 422  # Unprocessable entity
         assert field in trigger_schedule_response.json["message"]["json"]
         if isinstance(trigger_schedule_response.json["message"]["json"], str):
             # ValueError
@@ -444,3 +444,79 @@ def test_get_schedule_fallback_not_redirect(
         assert schedule["scheduler_info"]["scheduler"] == "StorageFallbackScheduler"
 
         app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
+
+
+@pytest.mark.parametrize(
+    "message, flex_config, field, err_msg",
+    [
+        (
+            message_for_trigger_schedule(),
+            "flex-context",
+            "site-consumption-capacity",
+            "requires read sensor",
+        ),
+        (
+            message_for_trigger_schedule(),
+            "flex-model",
+            "site-consumption-capacity",
+            "requires read sensor",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_with_unauthorized_sensor(
+    app,
+    add_battery_assets,
+    setup_capacity_sensor_on_asset_in_supplier_account,
+    keep_scheduling_queue_empty,
+    message,
+    flex_config,
+    field,
+    err_msg,
+    requesting_user,
+):
+    """Test triggering a schedule using a flex config that refers to a capacity sensor from a different account.
+
+    The user is not authorized to read sensors from the other account,
+    so we expect a 403 (Forbidden) response referring to the relevant flex-config field.
+    """
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    with app.test_client() as client:
+        if flex_config not in message:
+            message[flex_config] = {}
+        sensor_id = setup_capacity_sensor_on_asset_in_supplier_account.id
+        message[flex_config][field] = {"sensor": sensor_id}
+
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        assert trigger_schedule_response.status_code == 403  # Forbidden
+        assert (
+            f"{flex_config}.{field}.sensor"
+            in trigger_schedule_response.json["message"]["json"]
+        )
+        if isinstance(
+            trigger_schedule_response.json["message"]["json"][
+                f"{flex_config}.{field}.sensor"
+            ],
+            str,
+        ):
+            # ValueError
+            assert (
+                err_msg
+                in trigger_schedule_response.json["message"]["json"][
+                    f"{flex_config}.{field}.sensor"
+                ]
+            )
+        else:
+            # ValidationError (marshmallow)
+            assert (
+                err_msg
+                in trigger_schedule_response.json["message"]["json"][
+                    f"{flex_config}.{field}.sensor"
+                ][field][0]
+            )
