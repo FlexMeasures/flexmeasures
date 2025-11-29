@@ -558,31 +558,15 @@ def initialize_device_commitment(
     return stock_commitment
 
 
-def sensor_loader(data, parent_key: str) -> list[tuple[Sensor, str]]:
-    """Load all sensors referenced by their ID in a nested dict or list, along with the fields referring to them.
+def sensor_loader(
+    data: dict | list[dict], parent_key: str = ""
+) -> list[tuple[Sensor, str]]:
+    """Recursively load all sensors referenced by ID in a nested dict or list, along with the fields referring to them.
 
-    :param data:        nested dict or list
-    :param parent_key:  'flex-model' or 'flex-context'
-    :returns:           list of sensor-field tuples
-    """
-    sensors = find_sensors(data, parent_key)
-    return sensors
-
-
-flex_model_loader = partial(sensor_loader, parent_key="flex-model")
-flex_context_loader = partial(sensor_loader, parent_key="flex-context")
-
-
-def find_sensors(data, parent_key="") -> list[tuple[Sensor, str]]:
-    """
-    Recursively find all sensors in a nested dictionary or list along with the fields referring to them.
-
-    Args:
-        data (dict or list): The input data which can be a dictionary or a list containing nested dictionaries and lists.
-        parent_key (str): The key of the parent element in the recursion, used to track the referring fields.
-
-    Returns:
-        list: A list of tuples, each containing a sensor and the field that referred to it.
+    :param data:        Nested dict or list thereof.
+    :param parent_key:  The key of the parent element in the recursion, used to track the referring fields.
+                        For example, 'flex-model' or 'flex-context'.
+    :returns:           A list of tuples, each containing a sensor and the field that referred to it.
 
     Example:
         nested_dict = {
@@ -610,7 +594,7 @@ def find_sensors(data, parent_key="") -> list[tuple[Sensor, str]]:
             ],
         }
 
-        sensors = find_sensors(nested_dict)
+        sensors = sensor_loader(nested_dict)
         print(sensors)  # Output: [(<Sensor 931>, 'sensor'), (<Sensor 300>, 'soc-minima.sensor'), (<Sensor 98>, 'discharging-efficiency.sensor'), (<Sensor 42>, 'consumption-capacity.sensor')]
     """
     sensor_ids = []
@@ -626,11 +610,11 @@ def find_sensors(data, parent_key="") -> list[tuple[Sensor, str]]:
                     sensor = deserialize_to_sensor_if_needed(v)
                     sensor_ids.append((sensor, new_parent_key))
             else:
-                sensor_ids.extend(find_sensors(value, new_parent_key))
+                sensor_ids.extend(sensor_loader(value, new_parent_key))
     elif isinstance(data, list):
         for index, item in enumerate(data):
             new_parent_key = f"{parent_key}[{index}]"
-            sensor_ids.extend(find_sensors(item, new_parent_key))
+            sensor_ids.extend(sensor_loader(item, new_parent_key))
 
     return sensor_ids
 
@@ -646,3 +630,7 @@ def deserialize_to_sensor_if_needed(value: int | Sensor) -> Sensor:
     else:
         sensor = SensorIdField().deserialize(value)
     return sensor
+
+
+flex_model_loader = partial(sensor_loader, parent_key="flex-model")
+flex_context_loader = partial(sensor_loader, parent_key="flex-context")
