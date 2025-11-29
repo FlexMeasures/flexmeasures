@@ -30,6 +30,8 @@ from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User, Account, AccountRole
 
+from flexmeasures.utils.time_utils import as_server_time
+
 
 """
 Useful things for all tests.
@@ -792,6 +794,113 @@ def add_battery_assets_fresh_db(
     setup_generic_asset_types_fresh_db,
 ) -> dict[str, GenericAsset]:
     return create_test_battery_assets(
+        fresh_db,
+        setup_accounts_fresh_db,
+        setup_markets_fresh_db,
+        setup_generic_asset_types_fresh_db,
+    )
+
+
+def create_test_battery_kWh_assets(
+    db: SQLAlchemy, setup_accounts, setup_markets, generic_asset_types
+) -> dict[str, GenericAsset]:
+    """
+    Add a battery asset, with consumption sensor and inflexible device sensor with MWh unit.
+    """
+    battery_type = generic_asset_types["battery"]
+
+    test_battery = GenericAsset(
+        name="Test battery",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=battery_type,
+        latitude=10,
+        longitude=100,
+        flex_context={
+            "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
+        },
+        # TODO: move attributes to flex model
+        attributes={
+            "max_soc_in_mwh": 5,
+            "min_soc_in_mwh": 0,
+            # TODO: stop using the three soc_ attributes all together
+            "soc_in_mwh": 2.5,
+            "soc_datetime": "2015-01-01T00:00+01",
+            "soc_udi_event_id": 203,
+            "soc-usage": "0 kW",
+            "is_consumer": True,
+            "is_producer": True,
+            "can_curtail": True,
+            "can_shift": True,
+        },
+    )
+    test_battery_consumption_sensor = Sensor(
+        name="consumption",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="MWh",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+    test_battery_inflexible_sensor = Sensor(
+        name="inflexible-device",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="MWh",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+
+    db.session.add(test_battery_consumption_sensor, test_battery_inflexible_sensor)
+
+    data_source = DataSource("source1")
+
+    db.session.add(data_source)
+
+    time_slots = pd.date_range(
+        datetime(2015, 1, 1), datetime(2015, 1, 7, 23, 45), freq="15min"
+    )
+
+    values = [
+        random() * (1 + np.sin(x / 15))
+        for x in range(len(time_slots))
+    ]
+
+    beliefs = [
+        TimedBelief(
+            sensor=test_battery_inflexible_sensor,
+            event_start=as_server_time(dt),
+            event_value=val,
+            belief_horizon=timedelta(minutes=15),
+            source=data_source,
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+
+    db.session.commit()
+    db.session.flush()
+
+    return {
+        "Test battery": test_battery,
+    }
+
+
+@pytest.fixture(scope="function")
+def add_battery_kWh_assets_fresh_db(
+    fresh_db,
+    setup_roles_users_fresh_db,
+    setup_accounts_fresh_db,
+    setup_markets_fresh_db,
+    setup_generic_asset_types_fresh_db,
+) -> dict[str, GenericAsset]:
+    return create_test_battery_kWh_assets(
         fresh_db,
         setup_accounts_fresh_db,
         setup_markets_fresh_db,
