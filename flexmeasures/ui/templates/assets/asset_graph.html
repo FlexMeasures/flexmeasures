@@ -644,7 +644,7 @@
                     <h5 class="card-title">${sensor.name}</h5>
                     <p class="card-text">
                         <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                        <b>Unit:</b> ${sensor.unit},
+                        <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                         <b>Asset:</b> ${Asset.name},
                         <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                     </p>
@@ -680,11 +680,11 @@
                         <h5 class="card-title">${sensor.name}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                            <b>Unit:</b> ${sensor.unit},
+                            <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                             <b>Asset:</b> ${Asset.name},
                             <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </p>
-                        <button class="btn btn-primary btn-sm" onclick="udpateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
+                        <button class="btn btn-primary btn-sm" onclick="updateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
                     </div>
                 </div>
             `;
@@ -694,10 +694,13 @@
     }
 
     async function updateAssetSensorsToShow() {
+        const refreshSpinner = document.getElementById('spinner');
+        const sensorChartDiv = document.getElementById('sensorchart');
 
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
-        document.getElementById('spinner').style.display = 'block';
+        refreshSpinner.style.display = 'block';
+        sensorChartDiv.style.display = 'none';
 
         const response = await fetch(apiURL, {
             method: "PATCH",
@@ -714,6 +717,8 @@
         } else {
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
             showToast("Changes saved successfully", "success");
+            refreshSpinner.style.display = 'none';
+            sensorChartDiv.style.display = 'block';
         }
     }
 

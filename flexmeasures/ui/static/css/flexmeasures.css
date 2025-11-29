@@ -1302,7 +1302,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 
 .role-title-text text {
-    font-size: 20px;
     fill: var(--primary-color);
 }
 

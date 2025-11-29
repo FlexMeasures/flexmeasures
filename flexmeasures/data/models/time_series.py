@@ -666,8 +666,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         start, end = get_timerange([self.id])
         return dict(start=start, end=end)
 
+    @property
+    def _ui_unit(self) -> str:
+        """Used to customize how the sensor unit is shown in the UI."""
+        if self.unit == "":
+            return '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
+        return self.unit
+
     def __repr__(self) -> str:
-        return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
+        return f"<Sensor {self.id}: {self.name}, unit: {self.unit if self.unit != '' else 'dimensionless'} res.: {self.event_resolution}>"
 
     def __str__(self) -> str:
         return self.name

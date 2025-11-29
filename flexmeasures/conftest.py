@@ -522,6 +522,7 @@ def create_assets(
                 "site-power-capacity": "1 MVA",
                 "consumption-price": {"sensor": setup_markets["epex_da"].id},
             },
+            # TODO: move attributes to flex model
             attributes=dict(
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
@@ -830,9 +831,11 @@ def create_test_battery_assets(
             "site-power-capacity": "2 MVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
+            # TODO: stop using the three soc_ attributes all together
             "soc_in_mwh": 2.5,
             "soc_datetime": "2015-01-01T00:00+01",
             "soc_udi_event_id": 203,
@@ -848,6 +851,7 @@ def create_test_battery_assets(
         generic_asset=test_battery,
         event_resolution=timedelta(minutes=15),
         unit="MW",
+        # TODO: move attributes to flex model or remove (?)
         attributes=dict(
             daily_seasonality=True,
             weekly_seasonality=True,
@@ -879,6 +883,7 @@ def create_test_battery_assets(
             "site-power-capacity": "2 MVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -925,6 +930,7 @@ def create_test_battery_assets(
         generic_asset=test_battery_dynamic_power_capacity,
         event_resolution=timedelta(minutes=15),
         unit="MW",
+        # TODO: move attributes to flex model
         attributes=dict(
             capacity_in_mw=10,
             production_capacity="8 MW",
@@ -943,6 +949,7 @@ def create_test_battery_assets(
             "site-power-capacity": "10 kVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=0.01,
             min_soc_in_mwh=0,
@@ -1079,6 +1086,7 @@ def create_charging_station_assets(
             "site-power-capacity": "2 MVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -1115,6 +1123,7 @@ def create_charging_station_assets(
             "site-power-capacity": "2 MVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -1177,6 +1186,7 @@ def add_assets_with_site_power_limits(
         flex_context={
             "site-power-capacity": "2 MVA",
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -1197,6 +1207,7 @@ def add_assets_with_site_power_limits(
             "site-consumption-capacity": "900 kW",
             "site-production-capacity": "750 kW",
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
