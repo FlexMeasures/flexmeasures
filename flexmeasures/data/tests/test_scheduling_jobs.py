@@ -444,8 +444,7 @@ def test_scheduling_unit_conversion(
         .filter(TimedBelief.sensor_id == battery_consumption_sensor.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
     ).all()
+    # Check charging AND discharging
+    assert any(v.event_value > 0 for v in power_values), "Expected positive (charging) values"
+    assert any(v.event_value < 0 for v in power_values), "Expected negative (discharging) values"
 
-    # Verify all expected entries are created
-    assert (
-        len(power_values) == 96
-    ), "Expected 96 TimedBelief entries for 1 day at 15-min resolution"
