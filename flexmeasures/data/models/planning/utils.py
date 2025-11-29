@@ -10,11 +10,11 @@ from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
 
-from flexmeasures.data import db
 from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.schemas.sensors import SensorIdField
 
 from flexmeasures.utils.flexmeasures_inflection import capitalize, pluralize
 from flexmeasures.utils.unit_utils import ur, convert_units
@@ -565,11 +565,7 @@ def sensor_loader(data, parent_key: str) -> list[tuple[Sensor, str]]:
     :param parent_key:  'flex-model' or 'flex-context'
     :returns:           list of sensor-field tuples
     """
-    sensor_ids = find_sensor_ids(data, parent_key)
-    sensors = [
-        (db.session.get(Sensor, sensor_id), field_name)
-        for sensor_id, field_name in sensor_ids
-    ]
+    sensors = find_sensors(data, parent_key)
     return sensors
 
 
@@ -577,16 +573,16 @@ flex_model_loader = partial(sensor_loader, parent_key="flex-model")
 flex_context_loader = partial(sensor_loader, parent_key="flex-context")
 
 
-def find_sensor_ids(data, parent_key="") -> list[tuple[int, str]]:
+def find_sensors(data, parent_key="") -> list[tuple[Sensor, str]]:
     """
-    Recursively find all sensor IDs in a nested dictionary or list along with the fields referring to them.
+    Recursively find all sensors in a nested dictionary or list along with the fields referring to them.
 
     Args:
         data (dict or list): The input data which can be a dictionary or a list containing nested dictionaries and lists.
         parent_key (str): The key of the parent element in the recursion, used to track the referring fields.
 
     Returns:
-        list: A list of tuples, each containing a sensor ID and the referring field.
+        list: A list of tuples, each containing a sensor and the field that referred to it.
 
     Example:
         nested_dict = {
@@ -614,8 +610,8 @@ def find_sensor_ids(data, parent_key="") -> list[tuple[int, str]]:
             ],
         }
 
-        sensor_ids = find_sensor_ids(nested_dict)
-        print(sensor_ids)  # Output: [(931, 'sensor'), (300, 'soc-minima.sensor'), (98, 'discharging-efficiency.sensor'), (42, 'consumption-capacity.sensor')]
+        sensors = find_sensors(nested_dict)
+        print(sensors)  # Output: [(<Sensor 931>, 'sensor'), (<Sensor 300>, 'soc-minima.sensor'), (<Sensor 98>, 'discharging-efficiency.sensor'), (<Sensor 42>, 'consumption-capacity.sensor')]
     """
     sensor_ids = []
 
@@ -623,15 +619,30 @@ def find_sensor_ids(data, parent_key="") -> list[tuple[int, str]]:
         for key, value in data.items():
             new_parent_key = f"{parent_key}.{key}" if parent_key else key
             if key[-6:] == "sensor":
-                sensor_ids.append((value, new_parent_key))
+                sensor = deserialize_to_sensor_if_needed(value)
+                sensor_ids.append((sensor, new_parent_key))
             elif key[-7:] == "sensors":
                 for v in value:
-                    sensor_ids.append((v, new_parent_key))
+                    sensor = deserialize_to_sensor_if_needed(v)
+                    sensor_ids.append((sensor, new_parent_key))
             else:
-                sensor_ids.extend(find_sensor_ids(value, new_parent_key))
+                sensor_ids.extend(find_sensors(value, new_parent_key))
     elif isinstance(data, list):
         for index, item in enumerate(data):
             new_parent_key = f"{parent_key}[{index}]"
-            sensor_ids.extend(find_sensor_ids(item, new_parent_key))
+            sensor_ids.extend(find_sensors(item, new_parent_key))
 
     return sensor_ids
+
+
+def deserialize_to_sensor_if_needed(value: int | Sensor) -> Sensor:
+    """Ensure all sensor values are deserialized.
+
+    The multi-asset flex-model already deserialized the power sensors of each device.
+    Other fields still need to be deserialized.
+    """
+    if isinstance(value, Sensor):
+        sensor = value
+    else:
+        sensor = SensorIdField().deserialize(value)
+    return sensor
