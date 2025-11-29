@@ -119,13 +119,14 @@ class TriggerScheduleKwargsSchema(Schema):
         metadata=dict(
             description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
         ),
+        load_default={},
     )
     flex_context = fields.Dict(
-        required=False,
         data_key="flex-context",
         metadata=dict(
             description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
+        load_default={},
     )
     force_new_job_creation = fields.Boolean(
         required=False,
@@ -604,7 +605,6 @@ class SensorAPI(FlaskView):
         ctx_arg_name="flex_model",
         ctx_loader=flex_model_loader,
         pass_ctx_to_loader=True,
-        pass_if_no_context_found=True,
         error_handler=lambda context, permission, origin: invalid_sender(
             required_permissions=[f"{permission} sensor {context.id}"],
             field_name=origin,
@@ -615,7 +615,6 @@ class SensorAPI(FlaskView):
         ctx_arg_name="flex_context",
         ctx_loader=flex_context_loader,
         pass_ctx_to_loader=True,
-        pass_if_no_context_found=True,
         error_handler=lambda context, permission, origin: invalid_sender(
             required_permissions=[f"{permission} sensor {context.id}"],
             field_name=origin,
