@@ -393,7 +393,7 @@ def test_save_state_of_charge(
 def test_scheduling_unit_conversion(
     fresh_db,
     app,
-    add_battery_assets_fresh_db,
+    add_battery_kWh_assets_fresh_db,
     setup_fresh_test_data,
     add_market_prices_fresh_db,
 ):
