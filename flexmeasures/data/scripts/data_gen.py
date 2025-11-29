@@ -63,6 +63,7 @@ def add_default_asset_types(db: SQLAlchemy) -> dict[str, GenericAssetType]:
         ("battery", "stationary battery"),
         ("building", "building"),
         ("process", "process"),
+        ("heat-storage", "thermal storage / buffer"),
     ):
         _type = db.session.execute(
             select(GenericAssetType).filter_by(name=type_name)
