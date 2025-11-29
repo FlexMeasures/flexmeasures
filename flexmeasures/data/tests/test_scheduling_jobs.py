@@ -445,8 +445,12 @@ def test_scheduling_unit_conversion(
         .filter(TimedBelief.source_id == scheduler_source.id)
     ).all()
     # Check charging AND discharging
-    assert any(v.event_value > 0 for v in power_values), "Expected positive (charging) values"
-    assert any(v.event_value < 0 for v in power_values), "Expected negative (discharging) values"
+    assert any(
+        v.event_value > 0 for v in power_values
+    ), "Expected positive (charging) values"
+    assert any(
+        v.event_value < 0 for v in power_values
+    ), "Expected negative (discharging) values"
 
     # Check power limits: max charging should be <= capacity * resolution
     max_allowed = 2 * 0.25  # 2 MWh * 0.25h = 0.5 MWh

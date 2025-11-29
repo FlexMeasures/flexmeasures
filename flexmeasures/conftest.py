@@ -867,10 +867,7 @@ def create_test_battery_kWh_assets(
         datetime(2015, 1, 1), datetime(2015, 1, 3, 23, 45), freq="15min"
     )
 
-    values = [
-        random() * (1 + np.sin(x / 15))
-        for x in range(len(time_slots))
-    ]
+    values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
 
     beliefs = [
         TimedBelief(
