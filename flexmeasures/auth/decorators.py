@@ -110,6 +110,7 @@ def permission_required_for_context(
     ctx_arg_name: str | None = None,
     ctx_loader: Callable | None = None,
     pass_ctx_to_loader: bool = False,
+    pass_if_no_context_found: bool = False,
     error_handler: Callable | None = None,
 ):
     """
@@ -176,7 +177,7 @@ def permission_required_for_context(
             )
 
             # skip check in case (optional) argument was not passed
-            if context is None:
+            if context is None and pass_if_no_context_found:
                 return fn(*args, **kwargs)
 
             # Check access for possibly multiple contexts

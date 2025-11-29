@@ -604,6 +604,7 @@ class SensorAPI(FlaskView):
         ctx_arg_name="flex_model",
         ctx_loader=flex_model_loader,
         pass_ctx_to_loader=True,
+        pass_if_no_context_found=True,
         error_handler=lambda context, permission, origin: invalid_sender(
             required_permissions=[f"{permission} sensor {context.id}"],
             field_name=origin,
@@ -614,6 +615,7 @@ class SensorAPI(FlaskView):
         ctx_arg_name="flex_context",
         ctx_loader=flex_context_loader,
         pass_ctx_to_loader=True,
+        pass_if_no_context_found=True,
         error_handler=lambda context, permission, origin: invalid_sender(
             required_permissions=[f"{permission} sensor {context.id}"],
             field_name=origin,
