@@ -399,7 +399,9 @@ def test_scheduling_unit_conversion(
 ):
     """Test scheduling of a battery consumption sensor with kWh units, ensuring correct data creation and unit handling."""
 
-    battery_consumption_sensor = add_battery_assets_fresh_db["Test battery"].sensors[2]
+    battery_asset = add_battery_kWh_assets_fresh_db["Test battery"]
+    battery_consumption_sensor = battery_asset.sensors[0]
+    battery_inflexible_sensor = battery_asset.sensors[1]
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -424,7 +426,7 @@ def test_scheduling_unit_conversion(
             "roundtrip-efficiency": "98%",
             "storage-efficiency": 0.999,
         },
-        flex_context={"inflexible-device-sensors": [battery_consumption_sensor.id]},
+        flex_context={"inflexible-device-sensors": [battery_inflexible_sensor.id]},
     )
 
     print("Job: %s" % job.id)
