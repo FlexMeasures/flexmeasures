@@ -1085,19 +1085,6 @@ def create_test_battery_assets(
     )
     db.session.add(test_battery_sensor_small)
 
-    test_battery_consumption_sensor = Sensor(
-        name="consumption",
-        generic_asset=test_battery,
-        event_resolution=timedelta(minutes=15),
-        unit="MWh",
-        attributes=dict(
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
-        ),
-    )
-    db.session.add(test_battery_consumption_sensor)
-
     db.session.flush()
     return {
         "Test building": test_building,
