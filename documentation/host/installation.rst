@@ -7,17 +7,19 @@ Installation & First steps
 This section walks you through the basics of installing FlexMeasures on a computer and running it continuously.
 
 We'll cover the most crucial settings you need to run FlexMeasures step-by-step, both for `pip`-based installation, as well as running via Docker.
-In addition, we'll explain some basics that you'll need:
+In addition, we'll explain some basics that you'll need for later steps:
 
 .. contents:: Table of contents
     :local:
-    :depth: 1
+    :depth: 2
+
+|
 
 
 Installing and running FlexMeasures 
 ------------------------------------
 
-In a nutshell, what does installation and running look like?
+What is the fastest way to get FlexMeasures to run on your computer? 
 Well, there are two major ways:
 
 .. tabs::
@@ -45,6 +47,8 @@ Well, there are two major ways:
       
 However, FlexMeasures is not a simple tool - it's a web-app, with bells and whistles, like user access and databases.
 We'll need to add a few minimal preparations before running will work, see below. 
+
+.. note:: All configuration settings we show here are short-term. We also tell you on this page how to store them more permanently in a config file.
 
 
 Make a secret key for sessions and password salts
@@ -78,7 +82,6 @@ This suffices for a quick start. For an actually secure secret, here is a Python
    $ python -c "import secrets; print(secrets.token_urlsafe())"
 
 
-
 Choose the environment
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -108,7 +111,17 @@ The default environment setting is ``production``\ , which will probably not wor
 Tell FlexMeasures where the time series database is
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See :ref:`host-data` (section "Getting ready to use") for deeper instructions on this.
+*
+  Make sure you have a Postgres (Version 9+) database for FlexMeasures to use.
+  See :ref:`host-data` (section "Getting ready to use") for deeper instructions on this.
+  
+  Or, to get started, you could simply install Postgres via Docker:
+
+  .. code-block:: bash
+
+        $ docker run --rm --name flexmeasures-db -e POSTGRES_PASSWORD=<postgres-user-password> -e POSTGRES_DB=<flexmeasures-db-name> -d  postgres:17
+        $ # this will create the datbase "flexmeasures-db-name" and the `postgres` user (who'll be identified with the given password) will own it.
+
 * 
   Tell ``flexmeasures`` about it:
 
@@ -219,7 +232,7 @@ FlexMeasures is also a web-based platform, so we need to create a user to authen
 Add initial structure
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Populate the database with some standard asset types, user roles etc.: 
+Populate the database with some standard asset types, user roles, data sources etc.: 
 
 .. code-block:: bash
 
@@ -284,7 +297,7 @@ It's finally time to start running FlexMeasures. This here is the direct form yo
         .. code-block:: bash
 
            # or everything on the terminal 
-           $ docker run -d --env FLEXMEASURES_ENV=development --env SECRET_KEY=something-secret --env SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host-address>:<port>/<db-name> lfenergy/flexmeasures 
+           $ docker run -d --env FLEXMEASURES_ENV=development --env SECRET_KEY=something-secret --env SECURITY_TOTP_SECRETS={"1": "something-secret"} --env SQLALCHEMY_DATABASE_URI=postgresql://<user>:<password>@<host-address>:<port>/<db-name> lfenergy/flexmeasures 
 
 
 This might print some warnings, see the next section where we go into more detail. For instance, when you see the dashboard, the map will not work. For that, you'll need to get your :ref:`mapbox_access_token` and add it to your config file.
@@ -310,7 +323,7 @@ First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` 
 This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
 For instance, to add data as forecasts, use the ``--beliefcol`` parameter, to say precisely when these forecasts were made. Or add  ``--horizon`` for rolling forecasts if they all share the same horizon.
 
-Second, you can use the `POST /api/v3_0/sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ endpoint in the FlexMeasures API to send meter data.
+Second, you can use the `POST /api/v3_0/sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-(id)-data>`_ endpoint in the FlexMeasures API to send meter data.
 
 You can also use the API to send forecast data. Similar to the ``add beliefs`` commands, you would use here the fields ``prior`` (to denote time of knowledge of data) or ``horizon`` (for rolling forecast data with equal horizon). Consult the documentation at :ref:`posting_sensor_data`.
 
@@ -324,10 +337,21 @@ This obviously depends on some conditions (like the right underlying data) being
 
 
 
-Set mail settings
-^^^^^^^^^^^^^^^^^
+Mail server / set mail settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email service that can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see :ref:`mail-config`.
+For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email service that can do that (e.g. Gmail).
+
+Tip: For testing/development purposes, you can run a mock email server locally:
+
+.. code-block:: bash
+
+   $ docker run -d --rm -p 8025:8025 -p 1025:1025 --name fm-mailhog mailhog/mailhog
+
+In your `~/.flexmeasures.cfg`, all you need to set is ``MAIL_PORT=1025``. Then, all emails sent to this server can be viewed in your browser at http://localhost:8025.
+
+For a real email server, you want to set all the MAIL_* settings in your configuration, see :ref:`mail-config`.
+
 
 .. _install-lp-solver:
 
@@ -351,12 +375,79 @@ Install and configure Redis
 
 To let FlexMeasures queue forecasting and scheduling jobs, install a `Redis <https://redis.io/>`_ server (or rent one) and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in :ref:`redis-config`.
 
+A quick way to run redis locally (if you are testing your setup) is via Docker:
+
+.. code-block:: bash
+
+   $ docker run -d --rm --name fm-redis -p 6379:6379 redis
+
+
 Then, start workers in a console (or some other method to keep a long-running process going):
 
 .. code-block:: bash
 
    $ flexmeasures jobs run-worker --queue forecasting
    $ flexmeasures jobs run-worker --queue scheduling
+
+
+Two-factor authentication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures supports two-factor authentication via Time-based One-time Passwords (TOTP).
+It is off by default, but for any kind of production system in the modern era, it is highly advised to use it to protect your user's data.
+
+Turn it on in the settings:
+
+.. tabs::
+
+    .. tab:: via `pip`
+
+        .. code-block:: bash
+
+            $ export SECURITY_TWO_FACTOR=True
+
+        (on Windows, use ``set`` instead of ``export``\ )
+
+    .. tab:: via `docker`
+
+        Add the `SECURITY_TWO_FACTOR` as an environment variable:
+
+        .. code-block:: bash
+        
+            $ docker run -d --env SECURITY_TWO_FACTOR=True lfenergy/flexmeasures
+
+
+
+If you use it, we need a secret key for encrypting the one-time passwords. This can be done in a similar way as above:
+
+.. tabs::
+
+    .. tab:: via `pip`
+
+        .. code-block:: bash
+
+            $ export SECURITY_TOTP_SECRETS={\"1\":\"something-secret\"}
+
+        (on Windows, use ``set`` instead of ``export``\ )
+
+    .. tab:: via `docker`
+
+        Add the `SECURITY_TOTP_SECRETS` as an environment variable:
+
+        .. code-block:: bash
+        
+            $ docker run -d --env SECURITY_TOTP_SECRETS={\"1\":\"something-secret\"} lfenergy/flexmeasures
+
+.. note:: You can add more secrets later on - keeping the older ones makes sure existing tokens and sessions will continue to work.
+
+This suffices for a quick start. For an actually secure secret, here is a Pythonic way to generate a good secret key:
+
+.. code-block:: bash
+
+   $ python -c "from passlib import totp; print(f'{{\"1\": \"{totp.generate_secret()}\"}}')"
+
+
+Finally, you should set ``SECURITY_TWO_FACTOR_RESCUE_MAIL`` to an email address under which you can be reached by users who cannot use their 2nd means of authentication. 
 
 
 Where to go from here?
@@ -366,4 +457,4 @@ If your data structure is good, you should think about (continually) adding meas
 
 Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`tut_forecasting_scheduling`.
 
-One more consideration is to run FlexMeasures in a more professional ways as a we service. Head on to :ref:`deployment`.
+One more consideration is to run FlexMeasures in a more professional way as a web service. Head on to :ref:`deployment`.

@@ -1,19 +1,26 @@
 repos:
--   repo: https://github.com/pycqa/flake8
-    rev: 6.0.0  # New version tags can be found here: https://github.com/pycqa/flake8/tags
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1  # New version tags can be found here: https://github.com/pycqa/flake8/tags
     hooks:
-    - id: flake8
-      name: flake8 (code linting)
--   repo: https://github.com/psf/black
-    rev: 22.10.0  # New version tags can be found here: https://github.com/psf/black/tags
+      - id: flake8
+        name: flake8 (code linting)
+  - repo: https://github.com/psf/black
+    rev: 24.8.0  # New version tags can be found here: https://github.com/psf/black/tags
     hooks:
-    - id: black
-      name: black (code formatting)
--   repo: local
+      - id: black
+        name: black (code formatting)
+  - repo: local
     hooks:
-    - id: mypy
-      name: mypy (static typing)
-      pass_filenames: false
-      language: script
-      entry: ci/run_mypy.sh
-      verbose: true
+      - id: mypy
+        name: mypy (static typing)
+        pass_filenames: false
+        language: script
+        entry: ci/run_mypy.sh
+        verbose: true
+  - repo: local
+    hooks:
+      - id: generate-openapi-specs
+        name: Generate OpenAPI specs
+        pass_filenames: false
+        language: system
+        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || python flexmeasures/api/scripts/generate_open_api_specs.py'

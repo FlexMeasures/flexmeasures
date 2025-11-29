@@ -4,7 +4,7 @@ import pandas as pd
 import timely_beliefs as tb
 from sqlalchemy import select
 
-from flexmeasures.cli.tests.utils import to_flags
+from flexmeasures.cli.tests.utils import check_command_ran_without_error, to_flags
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.cli.tests.utils import get_click_commands
@@ -26,9 +26,10 @@ def test_add_one_sensor_attribute(app, db, setup_markets):
     }
     runner = app.test_cli_runner()
     result = runner.invoke(edit_attribute, to_flags(cli_input))
-    assert result.exit_code == 0 and "Success" in result.output, result.exception
+    check_command_ran_without_error(result)
+    assert "Success" in result.output, result.exception
 
-    event = f"Updated sensor '{sensor.name}': {sensor.id} Attr 'some new attribute' To 3.0 From None"
+    event = f"Updated sensor '{sensor.name}': {sensor.id}; Attr 'some new attribute' To 3.0 From None"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             affected_asset_id=sensor.generic_asset_id,
@@ -59,9 +60,10 @@ def test_update_one_asset_attribute(app, db, setup_generic_assets):
 
     runner = app.test_cli_runner()
     result = runner.invoke(edit_attribute, to_flags(cli_input))
-    assert result.exit_code == 0 and "Success" in result.output, result.exception
+    check_command_ran_without_error(result)
+    assert "Success" in result.output, result.exception
 
-    event = f"Updated asset '{asset.name}': {asset.id} Attr 'some-attribute' To some-new-value From some-value"
+    event = f"Updated asset '{asset.name}': {asset.id}; Attr 'some-attribute' To some-new-value From some-value"
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             affected_asset_id=asset.id,
@@ -160,7 +162,7 @@ def test_cli_help(app):
     runner = app.test_cli_runner()
     for cmd in get_click_commands(data_edit):
         result = runner.invoke(cmd, ["--help"])
-        assert result.exit_code == 0
+        check_command_ran_without_error(result)
         assert "Usage" in result.output
 
 
@@ -189,8 +191,7 @@ def test_transfer_ownership(app, db, add_asset_with_children, add_alternative_ac
 
     runner = app.test_cli_runner()
     result = runner.invoke(transfer_ownership, cli_input)
-
-    assert result.exit_code == 0  # run command without errors
+    check_command_ran_without_error(result)
 
     # assert that the parent and its children now belong to the new account
     assert parent.owner == new_account

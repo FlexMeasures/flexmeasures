@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 import pytest
 import pytz
@@ -18,8 +20,16 @@ from flexmeasures.data.models.planning.storage import (
     build_device_soc_values,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
-from flexmeasures.data.models.planning.tests.utils import check_constraints
-from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
+from flexmeasures.data.models.planning.tests.utils import (
+    check_constraints,
+    get_sensors_from_db,
+)
+from flexmeasures.data.models.planning.utils import (
+    initialize_device_commitment,
+    initialize_df,
+    initialize_energy_commitment,
+    initialize_series,
+)
 from flexmeasures.data.schemas.sensors import TimedEventSchema
 from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
@@ -27,6 +37,8 @@ from flexmeasures.utils.calculations import (
 )
 from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.unit_utils import convert_units, ur
+
+from pyomo.environ import value
 
 TOLERANCE = 0.00001
 
@@ -86,11 +98,11 @@ def test_battery_solver_day_1(
         resolution,
         flex_model={"soc-at-start": soc_at_start},
         flex_context={
-            "inflexible-device-sensors": [
-                s.id for s in add_inflexible_device_forecasts.keys()
-            ]
-            if use_inflexible_device
-            else [],
+            "inflexible-device-sensors": (
+                [s.id for s in add_inflexible_device_forecasts.keys()]
+                if use_inflexible_device
+                else []
+            ),
             "site-power-capacity": "2 MW",
         },
     )
@@ -142,6 +154,7 @@ def test_battery_solver_day_2(
             "soc-max": soc_max,
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
+            "prefer-curtailing-later": False,
         },
     )
     schedule = scheduler.compute()
@@ -151,18 +164,27 @@ def test_battery_solver_day_2(
         battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
     )
 
+    db_soc_min_in_mwh = (
+        ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
+    )
+    db_soc_max_in_mwh = (
+        ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
+    )
+
     # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
     assert soc_schedule.iloc[-1] == max(
-        soc_min, battery.get_attribute("min_soc_in_mwh")
+        soc_min, db_soc_min_in_mwh
     )  # Battery sold out at the end of its planning horizon
 
     # As long as the efficiencies aren't too bad (I haven't computed the actual switch points)
     if roundtrip_efficiency > 0.9 and storage_efficiency > 0.9:
-        assert soc_schedule.loc[start + timedelta(hours=8)] == max(
-            soc_min, battery.get_attribute("min_soc_in_mwh")
+        np.testing.assert_approx_equal(
+            soc_schedule.loc[start + timedelta(hours=8)],
+            max(soc_min, db_soc_min_in_mwh),
+            significant=3,
         )  # Sell what you begin with
         assert soc_schedule.loc[start + timedelta(hours=16)] == min(
-            soc_max, battery.get_attribute("max_soc_in_mwh")
+            soc_max, db_soc_max_in_mwh
         )  # Buy what you can to sell later
     elif storage_efficiency > 0.9:
         # If only the roundtrip efficiency is poor, best to stand idle (keep a high SoC as long as possible)
@@ -175,10 +197,10 @@ def test_battery_solver_day_2(
     else:
         # If the storage efficiency is poor, regardless of whether the roundtrip efficiency is poor, best to sell asap
         assert soc_schedule.loc[start + timedelta(hours=8)] == max(
-            soc_min, battery.get_attribute("min_soc_in_mwh")
+            soc_min, db_soc_min_in_mwh
         )
         assert soc_schedule.loc[start + timedelta(hours=16)] == max(
-            soc_min, battery.get_attribute("min_soc_in_mwh")
+            soc_min, db_soc_min_in_mwh
         )
 
 
@@ -195,8 +217,18 @@ def run_test_charge_discharge_sign(
     storage_efficiency = 1
     # Choose the SoC constraints and starting value such that the battery can fully charge or discharge in a single time step
     soc_min = 0
-    soc_max = battery.get_attribute("capacity_in_mw")
-    soc_at_start = battery.get_attribute("capacity_in_mw")
+    capacity = (
+        ur.Quantity(
+            battery.get_attribute(
+                "power-capacity",
+                battery.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude,
+    )
+    soc_max = capacity
+    soc_at_start = capacity
 
     scheduler: Scheduler = StorageScheduler(
         battery,
@@ -210,33 +242,33 @@ def run_test_charge_discharge_sign(
             "roundtrip-efficiency": roundtrip_efficiency,
             "storage-efficiency": storage_efficiency,
             "prefer-charging-sooner": True,
+            "prefer-curtailing-later": False,
         },
         flex_context={
-            "consumption-price-sensor": consumption_price_sensor_id,
-            "production-price-sensor": production_price_sensor_id,
+            "consumption-price": {"sensor": consumption_price_sensor_id},
+            "production-price": {"sensor": production_price_sensor_id},
         },
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
-    _, _, results, model = device_scheduler(
-        device_constraints,
-        ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
-        initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+    planned_power_per_device, planned_costs, results, model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=[
+            soc_at_start_d * (timedelta(hours=1) / resolution)
+            for soc_at_start_d in soc_at_start
+        ],
     )
 
     device_power_sign = pd.Series(model.device_power_sign.extract_values())[0]
@@ -264,7 +296,7 @@ def run_test_charge_discharge_sign(
 
     # Check if constraints were met
     soc_schedule = check_constraints(
-        battery, schedule, soc_at_start, roundtrip_efficiency, storage_efficiency
+        battery, schedule, soc_at_start[0], roundtrip_efficiency, storage_efficiency
     )
 
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
@@ -328,9 +360,19 @@ def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecast
     assert all(schedule_3[8:] <= 0)
 
     # discharge the whole battery in 1 time period
+    capacity = (
+        ur.Quantity(
+            battery.get_attribute(
+                "power-capacity",
+                battery.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
+    )
     assert np.isclose(
         schedule_3.min(),
-        -battery.get_attribute("capacity_in_mw") * np.sqrt(roundtrip_efficiency),
+        -capacity * np.sqrt(roundtrip_efficiency),
     )
 
     # Case 4: Consumption Price > Production Price, roundtrip_efficiency < 1
@@ -342,7 +384,7 @@ def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecast
     assert all(schedule_4[8:] <= 0)
 
     # discharge the whole battery in 1 time period, with no conversion losses
-    assert np.isclose(schedule_4.min(), -battery.get_attribute("capacity_in_mw"))
+    assert np.isclose(schedule_4.min(), -capacity)
 
 
 @pytest.mark.parametrize(
@@ -366,8 +408,18 @@ def test_charging_station_solver_day_2(
 
     epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
-    assert charging_station.get_attribute("capacity_in_mw") == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    capacity = (
+        ur.Quantity(
+            charging_station.get_attribute(
+                "power-capacity",
+                charging_station.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
+    )
+    assert capacity == 2
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -382,36 +434,45 @@ def test_charging_station_solver_day_2(
         resolution,
         flex_model={
             "soc_at_start": soc_at_start,
-            "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
-            "soc_max": charging_station.get_attribute(
-                "max_soc_in_mwh", max(soc_targets.values)
-            ),
-            "roundtrip_efficiency": charging_station.get_attribute(
-                "roundtrip_efficiency", 1
-            ),
-            "storage_efficiency": charging_station.get_attribute(
-                "storage_efficiency", 1
-            ),
+            "soc_min": ur.Quantity(charging_station.get_attribute("soc-min", "0 kWh"))
+            .to("MWh")
+            .magnitude,
+            "soc_max": ur.Quantity(
+                charging_station.get_attribute(
+                    "soc-max", f"{max(soc_targets.values)} MWh"
+                )
+            )
+            .to("MWh")
+            .magnitude,
+            "roundtrip_efficiency": ur.Quantity(
+                charging_station.get_attribute("roundtrip-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
+            "storage_efficiency": ur.Quantity(
+                charging_station.get_attribute("storage-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
             "soc_targets": soc_targets,
         },
+        flex_context={
+            "ems_power_capacity_in_mw": ur.Quantity("2 MVA"),
+            "consumption_price": epex_da,
+            "shared_currency_unit": "EUR",
+        },
     )
-    scheduler.config_deserialized = (
-        True  # soc targets are already a DataFrame, names get underscore
-    )
+    # soc targets are already a DataFrame, names get underscore, shared currency unit is set
+    scheduler.config_deserialized = True
+
     consumption_schedule = scheduler.compute()
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
     )
 
     # Check if constraints were met
-    assert (
-        min(consumption_schedule.values)
-        >= charging_station.get_attribute("capacity_in_mw") * -1
-    )
-    assert (
-        max(consumption_schedule.values)
-        <= charging_station.get_attribute("capacity_in_mw") + TOLERANCE
-    )
+    assert min(consumption_schedule.values) >= capacity * -1
+    assert max(consumption_schedule.values) <= capacity + TOLERANCE
     print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
     assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < TOLERANCE
@@ -445,8 +506,18 @@ def test_fallback_to_unsolvable_problem(
 
     epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
-    assert charging_station.get_attribute("capacity_in_mw") == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    capacity = (
+        ur.Quantity(
+            charging_station.get_attribute(
+                "power-capacity",
+                charging_station.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
+    )
+    assert capacity == 2
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -455,29 +526,44 @@ def test_fallback_to_unsolvable_problem(
     soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
     kwargs = {
-        "sensor": charging_station,
+        "asset_or_sensor": charging_station,
         "start": start,
         "end": end,
         "resolution": resolution,
         "flex_model": {
             "soc_at_start": soc_at_start,
-            "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
-            "soc_max": charging_station.get_attribute(
-                "max_soc_in_mwh", max(soc_targets.values)
-            ),
-            "roundtrip_efficiency": charging_station.get_attribute(
-                "roundtrip_efficiency", 1
-            ),
-            "storage_efficiency": charging_station.get_attribute(
-                "storage_efficiency", 1
-            ),
+            "soc_min": ur.Quantity(charging_station.get_attribute("soc-min", "0 kWh"))
+            .to("MWh")
+            .magnitude,
+            "soc_max": ur.Quantity(
+                charging_station.get_attribute(
+                    "soc-max", f"{max(soc_targets.values)} MWh"
+                )
+            )
+            .to("MWh")
+            .magnitude,
+            "roundtrip_efficiency": ur.Quantity(
+                charging_station.get_attribute("roundtrip-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
+            "storage_efficiency": ur.Quantity(
+                charging_station.get_attribute("storage-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
             "soc_targets": soc_targets,
+        },
+        "flex_context": {
+            "ems_power_capacity_in_mw": ur.Quantity(f"{capacity} MVA"),
+            "consumption_price": epex_da,
+            "shared_currency_unit": "EUR",
         },
     }
     scheduler = StorageScheduler(**kwargs)
-    scheduler.config_deserialized = (
-        True  # soc targets are already a DataFrame, names get underscore
-    )
+
+    # soc targets are already a DataFrame, names get underscore, shared currency unit is set
+    scheduler.config_deserialized = True
 
     # calling the scheduler with an infeasible problem raises an Exception
     with pytest.raises(InfeasibleProblemException):
@@ -493,13 +579,8 @@ def test_fallback_to_unsolvable_problem(
     )
 
     # Check if constraints were met
-    assert (
-        min(consumption_schedule.values)
-        >= charging_station.get_attribute("capacity_in_mw") * -1
-    )
-    assert max(consumption_schedule.values) <= charging_station.get_attribute(
-        "capacity_in_mw"
-    )
+    assert min(consumption_schedule.values) >= capacity * -1
+    assert max(consumption_schedule.values) <= capacity
     print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
     assert (
@@ -541,7 +622,9 @@ def test_building_solver_day_2(
     battery = flexible_devices["battery power sensor"]
     building = battery.generic_asset
     default_consumption_price_sensor = get_test_sensor(db)
-    assert battery.get_attribute("market_id") == default_consumption_price_sensor.id
+    assert battery.get_attribute("consumption-price") == {
+        "sensor": default_consumption_price_sensor.id
+    }
     if market_scenario == "dynamic contract":
         consumption_price_sensor = default_consumption_price_sensor
         production_price_sensor = consumption_price_sensor
@@ -568,18 +651,28 @@ def test_building_solver_day_2(
             "soc_at_start": soc_at_start,
             "soc_min": soc_min,
             "soc_max": soc_max,
-            "roundtrip_efficiency": battery.get_attribute("roundtrip_efficiency", 1),
-            "storage_efficiency": battery.get_attribute("storage_efficiency", 1),
+            "roundtrip_efficiency": ur.Quantity(
+                battery.get_attribute("roundtrip-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
+            "storage_efficiency": ur.Quantity(
+                battery.get_attribute("storage-efficiency", 1)
+            )
+            .to("dimensionless")
+            .magnitude,
         },
         flex_context={
+            "ems_power_capacity_in_mw": ur.Quantity("2 MVA"),
             "inflexible_device_sensors": inflexible_devices.values(),
-            "production_price_sensor": production_price_sensor,
-            "consumption_price_sensor": consumption_price_sensor,
+            "production_price": production_price_sensor,
+            "consumption_price": consumption_price_sensor,
+            "shared_currency_unit": "EUR",
         },
     )
-    scheduler.config_deserialized = (
-        True  # inflexible device sensors are already objects, names get underscore
-    )
+    # inflexible device sensors are already objects, names get underscore, shared currency unit is set
+    scheduler.config_deserialized = True
+
     schedule = scheduler.compute()
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
@@ -604,19 +697,32 @@ def test_building_solver_day_2(
     ).tail(
         -4 * 24
     )  # remove first 96 quarter-hours (the schedule is about the 2nd day)
-    capacity["max"] = building.get_attribute("capacity_in_mw")
-    capacity["min"] = -building.get_attribute("capacity_in_mw")
+    building_capacity = (
+        ur.Quantity(
+            building.get_attribute(
+                "power-capacity",
+                building.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
+    )
+    battery_capacity = (
+        ur.Quantity(battery.get_attribute("power-capacity")).to("MW").magnitude
+    )
+    capacity["max"] = building_capacity
+    capacity["min"] = -building_capacity
     capacity["production headroom"] = capacity["max"] - capacity["inflexible"]
     capacity["consumption headroom"] = capacity["inflexible"] - capacity["min"]
     capacity["battery production headroom"] = capacity["production headroom"].clip(
-        upper=battery.get_attribute("capacity_in_mw")
+        upper=battery_capacity
     )
     capacity["battery consumption headroom"] = capacity["consumption headroom"].clip(
-        upper=battery.get_attribute("capacity_in_mw")
+        upper=battery_capacity
     )
-    capacity[
-        "schedule"
-    ] = schedule.values  # consumption is positive, production is negative
+    capacity["schedule"] = (
+        schedule.values
+    )  # consumption is positive, production is negative
     with pd.option_context(
         "display.max_rows", None, "display.max_columns", None, "display.width", 2000
     ):
@@ -625,8 +731,10 @@ def test_building_solver_day_2(
     assert (capacity["schedule"] <= capacity["battery consumption headroom"]).all()
 
     for soc in soc_schedule.values:
-        assert soc >= max(soc_min, battery.get_attribute("min_soc_in_mwh"))
-        assert soc <= battery.get_attribute("max_soc_in_mwh")
+        assert soc >= max(
+            soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
+        )
+        assert soc <= ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
 
     # Check whether the resulting soc schedule follows our expectations for.
     # To recap, in scenario 1 and 2, the schedule should mainly be influenced by:
@@ -637,21 +745,21 @@ def test_building_solver_day_2(
     # 1) Sell what you begin with
     # 2) The battery discharged as far as it could during the first 8 net-consumption hours
     assert soc_schedule.loc[start + timedelta(hours=8)] == max(
-        soc_min, battery.get_attribute("min_soc_in_mwh")
+        soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
     )
 
     # Result after second 8 hour-interval
     # 1) Buy what you can to sell later, when prices will be high again
     # 2) The battery charged with PV power as far as it could during the middle 8 net-production hours
     assert soc_schedule.loc[start + timedelta(hours=16)] == min(
-        soc_max, battery.get_attribute("max_soc_in_mwh")
+        soc_max, ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
     )
 
     # Result at end of day
     # 1) The battery sold out at the end of its planning horizon
     # 2) The battery discharged as far as it could during the last 8 net-consumption hours
     assert soc_schedule.iloc[-1] == max(
-        soc_min, battery.get_attribute("min_soc_in_mwh")
+        soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
     )
 
 
@@ -728,8 +836,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     soc_schedule_2 = compute_schedule(flex_model)
 
-    # check that, in this case, adding the constraints
-    # alter the SOC profile
+    # check that, in this case, adding the constraints alters the SOC profile
     assert not soc_schedule_2.equals(soc_schedule_1)
 
     # check that global minimum is achieved
@@ -1019,19 +1126,6 @@ def test_infeasible_problem_error(db, add_battery_assets):
         compute_schedule(flex_model)
 
 
-def get_sensors_from_db(
-    db, battery_assets, battery_name="Test battery", power_sensor_name="power"
-):
-    # get the sensors from the database
-    epex_da = get_test_sensor(db)
-    battery = [
-        s for s in battery_assets[battery_name].sensors if s.name == power_sensor_name
-    ][0]
-    assert battery.get_attribute("market_id") == epex_da.id
-
-    return epex_da, battery
-
-
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     """Test that a soc-target = soc-max can exceed this value due to numerical errors in the operations
     to compute the device constraint DataFrame.
@@ -1042,8 +1136,18 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     charging_station = setup_planning_test_data[
         "Test charging station (bidirectional)"
     ].sensors[0]
-    assert charging_station.get_attribute("capacity_in_mw") == 2
-    assert charging_station.get_attribute("market_id") == epex_da.id
+    capacity = (
+        ur.Quantity(
+            charging_station.get_attribute(
+                "power-capacity",
+                charging_station.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
+    )
+    assert capacity == 2
+    assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -1076,26 +1180,26 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
-        device_constraints,
-        ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
-        initial_stock=soc_at_start * (timedelta(hours=1) / resolution),
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=[
+            soc_at_start_d * (timedelta(hours=1) / resolution)
+            for soc_at_start_d in soc_at_start
+        ],
     )
+    assert results.solver.termination_condition == "optimal"
 
     assert device_constraints[0]["equals"].max() > device_constraints[0]["max"].max()
     assert device_constraints[0]["equals"].min() < device_constraints[0]["min"].min()
@@ -1226,8 +1330,8 @@ def test_capacity(
     }
 
     flex_context = {
-        "production-price-sensor": add_market_prices["epex_da_production"].id,
-        "consumption-price-sensor": add_market_prices["epex_da"].id,
+        "production-price": {"sensor": add_market_prices["epex_da_production"].id},
+        "consumption-price": {"sensor": add_market_prices["epex_da"].id},
     }
 
     def set_if_not_none(dictionary, key, value):
@@ -1258,16 +1362,14 @@ def test_capacity(
     )
 
     (
-        sensor,
+        sensors,
         start,
         end,
         resolution,
         soc_at_start,
         device_constraints,
         ems_constraints,
-        commitment_quantities,
-        commitment_downwards_deviation_price,
-        commitment_upwards_deviation_price,
+        commitments,
     ) = scheduler._prepare(skip_validation=True)
 
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
@@ -1667,7 +1769,7 @@ def test_dis_charging_efficiency_as_sensor(
 
 @pytest.mark.parametrize(
     "stock_delta_sensor",
-    ["delta fails", "delta", "delta hourly", "delta 5min"],
+    ["delta fails", "delta", "delta hourly", "delta 5min", None],
 )
 def test_battery_stock_delta_sensor(
     add_battery_assets, add_stock_delta, stock_delta_sensor, db
@@ -1693,29 +1795,51 @@ def test_battery_stock_delta_sensor(
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-    stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
-    capacity = stock_delta_sensor_obj.get_attribute("capacity_in_mw")
+    if stock_delta_sensor is not None:
+        stock_delta_sensor_obj = add_stock_delta[stock_delta_sensor]
+    else:
+        stock_delta_sensor_obj = add_stock_delta["delta"]
+    capacity = (
+        ur.Quantity(
+            stock_delta_sensor_obj.get_attribute(
+                "power-capacity",
+                stock_delta_sensor_obj.get_attribute("site-power-capacity"),
+            )
+        )
+        .to("MW")
+        .magnitude
+    )
+    flex_model = {
+        "soc-max": 2,
+        "soc-min": 0,
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+        "production-capacity": "0kW",
+        "soc-at-start": 0,
+    }
+    if stock_delta_sensor is not None:
+        flex_model = {
+            **flex_model,
+            **{"soc-usage": [{"sensor": stock_delta_sensor_obj.id}]},
+        }
 
     scheduler: Scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
-        flex_model={
-            "soc-max": 2,
-            "soc-min": 0,
-            "soc-usage": [{"sensor": stock_delta_sensor_obj.id}],
-            "roundtrip-efficiency": 1,
-            "storage-efficiency": 1,
-            "production-capacity": "0kW",
-            "soc-at-start": 0,
-        },
+        flex_model=flex_model,
     )
 
-    if "fails" in stock_delta_sensor:
+    if stock_delta_sensor == "delta fails":
         with pytest.raises(InfeasibleProblemException):
-            schedule = scheduler.compute()
+            scheduler.compute()
+    elif stock_delta_sensor is None:
+        # No usage -> the battery does not charge
+        schedule = scheduler.compute()
+        assert all(schedule == 0)
     else:
+        # Some usage -> the battery needs to charge
         schedule = scheduler.compute()
         assert all(schedule == capacity)
 
@@ -1727,7 +1851,7 @@ def test_battery_stock_delta_sensor(
         (["0.5 MW", "0.5 MW"], None, 1),  # 1 MW stock gain
         (["100 kW"], None, 0.1),  # 100 MW stock gain
         (None, ["100 kW"], -0.1),  # 100 kW stock usage
-        (None, None, None),  # no gain/usage defined -> no gain or usage happens
+        (None, None, 0),  # no gain/usage defined -> the fallback usage is set to 0
     ],
 )
 def test_battery_stock_delta_quantity(
@@ -1880,13 +2004,14 @@ def test_battery_storage_efficiency_sensor(
 
 
 @pytest.mark.parametrize(
-    "sensor_name, expected_start, expected_end",
+    "sensor_name, expected_start, expected_end, n_constraints",
     [
         # A value defined in a coarser resolution is upsampled to match the power sensor resolution.
         (
             "soc-targets (1h)",
             "14:00:00",
             "15:00:00",
+            5,
         ),
         # A value defined in a finer resolution is downsampled to match the power sensor resolution.
         # Only a single value coincides with the power sensor resolution.
@@ -1894,6 +2019,7 @@ def test_battery_storage_efficiency_sensor(
             "soc-targets (5min)",
             "14:00:00",
             "14:00:00",  # not "14:15:00"
+            1,
             marks=pytest.mark.xfail(
                 reason="timely-beliefs doesn't yet make it possible to resample to a certain frequency and event resolution simultaneously"
             ),
@@ -1903,12 +2029,14 @@ def test_battery_storage_efficiency_sensor(
             "soc-targets (15min)",
             "14:00:00",
             "14:15:00",
+            2,
         ),
         # For an instantaneous sensor, the value is set to the interval containing the instantaneous event.
         (
             "soc-targets (instantaneous)",
             "14:00:00",
             "14:00:00",
+            1,
         ),
         # This is an event at 14:05:00 with a duration of 15min.
         # This constraint should span the intervals from 14:00 to 14:15 and from 14:15 to 14:30, but we are not reindexing properly.
@@ -1916,6 +2044,7 @@ def test_battery_storage_efficiency_sensor(
             "soc-targets (15min lagged)",
             "14:00:00",
             "14:15:00",
+            1,
             marks=pytest.mark.xfail(
                 reason="we should re-index the series so that values of the original index that overlap are used."
             ),
@@ -1928,6 +2057,7 @@ def test_add_storage_constraint_from_sensor(
     sensor_name,
     expected_start,
     expected_end,
+    n_constraints,
     db,
 ):
     """
@@ -1939,16 +2069,23 @@ def test_add_storage_constraint_from_sensor(
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
     soc_targets = add_soc_targets[sensor_name]
+    soc_at_start = 0
 
     flex_model = {
         "soc-max": 2,
         "soc-min": 0,
         "roundtrip-efficiency": 1,
         "production-capacity": "0kW",
-        "soc-at-start": 0,
+        "soc-at-start": soc_at_start,
     }
 
     flex_model["soc-targets"] = {"sensor": soc_targets.id}
+    flex_model["soc-maxima"] = [
+        {
+            "datetime": "2015-01-01T13:45:00+01:00",
+            "value": "0.4 MWh",
+        }
+    ]
 
     scheduler: Scheduler = StorageScheduler(
         battery, start, end, resolution, flex_model=flex_model
@@ -1957,8 +2094,9 @@ def test_add_storage_constraint_from_sensor(
     scheduler_info = scheduler._prepare()
     storage_constraints = scheduler_info[5][0]
 
-    expected_target_start = pd.Timedelta(expected_start) + start
-    expected_target_end = pd.Timedelta(expected_end) + start
+    # Start (date) + start (time) - resolution (due to device_constraints indexing states by the start of their preceding time slot)
+    expected_target_start = start + pd.Timedelta(expected_start) - resolution
+    expected_target_end = start + pd.Timedelta(expected_end) - resolution
     expected_soc_target_value = 0.5 * timedelta(hours=1) / resolution
 
     # convert dates from UTC to local time (Europe/Amsterdam)
@@ -1976,6 +2114,22 @@ def test_add_storage_constraint_from_sensor(
         == expected_soc_target_value
     )
 
+    # Check the resulting schedule against the constraints
+    consumption_schedule = scheduler.compute()
+    soc_schedule = integrate_time_series(
+        consumption_schedule, soc_at_start, decimal_precision=6
+    )
+    # Note the equality constraints are shifted back to account for how they define the index to denote
+    # the start of the event that ends in the given equality state, whereas the index of the soc_schedule
+    # denotes the exact time of the given SoC state
+    comparison_df = pd.concat([equals.shift(1), soc_schedule], axis=1).dropna()
+    assert (
+        len(comparison_df)
+    ) == n_constraints, f"we expect {n_constraints} device constraints"
+    assert all(
+        comparison_df.iloc[:, 0] == comparison_df.iloc[:, 1] * 4
+    ), "the device constraint values should be 1/4th of the actual SoC values, due to the 15-minute resolution of the battery's power sensor"
+
 
 def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     """
@@ -1988,7 +2142,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     power = add_battery_assets["Test battery with dynamic power capacity"].sensors[0]
     epex_da = get_test_sensor(db)
 
-    soc_maxima, soc_minima, soc_targets, values = soc_sensors
+    soc_maxima, soc_minima, soc_targets, expected_soc_schedule = soc_sensors
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
@@ -2019,8 +2173,8 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
             flex_model=flex_model,
             flex_context={
                 "site-power-capacity": "100 MW",
-                "production-price-sensor": epex_da.id,
-                "consumption-price-sensor": epex_da.id,
+                "production-price": {"sensor": epex_da.id},
+                "consumption-price": {"sensor": epex_da.id},
             },
         )
         return scheduler.compute()
@@ -2031,7 +2185,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     soc = check_constraints(power, schedule, soc_at_start)
 
     # soc targets are achieved
-    assert all(abs(soc[9:].values - values[:-1]) < 1e-5)
+    assert all(abs(soc[8:].values - expected_soc_schedule) < 1e-5)
 
     # remove soc-targets and use soc-maxima and soc-minima
     del flex_model["soc-targets"]
@@ -2044,7 +2198,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     # soc-maxima and soc-minima constraints are respected
     # this yields the same results as with the SOC targets
     # because soc-maxima = soc-minima = soc-targets
-    assert all(abs(soc[9:].values - values[:-1]) < 1e-5)
+    assert all(abs(soc[8:].values - expected_soc_schedule) < 1e-5)
 
 
 @pytest.mark.parametrize("unit", [None, "MWh", "kWh"])
@@ -2135,8 +2289,8 @@ def test_battery_storage_different_units(
             "power-capacity",
             [
                 {
-                    "start": "2015-01-02T14:00+01",
-                    "end": "2015-01-02T16:00+01",
+                    "start": "2015-01-02T15:00+01",
+                    "end": "2015-01-02T17:00+01",
                     "value": "850 kW",
                 }
             ],
@@ -2146,7 +2300,7 @@ def test_battery_storage_different_units(
             "power-capacity",
             [
                 {
-                    "start": "2015-01-02T14:00+01",
+                    "start": "2015-01-02T15:00+01",
                     "duration": "PT2H",
                     "value": "850 kW",
                 }
@@ -2157,17 +2311,18 @@ def test_battery_storage_different_units(
             "soc-maxima",
             [
                 {
-                    "datetime": "2015-01-02T15:00+01",
+                    "datetime": "2015-01-02T16:00+01",
                     "value": "950 kWh",
                 }
             ],
         ),
-        # Must end up at a minimum of 200 kWh, for which it is cheapest to charge to 950 and then to discharge to 200
+        # Must end up at a maximum of 200 kWh, for which it is cheapest to charge to 950 and then to discharge to 200
         (
-            "soc-minima",
+            "soc-maxima",
             [
                 {
-                    "datetime": "2015-01-02T16:00+01",
+                    "start": "2015-01-02T16:45+01",
+                    "duration": "PT15M",
                     "value": "200 kWh",
                 }
             ],
@@ -2198,8 +2353,8 @@ def test_battery_storage_with_time_series_in_flex_model(
     tz = pytz.timezone("Europe/Amsterdam")
 
     # transition from cheap to expensive (90 -> 100)
-    start = tz.localize(datetime(2015, 1, 2, 14, 0, 0))
-    end = tz.localize(datetime(2015, 1, 2, 16, 0, 0))
+    start = tz.localize(datetime(2015, 1, 2, 15, 0, 0))
+    end = tz.localize(datetime(2015, 1, 2, 17, 0, 0))
     resolution = timedelta(minutes=15)
 
     flex_model = {
@@ -2236,3 +2391,675 @@ def test_battery_storage_with_time_series_in_flex_model(
         assert schedule[4:].sum() * 0.25 == pytest.approx(-0.75)
     else:
         assert schedule[4:].sum() * 0.25 == pytest.approx(-0.85)
+
+
+def test_unavoidable_capacity_breach():
+    """Check our ability to limit a capacity breach.
+
+    We want to check two behaviours:
+    1) The breach should be as small as possible (i.e. flattened from the top).
+    2) The breach should not be repeated if that can be avoided (i.e. no taking advantage of created slacks).
+    """
+    start = pd.Timestamp("2020-01-01T00:00:00+01")
+    end = pd.Timestamp("2020-01-02T00:00:00+01")
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.4
+    soc_max = 1
+    soc_min = 0
+    power_capacity = 0.1
+
+    # This target means we must breach the consumption capacity (from 0.1 to 0.2)
+    soc_target = 0.6
+    soc_target_datetime = pd.Timestamp("2020-01-01T01:00:00+01")
+
+    device_constraints = [
+        initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ]
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    empty_commitment = initialize_df(
+        [
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start,
+        end,
+        resolution,
+    )
+    commitments = []
+    commitments.append(empty_commitment.copy())
+
+    device_constraints[0]["max"] = soc_max - soc_at_start
+    device_constraints[0]["min"] = soc_min - soc_at_start
+    device_constraints[0]["derivative max"] = 1
+    device_constraints[0]["derivative min"] = -1
+
+    slope = np.arange(0, len(commitments[0])) / (len(commitments[0]) - 1)
+
+    # Introduce an amazing chance to consume without costs
+    slope[10] = -100
+
+    # Day Ahead market commitment
+    commitments[0]["quantity"] = 0
+    commitments[0]["downwards deviation price"] = 90 + slope
+    commitments[0]["upwards deviation price"] = 100 + slope
+    # `len(commitments[0])` is the number of time slots. Each slot is part of a unique group.
+    commitments[0]["group"] = list(range(len(commitments[0])))
+
+    # Consumption Capacity Breach Commitment (1 group, so penalized once)
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = power_capacity
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 1000
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["downwards deviation price"] = np.nan
+    commitments[-1]["group"] = 1
+
+    def run_scheduler(device_constraints):
+        _, _, results, model = device_scheduler(
+            device_constraints=device_constraints,
+            ems_constraints=ems_constraints,
+            commitments=commitments,
+            initial_stock=soc_at_start,
+        )
+        assert results.solver.termination_condition == "optimal"
+
+        schedule = initialize_series(
+            data=[model.ems_power[0, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        print(schedule)
+        return schedule, results
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery, right at the end
+    assert np.isclose(sum(schedule), -0.4)
+    assert np.isclose(schedule.values[-1], -0.5)
+    # Take advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.1)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+    targets = initialize_series(None, start, end, resolution)
+    targets[soc_target_datetime] = soc_target
+    # device_constraints[0]["equals"] = targets - soc_at_start
+
+    # Convert SoC datetimes to periods with a start and end.
+    soc_values = [{"datetime": soc_target_datetime, "value": soc_target}]
+    for soc in soc_values:
+        TimedEventSchema().check_time_window(soc)
+    device_constraints[0]["equals"] = build_device_soc_values(
+        soc_values=soc_values,
+        soc_at_start=soc_at_start,
+        start_of_schedule=start,
+        end_of_schedule=end,
+        resolution=resolution,
+    )
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery
+    assert np.isclose(max(schedule), 0.2)  # this is the breach
+    # the breach should happen twice:
+    # - once for reaching the SoC target, and
+    # - once for exploiting the slack that was created for reaching the SoC target
+    assert len(schedule[np.isclose(schedule, 0.2)]) == 2
+    assert np.isclose(sum(schedule), -0.4)
+    # Reach the target (from 0.4 to 0.6)
+    assert np.isclose(schedule.values[0], 0.2)
+    # Take (too much) advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.2)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[1:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+    # Consumption Capacity Breach Commitment (n groups, so penalized with every breach)
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = power_capacity
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 1000
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["downwards deviation price"] = np.nan
+    commitments[-1]["group"] = list(range(len(commitments[0])))
+
+    schedule, results = run_scheduler(device_constraints)
+
+    # Discharge the whole battery
+    assert np.isclose(max(schedule), 0.2)  # this is the breach
+    # the breach should now happen only once, for reaching the SoC target
+    assert len(schedule[np.isclose(schedule, 0.2)]) == 1
+    assert np.isclose(sum(schedule), -0.4)
+    # Reach the target (from 0.4 to 0.6)
+    assert np.isclose(schedule.values[0], 0.2)
+    # Take advantage of the free consumption
+    assert np.isclose(schedule.values[10], 0.1)
+    # Do nothing otherwise
+    assert all(np.isclose(schedule.values[1:10], 0))
+    assert all(np.isclose(schedule.values[11:-1], 0))
+
+
+def test_multiple_commitments_per_group():
+    """Check draining a battery while expanding the number of commitments:
+
+    1) against increasing prices -> discharge all in the last step
+    2) also with a limited capacity -> discharge as late as possible
+    3) also with peak pricing -> discharge at a constant rate
+    """
+    start = pd.Timestamp("2020-01-01T00:00:00")
+    end = pd.Timestamp("2020-01-02T00:00:00")
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.4
+    soc_max = 1
+    soc_min = 0
+
+    device_constraints = [
+        initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ]
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    empty_commitment = initialize_df(
+        [
+            "quantity",
+            "downwards deviation price",
+            "upwards deviation price",
+            "group",
+        ],
+        start,
+        end,
+        resolution,
+    )
+    commitments = []
+    commitments.append(empty_commitment.copy())
+
+    device_constraints[0]["max"] = soc_max - soc_at_start
+    device_constraints[0]["min"] = soc_min - soc_at_start
+    device_constraints[0]["derivative max"] = 1
+    device_constraints[0]["derivative min"] = -1
+
+    slope = np.arange(0, len(commitments[0])) / (len(commitments[0]) - 1)
+
+    # Day Ahead market commitment
+    commitments[0]["quantity"] = 0
+    commitments[0]["downwards deviation price"] = 90 + slope
+    commitments[0]["upwards deviation price"] = 100 + slope
+    commitments[0]["group"] = list(range(len(commitments[0])))
+
+    def run_scheduler():
+        _, _, results, model = device_scheduler(
+            device_constraints=device_constraints,
+            ems_constraints=ems_constraints,
+            commitments=commitments,
+            initial_stock=soc_at_start,
+        )
+        assert results.solver.termination_condition == "optimal"
+
+        schedule = initialize_series(
+            data=[model.ems_power[0, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        print(schedule)
+        costs = value(model.costs)
+        commitment_costs = model.commitment_costs
+        return schedule, results, costs, commitment_costs
+
+    schedule, results, costs, commitment_costs = run_scheduler()
+
+    # Discharge the whole battery
+    assert np.isclose(sum(schedule), -0.4)
+    assert np.isclose(schedule.values[-1], -0.4)
+
+    # Check costs
+    assert costs == -36.4
+
+    # Production Capacity Breach Commitment
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = -0.1
+    # negative price because breaching in the downwards (production) direction is penalized
+    commitments[-1]["downwards deviation price"] = -1000
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    # todo: also allow None values to model a one-sided commitment
+    commitments[-1]["upwards deviation price"] = np.nan
+    commitments[-1]["group"] = 1
+
+    schedule, results, costs, commitment_costs = run_scheduler()
+
+    # Discharge the whole battery
+    assert np.isclose(sum(schedule), -0.4)
+    assert all(np.isclose(schedule.values[-4:], [-0.1, -0.1, -0.1, -0.1]))
+
+    # Check costs
+    assert costs == (commitments[0]["downwards deviation price"][-4:] * -0.1).sum()
+
+    # Peak Power Commitment
+    commitments.append(empty_commitment.copy())
+    commitments[-1]["quantity"] = 0
+    # negative price because peaking in the downwards (production) direction is penalized
+    commitments[-1]["downwards deviation price"] = -80
+    # positive price because breaching in the upwards (consumption) direction is penalized
+    commitments[-1]["upwards deviation price"] = 80
+    commitments[-1]["group"] = 1
+
+    schedule, results, costs, commitment_costs = run_scheduler()
+
+    # Discharge the whole battery
+    assert np.isclose(sum(schedule), -0.4)
+    assert all(np.isclose(schedule.values, [-0.4 / len(schedule)] * len(schedule)))
+
+    # Check costs
+    cost_of_energy = (
+        commitments[0]["downwards deviation price"] * (-0.4 / len(schedule))
+    ).sum()
+    cost_of_energy_peak = -80 * -0.4 / len(schedule)
+    expected_cost = cost_of_energy + cost_of_energy_peak
+    assert costs == pytest.approx(expected_cost)
+
+    assert len(commitment_costs) == len(commitments)
+    assert sum(commitment_costs.values()) == pytest.approx(expected_cost)
+
+
+def test_multiple_devices_simultaneous_scheduler():
+    """
+    Test the device_scheduler for simultaneously scheduling multiple devices (2):
+    - Schedules are created for each device.
+    - Costs are calculated accurately.
+
+    Test cases:
+    1. All devices will reach target SOC
+    2. Lower EMS capacity, some unmet demand
+    """
+    # Test configuration
+    start = pd.Timestamp("2020-01-01T00:00:00")
+    end = pd.Timestamp("2020-01-02T00:00:00")
+    resolution = timedelta(hours=1)
+    num_devices = 2
+
+    # Device parameters
+    soc_at_start = [0] * num_devices
+    soc_max, soc_min = [1] * num_devices, [0] * num_devices
+    start_datetime = ["2020-01-01 01:00:00"] * num_devices
+    target_datetime = ["2020-01-01 06:00:00", "2020-01-01 03:00:00"]
+    target_value = [1] * num_devices
+
+    market_prices = [
+        0.8598,
+        1.4613,  # cheap from 01:00 to 02:00
+        2430.3887,
+        3000.1779,
+        18.6619,  # cheap from 04:00 to 0:500
+        369.3274,
+        169.8719,
+        174.2279,
+        174.2279,
+        174.2279,
+        175.4258,
+        1.5697,
+        174.2763,
+        174.2279,
+        175.2564,
+        202.6992,
+        218.4413,
+        229.9242,
+        295.1069,
+        240.7174,
+        249.2479,
+        238.2732,
+        229.8395,
+        216.5779,
+    ]
+    soc_target_penalty = 10000
+
+    def initialize_combined_constraints(
+        num_devices: int, max_derivative: float = 1, min_derivative: float = 0
+    ):
+        device_constraints = []
+        for d in range(num_devices):
+            constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+            start_time = pd.Timestamp(start_datetime[d]) - timedelta(hours=1)
+            constraints["max"] = soc_max[d] - soc_at_start[d]
+            constraints["min"] = soc_min[d] - soc_at_start[d]
+            constraints["derivative max"] = max_derivative
+            constraints["derivative min"] = min_derivative
+            constraints.loc[
+                :start_time, ["max", "min", "derivative max", "derivative min"]
+            ] = 0
+            device_constraints.append(constraints)
+
+        return device_constraints
+
+    def initialize_combined_commitments(num_devices: int):
+        commitments = []
+
+        # Model energy contract for the site
+        energy_commitment = initialize_energy_commitment(
+            start=start,
+            end=end,
+            resolution=resolution,
+            market_prices=market_prices,
+        )
+        commitments.append(energy_commitment)
+
+        # Model penalties for demand unmet per device
+        for d in range(num_devices):
+            device_commitment = initialize_device_commitment(
+                start=start,
+                end=end,
+                resolution=resolution,
+                device=d,
+                target_datetime=target_datetime[d],
+                target_value=target_value[d],
+                soc_at_start=soc_at_start[d],
+                soc_target_penalty=soc_target_penalty,
+            )
+            commitments.append(device_commitment)
+
+        return commitments
+
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ems_constraints["derivative max"] = 1
+    ems_constraints["derivative min"] = 0
+
+    device_constraints = initialize_combined_constraints(num_devices)
+    commitments = initialize_combined_commitments(num_devices)
+
+    # Test case 1: No unmet demand
+    initial_stocks = soc_at_start
+    _, _, results, model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=initial_stocks,
+    )
+    assert results.solver.termination_condition == "optimal"
+
+    schedules = [
+        initialize_series(
+            data=[model.ems_power[d, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        for d in range(num_devices)
+    ]
+
+    individual_costs = [
+        (d, sum(schedule[j] * market_prices[j] for j in range(len(market_prices))))
+        for d, schedule in enumerate(schedules)
+    ]
+
+    # Expected results with no unmet demand
+    expected_schedules = [
+        [0] * 4
+        + [1]
+        + [0] * 19,  # the first EV leaves later, and takes the second-cheapest slot
+        [0, 1] + [0] * 22,  # the second EV leaves earlier, and gets the cheapest slot
+    ]
+    total_expected_demand = np.array(expected_schedules).sum()
+    expected_individual_costs = [(0, 18.66), (1, 1.46)]
+
+    # Assertions
+    assert all(
+        np.isclose(schedule, expected_schedules[d]).all()
+        for d, schedule in enumerate(schedules)
+    ), "Schedules mismatch: Device schedules do not match the expected schedules."
+
+    assert all(
+        device == d and pytest.approx(cost, 0.01) == expected_individual_costs[d][1]
+        for d, (device, cost) in enumerate(individual_costs)
+    ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
+
+    # Test case 2: With lower EMS capacity and unmet demand
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ems_constraints["derivative max"] = 0.25
+    ems_constraints["derivative min"] = 0
+
+    device_constraints = initialize_combined_constraints(
+        num_devices,
+        max_derivative=0.25,
+        min_derivative=0,  # todo: change does not seem required
+    )
+    _, _, results, model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=initial_stocks,
+    )
+    assert results.solver.termination_condition == "optimal"
+
+    schedules = [
+        initialize_series(
+            data=[model.ems_power[d, j].value for j in model.j],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )
+        for d in range(num_devices)
+    ]
+
+    individual_costs = [
+        (d, sum(schedule[j] * market_prices[j] for j in range(len(market_prices))))
+        for d, schedule in enumerate(schedules)
+    ]
+
+    # Expected results with unfair unmet demand and not entirely unfair costs
+    expected_schedules = [
+        # the first EV leaves later, and takes three of the cheapest slots, and one expensive slot
+        [0, 0, 0, 0.25, 0.25, 0.25, 0.25] + [0] * 17,
+        # the second EV leaves earlier, and takes one cheap slot and the remaining (expensive) slot
+        [0, 0.25, 0.25] + [0] * 21,
+    ]
+    total_expected_demand_unmet = (
+        total_expected_demand - np.array(expected_schedules).sum()
+    )
+    assert total_expected_demand_unmet > 0
+    expected_individual_costs = [(0, 889.51), (1, 607.96)]
+
+    # Assertions
+    assert all(
+        np.isclose(schedule, expected_schedules[d]).all()
+        for d, schedule in enumerate(schedules)
+    ), "Schedules mismatch: Device schedules do not match the expected schedules."
+
+    assert all(
+        device == d and pytest.approx(cost, 0.01) == expected_individual_costs[d][1]
+        for d, (device, cost) in enumerate(individual_costs)
+    ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
+
+
+def test_multiple_devices_sequential_scheduler():
+    start = pd.Timestamp("2023-01-01T00:00:00")
+    end = pd.Timestamp("2023-01-02T00:00:00")
+    resolution = timedelta(hours=1)
+
+    soc_at_start = [0] * 2
+    soc_max = [1] * 2
+    soc_min = [0] * 2
+
+    start_datetime = ["2023-01-01 01:00:00"] * 2
+    target_datetime = [
+        "2023-01-01 06:00:00",
+        "2023-01-01 03:00:00",
+    ]  # todo: problem with interpreting datetime of soc-target?
+    target_value = [1] * 2
+
+    market_prices = [
+        0.8598,
+        1.4613,  # cheap from 01:00 to 02:00
+        2430.3887,
+        3000.1779,
+        18.6619,  # cheap from 04:00 to 0:500
+        369.3274,
+        169.8719,
+        174.2279,
+        174.2279,
+        174.2279,
+        175.4258,
+        1.5697,
+        174.2763,
+        174.2279,
+        175.2564,
+        202.6992,
+        218.4413,
+        229.9242,
+        295.1069,
+        240.7174,
+        249.2479,
+        238.2732,
+        229.8395,
+        216.5779,
+    ]
+    soc_target_penalty = 10000
+
+    def initialize_device_constraints(
+        num_devices: int,
+        soc_at_start: list[float],
+        soc_max: list[float],
+        soc_min: list[float],
+        target_datetime: list[str],
+        target_value: list[float],
+        start_datetime: list[str],
+    ):
+        device_constraints = []
+        for d in range(num_devices):
+            constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+
+            start_time = pd.Timestamp(start_datetime[d]) - timedelta(hours=1)
+
+            constraints["max"] = soc_max[d] - soc_at_start[d]
+            constraints["min"] = soc_min[d] - soc_at_start[d]
+            constraints["derivative max"] = 1
+            constraints["derivative min"] = 0
+            # constraints.loc[target_datetime[d], "min"] = (
+            #     target_value[d] - soc_at_start[d]
+            # )
+            constraints.loc[
+                :start_time, ["max", "min", "derivative max", "derivative min"]
+            ] = 0
+            device_constraints.append(constraints)
+        return device_constraints
+
+    def initialize_ems_constraints():
+        ems_constraints = initialize_df(
+            StorageScheduler.COLUMNS, start, end, resolution
+        )
+        ems_constraints["derivative max"] = 1
+        ems_constraints["derivative min"] = 0
+        return ems_constraints
+
+    def run_sequential_scheduler():
+        num_devices = len(soc_at_start)
+
+        device_constraints = initialize_device_constraints(
+            num_devices=num_devices,
+            soc_at_start=soc_at_start,
+            soc_max=soc_max,
+            soc_min=soc_min,
+            target_datetime=target_datetime,
+            target_value=target_value,
+            start_datetime=start_datetime,
+        )
+
+        # Model energy contract for the site
+        energy_commitment = initialize_energy_commitment(
+            start=start,
+            end=end,
+            resolution=resolution,
+            market_prices=market_prices,
+        )
+
+        ems_constraints = initialize_ems_constraints()
+
+        all_schedules = []
+        total_costs = []
+        combined_schedule = [0] * len(market_prices)
+        unmet_targets = []
+
+        for d in range(num_devices):
+            initial_stock = soc_at_start[d]
+
+            # Model penalties for demand unmet per device
+            device_commitment = initialize_device_commitment(
+                start=start,
+                end=end,
+                resolution=resolution,
+                device=0,
+                target_datetime=target_datetime[d],
+                target_value=target_value[d],
+                soc_at_start=soc_at_start[d],
+                soc_target_penalty=soc_target_penalty,
+            )
+
+            # Compute the schedule for device d
+            _, _, results, model = device_scheduler(
+                device_constraints=[device_constraints[d]],
+                ems_constraints=ems_constraints,
+                commitments=[energy_commitment, device_commitment],
+                initial_stock=initial_stock,
+            )
+            assert results.solver.termination_condition == "optimal"
+
+            schedule = initialize_series(
+                data=[model.ems_power[0, j].value for j in model.j],
+                start=start,
+                end=end,
+                resolution=resolution,
+            )
+            all_schedules.append(schedule)
+
+            for j in range(len(schedule)):
+                combined_schedule[j] += schedule[j]
+
+            # Determine new headroom
+            ems_constraints["derivative max"] -= schedule
+            ems_constraints["derivative min"] -= schedule
+
+            total_cost = sum(
+                schedule[j] * market_prices[j] for j in range(len(market_prices))
+            )
+            total_costs.append(total_cost)
+
+            final_soc = initial_stock + sum(schedule)
+            if final_soc < target_value[d]:
+                unmet_targets.append((d, final_soc))
+
+        return (
+            all_schedules,
+            total_costs,
+            sum(total_costs),
+            combined_schedule,
+            unmet_targets,
+        )
+
+    schedules, costs, total_cost_all_devices, combined_schedule, unmet_targets = (
+        run_sequential_scheduler()
+    )
+
+    expected_schedules = [
+        [0, 1] + [0] * 22,  # the first EV leaves later, but takes the cheapest slot
+        [0, 0, 1]
+        + [0]
+        * 21,  # the second EV leaves earlier, and gets the only (expensive) slot left
+    ]
+    expected_costs = [(0, 1.46), (1, 2430.39)]
+
+    assert all(
+        np.isclose(schedules[d], expected_schedules[d]).all()
+        for d in range(len(schedules))
+    ), "Schedules do not match expected values."
+
+    assert all(
+        pytest.approx(costs[d], 0.01) == expected_costs[d][1] for d in range(len(costs))
+    ), "Costs do not match expected values."
+
+    assert total_cost_all_devices == sum(
+        expected_cost[1] for expected_cost in expected_costs
+    ), "Total cost mismatch."

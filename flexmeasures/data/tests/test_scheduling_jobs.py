@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 import os
 import inspect
 
+import numpy as np
+import pandas as pd
 import pytz
 import pytest
 from rq.job import Job
@@ -16,23 +18,34 @@ from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     load_custom_scheduler,
+    handle_scheduling_exception,
 )
+from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.calculations import integrate_time_series
 
 
-def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
+def test_scheduling_a_battery(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    setup_fresh_test_data,
+    add_market_prices_fresh_db,
+):
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made
     """
 
-    battery = add_battery_assets["Test battery"].sensors[0]
+    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
+    # the start time does *not* match soc_datetime attribute from conftest, soc at start will be 0
+    # TODO: stop using attributes in conftest
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
 
     assert (
-        db.session.execute(
+        fresh_db.session.execute(
             select(DataSource).filter_by(name="FlexMeasures", type="scheduler")
         ).scalar_one_or_none()
         is None
@@ -54,14 +67,14 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
 
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
-    scheduler_source = db.session.execute(
+    scheduler_source = fresh_db.session.execute(
         select(DataSource).filter_by(name="Seita", type="scheduler")
     ).scalar_one_or_none()
     assert (
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    power_values = db.session.scalars(
+    power_values = fresh_db.session.scalars(
         select(TimedBelief)
         .filter(TimedBelief.sensor_id == battery.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
@@ -104,14 +117,16 @@ def test_loading_custom_scheduler(is_path: bool):
 
 
 @pytest.mark.parametrize("is_path", [False, True])
-def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
+def test_assigning_custom_scheduler(
+    fresh_db, app, add_battery_assets_fresh_db, is_path: bool
+):
     """
     Test if the custom scheduler is picked up when we assign it to a Sensor,
     and that its dummy values are saved.
     """
     scheduler_specs["module"] = make_module_descr(is_path)
 
-    battery = add_battery_assets["Test battery"].sensors[0]
+    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
     battery.attributes["custom-scheduler"] = scheduler_specs
 
     tz = pytz.timezone("Europe/Amsterdam")
@@ -135,7 +150,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     finished_job = Job.fetch(job.id, connection=redis_connection)
     assert finished_job.meta["data_source_info"]["model"] == scheduler_specs["class"]
 
-    scheduler_source = db.session.execute(
+    scheduler_source = fresh_db.session.execute(
         select(DataSource).filter_by(
             type="scheduler",
             **finished_job.meta["data_source_info"],
@@ -145,32 +160,37 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    power_values = db.session.scalars(
+    power_values = fresh_db.session.scalars(
         select(TimedBelief)
         .filter(TimedBelief.sensor_id == battery.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
     ).all()
     assert len(power_values) == 96
     # test for negative value as we schedule consumption
-    assert all(
-        [
-            v.event_value == -1 * battery.get_attribute("capacity_in_mw")
-            for v in power_values
-        ]
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
     )
+    assert all([v.event_value == -1 * capacity for v in power_values])
 
 
 def create_test_scheduler(name, compute_fails=False, fallback_class=None):
     def compute(self):
         """
-        This is a schedule that fails
+        This function can be set to fail by using compute_fails=True
         """
 
         if compute_fails:
             raise InfeasibleProblemException()
 
+        capacity = self.sensor.get_attribute(
+            "capacity_in_mw",
+            ur.Quantity(self.sensor.get_attribute("site-power-capacity"))
+            .to("MW")
+            .magnitude,
+        )
         return initialize_series(  # simply creates a Pandas Series repeating one value
-            data=self.sensor.get_attribute("capacity_in_mw"),
+            data=capacity,
             start=self.start,
             end=self.end,
             resolution=self.resolution,
@@ -184,6 +204,8 @@ def create_test_scheduler(name, compute_fails=False, fallback_class=None):
         name,
         (Scheduler,),
         {
+            "__author__": "Seita",
+            "__version__": "1",
             "compute": compute,
             "deserialize_config": deserialize_config,
             "fallback_scheduler_class": fallback_class,
@@ -201,8 +223,9 @@ FailingScheduler1 = create_test_scheduler(
 
 
 def test_fallback_chain(
+    fresh_db,
     app,
-    add_battery_assets,
+    add_battery_assets_fresh_db,
 ):
     """
     Check that the chaining fallback schedules works.
@@ -211,8 +234,8 @@ def test_fallback_chain(
     """
     app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = True
 
-    battery = add_battery_assets["Test battery"].sensors[0]
-    app.db.session.flush()
+    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
+    fresh_db.session.flush()
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
@@ -261,3 +284,107 @@ def test_fallback_chain(
 
     assert len(app.queues["scheduling"]) == 0
     app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
+
+
+@pytest.mark.parametrize(
+    "charging_eff, discharging_eff, storage_eff, expected_avg_power",
+    [
+        ("100%", "100%", "100%", 0.009),
+        ("95%", "100%", "100%", 0.009 / 0.95),
+        ("95%", "100%", "95%", 0.009 / 0.95),
+        ("125%", "100%", "95%", 0.009 / 1.25),
+    ],
+)
+def test_save_state_of_charge(
+    fresh_db,
+    app,
+    smart_building,
+    charging_eff,
+    discharging_eff,
+    storage_eff,
+    expected_avg_power,
+):
+    """
+    Test saving state of charge of a Heat Buffer with a constant SOC net usage of 9 kW (10kW usage and 1kW gain)
+    """
+
+    assets, sensors, soc_sensors = smart_building
+
+    assert len(soc_sensors["Test Heat Buffer"].search_beliefs()) == 0
+
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    flex_model = {
+        "power-capacity": "10kW",
+        "soc-at-start": "0kWh",
+        "soc-unit": "kWh",
+        "soc-min": 0.0,
+        "soc-max": "100kWh",
+        "soc-usage": ["10kW"],
+        "soc-gain": ["1kW"],
+        "state-of-charge": {"sensor": soc_sensors["Test Heat Buffer"].id},
+        "prefer-charging-sooner": True,
+        "storage-efficiency": storage_eff,
+        "charging-efficiency": charging_eff,
+        "discharging-efficiency": discharging_eff,
+    }
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "0 EUR/MWh",
+        "site-production-capacity": "1MW",
+        "site-consumption-capacity": "1MW",
+    }
+
+    create_scheduling_job(
+        asset_or_sensor=sensors["Test Heat Buffer"],
+        scheduler_specs=scheduler_specs,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        enqueue=True,
+        start=start,
+        end=end,
+        round_to_decimals=12,
+        resolution=timedelta(minutes=15),
+    )
+
+    # Work on jobs
+    work_on_rq(queue, handle_scheduling_exception)
+
+    # Check that the SOC data is saved
+    soc_schedule = (
+        soc_sensors["Test Heat Buffer"]
+        .search_beliefs(resolution=timedelta(0))
+        .reset_index()
+    )
+    power_schedule = sensors["Test Heat Buffer"].search_beliefs().reset_index()
+
+    power_schedule = pd.Series(
+        power_schedule.event_value.tolist(),
+        index=pd.DatetimeIndex(power_schedule.event_start.tolist(), freq="15min"),
+    )
+
+    assert np.isclose(
+        -power_schedule.mean(), expected_avg_power
+    )  # charge to cover for the net usage (in average)
+
+    soc_schedule_from_power = integrate_time_series(
+        -power_schedule,
+        0.0,
+        decimal_precision=16,
+        stock_delta=-0.009 * 0.25,
+        up_efficiency=ur.Quantity(charging_eff).to("dimensionless").magnitude,
+        down_efficiency=ur.Quantity(discharging_eff).to("dimensionless").magnitude,
+        storage_efficiency=ur.Quantity(storage_eff).to("dimensionless").magnitude,
+    )
+
+    assert all(
+        np.isclose(soc_schedule.event_value.values, soc_schedule_from_power.values)
+    )

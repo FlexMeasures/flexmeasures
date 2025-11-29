@@ -2,17 +2,23 @@
 
 
 
-Toy example II: Adding solar production and limited grid connection
-====================================================================
+Toy example II: Adding solar production, and a limit on the grid connection
+============================================================================
 
 
-So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity towards the grid. 
+So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kVA, both its own maximum charge/discharge rate, and the maximum grid capacity). 
 
 What if other devices will be using some of that capacity? Our schedules need to reflect that, so we stay within given limits.
 
-.. note:: The capacity is given by ``capacity_in_mw``, an attribute we placed on the battery asset earlier (see :ref:`tut_toy_schedule`). We will tell FlexMeasures to take the solar production into account (using ``--inflexible-device-sensor``) for this capacity limit.
+We will now add solar production forecast data and then ask for a new schedule, to see the effect of solar production on the available headroom for the battery (when it plans to discharge).
+When solar production is high, less battery output can be send to the grid, as the total site power (battery + solar) cannot exceed the ``site-power-capacity``.
 
-We'll now add solar production forecast data and then ask for a new schedule, to see the effect of solar on the available headroom for the battery.
+How does it work?
+
+- We will tell FlexMeasures to take the solar production into account (using the ``inflexible-device-sensors`` flex-context field).
+- The battery's power capacity is not the limiting factor, but the `site-power-capacity` of the building (already a flex-context field, see :ref:`tut_toy_schedule`).
+- The flows of the building's child assets are summed up on building level, and that constraint now will play a role.
+
 
 
 Adding PV production forecasts
@@ -63,7 +69,7 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
     $ flexmeasures add beliefs --sensor 3 --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
-The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_ :
+The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
     :align: center
@@ -75,31 +81,98 @@ The one-hour CSV data is automatically resampled to the 15-minute resolution of 
 Trigger an updated schedule
 ----------------------------
 
-Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery, given the ``capacity_in_mw`` limit discussed earlier.
+Now, we'll reschedule the battery while taking into account the solar production (forecast) as an inflexible device.
+This will have an effect on the available headroom for the battery, given the ``site-power-capacity`` limit discussed earlier.
 
-.. code-block:: bash
+.. tabs::
 
-    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
-        --inflexible-device-sensor 3 \
-        --start ${TOMORROW}T07:00+02:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90%
-    New schedule is stored.
+    .. tab:: CLI
 
-We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ :
+        .. code-block:: bash
+            :emphasize-lines: 6
+
+            $ flexmeasures add schedule \
+                --sensor 2 \
+                --start ${TOMORROW}T07:00+01:00 \
+                --duration PT12H \
+                --soc-at-start 50% \
+                --flex-context '{"inflexible-device-sensors": [3]}'
+                --flex-model '{"soc-min": "50 kWh"}' \
+            New schedule is stored.
+        
+    .. tab:: API
+
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ (update the start date to tomorrow):
+
+        .. code-block:: json
+            :emphasize-lines: 8-10
+
+            {
+                "start": "2025-11-11T07:00+01:00",
+                "duration": "PT12H",
+                "flex-model": {
+                    "soc-at-start": "225 kWh",
+                    "soc-min": "50 kWh"
+                },
+                "flex-context": {
+                    "inflexible-device-sensors": [3]
+                }
+            }
+
+    .. tab:: FlexMeasures Client
+
+        Using the `FlexMeasures Client <https://pypi.org/project/flexmeasures-client/>`_:
+
+        .. code-block:: bash
+
+            pip install flexmeasures-client
+
+        .. code-block:: python
+            :emphasize-lines: 19-21
+
+            import asyncio
+            from datetime import date, timedelta
+            from flexmeasures_client import FlexMeasuresClient as Client
+
+            async def client_script():
+                client = Client(
+                    email="toy-user@flexmeasures.io",
+                    password="toy-password",
+                    host="localhost:5000",
+                )
+                schedule = await client.trigger_and_get_schedule(
+                    sensor_id=2,  # Battery power (sensor ID)
+                    start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+01:00",
+                    duration="PT12H",
+                    flex_model={
+                        "soc-at-start": "225 kWh",
+                        "soc-min": "50 kWh",
+                    },
+                    flex_context={
+                        "inflexible-device-sensors": [3],  # solar production (sensor ID)
+                    },
+                )
+                print(schedule)
+                await client.close()
+
+            asyncio.run(client_script())
+
+
+We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging-with-solar.png
     :align: center
 |
 
-The `asset page for the battery <http://localhost:5000/assets/3>`_ now shows the solar data, too:
+The `graphs page for the battery <http://localhost:5000/assets/3/graphs>`_ now shows the solar data, too:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-solar.png
     :align: center
-
+|
 
 Though this schedule is quite similar, we can see that it has changed from `the one we computed earlier <https://raw.githubusercontent.com/FlexMeasures/screenshots/main/tut/toy-schedule/asset-view-without-solar.png>`_ (when we did not take solar into account).
 
-First, during the sunny hours of the day, when solar power is being send to the grid, the battery's output (at around 9am and 11am) is now lower, as the battery shares ``capacity_in_mw`` with the solar production. In the evening (around 7pm), when solar power is basically not present anymore, battery discharging to the grid is still at its previous levels.
+First, during the sunny hours of the day, when solar power is being send to the grid, the battery's output (at around 9am and 11am) is now lower, as the battery shares the ``site-power-capacity`` with the solar production. In the evening (around 7pm), when solar power is basically not present anymore, battery discharging to the grid is still at its previous levels.
 
 Second, charging of the battery is also changed a bit (around 10am), as less can be discharged later.
 
@@ -115,15 +188,16 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
     :align: center
 |
 
-.. note:: You can add arbitrary sensors to a chart using the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
+.. note:: You can add arbitrary sensors to a chart using the asset UI or the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
-A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_ :
+A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center
 |
 
-We hope this part of the tutorial shows how to incorporate a limited grid connection rather easily with FlexMeasures. There are more ways to model such settings, but this is a straightforward one.
+
+We hope this part of the tutorial shows how to incorporate a limited grid connection as well as other energy data streams rather easily with FlexMeasures.
 
 This tutorial showed a quick way to add an inflexible load (like solar power) and a grid connection.
 In :ref:`tut_v2g`, we will temporarily pause giving you tutorials you can follow step-by-step. We feel it is time to pay more attention to the power of the flex-model, and illustrate its effects.

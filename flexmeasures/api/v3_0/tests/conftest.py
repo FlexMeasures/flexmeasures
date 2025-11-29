@@ -50,6 +50,20 @@ def setup_inactive_user(db, setup_accounts, setup_roles_users):
     """
     Set up one inactive user and one inactive admin.
     """
+    add_inactive_users(db, setup_accounts)
+
+
+@pytest.fixture(scope="function")
+def setup_inactive_user_fresh_db(
+    fresh_db, setup_accounts_fresh_db, setup_roles_users_fresh_db
+):
+    """
+    Set up one inactive user and one inactive admin.
+    """
+    add_inactive_users(fresh_db, setup_accounts_fresh_db)
+
+
+def add_inactive_users(db, setup_accounts):
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, UserRole)
     user_datastore.create_user(
         username="inactive test user",

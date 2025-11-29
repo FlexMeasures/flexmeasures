@@ -24,7 +24,8 @@ fallback_model_search_term: Optional[str] = None
 
 class Naive(OLS):
     """Naive prediction model for a single input feature that simply throws back the given feature.
-    Under the hood, it uses linear regression by ordinary least squares, trained with points (0,0) and (1,1)."""
+    Under the hood, it uses linear regression by ordinary least squares, trained with points (0,0) and (1,1).
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__([0, 1], [0, 1])

@@ -125,6 +125,8 @@ Alternatively, to keep the car from discharging altogether during that time, lim
         }
     }
 
+.. note:: In case the ``soc-minima`` field defines partially overlapping time periods, FlexMeasures automatically resolves this by selecting the maximum. Likewise, the minimum is selected for partially overlapping time periods in the ``soc-maxima``, ``power-capacity``, ``production-capacity`` and ``consumption-capacity`` flex-model fields, and also in the ``site-power-capacity``, ``site-production-capacity`` and ``site-consumption-capacity`` flex-context fields.
+
 .. _earning_by_cycling:
 
 Earning by cycling

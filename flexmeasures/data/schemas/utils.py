@@ -9,10 +9,20 @@ from flexmeasures.utils.unit_utils import to_preferred, ur
 
 class MarshmallowClickMixin(click.ParamType):
     def __init__(self, *args, **kwargs):
+
+        metadata_keys = ["description", "example"]
+        metadata = dict(kwargs.get("metadata", {}))
+        for key in metadata_keys:
+            value = kwargs.pop(key, None)
+            if value is not None:
+                metadata[key] = value
+        if metadata:
+            kwargs["metadata"] = metadata
+
         super().__init__(*args, **kwargs)
         self.name = self.__class__.__name__
 
-    def get_metavar(self, param):
+    def get_metavar(self, param, **kwargs):
         return self.__class__.__name__
 
     def convert(self, value, param, ctx, **kwargs):

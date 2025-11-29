@@ -1,7 +1,10 @@
 import os
 import pytest
 
-from flexmeasures.cli.tests.utils import get_click_commands
+from flexmeasures.cli.tests.utils import (
+    check_command_ran_without_error,
+    get_click_commands,
+)
 from flexmeasures.tests.utils import get_test_sensor
 
 
@@ -15,7 +18,7 @@ def test_list_accounts(app, fresh_db, setup_accounts_fresh_db):
     assert "All accounts on this" in result.output
     for account in setup_accounts_fresh_db.values():
         assert account.name in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -29,7 +32,7 @@ def test_list_roles(app, fresh_db, setup_roles_users_fresh_db):
     assert "User roles" in result.output
     for role in ("account-admin", "Supplier", "Dummy"):
         assert role in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -41,7 +44,7 @@ def test_list_asset_types(app, fresh_db, setup_generic_asset_types_fresh_db):
 
     for asset_type in setup_generic_asset_types_fresh_db.values():
         assert asset_type.name in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -53,7 +56,7 @@ def test_list_sources(app, fresh_db, setup_sources_fresh_db):
 
     for source in setup_sources_fresh_db.values():
         assert source.name in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -69,7 +72,7 @@ def test_show_accounts(app, fresh_db, setup_accounts_fresh_db):
 
     assert "Account Test Prosumer Account" in result.output
     assert "No users in account" in result.output
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -87,6 +90,42 @@ def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
     assert "Asset Test wind turbine" in result.output
     assert "No sensors in asset" in result.output
     assert result.exit_code == 1  # command raises a click.Abort Exception
+
+
+@pytest.mark.skip_github
+def test_show_forecasters(app, db):
+    from flexmeasures.cli.data_show import list_forecasters
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(list_forecasters)
+
+    # todo: the Custom LGBM model itself should be mentioned, though
+    assert "TrainPredictPipeline" in result.output
+    check_command_ran_without_error(result)
+
+
+@pytest.mark.skip_github
+def test_show_reporters(app, db):
+    from flexmeasures.cli.data_show import list_reporters
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(list_reporters)
+
+    assert "ProfitOrLossReporter" in result.output
+    assert "PandasReporter" in result.output
+    check_command_ran_without_error(result)
+
+
+@pytest.mark.skip_github
+def test_show_schedulers(app, db):
+    from flexmeasures.cli.data_show import list_schedulers
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(list_schedulers)
+
+    assert "StorageScheduler" in result.output
+    assert "ProcessScheduler" in result.output
+    check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
@@ -111,7 +150,7 @@ def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
     assert "Beliefs for Sensor 'epex_da'" in result.output
     assert "Data spans an hour" in result.output
 
-    assert result.exit_code == 0
+    check_command_ran_without_error(result)
 
 
 def test_cli_help(app):
@@ -122,12 +161,15 @@ def test_cli_help(app):
     for cmd in get_click_commands(data_show):
         result = runner.invoke(cmd, ["--help"])
         assert "Usage" in result.output
-        assert result.exit_code == 0
+        check_command_ran_without_error(result)
 
 
 @pytest.mark.skip_github
-@pytest.mark.parametrize("_format", ["png", "svg"])
-def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format):
+@pytest.mark.parametrize(
+    "_format, combine_legend",
+    [("png", True), ("png", False), ("svg", True), ("svg", False)],
+)
+def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format, combine_legend):
     from flexmeasures.cli.data_show import chart
 
     sensor = get_test_sensor(fresh_db)
@@ -147,10 +189,11 @@ def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format):
                 "2021-03-29T16:00+01",
                 "--filename",
                 f"chart-$entity_type-$id.{_format}",
-            ],
+            ]
+            + (["--combine-legend"] if combine_legend else []),
         )
 
-        assert result.exit_code == 0
+        check_command_ran_without_error(result)
         assert os.path.exists(f"chart-sensor-{sensor_id}.{_format}")
         assert (
             os.path.getsize(f"chart-sensor-{sensor_id}.{_format}") > 100

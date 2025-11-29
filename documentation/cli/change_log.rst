@@ -4,33 +4,66 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v.0.22.0 | June 29, 2024
+since v0.30.0 | November xx, 2025
 =================================
 
+* Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more).
+* Fix the interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report``, which was not using the correct time at which the command was run; instead, that time was off by and offset corresponding to the offset between the ``FLEXMEASURES_TIMEZONE`` config setting and :abbr:`UTC (Coordinated Universal Time)`).
+* Add `--force` option to ``flexmeasures delete beliefs`` 
+* The ``flexmeasures delete beliefs``, ``flexmeasures delete nan-beliefs`` and ``flexmeasures delete unchanged-beliefs`` CLI commands now support limiting the action to a given set of data sources.
+* Allow asset-level scheduling in ``flexmeasures add schedule`` using the ``--asset`` option.
+* Allow modifying asset trees with the CLI using ``flexmeasures edit transfer-parenthood``.
+* ``flexmeasures show asset`` will now also display the flex model. 
 
+since v0.29.0 | October 14, 2025
+=================================
+* Include finished and canceled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
+* The ``flexmeasures delete unchanged-beliefs`` CLI command now supports limiting the action to a given period.
+
+since v0.28.0 | September 10, 2025
+=================================
+* Removed command ``flexmeasures db-ops save`` and ``flexmeasures db-ops load`` for folder&file - base backup management.
+
+since v0.27.0 | July 20, 2025
+=================================
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account.
+
+since v0.26.0 | June 03, 2025
+=================================
+* Switch to ``flexmeasures jobs save-last`` CLI command for saving the last n canceled/deferred/failed/finished/scheduled/started jobs (from the scheduling queue, by default).
+* Add ``flexmeasures show assets`` CLI command for listing public assets and option ``--account <account-id>`` to list assets owned by a specific account.
+
+since v0.25.0 | April 01, 2025
+=================================
+* Report parameters set using ``flexmeasures add report --parameters`` can use any argument supported by ``Sensor.search_beliefs`` to allow more control over input for the report.
+* Add ``flexmeasures jobs save-last-failed`` (since v0.26: ``flexmeasures jobs save-last``) CLI command for saving the last n failed jobs (from the scheduling queue, by default).
+* Add ``flexmeasures jobs delete-queue`` CLI command for deleting an obsolete queue.
+
+since v0.24.0 | January 6, 2025
+=================================
+* ``flexmeasures show beliefs`` shows datetime values on x-axis labels.
+* ``flexmeasures add sensor`` no longer requires the ``capacity_in_mw`` attribute to be set for power sensors.
+
+since v0.22.0 | June 29, 2024
+=================================
 * Add ``--resolution`` option to ``flexmeasures show chart`` to produce charts in different time resolutions.
 
-
-since v.0.21.0 | April 16, 2024
+since v0.21.0 | April 16, 2024
 =================================
-
 * Include started, deferred and scheduled jobs in the overview printed by the CLI command ``flexmeasures jobs show-queues``.
 
 since v.0.20.0 | March 26, 2024
 =================================
-
 * Add command ``flexmeasures edit transfer-ownership`` to transfer the ownership of an asset and its children.
 * Add ``--offspring`` option to ``flexmeasures delete beliefs`` command, allowing to delete beliefs of children, as well.
 * Add support for providing a sensor definition to the ``--site-power-capacity``, ``--site-consumption-capacity`` and ``--site-production-capacity`` options of the ``flexmeasures add schedule for-storage`` command.
 
 since v0.19.1 | February 26, 2024
 =======================================
-
 * Fix support for providing a sensor definition to the ``--storage-power-capacity`` option of the ``flexmeasures add schedule for-storage`` command.
 
 since v0.19.0 | February 18, 2024
 =======================================
-
 * Enable the use of QuantityOrSensor fields for the ``flexmeasures add schedule for-storage`` CLI command:
 
     * ``charging-efficiency``
@@ -49,21 +82,18 @@ since v0.19.0 | February 18, 2024
     * ``--asset-type-id`` -> ``--asset-type``
     * ``--sensor-id`` -> ``--sensor``
     * ``--source-id`` -> ``--source``
-    * ``--user-id`` -> ``--user`
+    * ``--user-id`` -> ``--user``
 
 since v0.18.1 | January 15, 2024
 =======================================
-
 * Fix the validation of the option ``--parent-asset`` of command ``flexmeasures add asset``.
 
 since v0.17.0 | November 8, 2023
 =======================================
-
 * Add ``--consultancy`` option to ``flexmeasures add account`` to create a consultancy relationship with another account.
 
 since v0.16.0 | September 29, 2023
 =======================================
-
 * Add command ``flexmeasures add sources`` to add the base `DataSources` for the `DataGenerators`.
 * Add command ``flexmeasures show chart`` to export sensor and asset charts in PNG or SVG formats.
 * Add ``--kind reporter`` option to ``flexmeasures add toy-account`` to create the asset and sensors for the reporter tutorial.
@@ -73,19 +103,17 @@ since v0.16.0 | September 29, 2023
 since v0.15.0 | August 9, 2023
 ================================
 * Allow deleting multiple sensors with a single call to ``flexmeasures delete sensor`` by passing the ``--id`` option multiple times.
-* Add ``flexmeasures add schedule for-process`` to create a new process schedule for a given power sensor.
+* Add ``flexmeasures add schedule`` to create a new process schedule for a given power sensor. Make sure to use the ``--scheduler ProcessScheduler`` option to use the in-built process scheduler.
 * Add support for describing ``config`` and ``parameters`` in YAML for the command ``flexmeasures add report``, editable in user's code editor using the flags ``--edit-config`` or ``--edit-parameters``.
 * Add ``--kind process`` option to create the asset and sensors for the ``ProcessScheduler`` tutorial.
 
 since v0.14.1 | June 20, 2023
 =================================
-
 * Avoid saving any :abbr:`NaN (not a number)` values to the database, when calling ``flexmeasures add report``.
 * Fix defaults for the ``--start-offset`` and ``--end-offset` options to ``flexmeasures add report``, which weren't being interpreted in the local timezone of the reporting sensor.
 
 since v0.14.0 | June 15, 2023
 =================================
-
 * Allow setting a storage efficiency using the new ``--storage-efficiency`` option to the ``flexmeasures add schedule for-storage`` CLI command.
 * Add CLI command ``flexmeasures add report`` to calculate a custom report from sensor data and save the results to the database, with the option to export them to a CSV or Excel file.
 * Add CLI command ``flexmeasures show reporters`` to list available reporters, including any defined in registered plugins.
@@ -94,13 +122,11 @@ since v0.14.0 | June 15, 2023
 
 since v0.13.0 | May 1, 2023
 =================================
-
 * Add ``flexmeasures add source`` CLI command for adding a new data source.
 * Add ``--inflexible-device-sensor`` option to ``flexmeasures add schedule``.
 
 since v0.12.0 | January 04, 2023
 =================================
-
 * Add ``--resolution``, ``--timezone`` and ``--to-file`` options to ``flexmeasures show beliefs``, to show beliefs data in a custom resolution and/or timezone, and also to save shown beliefs data to a CSV file.
 * Add options to ``flexmeasures add beliefs`` to 1) read CSV data with timezone naive datetimes (use ``--timezone`` to localize the data), 2) read CSV data with datetime/timedelta units (use ``--unit datetime`` or ``--unit timedelta``, 3) remove rows with NaN values, and 4) add filter to read-in data by matching values in specific columns (use ``--filter-column`` and ``--filter-value`` together).
 * Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed.
@@ -111,7 +137,6 @@ since v0.12.0 | January 04, 2023
 
 since v0.11.0 | August 28, 2022
 ==============================
-
 * Add ``flexmeasures jobs show-queues`` to show contents of computation job queues.
 * ``--name`` parameter in ``flexmeasures jobs run-worker`` is now optional.
 * Add ``--custom-message`` param to ``flexmeasures monitor tasks``.

@@ -1,0 +1,107 @@
+{% extends "base.html" %} 
+{% set active_page = "accounts" %} 
+{% block title %} Account listing {% endblock %} 
+{% block divs %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2"></div>
+        <div class="col-md-8">
+            <div class="card">
+            <h3>All Accounts
+            </h3>
+            <div class="table-responsive">
+                <table class="table table-striped paginate nav-on-click" title="View data" id="accountsTable">
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="col-md-2"></div>
+</div>
+</div>
+
+<script>
+    function Account(
+        id,
+        name,
+        assets, 
+        users,
+        roles,
+    ) {
+        this.id = id;
+        this.name = name;
+        this.assets = assets;
+        this.users = users;
+        this.roles = roles.map((role) => role.name).join(", ");
+        this.url = `/accounts/${id}`;
+    }
+
+    $(document).ready(function () {
+      let unit = "";
+      // Initialize the DataTable
+      const table = $("#accountsTable").dataTable({
+        order: [[0, "asc"]],
+        serverSide: true,
+        // make the table row vertically aligned with header
+        columns: [
+          { data: "id", title: "ID", orderable: true},
+          { data: "name", title: "Name", orderable: true},
+          { data: "assets", title: "Assets", orderable: true},
+          { data: "users", title: "Users", orderable: true},
+          { data: "roles", title: "Roles", orderable: false},
+          { data: "url", title: "URL", className: "d-none" },
+        ],
+
+        ajax: function (data, callback, settings) {
+          const basePath = window.location.origin;
+          let filter = data["search"]["value"];
+          let orderColumnIndex = data["order"][0]["column"]
+          let orderDirection = data["order"][0]["dir"];
+          let orderColumnName = data["columns"][orderColumnIndex]["data"];
+
+          let url = `${basePath}/api/v3_0/accounts?page=${
+            data["start"] / data["length"] + 1
+          }&per_page=${data["length"]}`; 
+
+          if (filter.length > 0) {
+            url = `${url}&filter=${filter}`;
+          }
+
+          if (orderColumnName){
+            url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
+          }
+
+          $.ajax({
+            type: "get",
+            url: url,
+            success: function (response, text) {
+              let clean_response = [];
+              response["data"].forEach((element) =>
+                clean_response.push(
+                  new Account(
+                    element["id"],
+                    element["name"],
+                    element["asset_count"],
+                    element["user_count"],
+                    element["account_roles"],
+                  )
+                )
+              );
+
+              callback({
+                data: clean_response,
+                recordsTotal: response["num-records"],
+                recordsFiltered: response["filtered-records"],
+              });
+            },
+            error: function (request, status, error) {
+              console.log("Error: ", error);
+            },
+          });
+        },
+      });
+    });
+  </script>
+
+{% block paginate_tables_script %} {{ super() }} {% endblock %} {% endblock%}

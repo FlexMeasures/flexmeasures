@@ -1,10 +1,11 @@
 from flask import abort
 from flask_security import current_user
-from marshmallow import fields
+from marshmallow import fields, validate
 from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User, Account
+from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
 
 class AccountIdField(fields.Integer):
@@ -21,7 +22,7 @@ class AccountIdField(fields.Integer):
         return account
 
     def _serialize(self, account: Account, attr, data, **kwargs) -> int:
-        return account.id
+        return account.id if account else None
 
     @classmethod
     def load_current(cls):
@@ -38,8 +39,8 @@ class UserIdField(fields.Integer):
     """
 
     def __init__(self, *args, **kwargs):
-        kwargs["load_default"] = (
-            lambda: current_user if not current_user.is_anonymous else None
+        kwargs["load_default"] = lambda: (
+            current_user if not current_user.is_anonymous else None
         )
         super().__init__(*args, **kwargs)
 
@@ -53,3 +54,10 @@ class UserIdField(fields.Integer):
 
     def _serialize(self, user: User, attr, data, **kwargs) -> int:
         return user.id
+
+
+class AccountAPIQuerySchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["id", "name", "assets", "users"]),
+    )

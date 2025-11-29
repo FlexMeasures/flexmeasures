@@ -6,6 +6,7 @@ from typing import Any
 import pandas as pd
 
 from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.reporting.aggregation import (
     AggregatorConfigSchema,
     AggregatorParametersSchema,
@@ -34,6 +35,7 @@ class AggregatorReporter(Reporter):
         output: list[dict[str, Any]],
         resolution: timedelta | None = None,
         belief_time: datetime | None = None,
+        belief_horizon: timedelta | None = None,
     ) -> list[dict[str, Any]]:
         """
         This method merges all the BeliefDataFrames into a single one, dropping
@@ -42,34 +44,60 @@ class AggregatorReporter(Reporter):
         """
 
         method: str = self._config.get("method")
-        weights: list = self._config.get("weights", {})
+        weights: dict = self._config.get("weights", {})
 
         dataframes = []
 
-        if belief_time is None:
+        if belief_time is None and belief_horizon is None:
             belief_time = server_now()
 
         for input_description in input:
-            sensor = input_description["sensor"]
+            sensor: Sensor = input_description.pop("sensor")
             # if name is not in belief_search_config, using the Sensor id instead
-            column_name = input_description.get(
-                "name", f"sensor_{input_description['sensor'].id}"
-            )
+            column_name = input_description.pop("name", f"sensor_{sensor.id}")
 
-            source = input_description.get("source")
-            source = input_description.get("sources", source)
+            source = input_description.pop(
+                "source", input_description.pop("sources", None)
+            )
+            if source is not None and not isinstance(source, list):
+                source = [source]
 
             df = sensor.search_beliefs(
                 event_starts_after=start,
                 event_ends_before=end,
                 resolution=resolution,
                 beliefs_before=belief_time,
+                horizons_at_most=belief_horizon,
                 source=source,
                 one_deterministic_belief_per_event=True,
+                **input_description,
             )
 
-            # found multiple sources in the beliefs of df but no source is specified
-            if len(df.lineage.sources) > 1 and (source is None or len(source) == 0):
+            # Check for multi-sourced events (i.e. multiple sources for a single event)
+            if len(df.lineage.events) != len(df):
+                duplicate_events = df[
+                    df.index.get_level_values("event_start").duplicated()
+                ]
+                raise ValueError(
+                    f"{len(duplicate_events)} event(s) are duplicate. First duplicate: {duplicate_events[0]}. Consider using (more) source filters."
+                )
+
+            # Check for multiple sources within the entire frame (excluding different versions of the same source)
+            unique_sources = df.lineage.sources
+            properties = [
+                "name",
+                "type",
+                "model",
+            ]  # properties to identify different versions of the same source
+            if (
+                len(unique_sources) > 1
+                and not all(
+                    getattr(source, prop) == getattr(unique_sources[0], prop)
+                    for prop in properties
+                    for source in unique_sources
+                )
+                and (source is None or len(source) == 0)
+            ):
                 raise ValueError(
                     "Missing attribute source or sources. The fields `source` or `sources` is required when having multiple sources within the time window."
                 )
@@ -89,14 +117,19 @@ class AggregatorReporter(Reporter):
 
         # convert BeliefsSeries into a BeliefsDataFrame
         output_df = output_df.to_frame("event_value")
-        output_df["belief_time"] = belief_time
+        if belief_time is not None:
+            belief_col = "belief_time"
+            output_df[belief_col] = belief_time
+        elif belief_horizon is not None:
+            belief_col = "belief_horizon"
+            output_df[belief_col] = belief_horizon
         output_df["cumulative_probability"] = 0.5
         output_df["source"] = self.data_source
         output_df.sensor = output[0]["sensor"]
         output_df.event_resolution = output[0]["sensor"].event_resolution
 
         output_df = output_df.set_index(
-            ["belief_time", "source", "cumulative_probability"], append=True
+            [belief_col, "source", "cumulative_probability"], append=True
         )
 
         return [

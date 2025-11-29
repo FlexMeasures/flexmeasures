@@ -2,6 +2,7 @@
 Convenience functions and class for accessing generic assets in groups.
 For example, group by asset type or by location.
 """
+
 from __future__ import annotations
 
 import inflect
@@ -16,7 +17,6 @@ from flexmeasures.utils.flexmeasures_inflection import parameterize
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     GenericAsset,
-    assets_share_location,
 )
 
 p = inflect.engine()
@@ -56,16 +56,16 @@ class AssetGroup:
     This class represents a group of assets of the same type, offering some convenience functions
     for displaying their properties.
 
-    When initialised with an asset type name, the group will contain all assets of
+    When initialized with an asset type name, the group will contain all assets of
     the given type that are accessible to the current user's account.
 
-    When initialised with a query for GenericAssets, as well, the group will list the assets returned by that query. This can be useful in combination with get_asset_group_queries,
+    When initialized with a query for GenericAssets, as well, the group will list the assets returned by that query. This can be useful in combination with get_asset_group_queries,
     see above.
 
     TODO: On a conceptual level, we can model two functionally useful ways of grouping assets:
     - AggregatedAsset if it groups assets of only 1 type,
     - GeneralizedAsset if it groups assets of multiple types
-    There might be specialised subclasses, as well, for certain groups, like a market and consumers.
+    There might be specialized sub-classes, as well, for certain groups, like a market and consumers.
     """
 
     name: str
@@ -83,8 +83,10 @@ class AssetGroup:
         if asset_query is None:
             asset_query = select(GenericAsset).filter_by(name=self.name)
 
-        # List unique asset types and asset type names represented by this group
+        # query assets
         self.assets = db.session.scalars(asset_query).all()
+
+        # List unique asset types and asset type names represented by this group
         self.unique_asset_types = list(set([a.asset_type for a in self.assets]))
         self.unique_asset_type_names = list(
             set([a.asset_type.name for a in self.assets])
@@ -104,17 +106,6 @@ class AssetGroup:
         if self.is_unique_asset:
             return self.assets[0].name
         return self.name
-
-    def is_eligible_for_comparing_individual_traces(self, max_traces: int = 7) -> bool:
-        """
-        Decide whether comparing individual traces for assets in this asset group
-        is a useful feature.
-        The number of assets that can be compared is parametrizable with max_traces.
-        Plot colors are reused if max_traces > 7, and run out if max_traces > 105.
-        """
-        return len(self.assets) in range(2, max_traces + 1) and assets_share_location(
-            self.assets
-        )
 
     @property
     def hover_label(self) -> str | None:

@@ -24,16 +24,32 @@ def test_get_accounts_missing_auth(client, requesting_user, status_code):
 
 
 @pytest.mark.parametrize(
-    "requesting_user, num_accounts",
+    "requesting_user, num_accounts, sort_by, sort_dir, expected_name_of_first_account",
     [
-        ("test_admin_user@seita.nl", 7),
-        ("test_prosumer_user@seita.nl", 1),
-        ("test_consultant@seita.nl", 2),
-        ("test_consultancy_user_without_consultant_access@seita.nl", 1),
+        ("test_admin_user@seita.nl", 7, None, None, None),
+        ("test_prosumer_user@seita.nl", 1, None, None, None),
+        ("test_consultant@seita.nl", 2, None, None, None),
+        (
+            "test_consultancy_user_without_consultant_access@seita.nl",
+            1,
+            None,
+            None,
+            None,
+        ),
+        ("test_admin_user@seita.nl", 7, "name", "asc", "Multi Role Account"),
+        ("test_admin_user@seita.nl", 7, "name", "desc", "Test Supplier Account"),
     ],
     indirect=["requesting_user"],
 )
-def test_get_accounts(client, setup_api_test_data, requesting_user, num_accounts):
+def test_get_accounts(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    num_accounts,
+    sort_by,
+    sort_dir,
+    expected_name_of_first_account,
+):
     """
     Get accounts for:
     - A normal user.
@@ -41,13 +57,28 @@ def test_get_accounts(client, setup_api_test_data, requesting_user, num_accounts
     - A user with a consultant role, belonging to a consultancy account with a linked consultancy client account.
     - A user without a consultant role, belonging to a consultancy account with a linked consultancy client account.
     """
+    query = {}
+
+    if sort_by:
+        query["sort_by"] = sort_by
+
+    if sort_dir:
+        query["sort_dir"] = sort_dir
+
     get_accounts_response = client.get(
         url_for("AccountAPI:index"),
+        query_string=query,
     )
-    print("Server responded with:\n%s" % get_accounts_response.data)
-    assert len(get_accounts_response.json) == num_accounts
-    account_names = [a["name"] for a in get_accounts_response.json]
+
+    print("Server responded with:\n%s" % get_accounts_response.json)
+
+    accounts = get_accounts_response.json
+    assert len(accounts) == num_accounts
+    account_names = [a["name"] for a in accounts]
     assert requesting_user.account.name in account_names
+
+    if sort_by:
+        assert accounts[0]["name"] == expected_name_of_first_account
 
 
 @pytest.mark.parametrize(
@@ -140,3 +171,30 @@ def test_get_one_user_audit_log_consultant(
     assert get_account_response.status_code == status_code
     if status_code == 200:
         assert get_account_response.json[0] is not None
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_consultant@seita.nl", 401),
+    ],
+    indirect=["requesting_user"],
+)
+def test_consultant_cannot_update_account_consultant(
+    db,
+    client,
+    setup_api_test_data,
+    requesting_user,
+    expected_status_code,
+):
+    client_accounts = requesting_user.account.consultancy_client_accounts
+    test_user_account_id = client_accounts[0].id if client_accounts else None
+
+    patch_account_response = client.patch(
+        url_for("AccountAPI:patch", id=test_user_account_id),
+        json={"consultancy_account_id": 3},
+    )
+
+    print("Server responded with:\n%s" % patch_account_response.data)
+    print("Status code: %s" % patch_account_response.status_code)
+    assert patch_account_response.status_code == expected_status_code

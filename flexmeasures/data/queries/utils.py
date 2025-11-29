@@ -43,14 +43,15 @@ def create_beliefs_query(
     return query
 
 
-def potentially_limit_assets_query_to_account(
+def potentially_limit_assets_query_to_accounts(
     query: Select[tuple[GenericAsset]],
     account_id: int | None = None,
 ) -> Select[tuple[GenericAsset]]:
-    """Filter out all assets that are not in the current user's account.
-    For admins and CLI users, no assets are filtered out, unless an account_id is set.
+    """Filter out all assets that are not in the current user's account or accounts they are allowed to access.
+    The search can also be limited to only one specific account.
+    For admins and CLI users, no assets are filtered out, unless an account_id is explicitly set.
 
-    :param account_id: if set, all assets that are not in the given account will be filtered out (only works for admins and CLI users). For querying public assets in particular, don't use this function.
+    :param account_id: if set, all assets that are not in the given account will be filtered out (only works for admins, consultants and CLI users). For querying public assets in particular, don't use this function.
     """
     if not running_as_cli() and not current_user.is_authenticated:
         raise Forbidden("Unauthenticated user cannot list assets.")
@@ -65,12 +66,17 @@ def potentially_limit_assets_query_to_account(
         and not user_is_admin
     ):
         raise Forbidden("Non-admin cannot access assets from other accounts.")
-    account_id_to_filter = (
+    account_ids_to_filter = [
         account_id if account_id is not None else current_user.account_id
-    )
+    ]
+    if account_id is None and current_user.has_role("consultant"):
+        account_ids_to_filter += [
+            a.id for a in current_user.account.consultancy_client_accounts
+        ]
+
     return query.filter(
         or_(
-            GenericAsset.account_id == account_id_to_filter,
+            GenericAsset.account_id.in_(account_ids_to_filter),
             GenericAsset.account_id == null(),
         )
     )
@@ -275,6 +281,7 @@ def multiply_dataframe_with_deterministic_beliefs(
     df = (df1["event_value"] * df2["event_value"] * multiplication_factor).to_frame(
         name="event_value"
     )
+
     if "belief_horizon" in df1.columns and "belief_horizon" in df2.columns:
         df["belief_horizon"] = (
             df1["belief_horizon"]
@@ -283,7 +290,8 @@ def multiply_dataframe_with_deterministic_beliefs(
             .join(df2["belief_horizon"], how="outer")
             .min(axis=1)
             .rename("belief_horizon")
-        )  # Add existing belief_horizon information, keeping only the smaller horizon per row
+        )
+        # Add existing belief_horizon information, keeping only the smaller horizon per row
     if result_source is not None:
         df["source"] = result_source  # also for rows with nan event_value
     return df

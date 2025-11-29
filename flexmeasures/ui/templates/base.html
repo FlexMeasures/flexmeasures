@@ -48,12 +48,22 @@
             --create-color: var(--green);
             --delete-color: var(--red);
         }
+        #asset_audit_log.nav-on-click tr {
+            cursor: default;
+        }
+        #account_audit_log.nav-on-click tr {
+            cursor: default; 
+        }
+        #user_audit_log.nav-on-click tr {
+            cursor: default; 
+        }
     </style>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" rel="stylesheet" />
     <!-- Latest Bootstrap link-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <!-- Fonts -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
@@ -78,7 +88,7 @@
     {% endblock %}
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
 
     {% block body %}
 
@@ -140,7 +150,7 @@
                     {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
                     class="disabled" {% endif %}>
                     <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
-                    {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
+                    {% if id in ['openapi-docs', 'docs'] %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
 
@@ -156,10 +166,18 @@
           </div>
         </div>
     </nav>
-      
-      
-
     {% endblock nav %}
+
+    <div
+        class="position-fixed bottom-0 end-0 p-3"
+        id="toast-container"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        style="z-index: 1000000"
+    >
+        <button id="close-all-toasts" class="btn">Close All</button>
+    </div>
 
     {% if message and message != "" %}
     <div class="col-md-12 alert alert-info">{{ message}} </div>
@@ -167,6 +185,7 @@
     {% if (msg is defined) and msg %}
     <div class="col-md-12 alert alert-info">{{ msg }}</div>
     {% endif %}
+    {% include "security/_messages.html" %}
 
     <!-- loading this earlier so templates can use it -->
     <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.5.1.min.js"></script>
@@ -175,9 +194,63 @@
     {# Div blocks that child pages can reference #}
     {% block divs %}
 
+    {% block breadcrumbs %}
+    {% if breadcrumb_info is defined %}
+    <nav aria-label="breadcrumb ">
+        <ol class="breadcrumb p-2">
+            {% for breadcrumb in breadcrumb_info["ancestors"] %}
+            <li class="breadcrumb-item{% if loop.last %} dropdown active{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
+              {% if breadcrumb["url"] is not none and not loop.last %}
+                <a href="{{ breadcrumb['url'] }}">{{ breadcrumb['name'] }}</a>
+              {% elif breadcrumb["url"] is none %}
+                {{ breadcrumb['name'] }}
+              {% else %}
+                {% if breadcrumb_info["siblings"]|length > 0 %}
+                <a href="{{ breadcrumb['url'] }}" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb['name'] }}</a>
+                <ul class="dropdown-menu">
+                    {% for sibling in breadcrumb_info["siblings"] %}
+                    <li><a class="p-3 dropdown-item {% if sibling['name'] == breadcrumb['name'] %}active{% endif %}" href="{{ sibling['url'] }}">{{ sibling["name"] }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <a href="{{ breadcrumb['url'] }}" role="button">{{ breadcrumb['name'] }}</a>
+                {% endif %}
+              {% endif %}
+            </li>
+            {% endfor %}
+            {% if breadcrumb_info["views"]|length > 0 %}
+            <li class="breadcrumb-item dropdown active">
+                <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown"  aria-expanded="false" role="button">{{ breadcrumb_info["current_asset_view"] }}</a>
+                <ul class="dropdown-menu">
+                    {% for view in breadcrumb_info["views"] %}
+                    <li><a class="p-3 dropdown-item {% if view['name'] == breadcrumb_info['current_asset_view'] %}active{% endif %}" href="{{ view['url'] }}">{{ view["name"] }}</a></li>
+                    {% endfor %}
+                </ul>
+            </li>
+            <div class="row" style="margin-left: auto;">
+                <div class="col-auto form-check" title="Set this asset view as your default when visiting asset pages.">
+                    <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
+                    <label class="form-check-label" for="defaultAssetView">Set as default view</label>
+                </div>
+                {% if breadcrumb_info['current_asset_view'] == 'Graphs' %}
+                <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables. The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
+                    <input class="form-check-input" type="checkbox" {% if session.get("keep_legends_below_graphs") %} checked {% endif %} id="defaultlegendPosition" onchange="setDefaultlegendPosition(this)">
+                    <label class="form-check-label" for="defaultlegendPosition">Keep legends below</label>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </ol>
+    </nav>
+    {% endif %}
+    {% endblock %}
+
+
+
     {% block forecastpicker %}
 
-    <div class="form-group row">
+    <div class="form-group row">/8520k-+.
+
         <div class="col-md-2">
             <div class="col-md-1"><i class="icon-binoculars center-icon"></i></div>
         </div>
@@ -241,11 +314,12 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { subtract, thisMonth, lastNMonths, countDSTTransitions, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
     let previousResult;
+    let previousPlaybackResult;
     let queryStartDate;
     let queryEndDate;
     let storeStartDate;
@@ -258,6 +332,9 @@
     let replaySpeed = 100
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
 
+    if ('{{ active_page }}' == 'assets'){
+        chartType = 'chart_for_multiple_sensors'
+    }
     // Update chart type picker: active state, reload data event
     document.addEventListener('DOMContentLoaded', function() {
         var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
@@ -284,43 +361,83 @@
                 });
 
                 // Reload daterange
-                picker.setDateRange(picker.getStartDate(), picker.getEndDate());
+                embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult.data)).resize().run();
             });
         }
     });
 
+    /**
+     * Convert data from the new (>= FM v0.28) compressed reference-based format
+     * back to the old format, for backward compatibility.
+     *
+     * @param {Object} responseData - The data from the sensor data API.
+     * @returns {Object[]} - The adapted data in the old format.
+     */
+    function decompressChartData(responseData) {
+        // Check if it's the new compressed reference-based format, if so: decompress
+        if (responseData.data && responseData.sensors && responseData.sources) {
+            return responseData.data.map(belief => {
+                const sensor = responseData.sensors[belief.sid] || {};
+                const source = responseData.sources[belief.src] || {};
+
+                // Special case: for sensors with seconds unit, convert to datetime here
+                const value = (sensor.unit === 's' && typeof belief.val === 'number') ? new Date(belief.val * 1000) : belief.val;
+                return {
+                    // Map shortened field names back to original names
+                    event_start: belief.ts,
+                    event_value: value,
+                    belief_horizon: belief.bh,
+                    scale_factor: belief.sf,
+                    belief_time: belief.bt,
+
+                    // Reconstruct full sensor and source objects
+                    sensor: {
+                        id: belief.sid,
+                        name: sensor.name || '',
+                        sensor_unit: sensor.unit || '',
+                        unit: sensor.unit || '',
+                        description: sensor.description || '',
+                        asset_id: sensor.asset_id,
+                        asset_description: sensor.asset_description || ''
+                    },
+                    source: {
+                        id: belief.src,
+                        name: source.name || '',
+                        model: source.model || '',
+                        type: source.type || 'other',
+                        description: source.description || ''
+                    },
+
+                    // Keep sensor_unit at root level for backward compatibility
+                    sensor_unit: sensor.unit || ''
+                };
+            });
+        }
+
+        // If it's already in the old format, return as-is
+        return responseData;
+    }
+
     function checkDSTTransitions(startDate, endDate) {
         var numDSTTransitions = countDSTTransitions(startDate, endDate, 90)
-        if (numDSTTransitions != 0) {
-            document.getElementById('dstwarn').style.display = 'block';
-            if (numDSTTransitions == 1) {
-                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.';
-            } else {
-                document.getElementById('dstwarn').innerHTML = 'Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.';
-            }
-        }
-        else {
-            document.getElementById('dstwarn').style.display = 'none';
+        if (numDSTTransitions == 1) {
+            showToast('Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.');
+        } else if (numDSTTransitions > 1) {
+            showToast('Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.');
         }
     }
 
     function checkSourceMasking(data) {
-        var sourceWarn = document.getElementById("sourcewarn");
-        if (sourceWarn == null)
-            return
         var uniqueSourceIds = getUniqueValues(data, 'source.id');
         if (chartType == 'daily_heatmap' && uniqueSourceIds.length > 1) {
-            sourceWarn.style.display = 'block';
-            sourceWarn.innerHTML = 'Please note that only data from the most prevalent source is shown.';
-        }
-        else {
-            sourceWarn.style.display = 'none';
+            showToast('Please note that only data from the most prevalent source is shown.');
         }
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
-
-        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType, {{ chart_options | safe }})
+        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType);
+        await vegaEmbed('#'+elementId, url, {{ chart_options | safe }})
         .then(function (result) {
 
             // Create a custom menu item for exporting to CSV
@@ -348,19 +465,101 @@
             // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
             vegaView = result.view;
             if (previousResult) {
-                checkSourceMasking(previousResult);
-                var slicedPreviousResult = previousResult.filter(item => {
+                checkSourceMasking(previousResult.data);
+                var slicedPreviousData = previousResult.data.filter(item => {
                     return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
                 })
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousResult)).resize().run();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousData)).resize().run();
             }
         });
     }
+    
+    {% if active_page == "sensors" and user_can_update_sensor %}
+        let upload = document.querySelector('#submitUpload');
+        let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
+        upload.addEventListener('click', function(e) {
+            upload.classList.add('d-none');
+            uploadSpinner.classList.remove('d-none');
+            var formData = new FormData(document.getElementById('uploadForm'));
+            fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(async function(response) {
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast(data.message, "success");
+                    // Update date range
+                    picker.setDateRange(
+                        storeStartDate,
+                        subtract(storeEndDate, 1),
+                    );
+                    uploadSpinner.classList.add('d-none');
+                    upload.classList.remove('d-none');
+                } else {
+                    const data = await response.json();
+                    if (data.message.path_and_files === undefined) {
+                        showToast(data.message, "error");
+                    }
+                    else {
+                        for (const [key, value] of Object.entries(data.message.path_and_files)) {
+                            if (typeof value === 'string') {
+                                showToast(value, "error");
+                            } else if (Array.isArray(value)) {
+                                value.forEach(element => {
+                                    showToast(element, "error");
+                                });
+                            } else if (typeof value === 'object' && value !== null) {
+                                Object.values(value).forEach(element => {
+                                    if (Array.isArray(element)) {
+                                        element.forEach(item => showToast(item, "error"));
+                                    } else {
+                                        showToast(element, "error");
+                                    }
+                                });
+                            } else {
+                                // fallback for unexpected types
+                                showToast(String(value), "error");
+                            }
+                        }
+                    }
+                    uploadSpinner.classList.add('d-none');
+                    upload.classList.remove('d-none');
+                }
+            })
+            .catch(function(error) {
+                // Network or unexpected error
+                console.error("Upload error:", error);
+                showToast("An error occurred: " + error.message, "error");
+                uploadSpinner.classList.add('d-none');
+                upload.classList.remove('d-none');
+            });
+        });
+    {% endif %}
 
+    
+    // event listener to refresh graph
+    document.addEventListener('sensorsToShowUpdated', async function() {
+        await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
+    })
+
+    var combineLegend = 'true';
     {% if active_page == "assets" %}
         var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
+        {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
+        {% if total_sensors > 7 %}
+            {% if session.get("keep_legends_below_graphs") %}
+                combineLegend = 'true';
+            {% else %}
+                combineLegend = 'false';
+            {% endif %}
+        {% else %}
+            {% if not session.get("keep_legends_below_graphs") %}
+                combineLegend = 'true';
+            {% endif %}
+        {% endif %}
     {% elif active_page == "sensors" %}
         var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
         var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
@@ -373,12 +572,7 @@
     var controller = new AbortController();
     var signal = controller.signal;
 
-    const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
-        method: "GET",
-        headers: {"Content-Type": "application/json"},
-        signal: signal,
-    })
-    .then(function(response) { return response.json(); });
+    var playBackDataLoadedForKnownDateRange = false;
 
     // Set session start and end
     {% if event_starts_after and event_ends_before %}
@@ -395,77 +589,127 @@
 
     // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
     const date = Date();
-    picker = new Litepicker({
-        element: document.getElementById('datepicker'),
-        plugins: ['ranges', 'keyboardnav'],
-        ranges: {
-            customRanges: {
-                'Today': [new Date(date), new Date(date)],
-                'Last 7 days': [subtract(date, 6), new Date(date)],
-                'This month': thisMonth(date)
+    {% if active_page == "sensors" and sensor.event_resolution.days > 0 %}
+        const minRes = "day"
+    {% else %}
+        const minRes = "hour"
+    {% endif %}
+
+    function createPicker(startDate, endDate, customRanges) {
+   
+        picker = new Litepicker({
+            element: document.getElementById('datepicker'),
+            plugins: ['ranges', 'keyboardnav'],
+            ranges: {
+                customRanges: customRanges,
+                position: 'top'
             },
-            position: 'bottom'
-        },
-        autoRefresh: true,
-        moduleRanges: true,
-        showWeekNumbers: true,
-        numberOfMonths: 1,
-        numberOfColumns: 1,
-        inlineMode: true,
-        switchingMonths: 1,
-        singleMode: false,
-        startDate: sessionStart,
-        endDate: sessionEnd,
-        dropdowns: {
-            years: true,
-            months: true,
-        },
-        format: 'YYYY-MM-DD\\T00:00:00',
-    });
-    picker.on('selected', (startDate, endDate) => {
-        startDate = startDate.toJSDate();
-        endDate = endDate.toJSDate();
-        endDate.setDate(endDate.getDate() + 1);
-        storeStartDate = startDate;
-        storeEndDate = endDate;
-        var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
-        var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
+            autoRefresh: true,
+            moduleRanges: true,
+            showWeekNumbers: true,
+            numberOfMonths: 1,
+            numberOfColumns: 1,
+            inlineMode: true,
+            switchingMonths: 1,
+            singleMode: false,
+            startDate: startDate,
+            endDate: endDate,
+            dropdowns: {
+                years: true,
+                months: true,
+            },
+            format: 'YYYY-MM-DD\\T00:00:00',
+        });
+        picker.on('selected', (startDate, endDate) => {
+            startDate = startDate.toJSDate();
+            endDate = endDate.toJSDate();
 
-        stopReplay()
+            {% if FLEXMEASURES_MODE == "play" %}
+                // Update daterange buttons on simulation servers (only replacing the entire picker works)
+                picker.destroy();
+                customRanges = computeSimulationRanges(startDate, endDate, minRes);
+                picker = createPicker(startDate, endDate, customRanges);
+            {% endif %}
 
-        $("#spinner").show();
-        checkDSTTransitions(startDate, endDate)
-        Promise.all([
-            // Fetch time series data
-            fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                method: "GET",
-                headers: {"Content-Type": "application/json"},
-                signal: signal,
-            })
-            .then(function(response) { return response.json(); }),
+            endDate.setDate(endDate.getDate() + 1);
 
-            /**
-            // Fetch annotations
-            fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                method: "GET",
-                headers: {"Content-Type": "application/json"},
-                signal: signal,
-            })
-            .then(function(response) { return response.json(); }),
-            */
+            // Update current url without reloading the page
+            var base_url = window.location.href.split("?")[0];
+            var new_url = `${base_url}?start_time=${toIsoString(startDate)}&end_time=${toIsoString(endDate)}`;
+            window.history.pushState({}, null, new_url);
 
-            // Embed chart
-            embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
-        ]).then(function(result) {
-            $("#spinner").hide();
-            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
-            previousResult = result[0];
-            checkSourceMasking(previousResult);
-            /**
-            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
-            */
-        }).catch(console.error);
-    });
+            storeStartDate = startDate;
+            storeEndDate = endDate;
+            var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
+            var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
+
+            {% if active_page == "sensors" %}
+                const toggleStats = document.getElementById('toggleStatsCheckbox');
+                if (toggleStats.checked) {
+                    loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+                }
+                else {
+                    loadSensorStats({{ sensor.id }});
+                }
+            {% endif %}
+
+            stopReplay()
+
+            $("#spinner").show();
+            checkDSTTransitions(startDate, endDate)
+            Promise.all([
+                fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
+                /**
+                // Fetch annotations
+                fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                    signal: signal,
+                })
+                .then(function(response) { return response.json(); }),
+                */
+
+                // Embed chart
+                embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
+            ]).then(function(result) {
+                $("#spinner").hide();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+                previousResult = {
+                    start: startDate,
+                    end: endDate,
+                    data: result[0]
+                };
+                checkSourceMasking(previousResult.data);
+                playBackDataLoadedForKnownDateRange = false;
+                /**
+                vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+                */
+            }).catch(console.error);
+        });
+        return picker
+    }
+    {% if FLEXMEASURES_MODE == "play" %}
+        const customRanges = computeSimulationRanges(sessionStart, sessionEnd, minRes);
+    {% else %}
+        const customRanges = {
+            'Last 7 days': [subtract(date, 6), new Date(date)],
+            'Today and tomorrow': [subtract(date, -1), new Date(date)]
+        };
+    {% endif %}
+    picker = createPicker(sessionStart, sessionEnd, customRanges);
+
+    {% if active_page == "sensors" %}
+        // Call loadSensorStats if the toggleStatsCheckbox checkbox is checked or unchecked
+        document.getElementById('toggleStatsCheckbox').addEventListener('change', function() {
+            if (this.checked) {
+                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+            }
+            else {
+                loadSensorStats({{ sensor.id }});
+            }
+        });
+    {% endif %}
+
 
     /** If the page is done loading, get data (for the time range stored in the session, or the default range),
      * check for time zone differences, and then trigger the time range picker to display the correct range.
@@ -475,14 +719,30 @@
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
                 $("#spinner").show();
+                {% if active_subpage == "asset_graph" and has_kpis %}
+                    getAssetKPIs();
+                {% endif %}
+                const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                    signal: signal,
+                })
+                .then(function(response) { return response.json(); })
+                .then(data => decompressChartData(data));
                 let fetchedInitialData = await Promise.all([
                     initialData,
                     embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
                 ]).then(function (result) {return result[0]}).catch(console.error);
                 $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
-                previousResult = fetchedInitialData;
-                checkSourceMasking(previousResult);
+                var sessionStart = new Date('{{ event_starts_after }}');
+                var sessionEnd = new Date('{{ event_ends_before }}');
+                previousResult = {
+                    start: sessionStart,
+                    end: sessionEnd,
+                    data: fetchedInitialData
+                };
+                checkSourceMasking(previousResult.data);
                 var timerangeNotSetYet = false
             {% else %}
                 var timerangeNotSetYet = true
@@ -495,15 +755,15 @@
             .then(function(data) {
                 var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
                 if (offsetDifference != 0) {
-                    document.getElementById('tzwarn').style.display = 'block';
                     var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + ' minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
-                    document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.';
+                    showToast('Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.');
                 }
                 {% if active_page == "assets" %}
                     var timerangeVar = 'timerange_of_sensors_to_show';
                 {% else %}
                     var timerangeVar = 'timerange';
                 {% endif %}
+
                 if (timerangeVar in data) {
                     var start = new Date(data[timerangeVar].start);
                     var end = new Date(data[timerangeVar].end);
@@ -511,24 +771,62 @@
                     start.setHours(0,0,0,0); // get start of first day
                     end.setHours(0,0,0,0); // get start of last day
 
-                    if (timerangeNotSetYet) {
-                        // Initialize picker to the last 2 days of sensor data
-                        var nearEnd = new Date(end)//.setDate(end.getDate() - 1);
-                        nearEnd.setDate(nearEnd.getDate() - 1);
-                        picker.setDateRange(
-                            nearEnd,
-                            end,
-                        );
-                    }
+                    {% if active_page == "assets" %}
+                        var timerangeVar = 'timerange_of_sensors_to_show';
+                    {% else %}
+                        var timerangeVar = 'timerange';
+                    {% endif %}
 
-                    // No use looking for data in years outside timerange of sensor data
+                    // Detect if URL already specifies a range
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlStartTimeRaw = urlParams.get('start_time');
+                    const urlEndTimeRaw = urlParams.get('end_time');
+                    const urlHasRange = urlStartTimeRaw && urlEndTimeRaw;
+
                     picker.setOptions({
                         dropdowns: {
                             minYear: start.getFullYear(),
                             maxYear: end.getFullYear(),
                         },
                     });
-                };
+
+                    if (urlHasRange) {
+                        const urlStartTime = urlStartTimeRaw.replace(' ', '+');
+                        const urlEndTime = urlEndTimeRaw.replace(' ', '+');
+
+                        const urlStartDate = new Date(urlStartTime);
+                        const urlEndDateExclusive = new Date(urlEndTime);
+
+                        if (!isNaN(urlStartDate) && !isNaN(urlEndDateExclusive)) {
+                            // picker end date is inclusive → subtract 1 day
+                            urlEndDateExclusive.setDate(urlEndDateExclusive.getDate() - 1);
+
+                            // This fires the 'selected' event and load graphs
+                            picker.setDateRange(urlStartDate, urlEndDateExclusive);
+                            picker.gotoDate(urlEndDateExclusive);
+                        }
+                    } else {
+                        // Original behaviour when there is no URL range
+
+                        if (timerangeNotSetYet) {
+                            // Initialize picker to the last 2 days of sensor data
+                            var nearEnd = new Date(end);
+                            nearEnd.setDate(nearEnd.getDate() - 2);
+                            var new_start_date = nearEnd;
+                            var new_end_date = end;
+                        } else {
+                            var new_start_date = new Date('{{ event_starts_after }}');
+                            var new_end_date = new Date('{{ event_ends_before }}');
+                        }
+
+                        // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                        new_end_date.setDate(new_end_date.getDate() - 1); // inclusive picker end
+                        picker.setDateRange(new_start_date, new_end_date);
+                        picker.gotoDate(new_end_date);
+                    }
+                }
+
+
             });
         }
     };
@@ -599,20 +897,31 @@
         var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
         queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
         queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
-
-        $("#spinner").show();
+        const spinner = document.getElementById('spinner');
+        if (!playBackDataLoadedForKnownDateRange) {
+            spinner.hidden = false;
+            spinner.style.display = 'block';
+        }
         Promise.all([
+            playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
             // Fetch time series data (all data, not only the most recent beliefs)
-            fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
+            fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false&compress_json=true', {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
                 signal: signal,
             })
-            .then(function(response) { return response.json(); }),
+            .then(function(response) { return response.json(); })
+            .then(data => decompressChartData(data)),
         ]).then(function(result) {
-            $("#spinner").hide();
+            previousPlaybackResult = result[0];
             replayBeliefsData(result[0]);
-        }).catch(console.error);
+            playBackDataLoadedForKnownDateRange = true;
+        }).catch(console.error)
+        .finally(function() {
+            spinner.hidden = true;
+            spinner.style.display = 'none';
+        });
+
 
         const timer = ms => new Promise(res => setAbortableTimeout(res, Math.max(ms, 0), signal));
 
@@ -670,6 +979,103 @@
             stopReplay()
         }
     }
+
+    /**
+     * Fetches data for the graph and KPIs, either from a previous result (if the date range is the same)
+     * or from the API (if the date range is different).
+     *
+     * The previous result is used to avoid fetching the same data twice when the user goes back and forth
+     * between different date ranges.
+     *
+     * If the date range changes, the function fetches the data from the API and also triggers an update
+     * of the asset KPIs if the active subpage is the asset graph.
+     *
+     * @param {Object} previousResult The previous result, containing the start and end dates and the data.
+     * @param {Date} startDate The start date for the new data.
+     * @param {Date} endDate The end date for the new data.
+     * @param {String} queryStartDate The start date as a string in ISO format, to be used in the query.
+     * @param {String} queryEndDate The end date as a string in ISO format, to be used in the query.
+     * @return {Promise} A promise that resolves with the data.
+     */
+    function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
+        if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()){
+            return Promise.resolve(previousResult.data);
+        } else {
+            {% if active_subpage == "asset_graph" and has_kpis %}
+                getAssetKPIs();
+            {% endif %}
+            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
+                    method: "GET",
+                    headers: { "Content-Type": "application/json" },
+                    signal: signal,
+            })
+            .then(response => response.json())
+            .then(data => decompressChartData(data));
+        }
+    }
+
+    {% if active_subpage == "asset_graph" and has_kpis %}
+    function getAssetKPIs() {
+        const pickerStartDate = picker.getStartDate().toJSDate();
+        const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
+        var endDate = picker.getEndDate();
+        endDate.setDate(endDate.getDate() + 1);
+        endDate = encodeURIComponent(toIsoStringWithOffset(endDate.toJSDate()));
+        const kpiCards = document.querySelector('#kpi-cards');
+        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + endDate, {
+            method: 'GET',
+            headers: {
+                "Content-Type": "application/json",
+            },
+        })
+        .then(response => response.json())
+        .then(response => {
+
+            // Create card for each KPI object
+            const data = response.data;
+            // Set kpiCards to empty
+            kpiCards.innerHTML = '';
+            data.forEach(kpi => {
+                const link = document.createElement('a');
+                link.href = `${apiBasePath}/sensors/${kpi.sensor}`;
+                link.title = "See underlying KPI data";
+                link.classList.add('text-decoration-none', 'd-flex', 'flex-fill');
+
+                const colDiv = document.createElement('div');
+                colDiv.classList.add('col-md-3');
+                colDiv.classList.add('d-flex');
+                const card = document.createElement('div');
+                card.classList.add('card', 'flex-fill');
+                // Add sensor data to the card
+                const labelMap = {
+                    'mean': 'Average',
+                    'sum': 'Total',
+                    'min': 'Min',
+                    'max': 'Max'
+                };
+                const label = labelMap[kpi.downsample_function];
+                card.innerHTML = `
+                    <div class="card-body d-flex flex-column justify-content-between">
+                        <h5 class="card-title">${kpi.title}</h5>
+                        <h5 class="card-text">
+                            <strong>
+                                ${label}: ${kpi.downsample_value} ${kpi.unit}
+                            </strong>
+                        </h5>
+                    </div>
+                `;
+                link.appendChild(card);
+                colDiv.appendChild(link);
+                kpiCards.appendChild(colDiv);
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            return []; // Return an empty array if there's an error
+        });
+    }
+
+    {% endif %}
     </script>
 
     {% endblock sensorChartSetup %}
@@ -712,8 +1118,72 @@
         });
     </script>
 
+    <script>
+        // Set default asset view
+        function setDefaultAssetView(checkbox, view_name) {
+            // Get the checked status of the checkbox
+            const isChecked = checkbox.checked;
+
+            const apiBasePath = window.location.origin;
+            fetch(apiBasePath + '/api/v3_0/assets/default_asset_view', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({
+                    default_asset_view: view_name,
+                    use_as_default: isChecked
+                })
+            })
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error during API call:', error);
+            });
+        }
+
+        function setDefaultlegendPosition(checkbox) {
+            // Get the checked status of the checkbox
+            const isChecked = checkbox.checked;
+
+            const apiBasePath = window.location.origin;
+            fetch(apiBasePath + '/api/v3_0/assets/keep_legends_below_graphs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({
+                    keep_legends_below_graphs: isChecked
+                })
+            })
+            .then(response => {
+                response.json();
+                location.reload();
+            })
+            .catch(error => {
+                console.error('Error during API call:', error);
+            });
+        }
+    </script>
+
     <!-- JS to enable toast -->
     <script defer>
+        const toastStack = document.getElementById("toast-container");
+        const closeToastBtn = document.getElementById("close-all-toasts");
+        
+        // written like this since this script(order) is ontop of the main script
+        document.addEventListener("DOMContentLoaded", function () {
+            initiateToastCloseBtn(closeToastBtn);
+        });
+
+        function maybeHideCloseToastBtn() {
+            const remainingToasts = toastStack.querySelectorAll(".toast");
+            if (remainingToasts.length === 0) {
+                closeToastBtn.style.display = "none";
+            }
+        }
+
         function initiateToastCloseBtn(closeToastBtn){
             // hide button
             closeToastBtn.style.display = "none";
@@ -741,28 +1211,62 @@
             });
         }
 
-        function showToast(message, type, toastStack, closeToastBtn) {
+        function showToast(message, type, { highlightDuplicates = true, showDuplicateCount = true } = {}) {
             let colorClass;
             let colorStyle = "";
             let title;
         
             // Determine the type of toast
             if (type == "error") {
+              delay = 10000;
               colorClass = "bg-danger";
               title = "Error";
             } else if (type == "success") {
+              delay = 2000;
               colorClass = "bg-success";
               title = "Success";
             } else {
+              delay = 5000;
               colorStyle =
                 "background-color: {{ primary_color }};";
               title = "Info";
+            }
+
+            // Search for an existing toast with the same message
+            const existingToasts = toastStack.querySelectorAll(".toast");
+            for (const t of existingToasts) {
+                const body = t.querySelector(".toast-body");
+                if (body && body.dataset.originalMessage === message) {
+                    // It's a duplicate
+                    if (showDuplicateCount) {
+                        let count = parseInt(body.dataset.count || "1") + 1;
+                        body.dataset.count = count;
+                        body.innerHTML = `${message} <span class="text-muted ms-2">(x${count})</span>`;
+                    }
+
+                    if (highlightDuplicates) {
+                        t.classList.remove("highlight");
+                        void t.offsetWidth; // Trigger reflow for CSS animation restart
+                        t.classList.add("highlight");
+                    }
+
+                    // Reinitialize and show the toast again
+                    const oldInstance = bootstrap.Toast.getInstance(t);
+                    if (oldInstance) {
+                        oldInstance.dispose();
+                    }
+                    const newInstance = new bootstrap.Toast(t);
+                    newInstance.show();
+
+                    return; // Don't create a new toast
+                }
             }
         
             // Create the toast HTML
             const toast = document.createElement("div");
             toast.classList.add("toast", "mb-1");
             toast.setAttribute("data-bs-autohide", "true");
+            toast.setAttribute("data-bs-delay", delay);
             toast.setAttribute("role", "alert");
             toast.setAttribute("aria-live", "assertive");
             toast.setAttribute("aria-atomic", "true");
@@ -773,7 +1277,7 @@
                 <strong class="me-auto">${title}</strong>
                 <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
               </div>
-              <div class="toast-body">
+            <div class="toast-body" data-original-message="${message}" data-count="1">
                 ${message}
               </div>
             `;
@@ -786,16 +1290,25 @@
         
             showAllToasts();
 
+            // Dispose and remove toast when it's autohidden
+            toast.addEventListener("hidden.bs.toast", function () {
+                const instance = bootstrap.Toast.getInstance(toast);
+                if (instance) {
+                    instance.dispose();
+                }
+                toast.remove();
+                maybeHideCloseToastBtn();
+            });
+
             // destroy only this toast if the close(X) button is clicked
             toast.querySelector(".btn-close").addEventListener("click", function () {
                 const toastInstance = new bootstrap.Toast(toast);
                 toastInstance.dispose();
                 toast.remove();
+                maybeHideCloseToastBtn();
             });            
-          }
+        }
     </script>
-
-
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
@@ -816,13 +1329,15 @@
 
     {% endblock scripts %}
 
+
+
     {% block paginate_tables_script %}
     <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
     <script
         src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
-    <footer class="page-footer font-small pt-4 mt-4">
+    <footer class="page-footer font-small pt-4 mt-auto">
         <div class="footer text-center">
             <div class="container-fluid">
                 {% block copyright_notice %}
@@ -967,6 +1482,7 @@
         </div>
     </footer>
     {% endblock body %}
+
 </body>
 
 </html>

@@ -1,8 +1,5 @@
-# see ui/utils/plotting_utils: separate_legend() and create_hover_tool()
 pyyaml
 altair
-colour
-pscript
 pandas
 pint>=0.19.1
 py-moneyed
@@ -10,18 +7,16 @@ iso8601
 xlrd
 workalendar
 inflection
-# <6.0.2 and pydantic due to https://github.com/jaraco/inflect/issues/187
-inflect<=6.0.2
-pydantic<2
+inflect
+pydantic
 humanize
 psycopg2-binary
-# due to https://github.com/Flask-Middleware/flask-security/issues/907
-bcrypt<=4.0.1
+# hashing backend for passlib, not sure why we need it now
+argon2_cffi
 pytz
-# limit the numpy version to make it compatible with dependencies in timely-beliefs >=1.18 (libraries sktime, numba).
-numpy<1.25
 isodate
-click
+# see https://github.com/FlexMeasures/flexmeasures/issues/1485
+click<8.2.0
 click-default-group
 email_validator
 rq
@@ -29,43 +24,58 @@ rq
 rq-dashboard>=0.8.0.2
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
-# This limit resolves a conflict with test.in. The culprit is fakeredis (check their pyproject.toml)
-redis >4.5, <5
+# Note: we sometimes limit redis due to our use of fakeredis (check their pyproject.toml)
+redis>4.5
 tldextract
-pyomo>=5.6
+# pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
+pyomo>=5.6,<6.9
 tabulate
 timetomodel>=0.7.3
-# significantly faster db queries, incl. bulk saving
-timely-beliefs[forecast]>=3.0.2
+# 3.0.2: significantly faster db queries, incl. bulk saving, 3.1: numpy/pandas upgrade
+timely-beliefs[forecast]>=3.2.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
 # see GH#607 for issue on this pin
 sqlalchemy>=2.0
 Flask-SSLify
-# use <0.4 if not compatible with Flask2.2 yet
 Flask_JSON
 Flask-Migrate
 Flask-WTF
 Flask-Mail
-# <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
-Flask-Security-Too>=5.0
+Flask-Security-Too[fsqla,mfa]>=5.0
 Flask-Login
 Flask-Classful>=0.16
 Flask-Marshmallow
 Flask-Cors
+flask-swagger-ui
 sentry-sdk[flask]
 marshmallow>=3
+# See GH#1450 (failing tests on older Python versions)
+marshmallow~=3.0; python_version < "3.11"
+marshmallow_oneofschema
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
+
+# OpenAPI Documentation
+apispec
+apispec-oneofschema
+apispec-webframeworks
+
 webargs
-# Minimum version that correctly aligns time series that include NaN values
-uniplot>=0.7.0
+# Minimum version that supports datetimes on the (x-)axis.
+uniplot>=0.12.1
 # >=2.5.2: https://github.com/marshmallow-code/flask-marshmallow/issues/262
 Flask-SQLAlchemy>=2.5.2
 # flask should be after all the flask plugins, because setup might find they ARE flask
-# <3.0 https://github.com/FlexMeasures/flexmeasures/issues/936
-flask>=1.0, <3.0 
-werkzeug<=2.2.3
+flask>=1.0 
+werkzeug
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
+
+# Concise asset audit log entries
+dictdiffer>=0.9.0
+
+# Forecaster: TrainPredictPipeline
+lightgbm
+u8darts>=0.29.0

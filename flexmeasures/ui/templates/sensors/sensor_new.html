@@ -1,0 +1,183 @@
+{% extends "base.html" %} {% set active_page = "assets" %} {% block title %} New
+sensor {% endblock %} {% block divs %}
+
+<div class="container-fluid">
+
+  <h3>Creating a new sensor on asset <a href="/assets/{{asset.id}}">{{asset.name}}</a></h3>
+
+  <form id="sensorForm" class="form p-4" method="POST">
+    <div
+      id="alertbox"
+      class="alert alert-success"
+      role="alert"
+      style="display: none"
+    ></div>
+
+    <div class="mb-3">
+      <label for="name" class="form-label">Name</label>
+      <input
+        type="text"
+        class="form-control"
+        id="name"
+        name="name"
+        placeholder="e.g power"
+        required
+      />
+    </div>
+    <div class="mb-3">
+      <label for="eventResolution" class="form-label"
+        >Event Resolution
+
+        <i
+          class="fa fa-info-circle ps-2"
+          data-bs-toggle="tooltip"
+          data-bs-placement="bottom"
+          title="Enter an ISO 8601 duration (e.g., PT1H for one hour, PT15M for 15 minutes)."
+          style="font-size: 16px"
+        ></i>
+      </label>
+      <input
+        type="text"
+        class="form-control"
+        id="eventResolution"
+        name="event_resolution"
+        placeholder="Expected resolution of the sensor's data. E.g. PT1H (which is one hour) or PT15M (15 minutes)"
+        required
+      />
+    </div>
+    <div class="mb-3">
+      <label for="unit" class="form-label"
+        >Unit
+
+        <i
+          class="fa fa-info-circle ps-2"
+          data-bs-toggle="tooltip"
+          data-bs-placement="bottom"
+          title="The unit of the sensor's data (e.g. kW or EUR/MWh). Choose a unit from the list or type a custom unit (ensure it's recognized by 'pint' library)."
+          style="font-size: 16px"
+        ></i>
+      </label>
+      <div class="row">
+        <div class="col-4 pe-0">
+          <select
+            class="form-select"
+            onchange="document.getElementById('unit').value = this.value"
+          >
+            <option selected>Choose from units already in use</option>
+            {% for unit in available_units %}
+            <option>{{ unit }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-8 ps-1">
+          <input
+            type="text"
+            class="form-control"
+            id="unit"
+            name="unit"
+            placeholder="Type in any unit by hand, e.g. 'kW' or 'EUR/kWh'"
+            required
+          />
+        </div>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary" onclick="createSensor(event)">
+      Create
+    </button>
+  </form>
+</div>
+
+<script type="text/javascript">
+  const apiBasePath = window.location.origin;
+  const sensorForm = document.getElementById("sensorForm");
+  const alertBox = document.getElementById("alertbox");
+
+  function validateEventResolution(eventResolution) {
+    // Regular expression to match duration format (PT[H|M|S])
+    const regex = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/;
+
+    if (!regex.test(eventResolution)) {
+      return false;
+    }
+
+    const matches = regex.exec(eventResolution);
+
+    // At least one of H, M, or S must be present.
+    if (!matches[1] && !matches[2] && !matches[3]) {
+      return false;
+    }
+
+    let hours = parseInt(matches[1]) || 0;
+    let minutes = parseInt(matches[2]) || 0;
+    let seconds = parseInt(matches[3]) || 0;
+
+    if (hours > 24) {
+      return false;
+    }
+
+    return true;
+  }
+
+  async function createSensor(event) {
+    event.preventDefault();
+
+    const name = document.getElementById("name").value;
+    const eventResolution = document.getElementById("eventResolution").value;
+    const unit = document.getElementById("unit").value;
+
+    if (!name || !eventResolution || !unit) {
+      showToast("Please fill in all fields.", "error");
+      return;
+    }
+
+    if (!validateEventResolution(eventResolution)) {
+      showToast(
+        `Invalid event resolution format "${eventResolution}". Please use ISO 8601 duration format (PT[H|M|S]).`,
+        "error"
+      );
+      return;
+    }
+
+    const data = {
+      name: name,
+      event_resolution: eventResolution,
+      unit: unit,
+      generic_asset_id: "{{ asset.id }}",
+    };
+
+    const response = await fetch(apiBasePath + "/api/v3_0/sensors", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (response.ok) {
+      const responseData = await response.json();
+      const sensorId = responseData.id;
+      showToast("Sensor created successfully.", "success");
+      alertBox.innerHTML = `Sensor created successfully. You can visit your new sensor <a target="_blank" href='/sensors/${sensorId}'>here</a>.`;
+      alertBox.style.display = "block";
+      // set all fields value to empty string
+      document.getElementById("name").value = "";
+      document.getElementById("eventResolution").value = "";
+      document.getElementById("unit").value = "";
+    } else {
+      const errorData = await response.json();
+      let errorMessage = response.statusText; // Default to statusText
+
+      const messageUnitError = errorData?.message?.json?.unit?.[0];
+      if (messageUnitError) {
+        errorMessage = messageUnitError;
+      } else if (errorData?.message) {
+        errorMessage = errorData.message;
+      } else if (errorData?.error) {
+        errorMessage = errorData.error;
+      }
+      showToast("Error: " + errorMessage, "error");
+    }
+  }
+</script>
+
+{% endblock %}

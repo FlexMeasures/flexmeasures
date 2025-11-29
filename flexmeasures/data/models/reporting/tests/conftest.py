@@ -166,10 +166,11 @@ def setup_dummy_data(db, app, generic_report):
     db.session.add(daily_report_sensor)
 
     """
-        Create 2 DataSources
+        Create 3 DataSources
     """
-    source1 = DataSource("source1")
-    source2 = DataSource("source2")
+    source1 = DataSource("source1", type="A")
+    source2 = DataSource("source2", type="B")
+    source2v02 = DataSource("source2", type="B", version="0.2")
 
     """
         Create TimedBeliefs
@@ -196,6 +197,19 @@ def setup_dummy_data(db, app, generic_report):
             beliefs.append(
                 TimedBelief(
                     event_start=datetime(2023, 5, 10, tzinfo=utc) + timedelta(hours=t),
+                    belief_horizon=timedelta(hours=24),
+                    event_value=value,
+                    sensor=sensor,
+                    source=source,
+                )
+            )
+
+    # add a day of extra data for sensor 1, but not for sensor 2
+    for sensor, source, value in zip([sensor1], [source1, source2], [1, -1]):
+        for t in range(24):
+            beliefs.append(
+                TimedBelief(
+                    event_start=datetime(2023, 5, 11, tzinfo=utc) + timedelta(hours=t),
                     belief_horizon=timedelta(hours=24),
                     event_value=value,
                     sensor=sensor,
@@ -250,8 +264,7 @@ def setup_dummy_data(db, app, generic_report):
                 source=source2,
             )
         )
-
-    # add a belief belonging to Source 2 in the second half of the day ()
+    # add a belief belonging to Source 1 in the second half of the day
     beliefs.append(
         TimedBelief(
             event_start=datetime(2023, 4, 24, tzinfo=utc) + timedelta(hours=12),
@@ -259,6 +272,16 @@ def setup_dummy_data(db, app, generic_report):
             event_value=1,
             sensor=sensor3,
             source=source1,
+        )
+    )
+    # add a belief belonging to version 0.2 of Source 2 around the end of the day, recorded 25 instead of 24 hours in advance
+    beliefs.append(
+        TimedBelief(
+            event_start=datetime(2023, 4, 24, tzinfo=utc) + timedelta(hours=23),
+            belief_horizon=timedelta(hours=25),
+            event_value=3,
+            sensor=sensor3,
+            source=source2v02,
         )
     )
 

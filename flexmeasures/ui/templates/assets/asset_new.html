@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} New asset {% endblock %}
+
+{% block divs %}
+
+<div class="container-fluid">
+    
+    <h3>Creating a new asset {% if parent_asset_name %} under asset <a href="/assets/{{parent_asset_id}}">{{ parent_asset_name }}</a> {% endif %}</h3>
+    
+    <form class="new-asset-form form-horizontal" method="POST" action="/assets/create">
+        {{ asset_form.csrf_token }}
+        {{ asset_form.hidden_tag() }}
+        <fieldset>
+            <div class="row">
+                <div class="col-md-6">
+                    <input type="hidden" name="parent_asset_id" value="{{ parent_asset_id }}">
+                    <div class="form-group">
+                        {{ asset_form.name.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
+                            {{ asset_form.name(class_="form-control") }}
+                            {% for error in asset_form.errors.name %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.generic_asset_type_id.label(class="col-md-6 control-label")}}
+                        <div class="col-md-6">
+                            {{ asset_form.generic_asset_type_id(class_="form-control") }}
+                            {% for error in asset_form.errors.generic_asset_type_id%}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% if asset_form.account_id %}
+                    <div class="form-group">
+                        {{ asset_form.account_id.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
+                            {{ asset_form.account_id(class_="form-control") }}
+                            {% if account %}
+                            <script>
+                                document.addEventListener("DOMContentLoaded", function() {
+                                    var accountID = document.querySelector("select[name='account_id']");
+                                    accountID.value = "{{ account.id }}";
+                                    accountID.style.pointerEvents = "none";
+                                    accountID.style.backgroundColor = "#f0f0f0";
+                                });
+                            </script>
+                            {% endif %}
+                            {% for error in asset_form.errors.account_id %}
+                            <span style="color: red;">[{{ error }}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="form-group">
+                        {{ asset_form.latitude.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
+                            {{ asset_form.latitude(class_="form-control") }}
+                            {% for error in asset_form.errors.latitude %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.longitude.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
+                            {{ asset_form.longitude(class_="form-control") }}
+                            {% for error in asset_form.errors.longitude %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.attributes.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
+                            {{ asset_form.attributes(class_="form-control") }}
+                            {% for error in asset_form.errors.attributes %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6">
+                        <input type="submit" value="Create">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h3>Location</h3>
+                    <small>(Click map to edit latitude and longitude in form)</small>
+                    <div id="mapid"></div>
+                </div>
+            </div>
+        </fieldset>
+    </form>
+</div>
+
+<!-- Initialise the map -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+<script type="text/javascript">
+
+    // create map
+    var assetMap = L
+        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6})
+        .on('popupopen', function () {
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+
+
+    var location_icon = new L.DivIcon({
+        className: 'map-icon',
+        html: '<i class="icon-empty-marker center-icon supersize"></i>',
+        iconSize: [100, 100], // size of the icon
+        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+    });
+
+    {% if asset_form.latitude.data %}
+    // create marker for parent asset's location
+    var marker = L
+        .marker(
+            [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}],
+    { icon: location_icon }
+        ).addTo(assetMap);
+    {% else %}
+    // dummy location somewhere else
+    var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+    {% endif %}
+
+    assetMap.on('click', function (e) {
+        $("#latitude").val(e.latlng.lat.toFixed(4));
+        $("#longitude").val(e.latlng.lng.toFixed(4));
+        marker.setLatLng(e.latlng);
+    });
+
+</script>
+
+{% endblock %}

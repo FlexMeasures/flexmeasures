@@ -47,7 +47,12 @@ Unless stated otherwise, values of such fields can take one of the following for
          ]
      }
 
-  Note the two distinct ways of specifying a time period (``"end"`` + ``"duration"`` also works).
+  Note the two distinct ways of specifying a time period (``"end"`` in combination with ``"duration"`` also works).
+
+  .. note:: In case a field defines partially overlapping time periods, FlexMeasures automatically resolves this.
+            By default, time periods that are defined earlier in the list take precedence.
+            Fields that deviate from this policy will note so explicitly.
+            (For example, for fields dealing with capacities, the minimum is selected instead.)
 
 - A reference to a sensor that records a variable quantity, which allows cross-referencing to dynamic contexts that are already recorded as sensor data in FlexMeasures. For instance, a site's contracted consumption capacity that changes over time.
 
@@ -58,81 +63,6 @@ Unless stated otherwise, values of such fields can take one of the following for
      }
 
   The unit of the data is specified on the sensor.
-
-Sensors and entity addresses
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-In many API endpoints, sensors are identified by their ID, e.g. ``/sensors/45``. However, all sensors can also be identified with an entity address following the EA1 addressing scheme prescribed by USEF[1],
-which is mostly taken from IETF RFC 3720 [2].
-
-This is the complete structure of an EA1 address:
-
-.. code-block:: json
-
-    {
-        "sensor": "ea1.{date code}.{reversed domain name}:{locally unique string}"
-    }
-
-Here is a full example for an entity address of a sensor in FlexMeasures:
-
-.. code-block:: json
-
-    {
-        "sensor": "ea1.2021-02.io.flexmeasures.company:fm1.73"
-    }
-
-where FlexMeasures runs at `company.flexmeasures.io` (which the current domain owner started using in February 2021), and the locally unique string uses the `fm1` scheme (see below) to identify sensor ID 73.
-
-Assets are listed at:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/assets
-
-The full entity addresses of all of the asset's sensors can be obtained on the asset's page, e.g. for asset 81:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/assets/81
-
-
-Entity address structure
-""""""""""""""""""""""""""
-Some deeper explanations about an entity address:
-
-- "ea1" is a constant, indicating this is a type 1 USEF entity address
-- The date code "must be a date during which the naming authority owned the domain name used in this format, and should be the first month in which the domain name was owned by this naming authority at 00:01 GMT of the first day of the month.
-- The reversed domain name is taken from the naming authority (person or organization) creating this entity address
-- The locally unique string can be used for local purposes, and FlexMeasures uses it to identify the resource.
-  Fields in the locally unique string are separated by colons, see for other examples
-  IETF RFC 3721, page 6 [3]. While [2] says it's possible to use dashes, dots or colons as separators, we might use dashes and dots in
-  latitude/longitude coordinates of sensors, so we settle on colons.
-
-
-[1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf
-
-[2] https://tools.ietf.org/html/rfc3720
-
-[3] https://tools.ietf.org/html/rfc3721
-
-
-Types of sensor identification used in FlexMeasures
-""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-FlexMeasures expects the locally unique string string to contain information in a certain structure.
-We distinguish type ``fm0`` and type ``fm1`` FlexMeasures entity addresses.
-
-The ``fm1`` scheme is the latest version.
-It uses the fact that all FlexMeasures sensors have unique IDs.
-
-.. code-block::
-
-    ea1.2021-01.io.flexmeasures:fm1.42
-    ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
-
-The ``fm0`` scheme is the original scheme.
-It identified different types of sensors (such as grid connections, weather sensors and markets) in different ways.
-The ``fm0`` scheme has been sunset since API version 3.
 
 
 Timeseries

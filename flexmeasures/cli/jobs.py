@@ -4,24 +4,70 @@ CLI commands for controlling jobs
 
 from __future__ import annotations
 
+import os
 import random
 import string
+import sys
+from types import TracebackType
+from typing import Type
 
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
-from rq import Queue, Worker
+from rq import Queue, Worker, SimpleWorker
+from rq.job import Job
+from rq.registry import (
+    CanceledJobRegistry,
+    DeferredJobRegistry,
+    FailedJobRegistry,
+    FinishedJobRegistry,
+    ScheduledJobRegistry,
+    StartedJobRegistry,
+)
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
+import pandas as pd
 
+from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+
+
+REGISTRY_MAP = dict(
+    canceled=CanceledJobRegistry,
+    deferred=DeferredJobRegistry,
+    failed=FailedJobRegistry,
+    finished=FinishedJobRegistry,
+    started=StartedJobRegistry,
+    scheduled=ScheduledJobRegistry,
+)
 
 
 @click.group("jobs")
 def fm_jobs():
     """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("run-job")
+@with_appcontext
+@click.option(
+    "--job",
+    "job_id",
+    required=True,
+    help="Job UUID of the job you want to run.",
+)
+def run_job(job_id: str):
+    """
+    Run a single job.
+
+    We use the app context to find out which redis queues to use.
+    """
+    connection = app.queues["scheduling"].connection
+    job = Job.fetch(job_id, connection=connection)
+    result = job.func(**job.kwargs)
+    click.echo(f"Job {job_id} finished with: {result}")
 
 
 @fm_jobs.command("run-worker")
@@ -68,12 +114,25 @@ def run_worker(queue: str, name: str | None):
         error_handler = handle_scheduling_exception
     elif queue == "forecasting":
         error_handler = handle_forecasting_exception
-    worker = Worker(
-        q_list,
-        connection=connection,
-        name=used_name,
-        exception_handlers=[error_handler],
-    )
+
+    # On macOS: RQ's fork-based Worker triggers a known OpenSSL/psycopg2
+    # segmentation fault due to reinitialization of SSL state in forked children.
+    # SimpleWorker executes jobs in-process (no fork) and is therefore the correct
+    # choice for macOS development environments.
+    if sys.platform == "darwin":
+        worker = SimpleWorker(
+            q_list,
+            connection=connection,
+            name=used_name,
+            exception_handlers=[error_handler],
+        )
+    else:
+        worker = Worker(
+            q_list,
+            connection=connection,
+            name=used_name,
+            exception_handlers=[error_handler],
+        )
 
     click.echo("\n=========================================================")
     click.secho(
@@ -102,20 +161,164 @@ def show_queues():
     queue_data = [
         (
             q.name,
-            q.started_job_registry.count,
             q.count,
             q.deferred_job_registry.count,
             q.scheduled_job_registry.count,
+            q.started_job_registry.count,
+            q.finished_job_registry.count,
             q.failed_job_registry.count,
+            q.canceled_job_registry.count,
         )
         for q in app.queues.values()
     ]
     click.echo(
         tabulate(
             queue_data,
-            headers=["Queue", "Started", "Queued", "Deferred", "Scheduled", "Failed"],
+            headers=[
+                "Queue",
+                "Queued jobs",
+                "Deferred jobs",
+                "Scheduled jobs",
+                "Started jobs",
+                "Finished jobs",
+                "Failed jobs",
+                "Canceled jobs",
+            ],
         )
     )
+
+
+@fm_jobs.command("save-last")
+@with_appcontext
+@click.option(
+    "--n",
+    type=int,
+    default=10,
+    help="The number of last jobs to save.",
+)
+@click.option(
+    "--queue",
+    "queue_name",
+    type=str,
+    default="scheduling",
+    help="The queue to look in.",
+)
+@click.option(
+    "--registry",
+    "registry_name",
+    type=click.Choice(REGISTRY_MAP.keys()),
+    default="failed",
+    help="The registry to look in.",
+)
+@click.option(
+    "--asset",
+    "asset_id",
+    type=AssetIdField(),
+    callback=lambda ctx, param, value: value.id if value else None,
+    required=False,
+    help="The asset ID to filter by.",
+)
+@click.option(
+    "--sensor",
+    "sensor_id",
+    type=SensorIdField(),
+    callback=lambda ctx, param, value: value.id if value else None,
+    required=False,
+    help="The sensor ID to filter by.",
+)
+@click.option(
+    "--file",
+    type=click.Path(),
+    default="last_jobs.csv",
+    help="The CSV file to save the found jobs.",
+)
+def save_last(
+    n: int,
+    queue_name: str,
+    registry_name: str,
+    asset_id: int | None,
+    sensor_id: int | None,
+    file: str,
+):
+    """
+    Save the last n jobs to a file (by default, the last 10 failed jobs).
+    """
+    available_queues = app.queues
+    if queue_name not in available_queues.keys():
+        click.secho(
+            f"Unknown queue '{queue_name}'. Available queues: {join_words_into_a_list(list(available_queues.keys()))}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    else:
+        queue = available_queues[queue_name]
+
+    registry = REGISTRY_MAP[registry_name](queue=queue)
+    job_ids = registry.get_job_ids()[-n:]
+    found_jobs = []
+
+    for job_id in job_ids:
+        try:
+            job = Job.fetch(job_id, connection=queue.connection)
+            kwargs = job.kwargs or {}
+            entity_info = kwargs.get("asset_or_sensor", {})
+
+            if (
+                (not asset_id and not sensor_id)
+                or (
+                    entity_info.get("class") == "Asset"
+                    and entity_info.get("id") == asset_id
+                )
+                or (
+                    entity_info.get("class") == "Sensor"
+                    and entity_info.get("id") == sensor_id
+                )
+            ):
+                found_jobs.append(
+                    {
+                        "Job ID": job.id,
+                        "ID": entity_info.get("id", "N/A"),
+                        "Class": entity_info.get("class", "N/A"),
+                        "Error": job.exc_info,
+                        "All kwargs": kwargs,
+                        "Function name": getattr(job, "func_name", "N/A"),
+                        "Started at": getattr(job, "started_at", "N/A"),
+                        "Ended at": getattr(job, "ended_at", "N/A"),
+                    }
+                )
+        except Exception as e:
+            click.secho(
+                f"Job {job_id} failed to fetch with error: {str(e)}", fg="yellow"
+            )
+
+    if found_jobs:
+        if os.path.exists(file):
+            if not click.confirm(f"{file} already exists. Overwrite?", default=False):
+                new_file = click.prompt(
+                    "Enter a new filename (must end with .csv)", type=str
+                )
+                while not new_file.lower().endswith(".csv"):
+                    click.secho("Invalid filename. It must end with .csv.", fg="red")
+                    new_file = click.prompt(
+                        "Enter a new filename (must end with .csv)", type=str
+                    )
+                file = new_file
+
+        # Save the found jobs to a CSV file
+        pd.DataFrame(found_jobs).sort_values("Started at", ascending=False).to_csv(
+            file, index=False
+        )
+        click.secho(
+            f"Saved {len(found_jobs)} {registry_name} jobs to {file}.", fg="green"
+        )
+        return
+    elif asset_id:
+        filter_message = f" for asset {asset_id} among the last {n} jobs"
+    elif sensor_id:
+        filter_message = f" for sensor {sensor_id} among the last {n} jobs"
+    else:
+        filter_message = ""
+    click.secho(f"No {registry_name} jobs found{filter_message}.", fg="yellow")
 
 
 @fm_jobs.command("clear-queue")
@@ -182,6 +385,38 @@ def clear_queue(queue: str, deferred: bool, scheduled: bool, failed: bool):
             wrap_up_message(count_after)
 
 
+@fm_jobs.command("delete-queue")
+@with_appcontext
+@click.option(
+    "--queue",
+    default=None,
+    required=True,
+    help="State which queue to delete.",
+)
+def delete_queue(queue: str):
+    """
+    Delete a job queue.
+    """
+    if not app.redis_connection.sismember("rq:queues", f"rq:queue:{queue}"):
+        click.secho(
+            f"Queue '{queue}' does not exist.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    success = app.redis_connection.srem("rq:queues", f"rq:queue:{queue}")
+    if success:
+        click.secho(
+            f"Queue '{queue}' removed.",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.secho(
+            f"Failed to remove queue '{queue}'.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+
 def wrap_up_message(count_after: int):
     if count_after > 0:
         click.secho(
@@ -192,13 +427,18 @@ def wrap_up_message(count_after: int):
         click.echo("No jobs left.")
 
 
-def handle_worker_exception(job, exc_type, exc_value, traceback):
+def handle_worker_exception(
+    job: Job,
+    exc_type: Type[Exception],
+    exc_value: Exception,
+    traceback: TracebackType,
+) -> None:
     """
     Just a fallback, usually we would use the per-queue handler.
     """
     queue_name = job.origin
     click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
-    job.meta["exception"] = exc_value
+    job.meta["exception"] = str(exc_value)  # meta must contain JSON serializable data
     job.save_meta()
 
 

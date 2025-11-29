@@ -13,7 +13,7 @@
 
 services:
   dev-db:
-    image: postgres
+    image: postgres:17
     expose:
       - 5432
     restart: always
@@ -23,6 +23,7 @@ services:
       POSTGRES_PASSWORD: fm-dev-db-pass
     volumes:
       - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
+      - ./docker-compose-data/dev-db:/var/lib/postgresql/data
   queue-db:
     image: redis
     restart: always
@@ -60,6 +61,7 @@ services:
     environment:
       SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
       SECRET_KEY: notsecret
+      SECURITY_TOTP_SECRETS: '{"1": "something-secret"}'
       FLEXMEASURES_ENV: development
       FLEXMEASURES_REDIS_URL: queue-db
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
@@ -74,7 +76,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
     - |
-      pip install -r /usr/var/flexmeasures-instance/requirements.txt
+      pip install --break-system-packages -r /usr/var/flexmeasures-instance/requirements.txt
       flexmeasures db upgrade
       flexmeasures add toy-account --name 'Docker Toy Account'
       gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application
@@ -92,6 +94,7 @@ services:
       FLEXMEASURES_REDIS_URL: queue-db
       FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
       SECRET_KEY: notsecret
+      SECURITY_TOTP_SECRETS: '{"1": "something-secret"}'
       FLEXMEASURES_ENV: development
       MAIL_SERVER: mailhog   # MailHog mail server
       MAIL_PORT: 1025        # MailHog mail port
@@ -102,7 +105,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: 
     - |
-      pip install -r /usr/var/flexmeasures-instance/requirements.txt
+      pip install --break-system-packages -r /usr/var/flexmeasures-instance/requirements.txt
       flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling
   test-db:
     image: postgres
@@ -115,7 +118,6 @@ services:
       POSTGRES_PASSWORD: fm-test-db-pass
     volumes:
       - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
-
 volumes:
   redis-cache:
     driver: local

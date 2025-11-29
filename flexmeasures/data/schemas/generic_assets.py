@@ -1,23 +1,27 @@
 from __future__ import annotations
 
+from datetime import timedelta
 import json
+from http import HTTPStatus
 
+from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
+from marshmallow.validate import OneOf
 from flask_security import current_user
 from sqlalchemy import select
+
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
+from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
-    with_appcontext_if_needed,
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
-from flexmeasures.utils.coding_utils import flatten_unique
 
 
 class JSON(fields.Field):
@@ -87,7 +91,13 @@ class SensorsToShowSchema(fields.Field):
                 )
             return {"title": None, "sensors": item}
         elif isinstance(item, dict):
-            title = item.get("title", None)
+            if "title" not in item:
+                raise ValidationError("Dictionary must contain a 'title' key.")
+            else:
+                title = item["title"]
+                if not isinstance(title, str) and title is not None:
+                    raise ValidationError("'title' value must be a string.")
+
             if "sensor" in item:
                 sensor = item["sensor"]
                 if not isinstance(sensor, int):
@@ -108,6 +118,57 @@ class SensorsToShowSchema(fields.Field):
             raise ValidationError(
                 "Invalid item type in 'sensors_to_show'. Expected int, list, or dict."
             )
+
+    @classmethod
+    def flatten(cls, nested_list) -> list[int]:
+        """
+        Flatten a nested list of sensors or sensor dictionaries into a unique list of sensor IDs.
+
+        This method processes the following formats, for each of the entries of the nested list:
+        - A list of sensor IDs: `[1, 2, 3]`
+        - A list of dictionaries where each dictionary contains a `sensors` list or a `sensor` key:
+        `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}]`
+        - Mixed formats: `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}, 4, 5, 1]`
+
+        It extracts all sensor IDs, removes duplicates, and returns a flattened list of unique sensor IDs.
+
+        Args:
+            nested_list (list): A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
+
+        Returns:
+            list: A unique list of sensor IDs.
+        """
+
+        all_objects = []
+        for s in nested_list:
+            if isinstance(s, list):
+                all_objects.extend(s)
+            elif isinstance(s, dict):
+                if "sensors" in s:
+                    all_objects.extend(s["sensors"])
+                if "sensor" in s:
+                    all_objects.append(s["sensor"])
+            else:
+                all_objects.append(s)
+        return list(dict.fromkeys(all_objects).keys())
+
+
+class SensorKPIFieldSchema(ma.SQLAlchemySchema):
+    title = fields.Str(required=True)
+    sensor = SensorIdField(required=True)
+    function = fields.Str(required=False, validate=OneOf(["sum", "min", "max", "mean"]))
+
+    @validates("sensor")
+    def validate_sensor(self, value, **kwargs):
+        if value.event_resolution != timedelta(days=1):
+            raise ValidationError(f"Sensor with ID {value} is not a daily sensor.")
+        return value
+
+
+class SensorsToShowAsKPIsSchema(ma.SQLAlchemySchema):
+    sensors_to_show_as_kpis = fields.List(
+        fields.Nested(SensorKPIFieldSchema), required=True
+    )
 
 
 class GenericAssetSchema(ma.SQLAlchemySchema):
@@ -134,37 +195,38 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         only=("id", "name", "account_id", "generic_asset_type"),
     )
     sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
-    production_price_sensor_id = fields.Int(required=False, allow_none=True)
-    consumption_price_sensor_id = fields.Int(required=False, allow_none=True)
-    inflexible_device_sensor_ids = fields.List(
-        fields.Int, required=False, allow_none=True
-    )
+    sensors_to_show = JSON(required=False)
+    flex_context = JSON(required=False)
+    flex_model = JSON(required=False)
+    sensors_to_show_as_kpis = JSON(required=False)
 
     class Meta:
         model = GenericAsset
 
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_under_parent(self, data, **kwargs):
-        if "name" in data:
-
+        """
+        Validate that name is unique among siblings.
+        This is also checked by a db constraint.
+        Here, we can only check if we have all information (a full form),
+        which usually is at creation time.
+        """
+        if "name" in data and "parent_asset_id" in data:
             asset = db.session.scalars(
                 select(GenericAsset)
                 .filter_by(
                     name=data["name"],
                     parent_asset_id=data.get("parent_asset_id"),
-                    account_id=data.get("account_id"),
                 )
                 .limit(1)
             ).first()
 
             if asset:
-                raise ValidationError(
-                    f"An asset with the name '{data['name']}' already exists under parent asset with id={data.get('parent_asset_id')}.",
-                    "name",
-                )
+                err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
+                raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
-    def validate_generic_asset_type(self, generic_asset_type_id: int):
+    def validate_generic_asset_type(self, generic_asset_type_id: int, **kwargs):
         generic_asset_type = db.session.get(GenericAssetType, generic_asset_type_id)
         if not generic_asset_type:
             raise ValidationError(
@@ -172,7 +234,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("parent_asset_id")
-    def validate_parent_asset(self, parent_asset_id: int | None):
+    def validate_parent_asset(self, parent_asset_id: int | None, **kwargs):
         if parent_asset_id is not None:
             parent_asset = db.session.get(GenericAsset, parent_asset_id)
             if not parent_asset:
@@ -181,7 +243,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                 )
 
     @validates("account_id")
-    def validate_account(self, account_id: int | None):
+    def validate_account(self, account_id: int | None, **kwargs):
         if account_id is None and (
             running_as_cli() or user_has_admin_access(current_user, "update")
         ):
@@ -198,28 +260,26 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("attributes")
-    def validate_attributes(self, attributes: dict):
+    def validate_attributes(self, attributes: dict, **kwargs):
+        """
+        Validate sensors_to_show if sent within attributes.
+        Deprecated, as this is now its own field on the model.
+        Can be deleted once we stop supporting storing them under here.
+        """
         sensors_to_show = attributes.get("sensors_to_show", [])
-
         if sensors_to_show:
 
             # Use SensorsToShowSchema to validate and deserialize sensors_to_show
             sensors_to_show_schema = SensorsToShowSchema()
 
             standardized_sensors = sensors_to_show_schema.deserialize(sensors_to_show)
-            unique_sensor_ids = flatten_unique(standardized_sensors)
+            unique_sensor_ids = SensorsToShowSchema.flatten(standardized_sensors)
+
             # Check whether IDs represent accessible sensors
             from flexmeasures.data.schemas import SensorIdField
 
             for sensor_id in unique_sensor_ids:
                 SensorIdField().deserialize(sensor_id)
-
-        # Check whether IDs represent accessible sensors
-        from flexmeasures.data.schemas import SensorIdField
-
-        sensor_ids = flatten_unique(sensors_to_show)
-        for sensor_id in sensor_ids:
-            SensorIdField().deserialize(sensor_id)
 
 
 class GenericAssetTypeSchema(ma.SQLAlchemySchema):
@@ -238,16 +298,24 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a GenericAsset and serializes back to an integer."""
 
-    @with_appcontext_if_needed()
-    def _deserialize(self, value, attr, obj, **kwargs) -> GenericAsset:
+    def __init__(self, status_if_not_found: HTTPStatus | None = None, *args, **kwargs):
+        self.status_if_not_found = status_if_not_found
+        super().__init__(*args, **kwargs)
+
+    def _deserialize(self, value: int | str, attr, obj, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
-        generic_asset = db.session.get(GenericAsset, value)
+        generic_asset: GenericAsset = db.session.execute(
+            select(GenericAsset).filter_by(id=int(value))
+        ).scalar_one_or_none()
         if generic_asset is None:
-            raise FMValidationError(f"No asset found with id {value}.")
-        # lazy loading now (asset is somehow not in session after this)
-        generic_asset.generic_asset_type
+            message = f"No asset found with ID {value}."
+            if self.status_if_not_found == HTTPStatus.NOT_FOUND:
+                raise abort(404, message)
+            else:
+                raise FMValidationError(message)
+
         return generic_asset
 
-    def _serialize(self, asset, attr, data, **kwargs):
+    def _serialize(self, asset: GenericAsset, attr, data, **kwargs) -> int:
         """Turn a GenericAsset into a generic asset id."""
         return asset.id

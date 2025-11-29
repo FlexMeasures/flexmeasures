@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from sqlalchemy.sql import Select, select
+from sqlalchemy import select, Select
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.queries.utils import potentially_limit_assets_query_to_account
+from flexmeasures.data.queries.utils import potentially_limit_assets_query_to_accounts
 
 
 def query_sensor_by_name_and_generic_asset_type_name(
@@ -30,7 +30,7 @@ def query_sensor_by_name_and_generic_asset_type_name(
             .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
             .filter(Sensor.generic_asset_id == GenericAsset.id)
         )
-    query = potentially_limit_assets_query_to_account(query, account_id)
+    query = potentially_limit_assets_query_to_accounts(query, account_id)
     return query
 
 
@@ -61,7 +61,7 @@ def query_sensors_by_proximity(
     closest_sensor_query = closest_sensor_query.order_by(
         GenericAsset.great_circle_distance(lat=latitude, lng=longitude).asc()
     )
-    closest_sensor_query = potentially_limit_assets_query_to_account(
+    closest_sensor_query = potentially_limit_assets_query_to_accounts(
         closest_sensor_query, account_id
     )
     return closest_sensor_query

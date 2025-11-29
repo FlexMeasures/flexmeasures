@@ -18,7 +18,8 @@ from sqlalchemy.orm import Query
 
 def log_error(exc: Exception, error_msg: str):
     """Collect meta data about the exception and log it.
-    error_msg comes in as an extra attribute because Exception implementations differ here."""
+    error_msg comes in as an extra attribute because Exception implementations differ here.
+    """
     exc_info = sys.exc_info()
     last_traceback = exc_info[2]
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from isodate import duration_isoformat as original_duration_isoformat
 import pandas as pd
@@ -13,6 +13,7 @@ from flexmeasures.utils.time_utils import (
     naturalized_datetime_str,
     get_most_recent_clocktime_window,
     apply_offset_chain,
+    to_utc_timestamp,
 )
 
 
@@ -54,7 +55,14 @@ def test_original_duration_isoformat(td: timedelta, iso: str):
     [
         (None, pd.Timestamp.utcnow(), "UTC", 3, "3 hours ago"),
         (None, pd.Timestamp.utcnow().tz_convert("Asia/Seoul"), "UTC", 3, "3 hours ago"),
-        (None, datetime.utcnow(), "UTC", 3, "3 hours ago"),
+        (None, datetime.now(timezone.utc), "UTC", 3, "3 hours ago"),
+        (
+            None,
+            datetime.now(timezone.utc).replace(tzinfo=None),
+            "UTC",
+            3,
+            "3 hours ago",
+        ),
         (
             None,
             datetime(2021, 5, 17, 3),
@@ -206,3 +214,21 @@ def test_apply_offset_chain(
     output_date: pd.Timestamp | datetime,
 ):
     assert apply_offset_chain(input_date, offset_chain) == output_date
+
+
+@pytest.mark.parametrize(
+    "input_value, expected_output",
+    [
+        (datetime(2024, 4, 28, 8, 55, 58), 1714294558.0),
+        (pd.Timestamp("2024-04-28 08:55:58", tz="UTC").to_pydatetime(), 1714294558.0),
+        ("Sun, 28 Apr 2024 08:55:58 GMT", 1714294558.0),
+        ("Invalid date string", None),
+        (None, None),
+    ],
+)
+def test_to_utc_timestamp(input_value, expected_output):
+    result = to_utc_timestamp(input_value)
+    if expected_output is None:
+        assert result is None
+    else:
+        assert result == pytest.approx(expected_output)

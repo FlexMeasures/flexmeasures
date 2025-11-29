@@ -2,10 +2,12 @@
 FlexMeasures API routes and implementations.
 """
 
-from flask import Flask, Blueprint, request
+from flask import Flask, Blueprint, request, current_app
+import html
 from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
+from webargs.flaskparser import use_args
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 
@@ -18,29 +20,48 @@ from flexmeasures.api.common.utils.args_parsing import (
 )
 from flexmeasures.api.common.responses import invalid_sender
 from flexmeasures.data.schemas.utils import FMValidationError
+from flexmeasures.api.v3_0.users import AuthRequestSchema
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
 
 
 @flexmeasures_api.route("/requestAuthToken", methods=["POST"])
+@use_args(AuthRequestSchema, location="json")
 @as_json
-def request_auth_token():
-    """API endpoint to get a fresh authentication access token. Be aware that this fresh token has a limited lifetime
-    (which depends on the current system setting SECURITY_TOKEN_MAX_AGE).
-
-    Pass the `email` parameter to identify the user.
-    Pass the `password` parameter to authenticate the user (if not already authenticated in current session)
-
-    .. :quickref: Public; Obtain an authentication token
+def request_auth_token(args) -> tuple[dict, int]:
     """
+    .. :quickref: Auth; Obtain authentication token
+    ---
+    post:
+      summary: Obtain a fresh authentication access token.
+      description: |
+          Retrieve a short-lived authentication token using email and password. The lifetime of this token depends on the current system setting
+          SECURITY_TOKEN_MAX_AGE.
 
-    """
-    The login of flask security returns the auth token, as well, but we'd like to
-     * skip authentication if the user is authenticated already
-     * be exempt from csrf protection (this is a JSON-only endpoint)
-     * use a more fitting name inside the api namespace
-     * return the information in a nicer structure
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: AuthRequestSchema
+      responses:
+        200:
+          description: Token successfully generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authentication_token:
+                    type: string
+                    description: |
+                      Short-lived authentication token, which can be used in request headers using `{"Authorization": authentication_token}`.
+        400:
+          description: INVALID_REQUEST
+        401:
+          description: UNAUTHORIZED
+      tags:
+        - Auth
     """
     try:
         if not request.is_json:
@@ -57,7 +78,11 @@ def request_auth_token():
             ).scalar_one_or_none()
             if not user:
                 return (
-                    {"errors": ["User with email '%s' does not exist" % email]},
+                    {
+                        "errors": [
+                            "User with email '%s' does not exist" % html.escape(email)
+                        ]
+                    },
                     404,
                 )
 
@@ -68,21 +93,52 @@ def request_auth_token():
         token = user.get_auth_token()
         return {"auth_token": token, "user_id": user.id}
     except Exception as e:
-        return {"errors": [str(e)]}, 500
+        current_app.logger.error(f"Exception in /requestAuthToken endpoint: {e}")
+        return {"errors": ["An internal error has occurred."]}, 500
 
 
 @flexmeasures_api.route("/", methods=["GET"])
 @as_json
 def get_versions() -> dict:
-    """Public endpoint to list API versions.
-
-    .. :quickref: Public; List available API versions
-
     """
+    .. :quickref: Public; List available API versions
+    ---
+    get:
+      summary: List available API versions
+      description: |
+        Public endpoint to list all available FlexMeasures API versions.
+
+        This can be used to programmatically discover which API versions
+        are currently supported and their base URLs.
+      responses:
+        200:
+          description: Successfully retrieved available API versions.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "For these API versions a public endpoint is available, listing its service."
+                  versions:
+                    type: array
+                    items:
+                      type: string
+                    example: ["v3_0"]
+                  flexmeasures_version:
+                    type: string
+                    example: "0.18.3"
+      tags:
+        - Public
+    """
+
     response = {
-        "message": "For these API versions a public endpoint is available, listing its service. For example: "
-        "/api/v3_0. An authentication token can be requested at: "
-        "/api/requestAuthToken",
+        "message": (
+            "For these API versions a public endpoint is available, listing its service. For example: "
+            "/api/v3_0. An authentication token can be requested at: "
+            "/api/requestAuthToken"
+        ),
         "versions": ["v3_0"],
         "flexmeasures_version": flexmeasures_version,
     }
@@ -105,12 +161,6 @@ def register_at(app: Flask):
     from flexmeasures.api.common import register_at as ops_register_at
 
     ops_register_at(app)
-
-    # Load API endpoints for play mode
-    if app.config.get("FLEXMEASURES_MODE", "") == "play":
-        from flexmeasures.api.play import register_at as play_register_at
-
-        play_register_at(app)
 
     # Load all versions of the API functionality
     from flexmeasures.api.v3_0 import register_at as v3_0_register_at

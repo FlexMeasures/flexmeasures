@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
+from functools import cached_property
 import json
+from packaging.version import Version
 from flask import current_app
 
 import pandas as pd
@@ -15,8 +17,10 @@ import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, ACCOUNT_ADMIN_ROLE, CONSULTANT_ROLE
 from flexmeasures.data import db
+from flexmeasures.data.models.legacy_migration_utils import upgrade_value
+from flexmeasures.data.models.data_sources import keep_latest_version
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
@@ -41,10 +45,11 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
+from flexmeasures.utils.coding_utils import OrderByIdMixin
 from flexmeasures.utils.geo_utils import parse_lat_lng
 
 
-class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
+class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     """A sensor measures events."""
 
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
@@ -91,7 +96,44 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             kwargs["generic_asset_id"] = generic_asset_id
         if attributes is not None:
             kwargs["attributes"] = attributes
+        else:
+            # Otherwise, the attributes only default to {} when flushing/committing to the db
+            kwargs["attributes"] = {}
         db.Model.__init__(self, **kwargs)
+
+        # For backwards compatibility, when setting attributes that served as flex-model fields,
+        # move them to the flex_context of the sensor's asset (and don't store them as attributes)
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
+        to_delete = []
+        for attribute in self.attributes:
+            for field in DBStorageFlexModelSchema().fields.values():
+                if attribute == field.metadata.get("deprecated field"):
+                    if self.generic_asset is None:
+                        self.generic_asset = db.session.get(
+                            GenericAsset, self.generic_asset_id
+                        )
+                    # Move the attribute to the flex_model db column
+                    new_value = upgrade_value(attribute, self.attributes[attribute])
+                    if field.data_key in self.generic_asset.flex_model:
+                        if self.generic_asset.flex_model[field.data_key] == new_value:
+                            current_app.logger.warning(
+                                f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field, but note that it was already set to the same value."
+                            )
+                        else:
+                            raise ValueError(
+                                f"Cannot move attribute {attribute} of sensor {self.name} to its asset's flex-model, because the {field.data_key} field is already set to something else."
+                            )
+                    self.generic_asset.flex_model[field.data_key] = new_value
+                    # Remove the original attribute
+                    current_app.logger.warning(
+                        f"Attribute {attribute} of sensor {self.name} was moved to its asset's flex-model under the {field.data_key} field."
+                    )
+                    to_delete.append(attribute)
+        for attr in to_delete:
+            del self.attributes[attr]
 
     __table_args__ = (
         UniqueConstraint(
@@ -107,20 +149,59 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         Editing as well as deletion is left to account admins.
         """
         return {
-            "create-children": f"account:{self.generic_asset.account_id}",
+            "create-children": [
+                f"account:{self.generic_asset.account_id}",
+                (
+                    (
+                        f"account:{self.generic_asset.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.generic_asset.owner is not None
+                    else ()
+                ),
+            ],
             "read": self.generic_asset.__acl__()["read"],
-            "update": (
-                f"account:{self.generic_asset.account_id}",
-                "role:account-admin",
-            ),
-            "delete": (
-                f"account:{self.generic_asset.account_id}",
-                "role:account-admin",
-            ),
+            "update": [
+                (
+                    f"account:{self.generic_asset.account_id}",
+                    f"role:{ACCOUNT_ADMIN_ROLE}",
+                ),
+                (
+                    (
+                        f"account:{self.generic_asset.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.generic_asset.owner is not None
+                    else ()
+                ),
+            ],
+            "delete": [
+                (
+                    f"account:{self.generic_asset.account_id}",
+                    f"role:{ACCOUNT_ADMIN_ROLE}",
+                ),
+                (
+                    (
+                        f"account:{self.generic_asset.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.generic_asset.owner is not None
+                    else ()
+                ),
+            ],
         }
 
     @property
+    def asset(self) -> GenericAsset:
+        return self.generic_asset
+
+    @property
+    def asset_id(self) -> int:
+        return self.generic_asset_id
+
+    @property
     def entity_address(self) -> str:
+        """Deprecated. Entity addresses will not be supported in future releases."""
         try:
             return build_entity_address(dict(sensor_id=self.id), "sensor")
         except EntityAddressException as eae:
@@ -164,6 +245,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "is_consumer", True
         )
 
+    @property
+    def has_data_generator(self):
+        for source in self.data_sources:
+            if "data_generator" in source.attributes:
+                return True
+        return False
+
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute on the Sensor.
         If not found, looks for the attribute on the Sensor's GenericAsset.
@@ -175,8 +263,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             return self.attributes[attribute]
         if hasattr(self.generic_asset, attribute):
             return getattr(self.generic_asset, attribute)
-        if attribute in self.generic_asset.attributes:
-            return self.generic_asset.attributes[attribute]
+        asset_value = self.generic_asset.get_attribute(attribute)
+        if asset_value is not None:
+            return asset_value
+
         return default
 
     def has_attribute(self, attribute: str) -> bool:
@@ -201,13 +291,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def latest_state(
         self,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
     ) -> tb.BeliefsDataFrame:
         """Search the most recent event for this sensor, and return the most recent ex-post belief.
 
@@ -227,13 +313,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         annotations_after: datetime_type | None = None,
         annotation_ends_before: datetime_type | None = None,  # deprecated
         annotations_before: datetime_type | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
         as_frame: bool = False,
@@ -299,7 +381,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
         return to_annotation_frame(annotations) if as_frame else annotations
 
-    def search_beliefs(
+    def search_beliefs(  # noqa: C901
         self,
         event_starts_after: datetime_type | None = None,
         event_ends_before: datetime_type | None = None,
@@ -307,19 +389,20 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         beliefs_before: datetime_type | None = None,
         horizons_at_least: timedelta | None = None,
         horizons_at_most: timedelta | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
+        user_source_ids: int | list[int] | None = None,
+        source_types: list[str] | None = None,
+        exclude_source_types: list[str] | None = None,
+        use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,
         one_deterministic_belief_per_event: bool = False,
         one_deterministic_belief_per_event_per_source: bool = False,
         as_json: bool = False,
+        compress_json: bool = False,
         resolution: str | timedelta | None = None,
     ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
@@ -333,12 +416,17 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Without this set and a most recent parameter used (see below), the results can be of any source.
+        :param user_source_ids: Optional list of user source ids to query only specific user sources
+        :param source_types: Optional list of source type names to query only specific source types *
+        :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start). Defaults to False.
-        :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one. Defaults to False. To use, also set most_recent_beliefs_only=False. Use with care when data uses cumulative probability (more than one belief per event_start and horizon).
+        :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one. Defaults to False. Setting this to True will turn off usage of most_recent_beliefs_only and most_recent_events_only. Use with care when data uses cumulative probability (more than one belief per event_start and horizon).
         :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
         :param resolution: optionally set the resolution of data being displayed
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
@@ -351,6 +439,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             horizons_at_least=horizons_at_least,
             horizons_at_most=horizons_at_most,
             source=source,
+            user_source_ids=user_source_ids,
+            source_types=source_types,
+            exclude_source_types=exclude_source_types,
+            use_latest_version_per_event=use_latest_version_per_event,
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
             most_recent_only=most_recent_only,
@@ -358,12 +450,98 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
             resolution=resolution,
         )
-        if as_json:
+        if as_json and not compress_json:
             df = bdf.reset_index()
             df["sensor"] = self
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
+            df["sensor"] = df["sensor"].apply(lambda x: x.as_dict)
+            df["source"] = df["source"].apply(lambda x: x.as_dict)
             return df.to_json(orient="records")
+        elif as_json and compress_json:
+            df = bdf.reset_index()
+
+            # Build metadata dictionaries
+            sensors_metadata = {}
+            sources_metadata = {}
+            all_records = []
+
+            # Build sensor metadata
+            sensor_dict = self.as_dict
+            sensors_metadata[self.id] = {
+                "name": sensor_dict.get("name", ""),
+                "unit": sensor_dict.get("sensor_unit", self.unit),
+                "description": sensor_dict.get("description", ""),
+                "asset_id": sensor_dict.get(
+                    "asset_id", getattr(self, "generic_asset_id", None)
+                ),
+                "asset_description": sensor_dict.get("asset_description", ""),
+            }
+
+            # Process each row in the dataframe
+            for _, row in df.iterrows():
+                source_obj = row.get("source")
+
+                if (
+                    source_obj
+                    and hasattr(source_obj, "id")
+                    and source_obj.id not in sources_metadata
+                ):
+
+                    source_dict = source_obj.as_dict
+                    sources_metadata[source_obj.id] = {
+                        "name": source_dict.get("name", ""),
+                        "model": source_dict.get("model", ""),
+                        "type": source_dict.get("type", "other"),
+                        "description": source_dict.get("description", ""),
+                    }
+
+                # Build the data record with reference IDs instead of full objects
+                record = {
+                    "ts": int(
+                        row["event_start"].timestamp() * 1000
+                    ),  # timestamp in milliseconds for JavaScript compatibility
+                    "sid": self.id,  # sensor ID reference
+                    "val": row["event_value"],
+                }
+
+                # Add optional fields
+                if source_obj and hasattr(source_obj, "id"):
+                    record["src"] = source_obj.id  # source ID reference
+
+                if "belief_time" in row and pd.notnull(row["belief_time"]):
+                    record["bt"] = int(
+                        row["belief_time"].timestamp() * 1000
+                    )  # timestamp in milliseconds for JavaScript compatibility
+
+                if "belief_horizon" in row and pd.notnull(row["belief_horizon"]):
+                    record["bh"] = int(row["belief_horizon"].total_seconds())
+
+                if "cumulative_probability" in row and pd.notnull(
+                    row["cumulative_probability"]
+                ):
+                    record["cp"] = row["cumulative_probability"]
+
+                # Clean up any problematic types
+                for key, value in record.items():
+                    if pd.isna(value):
+                        record[key] = None
+                    elif isinstance(value, pd.Timestamp):
+                        record[key] = int(
+                            value.timestamp() * 1000
+                        )  # timestamp in milliseconds for JavaScript compatibility
+                    elif isinstance(value, (pd.Timedelta, timedelta)):
+                        record[key] = int(value.total_seconds())
+                    elif hasattr(value, "item"):  # numpy types
+                        record[key] = value.item()
+
+                all_records.append(record)
+
+            # Return in the new structured format
+            result = {
+                "data": all_records,
+                "sensors": sensors_metadata,
+                "sources": sources_metadata,
+            }
+            return json.dumps(result)
         return bdf
 
     def chart(
@@ -373,13 +551,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         event_ends_before: datetime_type | None = None,
         beliefs_after: datetime_type | None = None,
         beliefs_before: datetime_type | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         most_recent_beliefs_only: bool = True,
         include_data: bool = False,
         include_sensor_annotations: bool = False,
@@ -492,18 +666,39 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         start, end = get_timerange([self.id])
         return dict(start=start, end=end)
 
+    @property
+    def _ui_unit(self) -> str:
+        """Used to customize how the sensor unit is shown in the UI."""
+        if self.unit == "":
+            return '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
+        return self.unit
+
     def __repr__(self) -> str:
-        return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
+        return f"<Sensor {self.id}: {self.name}, unit: {self.unit if self.unit != '' else 'dimensionless'} res.: {self.event_resolution}>"
 
     def __str__(self) -> str:
         return self.name
 
-    def to_dict(self) -> dict:
+    @cached_property
+    def as_dict(self) -> dict:
+        parent_asset = db.session.execute(
+            select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
+        ).scalar_one_or_none()
         return dict(
+            asset_id=self.generic_asset.id,
             id=self.id,
             name=self.name,
+            sensor_unit=self.unit,
             description=f"{self.name} ({self.generic_asset.name})",
+            asset_description=f"{self.generic_asset.name}"
+            + (f" ({parent_asset.name})" if parent_asset is not None else ""),
         )
+
+    def to_dict(self) -> dict:
+        current_app.logger.warning(
+            "Sensor().to_dict() is deprecated since v0.28.0 and should be replaced by the Sensor().as_dict property."
+        )
+        return self.as_dict
 
     @classmethod
     def find_closest(
@@ -650,16 +845,13 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         beliefs_before: datetime_type | None = None,
         horizons_at_least: timedelta | None = None,
         horizons_at_most: timedelta | None = None,
-        source: DataSource
-        | list[DataSource]
-        | int
-        | list[int]
-        | str
-        | list[str]
-        | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         user_source_ids: int | list[int] | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
+        use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,
@@ -683,6 +875,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one.
@@ -724,6 +917,15 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
         custom_join_targets = [] if parsed_sources else [DataSource]
 
+        # Consolidate the two most-recent-X approaches
+        if most_recent_only:
+            most_recent_filters = dict(most_recent_only=most_recent_only)
+        else:
+            most_recent_filters = dict(
+                most_recent_beliefs_only=most_recent_beliefs_only,
+                most_recent_events_only=most_recent_events_only,
+            )
+
         bdf_dict = {}
         for sensor in sensors:
             bdf = cls.search_session(
@@ -737,15 +939,16 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=parsed_sources,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                most_recent_events_only=most_recent_events_only,
-                most_recent_only=most_recent_only,
+                **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
             )
+            if use_latest_version_per_event:
+                bdf = keep_latest_version(
+                    bdf=bdf,
+                    one_deterministic_belief_per_event=one_deterministic_belief_per_event,
+                )
             if one_deterministic_belief_per_event:
-                # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
-                # todo: move to timely-beliefs: select mean/median belief
                 if (
                     bdf.lineage.number_of_sources <= 1
                     and bdf.lineage.probabilistic_depth == 1
@@ -753,10 +956,23 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                     # Fast track, no need to loop over beliefs
                     pass
                 else:
-                    bdf = (
-                        bdf.for_each_belief(get_median_belief)
-                        .groupby(level=["event_start"], group_keys=False)
-                        .apply(lambda x: x.head(1))
+                    # First make deterministic
+                    bdf = bdf.for_each_belief(get_median_belief)
+                    # Then sort each event by most recent source version and most recent belief_time
+                    bdf = bdf.sort_values(
+                        by=["event_start", "source", "belief_time"],
+                        ascending=[True, False, False],
+                        key=lambda col: (
+                            col.map(
+                                lambda s: Version(s.version if s.version else "0.0.0")
+                            )
+                            if col.name == "source"
+                            else col
+                        ),
+                    )
+                    # Finally, take the first belief for each event, thus preference most recent belief_time first, latest version second
+                    bdf = bdf.groupby(level=["event_start"], group_keys=False).apply(
+                        lambda x: x.head(1)
                     )
             elif one_deterministic_belief_per_event_per_source:
                 if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:

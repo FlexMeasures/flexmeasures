@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from passlib.totp import TOTP
 import random
 import string
 
 from flask import current_app
 from flask_security import current_user, SQLAlchemySessionUserDatastore
-from flask_security.recoverable import update_password
+from flask_security.recoverable import update_password, send_reset_password_instructions
 from email_validator import (
     validate_email,
     EmailNotValidError,
@@ -27,49 +28,12 @@ class InvalidFlexMeasuresUser(Exception):
     pass
 
 
-def get_user(id: str) -> User:
+def get_user_by_id_or_raise_notfound(id: str) -> User:
     """Get a user, raise if not found."""
     user: User = db.session.get(User, int(id))
     if user is None:
         raise NotFound
     return user
-
-
-def get_users(
-    account_name: str | None = None,
-    role_name: str | None = None,
-    account_role_name: str | None = None,
-    only_active: bool = True,
-) -> list[User]:
-    """Return a list of User objects.
-    The role_name parameter allows to filter by role.
-    Set only_active to False if you also want non-active users.
-    """
-    user_query = select(User)
-
-    if account_name is not None:
-        account = db.session.execute(
-            select(Account).filter_by(name=account_name)
-        ).scalar_one_or_none()
-        if not account:
-            raise NotFound(f"There is no account named {account_name}!")
-        user_query = user_query.filter_by(account=account)
-
-    if only_active:
-        user_query = user_query.filter(User.active.is_(True))
-
-    if role_name is not None:
-        role = db.session.execute(
-            select(Role).filter_by(name=role_name)
-        ).scalar_one_or_none()
-        if role:
-            user_query = user_query.filter(User.flexmeasures_roles.contains(role))
-
-    users = db.session.scalars(user_query).all()
-    if account_role_name is not None:
-        users = [u for u in users if u.account.has_role(account_role_name)]
-
-    return users
 
 
 def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
@@ -162,7 +126,7 @@ def create_user(  # noqa: C901
         db.session.flush()
         account_audit_log = AuditLog(
             event_datetime=server_now(),
-            event=f"Account {account_name} created",
+            event=f"Account {account_name} created while creating user {username}",
             active_user_id=active_user_id,
             active_user_name=active_user_name,
             affected_account_id=account.id,
@@ -172,6 +136,11 @@ def create_user(  # noqa: C901
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(password=hash_password(password), email=email, username=username)
     user = user_datastore.create_user(**kwargs)
+
+    # create TOTP secret
+    totp = TOTP.new()
+    jsonified_totp = totp.to_json()
+    user.tf_totp_secret = jsonified_totp
 
     user.account = account
 
@@ -208,11 +177,21 @@ def create_user(  # noqa: C901
     return user
 
 
+def reset_password(user: User):
+    """
+    Reset the password and enable the user to set a new one.
+    Does not commit the session.
+    """
+    set_random_password(user)
+    remove_cookie_and_token_access(user)
+    send_reset_password_instructions(user)
+
+
 def set_random_password(user: User):
     """
-    Randomise a user's password.
+    Randomize a user's password.
 
-    Remember to commit the session after calling this function!
+    Does not commit the session.
     """
     new_random_password = "".join(
         [random.choice(string.ascii_lowercase) for _ in range(24)]
@@ -238,7 +217,7 @@ def remove_cookie_and_token_access(user: User):
     This might be useful if you feel their password, cookie or tokens
     are compromised. in the former case, you can also call `set_random_password`.
 
-    Remember to commit the session after calling this function!
+    Does not commit the session.
     """
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     user_datastore.reset_user_access(user)
@@ -250,7 +229,7 @@ def delete_user(user: User):
 
     Deleting oneself is not allowed.
 
-    Remember to commit the session after calling this function!
+    Does not commit the session.
     """
     if hasattr(current_user, "id") and user.id == current_user.id:
         raise Exception("You cannot delete yourself.")
@@ -272,13 +251,3 @@ def delete_user(user: User):
         affected_account_id=user.account_id,
     )
     db.session.add(user_audit_log)
-
-
-def get_audit_log_records(user: User):
-    """
-    Get history of user actions
-    """
-    audit_log_records = (
-        db.session.query(AuditLog).filter_by(affected_user_id=user.id).all()
-    )
-    return audit_log_records

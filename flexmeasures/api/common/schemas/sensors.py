@@ -1,5 +1,5 @@
 from flask import abort
-from marshmallow import fields
+from marshmallow import Schema, fields, ValidationError
 from sqlalchemy import select
 
 from flexmeasures.data import db
@@ -9,6 +9,7 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 class EntityAddressValidationError(FMValidationError):
@@ -32,8 +33,14 @@ class SensorIdField(fields.Integer):
         return sensor.id
 
 
-class SensorField(fields.Str):
-    """Field that de-serializes to a Sensor,
+class SensorId(Schema):
+    id = SensorIdField(required=True)
+
+
+class SensorEntityAddressField(fields.Str):
+    """
+    Deprecated: Entity addresses are not needed in the API anymore.
+    Field that de-serializes to a Sensor,
     and serializes a Sensor into an entity address (string).
     """
 
@@ -80,3 +87,15 @@ class SensorField(fields.Str):
             return value.entity_address_fm0
         else:
             return value.entity_address
+
+
+class UnitField(fields.Str):
+    """Field that represents a unit."""
+
+    def _deserialize(self, value, attr, data, **kwargs) -> str:
+        if not is_valid_unit(value):
+            raise ValidationError(f"Invalid unit: {value}")
+        return value
+
+    def _serialize(self, value: str, attr, obj, **kwargs) -> str:
+        return value
