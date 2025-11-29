@@ -864,7 +864,7 @@ def create_test_battery_kWh_assets(
     db.session.add(data_source)
 
     time_slots = pd.date_range(
-        datetime(2015, 1, 1), datetime(2015, 1, 7, 23, 45), freq="15min"
+        datetime(2015, 1, 1), datetime(2015, 1, 3, 23, 45), freq="15min"
     )
 
     values = [
