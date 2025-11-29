@@ -82,8 +82,22 @@ flex_context_schema_openAPI = make_openapi_compatible(FlexContextSchema)
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
-    flex_context = fields.Nested(flex_context_schema_openAPI, required=True)
-    flex_model = fields.Nested(storage_flex_model_schema_openAPI, required=True)
+    flex_context = fields.Nested(
+        flex_context_schema_openAPI,
+        required=True,
+        data_key="flex-context",
+        metadata=dict(
+            description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+        ),
+    )
+    flex_model = fields.Nested(
+        storage_flex_model_schema_openAPI,
+        required=True,
+        data_key="flex-model",
+        metadata=dict(
+            description="The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+        ),
+    )
 
 
 class AssetChartKwargsSchema(Schema):
@@ -1251,25 +1265,62 @@ class AssetAPI(FlaskView):
                           The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
                           Finally, the site consumption capacity is limited by sensor 32.
                         value:
-                          "start": "2015-06-02T10:00:00+00:00"
-                          "flex-model":
-                            - "sensor": 931
-                              "soc-at-start": 12.1
-                              "state-of-charge": {"sensor": 74}
-                              "soc-unit": "kWh"
-                              "power-capacity": "25kW"
-                              "consumption-capacity" : {"sensor": 42}
-                              "production-capacity" : "30 kW"
-                            - "sensor": 932
-                              "consumption-capacity": "0 kW"
-                              "production-capacity": {"sensor": 760}
-                          "flex-context":
-                            "consumption-price": {"sensor": 9}
-                            "production-price": {"sensor": 10}
-                            "inflexible-device-sensors": [13, 14, 15]
-                            "site-power-capacity": "100kW"
-                            "site-production-capacity": "80kW"
-                            "site-consumption-capacity": {"sensor": 32}
+                          start: "2015-06-02T10:00:00+00:00"
+                          flex-model:
+                            - sensor: 931
+                              soc-at-start: 12.1 kWh
+                              state-of-charge: {sensor: 74}
+                              power-capacity: 25 kW
+                              consumption-capacity: {sensor: 42}
+                              production-capacity: 30 kW
+                            - sensor: 932
+                              consumption-capacity: 0 kW
+                              production-capacity: {sensor: 760}
+                          flex-context:
+                            consumption-price: {sensor: 9}
+                            production-price: {sensor: 10}
+                            inflexible-device-sensors: [13, 14, 15]
+                            site-power-capacity: 100 kVA
+                            site-production-capacity: 80 kW
+                            site-consumption-capacity: {sensor: 32}
+                      heating_system:
+                        description: |
+                          This message triggers a schedule, starting at 10.00am, for a heating system that consists of a heat pump (with power sensor 931) and a heat buffer (with thermal state of charge sensor 74).
+                          This also schedules a curtailable production asset (with power sensor 932),
+                          whose production forecasts are recorded under sensor 760.
+
+                          Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+                          and aggregate production should be priced by sensor 10,
+                          where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+                          and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
+
+                          The heat pump's consumption power capacity is limited by sensor 42, and it cannot produce electricity (only heat).
+                          It turns power to heat with a Coefficient of Performance (COP) of 4.
+                          The heat buffer has a constant heat demand of 5 kW thermal, and a storage efficiency of 99.7%.
+                          Finally, the site consumption capacity is limited by sensor 32.
+                        value:
+                          start: "2015-06-02T10:00:00+00:00"
+                          flex-model:
+                            - sensor: 931
+                              soc-at-start: 12.1 kWh
+                              state-of-charge: {sensor: 74}
+                              power-capacity: 25 kW
+                              consumption-capacity: {sensor: 42}
+                              production-capacity: 0 kW
+                              soc-usage:
+                                - "5 kW"
+                              charging-efficiency: "4"  # COP
+                              storage-efficiency: 99.7%
+                            - sensor: 932
+                              consumption-capacity: 0 kW
+                              production-capacity: {sensor: 760}
+                          flex-context:
+                            consumption-price: {sensor: 9}
+                            production-price: {sensor: 10}
+                            inflexible-device-sensors: [13, 14, 15]
+                            site-power-capacity: 100 kVA
+                            site-production-capacity: 80 kW
+                            site-consumption-capacity: {sensor: 32}
 
           responses:
               200:
