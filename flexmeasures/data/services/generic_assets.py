@@ -18,6 +18,8 @@ def create_asset(asset_data: dict) -> GenericAsset:
     Does not validate data or commit the session.
     Creates an audit log.
     """
+    if "external_id" in asset_data and str(asset_data["external_id"]).strip() == "":
+        asset_data.pop("external_id")
     asset = GenericAsset(**asset_data)
     db.session.add(asset)
     # assign asset id
@@ -150,6 +152,8 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
         AssetAuditLog.add_record(db_asset, event)
 
     for k, v in asset_data.items():
+        if k == "external_id" and str(v).strip() == "":
+            continue
         setattr(db_asset, k, v)
 
     return db_asset
