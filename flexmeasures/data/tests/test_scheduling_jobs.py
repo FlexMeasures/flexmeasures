@@ -452,9 +452,13 @@ def test_scheduling_unit_conversion(
         v.event_value < 0 for v in power_values
     ), "Expected negative (discharging) values"
 
-    # Check power limits: max charging should be <= capacity * resolution
+    # Check power limits: max charging should be equal capacity * resolution
     max_allowed = 2 * 0.25  # 2 MW * 0.25h = 0.5 MWh
-    assert max(v.event_value for v in power_values) <= max_allowed + 1e-6
+    assert (
+        max(v.event_value for v in power_values) == max_allowed
+    ), "Expected charging (positive values) at max rate"
 
     # Same for discharging
-    assert min(v.event_value for v in power_values) >= -max_allowed - 1e-6
+    assert (
+        min(v.event_value for v in power_values) == -max_allowed
+    ), "Expected discharging (negative values at max rate"
