@@ -14,11 +14,18 @@ from timely_beliefs.beliefs.queries import query_unchanged_beliefs
 from sqlalchemy import delete, func, select
 
 
+from flexmeasures import Source
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField, AssetIdField
+from flexmeasures.data.schemas import (
+    AccountIdField,
+    AssetIdField,
+    AwareDateTimeField,
+    SensorIdField,
+    SourceIdField,
+)
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 from flexmeasures.cli.utils import (
     abort,
@@ -61,24 +68,21 @@ def delete_account_role(name: str):
 
 @fm_delete_data.command("account")
 @with_appcontext
-@click.option("--id", type=int)
+@click.option("--id", "account", type=AccountIdField())
 @click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
-def delete_account(id: int, force: bool):
+def delete_account(account: Account, force: bool):
     """
     Delete an account, including their users & data.
     """
-    account: Account = db.session.get(Account, id)
-    if account is None:
-        abort(f"Account with ID '{id}' does not exist.")
     if not force:
         prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
-        users = db.session.scalars(select(User).filter_by(account_id=id)).all()
+        users = db.session.scalars(select(User).filter_by(account_id=account.id)).all()
         if users:
             prompt += "Affected users: " + ",".join([u.username for u in users]) + "\n"
         generic_assets = db.session.scalars(
-            select(GenericAsset).filter_by(account_id=id)
+            select(GenericAsset).filter_by(account_id=account.id)
         ).all()
         if generic_assets:
             prompt += (
@@ -175,8 +179,8 @@ def delete_structure(force):
 @click.option(
     "--sensor",
     "--sensor-id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField(),
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
@@ -187,14 +191,14 @@ def delete_structure(force):
 )
 def delete_measurements(
     force: bool,
-    sensor_id: int | None = None,
+    sensor: Sensor | None = None,
 ):
     """Delete measurements (ex-post beliefs, i.e. with belief_horizon <= 0)."""
     if not force:
         click.confirm(f"Sure to delete all measurements from {db.engine}?", abort=True)
     from flexmeasures.data.scripts.data_gen import depopulate_measurements
 
-    depopulate_measurements(db, sensor_id)
+    depopulate_measurements(db, sensor=sensor)
 
 
 @fm_delete_data.command("prognoses", cls=DeprecatedOptionsCommand)
@@ -205,23 +209,23 @@ def delete_measurements(
 @click.option(
     "--sensor",
     "--sensor-id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField(),
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
-    help="Delete (time series) data for a single sensor only. Follow up with the sensor's ID. ",
+    help="Delete (time series) data for a single sensor only. Follow up with the sensor's ID.",
 )
 def delete_prognoses(
     force: bool,
-    sensor_id: int | None = None,
+    sensor: Sensor | None = None,
 ):
     """Delete forecasts and schedules (ex-ante beliefs, i.e. with belief_horizon > 0)."""
     if not force:
         click.confirm(f"Sure to delete all prognoses from {db.engine}?", abort=True)
     from flexmeasures.data.scripts.data_gen import depopulate_prognoses
 
-    depopulate_prognoses(db, sensor_id)
+    depopulate_prognoses(db, sensor=sensor)
 
 
 @fm_delete_data.command("beliefs")
@@ -243,25 +247,39 @@ def delete_prognoses(
     help="Delete all beliefs associated with this sensor.",
 )
 @click.option(
+    "--source",
+    "sources",
+    type=SourceIdField(),
+    required=False,
+    multiple=True,
+    help="Delete time series data for a single data source only. Follow up with the source's ID. "
+    "This argument can be given multiple times",
+)
+@click.option(
     "--start",
     "start",
     type=AwareDateTimeField(),
     required=False,
-    help="Remove beliefs about events starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Delete beliefs about events starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--end",
     "end",
     type=AwareDateTimeField(),
     required=False,
-    help="Remove beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Delete beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--force/--no-force", default=False, help="Skip warning about consequences."
 )
 @click.option("--offspring", type=bool, required=False, default=False, is_flag=True)
 def delete_beliefs(  # noqa: C901
     generic_assets: list[GenericAsset],
     sensors: list[Sensor],
+    sources: list[Source],
     start: datetime | None = None,
     end: datetime | None = None,
+    force: bool = False,
     offspring: bool = False,
 ):
     """Delete all beliefs recorded on a given sensor (or on sensors of a given asset)."""
@@ -304,17 +322,21 @@ def delete_beliefs(  # noqa: C901
     # Create query
     q = select(TimedBelief).join(Sensor).where(*entity_filters, *event_filters)
 
+    if sources:
+        q = q.filter(TimedBelief.source_id.in_([source.id for source in sources]))
+
     # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
     # repr(entity) includes the IDs, which matters for the confirmation prompt
     if num_beliefs_up_for_deletion == 0:
         done("0 beliefs found.")
         return
-    if sensors:
-        prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on {join_words_into_a_list([repr(sensor) for sensor in sensors])}?"
-    elif generic_assets:
-        prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
-    click.confirm(prompt, abort=True)
+    if not force:
+        if sensors:
+            prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on {join_words_into_a_list([repr(sensor) for sensor in sensors])}?"
+        elif generic_assets:
+            prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
+        click.confirm(prompt, abort=True)
     db.session.execute(delete(TimedBelief).where(*entity_filters, *event_filters))
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
@@ -338,12 +360,21 @@ def delete_beliefs(  # noqa: C901
 @click.option(
     "--sensor",
     "--sensor-id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField(),
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
-    help="Delete unchanged (time series) data for a single sensor only. Follow up with the sensor's ID. ",
+    help="Delete unchanged (time series) data for a single sensor only. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--source",
+    "sources",
+    type=SourceIdField(),
+    required=False,
+    multiple=True,
+    help="Delete unchanged (time series) data for a single data source only. Follow up with the source's ID. "
+    "This argument can be given multiple times",
 )
 @click.option(
     "--delete-forecasts/--keep-forecasts",
@@ -362,19 +393,20 @@ def delete_beliefs(  # noqa: C901
     "start",
     type=AwareDateTimeField(),
     required=False,
-    help="Only remove records of events starting on or after this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Delete records of events starting on or after this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--end",
     "end",
     type=AwareDateTimeField(),
     required=False,
-    help="Only remove records of events ending on or before this datetime."
+    help="Delete records of events ending on or before this datetime."
     " Instantaneous events exactly at this datetime are kept."
     " Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 def delete_unchanged_beliefs(
-    sensor_id: int | None = None,
+    sources: list[Source],
+    sensor: Sensor | None = None,
     delete_unchanged_forecasts: bool = True,
     delete_unchanged_measurements: bool = True,
     start: datetime | None = None,
@@ -382,11 +414,10 @@ def delete_unchanged_beliefs(
 ):
     """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
     q = select(TimedBelief)
-    if sensor_id:
-        sensor = db.session.get(Sensor, sensor_id)
-        if sensor is None:
-            abort(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
+    if sensor:
         q = q.filter_by(sensor_id=sensor.id)
+    if sources:
+        q = q.filter(TimedBelief.source_id.in_([source.id for source in sources]))
     if start:
         q = q.filter(TimedBelief.event_start >= start)
     if end:
@@ -451,18 +482,32 @@ def delete_unchanged_beliefs(
 @click.option(
     "--sensor",
     "--sensor-id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField(),
     cls=DeprecatedOption,
     deprecated=["--sensor-id"],
     preferred="--sensor",
     help="Delete NaN time series data for a single sensor only. Follow up with the sensor's ID.",
 )
-def delete_nan_beliefs(sensor_id: int | None = None):
+@click.option(
+    "--source",
+    "sources",
+    type=SourceIdField(),
+    required=False,
+    multiple=True,
+    help="Delete NaN time series data for a single data source only. Follow up with the source's ID. "
+    "This argument can be given multiple times",
+)
+def delete_nan_beliefs(
+    sources: list[Source],
+    sensor: Sensor | None = None,
+):
     """Delete NaN beliefs."""
     q = db.session.query(TimedBelief)
-    if sensor_id is not None:
-        q = q.filter(TimedBelief.sensor_id == sensor_id)
+    if sensor is not None:
+        q = q.filter(TimedBelief.sensor_id == sensor.id)
+    if sources:
+        q = q.filter(TimedBelief.source_id.in_([source.id for source in sources]))
     query = q.filter(TimedBelief.event_value == float("NaN"))
     prompt = f"Delete {query.count()} NaN beliefs out of {q.count()} beliefs?"
     click.confirm(prompt, abort=True)
