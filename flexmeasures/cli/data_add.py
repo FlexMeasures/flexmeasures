@@ -1084,7 +1084,6 @@ def add_holidays(
 )
 @click.option(
     "--model-save-dir",
-    default="flexmeasures/data/models/forecasting/artifacts/models",
     help="Directory to save the trained model.",
 )
 @click.option(

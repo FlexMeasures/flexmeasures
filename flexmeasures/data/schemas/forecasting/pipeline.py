@@ -33,7 +33,7 @@ class ForecasterParametersSchema(Schema):
         SensorIdField(),
         required=False,
     )
-    model_save_dir = fields.Str(required=True)
+    model_save_dir = fields.Str(required=False, load_default="flexmeasures/data/models/forecasting/artifacts/models")
     output_path = fields.Str(required=False, allow_none=True)
     start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
