@@ -111,7 +111,17 @@ The default environment setting is ``production``\ , which will probably not wor
 Tell FlexMeasures where the time series database is
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See :ref:`host-data` (section "Getting ready to use") for deeper instructions on this.
+*
+  Make sure you have a Postgres (Version 9+) database for FlexMeasures to use.
+  See :ref:`host-data` (section "Getting ready to use") for deeper instructions on this.
+  
+  Or, to get started, you could simply install Postgres via Docker:
+
+  .. code-block:: bash
+
+        $ docker run --rm --name flexmeasures-db -e POSTGRES_PASSWORD=<postgres-user-password> -e POSTGRES_DB=<flexmeasures-db-name> -d  postgres:17
+        $ # this will create the datbase "flexmeasures-db-name" and the `postgres` user (who'll be identified with the given password) will own it.
+
 * 
   Tell ``flexmeasures`` about it:
 
@@ -327,10 +337,21 @@ This obviously depends on some conditions (like the right underlying data) being
 
 
 
-Set mail settings
-^^^^^^^^^^^^^^^^^
+Mail server / set mail settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email service that can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see :ref:`mail-config`.
+For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email service that can do that (e.g. Gmail).
+
+Tip: For testing/development purposes, you can run a mock email server locally:
+
+.. code-block:: bash
+
+   $ docker run -d --rm -p 8025:8025 -p 1025:1025 --name fm-mailhog mailhog/mailhog
+
+In your `~/.flexmeasures.cfg`, all you need to set is ``MAIL_PORT=1025``. Then, all emails sent to this server can be viewed in your browser at http://localhost:8025.
+
+For a real email server, you want to set all the MAIL_* settings in your configuration, see :ref:`mail-config`.
+
 
 .. _install-lp-solver:
 
@@ -353,6 +374,13 @@ Install and configure Redis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To let FlexMeasures queue forecasting and scheduling jobs, install a `Redis <https://redis.io/>`_ server (or rent one) and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in :ref:`redis-config`.
+
+A quick way to run redis locally (if you are testing your setup) is via Docker:
+
+.. code-block:: bash
+
+   $ docker run -d --rm --name fm-redis -p 6379:6379 redis
+
 
 Then, start workers in a console (or some other method to keep a long-running process going):
 

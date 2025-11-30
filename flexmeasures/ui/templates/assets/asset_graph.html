@@ -694,10 +694,13 @@
     }
 
     async function updateAssetSensorsToShow() {
+        const refreshSpinner = document.getElementById('spinner');
+        const sensorChartDiv = document.getElementById('sensorchart');
 
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
-        document.getElementById('spinner').style.display = 'block';
+        refreshSpinner.style.display = 'block';
+        sensorChartDiv.style.display = 'none';
 
         const response = await fetch(apiURL, {
             method: "PATCH",
@@ -714,6 +717,8 @@
         } else {
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
             showToast("Changes saved successfully", "success");
+            refreshSpinner.style.display = 'none';
+            sensorChartDiv.style.display = 'block';
         }
     }
 
