@@ -297,9 +297,11 @@ class AssetCrudUI(FlaskView):
                 db.session.commit()
                 session["msg"] = "Editing was successful."
             except ValidationError as ve:
+                db.session.rollback()
                 # we are redirecting to the properties page, there we cannot show errors in form
                 session["msg"] = f"Cannot edit asset: {ve.messages}"
             except Exception as exc:
+                db.session.rollback()
                 session["msg"] = "Cannot edit asset: An error occurred."
                 current_app.logger.error(exc)
 
@@ -395,10 +397,13 @@ class AssetCrudUI(FlaskView):
         while site_asset.parent_asset_id:
             site_asset = site_asset.parent_asset
 
+        from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
             site_asset=site_asset,
+            flex_model_schema=UI_FLEX_MODEL_SCHEMA,
             asset_flexmodel=json.dumps(asset.flex_model),
             available_units=available_units(),
             asset_summary=asset_summary,

@@ -163,6 +163,7 @@ class Config(object):
         # todo: expand with other js versions used in FlexMeasures
     )
     FLEXMEASURES_JSON_COMPACT = False
+    OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False

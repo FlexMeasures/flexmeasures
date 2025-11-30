@@ -23,7 +23,8 @@
                   "type": "object",
                   "properties": {
                     "authentication_token": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Short-lived authentication token, which can be used in request headers using `{\"Authorization\": authentication_token}`.\n"
                     }
                   }
                 }
@@ -150,6 +151,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Sensor1"
+                },
+                "examples": {
+                  "price_sensor": {
+                    "summary": "A day-ahead price sensor recording 15-minute prices.",
+                    "description": "A day-ahead price sensor recording the day-ahead electricity price in EUR/kWh with a 15-minute resolution.\nThe sensor is assigned to asset 1.\nData from this sensor will be shown with offsets corresponding to the Europe/Amsterdam timezone.\n",
+                    "value": {
+                      "id": 14,
+                      "name": "day-ahead electricity price",
+                      "unit": "EUR/kWh",
+                      "timezone": "Europe/Amsterdam",
+                      "event_resolution": "PT15M",
+                      "entity_address": "ea1.2021-01.io.flexmeasures:fm1.14",
+                      "generic_asset_id": 1
+                    }
+                  },
+                  "power_sensor": {
+                    "summary": "A power sensor recording average consumption every 5 minutes.",
+                    "description": "A power sensor recording average power flow in kW with a 5-minute resolution.\nThe sensor records consumption as positive values.\nIt is assigned to asset 1.\nData from this sensor will be shown with offsets corresponding to the Europe/Amsterdam timezone.\n",
+                    "value": {
+                      "id": 5,
+                      "name": "power",
+                      "unit": "kW",
+                      "timezone": "Europe/Amsterdam",
+                      "event_resolution": "PT5M",
+                      "entity_address": "ea1.2021-01.io.flexmeasures:fm1.5",
+                      "attributes": {
+                        "consumption_is_positive": true
+                      },
+                      "generic_asset_id": 1
+                    }
+                  }
                 }
               }
             }
@@ -311,42 +343,52 @@
           {
             "in": "query",
             "name": "start",
+            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2026-01-15T10:00+01:00"
             },
             "required": true
           },
           {
             "in": "query",
             "name": "duration",
+            "description": "Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "example": "PT1H"
             },
             "required": true
           },
           {
             "in": "query",
             "name": "horizon",
+            "description": "All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "example": "PT2H"
             },
             "required": false
           },
           {
             "in": "query",
             "name": "prior",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2026-01-14T20:00+01:00"
             },
             "required": false
           },
           {
             "in": "query",
             "name": "unit",
+            "description": "The unit of the sensor data, which must be convertible to the sensor unit.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "example": "m\u00b3/h"
             },
             "required": true
           }
@@ -398,7 +440,7 @@
               },
               "examples": {
                 "post_sensor": {
-                  "summary": "Post sensor data to flexmeasures",
+                  "summary": "Post sensor data to FlexMeasures",
                   "value": {
                     "values": [
                       -11.28,
@@ -451,14 +493,18 @@
             "in": "path",
             "name": "id",
             "required": true,
+            "description": "ID of the sensor for which to retrieve the schedule.",
+            "example": 5,
             "schema": {
-              "type": "string"
+              "type": "int"
             }
           },
           {
             "in": "path",
             "name": "uuid",
             "required": true,
+            "description": "UUID of the scheduling job, which was returned by the [Sensor scheduling endpoint](#/Sensors/post_api_v3_0_sensors__id__schedules_trigger) or the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger).",
+            "example": "5d28df1b-9f16-4177-ae43-6e750d80fad3",
             "schema": {
               "type": "string"
             }
@@ -467,6 +513,8 @@
             "in": "query",
             "name": "duration",
             "required": false,
+            "description": "Duration of the schedule to retrieve.\nIf omitted, the default is 6 hours.\nThe maximum allowed value is limited by the `FLEXMEASURES_PLANNING_HORIZON` configuration option\n(default: 48 hours).\nWhile a full-horizon schedule is available, it is usually not useful to fetch it entirely.\nA better approach is to request only the near-term part of the schedule,\nand to refresh the schedule as new information becomes relevant.\n",
+            "example": "PT24H",
             "schema": {
               "type": "string"
             }
@@ -478,7 +526,45 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "scheduler_info": {
+                      "type": "object",
+                      "description": "Information about the scheduler that executed the job.",
+                      "additionalProperties": true
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "description": "The scheduled values as a list of floats."
+                    },
+                    "start": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Start time of the schedule (ISO 8601)."
+                    },
+                    "duration": {
+                      "type": "string",
+                      "description": "Duration covered by the schedule, expressed as an ISO 8601 duration."
+                    },
+                    "unit": {
+                      "type": "string",
+                      "description": "Unit of the schedule's values."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PROCESSED"
+                      ],
+                      "description": "Processing status of the request."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable message about request processing."
+                    }
+                  }
                 },
                 "examples": {
                   "schedule": {
@@ -932,7 +1018,7 @@
     "/api/v3_0/sensors/{id}/schedules/trigger": {
       "post": {
         "summary": "Trigger scheduling job for one device",
-        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1871,9 +1957,11 @@
             "in": "query",
             "name": "account_id",
             "schema": {
-              "type": "integer",
-              "default": null,
-              "nullable": true
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null
             },
             "required": false
           },
@@ -2463,7 +2551,8 @@
                       "id": 1,
                       "latitude": 11.1,
                       "longitude": 99.9,
-                      "account_id": 1
+                      "account_id": 1,
+                      "external_id": ""
                     }
                   }
                 }
@@ -2936,9 +3025,11 @@
             "in": "query",
             "name": "account_id",
             "schema": {
-              "type": "integer",
-              "default": null,
-              "nullable": true
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null
             },
             "required": false
           },
@@ -3147,7 +3238,7 @@
     "/api/v3_0/assets/{id}/schedules/trigger": {
       "post": {
         "summary": "Trigger scheduling job for any number of devices",
-        "description": "Trigger FlexMeasures to create a schedule for this asset.\nThe flex-model needs to reference the power sensors of flexible devices, which must belong to the given asset,\neither directly or indirectly, by being assigned to one of the asset's (grand)children.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, [see describing_flexibility](https://flexmeasures.readthedocs.io/stable/features/scheduling.html#describing-flexibility).\nBelow, we'll also list some examples.\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors). The examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** This endpoint supports scheduling an EMS with multiple flexible devices at once.\n> It can do so jointly (the default) or sequentially\n> (considering previously scheduled sensors as inflexible).\n> To use sequential scheduling, use ``sequential=true`` in the JSON body.\n\nThe length of the schedule can be set explicitly through the 'duration' field.\nOtherwise, it is set by the config setting [see planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.\nIf the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\nFinally, the schedule length is limited by [see max_planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.\nTargets that exceed the max planning horizon are not accepted.\n\nThe appropriate algorithm is chosen by FlexMeasures (based on asset type).\nIt's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).\n\nIf you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "description": "Trigger FlexMeasures to create a schedule for this asset.\nThe flex-model needs to reference the power sensors of flexible devices, which must belong to the given asset,\neither directly or indirectly, by being assigned to one of the asset's (grand)children.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, [see describing_flexibility](https://flexmeasures.readthedocs.io/stable/features/scheduling.html#describing-flexibility).\nBelow, we'll also list some examples.\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors). The examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** This endpoint supports scheduling an EMS with multiple flexible devices at once.\n> It can do so jointly (the default) or sequentially\n> (considering previously scheduled sensors as inflexible).\n> To use sequential scheduling, use ``sequential=true`` in the JSON body.\n\nThe length of the schedule can be set explicitly through the 'duration' field.\nOtherwise, it is set by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.\nIf the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\nFinally, the schedule length is limited by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.\nTargets that exceed the max planning horizon are not accepted.\n\nThe appropriate algorithm is chosen by FlexMeasures (based on asset type).\nIt's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).\n\nIf you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3178,12 +3269,11 @@
                     "flex-model": [
                       {
                         "sensor": 931,
-                        "soc-at-start": 12.1,
+                        "soc-at-start": "12.1 kWh",
                         "state-of-charge": {
                           "sensor": 74
                         },
-                        "soc-unit": "kWh",
-                        "power-capacity": "25kW",
+                        "power-capacity": "25 kW",
                         "consumption-capacity": {
                           "sensor": 42
                         },
@@ -3209,8 +3299,58 @@
                         14,
                         15
                       ],
-                      "site-power-capacity": "100kW",
-                      "site-production-capacity": "80kW",
+                      "site-power-capacity": "100 kVA",
+                      "site-production-capacity": "80 kW",
+                      "site-consumption-capacity": {
+                        "sensor": 32
+                      }
+                    }
+                  }
+                },
+                "heating_system": {
+                  "description": "This message triggers a schedule, starting at 10.00am, for a heating system that consists of a heat pump (with power sensor 931) and a heat buffer (with thermal state of charge sensor 74).\nThis also schedules a curtailable production asset (with power sensor 932),\nwhose production forecasts are recorded under sensor 760.\n\nAggregate consumption (of all devices within this EMS) should be priced by sensor 9,\nand aggregate production should be priced by sensor 10,\nwhere the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,\nand the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).\n\nThe heat pump's consumption power capacity is limited by sensor 42, and it cannot produce electricity (only heat).\nIt turns power to heat with a Coefficient of Performance (COP) of 4.\nThe heat buffer has a constant heat demand of 5 kW thermal, and a storage efficiency of 99.7%.\nFinally, the site consumption capacity is limited by sensor 32.\n",
+                  "value": {
+                    "start": "2015-06-02T10:00:00+00:00",
+                    "flex-model": [
+                      {
+                        "sensor": 931,
+                        "soc-at-start": "12.1 kWh",
+                        "state-of-charge": {
+                          "sensor": 74
+                        },
+                        "power-capacity": "25 kW",
+                        "consumption-capacity": {
+                          "sensor": 42
+                        },
+                        "production-capacity": "0 kW",
+                        "soc-usage": [
+                          "5 kW"
+                        ],
+                        "charging-efficiency": "4",
+                        "storage-efficiency": "99.7%"
+                      },
+                      {
+                        "sensor": 932,
+                        "consumption-capacity": "0 kW",
+                        "production-capacity": {
+                          "sensor": 760
+                        }
+                      }
+                    ],
+                    "flex-context": {
+                      "consumption-price": {
+                        "sensor": 9
+                      },
+                      "production-price": {
+                        "sensor": 10
+                      },
+                      "inflexible-device-sensors": [
+                        13,
+                        14,
+                        15
+                      ],
+                      "site-power-capacity": "100 kVA",
+                      "site-production-capacity": "80 kW",
                       "site-consumption-capacity": {
                         "sensor": 32
                       }
@@ -3462,11 +3602,65 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.30.0.dev480"
+    "version": "0.30.0.dev55"
   },
-  "openapi": "3.0.2",
+  "openapi": "3.1.2",
   "components": {
     "schemas": {
+      "Quantity": {
+        "type": "string",
+        "description": "Quantity string describing a fixed quantity.",
+        "example": "130 EUR/MWh"
+      },
+      "SensorReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded."
+          }
+        },
+        "required": [
+          "sensor"
+        ],
+        "description": "Sensor reference from which to look up a variable quantity."
+      },
+      "TimeSeries": {
+        "type": "array",
+        "description": "Time series specification containing a list of segments that together describe a variable quantity.",
+        "example": [
+          {
+            "value": "23 kW",
+            "start": "2025-11-20T15:15+01",
+            "duration": "PT1H"
+          }
+        ],
+        "items": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "VariableQuantityOpenAPI": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          {
+            "$ref": "#/components/schemas/SensorReference"
+          },
+          {
+            "$ref": "#/components/schemas/TimeSeries"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "quantity_string": "#/components/schemas/Quantity",
+            "sensor_reference": "#/components/schemas/SensorReference",
+            "timeseries_specs": "#/components/schemas/TimeSeries"
+          }
+        }
+      },
       "Commitment": {
         "type": "object",
         "properties": {
@@ -3477,79 +3671,128 @@
           "up-price": {},
           "down-price": {}
         },
+        "required": [
+          "name"
+        ],
         "additionalProperties": false
       },
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
-          "consumption_breach_price": {
-            "type": "string"
+          "consumption-breach-price": {
+            "description": "This **penalty value** is used to discourage the violation of the **consumption-capacity** constraint in the flex-model.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
+            "example": "10 EUR/kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "production_breach_price": {
-            "type": "string"
+          "production-breach-price": {
+            "description": "This **penalty value** is used to discourage the violation of the **production-capacity** constraint in the flex-model.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
+            "example": "10 EUR/kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "soc_minima_breach_price": {
-            "type": "string"
+          "soc-minima-breach-price": {
+            "description": "This **penalty value** is used to discourage the violation of **soc-minima** constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
+            "example": "120 EUR/kWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "soc_maxima_breach_price": {
-            "type": "string"
+          "soc-maxima-breach-price": {
+            "description": "This **penalty value** is used to discourage the violation of **soc-maxima** constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an **internal nudge** to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
+            "example": "120 EUR/kWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "relax-constraints": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have **breach-price** in their name).\n",
+            "example": true
           },
           "relax-soc-constraints": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+            "example": true
           },
           "relax-capacity-constraints": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+            "example": true
           },
           "relax-site-capacity-constraints": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+            "example": true
           },
-          "ems_power_capacity_in_mw": {
-            "type": "string"
+          "site-power-capacity": {
+            "description": "Maximum achievable power at the site's grid connection point, in either direction.\nBecomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.\n",
+            "example": "45kVA",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "consumption_price_sensor": {
-            "type": "string"
+          "consumption-price-sensor": {
+            "type": "integer"
           },
-          "production_price_sensor": {
-            "type": "string"
+          "production-price-sensor": {
+            "type": "integer"
           },
-          "consumption_price": {
-            "type": "string"
+          "consumption-price": {
+            "description": "The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem.",
+            "example": {
+              "sensor": 5
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "production_price": {
-            "type": "string"
+          "production-price": {
+            "description": "The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit.",
+            "example": "0.12 EUR/kWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "ems_production_capacity_in_mw": {
-            "type": "string"
+          "site-production-capacity": {
+            "description": "Maximum production power at the site's grid connection point.\nIf ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.\nIf a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
+            "example": "0kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "ems_consumption_capacity_in_mw": {
-            "type": "string"
+          "site-consumption-capacity": {
+            "description": "Maximum consumption power at the site's grid connection point.\nIf ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.\nIf a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
+            "example": "45kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "ems_consumption_breach_price": {
-            "type": "string"
+          "site-consumption-breach-price": {
+            "description": "This **penalty value** is used to discourage the violation of the **site-consumption-capacity** constraint in the flex-context.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\nThe field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.\n",
+            "example": "1000 EUR/kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "ems_production_breach_price": {
-            "type": "string"
+          "site-production-breach-price": {
+            "description": "This **penalty value** is used to discourage the violation of the **site-production-capacity** constraint in the flex-context.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\nThe field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.\"\n",
+            "example": "1000 EUR/kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "ems_peak_consumption_in_mw": {
-            "type": "string"
+          "site-peak-consumption": {
+            "description": "The site's previously achieved achieved peak consumption.\nThis value forms the baseline for new peak charges, since any peaks up to this level represent sunk costs.\nDefaults to 0 kW.\n",
+            "example": {
+              "sensor": 7
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "ems_peak_consumption_price": {
-            "type": "string"
+          "site-peak-consumption-price": {
+            "description": "Per-kW price applied to any consumption that exceeds the site's previously achieved peak consumption.\nThis price reflects the cost of increasing the site\u2019s peak further and is used by the scheduler to motivate peak shaving.\nIt must use the same currency as the other price settings and cannot be negative.\nFor large connections, this price is usually stated explicitly on the tariff sheets of their network operator.\n",
+            "example": "260 EUR/MW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "ems_peak_production_in_mw": {
-            "type": "string"
+          "site-peak-production": {
+            "description": "The site's previously achieved achieved peak production.\nThis value forms the baseline for new peak charges, since any peaks up to this level represent sunk costs.\nDefaults to 0 kW.\n",
+            "example": {
+              "sensor": 8
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "ems_peak_production_price": {
-            "type": "string"
+          "site-peak-production-price": {
+            "description": "Per-kW price applied to any production that exceeds the site's previously achieved peak production.\nThis price reflects the cost of increasing the site\u2019s peak further and is used by the scheduler to motivate peak shaving.\nIt must use the same currency as the other price settings and cannot be negative.\nFor large connections, this price is usually stated explicitly on the tariff sheets of their network operator.\n",
+            "example": "260 EUR/MW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "commitments": {
+            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can study the code to learn more.",
+            "example": [],
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Commitment"
@@ -3557,6 +3800,11 @@
           },
           "inflexible-device-sensors": {
             "type": "array",
+            "description": "Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\nMust be a list of integers.\n",
+            "example": [
+              3,
+              4
+            ],
             "items": {
               "type": "integer"
             }
@@ -3596,9 +3844,11 @@
             ]
           },
           "account_id": {
-            "type": "integer",
-            "default": null,
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null
           },
           "include_inactive": {
             "type": "boolean",
@@ -3638,9 +3888,11 @@
             ]
           },
           "account_id": {
-            "type": "integer",
-            "default": null,
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null
           },
           "all_accessible": {
             "type": "boolean",
@@ -3661,9 +3913,11 @@
             "readOnly": true
           },
           "name": {
-            "type": "string",
-            "maxLength": 100,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
           }
         },
         "required": [
@@ -3694,16 +3948,14 @@
             "type": "string"
           },
           "account_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "generic_asset_type": {
             "readOnly": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/GenericAssetType"
-              }
-            ]
+            "$ref": "#/components/schemas/GenericAssetType"
           }
         },
         "required": [
@@ -3716,11 +3968,15 @@
         "properties": {
           "id": {
             "type": "integer",
-            "readOnly": true
+            "readOnly": true,
+            "description": "The sensor's ID, which is automatically assigned.",
+            "example": 5
           },
           "name": {
             "type": "string",
-            "maxLength": 120
+            "maxLength": 120,
+            "description": "The sensor's name.",
+            "example": "power"
           }
         },
         "required": [
@@ -3739,40 +3995,40 @@
             "type": "string"
           },
           "account_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "owner": {
             "readOnly": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Account"
-              }
-            ]
+            "$ref": "#/components/schemas/Account"
           },
           "latitude": {
-            "type": "number",
-            "nullable": true
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "longitude": {
-            "type": "number",
-            "nullable": true
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "generic_asset_type_id": {
             "type": "integer"
           },
           "generic_asset_type": {
             "readOnly": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/GenericAssetType"
-              }
-            ]
+            "$ref": "#/components/schemas/GenericAssetType"
           },
           "attributes": {},
           "parent_asset_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "child_assets": {
             "readOnly": true,
@@ -3791,7 +4047,12 @@
           "sensors_to_show": {},
           "flex_context": {},
           "flex_model": {},
-          "sensors_to_show_as_kpis": {}
+          "sensors_to_show_as_kpis": {},
+          "external_id": {
+            "type": "string",
+            "description": "ID for this asset in another system.",
+            "example": "c8a53865-4702-494d-b559-9eefce296038"
+          }
         },
         "required": [
           "generic_asset_type_id",
@@ -3832,9 +4093,11 @@
             "readOnly": true
           },
           "name": {
-            "type": "string",
-            "maxLength": 80,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80
           }
         },
         "additionalProperties": false
@@ -3847,24 +4110,32 @@
             "readOnly": true
           },
           "name": {
-            "type": "string",
-            "maxLength": 100,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
           },
           "primary_color": {
-            "type": "string",
-            "maxLength": 7,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
           },
           "secondary_color": {
-            "type": "string",
-            "maxLength": 7,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
           },
           "logo_url": {
-            "type": "string",
-            "maxLength": 255,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
           },
           "account_roles": {
             "type": "array",
@@ -3873,8 +4144,10 @@
             }
           },
           "consultancy_account_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "additionalProperties": false
@@ -3936,30 +4209,46 @@
         "properties": {
           "id": {
             "type": "integer",
-            "readOnly": true
+            "readOnly": true,
+            "description": "The sensor's ID, which is automatically assigned.",
+            "example": 5
           },
           "name": {
             "type": "string",
-            "maxLength": 120
+            "maxLength": 120,
+            "description": "The sensor's name.",
+            "example": "power"
           },
           "unit": {
             "type": "string",
-            "maxLength": 80
+            "maxLength": 80,
+            "description": "The sensor's (physical or economical) unit. Supports [<abbr title='International System of Units'>SI</abbr> units](https://en.wikipedia.org/wiki/International_System_of_Units) and [currency codes](https://en.wikipedia.org/wiki/ISO_4217).",
+            "example": "EUR/kWh"
           },
           "timezone": {
             "type": "string",
-            "maxLength": 80
+            "maxLength": 80,
+            "description": "The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
+            "example": "Europe/Amsterdam"
           },
           "event_resolution": {
-            "type": "string"
+            "type": "string",
+            "description": "The duration of events recorded by the sensor.",
+            "example": "PT15M"
           },
           "entity_address": {
             "type": "string",
-            "readOnly": true
+            "readOnly": true,
+            "description": "Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
           },
-          "attributes": {},
+          "attributes": {
+            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
+            "example": "{consumption_is_positive: True}"
+          },
           "generic_asset_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "The asset that the sensor belongs to.",
+            "example": 1
           }
         },
         "required": [
@@ -3975,25 +4264,45 @@
         "properties": {
           "start": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format.",
+            "example": "2026-01-15T10:00+01:00"
           },
           "duration": {
-            "type": "string"
+            "type": "string",
+            "description": "Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
+            "example": "PT1H"
           },
           "horizon": {
-            "type": "string"
+            "type": "string",
+            "description": "All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
+            "example": "PT2H"
           },
           "prior": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            "example": "2026-01-14T20:00+01:00"
           },
           "unit": {
-            "type": "string"
+            "type": "string",
+            "description": "The unit of the sensor data, which must be convertible to the sensor unit.",
+            "example": "m\u00b3/h"
           },
           "sensor": {
-            "type": "integer"
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded.",
+            "example": 14
           },
-          "values": {},
+          "values": {
+            "description": "The event values.",
+            "example": [
+              2.2,
+              2.6,
+              2.6,
+              2.7
+            ]
+          },
           "type": {
             "type": "string",
             "enum": [
@@ -4002,7 +4311,8 @@
               "PostPrognosisRequest",
               "PostPriceDataRequest",
               "PostWeatherDataRequest"
-            ]
+            ],
+            "description": "Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
           }
         },
         "required": [
@@ -4018,25 +4328,34 @@
         "properties": {
           "start": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Start time of the schedule, in ISO 8601 datetime format.",
+            "example": "2026-01-15T10:00+01:00"
           },
           "prior": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "example": "2026-01-15T10:00+01:00"
           },
           "duration": {
-            "type": "string"
+            "type": "string",
+            "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            "example": "PT24H"
           },
           "flex-model": {
             "type": "object",
+            "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
             "additionalProperties": {}
           },
           "flex-context": {
             "type": "object",
+            "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "additionalProperties": {}
           },
           "force_new_job_creation": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered."
           }
         },
         "required": [
@@ -4054,9 +4373,11 @@
             }
           },
           "belief-time-measured-instantly": {
-            "type": "boolean",
-            "default": false,
-            "nullable": true
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": false
           }
         },
         "additionalProperties": false
@@ -4069,24 +4390,32 @@
             "readOnly": true
           },
           "name": {
-            "type": "string",
-            "maxLength": 100,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
           },
           "primary_color": {
-            "type": "string",
-            "maxLength": 7,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
           },
           "secondary_color": {
-            "type": "string",
-            "maxLength": 7,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
           },
           "logo_url": {
-            "type": "string",
-            "maxLength": 255,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
           },
           "account_roles": {
             "type": "array",
@@ -4095,8 +4424,10 @@
             }
           },
           "consultancy_account_id": {
-            "type": "integer",
-            "nullable": true
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -4112,26 +4443,34 @@
             "readOnly": true
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "username": {
-            "type": "string",
-            "maxLength": 255,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
           },
           "account_id": {
             "type": "integer",
             "readOnly": true
           },
           "active": {
-            "type": "boolean",
-            "nullable": true
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "timezone": {
-            "type": "string",
-            "maxLength": 255,
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
           },
           "flexmeasures_roles": {
             "type": "array",
@@ -4157,73 +4496,143 @@
         "type": "object",
         "properties": {
           "asset": {
-            "type": "string"
+            "type": "integer",
+            "description": "ID of the asset that is requested to be scheduled."
           },
-          "soc_at_start": {
-            "type": "string"
+          "soc-at-start": {
+            "type": "string",
+            "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).\nUsually added to each scheduling request.\n",
+            "example": "3.1 kWh"
           },
-          "soc_min": {
-            "type": "string"
+          "soc-min": {
+            "type": "string",
+            "x-minimum": "0 MWh",
+            "description": "A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the **soc-minima** flex-model field instead together with the **soc-minima-breach-price`` field in the flex-context.\n",
+            "example": "2.5 kWh"
           },
-          "soc_max": {
-            "type": "string"
+          "soc-max": {
+            "type": "string",
+            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the **soc-maxima** flex-model field instead together with the **soc-maxima-breach-price`` field in the flex-context.\n",
+            "example": "7 kWh"
           },
-          "power_capacity_in_mw": {
-            "type": "string"
+          "power-capacity": {
+            "description": "Device-level power constraint. How much power can be applied to this asset.",
+            "example": "50 kVA",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "consumption_capacity": {
-            "type": "string"
+          "consumption-capacity": {
+            "description": "Device-level power constraint on consumption. How much power can be drawn by this asset.",
+            "example": {
+              "sensor": 56
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "production_capacity": {
-            "type": "string"
+          "production-capacity": {
+            "description": "Device-level power constraint on production.\nHow much power can be supplied by this asset.\nFor <abbr title=\"photovoltaic solar panels\">PV</abbr> curtailment, set this to reference your sensor containing PV power forecasts.\n",
+            "example": "0 kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "prefer-curtailing-later": {
             "type": "boolean",
-            "default": true
+            "default": true,
+            "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True).\nBoolean option only.\n",
+            "example": true
           },
           "prefer-charging-sooner": {
             "type": "boolean",
-            "default": true
+            "default": true,
+            "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True).\nIt also signals a preference to discharge later.\nBoolean option only.\n",
+            "example": true
           },
-          "soc_maxima": {
-            "type": "string"
+          "soc-maxima": {
+            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "example": {
+              "value": "51 kWh",
+              "start": "2024-02-05T12:00:00+01:00",
+              "end": "2024-02-05T13:30:00+01:00"
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "soc_minima": {
-            "type": "string"
+          "soc-minima": {
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "example": [
+              {
+                "datetime": "2024-02-05T08:00:00+01:00",
+                "value": "8.2 kWh"
+              }
+            ],
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "soc_targets": {
-            "type": "string"
+          "soc-targets": {
+            "description": "\nExact set point(s) of the storage's state of charge that the scheduler needs to realize.\nThese are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.\n",
+            "example": [
+              {
+                "datetime": "2024-02-05T08:00:00+01:00",
+                "value": "3.2 kWh"
+              }
+            ],
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-unit": {
             "type": "string",
             "enum": [
               "kWh",
               "MWh"
-            ]
+            ],
+            "description": "[Deprecated field] The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).\nTo avoid using this field, mention the unit in each field explicitly (for instance, ``\"3.1 kWh\"`` rather than ``3.1``).\nOnly kWh and MWh are allowed.\n",
+            "example": "kWh"
           },
-          "state_of_charge": {
-            "type": "string"
+          "state-of-charge": {
+            "description": "Sensor used to record the scheduled state of charge.",
+            "example": {
+              "sensor": 12
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "charging_efficiency": {
-            "type": "string"
+          "charging-efficiency": {
+            "description": "One-way conversion efficiency from electricity to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
+            "example": ".9",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "discharging_efficiency": {
-            "type": "string"
+          "discharging-efficiency": {
+            "description": "One-way conversion efficiency from the storage's state of charge to electricity.\nDefaults to 100% (no conversion loss).",
+            "example": "90%",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "roundtrip_efficiency": {
-            "type": "string"
+          "roundtrip-efficiency": {
+            "type": "string",
+            "x-minimum": "0 %",
+            "x-maximum": "100 %",
+            "description": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries.\nCan be a percentage or a ratio in the range [0,1].\nDefaults to 100% (no roundtrip loss).\n",
+            "example": "90%"
           },
-          "storage_efficiency": {
-            "type": "string"
+          "storage-efficiency": {
+            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\n",
+            "example": "99.9%",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-gain": {
             "type": "array",
             "minItems": 1,
+            "description": "SoC gain per time step, e.g. from a secondary energy source. Useful if energy is inserted by an external process (in-flow).\nThis field allows setting multiple components, either fixed or dynamic, which add up to an aggregated gain.\nThis field represents an energy flow (for instance, in kW) rather than saying something about an (allowed) energy state (for instance, in kWh).\nThe SoC gain is unaffected by the charging efficiency.\n",
+            "example": [
+              "100 Wh/h",
+              {
+                "sensor": 34
+              }
+            ],
             "items": {}
           },
           "soc-usage": {
             "type": "array",
             "minItems": 1,
+            "description": "SoC drain per time step, e.g. from a load or heat sink.\nUseful if energy is extracted by an external process or there are dissipating losses (out-flow).\nThis field allows setting multiple components, either fixed or dynamic, which add up to an aggregated usage.\nThis field represents an energy flow (for instance, in kW) rather than saying something about an (allowed) energy state (for instance, in kWh).\nThe SoC drain is unaffected by the discharging efficiency.\n",
+            "example": [
+              "100 Wh/h",
+              {
+                "sensor": 23
+              }
+            ],
             "items": {}
           }
         },
@@ -4233,33 +4642,43 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account."
           },
           "start": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Start time of the schedule, in ISO 8601 datetime format.",
+            "example": "2026-01-15T10:00+01:00"
           },
           "prior": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "example": "2026-01-15T10:00+01:00"
           },
           "duration": {
-            "type": "string"
+            "type": "string",
+            "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            "example": "PT24H"
           },
-          "flex_model": {
+          "flex-model": {
+            "description": "The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
             "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
           },
-          "flex_context": {
+          "flex-context": {
+            "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "$ref": "#/components/schemas/FlexContextOpenAPISchema"
           },
           "sequential": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device."
           }
         },
         "required": [
-          "flex_context",
-          "flex_model",
+          "flex-context",
+          "flex-model",
           "start"
         ],
         "additionalProperties": false
