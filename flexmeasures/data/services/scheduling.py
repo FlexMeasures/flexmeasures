@@ -185,7 +185,6 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 @job_cache("scheduling")
 def create_scheduling_job(
     asset_or_sensor: Asset | Sensor | None = None,
-    sensor: Sensor | None = None,
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
@@ -223,12 +222,6 @@ def create_scheduling_job(
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We should put only serializable scheduler_kwargs into the job!
-
-    if sensor is not None:
-        current_app.logger.warning(
-            "The `sensor` keyword argument is deprecated. Please, consider using the argument `asset_or_sensor`."
-        )
-        asset_or_sensor = sensor
 
     if scheduler_specs:
         scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
