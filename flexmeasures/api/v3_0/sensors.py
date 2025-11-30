@@ -1528,13 +1528,11 @@ class SensorAPI(FlaskView):
             Example:
             ```
             {
-              "sensor": 2092,
+              "sensor": 5,
               "end_date": "2025-10-15T00:00:00+01:00",
               "train_period": "P7D",
               "retrain_frequency": "PT24H",
               "max_forecast_horizon": "PT24H",
-              "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-              "probabilistic": false
             }
             ```
           responses:
