@@ -1605,7 +1605,7 @@ class SensorAPI(FlaskView):
 @route("/<sensor>/forecasts/<job_id>", methods=["GET"])
 @use_kwargs({"sensor": SensorIdField(), "job_id": fields.Str(required=True)}, location="path")
 @permission_required_for_context("read", ctx_arg_name="sensor")
-def get_forecast_job_status(self, sensor: Sensor, job_id: str):
+def check_forecasts(self, sensor: Sensor, job_id: str):
     """
     .. :quickref: Forecasts; Check forecast job status for a sensor
     ---
