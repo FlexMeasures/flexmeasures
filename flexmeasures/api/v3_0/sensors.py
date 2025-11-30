@@ -8,7 +8,7 @@ from flexmeasures.data.services.sensors import (
 )
 
 from werkzeug.exceptions import Unauthorized
-from flask import current_app, url_for
+from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
@@ -62,6 +62,9 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.data.models.forecasting import Forecaster
+from flexmeasures.cli.utils import get_data_generator
+
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
@@ -1546,15 +1549,6 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
-
-        from flask import request
-        from marshmallow import ValidationError
-        from flexmeasures.data.models.forecasting import Forecaster
-        from flexmeasures.cli.utils import get_data_generator
-        from flexmeasures.api.common.responses import (
-            invalid_flex_config,
-            request_processed,
-        )
 
         try:
             # Load and validate JSON payload
