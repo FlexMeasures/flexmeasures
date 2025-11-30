@@ -10,6 +10,9 @@ apispec[yaml]==6.8.4
     # via
     #   -r requirements/docs.in
     #   apispec-webframeworks
+apispec-oneofschema==3.0.2
+    # via
+    #   -r requirements/docs.in
 apispec-webframeworks==1.2.0
     # via -r requirements/docs.in
 attrs==25.4.0
