@@ -2551,7 +2551,8 @@
                       "id": 1,
                       "latitude": 11.1,
                       "longitude": 99.9,
-                      "account_id": 1
+                      "account_id": 1,
+                      "external_id": ""
                     }
                   }
                 }
@@ -3601,7 +3602,7 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.28.0.dev36"
+    "version": "0.30.0.dev55"
   },
   "openapi": "3.1.2",
   "components": {
@@ -4046,7 +4047,12 @@
           "sensors_to_show": {},
           "flex_context": {},
           "flex_model": {},
-          "sensors_to_show_as_kpis": {}
+          "sensors_to_show_as_kpis": {},
+          "external_id": {
+            "type": "string",
+            "description": "ID for this asset in another system.",
+            "example": "c8a53865-4702-494d-b559-9eefce296038"
+          }
         },
         "required": [
           "generic_asset_type_id",
