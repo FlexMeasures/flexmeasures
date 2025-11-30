@@ -1583,12 +1583,8 @@ class SensorAPI(FlaskView):
             # Commit DB transaction
             db.session.commit()
 
-            # Prepare response
-            response = dict(
-                forecast_jobs=job_ids,
-            )
             d, s = request_processed()
-            return dict(**response, **d), s
+            return dict(forecast_jobs=job_ids, **d), s
 
         except ValidationError as e:
             return invalid_flex_config(e.messages)
