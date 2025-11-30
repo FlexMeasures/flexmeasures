@@ -1631,9 +1631,6 @@ def check_forecasts(self, sensor: Sensor, job_id: str):
         - Sensors
     """
 
-    from rq.job import Job
-    from flexmeasures.api.common.responses import request_processed, invalid_flex_config
-
     try:
         # Fetch job from RQ
         queue = current_app.queues["forecasting"]
