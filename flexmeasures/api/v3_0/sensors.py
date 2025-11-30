@@ -1607,10 +1607,10 @@ class SensorAPI(FlaskView):
 @permission_required_for_context("read", ctx_arg_name="sensor")
 def check_forecasts(self, sensor: Sensor, job_id: str):
     """
-    .. :quickref: Forecasts; Check forecast job status for a sensor
+    .. :quickref: Forecasts; Check forecast job status for a sensor and fetch results.
     ---
     get:
-      summary: Check forecast job status for a sensor
+      summary: Check forecast job status for a sensor and fetch results.
       description: |
         Returns the status of a previously triggered forecasting job.
         When the job is completed successfully, this endpoint returns the
