@@ -51,7 +51,7 @@ class AssetForm(FlaskForm):
     )
     external_id = StringField(
         "External ID",
-        default="",
+        default=None,
         description="ID for this asset in another system. Note: not being validated here.",
     )
 

@@ -19,7 +19,7 @@ def create_asset(asset_data: dict) -> GenericAsset:
     Creates an audit log.
     """
     if "external_id" in asset_data and str(asset_data["external_id"]).strip() == "":
-        asset_data.pop("external_id")
+        asset_data.pop("external_id")  # nothing to set, leave it as None
     asset = GenericAsset(**asset_data)
     db.session.add(asset)
     # assign asset id
@@ -153,7 +153,9 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
 
     for k, v in asset_data.items():
         if k == "external_id" and str(v).strip() == "":
-            continue
+            if db_asset.external_id is None:
+                continue  # no change
+            v = None  # set to None to remove external_id
         setattr(db_asset, k, v)
 
     return db_asset
