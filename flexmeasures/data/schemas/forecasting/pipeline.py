@@ -48,7 +48,7 @@ class ForecasterParametersSchema(Schema):
     forecast_frequency = DurationField(
         required=False, allow_none=True, load_default=timedelta(hours=1)
     )
-    probabilistic = fields.Bool(required=True)
+    probabilistic = fields.Bool(required=False, load_default=False)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
     missing_threshold = fields.Float(required=False, load_default=1.0)
