@@ -134,11 +134,15 @@
                 $('[data-toggle="tooltip"]').tooltip();
             });
         });
-    // zoom to cover pre-existing asset portfolio
-    assetMap.fitBounds({{ bounding_box | tojson }});
-    // in case of a very small bounding box, zoom out as far as you can while still making out the local buildings
-    assetMap.getZoom() === 18 ? assetMap.setZoom(17) : null
     addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+
+    // compute bounds, center and zoom for covering pre-existing asset portfolio
+    bounds = L.latLngBounds({{ bounding_box | tojson }});
+    center = bounds.getCenter();
+    zoom = assetMap.getBoundsZoom(bounds);
+    // in case of a very small bounding box (e.g. representing a single point),
+    // zoom out slightly, just as far as you can while still making out the local buildings
+    zoom === 18 ? zoom = 17 : null
 
 
     var location_icon = new L.DivIcon({
@@ -153,8 +157,15 @@
         // create marker for parent asset's location
         parentLocation = [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}]
         var marker = L.marker(parentLocation, { icon: location_icon }).addTo(assetMap);
+
+        // start covering pre-existing asset portfolio, then zoom in on parent asset
+        assetMap.setView(center, zoom);
         assetMap.flyTo(parentLocation, 17);
     {% else %}
+        // start slightly zoomed out, then zoom in on pre-existing asset portfolio
+        assetMap.setView(center, Math.max(zoom - 1, 1));
+        assetMap.flyTo(center, zoom);
+
         // dummy location somewhere else (so only if there is no parent asset)
         var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
         {% if prompt_user_for_location %}
