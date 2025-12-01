@@ -388,3 +388,70 @@ def test_save_state_of_charge(
     assert all(
         np.isclose(soc_schedule.event_value.values, soc_schedule_from_power.values)
     )
+
+
+def test_scheduling_unit_conversion(
+    fresh_db,
+    app,
+    add_battery_kWh_assets_fresh_db,
+    setup_fresh_test_data,
+    add_market_prices_fresh_db,
+):
+    """Test scheduling of a battery consumption sensor and an inflexible device with MWh units, ensuring correct data creation and unit handling."""
+
+    battery_asset = add_battery_kWh_assets_fresh_db["Test battery"]
+    battery_consumption_sensor = battery_asset.sensors[0]
+    battery_inflexible_sensor = battery_asset.sensors[1]
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    # Verify the scheduler DataSource does not exist yet
+    assert (
+        fresh_db.session.execute(
+            select(DataSource).filter_by(name="FlexMeasures", type="scheduler")
+        ).scalar_one_or_none()
+        is None
+    )
+
+    job = create_scheduling_job(
+        asset_or_sensor=battery_consumption_sensor,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=resolution,
+        flex_model={
+            "roundtrip-efficiency": "98%",
+            "storage-efficiency": 0.999,
+        },
+        flex_context={"inflexible-device-sensors": [battery_inflexible_sensor.id]},
+    )
+
+    print("Job: %s" % job.id)
+
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    # Verify the scheduler DataSource was created during job execution
+    scheduler_source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="scheduler")
+    ).scalar_one_or_none()
+    assert scheduler_source is not None
+
+    power_values = fresh_db.session.scalars(
+        select(TimedBelief)
+        .filter(TimedBelief.sensor_id == battery_consumption_sensor.id)
+        .filter(TimedBelief.source_id == scheduler_source.id)
+    ).all()
+
+    # Check power limits: max charging should be equal capacity * resolution
+    max_allowed = 2 * 0.25  # 2 MW * 0.25h = 0.5 MWh
+    assert (
+        max(v.event_value for v in power_values) == max_allowed
+    ), "Expected charging (positive values) at max rate"
+
+    # Same for discharging
+    assert (
+        min(v.event_value for v in power_values) == -max_allowed
+    ), "Expected discharging (negative values at max rate"
