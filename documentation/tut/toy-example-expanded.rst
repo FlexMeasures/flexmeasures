@@ -102,7 +102,7 @@ This will have an effect on the available headroom for the battery, given the ``
         
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
             :emphasize-lines: 8-10
