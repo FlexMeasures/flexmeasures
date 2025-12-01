@@ -1664,6 +1664,10 @@ class SensorAPI(FlaskView):
             # Job finished → fetch forecasts from DB
             # search for forecasts linked to this job and sensor
             data_source = get_data_source_for_job(job, type="forecasting")
+
+            forecasts = sensor.search_beliefs(
+                source=data_source,
+            )
             response = dict(
                 status="FINISHED",
                 job_id=job_id,
