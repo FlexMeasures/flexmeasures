@@ -222,6 +222,8 @@ class TrainPredictPipeline(Forecaster):
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
+                        id=self.forecast_run_id,
+                        meta={"data_source_info": {"id": self.data_source.id}},
                     )
 
                     # Attach job to the corresponding forecast entry
