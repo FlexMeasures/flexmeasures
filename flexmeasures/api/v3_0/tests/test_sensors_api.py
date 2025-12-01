@@ -315,7 +315,7 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
     file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
 
     # Match what the schema expects
-    data = {"uploaded-files": file}
+    data = {"uploaded-files": file, "unit": sensor.unit}
 
     response = client.post(
         url_for("SensorAPI:upload_data", id=sensor.id),
@@ -323,6 +323,7 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
     check_audit_log_event(
@@ -348,7 +349,7 @@ def test_upload_excel_file(client, requesting_user):
     wb.save(file_stream)
     file_stream.seek(0)
 
-    data = {"uploaded-files": (file_stream, "test.xlsx")}
+    data = {"uploaded-files": (file_stream, "test.xlsx"), "unit": "m³/h"}
 
     response = client.post(
         url_for("SensorAPI:upload_data", id=1),
@@ -356,6 +357,7 @@ def test_upload_excel_file(client, requesting_user):
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
 

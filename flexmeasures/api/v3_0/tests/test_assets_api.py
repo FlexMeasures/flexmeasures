@@ -691,11 +691,12 @@ def test_consultant_get_asset(
     "requesting_user, unit, expected_status",
     [
         ("test_prosumer_user_2@seita.nl", "m/s", 422),
+        ("test_prosumer_user_2@seita.nl", "kWh", 200),
         ("test_prosumer_user_2@seita.nl", "kW", 200),
     ],
     indirect=["requesting_user"],
 )
-def test_upload_sensor_data(
+def test_auth_upload_sensor_data(
     client, add_battery_assets, requesting_user, expected_status, unit
 ):
     """
@@ -706,7 +707,7 @@ def test_upload_sensor_data(
     if not raise a validation error.
     """
     test_battery = add_battery_assets["Test battery"]
-    sensor = test_battery.sensors[0]  # kW
+    sensor = test_battery.sensors[2]  # kW
 
     csv_content = """Hour,price
     2021-01-01T00:10:00+00:00,40.3
@@ -725,7 +726,7 @@ def test_upload_sensor_data(
         data={"uploaded-files": (file_obj, "data.csv"), "unit": unit},
         content_type="multipart/form-data",
     )
-    print("Response:\n%s" % response.status_code)
+    print("Response:\n%s" % response.status_code, expected_status)
     print("Server responded with:\n%s" % response.json)
 
     assert response.status_code == expected_status
