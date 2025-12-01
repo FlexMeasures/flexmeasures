@@ -238,10 +238,17 @@
     mcgLayerSupportGroup.addTo(assetMap);
     control.addTo(assetMap);
 
-    // zoom to cover asset portfolio
-    assetMap.fitBounds({{ bounding_box | tojson }});
-    // in case of a very small bounding box, zoom out as far as you can while still making out the local buildings
-    assetMap.getZoom() === 18 ? assetMap.setZoom(17) : null;
+    // compute bounds, center and zoom for covering pre-existing asset portfolio
+    bounds = L.latLngBounds({{ bounding_box | tojson }});
+    center = bounds.getCenter();
+    zoom = assetMap.getBoundsZoom(bounds);
+    // in case of a very small bounding box (e.g. representing a single point),
+    // zoom out slightly, just as far as you can while still making out the local buildings
+    zoom === 18 ? zoom = 17 : null
+
+    // start slightly zoomed out, then zoom in on pre-existing asset portfolio
+    assetMap.setView(center, Math.max(zoom - 1, 1));
+    assetMap.flyTo(center, zoom, { duration: 1.0 });
 
     {% if prompt_user_for_location %}
         const flyToPosition = (position) => {
