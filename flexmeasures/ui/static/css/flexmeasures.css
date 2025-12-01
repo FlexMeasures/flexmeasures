@@ -515,14 +515,14 @@ input:checked + .slider:before {
     color: var(--light-gray);
 }
 
-i {
+.map-icon > i {
     font-size: normal;
     position: relative;
 }
-i:not(.supersize):before, i:not(.supersize):after {
+.map-icon > i:not(.supersize):before, i:not(.supersize):after {
     font-size: 24px;
 }
-.supersize {
+.map-icon > .supersize {
     font-size: 48px;
 }
 
