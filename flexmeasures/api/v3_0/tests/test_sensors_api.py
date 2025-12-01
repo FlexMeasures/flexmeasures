@@ -44,7 +44,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             "power",
-            2,
+            3,
             False,
             False,
             200,
@@ -133,7 +133,7 @@ sensor_schema = SensorSchema()
     ],
     indirect=["requesting_user"],
 )
-def test_fetch_sensors(
+def test_auth_fetch_sensors(
     client,
     setup_api_test_data,
     add_battery_assets,
