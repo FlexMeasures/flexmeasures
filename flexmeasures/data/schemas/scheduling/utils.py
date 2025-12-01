@@ -5,9 +5,12 @@ def rst_to_openapi(text: str) -> str:
     """
     Convert a string with RST markup to OpenAPI-safe text.
 
+    - Removes any RST footnote references like [#]_ or [1]_ or [label]_
     - Replaces :abbr:`X (Y)` with <abbr title="Y">X</abbr>
     - Converts :math:`base^{exp}` into HTML sup/sub notation for OpenAPI
-    - Removes any RST footnote references like [#]_ or [1]_ or [label]_
+    - Converts ``inline code`` to <code>
+    - Converts **bold** to <strong>
+    - Converts *italic* to <em>
     """
 
     # Remove footnote references
@@ -46,5 +49,11 @@ def rst_to_openapi(text: str) -> str:
 
     # Handle code snippets
     text = re.sub(r"``(.*?)``", r"<code>\1</code>", text)
+
+    # Handle boldface
+    text = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", text)
+
+    # Handle italics
+    text = re.sub(r"\*(.*?)\*", r"<em>\1</em>", text)
 
     return text
