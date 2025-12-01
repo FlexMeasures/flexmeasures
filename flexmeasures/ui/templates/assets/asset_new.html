@@ -160,17 +160,17 @@
 
         // start covering pre-existing asset portfolio, then zoom in on parent asset
         assetMap.setView(center, zoom);
-        assetMap.flyTo(parentLocation, 17);
+        assetMap.flyTo(parentLocation, 17, { duration: 1.4 });
     {% else %}
         // start slightly zoomed out, then zoom in on pre-existing asset portfolio
         assetMap.setView(center, Math.max(zoom - 1, 1));
-        assetMap.flyTo(center, zoom);
+        assetMap.flyTo(center, zoom, { duration: 1.4 });
 
         // dummy location somewhere else (so only if there is no parent asset)
         var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
         {% if prompt_user_for_location %}
             const flyToPosition = (position) => {
-                assetMap.flyTo([position.coords.latitude, position.coords.longitude], 9);
+                assetMap.flyTo([position.coords.latitude, position.coords.longitude], 9, { duration: 1.4 });
             }
             navigator.geolocation.getCurrentPosition(flyToPosition);
         {% endif %}
