@@ -46,6 +46,7 @@ Bugfixes
 * Fix interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report`` [see `PR #1758 <https://github.com/FlexMeasures/flexmeasures/pull/1758>`_]
 * Let users search for flex context sensors on whole site tree again [see `PR #1826 <https://github.com/FlexMeasures/flexmeasures/pull/1826>`_]
 * Fix unintended date range hopping, a UI bug where date ranges set in URL parameters would be overridden by the user's previously selected date range (a session variable) [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
+* Fix off-center map markers [see `PR #1840 <https://github.com/FlexMeasures/flexmeasures/pull/1840>`_]
 * Resolved a crash in the "latest jobs" table when sorting was applied, and corrected a typo in the Jobs API Swagger UI documentation. [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
 * Enhance dates on UI(sensor page) to be human friendly when representing future dates [see `PR #1832 <https://github.com/FlexMeasures/flexmeasures/pull/1832>`_]
 * Fix spinner not disappearing on the asset graph page [see `PR #1831 <https://github.com/FlexMeasures/flexmeasures/pull/1831>`_]
