@@ -1663,19 +1663,7 @@ class SensorAPI(FlaskView):
 
             # Job finished → fetch forecasts from DB
             # search for forecasts linked to this job and sensor
-
-            # if not forecasts:
-            #     return invalid_flex_config("No forecasts found for this job.")
-
-            # # Format data for API output
-            # forecast_values = [
-            #     dict(
-            #         timestamp=f.event_start.isoformat(),
-            #         value=f.event_value,
-            #     )
-            #     for f in forecasts
-            # ]
-
+            data_source = get_data_source_for_job(job, type="forecasting")
             response = dict(
                 status="FINISHED",
                 job_id=job_id,
