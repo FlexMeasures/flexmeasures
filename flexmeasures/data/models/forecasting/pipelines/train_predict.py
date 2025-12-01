@@ -7,6 +7,7 @@ import sys
 import time
 import logging
 from datetime import datetime, timedelta
+import uuid
 
 from rq.job import Job
 
@@ -45,6 +46,7 @@ class TrainPredictPipeline(Forecaster):
             setattr(self, k, v)
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
+        self.forecast_run_id = str(uuid.uuid4())
 
     def run_cycle(
         self,
