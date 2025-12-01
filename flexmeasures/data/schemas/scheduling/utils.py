@@ -25,7 +25,7 @@ def rst_to_openapi(text: str) -> str:
 
     text = re.sub(r":abbr:`([^`]+)`", abbr_repl, text)
 
-    # --- math superscript handling ---
+    # Handle math superscript
     def math_repl(match):
         expr = match.group(1)
 
@@ -43,5 +43,8 @@ def rst_to_openapi(text: str) -> str:
         return converted
 
     text = re.sub(r":math:`([^`]+)`", math_repl, text)
+
+    # Handle code snippets
+    text = re.sub(r"``(.*?)``", r"<code>\1</code>", text)
 
     return text
