@@ -1649,7 +1649,7 @@ class SensorAPI(FlaskView):
                     job_id=job_id,
                 )
                 d, s = request_processed()
-                return dict(**response, **d), s
+                return dict(**response), s
 
             if status == "failed":
                 # Return error message
@@ -1659,7 +1659,7 @@ class SensorAPI(FlaskView):
                     error=str(job.exc_info),
                 )
                 d, s = request_processed()
-                return dict(**response, **d), s
+                return dict(**response), s
 
             # Job finished → fetch forecasts from DB
             # search for forecasts linked to this job and sensor
