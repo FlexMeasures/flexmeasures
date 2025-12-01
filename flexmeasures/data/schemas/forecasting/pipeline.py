@@ -203,6 +203,7 @@ class ForecasterParametersSchema(Schema):
             start_date=start_date,
             end_date=data["end_date"],
             train_period_in_hours=train_period_in_hours,
+            max_training_period=max_training_period,
             predict_start=predict_start,
             predict_period_in_hours=retrain_frequency_in_hours,
             max_forecast_horizon=max_forecast_horizon,

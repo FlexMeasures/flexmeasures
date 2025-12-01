@@ -143,6 +143,7 @@ class Config(object):
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
     FLEXMEASURES_DEFAULT_DATASOURCE: str = "FlexMeasures"
+    FLEXMEASURES_DEFAULT_BOUNDING_BOX: tuple[tuple, tuple] = (54, 2), (50.732, 7.808)
     FLEXMEASURES_JOB_CACHE_TTL: int = (
         3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     )
@@ -162,6 +163,7 @@ class Config(object):
         # todo: expand with other js versions used in FlexMeasures
     )
     FLEXMEASURES_JSON_COMPACT = False
+    OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False

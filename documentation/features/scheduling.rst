@@ -57,83 +57,60 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
      - Example value
      - Description
    * - ``inflexible-device-sensors``
-     - ``[3,4]``
-     - Power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled.
-       Their power demand cannot be adjusted but still matters for finding the best schedule for other devices. Must be a list of integers.
+     - |INFLEXIBLE_DEVICE_SENSORS.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
    * - ``consumption-price``
-     - ``{"sensor": 5}``
-       or
-       ``"0.29 EUR/kWh"``
-     - The price of consuming energy. Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem. (This field replaced the ``consumption-price-sensor`` field. [#old_sensor_field]_)
+     - |CONSUMPTION_PRICE.example|
+     - .. include:: ../_autodoc/CONSUMPTION_PRICE.rst
    * - ``production-price``
-     - ``{"sensor": 6}``
-       or
-       ``"0.12 EUR/kWh"``
-     - The price of producing energy.
-       Can be (a sensor recording) market prices, but also CO₂ intensity - whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. (This field replaced the ``production-price-sensor`` field. [#old_sensor_field]_)
+     - |PRODUCTION_PRICE.example|
+     - .. include:: ../_autodoc/PRODUCTION_PRICE.rst
    * - ``site-power-capacity``
-     - ``"45kVA"``
-     - Maximum achievable power at the grid connection point, in either direction [#asymmetric]_.
-       Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#minimum_capacity_overlap]_
+     - |SITE_POWER_CAPACITY.example|
+     - .. include:: ../_autodoc/SITE_POWER_CAPACITY.rst
    * - ``site-consumption-capacity``
-     - ``"45kW"``
-     - Maximum consumption power at the grid connection point.
-       If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_
-       If a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.
-       Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
+     - |SITE_CONSUMPTION_CAPACITY.example|
+     - .. include:: ../_autodoc/SITE_CONSUMPTION_CAPACITY.rst
    * - ``site-production-capacity``
-     - ``"0kW"``
-     - Maximum production power at the grid connection point.
-       If ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_
-       If a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.
-       Otherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_
+     - |SITE_PRODUCTION_CAPACITY.example|
+     - .. include:: ../_autodoc/SITE_PRODUCTION_CAPACITY.rst
    * - ``site-peak-consumption``
-     - ``{"sensor": 7}``
-     - Current peak consumption.
-       Costs from peaks below it are considered sunk costs. Default to 0 kW.
+     - |SITE_PEAK_CONSUMPTION.example|
+     - .. include:: ../_autodoc/SITE_PEAK_CONSUMPTION.rst
    * - ``relax-constraints``
-     - ``True``
-     - If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem,
-       leading to the default priority:
-
-       1. Avoid breaching the site consumption/production capacity.
-       2. Avoid not meeting SoC minima/maxima.
-       3. Avoid breaching the desired device consumption/production capacity.
-
-       We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
-       For tighter control over prices and priorities, the breach prices can also be set explicitly (see below).
+     - |RELAX_CONSTRAINTS.example|
+     - .. include:: ../_autodoc/RELAX_CONSTRAINTS.rst
    * - ``site-consumption-breach-price``
-     - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-consumption-capacity``, useful to treat ``site-consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the consumption capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
+     - |SITE_CONSUMPTION_BREACH_PRICE.example|
+     - .. include:: ../_autodoc/SITE_CONSUMPTION_BREACH_PRICE.rst
    * - ``site-production-breach-price``
-     - ``"1000 EUR/kW"``
-     - The price of breaching the ``site-production-capacity``, useful to treat ``site-production-capacity`` as a soft constraint but still make the scheduler attempt to respect it.
-       Can be (a sensor recording) contractual penalties, but also a theoretical penalty just to allow the scheduler to breach the production capacity, while influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_
+     - |SITE_PRODUCTION_BREACH_PRICE.example|
+     - .. include:: ../_autodoc/SITE_PRODUCTION_BREACH_PRICE.rst
    * - ``site-peak-consumption-price``
-     - ``"260 EUR/MW"``
-     - Consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price. [#penalty_field]_
+     - |SITE_PEAK_CONSUMPTION_PRICE.example|
+     - .. include:: ../_autodoc/SITE_PEAK_CONSUMPTION_PRICE.rst
    * - ``site-peak-production``
-     - ``{"sensor": 8}``
-     - Current peak production.
-       Costs from peaks below it are considered sunk costs. Default to 0 kW.
+     - |SITE_PEAK_PRODUCTION.example|
+     - .. include:: ../_autodoc/SITE_PEAK_PRODUCTION.rst
    * - ``site-peak-production-price``
-     - ``"260 EUR/MW"``
-     - Production peaks above the ``site-peak-production`` are penalized against this per-kW price. [#penalty_field]_
+     - |SITE_PEAK_PRODUCTION_PRICE.example|
+     - .. include:: ../_autodoc/SITE_PEAK_PRODUCTION_PRICE.rst
    * - ``soc-minima-breach-price``
-     - ``"120 EUR/kWh"``
-     - Penalty for not meeting ``soc-minima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+     - |SOC_MINIMA_BREACH_PRICE.example|
+     - .. include:: ../_autodoc/SOC_MINIMA_BREACH_PRICE.rst
    * - ``soc-maxima-breach-price``
-     - ``"120 EUR/kWh"``
-     - Penalty for not meeting ``soc-maxima`` defined in the flex-model. [#penalty_field]_ [#breach_field]_
+     - |SOC_MAXIMA_BREACH_PRICE.example|
+     - .. include:: ../_autodoc/SOC_MAXIMA_BREACH_PRICE.rst
    * - ``consumption-breach-price``
-     - ``"10 EUR/kW"``
-     - The price of breaching the ``consumption-capacity`` in the flex-model, useful to treat ``consumption-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
+     - |CONSUMPTION_BREACH_PRICE.example|
+     - .. include:: ../_autodoc/CONSUMPTION_BREACH_PRICE.rst
    * - ``production-breach-price``
-     - ``"10 EUR/kW"``
-     - The price of breaching the ``production-capacity`` in the flex-model, useful to treat ``production-capacity`` as a soft constraint but still make the scheduler attempt to respect it. [#penalty_field]_ [#breach_field]_
+     - |PRODUCTION_BREACH_PRICE.example|
+     - .. include:: ../_autodoc/PRODUCTION_BREACH_PRICE.rst
 
-.. [#old_sensor_field] The old field only accepted an integer (sensor ID).
+.. [#old_consumption_price_field] This field replaced the ``consumption-price-sensor`` field, which only accepted an integer (sensor ID).
+
+.. [#old_production_price_field] This field replaced the ``production-price-sensor`` field, which only accepted an integer (sensor ID).
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
 
@@ -199,73 +176,65 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Example value
      - Description 
    * - ``soc-at-start``
-     - ``"3.1 kWh"``
-     - The (estimated) state of charge at the beginning of the schedule (defaults to 0). [#quantity_field]_
+     - |SOC_AT_START.example|
+     - .. include:: ../_autodoc/SOC_AT_START.rst
    * - ``soc-unit``
-     - ``"kWh"`` or ``"MWh"``
-     - The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).
-       However, we advise to mention the unit in each field explicitly (for instance, ``"3.1 kWh"`` rather than ``3.1``).
-       Enumerated option only.
+     - |SOC_UNIT.example|
+     - .. include:: ../_autodoc/SOC_UNIT.rst
    * - ``soc-min``
-     - ``"2.5 kWh"``
-     - A constant and non-negotiable lower boundary for all values in the schedule (defaults to 0).
-       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
+     - |SOC_MIN.example|
+     - .. include:: ../_autodoc/SOC_MIN.rst
    * - ``soc-max``
-     - ``"7 kWh"``
-     - A constant and non-negotiable upper boundary for all values in the schedule (defaults to max soc target, if provided).
-       If used, this is regarded as an unsurpassable physical limitation. [#quantity_field]_
+     - |SOC_MAX.example|
+     - .. include:: ../_autodoc/SOC_MAX.rst
    * - ``soc-minima``
-     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "8.2 kWh"}]``
-     - Set points that form user-defined lower boundaries, e.g. to target a full car battery in the morning (defaults to NaN values). [#maximum_overlap]_
+     - |SOC_MINIMA.example|
+     - .. include:: ../_autodoc/SOC_MINIMA.rst
    * - ``soc-maxima``
-     - ``{"value": "51 kWh", "start": "2024-02-05T12:00:00+01:00", "end": "2024-02-05T13:30:00+01:00"}``
-     - Set points that form user-defined upper boundaries at certain times (defaults to NaN values). [#minimum_overlap]_
+     - |SOC_MAXIMA.example|
+     - .. include:: ../_autodoc/SOC_MAXIMA.rst
    * - ``soc-targets``
-     - ``[{"datetime": "2024-02-05T08:00:00+01:00", value: "3.2 kWh"}]``
-     - Exact user-defined set point(s) that the scheduler needs to realize (defaults to NaN values).
+     - |SOC_TARGETS.example|
+     - .. include:: ../_autodoc/SOC_TARGETS.rst
    * - ``soc-gain``
-     - ``[".1kWh"]``
-     - SoC gain per time step, e.g. from a secondary energy source (defaults to zero).
-       Useful if energy is inserted by an external process (in-flow).
+     - |SOC_GAIN.example|
+     - .. include:: ../_autodoc/SOC_GAIN.rst
    * - ``soc-usage``
-     - ``[{"sensor": 23}]``
-     - SoC reduction per time step, e.g. from a load or heat sink (defaults to zero).
-       Useful if energy is extracted by an external process or there are dissipating losses (out-flow).
+     - |SOC_USAGE.example|
+     - .. include:: ../_autodoc/SOC_USAGE.rst
    * - ``roundtrip-efficiency``
-     - ``"90%"``
-     - Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be percent or ratio ``[0,1]`` (defaults to 100%). [#quantity_field]_
+     - |ROUNDTRIP_EFFICIENCY.example|
+     - .. include:: ../_autodoc/ROUNDTRIP_EFFICIENCY.rst
    * - ``charging-efficiency``
-     - ``".9"``
-     - Apply efficiency losses only at time of charging, not across roundtrip (defaults to 100%).
+     - |CHARGING_EFFICIENCY.example|
+     - .. include:: ../_autodoc/CHARGING_EFFICIENCY.rst
    * - ``discharging-efficiency``
-     - ``"90%"``
-     - Apply efficiency losses only at time of discharging, not across roundtrip (defaults to 100%).
+     - |DISCHARGING_EFFICIENCY.example|
+     - .. include:: ../_autodoc/DISCHARGING_EFFICIENCY.rst
    * - ``storage-efficiency``
-     - ``"99.9%"``
-     - This can encode losses over time, so each time step the energy is held longer leads to higher losses (defaults to 100%). Also read [#storage_efficiency]_ about applying this value per time step across longer time spans.
+     - |STORAGE_EFFICIENCY.example|
+     - .. include:: ../_autodoc/STORAGE_EFFICIENCY.rst
    * - ``prefer-charging-sooner``
-     - ``True``
-     - Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later. Boolean option only.
+     - |PREFER_CHARGING_SOONER.example|
+     - .. include:: ../_autodoc/PREFER_CHARGING_SOONER.rst
    * - ``prefer-curtailing-later``
-     - ``True``
-     - Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True). Boolean option only.
+     - |PREFER_CURTAILING_LATER.example|
+     - .. include:: ../_autodoc/PREFER_CURTAILING_LATER.rst
    * - ``power-capacity``
-     - ``"50kW"``
-     - Device-level power constraint. How much power can be applied to this asset (defaults to the Sensor attribute ``capacity_in_mw``). [#minimum_overlap]_
+     - |POWER_CAPACITY.example|
+     - .. include:: ../_autodoc/POWER_CAPACITY.rst
    * - ``consumption-capacity``
-     - ``{"sensor": 56}``
-     - Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_
+     - |CONSUMPTION_CAPACITY.example|
+     - .. include:: ../_autodoc/CONSUMPTION_CAPACITY.rst
    * - ``production-capacity``
-     - ``"0kW"`` (only consumption)
-     - Device-level power constraint on production. How much power can be supplied by this asset. For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
+     - |PRODUCTION_CAPACITY.example| (only consumption)
+     - .. include:: ../_autodoc/PRODUCTION_CAPACITY.rst
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
 .. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected. See :ref:`variable_quantities`.
 
 .. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
-
-.. [#storage_efficiency] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
 
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 

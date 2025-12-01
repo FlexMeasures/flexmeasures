@@ -18,7 +18,7 @@ from flexmeasures.data.services.generic_assets import (
 )
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
-    get_center_location_of_assets,
+    get_bounding_box_of_assets,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
@@ -105,7 +105,12 @@ class AssetCrudUI(FlaskView):
 
             asset_form = NewAssetForm()
             asset_form.with_options()
-            map_center = get_center_location_of_assets(user=current_user)
+            bounding_box = get_bounding_box_of_assets(user=current_user)
+
+            # If the bounding box is the server default, prompt the user to share their location
+            prompt_user_for_location = False
+            if bounding_box == current_app.config["FLEXMEASURES_DEFAULT_BOUNDING_BOX"]:
+                prompt_user_for_location = True
 
             parent_asset_name = ""
             account = None
@@ -127,7 +132,6 @@ class AssetCrudUI(FlaskView):
                 if parent_asset.latitude and parent_asset.longitude:
                     asset_form.latitude.data = parent_asset.latitude
                     asset_form.longitude.data = parent_asset.longitude
-                    map_center = parent_asset.latitude, parent_asset.longitude
 
             if account and not user_can_create_assets(account=account):
                 return unauthorized_handler(None, [])
@@ -139,7 +143,8 @@ class AssetCrudUI(FlaskView):
                 "assets/asset_new.html",
                 asset_form=asset_form,
                 msg="",
-                map_center=map_center,
+                bounding_box=bounding_box,
+                prompt_user_for_location=prompt_user_for_location,
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 parent_asset_name=parent_asset_name,
                 parent_asset_id=parent_asset_id,
@@ -267,16 +272,14 @@ class AssetCrudUI(FlaskView):
                     db.session.commit()
                     session["msg"] = "Creation was successful."
             if asset is None:
-                if asset_form.latitude.data and asset_form.longitude.data:
-                    map_center = asset_form.latitude.data, asset_form.longitude.data
-                else:
-                    map_center = get_center_location_of_assets(user=current_user)
+                # Display the errors
+                bounding_box = get_bounding_box_of_assets(user=current_user)
                 return render_flexmeasures_template(
                     "assets/asset_new.html",
                     asset_form=asset_form,
                     msg="Cannot create asset.",
                     parent_asset_id=asset_form.parent_asset_id.data or "",
-                    map_center=map_center,
+                    bounding_box=bounding_box,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
 
@@ -294,9 +297,11 @@ class AssetCrudUI(FlaskView):
                 db.session.commit()
                 session["msg"] = "Editing was successful."
             except ValidationError as ve:
+                db.session.rollback()
                 # we are redirecting to the properties page, there we cannot show errors in form
                 session["msg"] = f"Cannot edit asset: {ve.messages}"
             except Exception as exc:
+                db.session.rollback()
                 session["msg"] = "Cannot edit asset: An error occurred."
                 current_app.logger.error(exc)
 
@@ -392,10 +397,13 @@ class AssetCrudUI(FlaskView):
         while site_asset.parent_asset_id:
             site_asset = site_asset.parent_asset
 
+        from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
             site_asset=site_asset,
+            flex_model_schema=UI_FLEX_MODEL_SCHEMA,
             asset_flexmodel=json.dumps(asset.flex_model),
             available_units=available_units(),
             asset_summary=asset_summary,
