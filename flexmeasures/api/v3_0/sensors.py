@@ -1672,10 +1672,10 @@ class SensorAPI(FlaskView):
                 status="FINISHED",
                 job_id=job_id,
                 sensor=sensor.id,
-                forecasts=[],
+                forecasts=forecasts,
             )
             d, s = request_processed()
-            return dict(**response, **d), s
+            return dict(**response), s
 
         except Exception as e:
             current_app.logger.exception("Failed to get forecast job status.")
