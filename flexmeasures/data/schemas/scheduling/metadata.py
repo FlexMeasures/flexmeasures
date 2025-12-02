@@ -101,7 +101,7 @@ For large connections, this price is usually stated explicitly on the tariff she
     example="260 EUR/MW",
 )
 SOC_MINIMA_BREACH_PRICE = MetaData(
-    description="""This **penalty value** is used to discourage the violation of **soc-minima** constraints in the flex-model, which the scheduler will attempt to minimize.
+    description="""This **penalty value** is used to discourage the violation of ``soc-minima`` constraints in the flex-model, which the scheduler will attempt to minimize.
 It must use the same currency as the other price settings and cannot be negative.
 While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
@@ -110,7 +110,7 @@ Without this value, the soc-minima become hard constraints, which means that any
     example="120 EUR/kWh",
 )
 SOC_MAXIMA_BREACH_PRICE = MetaData(
-    description="""This **penalty value** is used to discourage the violation of **soc-maxima** constraints in the flex-model, which the scheduler will attempt to minimize.
+    description="""This **penalty value** is used to discourage the violation of ``soc-maxima`` constraints in the flex-model, which the scheduler will attempt to minimize.
 It must use the same currency as the other price settings and cannot be negative.
 While it's an **internal nudge** to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
@@ -119,7 +119,7 @@ Without this value, the soc-maxima become hard constraints, which means that any
     example="120 EUR/kWh",
 )
 CONSUMPTION_BREACH_PRICE = MetaData(
-    description="""This **penalty value** is used to discourage the violation of the **consumption-capacity** constraint in the flex-model.
+    description="""This **penalty value** is used to discourage the violation of the ``consumption-capacity`` constraint in the flex-model.
 It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.
 The scheduler will attempt to minimize this cost.
 It must use the same currency as the other price settings and cannot be negative. [#penalty_field]_ [#breach_field]_
@@ -127,7 +127,7 @@ It must use the same currency as the other price settings and cannot be negative
     example="10 EUR/kW",
 )
 PRODUCTION_BREACH_PRICE = MetaData(
-    description="""This **penalty value** is used to discourage the violation of the **production-capacity** constraint in the flex-model.
+    description="""This **penalty value** is used to discourage the violation of the ``production-capacity`` constraint in the flex-model.
 It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.
 The scheduler will attempt to minimize this cost.
 It must use the same currency as the other price settings and cannot be negative. [#penalty_field]_ [#breach_field]_
@@ -142,7 +142,7 @@ RELAX_CONSTRAINTS = MetaData(
 3. Avoid breaching the desired device consumption/production capacity.
 
 We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
-For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have **breach-price** in their name).
+For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have ``breach-price`` in their name).
 """,
     example=True,
 )
@@ -159,7 +159,7 @@ RELAX_SITE_CAPACITY_CONSTRAINTS = MetaData(
     example=True,
 )
 SITE_CONSUMPTION_BREACH_PRICE = MetaData(
-    description="""This **penalty value** is used to discourage the violation of the **site-consumption-capacity** constraint in the flex-context.
+    description="""This **penalty value** is used to discourage the violation of the ``site-consumption-capacity`` constraint in the flex-context.
 It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.
 The scheduler will attempt to minimize this cost.
 It must use the same currency as the other price settings and cannot be negative.
@@ -168,7 +168,7 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
     example="1000 EUR/kW",
 )
 SITE_PRODUCTION_BREACH_PRICE = MetaData(
-    description="""This **penalty value** is used to discourage the violation of the **site-production-capacity** constraint in the flex-context.
+    description="""This **penalty value** is used to discourage the violation of the ``site-production-capacity`` constraint in the flex-context.
 It effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.
 The scheduler will attempt to minimize this cost.
 It must use the same currency as the other price settings and cannot be negative.
@@ -201,14 +201,14 @@ Only kWh and MWh are allowed.
 SOC_MIN = MetaData(
     description="""A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).
 If used, this is regarded as an unsurpassable physical limitation.
-To set softer boundaries, use the **soc-minima** flex-model field instead together with the **soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
+To set softer boundaries, use the ``soc-minima`` flex-model field instead together with the ``soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
     example="2.5 kWh",
 )
 SOC_MAX = MetaData(
     description="""A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
 If used, this is regarded as an unsurpassable physical limitation.
-To set softer boundaries, use the **soc-maxima** flex-model field instead together with the **soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
+To set softer boundaries, use the ``soc-maxima`` flex-model field instead together with the ``soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
     example="7 kWh",
 )
