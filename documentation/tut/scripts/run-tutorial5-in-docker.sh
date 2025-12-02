@@ -17,18 +17,18 @@ echo "[TUTORIAL-RUNNER] Configure headroom reporter ..."
 
 echo "
 {
-   'weights' : {
-       'grid connection capacity' : 1.0,
-       'PV' : -1.0,
+   'weights': {
+       'grid connection capacity': 1.0,
+       'PV': -1.0,
    }
 }" > headroom-config.json
 docker cp headroom-config.json flexmeasures-server-1:/app
 
 echo "
 {
-    'input' : [{'name' : 'grid connection capacity','sensor' : 7},
-               {'name' : 'PV', 'sensor' : 3, 'sources' : [4]}],
-    'output' : [{'sensor' : 8}]
+    'input': [{'name': 'grid connection capacity', 'sensor': 7},
+               {'name': 'PV', 'sensor': 3, 'sources': [4]}],
+    'output': [{'sensor': 8}]
 }" > headroom-parameters.json
 docker cp headroom-parameters.json flexmeasures-server-1:/app
 
@@ -49,8 +49,8 @@ echo "[TUTORIAL-RUNNER] now the inflexible process ..."
 
 echo "
 {
-    'input' : [{'sensor' : 4}],
-    'output' : [{'sensor' : 9}]
+    'input': [{'sensor': 4}],
+    'output': [{'sensor': 9}]
 }" > inflexible-parameters.json
 
 docker cp inflexible-parameters.json flexmeasures-server-1:/app
@@ -67,8 +67,8 @@ echo "[TUTORIAL-RUNNER] now the breakable process ..."
 
 echo "
 {
-    'input' : [{'sensor' : 5}],
-    'output' : [{'sensor' : 10}]
+    'input': [{'sensor': 5}],
+    'output': [{'sensor': 10}]
 }" > breakable-parameters.json
 
 docker cp breakable-parameters.json flexmeasures-server-1:/app
@@ -86,8 +86,8 @@ echo "[TUTORIAL-RUNNER] now the breakable process ..."
 
 echo "
 {
-    'input' : [{'sensor' : 6}],
-    'output' : [{'sensor' : 11}]
+    'input' : [{'sensor': 6}],
+    'output' : [{'sensor': 11}]
 }" > shiftable-parameters.json
 
 docker cp shiftable-parameters.json flexmeasures-server-1:/app

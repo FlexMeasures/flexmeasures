@@ -120,13 +120,13 @@ In practice, we need to create the `config` and `parameters`:
     $ echo "
     $ {
     $     'input': [{'name': 'grid connection capacity', 'sensor': 7},
-    $                {'name': 'PV', 'sensor': 3, 'sources' : [4]}],
+    $                {'name': 'PV', 'sensor': 3, 'sources': [4]}],
     $     'output': [{'sensor': 8}]
     $ }" > headroom-parameters.json
 
 The output sensor (ID: 8) is actually the one created just to store that information - the headroom our battery has when considering solar production.
 
-We limit the PV input to the with source 4, which is the one created when we added the toy account and is associated with our solar forecasts. This way, we ensure that only the forecasted values are used in the report, and not (also) schedules from the 3rd tutorial.
+We limit the PV input to data with source 4, which is the one created when we added the toy account and is associated with our solar forecasts. This way, we ensure that only the forecasted values are used in the report, and not (also) schedules from the 3rd tutorial.
 
 Finally, we can create the report with the following command:
 
