@@ -33,7 +33,7 @@ Infrastructure / Support
 ----------------------
 * Updated dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_, `PR #1820 <https://www.github.com/FlexMeasures/flexmeasures/pull/1820>`_ and `PR #1842 <https://www.github.com/FlexMeasures/flexmeasures/pull/1842>`_]
 * Speed up data searches by refactoring our filter for selecting data from the latest version of a data generating model [see `PR #1698 <https://github.com/FlexMeasures/flexmeasures/pull/1698>`_]
-* Add new tutorial for PV curtailment and multi-asset scheduling [see `PR #1804 <https://github.com/FlexMeasures/flexmeasures/pull/1804>`_]
+* Add new tutorial for PV curtailment and multi-asset scheduling [see `PR #1804 <https://github.com/FlexMeasures/flexmeasures/pull/1804>`_ and `PR #1846 <https://github.com/FlexMeasures/flexmeasures/pull/1846>`_]
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
 * Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
 * Support skipping a ``PandasReporter`` transformation if any of its (keyword) arguments has no data [see `PR #1669 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
