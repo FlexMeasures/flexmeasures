@@ -153,14 +153,14 @@ class TrainPredictPipeline(Forecaster):
                 f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
             )
 
-            train_start = self._parameters["start_date"]
-            train_end = train_start + timedelta(
-                hours=self._parameters["train_period_in_hours"]
-            )
             predict_start = self._parameters["predict_start"]
             predict_end = predict_start + timedelta(
                 hours=self._parameters["predict_period_in_hours"]
             )
+            train_start = predict_start - timedelta(
+                hours=self._parameters["train_period_in_hours"]
+            )
+            train_end = predict_start
             counter = 0
 
             sensor_resolution = self._parameters["target"].event_resolution

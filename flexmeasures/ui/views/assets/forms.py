@@ -37,10 +37,22 @@ class AssetForm(FlaskForm):
         places=None,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
-    attributes = StringField("Other attributes (JSON)", default="{}")
+    attributes = StringField(
+        "Other attributes (JSON)",
+        default="{}",
+        description="Custom attributes as JSON, for custom functionality, e.g. used in plugins.",
+    )
     sensors_to_show_as_kpis = StringField(
         "Sensors to show as KPIs (JSON)",
         default="[]",
+        description="""List of sensor references to show as KPIs on the asset graph page.\n
+        Only supports sensors with a daily resolution.
+        Example entry: [{\"title\":\"My KPI\", \"sensor\": 14, \"function\": \"mean\"}].""",
+    )
+    external_id = StringField(
+        "External ID",
+        default=None,
+        description="ID for this asset in another system. Note: not being validated here.",
     )
 
     def validate_on_submit(self):
@@ -51,7 +63,6 @@ class AssetForm(FlaskForm):
             self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
-
         result = super().validate_on_submit()
         return result
 

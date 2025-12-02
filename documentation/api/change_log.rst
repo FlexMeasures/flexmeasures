@@ -29,7 +29,7 @@ v3.0-25 | 2025-07-24
 
 v3.0-24 | 2025-06-10
 """"""""""""""""""""
-- New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices.
+- New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ to schedule a site with multiple flexible devices.
 - Introduce new ``relax-constraints`` field in the ``flex-context`` to relax all eligible constraints with default breach prices.
 - Updated message for 404 Not Found on endpoints for managing assets: `/assets` (GET, POST) and `/assets/<id>` (GET, PATCH, DELETE).
 

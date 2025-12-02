@@ -54,6 +54,8 @@ def request_auth_token(args) -> tuple[dict, int]:
                 properties:
                   authentication_token:
                     type: string
+                    description: |
+                      Short-lived authentication token, which can be used in request headers using `{"Authorization": authentication_token}`.
         400:
           description: INVALID_REQUEST
         401:

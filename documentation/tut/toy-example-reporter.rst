@@ -1,6 +1,6 @@
 .. _tut_toy_schedule_reporter:
 
-Toy example IV: Computing reports
+Toy example V: Computing reports
 =====================================
 
 So far, we have worked on scheduling batteries and processes. Now, we are moving to one of the other three pillars of FlexMeasures: reporting. 

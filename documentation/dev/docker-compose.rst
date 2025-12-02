@@ -106,7 +106,7 @@ Next, we put a scheduling job in the worker's queue. This only works because we 
 
     $ flexmeasures add schedule --sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-        --flex-model '{"roundtrip-efficiency": "90%"}' --as-job
+        --flex-model '{"soc-min": "50 kWh"}' --as-job
 
 We should now see in the output of ``docker logs flexmeasures-worker-1`` something like the following:
 
@@ -153,6 +153,18 @@ Like in the original toy tutorial, we can also check in the server container's `
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+|
+
+.. note::
+    Actually, we keep scripts for the first 5 tutorial steps. You can run them easily (just do it in order):
+    
+    .. code-block:: bash
+
+        $ ./documentation/tut/scripts/run-tutorial-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial2-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial3-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial4-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial5-in-docker.sh
 
 
 Email Testing
