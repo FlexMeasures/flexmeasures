@@ -13,7 +13,7 @@ docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 7 --sta
 
 docker exec -it flexmeasures-server-1 flexmeasures show data-sources --show-attributes --id 6
 
-echo "[TUTORIAL-RUNNER] Configure reporter ..."
+echo "[TUTORIAL-RUNNER] Configure headroom reporter ..."
 
 echo "
 {
@@ -27,13 +27,13 @@ docker cp headroom-config.json flexmeasures-server-1:/app
 echo "
 {
     'input' : [{'name' : 'grid connection capacity','sensor' : 7},
-               {'name' : 'PV', 'sensor' : 3}],
+               {'name' : 'PV', 'sensor' : 3, 'sources' : [4]}],
     'output' : [{'sensor' : 8}]
 }" > headroom-parameters.json
 docker cp headroom-parameters.json flexmeasures-server-1:/app
 
 
-echo "[TUTORIAL-RUNNER] add report ..."
+echo "[TUTORIAL-RUNNER] add headroom report ..."
 
 docker exec -it flexmeasures-server-1 flexmeasures add report --reporter AggregatorReporter \
    --parameters headroom-parameters.json --config headroom-config.json \
