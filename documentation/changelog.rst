@@ -4,8 +4,10 @@ FlexMeasures Changelog
 **********************
 
 
-v0.30.0 | November XX, 2025
+v0.30.0 | December 02, 2025
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v030-forecasting-revamped/>`_.
 
 .. warning:: If you make use of ``flexmeasures add report`` with the ``--start-offset`` and/or ``--end-offset`` options (for instance, in a cron job), please check whether the report period logged by the CLI command still fits your use case.
              Your offsets may need to be adjusted in relation to your ``FLEXMEASURES_TIMEZONE`` config setting (its offset with respect to :abbr:`UTC (Coordinated Universal Time)`).
@@ -40,6 +42,7 @@ Infrastructure / Support
 * Improve performance of the endpoint profiler and support configuration using the new ``FLEXMEASURES_PROFILER_CONFIG`` setting [see `PR #1799 <https://www.github.com/FlexMeasures/flexmeasures/pull/1799>`_]
 * Use ``SimpleWorker`` instead of fork-based ``Worker`` on macOS to prevent segmentation faults when running ``flexmeasures jobs run-worker`` for development purposes on macOS. [see `PR #1818 <https://github.com/FlexMeasures/flexmeasures/pull/1818>`_]
 * Move flex model UI schema to server side [see `PR #1830 <https://github.com/FlexMeasures/flexmeasures/pull/1830>`_]
+* Fewer version details in OpenAPI specs, to make pre-commit step complain less [see `PR #1845 <https://github.com/FlexMeasures/flexmeasures/pull/1845>`_]
 
 Bugfixes
 -----------
