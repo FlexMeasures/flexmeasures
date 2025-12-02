@@ -7,6 +7,7 @@ from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
 )
 
+from collections import defaultdict
 from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for
 from flask_classful import FlaskView, route
@@ -1667,12 +1668,25 @@ class SensorAPI(FlaskView):
 
             forecasts = sensor.search_beliefs(
                 source=data_source,
-            )
+            ).reset_index()
+
+            forecast_by_event = defaultdict(list)
+
+            for row in forecasts.itertuples():
+                event_key = row.event_start.isoformat()
+
+                forecast_by_event[event_key].append({
+                    "event_start": row.event_start.isoformat(),
+                    "belief_time": row.belief_time.isoformat(),
+                    "cumulative_probability": row.cumulative_probability,
+                    "value": row.event_value,
+                })
+
             response = dict(
                 status="FINISHED",
                 job_id=job_id,
                 sensor=sensor.id,
-                forecasts=forecasts,
+                forecasts=forecast_by_event,
             )
             d, s = request_processed()
             return dict(**response), s
