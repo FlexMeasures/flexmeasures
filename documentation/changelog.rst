@@ -51,6 +51,7 @@ Bugfixes
 * Resolved a crash in the "latest jobs" table when sorting was applied, and corrected a typo in the Jobs API Swagger UI documentation. [see `PR #1821 <https://github.com/FlexMeasures/flexmeasures/pull/1821>`_]
 * Enhance dates on UI(sensor page) to be human friendly when representing future dates [see `PR #1832 <https://github.com/FlexMeasures/flexmeasures/pull/1832>`_]
 * Fix spinner not disappearing on the asset graph page [see `PR #1831 <https://github.com/FlexMeasures/flexmeasures/pull/1831>`_]
+* Fix links to API endpoint docs in Sphinx documentation [see `PR #1843 <https://github.com/FlexMeasures/flexmeasures/pull/1843>`_]
 
 v0.29.1 | November 5, 2025
 ============================
