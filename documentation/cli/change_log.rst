@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.30.0 | November xx, 2025
+since v0.30.0 | December 02, 2025
 =================================
 
 * Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more).
