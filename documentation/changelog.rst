@@ -42,7 +42,7 @@ Infrastructure / Support
 * Improve performance of the endpoint profiler and support configuration using the new ``FLEXMEASURES_PROFILER_CONFIG`` setting [see `PR #1799 <https://www.github.com/FlexMeasures/flexmeasures/pull/1799>`_]
 * Use ``SimpleWorker`` instead of fork-based ``Worker`` on macOS to prevent segmentation faults when running ``flexmeasures jobs run-worker`` for development purposes on macOS. [see `PR #1818 <https://github.com/FlexMeasures/flexmeasures/pull/1818>`_]
 * Move flex model UI schema to server side [see `PR #1830 <https://github.com/FlexMeasures/flexmeasures/pull/1830>`_]
-* Less version details in OpenAPI spes, to make pre-commit step complain less [see `PR #1845 <https://github.com/FlexMeasures/flexmeasures/pull/1845>`_]
+* Fewer version details in OpenAPI specs, to make pre-commit step complain less [see `PR #1845 <https://github.com/FlexMeasures/flexmeasures/pull/1845>`_]
 
 Bugfixes
 -----------
