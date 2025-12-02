@@ -128,13 +128,21 @@
 
     // create map
     var assetMap = L
-        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6})
+        .map('mapid')
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
             });
         });
     addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+
+    // compute bounds, center and zoom for covering pre-existing asset portfolio
+    bounds = L.latLngBounds({{ bounding_box | tojson }});
+    center = bounds.getCenter();
+    zoom = assetMap.getBoundsZoom(bounds);
+    // in case of a very small bounding box (e.g. representing a single point),
+    // zoom out slightly, just as far as you can while still making out the local buildings
+    zoom === 18 ? zoom = 17 : null
 
 
     var location_icon = new L.DivIcon({
@@ -146,15 +154,26 @@
     });
 
     {% if asset_form.latitude.data %}
-    // create marker for parent asset's location
-    var marker = L
-        .marker(
-            [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}],
-    { icon: location_icon }
-        ).addTo(assetMap);
+        // create marker for parent asset's location
+        parentLocation = [{{ asset_form.latitude.data | replace("None", 10) }}, {{ asset_form.longitude.data | replace("None", 10) }}]
+        var marker = L.marker(parentLocation, { icon: location_icon }).addTo(assetMap);
+
+        // start covering pre-existing asset portfolio, then zoom in on parent asset
+        assetMap.setView(center, zoom);
+        assetMap.flyTo(parentLocation, 17);
     {% else %}
-    // dummy location somewhere else
-    var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+        // start slightly zoomed out, then zoom in on pre-existing asset portfolio
+        assetMap.setView(center, Math.max(zoom - 1, 1));
+        assetMap.flyTo(center, zoom, { duration: 1.0 });
+
+        // dummy location somewhere else (so only if there is no parent asset)
+        var marker = new L.marker([100, 100], { icon: location_icon }).addTo(assetMap);
+        {% if prompt_user_for_location %}
+            const flyToPosition = (position) => {
+                assetMap.flyTo([position.coords.latitude, position.coords.longitude], 9);
+            }
+            navigator.geolocation.getCurrentPosition(flyToPosition);
+        {% endif %}
     {% endif %}
 
     assetMap.on('click', function (e) {

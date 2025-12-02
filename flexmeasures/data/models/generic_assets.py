@@ -7,10 +7,9 @@ import json
 from flask import current_app
 from flask_security import current_user
 import pandas as pd
-from sqlalchemy import select
-from sqlalchemy.engine import Row
+from sqlalchemy import select, and_
 from sqlalchemy.ext.hybrid import hybrid_method
-from sqlalchemy.sql.expression import func, text
+from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
@@ -1081,23 +1080,49 @@ def assets_share_location(assets: list[GenericAsset]) -> bool:
     return all([a.location == assets[0].location for a in assets])
 
 
-def get_center_location_of_assets(user: User | None) -> tuple[float, float]:
+def get_bounding_box_of_assets(
+    user: User | None,
+) -> tuple[tuple[float, float], tuple[float, float]]:
     """
-    Find the center position between all generic assets of the user's account.
+    Compute the bounding box covering all assets of the user's account,
+    correctly handling antimeridian crossings.
     """
-    query = (
-        "Select (min(latitude) + max(latitude)) / 2 as latitude,"
-        " (min(longitude) + max(longitude)) / 2 as longitude"
-        " from generic_asset"
-    )
     if user is None:
         user = current_user
-    query += f" where generic_asset.account_id = {user.account_id}"
-    locations: list[Row] = db.session.execute(text(query + ";")).fetchall()
-    if (
-        len(locations) == 0
-        or locations[0].latitude is None
-        or locations[0].longitude is None
-    ):
-        return 52.366, 4.904  # Amsterdam, NL
-    return locations[0].latitude, locations[0].longitude
+
+    # ORM query to fetch all lat/lng values
+    stmt = select(GenericAsset.latitude, GenericAsset.longitude).where(
+        and_(
+            GenericAsset.account_id == user.account_id,
+            GenericAsset.latitude.isnot(None),
+            GenericAsset.longitude.isnot(None),
+        )
+    )
+
+    results = db.session.execute(stmt).all()
+    if not results:
+        return current_app.config["FLEXMEASURES_DEFAULT_BOUNDING_BOX"]
+
+    def normalize_lng(lng: float) -> float:
+        """Wrap longitude to [-180, 180)"""
+        return ((lng + 180) % 360) - 180
+
+    lats = [row.latitude for row in results]
+    lngs = [normalize_lng(row.longitude) for row in results]
+
+    min_lat, max_lat = min(lats), max(lats)
+
+    sorted_lngs = sorted(lngs)
+    normal_span = sorted_lngs[-1] - sorted_lngs[0]
+    wrap_span = (sorted_lngs[0] + 360) - sorted_lngs[-1]
+
+    if wrap_span < normal_span:
+        # Wrapping eastward is shorter
+        min_lng, max_lng = sorted_lngs[-1], sorted_lngs[0] + 360
+    else:
+        min_lng, max_lng = sorted_lngs[0], sorted_lngs[-1]
+
+    return (
+        (min_lat, normalize_lng(min_lng)),
+        (max_lat, normalize_lng(max_lng)),
+    )
