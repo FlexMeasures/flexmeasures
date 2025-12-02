@@ -64,6 +64,7 @@ Bugfixes
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
 * Fix bug where removed flex-model fields don't show up under the dropdown for new fields, except after a page refresh [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1775>`_]
 * Fix bug in displaying user audit log (incl. expanding its API schema) [see `PR #1779 <https://github.com/FlexMeasures/flexmeasures/pull/1779>`_]
+* Support flex-context prices with SI-prefixed currencies (e.g. kEUR) [see `PR #1844 <https://github.com/FlexMeasures/flexmeasures/pull/1844>`_]
 
 
 v0.29.0 | October 14, 2025
