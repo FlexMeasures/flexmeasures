@@ -259,7 +259,7 @@ depending on the first target state of charge and the capabilities of the asset.
 
 Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
 
-For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_.
+For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_.
 
 Finally, are you interested in the linear programming details behind the storage scheduler?
 Then head over to :ref:`storage_device_scheduler`!
