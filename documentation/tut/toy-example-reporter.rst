@@ -108,9 +108,9 @@ In practice, we need to create the `config` and `parameters`:
 
     $ echo "
     $ {
-    $    'weights' : {
-    $        'grid connection capacity' : 1.0,
-    $        'PV' : -1.0,
+    $    'weights': {
+    $        'grid connection capacity': 1.0,
+    $        'PV': -1.0,
     $    }
     $ }" > headroom-config.json
 
@@ -119,9 +119,9 @@ In practice, we need to create the `config` and `parameters`:
 
     $ echo "
     $ {
-    $     'input' : [{'name' : 'grid connection capacity','sensor' : 7},
-    $                {'name' : 'PV', 'sensor' : 3}],
-    $     'output' : [{'sensor' : 8}]
+    $     'input': [{'name': 'grid connection capacity', 'sensor': 7},
+    $                {'name': 'PV', 'sensor': 3}],
+    $     'output': [{'sensor': 8}]
     $ }" > headroom-parameters.json
 
 The output sensor (ID: 8) is actually the one created just to store that information - the headroom our battery has when considering solar production.
@@ -177,8 +177,8 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input' : [{'sensor' : 4}],
-    $     'output' : [{'sensor' : 9}]
+    $     'input': [{'sensor': 4}],
+    $     'output': [{'sensor': 9}]
     $ }" > inflexible-parameters.json
 
 Create report:
@@ -205,8 +205,8 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input' : [{'sensor' : 5}],
-    $     'output' : [{'sensor' : 10}]
+    $     'input': [{'sensor': 5}],
+    $     'output': [{'sensor': 10}]
     $ }" > breakable-parameters.json
 
 Create report:
@@ -233,8 +233,8 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input' : [{'sensor' : 6}],
-    $     'output' : [{'sensor' : 11}]
+    $     'input': [{'sensor': 6}],
+    $     'output': [{'sensor': 11}]
     $ }" > shiftable-parameters.json
 
 Create report:
