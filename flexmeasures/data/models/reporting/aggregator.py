@@ -103,7 +103,7 @@ class AggregatorReporter(Reporter):
                     f"Missing attribute 'sources' for input sensor {sensor.id}: {sensor.name} (to identify one specific source). The field  `sources` is required when having data with multiple sources within the time window, to ensure only required data is used in the reporter. "
                     f"We found data from the following sources: {[source.id for source in unique_sources]}."
                 )
-            
+
             # drop all indexes but event_start
             df = df.droplevel([1, 2, 3])
 
