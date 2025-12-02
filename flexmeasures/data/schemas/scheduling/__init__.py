@@ -19,7 +19,7 @@ from flexmeasures.data.schemas.sensors import (
     SensorIdField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
-from flexmeasures.data.schemas.scheduling.utils import rst_to_openapi
+from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.utils.flexmeasures_inflection import p

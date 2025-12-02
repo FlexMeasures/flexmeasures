@@ -3,7 +3,7 @@ from typing import Type, cast
 
 from marshmallow import Schema, fields
 
-from flexmeasures.data.schemas.scheduling import rst_to_openapi
+from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     VariableQuantityOpenAPISchema,
