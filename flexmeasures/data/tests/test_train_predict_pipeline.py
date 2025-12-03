@@ -172,7 +172,7 @@ def test_train_predict_pipeline(
         assert expected_error[1] in str(e_info)
     else:
         pipeline = TrainPredictPipeline(config=config)
-        pipeline.compute(parameters=params)
+        pipeline_returns = pipeline.compute(parameters=params)
 
         # Check pipeline properties
         for attr in ("model",):
