@@ -48,7 +48,10 @@ SERVER_URL = "ws://127.0.0.1:5000"
 
 
 @pytest.mark.asyncio
-async def test_ping2_echo(ws):
+async def test_ping2_echo(connect_to_ws):
+
+    # Connect to WS endpoint
+    ws = await connect_to_ws("ping2")
 
     # Send a message
     await ws.send("hello")
