@@ -2,6 +2,8 @@ import threading
 import time
 
 import pytest
+import pytest_asyncio
+import websockets
 
 
 @pytest.fixture(scope="module")
@@ -16,3 +18,10 @@ def server(app):
     yield "ws://127.0.0.1:5005/ping2"
     srv.shutdown()
     thread.join()
+
+
+@pytest_asyncio.fixture
+async def ws(server):
+    """Provide an already connected WebSocket client to tests"""
+    async with websockets.connect(server) as websocket:
+        yield websocket
