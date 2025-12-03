@@ -204,6 +204,16 @@ def test_train_predict_pipeline(
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
         assert isinstance(pipeline_returns, list), "pipeline should return a list"
+        assert all(isinstance(item, dict) for item in pipeline_returns), "each item should be a dict"
+        for index, pipeline_return in enumerate(pipeline_returns):
+            if not dg_params["as_job"]:
+                assert {"data", "sensor"}.issubset(pipeline_return.keys())
+                assert pipeline_return["sensor"].id == dg_params["sensor_to_save"].id, "returned sensor should match sensor that forecasts will be saved into"
+                # assert forecasts == pipeline_return["data"], "returned data should match stored forecasts"
+            else:
+                assert f"job-{index}" in pipeline_return
+                assert isinstance(pipeline_return[f"job-{index}"], str)
+
         # Check DataGenerator configuration stored under DataSource attributes
         data_generator_config = source.attributes["data_generator"]["config"]
         assert data_generator_config["model"] == "CustomLGBM"
