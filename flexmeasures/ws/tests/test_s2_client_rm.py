@@ -1,9 +1,11 @@
-import argparse
+import pytest
+
 import logging
 import threading
 import datetime
 import uuid
 from typing import Callable
+import websockets
 
 from s2python.authorization.default_client import S2DefaultClient
 from s2python.generated.gen_s2_pairing import (
@@ -43,6 +45,21 @@ from s2python.message import S2Message
 
 logger = logging.getLogger("s2python")
 SERVER_URL = "ws://127.0.0.1:5000"
+
+
+@pytest.mark.asyncio
+async def test_ping2_echo(server):
+    async with websockets.connect(server) as ws:
+
+        # Send a message
+        await ws.send("hello")
+        resp = await ws.recv()
+        assert resp == "hello", "echo should return the same message"
+
+        # Trigger server-side close
+        await ws.send("close")
+        with pytest.raises(websockets.exceptions.ConnectionClosedOK):
+            await ws.recv(), "expected that, after sending 'close', server breaks loop; connection closes"
 
 
 class MyFRBCControlType(FRBCControlType):
