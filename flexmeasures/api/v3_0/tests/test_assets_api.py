@@ -707,7 +707,7 @@ def test_auth_upload_sensor_data(
     if not raise a validation error.
     """
     test_battery = add_battery_assets["Test battery"]
-    sensor = test_battery.sensors[2]  # kW
+    sensor = test_battery.sensors[2]  # this sensor has unit=kW
 
     csv_content = """Hour,price
     2021-01-01T00:10:00+00:00,40.3
