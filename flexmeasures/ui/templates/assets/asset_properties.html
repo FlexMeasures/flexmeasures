@@ -417,8 +417,7 @@
         // This variable is used to prevent reRenderForm from running on initial load
         let hasInitialized = false;
                 
-        const schemaSpecsString = '{{ flex_model_schema | tojson | safe  }}';
-        const schemaSpecs = JSON.parse(schemaSpecsString); 
+        const schemaSpecs = {{ flex_model_schema | tojson | safe  }};
         const assetFlexModelSchema = {};
         const FlexModelFieldValidTypes = {};
 

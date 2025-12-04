@@ -6,15 +6,6 @@
 #
 alabaster==1.0.0
     # via sphinx
-apispec[yaml]==6.8.4
-    # via
-    #   -r requirements/docs.in
-    #   apispec-webframeworks
-apispec-oneofschema==3.0.2
-    # via
-    #   -r requirements/docs.in
-apispec-webframeworks==1.2.0
-    # via -r requirements/docs.in
 attrs==25.4.0
     # via
     #   -c requirements/3.12/app.txt
@@ -67,7 +58,6 @@ mistune==3.1.4
 packaging==25.0
     # via
     #   -c requirements/3.12/app.txt
-    #   apispec
     #   sphinx
 picobox==4.0.0
     # via sphinxcontrib-openapi
@@ -79,7 +69,6 @@ pygments==2.19.2
 pyyaml==6.0.3
     # via
     #   -c requirements/3.12/app.txt
-    #   apispec
     #   sphinxcontrib-mermaid
     #   sphinxcontrib-openapi
 referencing==0.37.0
