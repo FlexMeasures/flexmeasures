@@ -3,10 +3,12 @@ from flask import url_for
 from flexmeasures.api.tests.utils import get_auth_token
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_admin_user@seita.nl"], indirect=True
-)
-def test_trigger_forecast_endpoint(app, setup_fresh_test_forecast_data, setup_roles_users_fresh_db, requesting_user,
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_trigger_forecast_endpoint(
+    app,
+    setup_fresh_test_forecast_data,
+    setup_roles_users_fresh_db,
+    requesting_user,
 ):
     """
     Test the trigger forecast endpoint.
