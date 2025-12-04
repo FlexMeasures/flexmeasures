@@ -95,6 +95,26 @@ The event_value should be a numeric value."
                                             </i>
                                         </label>
                                     </div>
+                                    
+                                    <div class="row mb-3 align-items-center pt-4">
+                                        <div class="col-md-3">
+                                            <label for="flexUnitsSelect" class="col-form-label d-flex align-items-center">
+                                                <span>Unit</span>
+                                                
+                                                <i
+                                                    class="fa fa-info-circle ms-1" 
+                                                    title="The selected unit is used to denote the unit of the data being uploaded. Note that a different unit can be selected here than the sensor's default unit. In that case, the data will be converted to the sensor's unit upon upload."
+                                                    style="color: white;"
+                                                >
+                                                </i>
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="col-md-9">
+                                            <select id="flexUnitsSelect" class="form-select" name="unit"></select>
+                                        </div>
+                                    </div>
+
                                     <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
                                         style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
                                         Upload file
@@ -103,6 +123,8 @@ The event_value should be a numeric value."
                                         <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                                         <span class="sr-only">Loading...</span>
                                     </div>
+
+                                    
                                 </form>
                             </fieldset>
                         </div>
@@ -267,6 +289,26 @@ The event_value should be a numeric value."
 <script>
     const apiBasePath = window.location.origin;
     const parentAssetId = "{{sensor.generic_asset.id}}"
+    let availableUnitsRawJSON = "{{ available_units | safe }}";
+    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
+    const availableUnits = JSON.parse(availableUnitsRawJSON);
+    
+    const flexUnitsSelect = document.getElementById('flexUnitsSelect');
+    
+    // Populate the units dropdown
+    availableUnits.forEach(unit => {
+        const option = document.createElement('option');
+        option.value = unit;
+        option.textContent = unit;
+        flexUnitsSelect.appendChild(option);
+    });
+
+    // Pre-select the current unit
+    const currentUnit = "{{ sensor.unit }}";
+    if (currentUnit) {
+        flexUnitsSelect.value = currentUnit;
+    }
+
 
     async function updateSensor(event) {
         event.preventDefault();

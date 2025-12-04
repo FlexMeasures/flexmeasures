@@ -49,7 +49,6 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
     SensorIdField,
     SensorDataFileSchema,
-    SensorDataFileDescriptionSchema,
 )
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas import AssetIdField
@@ -362,7 +361,11 @@ class SensorAPI(FlaskView):
         pass_ctx_to_loader=True,
     )
     def upload_data(
-        self, data: list[tb.BeliefsDataFrame], filenames: list[str], **kwargs
+        self,
+        data: list[tb.BeliefsDataFrame],
+        filenames: list[str],
+        unit: str | None = None,
+        **kwargs,
     ):
         """
         .. :quickref: Data; Upload sensor data by file
@@ -454,6 +457,7 @@ class SensorAPI(FlaskView):
             - Sensors
         """
         sensor = data[0].sensor
+
         AssetAuditLog.add_record(
             sensor.generic_asset,
             f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}",

@@ -44,7 +44,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             "power",
-            2,
+            3,
             False,
             False,
             200,
@@ -326,6 +326,7 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
     check_audit_log_event(
@@ -359,7 +360,53 @@ def test_upload_excel_file(client, requesting_user):
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
+
+
+@pytest.mark.parametrize(
+    "requesting_user, unit, expected_status",
+    [
+        ("test_prosumer_user_2@seita.nl", "m/s", 422),
+        ("test_prosumer_user_2@seita.nl", "kWh", 200),
+        ("test_prosumer_user_2@seita.nl", "kW", 200),
+    ],
+    indirect=["requesting_user"],
+)
+def test_auth_upload_sensor_data(
+    client, add_battery_assets, requesting_user, expected_status, unit
+):
+    """
+    Check if unit validation works fine for sensor data upload.
+
+    Expectation:
+    Unit sent to API should match unit of sensor being uploaded to (or be convertible to it),
+    if not raise a validation error.
+    """
+    test_battery = add_battery_assets["Test battery"]
+    sensor = test_battery.sensors[2]  # this sensor has unit=kW
+
+    csv_content = """Hour,price
+    2021-01-01T00:10:00+00:00,40.3
+    2021-01-01T00:20:00+00:00,40.3
+    2021-01-01T00:30:00+00:00,40.3
+    2021-01-01T00:40:00+00:00,40.3
+    2021-01-01T00:50:00+00:00,40.3
+    2021-01-01T01:00:00+00:00,40.3
+    """
+    import io
+
+    file_obj = io.BytesIO(csv_content.encode("utf-8"))
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": (file_obj, "data.csv"), "unit": unit},
+        content_type="multipart/form-data",
+    )
+    print("Response:\n%s" % response.status_code, expected_status)
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == expected_status
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
