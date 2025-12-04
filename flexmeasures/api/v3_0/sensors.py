@@ -1528,7 +1528,6 @@ class SensorAPI(FlaskView):
             Example:
             ```
             {
-              "sensor": 5,
               "end_date": "2025-10-15T00:00:00+01:00",
               "train_period": "P7D",
               "retrain_frequency": "PT24H",
