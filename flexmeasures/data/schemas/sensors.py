@@ -554,7 +554,7 @@ class SensorDataFileDescriptionSchema(Schema):
         data_key="belief-time-measured-instantly",
     )
     unit = fields.String(
-        required=True,
+        required=False,
         data_key="unit",
     )
 

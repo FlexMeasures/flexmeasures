@@ -3602,7 +3602,7 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.30.0.dev55"
+    "version": "0.28.1.dev56"
   },
   "openapi": "3.1.2",
   "components": {
@@ -4378,6 +4378,9 @@
               "null"
             ],
             "default": false
+          },
+          "unit": {
+            "type": "string"
           }
         },
         "additionalProperties": false
