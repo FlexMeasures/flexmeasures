@@ -5,8 +5,8 @@ Storage device scheduler: Linear model
 
 Introduction
 --------------
-This generic storage device scheduler is able to handle an EMS with multiple devices, with various types of constraints on the EMS level and on the device level,
-and with multiple market commitments on the EMS level.
+This generic storage device scheduler is able to handle a site with multiple devices, with various types of constraints on the site level and on the device level,
+and with multiple market commitments on the site level.
 
 A typical example is a house with many devices. The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption, negative for production). In practice, this generic scheduler is used in the **StorageScheduler** to schedule a storage device.
     
@@ -45,9 +45,9 @@ Symbol                              Variable in the Code                        
 :math:`\epsilon(d,j)`                 efficiencies                                       Stock energy losses.
 :math:`P_{max}(d,j)`                  device_derivative_max                              Maximum flow of device :math:`d` during time period :math:`j`.
 :math:`P_{min}(d,j)`                  device_derivative_min                              Minimum flow of device :math:`d` during time period :math:`j`.
-:math:`P^{ems}_{min}(j)`              ems_derivative_min                                 Minimum flow of the EMS during time period :math:`j`.
-:math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the EMS during time period :math:`j`.
-:math:`Commitment(c,j)`               commitment_quantity                                Commitment c (at EMS level) over time step :math:`j`.
+:math:`P^{ems}_{min}(j)`              ems_derivative_min                                 Minimum flow of the site's grid connection point during time period :math:`j`.
+:math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the site's grid connection point during time period :math:`j`.
+:math:`Commitment(c,j)`               commitment_quantity                                Commitment c (at site level) over time step :math:`j`.
 :math:`M`                             M                                                  Large constant number, upper bound of :math:`Power_{up}(d,j)` and :math:`|Power_{down}(d,j)|`.
 :math:`D(d,j)`                        stock_delta                                        Explicit energy gain or loss of device :math:`d` during time period :math:`j`.
 ================================ ================================================ ==============================================================================================================  
@@ -58,8 +58,8 @@ Variables
 ================================ ================================================ ==============================================================================================================  
 Symbol                              Variable in the Code                           Description
 ================================ ================================================ ==============================================================================================================  
-:math:`\Delta_{up}(c,j)`              commitment_upwards_deviation                       Upwards deviation from the power commitment :math:`c` of the EMS during time period :math:`j`.
-:math:`\Delta_{down}(c,j)`            commitment_downwards_deviation                     Downwards deviation from the power commitment :math:`c` of the EMS during time period :math:`j`.
+:math:`\Delta_{up}(c,j)`              commitment_upwards_deviation                       Upwards deviation from the power commitment :math:`c` of the site during time period :math:`j`.
+:math:`\Delta_{down}(c,j)`            commitment_downwards_deviation                     Downwards deviation from the power commitment :math:`c` of the site during time period :math:`j`.
 :math:`\Delta Stock(d,j)`                           n/a                                  Change of stock of device :math:`d` at the end of time period :math:`j`.
 :math:`P_{up}(d,j)`                   device_power_up                                    Upwards power of device :math:`d` during time period :math:`j`.
 :math:`P_{down}(d,j)`                 device_power_down                                  Downwards power of device :math:`d` during time period :math:`j`.
