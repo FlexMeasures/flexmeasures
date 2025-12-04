@@ -133,7 +133,7 @@ sensor_schema = SensorSchema()
     ],
     indirect=["requesting_user"],
 )
-def test_auth_fetch_sensors(
+def test_fetch_sensors(
     client,
     setup_api_test_data,
     add_battery_assets,
@@ -318,7 +318,7 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
     file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
 
     # Match what the schema expects
-    data = {"uploaded-files": file, "unit": sensor.unit}
+    data = {"uploaded-files": file}
 
     response = client.post(
         url_for("SensorAPI:upload_data", id=sensor.id),
@@ -352,7 +352,7 @@ def test_upload_excel_file(client, requesting_user):
     wb.save(file_stream)
     file_stream.seek(0)
 
-    data = {"uploaded-files": (file_stream, "test.xlsx"), "unit": "m³/h"}
+    data = {"uploaded-files": (file_stream, "test.xlsx")}
 
     response = client.post(
         url_for("SensorAPI:upload_data", id=1),
