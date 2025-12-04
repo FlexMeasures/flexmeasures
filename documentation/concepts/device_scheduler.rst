@@ -11,6 +11,7 @@ and with multiple market commitments on the site level.
 A typical example is a house with many devices. The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption, negative for production). In practice, this generic scheduler is used in the **StorageScheduler** to schedule a storage device.
     
 The solver minimizes the costs of deviating from the commitments.
+For a more detailed explanation of commitments in FlexMeasures, see :ref:`<commitments>`.
 
 
 

@@ -1,3 +1,5 @@
+.. _commitments:
+
 Commitments
 ===========
 
@@ -169,3 +171,9 @@ Grouping across time and devices
    documented here. When enabled, grouping over devices lets you express
    soft constraints that aggregate deviations across a set of devices,
    for example, an intermediate capacity constraint from a feeder shared by a group of devices (via **flow commitments**), or multiple power-to-heat devices that feed a shared thermal buffer (via **stock commitments**).
+
+
+Advanced: mathematical formulation
+----------------------------------
+
+For a compact formulation of how commitments enter the optimization problem, see :ref:`<storage_device_scheduler>`.
