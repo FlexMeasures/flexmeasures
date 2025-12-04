@@ -19,6 +19,7 @@ from flexmeasures.data.schemas.sensors import (
     SensorIdField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.utils.flexmeasures_inflection import p
@@ -465,87 +466,91 @@ EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
 UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "consumption-price": {
         "default": None,  # Refers to default value of the field
-        "description": metadata.CONSUMPTION_PRICE.description,
+        "description": rst_to_openapi(metadata.CONSUMPTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "production-price": {
         "default": None,
-        "description": metadata.PRODUCTION_PRICE.description,
+        "description": rst_to_openapi(metadata.PRODUCTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "site-power-capacity": {
         "default": None,
-        "description": metadata.SITE_POWER_CAPACITY.description,
+        "description": rst_to_openapi(metadata.SITE_POWER_CAPACITY.description),
         "example-units": ["kVA", "MVA"] + EXAMPLE_UNIT_TYPES["power"],
     },
     "site-production-capacity": {
         "default": None,
-        "description": metadata.SITE_PRODUCTION_CAPACITY.description,
+        "description": rst_to_openapi(metadata.SITE_PRODUCTION_CAPACITY.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-consumption-capacity": {
         "default": None,
-        "description": metadata.SITE_CONSUMPTION_CAPACITY.description,
+        "description": rst_to_openapi(metadata.SITE_CONSUMPTION_CAPACITY.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "soc-minima-breach-price": {
         "default": None,
-        "description": metadata.SOC_MINIMA_BREACH_PRICE.description,
+        "description": rst_to_openapi(metadata.SOC_MINIMA_BREACH_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "soc-maxima-breach-price": {
         "default": None,
-        "description": metadata.SOC_MAXIMA_BREACH_PRICE.description,
+        "description": rst_to_openapi(metadata.SOC_MAXIMA_BREACH_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "consumption-breach-price": {
         "default": None,
-        "description": metadata.CONSUMPTION_BREACH_PRICE.description,
+        "description": rst_to_openapi(metadata.CONSUMPTION_BREACH_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "production-breach-price": {
         "default": None,
-        "description": metadata.PRODUCTION_BREACH_PRICE.description,
+        "description": rst_to_openapi(metadata.PRODUCTION_BREACH_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-consumption-breach-price": {
         "default": None,
-        "description": metadata.SITE_CONSUMPTION_BREACH_PRICE.description,
+        "description": rst_to_openapi(
+            metadata.SITE_CONSUMPTION_BREACH_PRICE.description
+        ),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-production-breach-price": {
         "default": None,
-        "description": metadata.SITE_PRODUCTION_BREACH_PRICE.description,
+        "description": rst_to_openapi(
+            metadata.SITE_PRODUCTION_BREACH_PRICE.description
+        ),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-peak-consumption": {
         "default": None,
-        "description": metadata.SITE_PEAK_CONSUMPTION.description,
+        "description": rst_to_openapi(metadata.SITE_PEAK_CONSUMPTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-peak-production": {
         "default": None,
-        "description": metadata.SITE_PEAK_PRODUCTION.description,
+        "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-peak-consumption-price": {
         "default": None,
-        "description": metadata.SITE_PEAK_CONSUMPTION_PRICE.description,
+        "description": rst_to_openapi(metadata.SITE_PEAK_CONSUMPTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-peak-production-price": {
         "default": None,
-        "description": metadata.SITE_PEAK_PRODUCTION_PRICE.description,
+        "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "inflexible-device-sensors": {
         "default": [],
-        "description": metadata.INFLEXIBLE_DEVICE_SENSORS.description,
+        "description": rst_to_openapi(metadata.INFLEXIBLE_DEVICE_SENSORS.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "commitments": {
         "default": None,
-        "description": metadata.COMMITMENTS.description,
+        "description": rst_to_openapi(metadata.COMMITMENTS.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
 }
@@ -553,7 +558,7 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
 UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     "soc-min": {
         "default": None,
-        "description": metadata.SOC_MIN.description,
+        "description": rst_to_openapi(metadata.SOC_MIN.description),
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
@@ -562,7 +567,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-max": {
         "default": None,
-        "description": metadata.SOC_MAX.description,
+        "description": rst_to_openapi(metadata.SOC_MAX.description),
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
@@ -571,7 +576,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-minima": {
         "default": None,
-        "description": metadata.SOC_MINIMA.description,
+        "description": rst_to_openapi(metadata.SOC_MINIMA.description),
         "types": {
             "backend": "typeTwo",
             "ui": "A sensor which records the state of charge.",
@@ -580,7 +585,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-maxima": {
         "default": None,
-        "description": metadata.SOC_MAXIMA.description,
+        "description": rst_to_openapi(metadata.SOC_MAXIMA.description),
         "types": {
             "backend": "typeTwo",
             "ui": "A sensor which records the state of charge.",
@@ -589,7 +594,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-targets": {
         "default": None,
-        "description": metadata.SOC_TARGETS.description,
+        "description": rst_to_openapi(metadata.SOC_TARGETS.description),
         "types": {
             "backend": "typeTwo",
             "ui": "A sensor which records the state of charge.",
@@ -598,7 +603,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "state-of-charge": {
         "default": None,
-        "description": metadata.STATE_OF_CHARGE.description,
+        "description": rst_to_openapi(metadata.STATE_OF_CHARGE.description),
         "types": {
             "backend": "typeTwo",
             "ui": "A sensor which records the state of charge.",
@@ -607,7 +612,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-gain": {
         "default": [],
-        "description": metadata.SOC_GAIN.description,
+        "description": rst_to_openapi(metadata.SOC_GAIN.description),
         "types": {
             "backend": "typeFour",
             "ui": "Multiple settings possible - either fixed values or dynamic signals (via a sensor).",
@@ -616,7 +621,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "soc-usage": {
         "default": [],
-        "description": metadata.SOC_USAGE.description,
+        "description": rst_to_openapi(metadata.SOC_USAGE.description),
         "types": {
             "backend": "typeFour",
             "ui": "Multiple settings possible - either fixed values or dynamic signals (via a sensor).",
@@ -625,7 +630,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "roundtrip-efficiency": {
         "default": None,
-        "description": metadata.ROUNDTRIP_EFFICIENCY.description,
+        "description": rst_to_openapi(metadata.ROUNDTRIP_EFFICIENCY.description),
         "types": {
             "backend": "typeFive",
             "ui": "Fixed value only.",
@@ -634,7 +639,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "charging-efficiency": {
         "default": None,
-        "description": metadata.CHARGING_EFFICIENCY.description,
+        "description": rst_to_openapi(metadata.CHARGING_EFFICIENCY.description),
         "types": {
             "backend": "typeFive",
             "ui": "Fixed value only.",
@@ -643,7 +648,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "discharging-efficiency": {
         "default": None,
-        "description": metadata.DISCHARGING_EFFICIENCY.description,
+        "description": rst_to_openapi(metadata.DISCHARGING_EFFICIENCY.description),
         "types": {
             "backend": "typeFive",
             "ui": "Fixed value only.",
@@ -652,7 +657,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "storage-efficiency": {
         "default": None,
-        "description": metadata.STORAGE_EFFICIENCY.description,
+        "description": rst_to_openapi(metadata.STORAGE_EFFICIENCY.description),
         "types": {
             "backend": "typeFive",
             "ui": "Fixed value only.",
@@ -661,7 +666,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "prefer-charging-sooner": {
         "default": True,
-        "description": metadata.PREFER_CHARGING_SOONER.description,
+        "description": rst_to_openapi(metadata.PREFER_CHARGING_SOONER.description),
         "types": {
             "backend": "typeOne",
             "ui": "Boolean option only.",
@@ -670,7 +675,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "prefer-curtailing-later": {
         "default": True,
-        "description": metadata.PREFER_CURTAILING_LATER.description,
+        "description": rst_to_openapi(metadata.PREFER_CURTAILING_LATER.description),
         "types": {
             "backend": "typeOne",
             "ui": "Boolean option only.",
@@ -679,7 +684,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "power-capacity": {
         "default": None,
-        "description": metadata.POWER_CAPACITY.description,
+        "description": rst_to_openapi(metadata.POWER_CAPACITY.description),
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
@@ -688,7 +693,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "consumption-capacity": {
         "default": None,
-        "description": metadata.CONSUMPTION_CAPACITY.description,
+        "description": rst_to_openapi(metadata.CONSUMPTION_CAPACITY.description),
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",
@@ -697,7 +702,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "production-capacity": {
         "default": None,
-        "description": metadata.PRODUCTION_CAPACITY.description,
+        "description": rst_to_openapi(metadata.PRODUCTION_CAPACITY.description),
         "types": {
             "backend": "typeThree",
             "ui": "One fixed value or a dynamic signal (via a sensor).",

@@ -107,7 +107,7 @@ The result looks like this in your browser:
 ..    :scale: 40%
 
 
-From FlexMeasures, we are using the `[GET] /user <../api/v3_0.html#get--api-v3_0-user-(id)>`_ endpoint, which loads information about one user.
+From FlexMeasures, we are using the `[GET] /user <../api/v3_0.html#get--api-v3_0-user-id>`_ endpoint, which loads information about one user.
 Browse its documentation to learn about other information you could get.
 
 
@@ -245,7 +245,7 @@ Now we define a JavaScript function to ask the FlexMeasures API for a chart and 
 
 This function allows us to request a chart (actually, a JSON specification of a chart that can be interpreted by vega-lite), and then embed it within a ``div`` tag of our choice.
 
-From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-(id)-chart->`_ endpoint.
+From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-id-chart->`_ endpoint.
 Browse the endpoint documentation to learn more about it.
 
 .. note:: Endpoints in the developer API are still under development and are subject to change in new releases.

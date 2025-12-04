@@ -323,7 +323,7 @@ First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` 
 This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
 For instance, to add data as forecasts, use the ``--beliefcol`` parameter, to say precisely when these forecasts were made. Or add  ``--horizon`` for rolling forecasts if they all share the same horizon.
 
-Second, you can use the `POST /api/v3_0/sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-(id)-data>`_ endpoint in the FlexMeasures API to send meter data.
+Second, you can use the `POST /api/v3_0/sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-id-data>`_ endpoint in the FlexMeasures API to send meter data.
 
 You can also use the API to send forecast data. Similar to the ``add beliefs`` commands, you would use here the fields ``prior`` (to denote time of knowledge of data) or ``horizon`` (for rolling forecast data with equal horizon). Consult the documentation at :ref:`posting_sensor_data`.
 
