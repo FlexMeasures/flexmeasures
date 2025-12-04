@@ -703,7 +703,7 @@ def test_auth_upload_sensor_data(
     Check if unit validation works fine for sensor data upload.
 
     Expectation:
-    Unit sent to api should match unit of sensor being uploaded to (or be convertible to it),
+    Unit sent to API should match unit of sensor being uploaded to (or be convertible to it),
     if not raise a validation error.
     """
     test_battery = add_battery_assets["Test battery"]
