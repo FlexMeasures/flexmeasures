@@ -4,9 +4,9 @@
 #
 #    pip-compile --output-file=requirements/3.10/app.txt requirements/app.in
 #
-alembic==1.17.0
 adagio==0.2.6
     # via fugue
+alembic==1.17.0
     # via flask-migrate
 altair==5.5.0
     # via -r requirements/app.in
@@ -493,7 +493,7 @@ threadpoolctl==3.6.0
     # via
     #   scikit-learn
     #   statsforecast
-timely-beliefs[forecast]==3.2.3
+timely-beliefs[forecast]==3.3.0
     # via -r requirements/app.in
 timetomodel==0.7.3
     # via -r requirements/app.in
@@ -531,8 +531,8 @@ typing-extensions==4.15.0
     #   sqlalchemy
     #   typeguard
     #   typing-inspection
-typing-inspection==0.4.2
     #   u8darts
+typing-inspection==0.4.2
     # via pydantic
 tzdata==2025.2
     # via pandas

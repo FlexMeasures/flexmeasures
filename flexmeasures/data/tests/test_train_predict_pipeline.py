@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 import logging
-
+import pandas as pd
 from datetime import timedelta
 
 from marshmallow import ValidationError
@@ -133,7 +133,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         # )
     ],
 )
-def test_train_predict_pipeline(
+def test_train_predict_pipeline(  # noqa: C901
     app,
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
@@ -172,7 +172,7 @@ def test_train_predict_pipeline(
         assert expected_error[1] in str(e_info)
     else:
         pipeline = TrainPredictPipeline(config=config)
-        pipeline.compute(parameters=params)
+        pipeline_returns = pipeline.compute(parameters=params)
 
         # Check pipeline properties
         for attr in ("model",):
@@ -202,6 +202,31 @@ def test_train_predict_pipeline(
         assert "TrainPredictPipeline" in str(
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
+
+        assert isinstance(pipeline_returns, list), "pipeline should return a list"
+        assert all(
+            isinstance(item, dict) for item in pipeline_returns
+        ), "each item should be a dict"
+        for index, pipeline_return in enumerate(pipeline_returns):
+            if not dg_params["as_job"]:
+                assert {"data", "sensor"}.issubset(
+                    pipeline_return.keys()
+                ), "returned dict should have data and sensor keys"
+                assert (
+                    pipeline_return["sensor"].id == dg_params["sensor_to_save"].id
+                ), "returned sensor should match sensor that forecasts will be saved into"
+                try:
+                    pd.testing.assert_frame_equal(
+                        forecasts.sort_index(),
+                        pipeline_return["data"].sort_index(),
+                    )
+                except AssertionError as e:
+                    raise AssertionError(
+                        f"returned data should match stored forecasts: {e}"
+                    )
+            else:
+                assert f"job-{index}" in pipeline_return
+                assert isinstance(pipeline_return[f"job-{index}"], str)
 
         # Check DataGenerator configuration stored under DataSource attributes
         data_generator_config = source.attributes["data_generator"]["config"]

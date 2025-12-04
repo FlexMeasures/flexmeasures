@@ -52,7 +52,7 @@ The following minimal example gives you an idea of some meta information you can
 
 .. note:: It's possible to add arguments that describe the asset flexibility model and the flexibility (EMS) context in more detail.
           For example, for storage assets we support various state-of-charge parameters. For details on flexibility model and context,
-          see :ref:`describing_flexibility` and the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint.
+          see :ref:`describing_flexibility` and the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ endpoint.
         
 
 Finally, make your scheduler be the one that FlexMeasures will use for certain sensors:

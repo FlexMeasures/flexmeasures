@@ -1022,8 +1022,8 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.measures_power and not sensor.get_attribute(
-            "consumption_is_positive", False
+        if sensor.measures_power and sensor.get_attribute(
+            "consumption_is_positive", True
         ):
             sign = -1
 

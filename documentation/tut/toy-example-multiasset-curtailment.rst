@@ -55,7 +55,7 @@ Also, we want to create a situation with negative prices, so curtailment makes s
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/3/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/3/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
             :emphasize-lines: 14-18
@@ -184,7 +184,7 @@ Note that we are still passing in the flex-context with block price profiles her
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
 
