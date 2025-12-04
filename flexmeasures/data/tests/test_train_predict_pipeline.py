@@ -133,7 +133,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         # )
     ],
 )
-def test_train_predict_pipeline(
+def test_train_predict_pipeline(  # noqa: C901
     app,
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
