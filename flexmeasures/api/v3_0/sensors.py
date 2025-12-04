@@ -9,7 +9,7 @@ from flexmeasures.data.services.sensors import (
 
 from collections import defaultdict
 from werkzeug.exceptions import Unauthorized
-from flask import current_app, url_for
+from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
@@ -63,6 +63,9 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.data.models.forecasting import Forecaster
+from flexmeasures.cli.utils import get_data_generator
+
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
@@ -1526,13 +1529,9 @@ class SensorAPI(FlaskView):
             Example:
             ```
             {
-              "sensor": 2092,
-              "end_date": "2025-10-15T00:00:00+01:00",
-              "train_period": "P7D",
-              "retrain_frequency": "PT24H",
-              "max_forecast_horizon": "PT24H",
-              "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-              "probabilistic": false
+              "start_date": "2026-01-01T00:00:00+01:00",
+              "start_predict_date": "2026-01-15T00:00:00+01:00",
+              "end_date": "2026-01-17T00:00:00+01:00"
             }
             ```
           responses:
@@ -1542,25 +1541,16 @@ class SensorAPI(FlaskView):
                 application/json:
                   example:
                     status: "PROCESSED"
-                    forecast_job: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    forecast_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
                     message: "Forecasting job has been queued."
           tags:
             - Sensors
         """
 
-        from flask import request
-        from marshmallow import ValidationError
-        from flexmeasures.data.models.forecasting import Forecaster
-        from flexmeasures.cli.utils import get_data_generator
-        from flexmeasures.api.common.responses import (
-            invalid_flex_config,
-            request_processed,
-        )
-
         try:
             # Load and validate JSON payload
             parameters = request.get_json()
-
+            parameters["sensor"] = sensor.id
             # Ensure the forecast is run as a job on a forecasting queue
             parameters["as_job"] = True
 
@@ -1590,12 +1580,8 @@ class SensorAPI(FlaskView):
             # Commit DB transaction
             db.session.commit()
 
-            # Prepare response
-            response = dict(
-                forecast_jobs=job_ids,
-            )
             d, s = request_processed()
-            return dict(**response, **d), s
+            return dict(forecast_jobs=job_ids, **d), s
 
         except ValidationError as e:
             return invalid_flex_config(e.messages)
