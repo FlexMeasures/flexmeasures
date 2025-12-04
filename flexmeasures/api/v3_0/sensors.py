@@ -1659,6 +1659,8 @@ class SensorAPI(FlaskView):
                 start=job.kwargs.get("predict_start"),
                 end=job.kwargs.get("predict_end"),
                 source=data_source,
+                most_recent_beliefs_only=True,
+                use_latest_version_per_event=True,
             ).reset_index()
 
             forecast_by_event = defaultdict(list)
