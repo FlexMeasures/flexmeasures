@@ -223,6 +223,7 @@ class TrainPredictPipeline(Forecaster):
                         ),
                         id=self.forecast_run_id,
                         meta={"data_source_info": {"id": self.data_source.id}},
+                        timeout=60 * 60,  # 1 hour
                     )
 
                     # Attach job to the corresponding forecast entry
