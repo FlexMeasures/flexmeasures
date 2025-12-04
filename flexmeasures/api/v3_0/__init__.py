@@ -87,7 +87,9 @@ def create_openapi_specs(app: Flask):
 
     spec = APISpec(
         title="FlexMeasures",
-        version=fm_version,
+        version=".".join(
+            fm_version.split(".")[:3]
+        ),  # only keep major, minor and patch parts
         openapi_version=app.config["OPENAPI_VERSION"],
         plugins=[FlaskPlugin(), MarshmallowPlugin()],
     )

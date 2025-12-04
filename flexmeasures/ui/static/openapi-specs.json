@@ -3602,7 +3602,7 @@
   },
   "info": {
     "title": "FlexMeasures",
-    "version": "0.28.1.dev56"
+    "version": "0.30.0"
   },
   "openapi": "3.1.2",
   "components": {
@@ -3680,29 +3680,29 @@
         "type": "object",
         "properties": {
           "consumption-breach-price": {
-            "description": "This **penalty value** is used to discourage the violation of the **consumption-capacity** constraint in the flex-model.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>consumption-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
             "example": "10 EUR/kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "production-breach-price": {
-            "description": "This **penalty value** is used to discourage the violation of the **production-capacity** constraint in the flex-model.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>production-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
             "example": "10 EUR/kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima-breach-price": {
-            "description": "This **penalty value** is used to discourage the violation of **soc-minima** constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-maxima-breach-price": {
-            "description": "This **penalty value** is used to discourage the violation of **soc-maxima** constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an **internal nudge** to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "relax-constraints": {
             "type": "boolean",
             "default": false,
-            "description": "If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have **breach-price** in their name).\n",
+            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
             "example": true
           },
           "relax-soc-constraints": {
@@ -3742,27 +3742,27 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "production-price": {
-            "description": "The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit.",
+            "description": "The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the <code>consumption-price</code> unit.",
             "example": "0.12 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "site-production-capacity": {
-            "description": "Maximum production power at the site's grid connection point.\nIf ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used.\nIf a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
+            "description": "Maximum production power at the site's grid connection point.\nIf <code>site-power-capacity</code> is defined, the minimum between the <code>site-power-capacity</code> and <code>site-production-capacity</code> will be used.\nIf a <code>site-production-breach-price</code> is defined, the <code>site-production-capacity</code> becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
             "example": "0kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "site-consumption-capacity": {
-            "description": "Maximum consumption power at the site's grid connection point.\nIf ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used.\nIf a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
+            "description": "Maximum consumption power at the site's grid connection point.\nIf <code>site-power-capacity</code> is defined, the minimum between the <code>site-power-capacity</code> and <code>site-consumption-capacity</code> will be used.\nIf a <code>site-consumption-breach-price</code> is defined, the <code>site-consumption-capacity</code> becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
             "example": "45kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "site-consumption-breach-price": {
-            "description": "This **penalty value** is used to discourage the violation of the **site-consumption-capacity** constraint in the flex-context.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\nThe field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>site-consumption-capacity</code> constraint in the flex-context.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\nThe field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.\n",
             "example": "1000 EUR/kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "site-production-breach-price": {
-            "description": "This **penalty value** is used to discourage the violation of the **site-production-capacity** constraint in the flex-context.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\nThe field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.\"\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>site-production-capacity</code> constraint in the flex-context.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\nThe field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided.\"\n",
             "example": "1000 EUR/kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -4510,12 +4510,12 @@
           "soc-min": {
             "type": "string",
             "x-minimum": "0 MWh",
-            "description": "A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the **soc-minima** flex-model field instead together with the **soc-minima-breach-price`` field in the flex-context.\n",
+            "description": "A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
             "example": "2.5 kWh"
           },
           "soc-max": {
             "type": "string",
-            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the **soc-maxima** flex-model field instead together with the **soc-maxima-breach-price`` field in the flex-context.\n",
+            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
             "example": "7 kWh"
           },
           "power-capacity": {
@@ -4548,7 +4548,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
             "example": {
               "value": "51 kWh",
               "start": "2024-02-05T12:00:00+01:00",
@@ -4557,7 +4557,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
@@ -4582,7 +4582,7 @@
               "kWh",
               "MWh"
             ],
-            "description": "[Deprecated field] The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).\nTo avoid using this field, mention the unit in each field explicitly (for instance, ``\"3.1 kWh\"`` rather than ``3.1``).\nOnly kWh and MWh are allowed.\n",
+            "description": "[Deprecated field] The unit used to interpret any SoC related flex-model value that does not mention a unit itself (only applies to numeric values, so not to string values).\nTo avoid using this field, mention the unit in each field explicitly (for instance, <code>\"3.1 kWh\"</code> rather than <code>3.1</code>).\nOnly kWh and MWh are allowed.\n",
             "example": "kWh"
           },
           "state-of-charge": {
