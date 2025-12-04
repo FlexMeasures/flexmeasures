@@ -4,17 +4,19 @@ Commitments
 Overview
 --------
 
-A **Commitment** is the central economic abstraction used by FlexMeasures to
-express *soft constraints, preferences and market positions* in the scheduler.
+A **Commitment** is the economic abstraction FlexMeasures uses to express
+market positions and soft constraints (preferences) inside the scheduler.
+Commitments are converted to linear objective terms; all non-negotiable
+operational limits are modelled separately as Pyomo constraints.
 
 A commitment describes:
 
-- a **baseline quantity** over time (the target or assumed position), and
+- a **baseline quantity** over time (the contracted or preferred position), and
 - marginal prices for **upwards** and **downwards deviations** from that baseline.
 
 The scheduler converts all provided commitments into terms in the optimization
 objective function so that the solver *minimizes the total deviation cost*
-across the schedule horizon. Absolute physical limits (for example generator or
+across the schedule horizon. Absolute physical limitations (for example generator or
 line capacities) are *not* modelled as commitments — those are enforced as
 Pyomo constraints.
 
