@@ -1590,7 +1590,10 @@ class SensorAPI(FlaskView):
             return invalid_flex_config(str(e))
 
     @route("/<sensor>/forecasts/<job_id>", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(), "job_id": fields.Str(required=True)}, location="path")
+    @use_kwargs(
+        {"sensor": SensorIdField(), "job_id": fields.Str(required=True)},
+        location="path",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def check_forecasts(self, sensor: Sensor, job_id: str):
         """
@@ -1661,12 +1664,14 @@ class SensorAPI(FlaskView):
             for row in forecasts.itertuples():
                 event_key = row.event_start.isoformat()
 
-                forecast_by_event[event_key].append({
-                    "event_start": row.event_start.isoformat(),
-                    "belief_time": row.belief_time.isoformat(),
-                    "cumulative_probability": row.cumulative_probability,
-                    "value": row.event_value,
-                })
+                forecast_by_event[event_key].append(
+                    {
+                        "event_start": row.event_start.isoformat(),
+                        "belief_time": row.belief_time.isoformat(),
+                        "cumulative_probability": row.cumulative_probability,
+                        "value": row.event_value,
+                    }
+                )
 
             response = dict(
                 status="FINISHED",
