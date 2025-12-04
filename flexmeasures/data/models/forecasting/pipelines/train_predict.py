@@ -88,7 +88,6 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Training cycle completed in {train_runtime:.2f} seconds."
         )
-        self.data_source.attributes['data_generator']['config']['run_id'] = self.forecast_run_id
         # Make predictions
         predict_pipeline = PredictPipeline(
             future_regressors=self._parameters["future_regressors"],
