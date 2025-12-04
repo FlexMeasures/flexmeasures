@@ -96,9 +96,23 @@ The event_value should be a numeric value."
                                         </label>
                                     </div>
                                     
-                                    <div class="form-group pt-2">
-                                        <label for="flexUnitsSelect" class="form-label">Unit:</label>
-                                        <select id="flexUnitsSelect" class="form-select" name="unit"></select>
+                                    <div class="row mb-3 align-items-center pt-4">
+                                        <div class="col-md-3">
+                                            <label for="flexUnitsSelect" class="col-form-label d-flex align-items-center">
+                                                <span>Unit</span>
+                                                
+                                                <i
+                                                    class="fa fa-info-circle ms-1" 
+                                                    title="The selected unit is used to denote the unit of the data being uploaded. Note that a different unit can be selected here than the sensor's default unit. In that case, the data will be converted to the sensor's unit upon upload."
+                                                    style="color: white;"
+                                                >
+                                                </i>
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="col-md-9">
+                                            <select id="flexUnitsSelect" class="form-select" name="unit"></select>
+                                        </div>
                                     </div>
 
                                     <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
