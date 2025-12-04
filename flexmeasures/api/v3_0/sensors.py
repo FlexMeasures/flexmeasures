@@ -1656,6 +1656,8 @@ class SensorAPI(FlaskView):
             data_source = get_data_source_for_job(job, type="forecasting")
 
             forecasts = sensor.search_beliefs(
+                start=job.kwargs.get("predict_start"),
+                end=job.kwargs.get("predict_end"),
                 source=data_source,
             ).reset_index()
 
