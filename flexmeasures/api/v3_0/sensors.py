@@ -61,7 +61,6 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
-from flexmeasures.utils.unit_utils import convert_units
 
 
 # Instantiate schemes outside of endpoint logic to minimize response time
@@ -458,10 +457,6 @@ class SensorAPI(FlaskView):
             - Sensors
         """
         sensor = data[0].sensor
-        bdf = data[0]
-        from_unit = unit if unit is not None else sensor.unit
-        bdf["event_value"] = convert_units(bdf["event_value"], from_unit, sensor.unit)
-        data[0] = bdf
 
         AssetAuditLog.add_record(
             sensor.generic_asset,

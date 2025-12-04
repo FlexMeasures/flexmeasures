@@ -39,6 +39,7 @@ from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
     units_are_convertible,
+    convert_units,
 )
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
@@ -651,6 +652,16 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                 assert is_numeric_dtype(
                     df["event_value"]
                 ), "event values should be numeric"
+
+                from_unit = fields.get("unit", sensor.unit)
+                # determine from original frequency (as we might have resampled the data)
+                from_resolution = get_resolution_from_file(file)
+                df["event_value"] = convert_units(
+                    df["event_value"],
+                    from_unit,
+                    sensor.unit,
+                    event_resolution=from_resolution,
+                )
                 dfs.append(df)
             except Exception as e:
                 error_message = (
@@ -665,6 +676,16 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         fields["data"] = dfs
         fields["filenames"] = [file.filename for file in files]
         return fields
+
+
+def get_resolution_from_file(file: FileStorage) -> str | None:
+    """Try to determine the original resolution of the data in the uploaded file."""
+    file.seek(0)  # if it has been read before
+    df_orig = pd.read_csv(file, parse_dates=[0], index_col=0)
+    orig_freq = pd.infer_freq(df_orig.index)
+    if isinstance(orig_freq, str) and not orig_freq[0].isdigit():
+        orig_freq = "1" + orig_freq
+    return pd.Timedelta(orig_freq)
 
 
 class QuantitySchema(Schema):
