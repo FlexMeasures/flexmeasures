@@ -209,7 +209,9 @@ def test_train_predict_pipeline(
         ), "each item should be a dict"
         for index, pipeline_return in enumerate(pipeline_returns):
             if not dg_params["as_job"]:
-                assert {"data", "sensor"}.issubset(pipeline_return.keys()), "returned dict should have data and sensor keys"
+                assert {"data", "sensor"}.issubset(
+                    pipeline_return.keys()
+                ), "returned dict should have data and sensor keys"
                 assert (
                     pipeline_return["sensor"].id == dg_params["sensor_to_save"].id
                 ), "returned sensor should match sensor that forecasts will be saved into"
@@ -219,7 +221,9 @@ def test_train_predict_pipeline(
                         pipeline_return["data"].sort_index(),
                     )
                 except AssertionError as e:
-                    raise AssertionError(f"returned data should match stored forecasts: {e}")
+                    raise AssertionError(
+                        f"returned data should match stored forecasts: {e}"
+                    )
             else:
                 assert f"job-{index}" in pipeline_return
                 assert isinstance(pipeline_return[f"job-{index}"], str)
