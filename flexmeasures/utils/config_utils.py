@@ -47,7 +47,7 @@ flexmeasures_logging_config = {
     },
     "loggers": {
         "root": {"level": "INFO", "handlers": ["console", "file"], "propagate": True},
-        "s2python": {"propagate": True},
+        "s2python": {"level": "DEBUG", "propagate": True},
     },
 }
 
