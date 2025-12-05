@@ -72,7 +72,7 @@ def test_trigger_and_fetch_forecasts(
     1. Trigger forecasting job(s)
     2. Execute forecasting queue synchronously
     3. Fetch each job's results via /<sensor>/forecasts/<job_id>
-    4. Validate returned structure and content
+    4. Validate returned forecasts compared to forecasts ran directly via pipeline
     """
 
     client = app.test_client()
@@ -114,23 +114,30 @@ def test_trigger_and_fetch_forecasts(
         assert data["sensor"] == sensor.id
         assert "forecasts" in data
 
-        forecasts = data["forecasts"]
+        forecasts_1 = data["forecasts"]
 
         # forecasts is a dict keyed by event_start timestamps
-        assert isinstance(forecasts, dict)
-        assert len(forecasts) > 0
+        assert isinstance(forecasts_1, dict)
+        assert len(forecasts_1) > 0
 
         sensor = setup_fresh_test_forecast_data["solar-sensor-1"]
         payload['sensor'] = sensor.id
         pipeline = TrainPredictPipeline()
-        pipeline_returns = pipeline.compute(parameters=payload)
+        pipeline.compute(parameters=payload)
 
-        forecast_by_event = defaultdict(list)
+        forecasts = sensor.search_beliefs(
+            event_starts_after="2025-01-04T00:00:00+00:00",
+            event_ends_before="2025-01-04T04:00:00+00:00",
+            most_recent_beliefs_only=True,
+            use_latest_version_per_event=True,
+        ).reset_index()
 
-        for row in pipeline_returns[0]["data"].reset_index().itertuples():
+        forecast_2 = defaultdict(list)
+
+        for row in forecasts.itertuples():
             event_key = row.event_start.isoformat()
 
-            forecast_by_event[event_key].append(
+            forecast_2[event_key].append(
                 {
                     "event_start": row.event_start.isoformat(),
                     "belief_time": row.belief_time.isoformat(),
@@ -138,4 +145,5 @@ def test_trigger_and_fetch_forecasts(
                     "value": row.event_value,
                 }
             )
-        assert forecasts == forecast_by_event
+        breakpoint()
+        assert forecasts_1 == forecast_2
