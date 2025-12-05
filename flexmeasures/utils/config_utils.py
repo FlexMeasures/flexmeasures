@@ -26,6 +26,7 @@ flexmeasures_logging_config = {
     "version": 1,
     "formatters": {
         "default": {"format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s"},
+        "s2python": {"format": "\033[94m[FLEXMEASURES][%(asctime)s][s2-python] %(levelname)s: %(message)s\033[0m"},  # blue
         "detail": {
             "format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s [logged in %(pathname)s:%(lineno)d]"
         },
@@ -35,6 +36,11 @@ flexmeasures_logging_config = {
             "class": "logging.StreamHandler",
             "stream": sys.stdout,
             "formatter": "default",
+        },
+        "s2console": {   # handler specific to s2python
+            "class": "logging.StreamHandler",
+            "stream": sys.stdout,
+            "formatter": "s2python",
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -47,7 +53,7 @@ flexmeasures_logging_config = {
     },
     "loggers": {
         "root": {"level": "INFO", "handlers": ["console", "file"], "propagate": True},
-        "s2python": {"level": "DEBUG", "propagate": True},
+        "s2python": {"level": "DEBUG", "handlers": ["s2console"], "propagate": False},
     },
 }
 
