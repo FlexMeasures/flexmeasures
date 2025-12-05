@@ -220,8 +220,15 @@ def test_train_predict_pipeline(  # noqa: C901
                     pipeline_return["data"].sort_index(),
                 )
             else:
-                assert f"job-{index}" in pipeline_return
-                assert isinstance(pipeline_return[f"job-{index}"], str)
+                job_id = pipeline_return[f"job-{index}"]
+
+                # Check the job exists in the queue or registries
+                job = app.queues["forecasting"].fetch_job(job_id)
+                assert job is not None, f"Job {job_id} should exist"
+
+                # Check it's finished
+                finished_jobs = app.queues["forecasting"].finished_job_registry
+                assert job_id in finished_jobs, f"Job {job_id} should be in the finished registry"
 
         # Check DataGenerator configuration stored under DataSource attributes
         data_generator_config = source.attributes["data_generator"]["config"]
