@@ -215,15 +215,10 @@ def test_train_predict_pipeline(  # noqa: C901
                 assert (
                     pipeline_return["sensor"].id == dg_params["sensor_to_save"].id
                 ), "returned sensor should match sensor that forecasts will be saved into"
-                try:
-                    pd.testing.assert_frame_equal(
-                        forecasts.sort_index(),
-                        pipeline_return["data"].sort_index(),
-                    )
-                except AssertionError as e:
-                    raise AssertionError(
-                        f"returned data should match stored forecasts: {e}"
-                    )
+                pd.testing.assert_frame_equal(
+                    forecasts.sort_index(),
+                    pipeline_return["data"].sort_index(),
+                )
             else:
                 assert f"job-{index}" in pipeline_return
                 assert isinstance(pipeline_return[f"job-{index}"], str)
