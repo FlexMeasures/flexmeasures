@@ -963,8 +963,9 @@ class S2FlaskWSServerSync:
             )
 
     def _logger(self, websocket: Sock):
-        resource_id = self._websocket_to_resource[websocket]
-        dd = self._device_data[resource_id]
+        """Get the logger associated with the resource ID, or the app logger otherwise."""
+        resource_id = self._websocket_to_resource.get(websocket, "default_resource")
+        dd = self._device_data.get(resource_id)
         if hasattr(dd, "logger"):
             logger = dd.logger
         else:
