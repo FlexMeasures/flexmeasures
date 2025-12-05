@@ -203,7 +203,9 @@ def test_train_predict_pipeline(  # noqa: C901
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
-        assert isinstance(pipeline_returns, list) and len(pipeline_returns) > 0, "pipeline should return a non-empty list"
+        assert (
+            isinstance(pipeline_returns, list) and len(pipeline_returns) > 0
+        ), "pipeline should return a non-empty list"
         assert all(
             isinstance(item, dict) for item in pipeline_returns
         ), "each item should be a dict"
@@ -228,7 +230,9 @@ def test_train_predict_pipeline(  # noqa: C901
 
                 # Check it's finished
                 finished_jobs = app.queues["forecasting"].finished_job_registry
-                assert job_id in finished_jobs, f"Job {job_id} should be in the finished registry"
+                assert (
+                    job_id in finished_jobs
+                ), f"Job {job_id} should be in the finished registry"
 
         # Check DataGenerator configuration stored under DataSource attributes
         data_generator_config = source.attributes["data_generator"]["config"]
