@@ -305,6 +305,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
             password="testtest",
         )
     )
+    db.session.commit()
     return {user.username: user.id for user in new_users}
 
 
