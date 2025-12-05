@@ -6,6 +6,13 @@ FlexMeasures CLI Changelog
 
 since v0.30.0 | December 02, 2025
 =================================
+* Enhance `flexmeasures add forecasts` CLI command to display meaningful success messages:
+  - Shows number of forecast jobs created when `--as-job` is used.
+  - Shows number of forecast beliefs and unique belief times created when forecasts are computed directly.
+  - Displays an error message if no forecasts or jobs are produced.
+* `TrainPredictPipeline.compute()` now returns the actual results instead of an empty list:
+  - Direct computation (`--as-job=False`) returns dictionaries containing `data` (BeliefsDataFrame) and `sensor` (Sensor object).
+  - Queued computation (`--as-job=True`) returns a list of job dictionaries with job IDs.
 
 * Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more).
 * Fix the interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report``, which was not using the correct time at which the command was run; instead, that time was off by and offset corresponding to the offset between the ``FLEXMEASURES_TIMEZONE`` config setting and :abbr:`UTC (Coordinated Universal Time)`).
