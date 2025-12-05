@@ -1249,8 +1249,30 @@ def train_predict_pipeline(
     )
 
     try:
-        forecaster.compute(parameters=parameters)
-        click.secho("Successfully computed forecasts.", **MsgStyle.SUCCESS)
+        pipeline_returns = forecaster.compute(parameters=parameters)
+
+        # Empty result
+        if not pipeline_returns:
+            click.secho("No forecasts or jobs were created.", **MsgStyle.ERROR)
+            return
+
+        # as_job case → list of job dicts like {"job-1": "<uuid>"}
+        if parameters.get("as_job"):
+            n_jobs = len(pipeline_returns)
+            click.secho(f"Created {n_jobs} forecasting job(s).", **MsgStyle.SUCCESS)
+            return
+
+        # direct computation: list of dicts containing BeliefsDataFrames
+        total_beliefs = sum(len(item["data"]) for item in pipeline_returns)
+        unique_belief_times = {
+            ts
+            for item in pipeline_returns
+            for ts in item["data"].belief_time.unique()
+        }
+        click.secho(
+            f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
+            **MsgStyle.SUCCESS,
+        )
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
