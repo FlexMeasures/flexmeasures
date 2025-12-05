@@ -203,7 +203,7 @@ def test_train_predict_pipeline(  # noqa: C901
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
-        assert isinstance(pipeline_returns, list), "pipeline should return a list"
+        assert isinstance(pipeline_returns, list) and len(pipeline_returns) > 0, "pipeline should return a non-empty list"
         assert all(
             isinstance(item, dict) for item in pipeline_returns
         ), "each item should be a dict"
