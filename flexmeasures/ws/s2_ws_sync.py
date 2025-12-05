@@ -962,15 +962,15 @@ class S2FlaskWSServerSync:
                 f"{capitalize(sensor_name)} could not be saved as sensor data: {str(exc)}"
             )
 
-    def _logger(self, websocket: Sock):
+    def _logger(self, websocket: Sock) -> logging.Logger:
         """Get the logger associated with the resource ID, or the app logger otherwise."""
         resource_id = self._websocket_to_resource.get(websocket, "default_resource")
-        dd = self._device_data.get(resource_id)
+        dd: str | None = self._device_data.get(resource_id)
         if hasattr(dd, "logger"):
-            logger = dd.logger
+            lgr = dd.logger
         else:
-            logger = self.app.logger
-        return logger
+            lgr = self.app.logger
+        return lgr
 
     def _check_and_generate_instructions(
         self, resource_id: str, websocket: Sock
