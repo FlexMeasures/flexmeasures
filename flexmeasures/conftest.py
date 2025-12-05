@@ -1739,6 +1739,12 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
             "horizon": timedelta(hours=0),
             "resolution": timedelta(minutes=15),
         },
+        "solar-sensor-1": {
+            "unit": "kW",
+            "multiplier": 1000,
+            "horizon": timedelta(hours=0),
+            "resolution": timedelta(minutes=15),
+        },
     }
 
     time_slots = pd.date_range(
