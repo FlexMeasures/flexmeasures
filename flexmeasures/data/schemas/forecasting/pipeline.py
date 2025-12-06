@@ -33,7 +33,10 @@ class ForecasterParametersSchema(Schema):
         SensorIdField(),
         required=False,
     )
-    model_save_dir = fields.Str(required=True)
+    model_save_dir = fields.Str(
+        required=False,
+        load_default="flexmeasures/data/models/forecasting/artifacts/models",
+    )
     output_path = fields.Str(required=False, allow_none=True)
     start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
@@ -48,7 +51,7 @@ class ForecasterParametersSchema(Schema):
     forecast_frequency = DurationField(
         required=False, allow_none=True, load_default=timedelta(hours=1)
     )
-    probabilistic = fields.Bool(required=True)
+    probabilistic = fields.Bool(required=False, load_default=False)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
     missing_threshold = fields.Float(required=False, load_default=1.0)
