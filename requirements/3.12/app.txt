@@ -474,6 +474,7 @@ uniplot==0.21.4
     # via -r requirements/app.in
 urllib3==2.6.0
     # via
+    #   -r requirements/app.in
     #   requests
     #   sentry-sdk
 vl-convert-python==1.8.0

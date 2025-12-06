@@ -144,7 +144,7 @@ typing-extensions==4.15.0
     #   -c requirements/3.10/app.txt
     #   mistune
     #   referencing
-urllib3==2.5.0
+urllib3==2.6.0
     # via
     #   -c requirements/3.10/app.txt
     #   requests

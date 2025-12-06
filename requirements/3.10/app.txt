@@ -125,9 +125,7 @@ flask-migrate==4.1.0
 flask-principal==0.4.0
     # via flask-security-too
 flask-security-too[fsqla,mfa]==5.7.1
-    # via
-    #   -r requirements/app.in
-    #   flask-security-too
+    # via -r requirements/app.in
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
@@ -480,6 +478,7 @@ uniplot==0.21.4
     # via -r requirements/app.in
 urllib3==2.6.0
     # via
+    #   -r requirements/app.in
     #   requests
     #   sentry-sdk
 vl-convert-python==1.8.0
