@@ -149,7 +149,7 @@ typing-extensions==4.15.0
     #   deepmerge
     #   mistune
     #   referencing
-urllib3==2.5.0
+urllib3==2.6.0
     # via
     #   -c requirements/3.9/app.txt
     #   requests
