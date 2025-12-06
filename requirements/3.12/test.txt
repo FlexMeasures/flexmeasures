@@ -100,7 +100,7 @@ sortedcontainers==2.4.0
     # via fakeredis
 termcolor==3.2.0
     # via pytest-sugar
-urllib3==2.5.0
+urllib3==2.6.0
     # via
     #   -c requirements/3.12/app.txt
     #   requests

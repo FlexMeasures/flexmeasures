@@ -120,7 +120,7 @@ typing-extensions==4.15.0
     #   -c requirements/3.9/app.txt
     #   exceptiongroup
     #   fakeredis
-urllib3==2.5.0
+urllib3==2.6.0
     # via
     #   -c requirements/3.9/app.txt
     #   requests
