@@ -146,5 +146,5 @@ def test_trigger_and_fetch_forecasts(
                     "value": row.event_value,
                 }
             )
-        breakpoint()
+
         assert forecasts_1 == forecast_2
