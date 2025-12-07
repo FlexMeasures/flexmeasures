@@ -132,7 +132,7 @@ def test_trigger_and_fetch_forecasts(
         forecasts = sensor.search_beliefs(
             event_starts_after="2025-01-04T00:00:00+00:00",
             event_ends_before="2025-01-04T04:00:00+00:00",
-            source_type="forecast",
+            source_types="forecast",
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
         ).reset_index()
