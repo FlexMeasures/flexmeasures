@@ -165,7 +165,7 @@ Default: ``None``
 FLEXMEASURES_TOS_PAGE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A URL where users can see the terms of service under which FlexMeasures is being hosted.
+A URL where users can see the terms of service (TOS) under which FlexMeasures is being hosted.
 Will be displayed in the UI footer and on top of the OpenAPI docs page.
 
 Default: ``None``

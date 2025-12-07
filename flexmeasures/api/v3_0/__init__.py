@@ -94,7 +94,7 @@ def create_openapi_specs(app: Flask):
         f"Welcome to the {platform_name} API.<br/>"
         'This is a platform for smart energy scheduling (a "Cloud EMS").'
         "<br/><br/>"
-        "You can try out all these endpoints out if you are authenticated in the platform."
+        "You can try out all these endpoints if you are authenticated in the platform."
         "Or you can paste your API key token with the button on the right."
         "<br/><br/>"
         f"To authenticate your code, include an `{token_header_name}` header with your API key."
