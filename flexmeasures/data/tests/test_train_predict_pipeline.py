@@ -203,7 +203,9 @@ def test_train_predict_pipeline(  # noqa: C901
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
-        assert isinstance(pipeline_returns, list), "pipeline should return a list"
+        assert (
+            isinstance(pipeline_returns, list) and len(pipeline_returns) > 0
+        ), "pipeline should return a non-empty list"
         assert all(
             isinstance(item, dict) for item in pipeline_returns
         ), "each item should be a dict"
@@ -215,18 +217,22 @@ def test_train_predict_pipeline(  # noqa: C901
                 assert (
                     pipeline_return["sensor"].id == dg_params["sensor_to_save"].id
                 ), "returned sensor should match sensor that forecasts will be saved into"
-                try:
-                    pd.testing.assert_frame_equal(
-                        forecasts.sort_index(),
-                        pipeline_return["data"].sort_index(),
-                    )
-                except AssertionError as e:
-                    raise AssertionError(
-                        f"returned data should match stored forecasts: {e}"
-                    )
+                pd.testing.assert_frame_equal(
+                    forecasts.sort_index(),
+                    pipeline_return["data"].sort_index(),
+                )
             else:
-                assert f"job-{index}" in pipeline_return
-                assert isinstance(pipeline_return[f"job-{index}"], str)
+                job_id = pipeline_return[f"job-{index}"]
+
+                # Check the job exists in the queue or registries
+                job = app.queues["forecasting"].fetch_job(job_id)
+                assert job is not None, f"Job {job_id} should exist"
+
+                # Check it's finished
+                finished_jobs = app.queues["forecasting"].finished_job_registry
+                assert (
+                    job_id in finished_jobs
+                ), f"Job {job_id} should be in the finished registry"
 
         # Check DataGenerator configuration stored under DataSource attributes
         data_generator_config = source.attributes["data_generator"]["config"]
