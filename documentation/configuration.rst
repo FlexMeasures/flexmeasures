@@ -153,6 +153,26 @@ The path can be a complete URL or a relative from the app root.
 Default: ``""``
 
 
+FLEXMEASURES_SUPPORT_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can ask the FlexMeasures host for technical support.
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+FLEXMEASURES_TOS_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can see the terms of service under which FlexMeasures is being hosted.
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+
+
 .. _extra-css-config:
 
 FLEXMEASURES_EXTRA_CSS_PATH
