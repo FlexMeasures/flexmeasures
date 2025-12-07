@@ -1762,7 +1762,9 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
         )
         db.session.add(sensor)
 
-        random_seed = 42 if name == "irradiance-sensor" else 43  # to keep solar-sensor and solar-sensor-1 values the same
+        random_seed = (
+            42 if name == "irradiance-sensor" else 43
+        )  # to keep solar-sensor and solar-sensor-1 values the same
         seed(random_seed)
         values = [
             random() * (1 + np.sin(x / 15)) * config["multiplier"]

@@ -87,7 +87,9 @@ def test_trigger_and_fetch_forecasts(
     }
 
     trigger_url = url_for("SensorAPI:trigger_forecast", sensor=sensor.id)
-    trigger_res = client.post(trigger_url, json=payload, headers={"Authorization": token})
+    trigger_res = client.post(
+        trigger_url, json=payload, headers={"Authorization": token}
+    )
     assert trigger_res.status_code == 200
 
     trigger_json = trigger_res.get_json()
@@ -102,7 +104,9 @@ def test_trigger_and_fetch_forecasts(
 
     # Fetch forecasts for each job
     for job_id in job_ids:
-        fetch_url = url_for("SensorAPI:check_forecasts", sensor=sensor.id, job_id=job_id)
+        fetch_url = url_for(
+            "SensorAPI:check_forecasts", sensor=sensor.id, job_id=job_id
+        )
         res = client.get(fetch_url, headers={"Authorization": token})
         assert res.status_code == 200
 
@@ -121,14 +125,14 @@ def test_trigger_and_fetch_forecasts(
         assert len(forecasts_1) > 0
 
         sensor = setup_fresh_test_forecast_data["solar-sensor-1"]
-        payload['sensor'] = sensor.id
+        payload["sensor"] = sensor.id
         pipeline = TrainPredictPipeline()
         pipeline.compute(parameters=payload)
 
         forecasts = sensor.search_beliefs(
             event_starts_after="2025-01-04T00:00:00+00:00",
             event_ends_before="2025-01-04T04:00:00+00:00",
-            source_type='forecast',
+            source_type="forecast",
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
         ).reset_index()
