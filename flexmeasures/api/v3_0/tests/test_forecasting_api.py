@@ -1,5 +1,10 @@
+from flask import current_app
 import pytest
 from flask import url_for
+from flexmeasures.data.services.scheduling import (
+    get_data_source_for_job,
+)
+from rq.job import Job
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -129,10 +134,17 @@ def test_trigger_and_fetch_forecasts(
         pipeline = TrainPredictPipeline()
         pipeline.compute(parameters=payload)
 
+        # Fetch forecasting job from queue
+        queue = current_app.queues["forecasting"]
+        job = Job.fetch(job_id, connection=queue.connection)
+
+        # Fetch data source used in job
+        data_source = get_data_source_for_job(job, type="forecasting")
+
         forecasts = sensor.search_beliefs(
             event_starts_after="2025-01-04T00:00:00+00:00",
             event_ends_before="2025-01-04T04:00:00+00:00",
-            source_types="forecast",
+            source=data_source,
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
         ).reset_index()
