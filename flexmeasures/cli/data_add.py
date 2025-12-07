@@ -57,6 +57,7 @@ from flexmeasures.data.schemas import (
     LatitudeField,
     LongitudeField,
     SensorIdField,
+    AssetIdField,
 )
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -1104,7 +1105,7 @@ def add_holidays(
 )
 @click.option(
     "--max-training-period",
-    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). defaults to 1 year.",
+    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). Defaults to 1 year.",
 )
 @click.option(
     "--resolution",
@@ -1170,7 +1171,6 @@ def add_holidays(
 )
 @with_appcontext
 def train_predict_pipeline(
-    as_job,
     forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
@@ -1249,7 +1249,28 @@ def train_predict_pipeline(
     )
 
     try:
-        forecaster.compute(as_job=as_job, parameters=parameters)
+        pipeline_returns = forecaster.compute(parameters=parameters)
+
+        # Empty result
+        if not pipeline_returns:
+            click.secho("No forecasts or jobs were created.", **MsgStyle.ERROR)
+            return
+
+        # as_job case → list of job dicts like {"job-1": "<uuid>"}
+        if parameters.get("as_job"):
+            n_jobs = len(pipeline_returns)
+            click.secho(f"Created {n_jobs} forecasting job(s).", **MsgStyle.SUCCESS)
+            return
+
+        # direct computation: list of dicts containing BeliefsDataFrames
+        total_beliefs = sum(len(item["data"]) for item in pipeline_returns)
+        unique_belief_times = {
+            ts for item in pipeline_returns for ts in item["data"].belief_time.unique()
+        }
+        click.secho(
+            f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
+            **MsgStyle.SUCCESS,
+        )
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
@@ -1262,8 +1283,13 @@ def train_predict_pipeline(
     "--sensor",
     "power_sensor",
     type=SensorIdField(),
-    required=True,
     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--asset",
+    "asset",
+    type=AssetIdField(),
+    help="Create schedule for this asset. The flex model arg then needs to be a list with an entry for each relevant device sensor. Follow up with the asset's ID.",
 )
 @click.option(
     "--start",
@@ -1315,11 +1341,11 @@ def train_predict_pipeline(
 )
 def add_schedule(  # noqa C901
     power_sensor: Sensor,
+    asset: GenericAsset,
     start: datetime,
     duration: timedelta,
     scheduler_class: str,
     soc_at_start: ur.Quantity,
-    state_of_charge: Sensor | None = None,
     flex_context: str | None = None,
     flex_model: str | None = None,
     as_job: bool = False,
@@ -1331,25 +1357,57 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
-
+    asset_or_sensor = None
+    if not power_sensor and not asset:
+        click.secho(
+            "Either --sensor or --asset is required.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if power_sensor and asset:
+        click.secho(
+            "Do not supply both --sensor as well as --asset.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if asset:
+        asset_or_sensor = asset
+        if not isinstance(flex_model, list):
+            click.secho(
+                "When scheduling an asset, the flex-model is expected to be passed as a list, so that it can describe multiple devices.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+    else:
+        asset_or_sensor = power_sensor
+        if not isinstance(flex_model, dict):
+            click.secho(
+                "For scheduling one device (using the --sensor option), --flex-model should be a dict - the flex-model for the device.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
     scheduler_module = None
 
     if scheduler_class == "ProcessScheduler":
         scheduler_module = "flexmeasures.data.models.planning.process"
     elif scheduler_class == "StorageScheduler":
         scheduler_module = "flexmeasures.data.models.planning.storage"
-        if soc_at_start is None:
+        if soc_at_start is None and (
+            "soc-min" in flex_model or "soc-max" in flex_model
+        ):
+            # for asset scheduling, soc at start should be part of the flex model
             click.secho(
-                "For StorageScheduler, --soc-at-start is required.",
+                "For a storage device with SoC constraints, --soc-at-start is required.",
                 **MsgStyle.ERROR,
             )
             raise click.Abort()
+        if soc_at_start:
+            flex_model["soc-at-start"] = soc_at_start.to("%")
 
     scheduling_kwargs = dict(
         start=start,
         end=start + duration,
         belief_time=server_now(),
-        resolution=power_sensor.event_resolution,
         flex_model=flex_model,
         flex_context=flex_context,
         scheduler_specs={
@@ -1357,9 +1415,14 @@ def add_schedule(  # noqa C901
             "class": scheduler_class,
         },
     )
+    if power_sensor:
+        scheduling_kwargs["resolution"] = power_sensor.event_resolution
+    # otherwise, the scheduler will infer the resolution from the asset's device sensors
 
     if as_job:
-        job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
+        job = create_scheduling_job(
+            asset_or_sensor=asset_or_sensor, **scheduling_kwargs
+        )
         if job:
             click.secho(
                 f"New scheduling job {job.id} has been added to the queue.",
@@ -1367,7 +1430,7 @@ def add_schedule(  # noqa C901
             )
     else:
         success = make_schedule(
-            asset_or_sensor=get_asset_or_sensor_ref(power_sensor),
+            asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
             **scheduling_kwargs,
         )
         if success:
@@ -1770,6 +1833,7 @@ def add_toy_account(kind: str, name: str):
         unit: str = "MW",
         parent_asset_id: int | None = None,
         flex_context: dict | None = None,
+        flex_model: dict | None = None,
         **asset_attributes,
     ):
         asset_kwargs: Dict[str, Any] = {}
@@ -1777,6 +1841,8 @@ def add_toy_account(kind: str, name: str):
             asset_kwargs["parent_asset_id"] = parent_asset_id
         if flex_context is not None:
             asset_kwargs["flex_context"] = flex_context
+        if flex_model is not None:
+            asset_kwargs["flex_model"] = flex_model
 
         asset = get_or_create_model(
             GenericAsset,
@@ -1810,6 +1876,10 @@ def add_toy_account(kind: str, name: str):
         owner=db.session.get(Account, account_id),
         latitude=location[0],
         longitude=location[1],
+        flex_context={
+            "site-power-capacity": "500 kVA",
+            "consumption-price": {"sensor": day_ahead_sensor.id},
+        },
     )
     db.session.flush()
 
@@ -1820,10 +1890,11 @@ def add_toy_account(kind: str, name: str):
             "battery",
             "discharging",
             parent_asset_id=building_asset.id,
-            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
-            capacity_in_mw="500 kVA",
-            min_soc_in_mwh=0.05,
-            max_soc_in_mwh=0.45,
+            flex_model={
+                "power-capacity": "500 kVA",
+                "roundtrip-efficiency": "90%",
+                "soc-max": "450 kWh",
+            },
         )
 
         # create solar
@@ -1835,6 +1906,15 @@ def add_toy_account(kind: str, name: str):
         db.session.flush()
         battery = discharging_sensor.generic_asset
         battery.sensors_to_show = [
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {
+                "title": "Power flows",
+                "sensors": [production_sensor.id, discharging_sensor.id],
+            },
+        ]
+
+        # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
+        building_asset.sensors_to_show = [
             {"title": "Prices", "sensor": day_ahead_sensor.id},
             {
                 "title": "Power flows",
