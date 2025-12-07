@@ -243,6 +243,7 @@ if __name__ == "__main__":
             ),
             reconnect=True,
             verify_certificate=False,
+            bearer_token=pairing_token,
         )
 
         # Start S2 session with the connection details
