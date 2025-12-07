@@ -47,7 +47,6 @@ def create(  # noqa C901
     from flexmeasures.utils.config_utils import read_config, configure_logging
     from flexmeasures.utils.app_utils import set_secret_key, init_sentry
     from flexmeasures.utils.error_utils import add_basic_error_handlers
-    from flexmeasures.ws.s2_ws_sync import S2FlaskWSServerSync
 
     # Create app
 
@@ -60,7 +59,6 @@ def create(  # noqa C901
     from flexmeasures.ws import sock
 
     sock.init_app(app)
-    s2_ws = S2FlaskWSServerSync(app=app, sock=sock)  # noqa: F841
 
     if env is not None:  # overwrite
         app.config["FLEXMEASURES_ENV"] = env
@@ -246,9 +244,11 @@ def create(  # noqa C901
 
     @app.before_request
     def ws_connection_auth():
+        s2_ws = app.extensions["s2_ws_server"]
+        s2_ws.app = app
         # Check if this is the S2 WS connection route
         is_ws_connection = (
-            request.path == s2_ws.ws_path
+            request.path == s2_ws.blueprint.url_prefix
             and request.headers.get("Upgrade", "").lower() == "websocket"
         )
 
