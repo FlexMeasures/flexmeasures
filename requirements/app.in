@@ -68,4 +68,3 @@ werkzeug
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
 flask-sock
-s2-python[ws]
