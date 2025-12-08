@@ -11,7 +11,7 @@ Percentages can be converted to units of some physical capacity if a capacity is
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from moneyed import list_all_currencies, Currency
 import numpy as np
@@ -497,3 +497,64 @@ def convert_units(
             # int or float
             data = to_magnitudes[0]
     return data
+
+
+def parse_resolution(resolution_str):
+    """
+    Parses a resolution string (e.g., '10m', '30min', '1h') into a timedelta object.
+    """
+    import re
+
+    # Regular expression to capture the number and the unit (m/min/h)
+    match = re.match(r"(\d+)\s*(m|min|h)", resolution_str, re.I)
+    if not match:
+        raise ValueError(
+            f"Invalid resolution format: {resolution_str}. Use formats like '10m', '30min', '1h'."
+        )
+
+    value = int(match.group(1))
+    unit = match.group(2).lower()
+
+    if unit in ("m", "min"):
+        return timedelta(minutes=value)
+    elif unit == "h":
+        return timedelta(hours=value)
+    else:
+        # This would probably not be reached due to the regex, but just in case
+        raise ValueError(f"Unsupported time unit: {unit}")
+
+
+def generate_csv_content(start_time_str, num_intervals, resolution_str, price):
+    """
+    Generates a CSV-formatted string with a specified time resolution.
+
+    Args:
+        start_time_str (str): The starting timestamp (e.g., '2021-01-01T00:10:00+00:00').
+        num_intervals (int): The total number of rows/intervals to generate.
+        resolution_str (str): The interval length (e.g., '10m', '30min', '1h').
+        price (float): The price value to use for all rows.
+
+    Returns:
+        str: The generated CSV content.
+    """
+    # 1. Convert the starting time string to a datetime object
+    current_time = datetime.fromisoformat(start_time_str)
+
+    # 2. Parse the resolution string into a timedelta object
+    interval = parse_resolution(resolution_str)
+
+    # 3. Build the CSV content
+    csv_rows = ["Hour,price"]  # Header row
+
+    for _ in range(num_intervals):
+        # Format the timestamp back into the required string format
+        timestamp_str = current_time.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+        # Add new row to CSV content
+        csv_rows.append(f"{timestamp_str},{price}")
+
+        # Increment the time for the next interval
+        current_time += interval
+
+    # Join all rows
+    return "\n".join(csv_rows)

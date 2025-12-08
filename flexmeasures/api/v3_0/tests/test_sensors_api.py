@@ -17,7 +17,7 @@ from flexmeasures.api.v3_0.tests.utils import (
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
-from flexmeasures.utils.unit_utils import is_valid_unit
+from flexmeasures.utils.unit_utils import is_valid_unit, generate_csv_content
 
 
 sensor_schema = SensorSchema()
@@ -365,16 +365,60 @@ def test_upload_excel_file(client, requesting_user):
 
 
 @pytest.mark.parametrize(
-    "requesting_user, unit, expected_status",
+    "requesting_user, sensor_index, unit, resolution, price, expected_status",
     [
-        ("test_prosumer_user_2@seita.nl", "m/s", 422),
-        ("test_prosumer_user_2@seita.nl", "kWh", 200),
-        ("test_prosumer_user_2@seita.nl", "kW", 200),
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,
+            "m/s",
+            "1h",
+            45.3,
+            422,
+        ),  # this sensor has unit=kW
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,
+            "kWh",
+            "1h",
+            45.3,
+            200,
+        ),  # this sensor has unit=kW
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,
+            "kW",
+            "1h",
+            45.3,
+            200,
+        ),  # this sensor has unit=kW
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,
+            "MW",
+            "1h",
+            2,
+            200,
+        ),  # this sensor has unit=kW
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,
+            "kWh",
+            "30min",
+            10,
+            200,
+        ),  # this sensor has unit=kWh
     ],
     indirect=["requesting_user"],
 )
-def test_upload_sensor_data_with_distinct_units(
-    client, add_battery_assets, requesting_user, expected_status, unit
+def test_auth_upload_sensor_data_with_distinct_units(
+    client,
+    add_battery_assets,
+    requesting_user,
+    sensor_index,
+    unit,
+    resolution,
+    price,
+    expected_status,
 ):
     """
     Check if unit validation works fine for sensor data upload.
@@ -383,17 +427,19 @@ def test_upload_sensor_data_with_distinct_units(
     Unit sent to API should match unit of sensor being uploaded to (or be convertible to it),
     if not raise a validation error.
     """
+    start_date = (
+        "2025-01-01T00:10:00+00:00"  # This date would be used to generate CSV content
+    )
     test_battery = add_battery_assets["Test battery"]
-    sensor = test_battery.sensors[2]  # this sensor has unit=kW
+    sensor = test_battery.sensors[sensor_index]
 
-    csv_content = """Hour,price
-    2021-01-01T00:10:00+00:00,40.3
-    2021-01-01T00:20:00+00:00,40.3
-    2021-01-01T00:30:00+00:00,40.3
-    2021-01-01T00:40:00+00:00,40.3
-    2021-01-01T00:50:00+00:00,40.3
-    2021-01-01T01:00:00+00:00,40.3
-    """
+    csv_content = generate_csv_content(
+        start_time_str=start_date,
+        num_intervals=5,
+        resolution_str=resolution,
+        price=price,
+    )
+
     import io
 
     file_obj = io.BytesIO(csv_content.encode("utf-8"))
