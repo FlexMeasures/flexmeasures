@@ -21,6 +21,7 @@ from redis import Redis
 from rq import Queue
 
 from flexmeasures.data.services.job_cache import JobCache
+from flexmeasures.ws import sock
 
 
 def create(  # noqa C901
@@ -51,9 +52,6 @@ def create(  # noqa C901
     # as we need to know the ENV now (for it to be recognised by Flask()).
     load_dotenv()
     app = Flask("flexmeasures")
-
-    from flexmeasures.ws import sock
-
     sock.init_app(app)
 
     if env is not None:  # overwrite
