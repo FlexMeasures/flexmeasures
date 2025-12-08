@@ -408,7 +408,10 @@ class BasePipeline:
                         seconds=index_offset * target_sensor_resolution.total_seconds()
                     )
                     belief_time = first_belief_time + delta
-                    save_belief_time = self.save_belief_time + delta
+                    if pd.isna(self.save_belief_time):
+                        save_belief_time = belief_time
+                    else:
+                        save_belief_time = self.save_belief_time + delta
                     target_end = first_target_end + delta
                     forecast_end = first_forecast_end + delta
 
