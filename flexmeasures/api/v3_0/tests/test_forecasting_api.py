@@ -11,7 +11,7 @@ def test_trigger_forecast_endpoint(
     requesting_user,
 ):
     """
-    Test the trigger forecast endpoint.
+    Test that triggering forecasts enqueues RQ jobs and returns their job IDs.
     """
 
     client = app.test_client()
