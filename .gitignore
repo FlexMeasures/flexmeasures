@@ -54,4 +54,3 @@ venv*
 logs/
 *.dump
 iframe_figures/
-flexmeasures-env-311/

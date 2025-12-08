@@ -10,8 +10,7 @@ import os
 from pathlib import Path
 from datetime import date
 
-from flask import Flask, g, request, Response
-from flask_security import current_user
+from flask import Flask, g, request
 from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
@@ -21,9 +20,6 @@ from flask_cors import CORS
 from redis import Redis
 from rq import Queue
 
-from flexmeasures import User
-from flexmeasures.data import db
-from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.job_cache import JobCache
 
 
