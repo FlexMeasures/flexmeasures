@@ -142,6 +142,7 @@ class ForecasterParametersSchema(Schema):
         if data.get("start_predict_date") is None and data.get("train_period"):
 
             predict_start = data["start_date"] + data["train_period"]
+            save_belief_time = None
 
         if data.get("train_period") is None and data["start_date"] is None:
             train_period_in_hours = 30 * 24  # Set default train_period value to 30 days
