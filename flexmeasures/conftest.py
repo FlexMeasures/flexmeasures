@@ -966,21 +966,8 @@ def create_test_battery_assets(
     )
     db.session.add(test_battery_sensor)
 
-    test_battery_sensor_kwh = Sensor(
-        name="power (kWh)",
-        generic_asset=test_battery,
-        event_resolution=timedelta(minutes=30),
-        unit="kWh",
-        attributes=dict(
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
-        ),
-    )
-    db.session.add(test_battery_sensor_kwh)
-
     test_battery_sensor_kw = Sensor(
-        name="energy (kW)",
+        name="power (kW)",
         generic_asset=test_battery,
         event_resolution=timedelta(minutes=15),
         unit="kW",
@@ -991,6 +978,19 @@ def create_test_battery_assets(
         ),
     )
     db.session.add(test_battery_sensor_kw)
+
+    test_battery_sensor_kwh = Sensor(
+        name="energy (kW)",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=30),
+        unit="kWh",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+    db.session.add(test_battery_sensor_kwh)
 
     test_battery_no_prices = GenericAsset(
         name="Test battery with no known prices",

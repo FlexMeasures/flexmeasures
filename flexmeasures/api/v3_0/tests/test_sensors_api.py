@@ -369,7 +369,7 @@ def test_upload_excel_file(client, requesting_user):
     [
         (
             "test_prosumer_user_2@seita.nl",
-            2,
+            1,
             "m/s",
             "1h",
             45.3,
@@ -377,7 +377,7 @@ def test_upload_excel_file(client, requesting_user):
         ),  # this sensor has unit=kW
         (
             "test_prosumer_user_2@seita.nl",
-            1,
+            2,
             "kWh",
             "1h",
             45.3,
@@ -393,7 +393,7 @@ def test_upload_excel_file(client, requesting_user):
         ),  # this sensor has unit=MW
         (
             "test_prosumer_user_2@seita.nl",
-            2,
+            1,
             "MW",
             "1h",
             2,
@@ -401,7 +401,7 @@ def test_upload_excel_file(client, requesting_user):
         ),  # this sensor has unit=kW
         (
             "test_prosumer_user_2@seita.nl",
-            2,
+            1,
             "kWh",
             "30min",
             10,
@@ -432,7 +432,6 @@ def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefi
     )
     test_battery = add_battery_assets["Test battery"]
     sensor = test_battery.sensors[sensor_index]
-
     csv_content = generate_csv_content(
         start_time_str=start_date,
         num_intervals=5,
