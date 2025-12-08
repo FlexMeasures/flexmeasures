@@ -377,20 +377,20 @@ def test_upload_excel_file(client, requesting_user):
         ),  # this sensor has unit=kW
         (
             "test_prosumer_user_2@seita.nl",
-            2,
+            1,
             "kWh",
             "1h",
             45.3,
             200,
-        ),  # this sensor has unit=kW
+        ),  # this sensor has unit=kWh
         (
             "test_prosumer_user_2@seita.nl",
-            2,
-            "kW",
+            0,
+            "kWh",
             "1h",
             45.3,
             200,
-        ),  # this sensor has unit=kW
+        ),  # this sensor has unit=MW
         (
             "test_prosumer_user_2@seita.nl",
             2,
@@ -401,12 +401,12 @@ def test_upload_excel_file(client, requesting_user):
         ),  # this sensor has unit=kW
         (
             "test_prosumer_user_2@seita.nl",
-            1,
+            2,
             "kWh",
             "30min",
             10,
             200,
-        ),  # this sensor has unit=kWh
+        ),  # this sensor has unit=kW
     ],
     indirect=["requesting_user"],
 )
