@@ -1,4 +1,18 @@
 {
+  "info": {
+    "description": "Welcome to the FlexMeasures API.<br/>This is a platform for smart energy scheduling (a \"Cloud EMS\").<br/><br/>You can try out all these endpoints if you are authenticated in the platform.Or you can paste your API key token with the button on the right.<br/><br/>To authenticate your code, include an `Authorization` header with your API key.Also, check out the <a href=\"https://github.com/FlexMeasures/flexmeasures-client\" target=\"_blank\">Python client</a>.",
+    "contact": {
+      "name": "FlexMeasures Support",
+      "url": null
+    },
+    "termsOfService": null,
+    "title": "FlexMeasures",
+    "version": "0.31.0"
+  },
+  "externalDocs": {
+    "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
+    "url": "https://flexmeasures.readthedocs.io"
+  },
   "paths": {
     "/api/requestAuthToken": {
       "post": {
@@ -3599,10 +3613,6 @@
     "/api/dev/asset/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
     "/": {}
-  },
-  "info": {
-    "title": "FlexMeasures",
-    "version": "0.31.0"
   },
   "openapi": "3.1.2",
   "components": {
