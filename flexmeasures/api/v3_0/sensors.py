@@ -1522,7 +1522,6 @@ class SensorAPI(FlaskView):
           summary: Trigger forecasting job for one sensor
           description: |
             Launch a forecasting pipeline for the given sensor asynchronously.
-            This reuses the same validation as the CLI command `flexmeasures add forecasts`.
 
             Example:
             ```
@@ -1544,6 +1543,8 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+        # NOTE: This endpoint reuses the same validation logic as the
+        # `flexmeasures add forecasts` CLI command.
 
         try:
             # Load and validate JSON payload
