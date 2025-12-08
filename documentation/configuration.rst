@@ -470,7 +470,7 @@ SECURITY_TOKEN_AUTHENTICATION_HEADER
 
 Name of the header which carries the auth bearer token in API requests.
 
-.. warning:: If you change this, make sure your API clients know about this! For instance, FlexMeasure-Client expects the default.
+.. warning:: If you change this, make sure your API clients know about this! For instance, `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_. expects the default.
 
 Default: ``Authorization``
 
