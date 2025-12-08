@@ -980,7 +980,7 @@ def create_test_battery_assets(
     db.session.add(test_battery_sensor_kw)
 
     test_battery_sensor_kwh = Sensor(
-        name="energy (kW)",
+        name="energy (kWh)",
         generic_asset=test_battery,
         event_resolution=timedelta(minutes=30),
         unit="kWh",
