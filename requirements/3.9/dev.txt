@@ -36,9 +36,11 @@ importlib-metadata==8.7.0
     #   -c requirements/3.9/app.txt
     #   -c requirements/3.9/test.txt
     #   build
+librt==0.6.3
+    # via mypy
 mccabe==0.7.0
     # via flake8
-mypy==1.18.2
+mypy==1.19.0
     # via -r requirements/dev.in
 mypy-extensions==1.1.0
     # via
@@ -97,7 +99,7 @@ typing-extensions==4.15.0
     #   mypy
     #   setuptools-scm
     #   virtualenv
-virtualenv==20.35.3
+virtualenv==20.35.4
     # via pre-commit
 watchdog==6.0.0
     # via -r requirements/dev.in
