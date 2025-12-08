@@ -48,8 +48,9 @@ def test_trigger_forecast_endpoint(
     assert isinstance(forecast_jobs, list)
     assert len(forecast_jobs) >= 1
     for job_id in forecast_jobs:
-        assert isinstance(job_id, str)
-        assert len(job_id) > 0  # basic sanity check for UUID string
+        # Check the job exists in the queue or registries
+        job = app.queues["forecasting"].fetch_job(job_id)
+        assert job is not None, f"Job {job_id} should exist"
 
     # Optional: check status and message
     assert response_json["status"] == "PROCESSED"
