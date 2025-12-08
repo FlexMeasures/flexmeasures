@@ -410,7 +410,7 @@ def test_upload_excel_file(client, requesting_user):
     ],
     indirect=["requesting_user"],
 )
-def test_auth_upload_sensor_data_with_distinct_units(
+def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefix from function name
     client,
     add_battery_assets,
     requesting_user,
