@@ -1398,7 +1398,7 @@
                 </div>
 
                 {% endblock about %}
-
+               
                 {% block credits %}
                 <a href="#" data-bs-toggle="modal" data-bs-target="#Credits">Credits</a>.
 
@@ -1437,6 +1437,26 @@
                 </div>
                 </div>
                 {% endblock credits %}
+
+                <br/>
+
+ 
+                {% block support %}
+                
+                {% if FLEXMEASURES_SUPPORT_PAGE %}
+                <a href="{{ FLEXMEASURES_SUPPORT_PAGE }}" target="_blank" rel="noopener noreferrer">Get Support</a>.
+                {% endif %}
+                
+                {% endblock support %}
+
+                {% block termsofservice %}
+                
+                {% if FLEXMEASURES_TOS_PAGE %}
+                <a href="{{ FLEXMEASURES_TOS_PAGE }}" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
+                {% endif %}
+                
+                {% endblock termsofservice %}
+
 
                 {% block technical_info %}
                 {# We might render templates from plugins, where this meta info is not available #}
