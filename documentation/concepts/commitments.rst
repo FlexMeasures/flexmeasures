@@ -176,4 +176,4 @@ Grouping across time and devices
 Advanced: mathematical formulation
 ----------------------------------
 
-For a compact formulation of how commitments enter the optimization problem, see :ref:`<storage_device_scheduler>`.
+For a compact formulation of how commitments enter the optimization problem, see :ref:`storage_device_scheduler`.
