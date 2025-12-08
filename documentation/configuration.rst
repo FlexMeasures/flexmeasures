@@ -470,6 +470,8 @@ SECURITY_TOKEN_AUTHENTICATION_HEADER
 
 Name of the header which carries the auth bearer token in API requests.
 
+.. warning:: If you change this, make sure your API clients know about this! For instance, FlexMeasure-Client expects the default.
+
 Default: ``Authorization``
 
 SECURITY_TOKEN_MAX_AGE
@@ -477,13 +479,15 @@ SECURITY_TOKEN_MAX_AGE
 
 Maximal age of security tokens in seconds.
 
+.. note:: Token expiration time can be user-specific, see `SECURITY_TOKEN_EXPIRE_TIMESTAMP <https://flask-security-too.readthedocs.io/en/stable/configuration.html#SECURITY_TOKEN_EXPIRE_TIMESTAMP>`_.
+
 Default: ``60 * 60 * 6``  (six hours)
 
 SECURITY_TRACKABLE
 ^^^^^^^^^^^^^^^^^^
 
 Whether to track user statistics. Turning this on requires certain user fields.
-We do not use this feature, but we do track number of logins.
+FlexMeasures does not use this feature, but does track when a user was last seen and their number of logins.
 
 Default: ``False``
 
