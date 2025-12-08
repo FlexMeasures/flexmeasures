@@ -11,13 +11,14 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import (
+    generate_csv_content,
     get_sensor_post_data,
     check_audit_log_event,
 )
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
-from flexmeasures.utils.unit_utils import is_valid_unit, generate_csv_content
+from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 sensor_schema = SensorSchema()
@@ -365,7 +366,7 @@ def test_upload_excel_file(client, requesting_user):
 
 
 @pytest.mark.parametrize(
-    "requesting_user, sensor_index, unit, resolution, price, expected_status",
+    "requesting_user, sensor_index, date_unit, data_resolution, price, expected_status",
     [
         (
             "test_prosumer_user_2@seita.nl",
@@ -410,22 +411,20 @@ def test_upload_excel_file(client, requesting_user):
     ],
     indirect=["requesting_user"],
 )
-def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefix from function name
+def test_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefix from function name
     client,
     add_battery_assets,
     requesting_user,
     sensor_index,
-    unit,
-    resolution,
+    date_unit,
+    data_resolution,
     price,
     expected_status,
 ):
     """
     Check if unit validation works fine for sensor data upload.
-
-    Expectation:
-    Unit sent to API should match unit of sensor being uploaded to (or be convertible to it),
-    if not raise a validation error.
+    The target sensor has a kWh unit and event resolution of 30 minutes.
+    Incoming data can differ in both unit and resolution, so we check if the resulting data matches expectations.
     """
     start_date = (
         "2025-01-01T00:10:00+00:00"  # This date would be used to generate CSV content
@@ -435,7 +434,7 @@ def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefi
     csv_content = generate_csv_content(
         start_time_str=start_date,
         num_intervals=5,
-        resolution_str=resolution,
+        resolution_str=data_resolution,
         price=price,
     )
 
@@ -445,7 +444,7 @@ def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefi
 
     response = client.post(
         url_for("SensorAPI:upload_data", id=sensor.id),
-        data={"uploaded-files": (file_obj, "data.csv"), "unit": unit},
+        data={"uploaded-files": (file_obj, "data.csv"), "unit": date_unit},
         content_type="multipart/form-data",
     )
     print("Response:\n%s" % response.status_code, expected_status)
