@@ -63,6 +63,7 @@ def message_for_trigger_schedule(
     message = {
         "start": "2015-01-01T00:00:00+01:00",
         "duration": "PT24H",  # Will be extended in case of targets that would otherwise lie beyond the schedule's end
+        "resolution": "PT1H",  # The sensor resolution is 15 minutes, so we'll schedule more coarsely here
     }
     if unknown_prices:
         message["start"] = (
