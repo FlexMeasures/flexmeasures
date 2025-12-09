@@ -790,6 +790,16 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+
+        # Check if resolution is a multiple of the sensor resolution
+        if (
+            resolution is not None
+            and resolution % sensor.event_resolution != timedelta(0)
+        ):
+            raise ValidationError(
+                f"Resolution of {resolution} is incompatible with the sensor's required resolution of {sensor.event_resolution}."
+            )
+
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
             asset_or_sensor=sensor,
