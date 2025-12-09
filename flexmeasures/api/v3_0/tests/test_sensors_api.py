@@ -366,7 +366,7 @@ def test_upload_excel_file(client, requesting_user):
 
 
 @pytest.mark.parametrize(
-    "requesting_user, sensor_index, date_unit, data_resolution, price, expected_status",
+    "requesting_user, sensor_index, data_unit, data_resolution, price, expected_status",
     [
         (
             "test_prosumer_user_2@seita.nl",
@@ -416,7 +416,7 @@ def test_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefix fro
     add_battery_assets,
     requesting_user,
     sensor_index,
-    date_unit,
+    data_unit,
     data_resolution,
     price,
     expected_status,
@@ -444,7 +444,7 @@ def test_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefix fro
 
     response = client.post(
         url_for("SensorAPI:upload_data", id=sensor.id),
-        data={"uploaded-files": (file_obj, "data.csv"), "unit": date_unit},
+        data={"uploaded-files": (file_obj, "data.csv"), "unit": data_unit},
         content_type="multipart/form-data",
     )
     print("Response:\n%s" % response.status_code, expected_status)
