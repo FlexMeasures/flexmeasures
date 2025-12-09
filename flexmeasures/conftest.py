@@ -982,7 +982,7 @@ def create_test_battery_assets(
     test_battery_sensor_kwh = Sensor(
         name="energy (kWh)",
         generic_asset=test_battery,
-        event_resolution=timedelta(minutes=30),
+        event_resolution=timedelta(minutes=15),
         unit="kWh",
         attributes=dict(
             daily_seasonality=True,

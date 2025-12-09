@@ -4,7 +4,8 @@ from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import AccountContext
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, generate_csv_content
 
 
 @pytest.mark.parametrize(
@@ -73,3 +74,114 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
         select(GenericAsset).filter_by(id=existing_asset_id)
     ).scalar_one_or_none()
     assert deleted_asset is None
+
+
+@pytest.mark.parametrize(
+    "requesting_user, sensor_index, data_unit, data_resolution, price, expected_event_values, expected_status",
+    [
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,
+            "m/s",
+            "1h",
+            45.3,
+            None,
+            422,
+        ),  # this sensor has unit=kW
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,
+            "kWh",
+            "1h",
+            45.3,
+            45.3,
+            200,
+        ),  # this sensor has unit=kWh
+        (
+            "test_prosumer_user_2@seita.nl",
+            0,
+            "kWh",
+            "1h",
+            45.3,
+            0.0453,
+            200,
+        ),  # this sensor has unit=MW
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,
+            "MW",
+            "1h",
+            2,
+            2000,
+            200,
+        ),  # this sensor has unit=kW
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,
+            "kWh",
+            "30min",
+            10,
+            20,
+            200,
+        ),  # this sensor has unit=kW
+    ],
+    indirect=["requesting_user"],
+)
+def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefix from function name
+    fresh_db,
+    client,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    sensor_index,
+    data_unit,
+    data_resolution,
+    price,
+    expected_event_values,
+    expected_status,
+):
+    """
+    Check if unit validation works fine for sensor data upload.
+    The target sensor has a kWh unit and event resolution of 30 minutes.
+    Incoming data can differ in both unit and resolution, so we check if the resulting data matches expectations.
+    """
+    start_date = (
+        "2025-01-01T00:10:00+00:00"  # This date would be used to generate CSV content
+    )
+    test_battery = add_battery_assets_fresh_db["Test battery"]
+    sensor = test_battery.sensors[sensor_index]
+    csv_content = generate_csv_content(
+        start_time_str=start_date,
+        num_intervals=4,
+        resolution_str=data_resolution,
+        price=price,
+    )
+
+    import io
+
+    file_obj = io.BytesIO(csv_content.encode("utf-8"))
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": (file_obj, "data.csv"), "unit": data_unit},
+        content_type="multipart/form-data",
+    )
+    print("Response:\n%s" % response.status_code, expected_status)
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == expected_status
+
+    # fetch the save timedBeliefs and check if they have the right values
+    if response.status_code == 200:
+        timed_beliefs = fresh_db.session.execute(
+            select(TimedBelief)
+            .filter(TimedBelief.sensor_id == sensor.id)
+            .order_by(TimedBelief.event_start)
+        ).scalars()
+
+        beliefs = timed_beliefs.all()
+
+        if data_resolution == "1h":
+            assert len(beliefs) == 16
+        else:
+            assert len(beliefs) == 8
+        assert expected_event_values == beliefs[0].event_value

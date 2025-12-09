@@ -11,7 +11,6 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures import Sensor
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import (
-    generate_csv_content,
     get_sensor_post_data,
     check_audit_log_event,
 )
@@ -363,94 +362,6 @@ def test_upload_excel_file(client, requesting_user):
     )
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
-
-
-@pytest.mark.parametrize(
-    "requesting_user, sensor_index, data_unit, data_resolution, price, expected_status",
-    [
-        (
-            "test_prosumer_user_2@seita.nl",
-            1,
-            "m/s",
-            "1h",
-            45.3,
-            422,
-        ),  # this sensor has unit=kW
-        (
-            "test_prosumer_user_2@seita.nl",
-            2,
-            "kWh",
-            "1h",
-            45.3,
-            200,
-        ),  # this sensor has unit=kWh
-        (
-            "test_prosumer_user_2@seita.nl",
-            0,
-            "kWh",
-            "1h",
-            45.3,
-            200,
-        ),  # this sensor has unit=MW
-        (
-            "test_prosumer_user_2@seita.nl",
-            1,
-            "MW",
-            "1h",
-            2,
-            200,
-        ),  # this sensor has unit=kW
-        (
-            "test_prosumer_user_2@seita.nl",
-            1,
-            "kWh",
-            "30min",
-            10,
-            200,
-        ),  # this sensor has unit=kW
-    ],
-    indirect=["requesting_user"],
-)
-def test_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefix from function name
-    client,
-    add_battery_assets,
-    requesting_user,
-    sensor_index,
-    data_unit,
-    data_resolution,
-    price,
-    expected_status,
-):
-    """
-    Check if unit validation works fine for sensor data upload.
-    The target sensor has a kWh unit and event resolution of 30 minutes.
-    Incoming data can differ in both unit and resolution, so we check if the resulting data matches expectations.
-    """
-    start_date = (
-        "2025-01-01T00:10:00+00:00"  # This date would be used to generate CSV content
-    )
-    test_battery = add_battery_assets["Test battery"]
-    sensor = test_battery.sensors[sensor_index]
-    csv_content = generate_csv_content(
-        start_time_str=start_date,
-        num_intervals=5,
-        resolution_str=data_resolution,
-        price=price,
-    )
-
-    import io
-
-    file_obj = io.BytesIO(csv_content.encode("utf-8"))
-
-    response = client.post(
-        url_for("SensorAPI:upload_data", id=sensor.id),
-        data={"uploaded-files": (file_obj, "data.csv"), "unit": data_unit},
-        content_type="multipart/form-data",
-    )
-    print("Response:\n%s" % response.status_code, expected_status)
-    print("Server responded with:\n%s" % response.json)
-
-    assert response.status_code == expected_status
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
