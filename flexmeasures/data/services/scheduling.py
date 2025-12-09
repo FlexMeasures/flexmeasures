@@ -636,7 +636,7 @@ def make_schedule(  # noqa C901
         bdf = tb.BeliefsDataFrame(ts_value_schedule)
 
         # Set the correct event resolution
-        if resolution is not None:
+        if resolution is not None and bdf.event_resolution != timedelta(0):
             bdf.event_resolution = resolution
 
             # Resample from the scheduling resolution to the sensor resolution
