@@ -503,7 +503,7 @@ def create_simultaneous_scheduling_job(
     return job
 
 
-def make_schedule(
+def make_schedule(  # noqa C901
     sensor_id: int | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
@@ -634,6 +634,15 @@ def make_schedule(
             for dt, value in result["data"].items()
         ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
         bdf = tb.BeliefsDataFrame(ts_value_schedule)
+
+        # Set the correct event resolution
+        if resolution is not None:
+            bdf.event_resolution = resolution
+
+            # Resample from the scheduling resolution to the sensor resolution
+            # todo: move this into save_to_db
+            bdf = bdf.resample_events(bdf.sensor.event_resolution)
+
         save_to_db(bdf)
 
     scheduler.persist_flex_model()
