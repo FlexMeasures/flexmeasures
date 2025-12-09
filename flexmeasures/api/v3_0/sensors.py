@@ -610,7 +610,7 @@ class SensorAPI(FlaskView):
         sensor: Sensor,
         start_of_schedule: datetime,
         duration: timedelta,
-        resolution: timedelta,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
