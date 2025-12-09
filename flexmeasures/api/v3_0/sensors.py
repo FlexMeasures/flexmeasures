@@ -610,6 +610,7 @@ class SensorAPI(FlaskView):
         sensor: Sensor,
         start_of_schedule: datetime,
         duration: timedelta,
+        resolution: timedelta,
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
@@ -644,6 +645,9 @@ class SensorAPI(FlaskView):
             - Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.
             - If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
             - Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.
+
+            The 'resolution' field governs how often setpoints are allowed to change.
+            Note that the resulting schedule is still saved in the sensor resolution.
 
             About the scheduling algorithm being used:
 
@@ -791,7 +795,7 @@ class SensorAPI(FlaskView):
             asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
-            resolution=sensor.event_resolution,
+            resolution=resolution or sensor.event_resolution,
             belief_time=belief_time,  # server time if no prior time was sent
             flex_model=flex_model,
             flex_context=flex_context,
