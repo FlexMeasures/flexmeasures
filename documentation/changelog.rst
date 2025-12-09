@@ -4,15 +4,15 @@ FlexMeasures Changelog
 **********************
 
 
-v0.30.1 | December XX, 2025
+v0.30.1 | December 9, 2025
 ============================
 
 Bugfixes
 -----------
+* Greatly reduce the number of various deprecation warnings when dealing with time series data [see `PR #1858 <https://www.github.com/FlexMeasures/flexmeasures/pull/1858>`_]
 
 
-
-v0.30.0 | December 02, 2025
+v0.30.0 | December 2, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v030-forecasting-revamped/>`_.
