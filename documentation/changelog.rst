@@ -24,7 +24,7 @@ v0.30.1 | December XX, 2025
 
 Bugfixes
 -----------
-
+* Greatly reduce the number of various deprecation warnings when dealing with time series data [see `PR #1858 <https://www.github.com/FlexMeasures/flexmeasures/pull/1858>`_]
 
 
 v0.30.0 | December 02, 2025
