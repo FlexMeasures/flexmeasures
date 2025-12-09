@@ -900,9 +900,10 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["efficiency"] = storage_efficiency[d]
 
             # Convert efficiency from sensor resolution to scheduling resolution
-            device_constraints[d]["efficiency"] **= (
-                resolution / sensor_d.event_resolution
-            )
+            if sensor_d.event_resolution != timedelta(0):
+                device_constraints[d]["efficiency"] **= (
+                    resolution / sensor_d.event_resolution
+                )
 
             # check that storage constraints are fulfilled
             if not skip_validation:
