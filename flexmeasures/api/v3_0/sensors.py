@@ -51,7 +51,11 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorDataFileSchema,
     SensorDataFileDescriptionSchema,
 )
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    PlanningDurationField,
+)
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
@@ -107,6 +111,14 @@ class TriggerScheduleKwargsSchema(Schema):
             description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
             example="PT24H",
         ),
+    )
+    resolution = DurationField(
+        metadata=dict(
+            description="The resolution of the requested schedule in ISO 8601 duration format. "
+            "This governs how often setpoints are allowed to change. "
+            "Note that the resulting schedule is still saved in the sensor resolution.",
+            example="PT2H",
+        )
     )
     flex_model = fields.Dict(
         data_key="flex-model",

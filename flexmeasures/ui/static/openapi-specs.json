@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.31.0"
+    "version": "0.28.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4353,6 +4353,11 @@
             "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
             "example": "PT24H"
           },
+          "resolution": {
+            "type": "string",
+            "description": "The resolution of the requested schedule in ISO 8601 duration format. This governs how often setpoints are allowed to change. Note that the resulting schedule is still saved in the sensor resolution.",
+            "example": "PT2H"
+          },
           "flex-model": {
             "type": "object",
             "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
@@ -4671,6 +4676,11 @@
             "type": "string",
             "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
             "example": "PT24H"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "The resolution of the requested schedule in ISO 8601 duration format. This governs how often setpoints are allowed to change. Note that the resulting schedule is still saved in the resolution of each individual sensor.",
+            "example": "PT2H"
           },
           "flex-model": {
             "description": "The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
