@@ -19,7 +19,7 @@ Bugfixes
 -----------
 
 
-v0.30.1 | December XX, 2025
+v0.30.1 | December 9, 2025
 ============================
 
 Bugfixes
