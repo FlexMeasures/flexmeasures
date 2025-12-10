@@ -131,13 +131,8 @@ class ForecasterParametersSchema(Schema):
 
         now = server_now()
         floored_now = floor_to_resolution(now, resolution)
-
-        if data.get("start_predict_date"):
-            predict_start = data["start_predict_date"]
-            save_belief_time = predict_start
-        else:
-            predict_start = floored_now
-            save_belief_time = now
+        predict_start = data.get("start_predict_date", floored_now)
+        save_belief_time = now if predict_start == floored_now else None
 
         if data.get("start_predict_date") is None and data.get("train_period"):
 
