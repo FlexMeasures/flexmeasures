@@ -84,20 +84,46 @@ def create_openapi_specs(app: Flask):
     Create OpenAPI specs for the API and save them to a JSON file in the static folder.
     This function should be called when generating docs (and needs extra dependencies).
     """
+    version = ".".join(
+        fm_version.split(".")[:3]
+    )  # only keep major, minor and patch parts
+    platform_name = app.config.get("FLEXMEASURES_PLATFORM_NAME", "FlexMeasures")
+    token_header_name = app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
+
+    api_intro = (
+        f"Welcome to the {platform_name} API.<br/>"
+        'This is a platform for smart energy scheduling (a "Cloud EMS").'
+        "<br/><br/>"
+        "You can try out all these endpoints if you are authenticated in the platform."
+        "Or you can paste your API key token with the button on the right."
+        "<br/><br/>"
+        f"To authenticate your code, include an `{token_header_name}` header with your API key."
+        'Also, check out the <a href="https://github.com/FlexMeasures/flexmeasures-client" target="_blank">Python client</a>.'
+    )
 
     spec = APISpec(
         title="FlexMeasures",
-        version=".".join(
-            fm_version.split(".")[:3]
-        ),  # only keep major, minor and patch parts
+        version=version,
+        info=dict(
+            description=api_intro,
+            contact={
+                "name": f"{platform_name} Support",
+                "url": app.config.get("FLEXMEASURES_SUPPORT_PAGE"),
+            },
+            termsOfService=app.config.get("FLEXMEASURES_TOS_PAGE"),
+        ),
         openapi_version=app.config["OPENAPI_VERSION"],
+        externalDocs=dict(
+            description=f"{platform_name} runs on the open source FlexMeasures technology. Read the docs here.",
+            url="https://flexmeasures.readthedocs.io",
+        ),
         plugins=[FlaskPlugin(), MarshmallowPlugin()],
     )
     api_key_scheme = {
         "type": "apiKey",
         "in": "header",
-        "name": "Authorization",
-    }  # TODO: should we stop making this a configurable parameter?
+        "name": token_header_name,
+    }  # TODO: should we stop making this a configurable parameter, as the client cannot read this setting? Or configure the client accordingly?
     spec.components.security_scheme("ApiKeyAuth", api_key_scheme)
 
     # Explicitly register OpenAPI-compatible schemas

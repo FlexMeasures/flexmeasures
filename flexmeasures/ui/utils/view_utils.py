@@ -49,6 +49,10 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
         "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
     )
+    variables["FLEXMEASURES_SUPPORT_PAGE"] = current_app.config.get(
+        "FLEXMEASURES_SUPPORT_PAGE"
+    )
+    variables["FLEXMEASURES_TOS_PAGE"] = current_app.config.get("FLEXMEASURES_TOS_PAGE")
     variables["openapi_docs_exist"] = False
     if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path):
         variables["openapi_docs_exist"] = True
