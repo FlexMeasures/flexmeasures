@@ -94,7 +94,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Start date for predictions. Defaults to now floored to sensor resolution.",
+            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
             "example": "2025-01-08T00:00:00+01:00",
         },
     )
