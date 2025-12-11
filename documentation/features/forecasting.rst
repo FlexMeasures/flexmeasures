@@ -140,7 +140,7 @@ Checking job status & retrieving forecasts
          }
        }
 
-   Forecasts are returned grouped by event start time. Only the most recent belief
+   The returned forecasts are grouped by event start time. Only the most recent belief
    for each event is returned, matching the behavior of
    ``sensor.search_beliefs(..., most_recent_beliefs_only=True)``.
 
