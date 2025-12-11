@@ -106,7 +106,7 @@ Checking job status & retrieving forecasts
 
 .. http:get:: /api/v3_0/sensors/<id>/forecasts/<uuid>
 
-   Retrieve the status of a forecasting job and, when finished, its forecast data.
+   Retrieve the status of a forecasting job and, if it finished, its forecast data.
 
    **Permissions:** ``read`` on the sensor.
 
