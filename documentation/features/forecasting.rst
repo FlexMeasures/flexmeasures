@@ -77,7 +77,7 @@ Triggering a forecast
 
    Launch a forecasting job asynchronously for the given sensor.
 
-   **Permissions:** ``create-children`` on the sensor.
+   .. note:: To use this endpoint, you need the  ``create-children`` permission on the sensor (meaning you should be in the same account or be a consultant on it).
 
    **Request JSON:**
 
