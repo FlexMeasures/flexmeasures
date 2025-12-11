@@ -17,7 +17,7 @@ There are even existing plugins for importing `weather forecasts <https://github
 
 If you need to make your own predictions, forecasting algorithms can be used within FlexMeasures, for instance, to arrive at an expected profile of future solar power production at the site.
 
-FlexMeasures provides a CLI command to generate forecasts (see below). An API endpoint is also available.
+FlexMeasures provides a CLI command and an API endpoint to generate forecasts (see below).
 
 FlexMeasures provides a **fixed viewpoint forecasting infrastructure**.
 This means that from one point in time (the fixed viewpoint), we forecast a range of events into the future (e.g. 24 hourly events for a span of one day). While the first forecast (one hour ahead) has a small horizon (1H), the last one has a large horizon (24H) and the accuracy between the two will usually differ (it is easier to forecast small horizons).
