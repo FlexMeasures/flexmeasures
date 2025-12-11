@@ -65,7 +65,7 @@ Note that:
 Forecasting via the API
 -----------------------
 
-In addition to the CLI command, FlexMeasures now provides API endpoints for
+In addition to the CLI command, FlexMeasures provides API endpoints for
 triggering forecasts and retrieving their results.
 
 These endpoints live under the Sensor API (``/api/v3_0/sensors``).
