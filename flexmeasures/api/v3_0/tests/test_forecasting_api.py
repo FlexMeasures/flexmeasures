@@ -110,9 +110,7 @@ def test_trigger_and_fetch_forecasts(
 
     # Fetch forecasts for each job
     for job_id in job_ids:
-        fetch_url = url_for(
-            "SensorAPI:check_forecasts", id=sensor.id, uuid=job_id
-        )
+        fetch_url = url_for("SensorAPI:check_forecasts", id=sensor.id, uuid=job_id)
         res = client.get(fetch_url, headers={"Authorization": token})
         assert res.status_code == 200
 
