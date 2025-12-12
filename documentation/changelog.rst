@@ -4,6 +4,14 @@ FlexMeasures Changelog
 **********************
 
 
+v0.30.2 | December XX, 2025
+============================
+
+Bugfixes
+-----------
+* Make ``soc-usage`` & ``soc-gain`` fields editable again in the UI [see `PR #1860 <https://www.github.com/FlexMeasures/flexmeasures/pull/1860>`_]
+
+
 v0.30.1 | December 9, 2025
 ============================
 
