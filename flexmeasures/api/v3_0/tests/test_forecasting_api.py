@@ -29,7 +29,9 @@ def test_trigger_and_fetch_forecasts(
 
     client = app.test_client()
     token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
-    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+
+    # This sensor is used to *trigger* the forecasting jobs via the API
+    sensor_0 = setup_fresh_test_forecast_data["solar-sensor"]
 
     # Trigger job
     payload = {
