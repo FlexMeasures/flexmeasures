@@ -1264,7 +1264,7 @@ def train_predict_pipeline(
         # direct computation: list of dicts containing BeliefsDataFrames
         total_beliefs = sum(len(item["data"]) for item in pipeline_returns)
         unique_belief_times = {
-            ts for item in pipeline_returns for ts in item["data"].belief_time.unique()
+            ts for item in pipeline_returns for ts in item["data"].belief_times.unique()
         }
         click.secho(
             f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
