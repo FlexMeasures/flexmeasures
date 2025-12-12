@@ -7,7 +7,6 @@ import sys
 import time
 import logging
 from datetime import datetime, timedelta
-import uuid
 
 from rq.job import Job
 
