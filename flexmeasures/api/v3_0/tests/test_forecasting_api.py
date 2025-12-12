@@ -21,10 +21,10 @@ def test_trigger_and_fetch_forecasts(
 ):
     """
     Full test:
-    1. Trigger forecasting job(s)
+    1. Trigger forecasting 2 jobs for 2 forecasting cycles via /<sensor>/forecasts
     2. Execute forecasting queue synchronously
     3. Fetch each job's results via /<sensor>/forecasts/<job_id>
-    4. Validate returned forecasts compared to forecasts ran directly via pipeline
+    4. Compare returned forecasts computed directly from the DB with those returned by the API
     """
 
     client = app.test_client()
