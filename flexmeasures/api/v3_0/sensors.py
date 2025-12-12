@@ -7,6 +7,7 @@ from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
 )
 
+from collections import defaultdict
 from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
@@ -1538,7 +1539,7 @@ class SensorAPI(FlaskView):
                 application/json:
                   example:
                     status: "PROCESSED"
-                    forecast_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
+                    forecasting_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
                     message: "Forecasting job has been queued."
           tags:
             - Sensors
@@ -1586,4 +1587,109 @@ class SensorAPI(FlaskView):
             return invalid_flex_config(e.messages)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
+            return invalid_flex_config(str(e))
+
+    @route("/<id>/forecasts/<uuid>", methods=["GET"])
+    @use_kwargs(
+        {
+            "sensor": SensorIdField(data_key="id"),
+            "job_id": fields.Str(data_key="uuid", required=True),
+        },
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    def check_forecasts(self, id: int, uuid: str, sensor: Sensor, job_id: str):
+        """
+        .. :quickref: Forecasts; Check forecast job status for a sensor and fetch results.
+        ---
+        get:
+          summary: Check forecast job status for a sensor and fetch results.
+          description: |
+            Returns the status of a previously triggered forecasting job.
+            When the job is completed successfully, this endpoint returns the
+            generated forecast data.
+          responses:
+            200:
+              description: Forecast job status
+              content:
+                application/json:
+                  example:
+                    status: "FINISHED"
+                    forecasts:
+                      sensor: 2092
+                      values: [...]
+                      start: "2025-10-15T00:00:00+01:00"
+                      end: "2025-10-16T00:00:00+01:00"
+          tags:
+            - Sensors
+        """
+
+        try:
+            # Fetch job from RQ
+            queue = current_app.queues["forecasting"]
+            job = Job.fetch(job_id, connection=queue.connection)
+
+            # Job does not exist
+            if job is None:
+                return invalid_flex_config(f"Job {job_id} not found.")
+
+            # Map RQ statuses to API statuses
+            status = job.get_status()
+            if status in ("queued", "started"):
+                # Still running
+                response = dict(
+                    status="RUNNING" if status == "started" else "PENDING",
+                    job_id=job_id,
+                )
+                d, s = request_processed()
+                return dict(**response), s
+
+            if status == "failed":
+                # Return error message
+                response = dict(
+                    status="FAILED",
+                    job_id=job_id,
+                    error=str(job.exc_info),
+                )
+                d, s = request_processed()
+                return dict(**response), s
+
+            # Job finished → fetch forecasts from DB
+            # search for forecasts linked to this job and sensor
+            data_source = get_data_source_for_job(job, type="forecasting")
+
+            forecasts = sensor.search_beliefs(
+                event_starts_after=job.kwargs.get("predict_start"),
+                event_ends_before=job.kwargs.get("predict_end")
+                + sensor.event_resolution,
+                source=data_source,
+                most_recent_beliefs_only=True,
+                use_latest_version_per_event=True,
+            ).reset_index()
+
+            forecast_by_event = defaultdict(list)
+
+            for row in forecasts.itertuples():
+                event_key = row.event_start.isoformat()
+
+                forecast_by_event[event_key].append(
+                    {
+                        "event_start": row.event_start.isoformat(),
+                        "belief_time": row.belief_time.isoformat(),
+                        "cumulative_probability": row.cumulative_probability,
+                        "value": row.event_value,
+                    }
+                )
+
+            response = dict(
+                status="FINISHED",
+                job_id=job_id,
+                sensor=sensor.id,
+                forecasts=forecast_by_event,
+            )
+            d, s = request_processed()
+            return dict(**response), s
+
+        except Exception as e:
+            current_app.logger.exception("Failed to get forecast job status.")
             return invalid_flex_config(str(e))

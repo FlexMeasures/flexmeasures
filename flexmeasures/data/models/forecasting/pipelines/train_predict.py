@@ -86,7 +86,6 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Training cycle completed in {train_runtime:.2f} seconds."
         )
-
         # Make predictions
         predict_pipeline = PredictPipeline(
             future_regressors=self._parameters["future_regressors"],
@@ -211,15 +210,23 @@ class TrainPredictPipeline(Forecaster):
 
             if as_job:
                 for index, param in enumerate(cycles_job_params):
+                    # Combine cycle-specific parameters with general job kwargs
+                    joined_kwargs = {
+                        **param,
+                        **{k: v for k, v in job_kwargs.items() if k not in param},
+                    }
+
                     job = Job.create(
                         self.run_cycle,
-                        kwargs={**param, **job_kwargs},
+                        kwargs=joined_kwargs,
                         connection=current_app.queues[queue].connection,
                         ttl=int(
                             current_app.config.get(
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
+                        meta={"data_source_info": {"id": self.data_source.id}},
+                        timeout=60 * 60,  # 1 hour
                     )
 
                     # Store the job ID for this cycle
