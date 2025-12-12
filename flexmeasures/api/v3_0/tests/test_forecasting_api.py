@@ -54,10 +54,10 @@ def test_trigger_and_fetch_forecasts(
     # Two forecast cycles expected from payload
     assert len(job_ids) == 2
 
+    # Ensure jobs were successfully queued
     for job_id in job_ids:
-        # Check the job exists in the queue or registries
         job = app.queues["forecasting"].fetch_job(job_id)
-        assert job is not None, f"Job {job_id} should exist"
+        assert job is not None, f"Job {job_id} should exist in the queue"
 
     # Run forecasting queue
     work_on_rq(
