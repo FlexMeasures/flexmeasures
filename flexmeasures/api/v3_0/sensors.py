@@ -1591,7 +1591,10 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(
-        {"sensor": SensorIdField(data_key="id"), "job_id": fields.Str(data_key="uuid", required=True)},
+        {
+            "sensor": SensorIdField(data_key="id"),
+            "job_id": fields.Str(data_key="uuid", required=True),
+        },
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
