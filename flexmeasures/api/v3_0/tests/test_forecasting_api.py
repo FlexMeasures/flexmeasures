@@ -42,7 +42,7 @@ def test_trigger_and_fetch_forecasts(
         "retrain_frequency": "PT1H",
     }
 
-    trigger_url = url_for("SensorAPI:trigger_forecast", id=sensor.id)
+    trigger_url = url_for("SensorAPI:trigger_forecast", id=sensor_0.id)
     trigger_res = client.post(
         trigger_url, json=payload, headers={"Authorization": token}
     )
@@ -51,7 +51,8 @@ def test_trigger_and_fetch_forecasts(
     trigger_json = trigger_res.get_json()
     job_ids = trigger_json["forecasting_jobs"]
 
-    assert len(job_ids) == 1  # One job for one cycle is expected
+    # Two forecast cycles expected from payload
+    assert len(job_ids) == 2
 
     for job_id in job_ids:
         # Check the job exists in the queue or registries
