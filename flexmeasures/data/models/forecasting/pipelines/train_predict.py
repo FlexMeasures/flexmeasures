@@ -211,7 +211,10 @@ class TrainPredictPipeline(Forecaster):
             if as_job:
                 for index, param in enumerate(cycles_job_params):
                     # Combine cycle-specific parameters with general job kwargs
-                    joined_kwargs = {**param, **{k: v for k, v in job_kwargs.items() if k not in param}}
+                    joined_kwargs = {
+                        **param,
+                        **{k: v for k, v in job_kwargs.items() if k not in param},
+                    }
 
                     job = Job.create(
                         self.run_cycle,
