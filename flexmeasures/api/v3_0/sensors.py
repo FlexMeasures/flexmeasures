@@ -1512,10 +1512,10 @@ class SensorAPI(FlaskView):
 
         return {"sensors_data": status_data}, 200
 
-    @route("/<sensor>/forecasts/trigger", methods=["POST"])
-    @use_kwargs({"sensor": SensorIdField()}, location="path")
+    @route("/<id>/forecasts/trigger", methods=["POST"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def trigger_forecast(self, sensor: Sensor):
+    def trigger_forecast(self, id: int, sensor: Sensor):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
         ---
@@ -1539,7 +1539,7 @@ class SensorAPI(FlaskView):
                 application/json:
                   example:
                     status: "PROCESSED"
-                    forecast_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
+                    forecasting_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
                     message: "Forecasting job has been queued."
           tags:
             - Sensors
@@ -1589,13 +1589,16 @@ class SensorAPI(FlaskView):
             current_app.logger.exception("Forecast job failed to enqueue.")
             return invalid_flex_config(str(e))
 
-    @route("/<sensor>/forecasts/<job_id>", methods=["GET"])
+    @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(
-        {"sensor": SensorIdField(), "job_id": fields.Str(required=True)},
+        {
+            "sensor": SensorIdField(data_key="id"),
+            "job_id": fields.Str(data_key="uuid", required=True),
+        },
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
-    def check_forecasts(self, sensor: Sensor, job_id: str):
+    def check_forecasts(self, id: int, uuid: str, sensor: Sensor, job_id: str):
         """
         .. :quickref: Forecasts; Check forecast job status for a sensor and fetch results.
         ---
@@ -1612,7 +1615,7 @@ class SensorAPI(FlaskView):
                 application/json:
                   example:
                     status: "FINISHED"
-                    forecast:
+                    forecasts:
                       sensor: 2092
                       values: [...]
                       start: "2025-10-15T00:00:00+01:00"
