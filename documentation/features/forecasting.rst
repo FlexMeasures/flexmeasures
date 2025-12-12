@@ -17,7 +17,7 @@ There are even existing plugins for importing `weather forecasts <https://github
 
 If you need to make your own predictions, forecasting algorithms can be used within FlexMeasures, for instance, to arrive at an expected profile of future solar power production at the site.
 
-FlexMeasures provides a CLI command to generate forecasts (see below). An API endpoint will follow soon.
+FlexMeasures provides a CLI command and an API endpoint to generate forecasts (see below).
 
 FlexMeasures provides a **fixed viewpoint forecasting infrastructure**.
 This means that from one point in time (the fixed viewpoint), we forecast a range of events into the future (e.g. 24 hourly events for a span of one day). While the first forecast (one hour ahead) has a small horizon (1H), the last one has a large horizon (24H) and the accuracy between the two will usually differ (it is easier to forecast small horizons).
@@ -61,6 +61,86 @@ Note that:
 
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
 ``start-date`` / ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
+
+Forecasting via the API
+-----------------------
+
+In addition to the CLI command, FlexMeasures provides API endpoints for
+triggering forecasts and retrieving their results.
+
+These endpoints live under the Sensor API (``/api/v3_0/sensors``).
+
+Triggering a forecast
+^^^^^^^^^^^^^^^^^^^^^
+
+.. http:post:: /api/v3_0/sensors/<id>/forecasts/trigger
+
+   Launch a forecasting job asynchronously for the given sensor.
+
+   .. note:: To use this endpoint, you need the  ``create-children`` permission on the sensor (meaning you should be in the same account or be a consultant on it).
+
+   **Request JSON:**
+
+   .. code-block:: json
+
+       {
+         "start_date": "2025-01-01T00:00:00+00:00",
+         "start_predict_date": "2025-01-04T00:00:00+00:00",
+         "end_date": "2025-01-04T04:00:00+00:00"
+       }
+
+   **Response (200):**
+
+   .. code-block:: json
+
+       {
+         "status": "PROCESSED",
+         "forecasting_jobs": ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"],
+         "message": "Forecast job has been queued."
+       }
+
+   This endpoint will queue a background job on the forecasting queue.
+
+Checking job status & retrieving forecasts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. http:get:: /api/v3_0/sensors/<id>/forecasts/<uuid>
+
+   Retrieve the status of a forecasting job and, if it finished, its forecast data.
+
+   **Permissions:** ``read`` on the sensor.
+
+   **Response when running:**
+
+   .. code-block:: json
+
+       {
+         "status": "RUNNING",
+         "job_id": "<uuid>"
+       }
+
+   **Response when finished (200):**
+
+   .. code-block:: json
+
+       {
+         "status": "FINISHED",
+         "job_id": "<uuid>",
+         "sensor": 12,
+         "forecasts": {
+           "2025-01-04T00:15:00+00:00": [
+             {
+               "event_start": "2025-01-04T00:15:00+00:00",
+               "belief_time": "2025-01-04T00:00:00+00:00",
+               "cumulative_probability": 0.5,
+               "value": 3.27
+             },
+             ...
+           ]
+         }
+       }
+
+   The returned forecasts are grouped by event start time. Only the most recent belief for each event is returned, matching the behavior of ``sensor.search_beliefs(..., most_recent_beliefs_only=True)``.
 
 Technical specs
 -----------------
