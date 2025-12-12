@@ -108,12 +108,11 @@ def test_trigger_and_fetch_forecasts(
             use_latest_version_per_event=True,
         ).reset_index()
 
-        forecast_2 = defaultdict(list)
-
-        for row in forecasts.itertuples():
+        # Transform computed forecasts into the expected API format
+        latest_forecasts = defaultdict(list)
+        for row in forecasts_df.itertuples():
             event_key = row.event_start.isoformat()
-
-            forecast_2[event_key].append(
+            latest_forecasts[event_key].append(
                 {
                     "event_start": row.event_start.isoformat(),
                     "belief_time": row.belief_time.isoformat(),
@@ -122,4 +121,5 @@ def test_trigger_and_fetch_forecasts(
                 }
             )
 
-        assert forecasts_1 == forecast_2
+        # API should return exactly these most-recent beliefs
+        assert api_forecasts == latest_forecasts
