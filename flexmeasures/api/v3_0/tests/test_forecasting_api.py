@@ -65,9 +65,18 @@ def test_trigger_and_fetch_forecasts(
         exc_handler=handle_forecasting_exception,
     )
 
+    # This sensor is where the directly computed forecasts will be saved
+    sensor_1 = setup_fresh_test_forecast_data["solar-sensor-1"]
+    payload["sensor"] = sensor_1.id
+
+    # Run pipeline manually to compute expected forecasts
+    pipeline = TrainPredictPipeline()
+    pipeline.compute(parameters=payload)
+
     # Fetch forecasts for each job
     for job_id in job_ids:
-        fetch_url = url_for("SensorAPI:check_forecasts", id=sensor.id, uuid=job_id)
+
+        fetch_url = url_for("SensorAPI:check_forecasts", id=sensor_0.id, uuid=job_id)
         res = client.get(fetch_url, headers={"Authorization": token})
         assert res.status_code == 200
 
@@ -76,25 +85,18 @@ def test_trigger_and_fetch_forecasts(
         # Validate structure
         assert data["status"] == "FINISHED"
         assert data["job_id"] == job_id
-        assert data["sensor"] == sensor.id
+        assert data["sensor"] == sensor_0.id
         assert "forecasts" in data
 
-        forecasts_1 = data["forecasts"]
+        api_forecasts = data["forecasts"]
+        assert isinstance(api_forecasts, dict)
+        assert len(api_forecasts) > 0
 
-        # forecasts is a dict keyed by event_start timestamps
-        assert isinstance(forecasts_1, dict)
-        assert len(forecasts_1) > 0
-
-        sensor = setup_fresh_test_forecast_data["solar-sensor-1"]
-        payload["sensor"] = sensor.id
-        pipeline = TrainPredictPipeline()
-        pipeline.compute(parameters=payload)
-
-        # Fetch forecasting job from queue
+        # Retrieve the job so we know which timestamps to query
         queue = current_app.queues["forecasting"]
         job = Job.fetch(job_id, connection=queue.connection)
 
-        # Fetch data source used in job
+        # Identify which data source wrote these beliefs
         data_source = get_data_source_for_job(job, type="forecasting")
 
         forecasts = sensor.search_beliefs(
