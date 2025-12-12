@@ -102,13 +102,17 @@ def register_plugins(app: Flask):  # noqa: C901
             app.register_blueprint(plugin_blueprint)
 
         # Load reporters and schedulers
+        from flexmeasures.data.models.forecasting import Forecaster
         from flexmeasures.data.models.reporting import Reporter
         from flexmeasures.data.models.planning import Scheduler
 
+        plugin_forecasters = get_classes_module(module.__name__, Forecaster)
         plugin_reporters = get_classes_module(module.__name__, Reporter)
         plugin_schedulers = get_classes_module(module.__name__, Scheduler)
 
         # add DataGenerators
+        if plugin_forecasters:
+            app.data_generators["forecaster"].update(plugin_forecasters)
         if plugin_reporters:
             app.data_generators["reporter"].update(plugin_reporters)
         if plugin_schedulers:
