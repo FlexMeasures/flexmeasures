@@ -99,9 +99,10 @@ def test_trigger_and_fetch_forecasts(
         # Identify which data source wrote these beliefs
         data_source = get_data_source_for_job(job, type="forecasting")
 
-        forecasts = sensor.search_beliefs(
-            event_starts_after="2025-01-05T00:00:00+00:00",
-            event_ends_before="2025-01-05T02:00:00+00:00",
+        # Load only the latest belief per event_start
+        forecasts_df = sensor_1.search_beliefs(
+            event_starts_after=job.kwargs.get("predict_start"),
+            event_ends_before=job.kwargs.get("predict_end") + sensor_1.event_resolution,
             source=data_source,
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
