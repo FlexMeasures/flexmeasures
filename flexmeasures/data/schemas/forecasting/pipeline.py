@@ -53,6 +53,7 @@ class ForecasterParametersSchema(Schema):
     )
     model_save_dir = fields.Str(
         required=False,
+        load_default="flexmeasures/data/models/forecasting/artifacts/models",
         metadata={
             "description": "Directory to save the trained model.",
             "example": "flexmeasures/data/models/forecasting/artifacts/models",
