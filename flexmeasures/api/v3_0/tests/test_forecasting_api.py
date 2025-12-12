@@ -36,6 +36,8 @@ def test_trigger_and_fetch_forecasts(
         "start_date": "2025-01-01T00:00:00+00:00",
         "start_predict_date": "2025-01-05T00:00:00+00:00",
         "end_date": "2025-01-05T02:00:00+00:00",
+        "max_forecast_horizon": "PT2H",
+        "retrain_frequency": "PT1H",
     }
 
     trigger_url = url_for("SensorAPI:trigger_forecast", id=sensor.id)
