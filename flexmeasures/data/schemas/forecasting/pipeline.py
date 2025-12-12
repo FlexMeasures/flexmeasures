@@ -35,6 +35,7 @@ class ForecasterParametersSchema(Schema):
     )
     model_save_dir = fields.Str(
         required=False,
+        allow_none=True,
         load_default="flexmeasures/data/models/forecasting/artifacts/models",
     )
     output_path = fields.Str(required=False, allow_none=True)
@@ -195,13 +196,18 @@ class ForecasterParametersSchema(Schema):
         if output_path and not os.path.exists(output_path):
             os.makedirs(output_path)
 
+        model_save_dir = data.get("model_save_dir")
+        if model_save_dir is None:
+            # Read default from schema
+            model_save_dir = self.fields["model_save_dir"].load_default
+
         ensure_positive = data.get("ensure_positive")
 
         return dict(
             future_regressors=future_regressors,
             past_regressors=past_regressors,
             target=target_sensor,
-            model_save_dir=data["model_save_dir"],
+            model_save_dir=model_save_dir,
             output_path=output_path,
             start_date=start_date,
             end_date=data["end_date"],
