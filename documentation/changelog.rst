@@ -17,7 +17,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Prevent duplicate forecasts from being saved when re-running the forecasting pipeline within the same resolution window by preserving the non-floored ``belief_time`` using a new ``save_belief_time`` field [see `PR #1853 <https://github.com/FlexMeasures/flexmeasures/pull/1853>`_]
 
 
 v0.30.2 | December XX, 2025
@@ -26,6 +25,7 @@ v0.30.2 | December XX, 2025
 Bugfixes
 -----------
 * Make ``soc-usage`` & ``soc-gain`` fields editable again in the UI [see `PR #1860 <https://www.github.com/FlexMeasures/flexmeasures/pull/1860>`_]
+* Prevent duplicate forecasts from being saved when re-running the forecasting pipeline within the same resolution window by preserving the non-floored ``belief_time`` using a new ``save_belief_time`` field [see `PR #1853 <https://github.com/FlexMeasures/flexmeasures/pull/1853>`_]
 
 
 v0.30.1 | December 9, 2025
