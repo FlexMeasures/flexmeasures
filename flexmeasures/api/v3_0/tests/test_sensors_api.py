@@ -44,7 +44,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             "power",
-            2,
+            3,
             False,
             False,
             200,
@@ -326,6 +326,7 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
     check_audit_log_event(
@@ -359,6 +360,7 @@ def test_upload_excel_file(client, requesting_user):
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
 
