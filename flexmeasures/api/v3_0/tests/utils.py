@@ -156,35 +156,31 @@ def parse_resolution(resolution_str):
 
 
 def generate_csv_content(
-    start_time_str: str, num_intervals: int, resolution_str: str, price: float
+    start_time_str: str, interval: timedelta, values: list[float]
 ) -> str:
     """
     Generates a CSV-formatted string with a specified time resolution.
 
     Args:
         start_time_str (str): The starting timestamp (e.g., '2021-01-01T00:10:00+00:00').
-        num_intervals (int): The total number of rows/intervals to generate.
         resolution_str (str): The interval length (e.g., '10m', '30min', '1h').
-        price (float): The price value to use for all rows.
+        values (list of floats): The values to use.
 
     Returns:
         str: The generated CSV content.
     """
-    # 1. Convert the starting time string to a datetime object
+    # Convert the starting time string to a datetime object
     current_time = datetime.fromisoformat(start_time_str)
 
-    # 2. Parse the resolution string into a timedelta object
-    interval = parse_resolution(resolution_str)
-
-    # 3. Build the CSV content
+    # Build the CSV content
     csv_rows = ["Hour,price"]  # Header row
 
-    for _ in range(num_intervals):
+    for value in values:
         # Format the timestamp back into the required string format
         timestamp_str = current_time.strftime("%Y-%m-%dT%H:%M:%S%z")
 
         # Add new row to CSV content
-        csv_rows.append(f"{timestamp_str},{price}")
+        csv_rows.append(f"{timestamp_str},{value}")
 
         # Increment the time for the next interval
         current_time += interval

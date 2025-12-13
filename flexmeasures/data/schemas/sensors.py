@@ -632,7 +632,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         errors = {}
         for i, file in enumerate(files):
             try:
-                df = tb.read_csv(
+                bdf = tb.read_csv(
                     file,
                     sensor,
                     source=current_user.data_source[0],
@@ -644,25 +644,21 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
-                    resample=(
-                        True if sensor.event_resolution != timedelta(0) else False
-                    ),
+                    resample=True if sensor.event_resolution != timedelta(0) else False,
                     timezone=sensor.timezone,
                 )
                 assert is_numeric_dtype(
-                    df["event_value"]
+                    bdf["event_value"]
                 ), "event values should be numeric"
 
                 from_unit = fields.get("unit", sensor.unit)
-                # determine from original frequency (as we might have resampled the data)
-                from_resolution = get_resolution_from_file(file)
-                df["event_value"] = convert_units(
-                    df["event_value"],
+                bdf["event_value"] = convert_units(
+                    bdf["event_value"],
                     from_unit,
                     sensor.unit,
-                    event_resolution=from_resolution,
+                    event_resolution=sensor.event_resolution,
                 )
-                dfs.append(df)
+                dfs.append(bdf)
             except Exception as e:
                 error_message = (
                     f"Invalid content in file: {file.filename}. Failed with: {str(e)}"
@@ -676,16 +672,6 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         fields["data"] = dfs
         fields["filenames"] = [file.filename for file in files]
         return fields
-
-
-def get_resolution_from_file(file: FileStorage) -> str | None:
-    """Try to determine the original resolution of the data in the uploaded file."""
-    file.seek(0)  # if it has been read before
-    df_orig = pd.read_csv(file, parse_dates=[0], index_col=0)
-    orig_freq = pd.infer_freq(df_orig.index)
-    if isinstance(orig_freq, str) and not orig_freq[0].isdigit():
-        orig_freq = "1" + orig_freq
-    return pd.Timedelta(orig_freq)
 
 
 class QuantitySchema(Schema):

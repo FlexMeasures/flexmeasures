@@ -1,6 +1,9 @@
+import io
+
 from flask import url_for
 import pytest
 from sqlalchemy import select
+from datetime import timedelta
 
 from flexmeasures.api.tests.utils import AccountContext
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -77,57 +80,75 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
 
 
 @pytest.mark.parametrize(
-    "requesting_user, sensor_index, data_unit, data_resolution, price, expected_event_values, expected_status",
+    "requesting_user, sensor_index, data_unit, data_resolution, data_values, expected_event_values, expected_status",
     [
         (
             "test_prosumer_user_2@seita.nl",
-            1,
+            1,  # this sensor has unit=kW, res=00:15
             "m/s",
-            "1h",
-            45.3,
+            timedelta(hours=1),
+            [45.3, 45.3],
             None,
-            422,
-        ),  # this sensor has unit=kW
+            422,  # units not convertible
+        ),
         (
             "test_prosumer_user_2@seita.nl",
-            2,
+            2,  # this sensor has unit=kWh, res=01:00
             "kWh",
-            "1h",
-            45.3,
-            45.3,
+            timedelta(hours=1),
+            [45.3] * 4,
+            [45.3] * 4,  # same unit and resolution - values stay the same
             200,
-        ),  # this sensor has unit=kWh
+        ),
         (
             "test_prosumer_user_2@seita.nl",
-            0,
+            0,  # this sensor has unit=MW, res=00:15
             "kWh",
-            "1h",
-            45.3,
-            0.0453,
+            timedelta(hours=1),
+            [45.3] * 4,
+            [45.3 / 1000.0]
+            * 4
+            * 4,  # values: / 1000 due to kW(h)->MW, number *4 due to h->15min
             200,
-        ),  # this sensor has unit=MW
+        ),
         (
             "test_prosumer_user_2@seita.nl",
-            1,
+            1,  # this sensor has unit=kW, res=00:15
             "MW",
-            "1h",
-            2,
-            2000,
+            timedelta(hours=1),
+            [2] * 6,
+            [2 * 1000]
+            * 6
+            * 4,  # both power units, so 2 MW = 2000 kW, number *4 due to h->15min
             200,
         ),  # this sensor has unit=kW
         (
             "test_prosumer_user_2@seita.nl",
-            1,
+            1,  # this sensor has unit=kW, res=00:15
             "kWh",
-            "30min",
-            10,
-            20,
+            timedelta(minutes=30),
+            [10] * 12,
+            [10 * 2]
+            * 12
+            * 2,  # 10 kWh per half hour = 20 kW power, number *2 due to 30min->15min
+            200,
+        ),  # this sensor has unit=kW
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,  # this sensor has unit=kWh, res=01:00
+            "kWh",
+            timedelta(minutes=30),
+            [10, 20, 20, 40],
+            [
+                15,
+                30,
+            ],  # we make (10/2 + 20/2) the first hour, and (20/2 + 40/2) the second hour
             200,
         ),  # this sensor has unit=kW
     ],
     indirect=["requesting_user"],
 )
-def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefix from function name
+def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
     fresh_db,
     client,
     add_battery_assets_fresh_db,
@@ -135,29 +156,34 @@ def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefi
     sensor_index,
     data_unit,
     data_resolution,
-    price,
+    data_values,
     expected_event_values,
     expected_status,
 ):
     """
     Check if unit validation works fine for sensor data upload.
-    The target sensor has a kWh unit and event resolution of 30 minutes.
-    Incoming data can differ in both unit and resolution, so we check if the resulting data matches expectations.
+    The target sensors can have different units and resolution,
+    and the incoming data can also have differing resolutions and declared unit.
+    This test needs to check if the resulting data matches expectations.
     """
     start_date = (
         "2025-01-01T00:10:00+00:00"  # This date would be used to generate CSV content
     )
     test_battery = add_battery_assets_fresh_db["Test battery"]
     sensor = test_battery.sensors[sensor_index]
+    num_test_intervals = len(data_values)
+    print(
+        f"Uploading data to sensor '{sensor.name}' with unit={sensor.unit} and resolution={sensor.event_resolution}."
+    )
+    print(f"Data unit is {data_unit} and resolution is {data_resolution}")
+
     csv_content = generate_csv_content(
         start_time_str=start_date,
-        num_intervals=4,
-        resolution_str=data_resolution,
-        price=price,
+        interval=data_resolution,
+        values=data_values,
     )
-
-    import io
-
+    print("Generated CSV content:")
+    print(csv_content)
     file_obj = io.BytesIO(csv_content.encode("utf-8"))
 
     response = client.post(
@@ -167,7 +193,6 @@ def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefi
     )
     print("Response:\n%s" % response.status_code, expected_status)
     print("Server responded with:\n%s" % response.json)
-
     assert response.status_code == expected_status
 
     # fetch the save timedBeliefs and check if they have the right values
@@ -180,8 +205,11 @@ def test_auth_upload_sensor_data_with_distinct_units(  # TODO: remove auth prefi
 
         beliefs = timed_beliefs.all()
 
-        if data_resolution == "1h":
-            assert len(beliefs) == 16
-        else:
-            assert len(beliefs) == 8
-        assert expected_event_values == beliefs[0].event_value
+        expected_num_beliefs = num_test_intervals * (
+            data_resolution / sensor.event_resolution
+        )
+        print(
+            f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
+        )
+        assert len(beliefs) == expected_num_beliefs
+        assert expected_event_values == [b.event_value for b in beliefs]
