@@ -11,6 +11,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict, MutableList
+from sqlalchemy.dialects.postgresql import JSONB
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
@@ -76,16 +77,14 @@ class GenericAsset(db.Model, AuthModelMixin):
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     sensors_to_show = db.Column(
-        MutableList.as_mutable(db.JSON), nullable=False, default=[]
+        MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
-    flex_context = db.Column(
-        MutableDict.as_mutable(db.JSON), nullable=False, default={}
-    )
-    flex_model = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    flex_context = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    flex_model = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     sensors_to_show_as_kpis = db.Column(
-        MutableList.as_mutable(db.JSON), nullable=False, default=[]
+        MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
     account_id = db.Column(
         db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
