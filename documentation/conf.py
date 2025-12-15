@@ -13,6 +13,8 @@ from datetime import datetime
 from pkg_resources import get_distribution
 import sphinx_fontawesome
 
+from flexmeasures.data.schemas.scheduling import metadata as metadata_module
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -55,6 +57,7 @@ extensions = [
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
     "sphinxcontrib.mermaid",
+    "sphinxcontrib.openapi",
 ]
 
 autodoc_default_options = {}
@@ -225,7 +228,7 @@ texinfo_documents = [
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 
-# -- Options for copybytton extension ---------------------------------------
+# -- Options for copybutton extension ---------------------------------------
 copybutton_prompt_is_regexp = True
 copybutton_prompt_text = r">>> |\.\.\. |\$ "  # Python Repl + continuation + Bash
 copybutton_line_continuation_character = "\\"
@@ -259,3 +262,31 @@ def setup(sphinx_app):
         create(
             env="documentation"
         )  # we need to create the app for when sphinx imports modules that use current_app
+
+
+# Build rst_epilog substitutions or .rst files to include:: for every UPPERCASE constant
+output_dir = os.path.join(os.path.dirname(__file__), "_autodoc")
+os.makedirs(output_dir, exist_ok=True)
+sub_lines = []
+for name in dir(metadata_module):
+    if not name.isupper():
+        continue
+    metadata = getattr(metadata_module, name)
+    if not isinstance(metadata, metadata_module.MetaData):
+        # skip non-MetaData objects
+        continue
+
+    # Prefer multiple examples over a single example
+    if metadata.examples:
+        example = " or ".join([f"``{e}``" for e in metadata.examples])
+    else:
+        example = f"``{metadata.example}``"
+    sub_lines.append(f".. |{name}.example| replace:: {example}")
+
+    # Create an autodoc file for the description, because the replace:: syntax does not support multi-line descriptions
+    filename = os.path.join(output_dir, f"{name}.rst")
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(f"{name}\n{'=' * len(name)}\n\n")
+        f.write(metadata.description)
+
+rst_epilog = "\n".join(sub_lines)

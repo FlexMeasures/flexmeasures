@@ -37,10 +37,22 @@ class AssetForm(FlaskForm):
         places=None,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
-    attributes = StringField("Other attributes (JSON)", default="{}")
+    attributes = StringField(
+        "Other attributes (JSON)",
+        default="{}",
+        description="Custom attributes as JSON, for custom functionality, e.g. used in plugins.",
+    )
     sensors_to_show_as_kpis = StringField(
         "Sensors to show as KPIs (JSON)",
         default="[]",
+        description="""List of sensor references to show as KPIs on the asset graph page.\n
+        Only supports sensors with a daily resolution.
+        Example entry: [{\"title\":\"My KPI\", \"sensor\": 14, \"function\": \"mean\"}].""",
+    )
+    external_id = StringField(
+        "External ID",
+        default=None,
+        description="ID for this asset in another system. Note: not being validated here.",
     )
 
     def validate_on_submit(self):
@@ -51,7 +63,6 @@ class AssetForm(FlaskForm):
             self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
-
         result = super().validate_on_submit()
         return result
 
@@ -74,7 +85,7 @@ class AssetForm(FlaskForm):
             return
 
     def to_json(self) -> dict:
-        """turn form data into a JSON we can POST to our internal API"""
+        """turn form data into a JSON object"""
         data = copy.copy(self.data)
         if data.get("longitude") is not None:
             data["longitude"] = float(data["longitude"])
@@ -86,23 +97,6 @@ class AssetForm(FlaskForm):
             del data["csrf_token"]
 
         return data
-
-    def process_api_validation_errors(self, api_response: dict):
-        """Process form errors from the API for the WTForm"""
-        if not isinstance(api_response, dict):
-            return
-        for error_header in ("json", "validation_errors"):
-            if error_header not in api_response:
-                continue
-            for field in list(self._fields.keys()):
-                if field in list(api_response[error_header].keys()):
-                    field_errors = api_response[error_header][field]
-                    if isinstance(field_errors, list):
-                        self._fields[field].errors += api_response[error_header][field]
-                    else:
-                        self._fields[field].errors.append(
-                            api_response[error_header][field]
-                        )
 
     def with_options(self):
         if "generic_asset_type_id" in self:

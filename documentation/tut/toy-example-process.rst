@@ -1,6 +1,6 @@
 .. _tut_toy_schedule_process:
 
-Toy example III: Computing schedules for processes
+Toy example IV: Computing schedules for processes
 ====================================================
 
 Until this point we've been using a static battery, one of the most flexible energy assets, to reduce electricity bills. A battery can modulate rather freely, and both charge and discharge.
@@ -59,10 +59,10 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-process --sensor 4 \
-      --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
-      --process-power 0.2MW --process-type INFLEXIBLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
+    $ flexmeasures add schedule --sensor 4 --scheduler ProcessScheduler \
+        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
+        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"INFLEXIBLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
 
 Under the INFLEXIBLE policy, the process starts as soon as possible, in this case, coinciding with the start of the planning window.
 
@@ -70,10 +70,10 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKA
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-process --sensor 5 \
-      --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
-      --process-power 0.2MW --process-type BREAKABLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
+    $ flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
+        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
+        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
 
@@ -81,10 +81,10 @@ Finally, we'll schedule the process using the SHIFTABLE policy.
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-process --sensor 6 \
-      --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --process-duration PT4H \
-      --process-power 0.2MW --process-type SHIFTABLE \ 
-      --forbid "{\"start\" : \"${TOMORROW}T15:00:00+02:00\", \"duration\" : \"PT1H\"}"
+    $ flexmeasures add schedule --sensor 6 --scheduler ProcessScheduler \
+        --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
+        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"SHIFTABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 
 Results

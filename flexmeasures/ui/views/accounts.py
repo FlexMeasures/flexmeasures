@@ -2,33 +2,18 @@ from __future__ import annotations
 
 from sqlalchemy import select
 from werkzeug.exceptions import Forbidden, Unauthorized
-from flask import request, url_for
+from flask import request
 from flask_classful import FlaskView
 from flask_security import login_required
 from flask_security.core import current_user
 
 from flexmeasures.auth.policy import user_has_admin_access, check_access
 
-from flexmeasures.ui.views.api_wrapper import InternalApi
-from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.data import db
-
-
-def get_accounts() -> list[dict]:
-    """/accounts"""
-    accounts_response = InternalApi().get(url_for("AccountAPI:index"))
-    accounts = accounts_response.json()
-
-    return accounts
-
-
-def get_account(account_id: str) -> dict:
-    account_response = InternalApi().get(url_for("AccountAPI:get", id=account_id))
-    account = account_response.json()
-
-    return account
 
 
 class AccountCrudUI(FlaskView):
@@ -54,7 +39,10 @@ class AccountCrudUI(FlaskView):
             ).scalar_one_or_none()
             if consultancy_account:
                 account.consultancy_account.name = consultancy_account.name
-        accounts = get_accounts() if user_has_admin_access(current_user, "read") else []
+        # admins can set all accounts as admins, others cannot set any
+        potential_consultant_accounts = (
+            get_accounts() if user_has_admin_access(current_user, "read") else []
+        )
 
         user_can_view_account_auditlog = True
         try:
@@ -77,24 +65,24 @@ class AccountCrudUI(FlaskView):
         return render_flexmeasures_template(
             "accounts/account.html",
             account=account,
-            accounts=accounts,
+            accounts=potential_consultant_accounts,
             include_inactive=include_inactive,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
+            asset_icon_map=ICON_MAPPING,
         )
 
     @login_required
     def auditlog(self, account_id: str):
         """/accounts/auditlog/<account_id>"""
         account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
-        audit_log_response = InternalApi().get(
-            url_for("AccountAPI:auditlog", id=account_id)
-        )
-        audit_logs_response = audit_log_response.json()
+        check_access(account, "read")
+
+        audit_logs = get_audit_log_records(account)
 
         return render_flexmeasures_template(
             "accounts/account_audit_log.html",
-            audit_logs=audit_logs_response,
+            audit_logs=audit_logs,
             account=account,
         )

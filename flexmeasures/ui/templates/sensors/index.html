@@ -138,7 +138,7 @@ The event_value should be a numeric value."
                               </tr>
                               <tr>
                                   <th>Unit</th>
-                                  <td>{{ sensor.unit }}</td>
+                                  <td>{{ sensor._ui_unit | safe }}</td>
                               </tr>
                               <tr>
                                   <th>Event resolution</th>
@@ -188,7 +188,7 @@ The event_value should be a numeric value."
                       </div>
                   </div>
               </div>
-              <div class="col-sm-2">
+              <div class="col-sm-2 replay-column">
                   <div class="replay-container">
                     <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
                     <div id="replay-time"></div>

@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-import json
 from flask import url_for
 from flask_security import current_user
 from werkzeug.exceptions import NotFound
-from sqlalchemy import select
 
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures import Asset
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
 
@@ -23,87 +20,6 @@ def get_asset_by_id_or_raise_notfound(asset_id: str) -> GenericAsset:
     if asset is None:
         raise NotFound
     return asset
-
-
-def process_internal_api_response(
-    asset_data: dict, asset_id: int | None = None, make_obj=False
-) -> GenericAsset | dict:
-    """
-    Turn data from the internal API into something we can use to further populate the UI.
-    Either as an asset object or a dict for form filling.
-
-    If we add other data by querying the database, we make sure the asset is not in the session afterwards.
-    """
-
-    def expunge_asset():
-        # use if no insert is wanted from a previous query which flushes its results
-        if asset in db.session:
-            db.session.expunge(asset)
-
-    asset_data.pop("status", None)  # might have come from requests.response
-    if asset_id:
-        asset_data["id"] = asset_id
-    if make_obj:
-        children = asset_data.pop("child_assets", [])
-
-        asset_data.pop("sensors", [])
-        asset_data.pop("owner", None)
-        asset_type = asset_data.pop("generic_asset_type", {})
-
-        asset = GenericAsset(
-            **{
-                **asset_data,
-                **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
-                **{"flex_context": json.loads(asset_data.get("flex_context", "{}"))},
-                **{
-                    "sensors_to_show": json.loads(
-                        asset_data.get("sensors_to_show", "[]")
-                    )
-                },
-                **{
-                    "sensors_to_show_as_kpis": json.loads(
-                        asset_data.get("sensors_to_show_as_kpis", "[]")
-                    )
-                },
-            }
-        )  # TODO: use schema?
-        if "generic_asset_type_id" in asset_data:
-            asset.generic_asset_type = db.session.get(
-                GenericAssetType, asset_data["generic_asset_type_id"]
-            )
-        else:
-            asset.generic_asset_type = db.session.get(
-                GenericAssetType, asset_type.get("id", None)
-            )
-        expunge_asset()
-        asset.owner = db.session.get(Account, asset_data["account_id"])
-        expunge_asset()
-        db.session.flush()
-        if "id" in asset_data:
-            asset.sensors = db.session.scalars(
-                select(Sensor).filter_by(generic_asset_id=asset_data["id"])
-            ).all()
-            expunge_asset()
-        if asset_data.get("parent_asset_id", None) is not None:
-            asset.parent_asset = db.session.execute(
-                select(GenericAsset).filter(
-                    GenericAsset.id == asset_data["parent_asset_id"]
-                )
-            ).scalar_one_or_none()
-            expunge_asset()
-
-        child_assets = []
-        for child in children:
-            if "child_assets" in child:
-                # not deeper than one level
-                child.pop("child_assets")
-            child_asset = process_internal_api_response(child, child["id"], True)
-            child_assets.append(child_asset)
-        asset.child_assets = child_assets
-        expunge_asset()
-
-        return asset
-    return asset_data
 
 
 def user_can_create_assets(account: Account | None = None) -> bool:
@@ -233,7 +149,7 @@ def add_child_asset(asset: Asset, assets: list) -> list:
     """
     # Add Extra node to the current asset
     new_child_asset = {
-        "name": "Add Child Asset",
+        "name": "Add asset",
         "id": "new",
         "asset_type": asset.generic_asset_type.name,
         "link": url_for("AssetCrudUI:post", id="new", parent_asset_id=asset.id),

@@ -3,7 +3,12 @@ from datetime import timedelta
 from flexmeasures import Asset, AssetType, Account, Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.ui.utils.breadcrumb_utils import get_ancestry
-
+from flexmeasures.data.schemas.scheduling import (
+    UI_FLEX_CONTEXT_SCHEMA,
+    UI_FLEX_MODEL_SCHEMA,
+)
+from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 
@@ -52,6 +57,59 @@ def test_get_ancestry(app, db):
     assert sensor_ancestry[-1]["type"] == "Sensor"
     assert sensor_ancestry[0]["type"] == "Account"
     assert all(b["type"] == "Asset" for b in sensor_ancestry[1:-1])
+
+
+def test_ui_flexcontext_schema():
+    """
+    This test ensures that all fields in the DBFlexContextSchema (except some exclusions)
+    are also in the UI schema and vice versa.
+
+    This is important to keep in mind when updating either schema. We want to avoid a situation
+    where a field is added to the DB schema but not to the UI schema, as that would lead to
+    inconsistencies and potential bugs in the application.
+    """
+    ui_flexcontext_schema_fields = [
+        key for key, value in UI_FLEX_CONTEXT_SCHEMA.items()
+    ]
+
+    exclude_fields = [  # These fields are not in the UI schema
+        "relax-constraints",
+        "relax-soc-constraints",
+        "relax-capacity-constraints",
+        "relax-site-capacity-constraints",
+        "consumption-price-sensor",
+        "production-price-sensor",
+    ]
+
+    schema_keys = []
+    for value in DBFlexContextSchema().fields.values():
+        if value.data_key not in exclude_fields:
+            schema_keys.append(value.data_key)
+
+    schema_keys = set(schema_keys)
+    ui_flexcontext_schema_fields = set(ui_flexcontext_schema_fields)
+
+    assert schema_keys == ui_flexcontext_schema_fields
+
+
+def test_ui_flexmodel_schema():
+    """
+    This test ensures that all fields in the DBStorageFlexModelSchema are also in the UI schema and vice versa.
+
+    This is important to keep in mind when updating either schema. We want to avoid a situation
+    where a field is added to the DB schema but not to the UI schema, as that would lead to
+    inconsistencies and potential bugs in the application.
+    """
+    ui_flexmodel_schema_fields = [key for key, value in UI_FLEX_MODEL_SCHEMA.items()]
+
+    schema_keys = []
+    for value in DBStorageFlexModelSchema().fields.values():
+        schema_keys.append(value.data_key)
+
+    schema_keys = set(schema_keys)
+    ui_flexmodel_schema_fields = set(ui_flexmodel_schema_fields)
+
+    assert schema_keys == ui_flexmodel_schema_fields
 
 
 class NewAsset:

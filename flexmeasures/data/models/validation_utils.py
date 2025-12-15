@@ -34,12 +34,11 @@ def check_required_attributes(
             raise ValueError("Unexpected declaration of attributes")
 
         # Check attribute exists
-        if not sensor.has_attribute(attribute_name):
+        if (attribute := sensor.get_attribute(attribute_name)) is None:
             missing_attributes.append(attribute_name)
 
         # Check attribute is of the expected type
         if expected_attribute_type is not None:
-            attribute = sensor.get_attribute(attribute_name)
             if not isinstance(attribute, expected_attribute_type):
                 wrong_type_attributes.append(
                     (attribute_name, type(attribute), expected_attribute_type)

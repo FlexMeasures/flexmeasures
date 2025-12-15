@@ -150,7 +150,7 @@
                     {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
                     class="disabled" {% endif %}>
                     <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
-                    {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
+                    {% if id in ['openapi-docs', 'docs'] %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
 
@@ -240,10 +240,16 @@ Loading fresh data will take additional time.">
                     <label class="form-check-label" for="useMaterializedView">Refresh data</label>
                 </div>
                 {% endif %}
-                <div class="form-check form-switch" style="margin-left: 10px;">
+                <div class="form-check form-switch" title="Set this asset view as your default when visiting asset pages." style="margin-left: 10px;">
                     <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
                     <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
                 </div>
+                {% if breadcrumb_info['current_asset_view'] == 'Graphs' %}
+                <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables. The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
+                    <input class="form-check-input" type="checkbox" {% if session.get("keep_legends_below_graphs") %} checked {% endif %} id="defaultlegendPosition" onchange="setDefaultlegendPosition(this)">
+                    <label class="form-check-label" for="defaultlegendPosition">Keep legends below</label>
+                </div>
+                {% endif %}
             </div>
             {% endif %}
         </ol>
@@ -255,7 +261,8 @@ Loading fresh data will take additional time.">
 
     {% block forecastpicker %}
 
-    <div class="form-group row">
+    <div class="form-group row">/8520k-+.
+
         <div class="col-md-2">
             <div class="col-md-1"><i class="icon-binoculars center-icon"></i></div>
         </div>
@@ -386,10 +393,12 @@ Loading fresh data will take additional time.">
                 const sensor = responseData.sensors[belief.sid] || {};
                 const source = responseData.sources[belief.src] || {};
 
+                // Special case: for sensors with seconds unit, convert to datetime here
+                const value = (sensor.unit === 's' && typeof belief.val === 'number') ? new Date(belief.val * 1000) : belief.val;
                 return {
                     // Map shortened field names back to original names
                     event_start: belief.ts,
-                    event_value: belief.val,
+                    event_value: value,
                     belief_horizon: belief.bh,
                     scale_factor: belief.sf,
                     belief_time: belief.bt,
@@ -553,7 +562,15 @@ Loading fresh data will take additional time.">
         var datasetName = 'asset_' + {{ asset.id }};
         {% set total_sensors = asset.sensors_to_show | map(attribute='sensors') | map('length') | sum %}
         {% if total_sensors > 7 %}
-            combineLegend = 'false';
+            {% if session.get("keep_legends_below_graphs") %}
+                combineLegend = 'true';
+            {% else %}
+                combineLegend = 'false';
+            {% endif %}
+        {% else %}
+            {% if not session.get("keep_legends_below_graphs") %}
+                combineLegend = 'true';
+            {% endif %}
         {% endif %}
     {% elif active_page == "sensors" %}
         var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
@@ -591,6 +608,7 @@ Loading fresh data will take additional time.">
     {% endif %}
 
     function createPicker(startDate, endDate, customRanges) {
+
         picker = new Litepicker({
             element: document.getElementById('datepicker'),
             plugins: ['ranges', 'keyboardnav'],
@@ -757,6 +775,7 @@ Loading fresh data will take additional time.">
                 {% else %}
                     var timerangeVar = 'timerange';
                 {% endif %}
+
                 if (timerangeVar in data) {
                     var start = new Date(data[timerangeVar].start);
                     var end = new Date(data[timerangeVar].end);
@@ -764,31 +783,62 @@ Loading fresh data will take additional time.">
                     start.setHours(0,0,0,0); // get start of first day
                     end.setHours(0,0,0,0); // get start of last day
 
-                    if (timerangeNotSetYet) {
-                        // Initialize picker to the last 2 days of sensor data
-                        var nearEnd = new Date(end)//.setDate(end.getDate() - 1);
-                        nearEnd.setDate(nearEnd.getDate() - 2);
-                        var new_start_date = nearEnd;
-                        var new_end_date = end;
-                    } else {
-                        var new_start_date = new Date('{{ event_starts_after }}');
-                        var new_end_date = new Date('{{ event_ends_before }}');
-                    }
-                    
-                    // No use looking for data in years outside timerange of sensor data
+                    {% if active_page == "assets" %}
+                        var timerangeVar = 'timerange_of_sensors_to_show';
+                    {% else %}
+                        var timerangeVar = 'timerange';
+                    {% endif %}
+
+                    // Detect if URL already specifies a range
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlStartTimeRaw = urlParams.get('start_time');
+                    const urlEndTimeRaw = urlParams.get('end_time');
+                    const urlHasRange = urlStartTimeRaw && urlEndTimeRaw;
+
                     picker.setOptions({
                         dropdowns: {
                             minYear: start.getFullYear(),
                             maxYear: end.getFullYear(),
                         },
                     });
-                    
-                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
-                    // Adjusting the date by subtracting one day to account for timezone discrepancies.
-                    new_end_date.setDate(new_end_date.getDate() - 1);
-                    picker.setDateRange(decodeURIComponent(toIsoString(new_start_date)), decodeURIComponent(toIsoString(new_end_date)));
-                    picker.gotoDate(new_end_date);
-                };
+
+                    if (urlHasRange) {
+                        const urlStartTime = urlStartTimeRaw.replace(' ', '+');
+                        const urlEndTime = urlEndTimeRaw.replace(' ', '+');
+
+                        const urlStartDate = new Date(urlStartTime);
+                        const urlEndDateExclusive = new Date(urlEndTime);
+
+                        if (!isNaN(urlStartDate) && !isNaN(urlEndDateExclusive)) {
+                            // picker end date is inclusive → subtract 1 day
+                            urlEndDateExclusive.setDate(urlEndDateExclusive.getDate() - 1);
+
+                            // This fires the 'selected' event and load graphs
+                            picker.setDateRange(urlStartDate, urlEndDateExclusive);
+                            picker.gotoDate(urlEndDateExclusive);
+                        }
+                    } else {
+                        // Original behaviour when there is no URL range
+
+                        if (timerangeNotSetYet) {
+                            // Initialize picker to the last 2 days of sensor data
+                            var nearEnd = new Date(end);
+                            nearEnd.setDate(nearEnd.getDate() - 2);
+                            var new_start_date = nearEnd;
+                            var new_end_date = end;
+                        } else {
+                            var new_start_date = new Date('{{ event_starts_after }}');
+                            var new_end_date = new Date('{{ event_ends_before }}');
+                        }
+
+                        // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                        new_end_date.setDate(new_end_date.getDate() - 1); // inclusive picker end
+                        picker.setDateRange(new_start_date, new_end_date);
+                        picker.gotoDate(new_end_date);
+                    }
+                }
+
+
             });
         }
     };
@@ -1061,7 +1111,7 @@ Loading fresh data will take additional time.">
         }
         $("#spinner").hide();
     }
-    
+
     {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs() {
         const pickerStartDate = picker.getStartDate().toJSDate();
@@ -1084,27 +1134,36 @@ Loading fresh data will take additional time.">
             // Set kpiCards to empty
             kpiCards.innerHTML = '';
             data.forEach(kpi => {
+                const link = document.createElement('a');
+                link.href = `${apiBasePath}/sensors/${kpi.sensor}`;
+                link.title = "See underlying KPI data";
+                link.classList.add('text-decoration-none', 'd-flex', 'flex-fill');
+
                 const colDiv = document.createElement('div');
                 colDiv.classList.add('col-md-3');
+                colDiv.classList.add('d-flex');
                 const card = document.createElement('div');
-                card.classList.add('card', 'mb-3');
+                card.classList.add('card', 'flex-fill');
                 // Add sensor data to the card
-                const label = kpi.unit === "%" ? "Average" : "Total";
+                const labelMap = {
+                    'mean': 'Average',
+                    'sum': 'Total',
+                    'min': 'Min',
+                    'max': 'Max'
+                };
+                const label = labelMap[kpi.downsample_function];
                 card.innerHTML = `
-                    <div class="card-body">
+                    <div class="card-body d-flex flex-column justify-content-between">
                         <h5 class="card-title">${kpi.title}</h5>
                         <h5 class="card-text">
                             <strong>
                                 ${label}: ${kpi.downsample_value} ${kpi.unit}
-                                <small>${kpi.downsample_function}</small>
                             </strong>
                         </h5>
-                        <small style="float: right;">
-                            <a href="${apiBasePath}/sensors/${kpi.sensor}" title="See actual KPI data">see more</a>
-                        </small>
                     </div>
                 `;
-                colDiv.appendChild(card);
+                link.appendChild(card);
+                colDiv.appendChild(link);
                 kpiCards.appendChild(colDiv);
             });
         })
@@ -1176,6 +1235,30 @@ Loading fresh data will take additional time.">
                 })
             })
             .then(response => response.json())
+            .catch(error => {
+                console.error('Error during API call:', error);
+            });
+        }
+
+        function setDefaultlegendPosition(checkbox) {
+            // Get the checked status of the checkbox
+            const isChecked = checkbox.checked;
+
+            const apiBasePath = window.location.origin;
+            fetch(apiBasePath + '/api/v3_0/assets/keep_legends_below_graphs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({
+                    keep_legends_below_graphs: isChecked
+                })
+            })
+            .then(response => {
+                response.json();
+                location.reload();
+            })
             .catch(error => {
                 console.error('Error during API call:', error);
             });
@@ -1322,7 +1405,7 @@ Loading fresh data will take additional time.">
                 toast.remove();
                 maybeHideCloseToastBtn();
             });            
-          }
+        }
     </script>
 
     <!-- External scripts -->
@@ -1467,6 +1550,26 @@ Loading fresh data will take additional time.">
                 </div>
                 </div>
                 {% endblock credits %}
+
+                <br/>
+
+
+                {% block support %}
+
+                {% if FLEXMEASURES_SUPPORT_PAGE %}
+                <a href="{{ FLEXMEASURES_SUPPORT_PAGE }}" target="_blank" rel="noopener noreferrer">Get Support</a>.
+                {% endif %}
+
+                {% endblock support %}
+
+                {% block termsofservice %}
+
+                {% if FLEXMEASURES_TOS_PAGE %}
+                <a href="{{ FLEXMEASURES_TOS_PAGE }}" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
+                {% endif %}
+
+                {% endblock termsofservice %}
+
 
                 {% block technical_info %}
                 {# We might render templates from plugins, where this meta info is not available #}

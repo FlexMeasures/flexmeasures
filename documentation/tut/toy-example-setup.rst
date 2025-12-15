@@ -48,7 +48,8 @@ Install Flexmeasures and the database
         .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it.
                   ``alias docker='sudo docker'`` enables you to still run this tutorial.
 
-        After running these commands, we can start the Postgres database and the FlexMeasures app with the following commands:
+        After running these commands, we can start the Postgres database server (with user `postgres` and a new database `flexmeasures_db`) and the FlexMeasures server.
+        That is done with the following commands:
 
         .. code-block:: bash
 
@@ -170,7 +171,7 @@ FlexMeasures offers a command to create a toy account with a battery:
 
 And with that, we're done with the structural data for this tutorial!
 
-If you want, you can inspect what you created:
+If you want, you can inspect what you created in the CLI (we'll also show the UI later):
 
 .. code-block:: bash
 
@@ -197,7 +198,7 @@ If you want, you can inspect what you created:
        4  toy-solar     solar               2  (52.374, 4.88969)
 
 .. code-block:: bash
-    :emphasize-lines: 30
+    :emphasize-lines: 9-10
 
     $ flexmeasures show asset --id 2
 
@@ -205,9 +206,15 @@ If you want, you can inspect what you created:
     Asset toy-building (ID: 2)
     =========================
 
-    Type      Location           Attributes
-    -------   -----------------  ----------------------------
-    building  (52.374, 4.88969)
+    Type      Location           Sensors to show      Attributes
+    --------  -----------------  -------------------  ------------
+    building  (52.374, 4.88969)  Prices: [1]
+                                 Power flows: [3, 2]
+    
+    Flex-Context                      Flex-Model
+    --------------------------------  ------------
+    site-power-capacity: 500 kVA
+    consumption-price: {'sensor': 1}
 
     ====================================
     Child assets of toy-building (ID: 2)
@@ -220,17 +227,33 @@ If you want, you can inspect what you created:
 
     No sensors in asset ...
 
+You can see that this building asset has some meta information about how FlexMeasures needs to schedule:
+
+- Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
+- Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this value.
+
+Now let's look at the battery asset, as well:
+
+.. code-block:: bash
+    :emphasize-lines: 10-12
+
     $ flexmeasures show asset --id 3
 
     ===================================
     Asset toy-battery (ID: 3)
     Child of asset toy-building (ID: 2)
     ===================================
-    Type     Location           Flex-Context                      Sensors to show      Attributes
-    -------  -----------------  --------------------------------  -------------------  -----------------------
-    battery  (52.374, 4.88969)  consumption-price: {'sensor': 1}  Prices: [1]          capacity_in_mw: 500 kVA
-                                                                  Power flows: [3, 2]  min_soc_in_mwh: 0.05
-                                                                                       max_soc_in_mwh: 0.45
+
+    Type     Location           Sensors to show      Attributes
+    -------  -----------------  -------------------  ------------
+    battery  (52.374, 4.88969)  Prices: [1]
+                                Power flows: [3, 2]
+    
+    Flex-Context    Flex-Model
+    --------------  -------------------------
+                    power-capacity: 500 kVA
+                    roundtrip-efficiency: 90%
+                    soc-max: 450 kWh
 
     ====================================
     Child assets of toy-battery (ID: 3)
@@ -245,8 +268,12 @@ If you want, you can inspect what you created:
        2  discharging  MW      15 minutes    Europe/Amsterdam
     
 
+    
 Yes, that is quite a large battery :) 
-You can also see that the asset has some meta information about its scheduling. Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
+You can also see that the asset has some meta information about its scheduling.
+
+- Within :ref:`flex_model`, we noted that the battery's power capacity is the same as the building's grid connection capacity (500 kVA), meaning the battery can charge or discharge at full power without overloading the connection, but no other devices can (we will come back to this limitation).
+- Also noted is the battery's roundtrip efficiency (90%) and maximum state of charge (450 kWh).
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
@@ -258,6 +285,27 @@ Visit `http://localhost:5000/ <http://localhost:5000/>`_ (username is "toy-user@
 |
 
 .. note:: You won't see the map tiles, as we have not configured the :ref:`MAPBOX_ACCESS_TOKEN`. If you have one, you can configure it via ``flexmeasures.cfg`` (for Docker, see :ref:`docker_configuration`).
+
+And here is the context view of the building:
+
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-site-structure.png
+    :align: center
+|
+
+The flex-context of the building (which you can edit here in the UI, as well):
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-building-flex-context.png
+    :align: center
+|
+
+And on the flex-model of the battery can be seen on its properties page (and is editable as well):
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-tutorial-battery-flex-model.png
+    :align: center
+|
+
+
 
 
 .. _tut_toy_schedule_price_data:
@@ -314,7 +362,7 @@ Let's look at the price data we just loaded:
     $ flexmeasures show beliefs --sensor 1 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
     
     Beliefs for Sensor 'day-ahead prices' (ID 1).
-    Data spans a day and starts at 2022-03-03 00:00:00+01:00.
+    Data spans a day and starts at 2025-11-11 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
     │       ▗▀▚▖                                                 │

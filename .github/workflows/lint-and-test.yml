@@ -38,8 +38,9 @@ jobs:
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Upgrade pip
+        # Pin due to https://github.com/pypa/pip/issues/13636
         run: |
-          pip3 install --upgrade pip
+          pip3 install --upgrade "pip==25.2"
       - name: "Caching for dependencies (.txt) - restore existing or ensure new cache will be made"
         uses: actions/cache@v4
         id: cache
@@ -85,7 +86,7 @@ jobs:
       # Label used to access the service container
       postgres:
         # Docker Hub image
-        image: postgres:12.5 
+        image: postgres:17.4 
         env:
           POSTGRES_USER: flexmeasures_test
           POSTGRES_PASSWORD: flexmeasures_test
