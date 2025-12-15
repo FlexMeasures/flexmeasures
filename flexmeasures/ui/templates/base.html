@@ -276,33 +276,6 @@
 
     {% endblock forecastpicker %}
 
-    {% block leftsidepanel %}
-
-    <script>
-      // Set up swiping and clicking for the left sidepanel
-      var leftSidepanels = document.getElementsByClassName('left-sidepanel');
-      var leftSidepanelLabels = document.getElementsByClassName('left-sidepanel-label');
-      async function openSidepanel(e) {
-        if ( (e.target.classList.contains('sidepanel-container')) | (e.type == 'click') ) {
-          for (var i = leftSidepanels.length - 1; i >= 0; i--) {
-            leftSidepanels[i].classList.add('sidepanel-show');
-          }
-        }
-      }
-      async function closeSidepanel(e) {
-        for (var i = leftSidepanels.length - 1; i >= 0; i--) {
-          leftSidepanels[i].classList.remove('sidepanel-show');
-        }
-      }
-      for (var i = leftSidepanelLabels.length - 1; i >= 0; i--) {
-        leftSidepanelLabels[i].addEventListener("click", openSidepanel);
-      }
-      document.addEventListener('swiped-right', openSidepanel);
-      document.addEventListener('swiped-left', closeSidepanel);
-    </script>
-
-    {% endblock leftsidepanel %}
-
     {% block sensorChartSetup %}
 
     <!-- Render Charts -->
@@ -313,9 +286,10 @@
     <script type="module" type="text/javascript">
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
-    import { getUniqueValues, convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { subtract, computeSimulationRanges, lastNMonths, countDSTTransitions, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+    import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
+    import { decompressChartData, checkDSTTransitions, checkSourceMasking} from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
 
     let vegaView;
     let previousResult;
@@ -366,74 +340,6 @@
             });
         }
     });
-
-    /**
-     * Convert data from the new (>= FM v0.28) compressed reference-based format
-     * back to the old format, for backward compatibility.
-     *
-     * @param {Object} responseData - The data from the sensor data API.
-     * @returns {Object[]} - The adapted data in the old format.
-     */
-    function decompressChartData(responseData) {
-        // Check if it's the new compressed reference-based format, if so: decompress
-        if (responseData.data && responseData.sensors && responseData.sources) {
-            return responseData.data.map(belief => {
-                const sensor = responseData.sensors[belief.sid] || {};
-                const source = responseData.sources[belief.src] || {};
-
-                // Special case: for sensors with seconds unit, convert to datetime here
-                const value = (sensor.unit === 's' && typeof belief.val === 'number') ? new Date(belief.val * 1000) : belief.val;
-                return {
-                    // Map shortened field names back to original names
-                    event_start: belief.ts,
-                    event_value: value,
-                    belief_horizon: belief.bh,
-                    scale_factor: belief.sf,
-                    belief_time: belief.bt,
-
-                    // Reconstruct full sensor and source objects
-                    sensor: {
-                        id: belief.sid,
-                        name: sensor.name || '',
-                        sensor_unit: sensor.unit || '',
-                        unit: sensor.unit || '',
-                        description: sensor.description || '',
-                        asset_id: sensor.asset_id,
-                        asset_description: sensor.asset_description || ''
-                    },
-                    source: {
-                        id: belief.src,
-                        name: source.name || '',
-                        model: source.model || '',
-                        type: source.type || 'other',
-                        description: source.description || ''
-                    },
-
-                    // Keep sensor_unit at root level for backward compatibility
-                    sensor_unit: sensor.unit || ''
-                };
-            });
-        }
-
-        // If it's already in the old format, return as-is
-        return responseData;
-    }
-
-    function checkDSTTransitions(startDate, endDate) {
-        var numDSTTransitions = countDSTTransitions(startDate, endDate, 90)
-        if (numDSTTransitions == 1) {
-            showToast('Please note that the sensor data you are viewing includes a daylight saving time (DST) transition.');
-        } else if (numDSTTransitions > 1) {
-            showToast('Please note that the sensor data you are viewing includes ' + numDSTTransitions + ' daylight saving time (DST) transitions.');
-        }
-    }
-
-    function checkSourceMasking(data) {
-        var uniqueSourceIds = getUniqueValues(data, 'source.id');
-        if (chartType == 'daily_heatmap' && uniqueSourceIds.length > 1) {
-            showToast('Please note that only data from the most prevalent source is shown.');
-        }
-    }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
         const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend='+ combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType);
@@ -1167,149 +1073,6 @@
         }
     </script>
 
-    <!-- JS to enable toast -->
-    <script defer>
-        const toastStack = document.getElementById("toast-container");
-        const closeToastBtn = document.getElementById("close-all-toasts");
-        
-        // written like this since this script(order) is ontop of the main script
-        document.addEventListener("DOMContentLoaded", function () {
-            initiateToastCloseBtn(closeToastBtn);
-        });
-
-        function maybeHideCloseToastBtn() {
-            const remainingToasts = toastStack.querySelectorAll(".toast");
-            if (remainingToasts.length === 0) {
-                closeToastBtn.style.display = "none";
-            }
-        }
-
-        function initiateToastCloseBtn(closeToastBtn){
-            // hide button
-            closeToastBtn.style.display = "none";
-
-            closeToastBtn.addEventListener("click", function () {
-                const toastElements = document.querySelectorAll(".toast");
-                toastElements.forEach((toast) => {
-                const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
-                if (toastInstance) {
-                    // destroy the toast
-                    toastInstance.dispose();
-                    toast.remove();
-                }
-                });
-                // Hide the close button
-                closeToastBtn.style.display = "none";
-            });
-        }
-
-        function showAllToasts() {
-            const toastElements = document.querySelectorAll(".toast");
-            toastElements.forEach((toast) => {
-                const toastInstance = new bootstrap.Toast(toast);
-                toastInstance.show();
-            });
-        }
-
-        function showToast(message, type, { highlightDuplicates = true, showDuplicateCount = true } = {}) {
-            let colorClass;
-            let colorStyle = "";
-            let title;
-        
-            // Determine the type of toast
-            if (type == "error") {
-              delay = 10000;
-              colorClass = "bg-danger";
-              title = "Error";
-            } else if (type == "success") {
-              delay = 2000;
-              colorClass = "bg-success";
-              title = "Success";
-            } else {
-              delay = 5000;
-              colorStyle =
-                "background-color: {{ primary_color }};";
-              title = "Info";
-            }
-
-            // Search for an existing toast with the same message
-            const existingToasts = toastStack.querySelectorAll(".toast");
-            for (const t of existingToasts) {
-                const body = t.querySelector(".toast-body");
-                if (body && body.dataset.originalMessage === message) {
-                    // It's a duplicate
-                    if (showDuplicateCount) {
-                        let count = parseInt(body.dataset.count || "1") + 1;
-                        body.dataset.count = count;
-                        body.innerHTML = `${message} <span class="text-muted ms-2">(x${count})</span>`;
-                    }
-
-                    if (highlightDuplicates) {
-                        t.classList.remove("highlight");
-                        void t.offsetWidth; // Trigger reflow for CSS animation restart
-                        t.classList.add("highlight");
-                    }
-
-                    // Reinitialize and show the toast again
-                    const oldInstance = bootstrap.Toast.getInstance(t);
-                    if (oldInstance) {
-                        oldInstance.dispose();
-                    }
-                    const newInstance = new bootstrap.Toast(t);
-                    newInstance.show();
-
-                    return; // Don't create a new toast
-                }
-            }
-        
-            // Create the toast HTML
-            const toast = document.createElement("div");
-            toast.classList.add("toast", "mb-1");
-            toast.setAttribute("data-bs-autohide", "true");
-            toast.setAttribute("data-bs-delay", delay);
-            toast.setAttribute("role", "alert");
-            toast.setAttribute("aria-live", "assertive");
-            toast.setAttribute("aria-atomic", "true");
-        
-            toast.innerHTML = `
-              <div class="toast-header">
-                <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
-                <strong class="me-auto">${title}</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-              </div>
-            <div class="toast-body" data-original-message="${message}" data-count="1">
-                ${message}
-              </div>
-            `;
-        
-            // Append toast to the toast stack
-            toastStack.insertAdjacentElement("afterbegin", toast);
-        
-            // Show the close all button
-            closeToastBtn.style.display = "block";
-        
-            showAllToasts();
-
-            // Dispose and remove toast when it's autohidden
-            toast.addEventListener("hidden.bs.toast", function () {
-                const instance = bootstrap.Toast.getInstance(toast);
-                if (instance) {
-                    instance.dispose();
-                }
-                toast.remove();
-                maybeHideCloseToastBtn();
-            });
-
-            // destroy only this toast if the close(X) button is clicked
-            toast.querySelector(".btn-close").addEventListener("click", function () {
-                const toastInstance = new bootstrap.Toast(toast);
-                toastInstance.dispose();
-                toast.remove();
-                maybeHideCloseToastBtn();
-            });            
-        }
-    </script>
-
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
     <script src="https://d3js.org/d3.v6.min.js"></script>
@@ -1326,6 +1089,7 @@
     <!-- Custom scripts -->
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/swiped-events.min.js') }}"></script>
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}?v={{ flexmeasures_version }}"></script>
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/flex-toasts.js') }}?v={{ flexmeasures_version }}"></script>
 
     {% endblock scripts %}
 
