@@ -21,6 +21,7 @@ class Config(object):
     DEBUG: bool = False
     LOGGING_LEVEL: int = logging.WARNING
     SECRET_KEY: str | None = None
+    FLEXMEASURES_MVIEW_REFRESH_INTERVAL: int | None = None
 
     FLEXMEASURES_ENV_DEFAULT = "production"
 

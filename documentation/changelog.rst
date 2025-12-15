@@ -9,6 +9,7 @@ v0.31.0 | February XX, 2026
 
 New features
 -------------
+* Added Materialized View for latest beliefs per sensor to speed up data loading [see `PR #1671 <https://github.com/FlexMeasures/flexmeasures/pull/1671>`_]
 
 Infrastructure / Support
 ----------------------

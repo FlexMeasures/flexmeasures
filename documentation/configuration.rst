@@ -725,6 +725,16 @@ Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
 
+Performance optimizations
+----------------------------
+
+FLEXMEASURES_MVIEW_REFRESH_INTERVAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Interval in minutes to refresh the materialized db view which caches the most recent beliefs at a given point in time (for faster queries).
+
+Default: None
+
+
 .. _reporters-config:
 
 Reporters

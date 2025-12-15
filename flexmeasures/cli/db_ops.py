@@ -9,6 +9,7 @@ import flask_migrate as migrate
 import click
 
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.data import db
 
 
 @click.group("db-ops")
@@ -93,6 +94,42 @@ def restore(file: str):
     except Exception as e:
         click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+
+
+@fm_db_ops.command("refresh-materialized-views")
+@with_appcontext
+@click.option("--concurrent", is_flag=True, default=False)
+def refresh_materialized_views(concurrent: bool):
+    """
+    Refresh the materialized views for getting the most recent data.
+    By default, this locks the materialized view for the duration of the refresh.
+    Use the --concurrent option to avoid locking, at the cost of higher resource usage and
+    the requirement that a unique index exists on the materialized view.
+    """
+    from sqlalchemy import text
+
+    refresh_type = "CONCURRENTLY" if concurrent else ""
+    import time
+
+    start_time = time.time()
+    click.secho(
+        f"Refreshing materialized views {'CONCURRENTLY' if concurrent else 'without concurrency'}...",
+        **MsgStyle.INFO,
+    )
+    try:
+        db.session.execute(
+            text(f"REFRESH MATERIALIZED VIEW {refresh_type} most_recent_beliefs_mview;")
+        )
+        db.session.commit()
+        elapsed_time = time.time() - start_time
+        click.secho(
+            f"✓ Materialized views refreshed successfully in {elapsed_time:.2f} seconds",
+            **MsgStyle.SUCCESS,
+        )
+    except Exception as e:
+        db.session.rollback()
+        click.secho(f"✗ Error refreshing materialized views: {e}", **MsgStyle.ERROR)
+        raise click.Abort()
 
 
 app.cli.add_command(fm_db_ops)

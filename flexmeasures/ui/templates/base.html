@@ -227,10 +227,22 @@
                     {% endfor %}
                 </ul>
             </li>
-            <div class="row" style="margin-left: auto;">
-                <div class="col-auto form-check" title="Set this asset view as your default when visiting asset pages.">
+            <div style="margin-left: auto;" class="d-flex align-items-center">
+                {# Option to refresh data from materialized view if applicable #}
+                {# Note: the checkbox is checked by default, meaning the materialized view is used (for faster loading) #}
+                {# Unchecking it will reload the graph with fresh data, which may take more time #}
+                {# This option is only shown when a materialized view refresh interval is configured #}
+                {% if active_subpage == "asset_graph" and mv_refresh_interval %}
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="useMaterializedView" checked title="Bypass cached data and reload this graph with real-time results.
+Cached data is refreshed every {{ mv_refresh_interval }} minutes for faster loading.
+Loading fresh data will take additional time.">
+                    <label class="form-check-label" for="useMaterializedView">Refresh data</label>
+                </div>
+                {% endif %}
+                <div class="form-check form-switch" title="Set this asset view as your default when visiting asset pages." style="margin-left: 10px;">
                     <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
-                    <label class="form-check-label" for="defaultAssetView">Set as default view</label>
+                    <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
                 </div>
                 {% if breadcrumb_info['current_asset_view'] == 'Graphs' %}
                 <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables. The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
@@ -596,7 +608,7 @@
     {% endif %}
 
     function createPicker(startDate, endDate, customRanges) {
-   
+
         picker = new Litepicker({
             element: document.getElementById('datepicker'),
             plugins: ['ranges', 'keyboardnav'],
@@ -997,14 +1009,14 @@
      * @param {String} queryEndDate The end date as a string in ISO format, to be used in the query.
      * @return {Promise} A promise that resolves with the data.
      */
-    function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
+    function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate, useMaterializedView=true) {
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()){
             return Promise.resolve(previousResult.data);
         } else {
             {% if active_subpage == "asset_graph" and has_kpis %}
                 getAssetKPIs();
             {% endif %}
-            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
+            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true' + '&use_materialized_view=' + useMaterializedView, {
                     method: "GET",
                     headers: { "Content-Type": "application/json" },
                     signal: signal,
@@ -1012,6 +1024,92 @@
             .then(response => response.json())
             .then(data => decompressChartData(data));
         }
+    }
+
+    const useMaterializedViewCheckbox = document.getElementById("useMaterializedView");
+    useMaterializedViewCheckbox.addEventListener("change", function() {
+        toggleMaterializedView();
+    });
+
+    // Toggle materialized view usage for timely beliefs
+    function toggleMaterializedView() {
+        // Get the checked status of the checkbox
+        const isChecked = useMaterializedViewCheckbox.checked;
+        const pickerStartDate = picker.getStartDate().toJSDate();
+        const queryStartDate= encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
+        var queryEndDate = picker.getEndDate();
+        queryEndDate.setDate(queryEndDate.getDate() + 1);
+        queryEndDate = encodeURIComponent(toIsoStringWithOffset(queryEndDate.toJSDate()));
+        // Since we are going to make a call anyway so we'll send these values as null
+        const startDate = null;
+        const endDate = null;
+        previousResult = null;
+
+        $("#spinner").show();
+        if (isChecked) {
+            console.log("Checked.")
+            // fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate, true);
+            Promise.all([
+                fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate, true),
+                /**
+                // Fetch annotations
+                fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                    signal: signal,
+                })
+                .then(function(response) { return response.json(); }),
+                */
+
+                // Embed chart
+                embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
+            ]).then(function(result) {
+                $("#spinner").hide();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+                previousResult = {
+                    start: startDate,
+                    end: endDate,
+                    data: result[0]
+                };
+                checkSourceMasking(previousResult.data);
+                playBackDataLoadedForKnownDateRange = false;
+                /**
+                vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+                */
+            }).catch(console.error);
+        }
+        else {
+            // fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate, false);
+            Promise.all([
+                fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate, false),
+                /**
+                // Fetch annotations
+                fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                    signal: signal,
+                })
+                .then(function(response) { return response.json(); }),
+                */
+
+                // Embed chart
+                embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
+            ]).then(function(result) {
+                $("#spinner").hide();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+                previousResult = {
+                    start: startDate,
+                    end: endDate,
+                    data: result[0]
+                };
+                checkSourceMasking(previousResult.data);
+                playBackDataLoadedForKnownDateRange = false;
+                /**
+                vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+                */
+            }).catch(console.error);
+        }
+        $("#spinner").hide();
     }
 
     {% if active_subpage == "asset_graph" and has_kpis %}
@@ -1413,7 +1511,7 @@
                 </div>
 
                 {% endblock about %}
-               
+
                 {% block credits %}
                 <a href="#" data-bs-toggle="modal" data-bs-target="#Credits">Credits</a>.
 
@@ -1455,21 +1553,21 @@
 
                 <br/>
 
- 
+
                 {% block support %}
-                
+
                 {% if FLEXMEASURES_SUPPORT_PAGE %}
                 <a href="{{ FLEXMEASURES_SUPPORT_PAGE }}" target="_blank" rel="noopener noreferrer">Get Support</a>.
                 {% endif %}
-                
+
                 {% endblock support %}
 
                 {% block termsofservice %}
-                
+
                 {% if FLEXMEASURES_TOS_PAGE %}
                 <a href="{{ FLEXMEASURES_TOS_PAGE }}" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
                 {% endif %}
-                
+
                 {% endblock termsofservice %}
 
 
