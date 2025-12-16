@@ -247,35 +247,6 @@
 
 
 
-    {% block forecastpicker %}
-
-    <div class="form-group row">/8520k-+.
-
-        <div class="col-md-2">
-            <div class="col-md-1"><i class="icon-binoculars center-icon"></i></div>
-        </div>
-        <div class="col-md-10">
-            <label class="control-label">Forecast (rolling)</label>
-            <!--<div class="btn-group btn-group-justified" role="group" aria-label="...">-->
-            <!--<a role="button" href="#" class="btn btn-default forecast-toggle active" forecast-type="rolling">Rolling</a>-->
-            <!--<a role="button" href="#" class="btn btn-default forecast-toggle" forecast-type="static">Static</a>-->
-            <!--</div>-->
-            <div>
-                <form action="" method="POST" id="forecast_horizon_form">
-                    <select class="form-control" id="forecast_horizon" name="forecast_horizon"
-                        onchange="this.form.submit()">
-                        {% for horizon in forecast_horizons %}
-                        <option value="{{ horizon }}" {% if horizon == active_forecast_horizon %} selected="selected"
-                            {% endif %}>with a horizon of {{ horizon }}</option>
-                        {% endfor %}
-                    </select>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    {% endblock forecastpicker %}
-
     {% block sensorChartSetup %}
 
     <!-- Render Charts -->
