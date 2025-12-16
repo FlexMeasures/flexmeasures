@@ -289,9 +289,7 @@
 <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
 
-
-{% block sensorChartSetup %} {{ super() }} {% endblock %}
-
+{% include 'graphs.html' %}
 
 <!-- Graph editing support -->
 <script>

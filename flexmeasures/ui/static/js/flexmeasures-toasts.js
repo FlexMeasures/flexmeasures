@@ -1,3 +1,13 @@
+/**
+* Support for showing Toast messages in the lower right corner.
+* 
+* - Writes the necessary HTML
+* - Handles logic to show / hide
+* - Offers the main function for code to use: showToast(msg, type)
+*
+* All your document needs is to provide a div with id "toast-container" with a button in it with id "close-all-toasts". See base.html for the implementation of that.
+*/
+
 const toastStack = document.getElementById("toast-container");
 const closeToastBtn = document.getElementById("close-all-toasts");
 
