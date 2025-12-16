@@ -1,5 +1,5 @@
-import { getUniqueValues } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-import { countDSTTransitions } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
+import { getUniqueValues } from "./data-utils.js";
+import { countDSTTransitions } from "./daterange-utils.js";
 
 /**
  * Convert data from the new (>= FM v0.28) compressed reference-based format
@@ -71,7 +71,7 @@ export function checkDSTTransitions(startDate, endDate) {
   }
 }
 
-export function checkSourceMasking(data) {
+export function checkSourceMasking(data, chartType) {
   var uniqueSourceIds = getUniqueValues(data, "source.id");
   if (chartType == "daily_heatmap" && uniqueSourceIds.length > 1) {
     showToast(
