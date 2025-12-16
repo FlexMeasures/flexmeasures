@@ -78,21 +78,33 @@ def queue_wait_times(window: int):
     # FlexMeasures makes all queues available under app.queues
     for queue_name, rq_queue in app.queues.items():
 
-        # L = current length
-        L = rq_queue.count
+        # Lq = current queue length
+        Lq = rq_queue.count
 
         # λ = jobs per second
         lambda_rate = _estimate_arrival_rate_all_registries(rq_queue, cutoff, window)
 
         if lambda_rate <= 0:
-            click.echo(
-                f"{queue_name}: no recent arrivals → waiting time cannot be estimated."
-            )
+            click.echo(f"{queue_name}: no recent arrivals → cannot estimate timings.")
             continue
 
-        W = L / lambda_rate
+        # Waiting time in queue
+        Wq = Lq / lambda_rate
+        # Time spent being serviced
+        Ws = _estimate_service_time(rq_queue, cutoff)
+        # Total time spent in system (waiting and being serviced)
+        W = Wq + Ws if Ws > 0 else Wq
 
-        click.echo(f"{queue_name}: L={L}, λ={lambda_rate:.4f}/s → W≈{W:.2f} seconds")
+        # Ls = average jobs being worked on at any given time
+        Ls = lambda_rate * Ws
+
+        click.echo(
+            f"{queue_name}: "
+            f"Wq≈{Wq:.2f}s, "
+            f"Ws≈{Ws:.2f}s, "
+            f"W≈{W:.2f}s "
+            f"(λ={lambda_rate:.4f}/s, Lq={Lq}, Ls≈{Ls:.2f})"
+        )
 
 
 def _estimate_arrival_rate_all_registries(
