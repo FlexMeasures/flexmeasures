@@ -14,10 +14,11 @@ Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
 * Improve general description on SwaggerDocs page and add two settings for hosts: FLEXMEASURES_SUPPORT_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_]
+* Clean up cluttered base.html template [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
 
 Bugfixes
 -----------
-
+* Fix broken array fields for flex-model modal dialogue [see `PR #1860 <https://www.github.com/FlexMeasures/flexmeasures/pull/1860>`_]
 
 v0.30.1 | December 9, 2025
 ============================
