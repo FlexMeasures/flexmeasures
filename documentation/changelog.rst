@@ -18,7 +18,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Fix broken array fields for flex-model modal dialogue [see `PR #1860 <https://www.github.com/FlexMeasures/flexmeasures/pull/1860>`_]
 
 v0.30.1 | December 9, 2025
 ============================
