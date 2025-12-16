@@ -11,7 +11,6 @@
 const toastStack = document.getElementById("toast-container");
 const closeToastBtn = document.getElementById("close-all-toasts");
 
-// written like this since this script(order) is ontop of the main script
 document.addEventListener("DOMContentLoaded", function () {
   initiateToastCloseBtn(closeToastBtn);
 });
