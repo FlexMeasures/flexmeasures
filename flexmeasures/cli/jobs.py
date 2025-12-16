@@ -76,6 +76,7 @@ def queue_wait_times(window: int):
     cutoff = now - timedelta(seconds=window)
 
     # FlexMeasures makes all queues available under app.queues
+    Ls_i = []
     for queue_name, rq_queue in app.queues.items():
 
         # Lq = current queue length
@@ -97,6 +98,7 @@ def queue_wait_times(window: int):
 
         # Ls = average jobs being worked on at any given time
         Ls = lambda_rate * Ws
+        Ls_i.append(Ls)
 
         click.echo(
             f"{queue_name}: "
@@ -105,6 +107,15 @@ def queue_wait_times(window: int):
             f"W≈{W:.2f}s "
             f"(λ={lambda_rate:.4f}/s, Lq={Lq}, Ls≈{Ls:.2f})"
         )
+
+    # Overall metrics (not per queue)
+    # Total number of workers
+    k_total = len(Worker.all(connection=app.redis_connection))
+    # Expected busy workers
+    Ls_total = sum(Ls_i)
+    # Capacity utilization
+    rho_system = Ls_total / k_total if k_total > 0 else float("inf")
+    click.echo(f"Overall: Ls≈{Ls_total:.2f}, k={k_total}, ρ={rho_system:.0%}")
 
 
 def _estimate_arrival_rate_all_registries(
@@ -158,6 +169,57 @@ def _estimate_arrival_rate_all_registries(
                 break
 
     return recent / float(window)
+
+
+def _estimate_service_time(
+    queue: Queue, cutoff: datetime, max_jobs: int = 200
+) -> float:
+    """
+    Estimate average service time (seconds) using recently finished jobs.
+
+    Uses finished_job_registry and processes newest → oldest.
+    """
+    reg = queue.finished_job_registry
+    conn = queue.connection
+
+    durations = []
+
+    try:
+        job_ids = reg.get_job_ids()
+    except Exception:
+        return 0.0
+
+    for job_id in reversed(job_ids):
+        raw = conn.hgetall(f"rq:job:{job_id}")
+        if not raw:
+            continue
+
+        started = raw.get(b"started_at")
+        ended = raw.get(b"ended_at")
+
+        if not started or not ended:
+            continue
+
+        try:
+            started_ts = datetime.fromisoformat(started.decode("utf-8"))
+            ended_ts = datetime.fromisoformat(ended.decode("utf-8"))
+        except Exception:
+            continue
+
+        if ended_ts < cutoff:
+            break
+
+        duration = (ended_ts - started_ts).total_seconds()
+        if duration >= 0:
+            durations.append(duration)
+
+        if len(durations) >= max_jobs:
+            break
+
+    if not durations:
+        return 0.0
+
+    return sum(durations) / len(durations)
 
 
 @fm_jobs.command("run-job")
