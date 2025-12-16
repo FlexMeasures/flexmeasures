@@ -1,3 +1,15 @@
+/**
+ * Utilities for processing and validating sensor data for visualization.
+ * 
+ * - Adapts compressed API responses (>= FM v0.28) into the legacy format required by the charts.
+ * - Validates time ranges for Daylight Saving Time (DST) transitions.
+ * - Checks for potential data masking issues (e.g., multiple sources in heatmaps).
+ * - Triggers UI notifications (Toasts) to warn users about data anomalies.
+ * 
+ * Dependencies:
+ * - Requires the global `showToast` function to be available for user alerts.
+ */
+
 import { getUniqueValues } from "./data-utils.js";
 import { countDSTTransitions } from "./daterange-utils.js";
 
