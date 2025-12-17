@@ -43,8 +43,12 @@ def test_trigger_forecast_endpoint(
     assert "message" in response_json
     assert "status" in response_json
 
-    # forecast_jobs should be a non-empty list of strings (UUIDs)
-    forecast_jobs = response_json["forecast"].kwargs.get("cycle_job_ids", [])
+    # get the wrap-up job
+    wrap_up_job = app.queues["forecasting"].fetch_job(response_json["forecast"])
+
+    # get the forecast job IDs from the wrap-up job kwargs
+    forecast_jobs = wrap_up_job.kwargs.get("cycle_job_ids", [])
+
     assert isinstance(forecast_jobs, list)
     assert len(forecast_jobs) >= 1
     for job_id in forecast_jobs:
