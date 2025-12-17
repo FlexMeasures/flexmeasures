@@ -92,18 +92,7 @@
 
     {% block body %}
 
-    {% include "navbar.html" %}
-
-    <div
-        class="position-fixed bottom-0 end-0 p-3"
-        id="toast-container"
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-        style="z-index: 1000000"
-    >
-        <button id="close-all-toasts" class="btn">Close All</button>
-    </div>
+    {% include "includes/navbar.html" %}
 
     {% if message and message != "" %}
     <div class="col-md-12 alert alert-info">{{ message}} </div>
@@ -173,20 +162,14 @@
 
     {% endblock divs %}
 
+    {% include 'includes/toasts.html' %}
+
+
     {#- Scripts used by all views (e.g. by navigation menu) -#}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
 
-    <!-- Add the class touched to body when the user uses any touch event. -->
-    <script>
-        document.body.addEventListener('touchstart', function() {
-          document.body.classList.add('touched');
-        });
-    </script>
-
-    {% block scripts %}
-    <!-- JS to enable tooltips -->
     <script type='module'>
         import { setDefaultAssetView, setDefaultLegendPosition } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
@@ -209,12 +192,42 @@
                 }
             {% endif %}
 
-            // Tooltip logic
+            // Enable Tooltip logic
             if ($("[rel=tooltip]").length) {
                 $("[rel=tooltip]").tooltip();
             }
+
+            // Set up swiping and clicking for the left sidepanel
+            var leftSidepanels = document.getElementsByClassName('left-sidepanel');
+            var leftSidepanelLabels = document.getElementsByClassName('left-sidepanel-label');
+            async function openSidepanel(e) {
+                if ( (e.target.classList.contains('sidepanel-container')) | (e.type == 'click') ) {
+                for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+                    leftSidepanels[i].classList.add('sidepanel-show');
+                }
+                }
+            }
+            async function closeSidepanel(e) {
+                for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+                leftSidepanels[i].classList.remove('sidepanel-show');
+                }
+            }
+            for (var i = leftSidepanelLabels.length - 1; i >= 0; i--) {
+                leftSidepanelLabels[i].addEventListener("click", openSidepanel);
+            }
+            document.addEventListener('swiped-right', openSidepanel);
+
+            document.addEventListener('swiped-left', closeSidepanel);
+            
+            // Add the class touched to body when the user uses any touch event.
+            document.body.addEventListener('touchstart', function() {
+            document.body.classList.add('touched');
+            });
         });
     </script>
+
+
+    {% block scripts %}
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
@@ -232,10 +245,8 @@
     <!-- Custom scripts -->
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/swiped-events.min.js') }}"></script>
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}?v={{ flexmeasures_version }}"></script>
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/flex-toasts.js') }}?v={{ flexmeasures_version }}"></script>
 
     {% endblock scripts %}
-
 
 
     {% block paginate_tables_script %}
@@ -246,7 +257,7 @@
 
     {% endblock body %}
     
-    {% include 'footer.html' %}
+    {% include 'includes/footer.html' %}
 </body>
 
 </html>
