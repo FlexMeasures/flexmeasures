@@ -150,7 +150,7 @@
                     {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
                     class="disabled" {% endif %}>
                     <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
-                    {% if id == 'docs' %} target="_blank" {% endif %} class="nav-link">
+                    {% if id in ['openapi-docs', 'docs'] %} target="_blank" {% endif %} class="nav-link">
                         <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                         {{ caption|e }}
 
@@ -1413,7 +1413,7 @@
                 </div>
 
                 {% endblock about %}
-
+               
                 {% block credits %}
                 <a href="#" data-bs-toggle="modal" data-bs-target="#Credits">Credits</a>.
 
@@ -1452,6 +1452,26 @@
                 </div>
                 </div>
                 {% endblock credits %}
+
+                <br/>
+
+ 
+                {% block support %}
+                
+                {% if FLEXMEASURES_SUPPORT_PAGE %}
+                <a href="{{ FLEXMEASURES_SUPPORT_PAGE }}" target="_blank" rel="noopener noreferrer">Get Support</a>.
+                {% endif %}
+                
+                {% endblock support %}
+
+                {% block termsofservice %}
+                
+                {% if FLEXMEASURES_TOS_PAGE %}
+                <a href="{{ FLEXMEASURES_TOS_PAGE }}" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
+                {% endif %}
+                
+                {% endblock termsofservice %}
+
 
                 {% block technical_info %}
                 {# We might render templates from plugins, where this meta info is not available #}

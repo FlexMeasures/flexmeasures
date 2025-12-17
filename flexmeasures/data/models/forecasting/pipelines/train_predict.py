@@ -44,6 +44,7 @@ class TrainPredictPipeline(Forecaster):
         for k, v in self._config.items():
             setattr(self, k, v)
         self.delete_model = delete_model
+        self.return_values = []  # To store forecasts and jobs
 
     def run_cycle(
         self,
@@ -111,6 +112,7 @@ class TrainPredictPipeline(Forecaster):
             probabilistic=self._parameters["probabilistic"],
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
             event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period
+            save_belief_time=self._parameters["save_belief_time"],
             predict_start=predict_start,
             predict_end=predict_end,
             sensor_to_save=self._parameters["sensor_to_save"],
@@ -121,7 +123,7 @@ class TrainPredictPipeline(Forecaster):
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
         )
         predict_start_time = time.time()
-        predict_pipeline.run(delete_model=self.delete_model)
+        forecasts = predict_pipeline.run(delete_model=self.delete_model)
         predict_runtime = time.time() - predict_start_time
         logging.info(
             f"{p.ordinal(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
@@ -133,14 +135,14 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
-
+        self.return_values.append(
+            {"data": forecasts, "sensor": self._parameters["target"]}
+        )
         return total_runtime
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
         # Run the train-and-predict pipeline
-        self.run(**kwargs)
-        # todo: return results
-        return []
+        return self.run(**kwargs)
 
     def run(
         self,
@@ -209,8 +211,7 @@ class TrainPredictPipeline(Forecaster):
                 )
 
             if as_job:
-                jobs = []
-                for param in cycles_job_params:
+                for index, param in enumerate(cycles_job_params):
                     job = Job.create(
                         self.run_cycle,
                         kwargs={**param, **job_kwargs},
@@ -222,7 +223,8 @@ class TrainPredictPipeline(Forecaster):
                         ),
                     )
 
-                    jobs.append(job)
+                    # Store the job ID for this cycle
+                    self.return_values.append({f"job-{index}": job.id})
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
@@ -231,7 +233,8 @@ class TrainPredictPipeline(Forecaster):
                         queue=queue,
                         asset_or_sensor_type="sensor",
                     )
-                return jobs
+
+            return self.return_values
         except Exception as e:
             raise CustomException(
                 f"Error running Train-Predict Pipeline: {e}", sys

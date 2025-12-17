@@ -63,7 +63,6 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
-
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
@@ -85,13 +84,49 @@ class SensorKwargsSchema(Schema):
 
 class TriggerScheduleKwargsSchema(Schema):
     start_of_schedule = AwareDateTimeField(
-        data_key="start", format="iso", required=True
+        data_key="start",
+        format="iso",
+        required=True,
+        metadata=dict(
+            description="Start time of the schedule, in ISO 8601 datetime format.",
+            example="2026-01-15T10:00+01:00",
+        ),
     )
-    belief_time = AwareDateTimeField(format="iso", data_key="prior")
-    duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
-    flex_model = fields.Dict(data_key="flex-model")
-    flex_context = fields.Dict(required=False, data_key="flex-context")
-    force_new_job_creation = fields.Boolean(required=False)
+    belief_time = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        metadata=dict(
+            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            example="2026-01-15T10:00+01:00",
+        ),
+    )
+    duration = PlanningDurationField(
+        load_default=PlanningDurationField.load_default,
+        metadata=dict(
+            description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            example="PT24H",
+        ),
+    )
+    flex_model = fields.Dict(
+        data_key="flex-model",
+        metadata=dict(
+            description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
+        ),
+    )
+    flex_context = fields.Dict(
+        required=False,
+        data_key="flex-context",
+        metadata=dict(
+            description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+        ),
+    )
+    force_new_job_creation = fields.Boolean(
+        required=False,
+        metadata=dict(
+            description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
+        ),
+    )
 
 
 class SensorAPI(FlaskView):
@@ -468,7 +503,7 @@ class SensorAPI(FlaskView):
                 schema: PostSensorDataSchema
                 examples:
                   post_sensor:
-                    summary: Post sensor data to flexmeasures
+                    summary: Post sensor data to FlexMeasures
                     value:
                       "values": [-11.28, -11.28, -11.28, -11.28]
                       "start": "2021-06-07T00:00:00+02:00"
@@ -589,7 +624,7 @@ class SensorAPI(FlaskView):
             The examples below illustrate how to describe a flexibility model and context.
 
             > **Note:** To schedule an EMS with multiple flexible sensors at once,
-            > use the [Assets scheduling endpoint](#/assets/post_api_v3_0_assets__id__schedules_trigger) instead.
+            > use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.
 
             About the duration of the schedule and targets within the schedule:
 
@@ -799,16 +834,29 @@ class SensorAPI(FlaskView):
             - in: path
               name: id
               required: true
+              description: ID of the sensor for which to retrieve the schedule.
+              example: 5
               schema:
-                type: string
+                type: int
             - in: path
               name: uuid
               required: true
+              description: UUID of the scheduling job, which was returned by the [Sensor scheduling endpoint](#/Sensors/post_api_v3_0_sensors__id__schedules_trigger) or the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger).
+              example: 5d28df1b-9f16-4177-ae43-6e750d80fad3
               schema:
                 type: string
             - in: query
               name: duration
               required: false
+              description: |
+                Duration of the schedule to retrieve.
+                If omitted, the default is 6 hours.
+                The maximum allowed value is limited by the `FLEXMEASURES_PLANNING_HORIZON` configuration option
+                (default: 48 hours).
+                While a full-horizon schedule is available, it is usually not useful to fetch it entirely.
+                A better approach is to request only the near-term part of the schedule,
+                and to refresh the schedule as new information becomes relevant.
+              example: PT24H
               schema:
                 type: string
           responses:
@@ -818,6 +866,39 @@ class SensorAPI(FlaskView):
                 application/json:
                   schema:
                     type: object
+                    properties:
+                      scheduler_info:
+                        type: object
+                        description: Information about the scheduler that executed the job.
+                        additionalProperties: true
+
+                      values:
+                        type: array
+                        items:
+                          type: number
+                        description: The scheduled values as a list of floats.
+
+                      start:
+                        type: string
+                        format: date-time
+                        description: Start time of the schedule (ISO 8601).
+
+                      duration:
+                        type: string
+                        description: Duration covered by the schedule, expressed as an ISO 8601 duration.
+
+                      unit:
+                        type: string
+                        description: Unit of the schedule's values.
+
+                      status:
+                        type: string
+                        enum: ["PROCESSED"]
+                        description: Processing status of the request.
+
+                      message:
+                        type: string
+                        description: Human-readable message about request processing.
                   examples:
                     schedule:
                       summary: Schedule response
@@ -993,6 +1074,38 @@ class SensorAPI(FlaskView):
               content:
                 application/json:
                   schema: SensorSchema
+                  examples:
+                    price_sensor:
+                      summary: A day-ahead price sensor recording 15-minute prices.
+                      description: |
+                        A day-ahead price sensor recording the day-ahead electricity price in EUR/kWh with a 15-minute resolution.
+                        The sensor is assigned to asset 1.
+                        Data from this sensor will be shown with offsets corresponding to the Europe/Amsterdam timezone.
+                      value:
+                        id: 14
+                        name: day-ahead electricity price
+                        unit: EUR/kWh
+                        timezone: Europe/Amsterdam
+                        event_resolution: PT15M
+                        entity_address: ea1.2021-01.io.flexmeasures:fm1.14
+                        generic_asset_id: 1
+                    power_sensor:
+                      summary: A power sensor recording average consumption every 5 minutes.
+                      description: |
+                        A power sensor recording average power flow in kW with a 5-minute resolution.
+                        The sensor records consumption as positive values.
+                        It is assigned to asset 1.
+                        Data from this sensor will be shown with offsets corresponding to the Europe/Amsterdam timezone.
+                      value:
+                        id: 5
+                        name: power
+                        unit: kW
+                        timezone: Europe/Amsterdam
+                        event_resolution: PT5M
+                        entity_address: ea1.2021-01.io.flexmeasures:fm1.5
+                        attributes:
+                          consumption_is_positive: true
+                        generic_asset_id: 1
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
