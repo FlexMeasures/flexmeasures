@@ -1573,8 +1573,6 @@ class SensorAPI(FlaskView):
             for result in results:
                 job_ids.extend(result.values())
 
-            # Commit DB transaction
-            db.session.commit()
 
             d, s = request_processed()
             return dict(forecasting_jobs=job_ids, **d), s
