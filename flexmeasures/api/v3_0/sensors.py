@@ -1566,15 +1566,10 @@ class SensorAPI(FlaskView):
             )
 
             # Queue forecasting job
-            results = forecaster.compute(parameters=parameters)
-
-            # Extract job ID (UUID)
-            job_ids = []
-            for result in results:
-                job_ids.extend(result.values())
+            wrap_up_job = forecaster.compute(parameters=parameters)
 
             d, s = request_processed()
-            return dict(forecasting_jobs=job_ids, **d), s
+            return dict(forecast=wrap_up_job, **d), s
 
         except ValidationError as e:
             return unprocessable_entity(e.messages)
