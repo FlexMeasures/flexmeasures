@@ -90,6 +90,7 @@ def stats(window: int):
 
     # FlexMeasures makes all queues available under app.queues
     Ls_i = []
+    rows = []
     for queue_name, rq_queue in app.queues.items():
 
         # Lq = current queue length
@@ -100,6 +101,7 @@ def stats(window: int):
 
         if lambda_rate <= 0:
             click.echo(f"{queue_name}: no recent arrivals → cannot estimate timings.")
+            rows.append([queue_name, "—", "—", "—", "—", "—", "—"])
             continue
 
         # Waiting time in queue
@@ -113,12 +115,16 @@ def stats(window: int):
         Ls = lambda_rate * Ws
         Ls_i.append(Ls)
 
-        click.echo(
-            f"{queue_name}: "
-            f"Wq≈{Wq:.2f}s, "
-            f"Ws≈{Ws:.2f}s, "
-            f"W≈{W:.2f}s "
-            f"(λ={lambda_rate:.4f}/s, Lq={Lq}, Ls≈{Ls:.2f})"
+        rows.append(
+            [
+                queue_name,
+                f"{lambda_rate:.4f}",
+                Lq,
+                f"{Ls:.2f}",
+                f"{Wq:.2f}",
+                f"{Ws:.2f}",
+                f"{W:.2f}",
+            ]
         )
 
     # Overall metrics (not per queue)
@@ -128,7 +134,27 @@ def stats(window: int):
     Ls_total = sum(Ls_i)
     # Capacity utilization
     rho_system = Ls_total / k_total if k_total > 0 else float("inf")
-    click.echo(f"Overall: Ls≈{Ls_total:.2f}, k={k_total}, ρ={rho_system:.0%}")
+
+    headers = [
+        "Queue",
+        "λ (/s)\narrivals",
+        "Lq\nqueue",
+        "Ls\nservice",
+        "Wq (s)\nwaiting",
+        "Ws (s)\nservicing",
+        "W (s)\ntotal",
+    ]
+
+    click.secho(
+        f"\nOverall: Ls={Ls_total:.2f}, k={k_total}, ρ={rho_system:.0%}\n",
+        **(
+            MsgStyle.SUCCESS
+            if rho_system < 0.68
+            else MsgStyle.WARN if rho_system < 0.95 else MsgStyle.ERROR
+        ),
+    )
+    click.echo(tabulate(rows, headers=headers, tablefmt="simple"))
+    click.echo("\n")
 
 
 def _estimate_arrival_rate_all_registries(
