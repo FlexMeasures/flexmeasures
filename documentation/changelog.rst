@@ -9,6 +9,7 @@ v0.31.0 | February XX, 2026
 
 New features
 -------------
+* Support creating schedules with only information known prior to some time, now also via the CLI (the API already supported it) [see `PR #1871 <https://www.github.com/FlexMeasures/flexmeasures/pull/1871>`_].
 
 Infrastructure / Support
 ----------------------
