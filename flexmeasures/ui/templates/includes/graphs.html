@@ -27,6 +27,7 @@
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { decompressChartData, checkDSTTransitions, checkSourceMasking } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
 
+    // Global variables (Module scoped)
     let picker;
     let vegaView;
     let previousResult;
@@ -35,162 +36,31 @@
     let queryEndDate;
     let storeStartDate;
     let storeEndDate;
-    {% if event_starts_after and event_ends_before %}
-    storeStartDate = new Date('{{ event_starts_after }}');
-    storeEndDate = new Date('{{ event_ends_before }}');
-    checkDSTTransitions(storeStartDate, storeEndDate);
-    {% endif %}
-    let replaySpeed = 100
+    let replaySpeed = 100;
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
+    let combineLegend = 'true';
+    let dataPath;
+    let dataDevPath;
+    let datasetName;
+    let elementId = 'sensorchart';
+    let chartSpecsPath;
+    let controller = new AbortController();
+    let signal = controller.signal;
+    let playBackDataLoadedForKnownDateRange = false;
+    let sessionStart = null;
+    let sessionEnd = null;
+    let minRes;
+    let toggle;
 
     if ('{{ active_page }}' == 'assets') {
-        chartType = 'chart_for_multiple_sensors'
+        chartType = 'chart_for_multiple_sensors';
     }
-    // Update chart type picker: active state, reload data event
-    document.addEventListener('DOMContentLoaded', function () {
-        var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
-        for (var i = 0; i < dropdownItems.length; i++) {
 
-            // Set initial chart type
-            if (dropdownItems[i].getAttribute('data-chart-type') === chartType) {
-                dropdownItems[i].classList.add('active');
-            }
-
-            // Add event listener
-            dropdownItems[i].addEventListener('click', function (e) {
-                e.preventDefault();
-                chartType = this.getAttribute('data-chart-type');
-
-                // Update the active state of the dropdown items
-                var dropdownItems = document.querySelectorAll('.dropdown-item');
-                dropdownItems.forEach(item => {
-                    if (item === this) {
-                        item.classList.add('active');
-                    } else {
-                        item.classList.remove('active');
-                    }
-                });
-
-                // Reload daterange
-                embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult.data)).resize().run();
-            });
-        }
-    });
-
-    async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
-        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType);
-        await vegaEmbed('#' + elementId, url, {{ chart_options | safe }})
-      .then(function (result) {
-
-            // Create a custom menu item for exporting to CSV
-            const exportToCSVAction = document.createElement('a');
-            exportToCSVAction.id = 'exportToCSVAction';
-            exportToCSVAction.href = '#';
-            exportToCSVAction.download = datasetName + '.csv';
-            exportToCSVAction.textContent = 'Save as CSV';
-            exportToCSVAction.addEventListener('mousedown', async function (event) {
-                event.preventDefault();
-                const chartData = vegaView.data(datasetName);
-                const csvContent = convertToCSV(chartData);
-                const encodedUri = encodeURI(csvContent);
-                exportToCSVAction.href = encodedUri;
-            });
-
-            // Append menu item to chart actions (hamburger menu)
-            const vegaActions = document.querySelector('.vega-actions');
-            if (vegaActions) {
-                vegaActions.appendChild(exportToCSVAction);
-            } else {
-                console.log('Warning: CSV export functionality is not available, because no div with class=vega-actions was found to append export action to');
-            }
-
-            // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
-            vegaView = result.view;
-            if (previousResult) {
-                checkSourceMasking(previousResult.data);
-                var slicedPreviousData = previousResult.data.filter(item => {
-                    return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
-                })
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousData)).resize().run();
-            }
-        });
-  }
-
-    {% if active_page == "sensors" and user_can_update_sensor %}
-    let upload = document.querySelector('#submitUpload');
-    let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
-    upload.addEventListener('click', function (e) {
-        upload.classList.add('d-none');
-        uploadSpinner.classList.remove('d-none');
-        var formData = new FormData(document.getElementById('uploadForm'));
-        fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
-        method: 'POST',
-        body: formData,
-    })
-        .then(async function (response) {
-            if (response.ok) {
-                const data = await response.json();
-                showToast(data.message, "success");
-                // Update date range
-                picker.setDateRange(
-                    storeStartDate,
-                    subtract(storeEndDate, 1),
-                );
-                uploadSpinner.classList.add('d-none');
-                upload.classList.remove('d-none');
-            } else {
-                const data = await response.json();
-                if (data.message.path_and_files === undefined) {
-                    showToast(data.message, "error");
-                }
-                else {
-                    for (const [key, value] of Object.entries(data.message.path_and_files)) {
-                        if (typeof value === 'string') {
-                            showToast(value, "error");
-                        } else if (Array.isArray(value)) {
-                            value.forEach(element => {
-                                showToast(element, "error");
-                            });
-                        } else if (typeof value === 'object' && value !== null) {
-                            Object.values(value).forEach(element => {
-                                if (Array.isArray(element)) {
-                                    element.forEach(item => showToast(item, "error"));
-                                } else {
-                                    showToast(element, "error");
-                                }
-                            });
-                        } else {
-                            // fallback for unexpected types
-                            showToast(String(value), "error");
-                        }
-                    }
-                }
-                uploadSpinner.classList.add('d-none');
-                upload.classList.remove('d-none');
-            }
-        })
-        .catch(function (error) {
-            // Network or unexpected error
-            console.error("Upload error:", error);
-            showToast("An error occurred: " + error.message, "error");
-            uploadSpinner.classList.add('d-none');
-            upload.classList.remove('d-none');
-        });
-      });
-    {% endif %}
-
-
-    // event listener to refresh graph
-    document.addEventListener('sensorsToShowUpdated', async function () {
-        await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
-    })
-
-    var combineLegend = 'true';
+    // Initialize Jinja variables
     {% if active_page == "assets" %}
-    var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
-    var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
-    var datasetName = 'asset_' + {{ asset.id }};
+    dataPath = '/api/v3_0/assets/' + {{ asset.id }};
+    dataDevPath = '/api/dev/asset/' + {{ asset.id }};
+    datasetName = 'asset_' + {{ asset.id }};
     {% set total_sensors = asset.sensors_to_show | map(attribute = 'sensors') | map('length') | sum %}
     {% if total_sensors > 7 %}
     {% if session.get("keep_legends_below_graphs") %}
@@ -204,42 +74,294 @@
     {% endif %}
     {% endif %}
     {% elif active_page == "sensors" %}
-    var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
-    var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
-    var datasetName = 'sensor_' + {{ sensor.id }};
+    dataPath = '/api/dev/sensor/' + {{ sensor.id }};
+    dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+    datasetName = 'sensor_' + {{ sensor.id }};
     {% endif %}
-    var elementId = 'sensorchart';
-    var chartSpecsPath = dataPath + '/chart?';
+    chartSpecsPath = dataPath + '/chart?';
 
-    // Set up abort controller to cancel requests
-    var controller = new AbortController();
-    var signal = controller.signal;
-
-    var playBackDataLoadedForKnownDateRange = false;
-
-    // Set session start and end
     {% if event_starts_after and event_ends_before %}
-    var sessionStart = new Date('{{ event_starts_after }}');
-    var sessionEnd = new Date('{{ event_ends_before }}');
+    sessionStart = new Date('{{ event_starts_after }}');
+    sessionEnd = new Date('{{ event_ends_before }}');
     sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
     sessionStart.setHours(0, 0, 0, 0); // get start of first day
     sessionEnd.setHours(0, 0, 0, 0); // get start of last day
-    {% else %}
-    var sessionStart = null
-    var sessionEnd = null
     {% endif %}
 
-
-    // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
-    const date = Date();
     {% if active_page == "sensors" and sensor.event_resolution.days > 0 %}
-    const minRes = "day"
+    minRes = "day";
     {% else %}
-    const minRes = "hour"
+    minRes = "hour";
     {% endif %}
 
-    function createPicker(startDate, endDate, customRanges) {
 
+    document.addEventListener('DOMContentLoaded', async function () {
+
+        // Set up play/pause button for replay, incl. the complete replay logic
+        toggle = document.querySelector('#replay');
+        toggle.addEventListener('click', function (e) {
+            e.preventDefault();
+            toggleReplay();
+        });
+
+        {% if event_starts_after and event_ends_before %}
+        storeStartDate = new Date('{{ event_starts_after }}');
+        storeEndDate = new Date('{{ event_ends_before }}');
+        checkDSTTransitions(storeStartDate, storeEndDate);
+        {% endif %}
+
+        // Initialize Picker
+        const date = Date();
+        let customRanges;
+        {% if FLEXMEASURES_MODE == "play" %}
+        customRanges = computeSimulationRanges(sessionStart, sessionEnd, minRes);
+        {% else %}
+        customRanges = {
+            'Last 7 days': [subtract(date, 6), new Date(date)],
+            'Today and tomorrow': [subtract(date, -1), new Date(date)]
+        };
+        {% endif %}
+        picker = createPicker(sessionStart, sessionEnd, customRanges);
+
+        // Update chart type picker: active state, reload data event
+        var dropdownItems = document.querySelectorAll('#chart-type-picker .dropdown-item');
+        for (var i = 0; i < dropdownItems.length; i++) {
+            // Set initial chart type
+            if (dropdownItems[i].getAttribute('data-chart-type') === chartType) {
+                dropdownItems[i].classList.add('active');
+            }
+            // Add event listener
+            dropdownItems[i].addEventListener('click', function (e) {
+                e.preventDefault();
+                chartType = this.getAttribute('data-chart-type');
+                // Update the active state of the dropdown items
+                var dropdownItems = document.querySelectorAll('.dropdown-item');
+                dropdownItems.forEach(item => {
+                    if (item === this) {
+                        item.classList.add('active');
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+                // Reload daterange
+                embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult.data)).resize().run();
+            });
+        }
+
+        // Upload Logic
+        {% if active_page == "sensors" and user_can_update_sensor %}
+        let upload = document.querySelector('#submitUpload');
+        let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
+        upload.addEventListener('click', function (e) {
+            upload.classList.add('d-none');
+            uploadSpinner.classList.remove('d-none');
+            var formData = new FormData(document.getElementById('uploadForm'));
+            fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
+            method: 'POST',
+            body: formData,
+        })
+            .then(async function (response) {
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast(data.message, "success");
+                    // Update date range
+                    picker.setDateRange(
+                        storeStartDate,
+                        subtract(storeEndDate, 1),
+                    );
+                    uploadSpinner.classList.add('d-none');
+                    upload.classList.remove('d-none');
+                } else {
+                    const data = await response.json();
+                    if (data.message.path_and_files === undefined) {
+                        showToast(data.message, "error");
+                    }
+                    else {
+                        for (const [key, value] of Object.entries(data.message.path_and_files)) {
+                            if (typeof value === 'string') {
+                                showToast(value, "error");
+                            } else if (Array.isArray(value)) {
+                                value.forEach(element => {
+                                    showToast(element, "error");
+                                });
+                            } else if (typeof value === 'object' && value !== null) {
+                                Object.values(value).forEach(element => {
+                                    if (Array.isArray(element)) {
+                                        element.forEach(item => showToast(item, "error"));
+                                    } else {
+                                        showToast(element, "error");
+                                    }
+                                });
+                            } else {
+                                // fallback for unexpected types
+                                showToast(String(value), "error");
+                            }
+                        }
+                    }
+                    uploadSpinner.classList.add('d-none');
+                    upload.classList.remove('d-none');
+                }
+            })
+            .catch(function (error) {
+                // Network or unexpected error
+                console.error("Upload error:", error);
+                showToast("An error occurred: " + error.message, "error");
+                uploadSpinner.classList.add('d-none');
+                upload.classList.remove('d-none');
+            });
+    });
+    {% endif %}
+
+
+
+    // Toggle Stats Checkbox Listener
+    {% if active_page == "sensors" %}
+    // Call loadSensorStats if the toggleStatsCheckbox checkbox is checked or unchecked
+    document.getElementById('toggleStatsCheckbox').addEventListener('change', function () {
+        if (this.checked) {
+            loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+                }
+                else {
+        loadSensorStats({{ sensor.id }});
+                }
+            });
+    {% endif %}
+
+    // Keypress Listener
+    window.addEventListener('keypress', function (e) {
+        // Do nothing if typing in an input field or textarea
+        if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') {
+            return;
+        }
+        // Start/pause/resume replay with 'p'
+        if (e.key === 'p') {
+            toggleReplay();
+        } else if (e.key === 's') {
+            stopReplay();
+        }
+    }, false);
+
+    // Sensors To Show Updated Listener
+    document.addEventListener('sensorsToShowUpdated', async function () {
+        await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
+    });
+
+    {% if event_starts_after and event_ends_before %}
+    // Initialize picker to the date selection specified in the session
+    $("#spinner").show();
+    {% if active_subpage == "asset_graph" and has_kpis %}
+    getAssetKPIs();
+    {% endif %}
+    const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        signal: signal,
+    })
+        .then(function (response) { return response.json(); })
+        .then(data => decompressChartData(data));
+    let fetchedInitialData = await Promise.all([
+        initialData,
+        embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
+    ]).then(function (result) { return result[0] }).catch(console.error);
+    $("#spinner").hide();
+    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+    var sessionStart = new Date('{{ event_starts_after }}');
+    var sessionEnd = new Date('{{ event_ends_before }}');
+    previousResult = {
+        start: sessionStart,
+        end: sessionEnd,
+        data: fetchedInitialData
+    };
+    checkSourceMasking(previousResult.data);
+    var timerangeNotSetYet = false;
+    {% else %}
+    var timerangeNotSetYet = true;
+    {% endif %}
+    fetch(dataDevPath, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
+            if (offsetDifference != 0) {
+                var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + ' minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
+                showToast('Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.');
+            }
+            {% if active_page == "assets" %}
+            var timerangeVar = 'timerange_of_sensors_to_show';
+            {% else %}
+            var timerangeVar = 'timerange';
+            {% endif %}
+
+            if (timerangeVar in data) {
+                var start = new Date(data[timerangeVar].start);
+                var end = new Date(data[timerangeVar].end);
+                end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+                start.setHours(0, 0, 0, 0); // get start of first day
+                end.setHours(0, 0, 0, 0); // get start of last day
+
+                {% if active_page == "assets" %}
+                var timerangeVar = 'timerange_of_sensors_to_show';
+                {% else %}
+                var timerangeVar = 'timerange';
+                {% endif %}
+
+                // Detect if URL already specifies a range
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlStartTimeRaw = urlParams.get('start_time');
+                const urlEndTimeRaw = urlParams.get('end_time');
+                const urlHasRange = urlStartTimeRaw && urlEndTimeRaw;
+
+                picker.setOptions({
+                    dropdowns: {
+                        minYear: start.getFullYear(),
+                        maxYear: end.getFullYear(),
+                    },
+                });
+
+                if (urlHasRange) {
+                    const urlStartTime = urlStartTimeRaw.replace(' ', '+');
+                    const urlEndTime = urlEndTimeRaw.replace(' ', '+');
+
+                    const urlStartDate = new Date(urlStartTime);
+                    const urlEndDateExclusive = new Date(urlEndTime);
+
+                    if (!isNaN(urlStartDate) && !isNaN(urlEndDateExclusive)) {
+                        // picker end date is inclusive → subtract 1 day
+                        urlEndDateExclusive.setDate(urlEndDateExclusive.getDate() - 1);
+
+                        // This fires the 'selected' event and load graphs
+                        picker.setDateRange(urlStartDate, urlEndDateExclusive);
+                        picker.gotoDate(urlEndDateExclusive);
+                    }
+                } else {
+                    // Original behaviour when there is no URL range
+
+                    if (timerangeNotSetYet) {
+                        // Initialize picker to the last 2 days of sensor data
+                        var nearEnd = new Date(end);
+                        nearEnd.setDate(nearEnd.getDate() - 2);
+                        var new_start_date = nearEnd;
+                        var new_end_date = end;
+                    } else {
+                        var new_start_date = new Date('{{ event_starts_after }}');
+                        var new_end_date = new Date('{{ event_ends_before }}');
+                    }
+
+                    // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
+                    new_end_date.setDate(new_end_date.getDate() - 1); // inclusive picker end
+                    picker.setDateRange(new_start_date, new_end_date);
+                    picker.gotoDate(new_end_date);
+                }
+            }
+        });
+    });
+
+
+    // Helper Functions
+    function createPicker(startDate, endDate, customRanges) {
         picker = new Litepicker({
             element: document.getElementById('datepicker'),
             plugins: ['ranges', 'keyboardnav'],
@@ -291,9 +413,9 @@
             if (toggleStats.checked) {
                 loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
     }
-              else {
+                else {
         loadSensorStats({{ sensor.id }});
-              }
+                }
     {% endif %}
 
     stopReplay()
@@ -328,171 +450,48 @@
         vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
         */
     }).catch(console.error);
-      });
+        });
     return picker
-  }
-    {% if FLEXMEASURES_MODE == "play" %}
-    const customRanges = computeSimulationRanges(sessionStart, sessionEnd, minRes);
-    {% else %}
-    const customRanges = {
-        'Last 7 days': [subtract(date, 6), new Date(date)],
-        'Today and tomorrow': [subtract(date, -1), new Date(date)]
-    };
-    {% endif %}
-    picker = createPicker(sessionStart, sessionEnd, customRanges);
+    }
 
-    {% if active_page == "sensors" %}
-    // Call loadSensorStats if the toggleStatsCheckbox checkbox is checked or unchecked
-    document.getElementById('toggleStatsCheckbox').addEventListener('change', function () {
-        if (this.checked) {
-            loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
-          }
-          else {
-        loadSensorStats({{ sensor.id }});
-          }
-      });
-    {% endif %}
+    async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
+        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType);
+        await vegaEmbed('#' + elementId, url, {{ chart_options | safe }})
+      .then(function (result) {
 
+            // Create a custom menu item for exporting to CSV
+            const exportToCSVAction = document.createElement('a');
+            exportToCSVAction.id = 'exportToCSVAction';
+            exportToCSVAction.href = '#';
+            exportToCSVAction.download = datasetName + '.csv';
+            exportToCSVAction.textContent = 'Save as CSV';
+            exportToCSVAction.addEventListener('mousedown', async function (event) {
+                event.preventDefault();
+                const chartData = vegaView.data(datasetName);
+                const csvContent = convertToCSV(chartData);
+                const encodedUri = encodeURI(csvContent);
+                exportToCSVAction.href = encodedUri;
+            });
 
-    /** If the page is done loading, get data (for the time range stored in the session, or the default range),
-     * check for time zone differences, and then trigger the time range picker to display the correct range.
-     */
-    document.onreadystatechange = async () => {
-        if (document.readyState === 'complete') {
-            {% if event_starts_after and event_ends_before %}
-            // Initialize picker to the date selection specified in the session
-            $("#spinner").show();
-            {% if active_subpage == "asset_graph" and has_kpis %}
-            getAssetKPIs();
-            {% endif %}
-            const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
-                method: "GET",
-                headers: { "Content-Type": "application/json" },
-                signal: signal,
-            })
-                .then(function (response) { return response.json(); })
-                .then(data => decompressChartData(data));
-            let fetchedInitialData = await Promise.all([
-                initialData,
-                embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
-            ]).then(function (result) { return result[0] }).catch(console.error);
-            $("#spinner").hide();
-            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
-            var sessionStart = new Date('{{ event_starts_after }}');
-            var sessionEnd = new Date('{{ event_ends_before }}');
-            previousResult = {
-                start: sessionStart,
-                end: sessionEnd,
-                data: fetchedInitialData
-            };
-            checkSourceMasking(previousResult.data);
-            var timerangeNotSetYet = false
-            {% else %}
-            var timerangeNotSetYet = true
-            {% endif %}
-            fetch(dataDevPath, {
-                method: "GET",
-                headers: { "Content-Type": "application/json" },
-            })
-                .then(function (response) { return response.json(); })
-                .then(function (data) {
-                    var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
-                    if (offsetDifference != 0) {
-                        var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + ' minutes' : 'which is currently behind by ' + offsetDifference + ' minutes';
-                        showToast('Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.');
-                    }
-                    {% if active_page == "assets" %}
-                    var timerangeVar = 'timerange_of_sensors_to_show';
-                    {% else %}
-                    var timerangeVar = 'timerange';
-                    {% endif %}
+            // Append menu item to chart actions (hamburger menu)
+            const vegaActions = document.querySelector('.vega-actions');
+            if (vegaActions) {
+                vegaActions.appendChild(exportToCSVAction);
+            } else {
+                console.log('Warning: CSV export functionality is not available, because no div with class=vega-actions was found to append export action to');
+            }
 
-                    if (timerangeVar in data) {
-                        var start = new Date(data[timerangeVar].start);
-                        var end = new Date(data[timerangeVar].end);
-                        end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-                        start.setHours(0, 0, 0, 0); // get start of first day
-                        end.setHours(0, 0, 0, 0); // get start of last day
-
-                        {% if active_page == "assets" %}
-                        var timerangeVar = 'timerange_of_sensors_to_show';
-                        {% else %}
-                        var timerangeVar = 'timerange';
-                        {% endif %}
-
-                        // Detect if URL already specifies a range
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const urlStartTimeRaw = urlParams.get('start_time');
-                        const urlEndTimeRaw = urlParams.get('end_time');
-                        const urlHasRange = urlStartTimeRaw && urlEndTimeRaw;
-
-                        picker.setOptions({
-                            dropdowns: {
-                                minYear: start.getFullYear(),
-                                maxYear: end.getFullYear(),
-                            },
-                        });
-
-                        if (urlHasRange) {
-                            const urlStartTime = urlStartTimeRaw.replace(' ', '+');
-                            const urlEndTime = urlEndTimeRaw.replace(' ', '+');
-
-                            const urlStartDate = new Date(urlStartTime);
-                            const urlEndDateExclusive = new Date(urlEndTime);
-
-                            if (!isNaN(urlStartDate) && !isNaN(urlEndDateExclusive)) {
-                                // picker end date is inclusive → subtract 1 day
-                                urlEndDateExclusive.setDate(urlEndDateExclusive.getDate() - 1);
-
-                                // This fires the 'selected' event and load graphs
-                                picker.setDateRange(urlStartDate, urlEndDateExclusive);
-                                picker.gotoDate(urlEndDateExclusive);
-                            }
-                        } else {
-                            // Original behaviour when there is no URL range
-
-                            if (timerangeNotSetYet) {
-                                // Initialize picker to the last 2 days of sensor data
-                                var nearEnd = new Date(end);
-                                nearEnd.setDate(nearEnd.getDate() - 2);
-                                var new_start_date = nearEnd;
-                                var new_end_date = end;
-                            } else {
-                                var new_start_date = new Date('{{ event_starts_after }}');
-                                var new_end_date = new Date('{{ event_ends_before }}');
-                            }
-
-                            // Persist the range on the datepicker UI so correct range is shown when the user opens the datepicker
-                            new_end_date.setDate(new_end_date.getDate() - 1); // inclusive picker end
-                            picker.setDateRange(new_start_date, new_end_date);
-                            picker.gotoDate(new_end_date);
-                        }
-                    }
-
-
-                });
-        }
-    };
-
-    // Set up play/pause button for replay, incl. the complete replay logic
-    let toggle = document.querySelector('#replay');
-    toggle.addEventListener('click', function (e) {
-        e.preventDefault();
-        toggleReplay();
-    });
-
-    window.addEventListener('keypress', function (e) {
-        // Do nothing if typing in an input field or textarea
-        if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') {
-            return;
-        }
-        // Start/pause/resume replay with 'p'
-        if (e.key === 'p') {
-            toggleReplay();
-        } else if (e.key === 's') {
-            stopReplay();
-        }
-    }, false);
+            // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
+            vegaView = result.view;
+            if (previousResult) {
+                checkSourceMasking(previousResult.data);
+                var slicedPreviousData = previousResult.data.filter(item => {
+                    return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
+                })
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousData)).resize().run();
+            }
+        });
+    }
 
     function toggleReplay() {
         if (toggle.classList.contains('stopped')) {
@@ -533,6 +532,7 @@
         await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
         $("#spinner").hide();
     }
+
     function startReplay() {
         toggle.classList.remove('stopped');
         toggle.classList.add('playing');
@@ -623,23 +623,6 @@
         }
     }
 
-    /**
-     * Fetches data for the graph and KPIs, either from a previous result (if the date range is the same)
-     * or from the API (if the date range is different).
-     *
-     * The previous result is used to avoid fetching the same data twice when the user goes back and forth
-     * between different date ranges.
-     *
-     * If the date range changes, the function fetches the data from the API and also triggers an update
-     * of the asset KPIs if the active subpage is the asset graph.
-     *
-     * @param {Object} previousResult The previous result, containing the start and end dates and the data.
-     * @param {Date} startDate The start date for the new data.
-     * @param {Date} endDate The end date for the new data.
-     * @param {String} queryStartDate The start date as a string in ISO format, to be used in the query.
-     * @param {String} queryEndDate The end date as a string in ISO format, to be used in the query.
-     * @return {Promise} A promise that resolves with the data.
-     */
     function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) {
             return Promise.resolve(previousResult.data);
