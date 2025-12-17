@@ -246,7 +246,7 @@ def query_assets_by_search_terms(
     return query
 
 
-def descendants_cte(root_asset_id: int, max_depth: int = 10):
+def descendants_cte(root_asset_id: int, max_depth: int):
     """
     Build a recursive Common Table Expression (CTE) selecting all descendant assets of a given root asset.
 
@@ -291,7 +291,7 @@ def descendants_cte(root_asset_id: int, max_depth: int = 10):
 
 
 def filter_assets_under_root(
-    query: Select, root_asset: GenericAsset, max_depth: int = 10
+    query: Select, root_asset: GenericAsset, max_depth: int
 ) -> Select:
     """
     Restrict an asset query to a specific asset subtree to a certain depth.
