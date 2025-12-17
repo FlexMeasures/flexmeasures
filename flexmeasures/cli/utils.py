@@ -4,7 +4,7 @@ Utils for FlexMeasures CLI
 
 from __future__ import annotations
 
-from typing import Any, Type
+from typing import Any
 from datetime import datetime, timedelta
 
 import os
@@ -13,12 +13,10 @@ import click
 from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
-from flask import current_app as app
 
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
-from flexmeasures import Sensor, Source
-from flexmeasures.data.models.data_sources import DataGenerator
+from flexmeasures import Sensor
 
 
 class MsgStyle(object):
@@ -438,59 +436,3 @@ def split_commas(ctx, param, value):
         result.extend(v.split(","))
     return list(set([x.strip() for x in result if x.strip()]))
 
-
-def get_data_generator(
-    source: Source | None,
-    model: str,
-    config: dict,
-    save_config: bool,
-    data_generator_type: Type,
-) -> DataGenerator:
-    dg_type_name = data_generator_type.__name__
-    if source is None:
-        click.echo(
-            f"Looking for the {dg_type_name} {model} among all the registered {dg_type_name.lower()}s...",
-        )
-
-        # get data generator class
-        data_generator_class: Type[DataGenerator] = app.data_generators.get(
-            dg_type_name.lower()
-        ).get(model)
-
-        # check if it exists
-        if data_generator_class is None:
-            click.secho(
-                f"{dg_type_name} class `{model}` not available.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
-
-        click.secho(f"{dg_type_name} {model} found.", **MsgStyle.SUCCESS)
-
-        # initialize data generator class with the data generator config
-        data_generator: DataGenerator = data_generator_class(
-            config=config, save_config=save_config
-        )
-
-    else:
-        try:
-            data_generator: DataGenerator = source.data_generator  # type: ignore
-
-            if not isinstance(data_generator, data_generator_type):
-                raise NotImplementedError(
-                    f"DataGenerator `{data_generator}` is not of the type `{dg_type_name}`"
-                )
-
-            click.secho(
-                f"{dg_type_name} `{data_generator.__class__.__name__}` fetched successfully from the database.",
-                **MsgStyle.SUCCESS,
-            )
-
-        except NotImplementedError:
-            click.secho(
-                f"Error! DataSource `{source}` not storing a valid {dg_type_name}.",
-                **MsgStyle.ERROR,
-            )
-
-        data_generator._save_config = save_config
-    return data_generator
