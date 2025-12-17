@@ -272,15 +272,14 @@ def descendants_cte(root_asset_id: int, max_level: int = 10):
 
     asset_alias = asset.alias()
 
-    cte = cte.union_all(
-        select(
-            asset_alias.c.id,
-            asset_alias.c.parent_asset_id,
-            (cte.c.level + 1).label("level"),
-        )
-        .where(asset_alias.c.parent_asset_id == cte.c.id)
-        .filter(cte.c.level < max_level)
-    )
+    q = select(
+        asset_alias.c.id,
+        asset_alias.c.parent_asset_id,
+        (cte.c.level + 1).label("level"),
+    ).where(asset_alias.c.parent_asset_id == cte.c.id)
+    if isinstance(max_level, int):
+        q = q.filter(cte.c.level < max_level)
+    cte = cte.union_all(q)
 
     return cte
 
