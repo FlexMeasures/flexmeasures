@@ -66,8 +66,8 @@ def stats(window: int):
 
     \b
     Stats overall:
-    -   ρ = average capacity utilization (consider scaling up the number of workers when close to or higher than 100%)
-    -   Ls = average number of busy workers = average number of jobs being serviced simultaneously
+    -   ρ = average capacity requirement (consider scaling up the number of workers when close to or higher than 100%)
+    -   L = average number of required workers = average number of jobs being serviced or in queue
     -   k = total number of available workers (capacity to do work)
 
     \b
@@ -76,6 +76,7 @@ def stats(window: int):
     -   Wq = average time spent waiting in queue
     -   Ws = average time spent being serviced
     -   Lq = current queue length
+    -   Ls = average number of jobs being worked on at any given time
     -   λ = arrival rate (estimated from enqueue timestamps over the most recent window)
 
     Uses Little's-law to compute the average waiting times for each queue:
@@ -89,7 +90,7 @@ def stats(window: int):
     cutoff = now - timedelta(seconds=window)
 
     # FlexMeasures makes all queues available under app.queues
-    Ls_i = []
+    L_i = []
     rows = []
     for queue_name, rq_queue in app.queues.items():
 
@@ -113,7 +114,7 @@ def stats(window: int):
 
         # Ls = average jobs being worked on at any given time
         Ls = lambda_rate * Ws
-        Ls_i.append(Ls)
+        L_i.append(Lq + Ls)
 
         rows.append(
             [
@@ -130,10 +131,10 @@ def stats(window: int):
     # Overall metrics (not per queue)
     # Total number of workers
     k_total = len(Worker.all(connection=app.redis_connection))
-    # Expected busy workers
-    Ls_total = sum(Ls_i)
-    # Capacity utilization
-    rho_system = Ls_total / k_total if k_total > 0 else float("inf")
+    # Required workers
+    L_total = sum(L_i)
+    # Capacity requirements
+    rho_system = L_total / k_total if k_total > 0 else float("inf")
 
     headers = [
         "Queue",
@@ -146,7 +147,7 @@ def stats(window: int):
     ]
 
     click.secho(
-        f"\nOverall: Ls={Ls_total:.2f}, k={k_total}, ρ={rho_system:.0%}\n",
+        f"\nOverall: L={L_total:.2f}, k={k_total}, ρ={rho_system:.0%}\n",
         **(
             MsgStyle.SUCCESS
             if rho_system < 0.68
