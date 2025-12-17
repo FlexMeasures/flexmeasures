@@ -642,6 +642,7 @@
         }
     }
 
+    {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs() {
         const pickerStartDate = picker.getStartDate().toJSDate();
         const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
@@ -701,5 +702,7 @@
                 return []; // Return an empty array if there's an error
             });
     }
+    {% endif %}
+
     // Helper Functions ===========================================
 </script>
