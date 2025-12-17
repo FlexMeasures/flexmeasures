@@ -49,7 +49,9 @@ class TrainPredictPipeline(Forecaster):
     def run_wrap_up(self, cycle_job_ids: list[str]):
         """Log the status of all cycle jobs after completion."""
         for index, job_id in enumerate(cycle_job_ids):
-            logging.info(f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}")
+            logging.info(
+                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}"
+            )
 
     def run_cycle(
         self,
@@ -242,11 +244,15 @@ class TrainPredictPipeline(Forecaster):
 
                 wrap_up_job = Job.create(
                     self.run_wrap_up,
-                    kwargs={"cycle_job_ids": cycle_job_ids},  # cycles jobs IDs to wait for
+                    kwargs={
+                        "cycle_job_ids": cycle_job_ids
+                    },  # cycles jobs IDs to wait for
                     connection=current_app.queues[queue].connection,
                     depends_on=cycle_job_ids,  # wrap-job depends on all cycle jobs
                     ttl=int(
-                        current_app.config.get("FLEXMEASURES_JOB_TTL", timedelta(-1)).total_seconds()
+                        current_app.config.get(
+                            "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                        ).total_seconds()
                     ),
                 )
                 current_app.queues[queue].enqueue_job(wrap_up_job)

@@ -435,4 +435,3 @@ def split_commas(ctx, param, value):
     for v in value:
         result.extend(v.split(","))
     return list(set([x.strip() for x in result if x.strip()]))
-
