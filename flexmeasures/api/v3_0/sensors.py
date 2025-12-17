@@ -23,7 +23,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_event,
     unknown_schedule,
-    invalid_flex_config,
+    unprocessable_entity,
     fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -794,9 +794,9 @@ class SensorAPI(FlaskView):
                 force_new_job_creation=force_new_job_creation,
             )
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         db.session.commit()
 
@@ -1580,7 +1580,7 @@ class SensorAPI(FlaskView):
             return dict(forecasting_jobs=job_ids, **d), s
 
         except ValidationError as e:
-            return invalid_flex_config(e.messages)
+            return unprocessable_entity(e.messages)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
-            return invalid_flex_config(str(e))
+            return unprocessable_entity(str(e))
