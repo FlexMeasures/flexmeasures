@@ -37,7 +37,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
+from flexmeasures.data.queries.generic_assets import (
+    filter_assets_under_root,
+    query_assets_by_search_terms,
+)
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -207,6 +210,7 @@ class AssetAPI(FlaskView):
     def index(
         self,
         account: Account | None,
+        root_asset: GenericAsset | None,
         all_accessible: bool,
         include_public: bool,
         page: int | None = None,
@@ -224,6 +228,7 @@ class AssetAPI(FlaskView):
             This endpoint returns all accessible assets by accounts.
 
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
+              - The `asset` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
 
@@ -303,6 +308,9 @@ class AssetAPI(FlaskView):
             sort_by=sort_by,
             sort_dir=sort_dir,
         )
+
+        if root_asset:
+            query = filter_assets_under_root(query, root_asset_id=root_asset.id)
 
         if page is None:
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)

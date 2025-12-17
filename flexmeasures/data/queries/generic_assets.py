@@ -244,3 +244,65 @@ def query_assets_by_search_terms(
                 )
                 query = query.order_by(order_by_clause)
     return query
+
+
+def descendants_cte(root_asset_id: int):
+    """
+    Build a recursive Common Table Expression (CTE) selecting all descendant assets of a given root asset.
+
+    This CTE walks the asset hierarchy by repeatedly following ``parent_asset_id`` relationships, starting from the given root asset.
+    The result includes the root asset itself and all of its descendants at any depth.
+
+    \b
+    Use cases:
+    -   Server-side filtering of asset subtrees
+    -   Efficient hierarchical queries without Python-side traversal
+    -   Combining hierarchy constraints with search, sorting, or pagination
+
+    :param root_asset_id:   ID of the asset that acts as the root of the subtree.
+    :returns:               A recursive SQLAlchemy CTE yielding asset IDs and parent IDs for the entire subtree.
+    """
+    asset = GenericAsset.__table__
+
+    cte = (
+        select(asset.c.id, asset.c.parent_asset_id)
+        .where(asset.c.id == root_asset_id)
+        .cte(name="asset_tree", recursive=True)
+    )
+
+    asset_alias = asset.alias()
+
+    cte = cte.union_all(
+        select(asset_alias.c.id, asset_alias.c.parent_asset_id).where(
+            asset_alias.c.parent_asset_id == cte.c.id
+        )
+    )
+
+    return cte
+
+
+def filter_assets_under_root(query: Select, root_asset_id: int) -> Select:
+    """
+    Restrict an asset query to a specific asset subtree.
+
+    This function joins the given query against a recursive CTE so that
+    only assets that are descendants of the specified root asset
+    (including the root itself) are returned.
+
+    \b
+    Characteristics:
+    -   Fully server-side
+    -   Supports arbitrary hierarchy depth
+    -   Compatible with sorting, pagination, and additional filters
+
+    :param query:
+        A SQLAlchemy ``Select`` statement selecting from ``GenericAsset``.
+    :param root_asset_id:
+        ID of the asset whose descendants should be included.
+    :returns:
+        A modified ``Select`` statement scoped to the specified asset subtree.
+    """
+
+    tree = descendants_cte(root_asset_id=root_asset_id)
+
+    return query.join(tree, GenericAsset.id == tree.c.id)
