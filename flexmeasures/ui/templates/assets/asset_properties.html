@@ -1084,7 +1084,7 @@
                 if (fieldDataTypes[0] === Array) {
                     const currentCarouselindex = selectedIndex();
                     if (currentCarouselindex >= 0) {
-                        fieldDataTypes.forEach((type, _) => {
+                        [String, Object].forEach((type, _) => {
                             const flexModel = getFlexModel()
                             const value = flexModel[name];
                             const indexValue = value[currentCarouselindex];
