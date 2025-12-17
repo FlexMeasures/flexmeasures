@@ -73,10 +73,10 @@ def stats(window: int):
     \b
     Stats per queue:
     -   W = average time until job is finished
-    -   Wq = average time spent waiting in queue
     -   Ws = average time spent being serviced
-    -   Lq = current queue length
+    -   Wq = average time spent waiting in queue
     -   Ls = average number of jobs being worked on at any given time
+    -   Lq = current queue length
     -   λ = arrival rate (estimated from enqueue timestamps over the most recent window)
 
     Uses Little's-law to compute the average waiting times for each queue:
@@ -147,7 +147,7 @@ def stats(window: int):
     ]
 
     click.secho(
-        f"\nOverall: L={L_total:.2f}, k={k_total}, ρ={rho_system:.0%}\n",
+        f"\nOverall: k={k_total}, L={L_total:.2f}, ρ={rho_system:.0%}\n",
         **(
             MsgStyle.SUCCESS
             if rho_system < 0.68
