@@ -15,7 +15,17 @@ class AssetAPIQuerySchema(PaginationSchema):
         data_key="asset",
         load_default=None,
         metadata=dict(
-            description="Select all descendants of a given root asset (including the root itself)."
+            description="Select all descendants of a given root asset (including the root itself).",
+            example=482,
+        ),
+    )
+    max_level = fields.Int(
+        data_key="levels",
+        validate=validate.Range(min=0),
+        load_default=None,
+        metadata=dict(
+            description="Maximum number of levels of descendant assets to include.",
+            example=2,
         ),
     )
     all_accessible = fields.Bool(data_key="all_accessible", load_default=False)

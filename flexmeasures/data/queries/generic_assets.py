@@ -3,7 +3,7 @@ from __future__ import annotations
 from itertools import groupby
 from flask_login import current_user
 
-from sqlalchemy import select, Select, or_, and_, union_all
+from sqlalchemy import and_, select, Select, literal, or_, union_all
 from sqlalchemy.orm import aliased
 from flexmeasures.data import db
 from flexmeasures.auth.policy import user_has_admin_access
@@ -246,7 +246,7 @@ def query_assets_by_search_terms(
     return query
 
 
-def descendants_cte(root_asset_id: int):
+def descendants_cte(root_asset_id: int, max_level: int = 10):
     """
     Build a recursive Common Table Expression (CTE) selecting all descendant assets of a given root asset.
 
@@ -265,7 +265,7 @@ def descendants_cte(root_asset_id: int):
     asset = GenericAsset.__table__
 
     cte = (
-        select(asset.c.id, asset.c.parent_asset_id)
+        select(asset.c.id, asset.c.parent_asset_id, literal(0).label("level"))
         .where(asset.c.id == root_asset_id)
         .cte(name="asset_tree", recursive=True)
     )
@@ -273,9 +273,13 @@ def descendants_cte(root_asset_id: int):
     asset_alias = asset.alias()
 
     cte = cte.union_all(
-        select(asset_alias.c.id, asset_alias.c.parent_asset_id).where(
-            asset_alias.c.parent_asset_id == cte.c.id
+        select(
+            asset_alias.c.id,
+            asset_alias.c.parent_asset_id,
+            (cte.c.level + 1).label("level"),
         )
+        .where(asset_alias.c.parent_asset_id == cte.c.id)
+        .filter(cte.c.level < max_level)
     )
 
     return cte
@@ -283,7 +287,7 @@ def descendants_cte(root_asset_id: int):
 
 def filter_assets_under_root(query: Select, root_asset_id: int) -> Select:
     """
-    Restrict an asset query to a specific asset subtree.
+    Restrict an asset query to a specific asset subtree up to a certain level.
 
     This function joins the given query against a recursive CTE so that
     only assets that are descendants of the specified root asset
@@ -303,6 +307,6 @@ def filter_assets_under_root(query: Select, root_asset_id: int) -> Select:
         A modified ``Select`` statement scoped to the specified asset subtree.
     """
 
-    tree = descendants_cte(root_asset_id=root_asset_id)
+    tree = descendants_cte(root_asset_id=root_asset_id, max_level=max_level)
 
     return query.join(tree, GenericAsset.id == tree.c.id)
