@@ -360,7 +360,9 @@
     });
 
 
-    // Helper Functions
+    // These helper function can only live in this file because they depend on some global variables as well as some HTML elements
+    // In the future these could be refactored to accept more parameters and be moved to separate js files
+    // Helper Functions ===========================================
     function createPicker(startDate, endDate, customRanges) {
         picker = new Litepicker({
             element: document.getElementById('datepicker'),
@@ -699,5 +701,5 @@
                 return []; // Return an empty array if there's an error
             });
     }
-
+    // Helper Functions ===========================================
 </script>
