@@ -246,7 +246,7 @@ def query_assets_by_search_terms(
     return query
 
 
-def descendants_cte(root_asset_id: int, max_level: int = 10):
+def descendants_cte(root_asset_id: int, max_depth: int = 10):
     """
     Build a recursive Common Table Expression (CTE) selecting all descendant assets of a given root asset.
 
@@ -283,18 +283,18 @@ def descendants_cte(root_asset_id: int, max_level: int = 10):
         asset_alias.c.parent_asset_id,
         (cte.c.level + 1).label("level"),
     ).where(asset_alias.c.parent_asset_id == cte.c.id)
-    if isinstance(max_level, int):
-        q = q.filter(cte.c.level < max_level)
+    if isinstance(max_depth, int):
+        q = q.filter(cte.c.level < max_depth)
     cte = cte.union_all(q)
 
     return cte
 
 
 def filter_assets_under_root(
-    query: Select, root_asset: GenericAsset, max_level: int = 10
+    query: Select, root_asset: GenericAsset, max_depth: int = 10
 ) -> Select:
     """
-    Restrict an asset query to a specific asset subtree up to a certain level.
+    Restrict an asset query to a specific asset subtree to a certain depth.
 
     This function joins the given query against a recursive CTE so that
     only assets that are descendants of the specified root asset
@@ -317,6 +317,6 @@ def filter_assets_under_root(
     if isinstance(root_asset, GenericAsset):
         root_asset_id = root_asset.id
 
-    tree = descendants_cte(root_asset_id=root_asset_id, max_level=max_level)
+    tree = descendants_cte(root_asset_id=root_asset_id, max_depth=max_depth)
 
     return query.join(tree, GenericAsset.id == tree.c.id)
