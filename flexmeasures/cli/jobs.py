@@ -56,9 +56,9 @@ def fm_jobs():
 @with_appcontext
 @click.option(
     "--window",
-    default=600,
+    default=60,
     show_default=True,
-    help="Look-back window (seconds) to estimate per-queue arrival rates.",
+    help="Look-back window (minutes) to estimate per-queue arrival rates.",
 )
 def stats(window: int):
     """
@@ -84,10 +84,10 @@ def stats(window: int):
         W = L / λ
 
     """
-    click.echo(f"Estimating arrival rates using a {window}-second window...")
+    click.echo(f"Estimating arrival rates using a {window}-minute window...")
 
     now = server_now()
-    cutoff = now - timedelta(seconds=window)
+    cutoff = now - timedelta(minutes=window)
 
     # FlexMeasures makes all queues available under app.queues
     L_i = []
@@ -208,7 +208,7 @@ def _estimate_arrival_rate_all_registries(
                 # Jobs only get older; stop early for this registry
                 break
 
-    return recent / float(window)
+    return recent / float(window * 60)
 
 
 def _estimate_service_time(
