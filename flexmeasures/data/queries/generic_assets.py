@@ -251,7 +251,7 @@ def descendants_cte(root_asset_id: int, max_level: int = 10):
     Build a recursive Common Table Expression (CTE) selecting all descendant assets of a given root asset.
 
     This CTE walks the asset hierarchy by repeatedly following ``parent_asset_id`` relationships, starting from the given root asset.
-    The result includes the root asset itself and all of its descendants at any depth.
+    The result includes the root asset itself and all of its descendants up to a given depth.
 
     \b
     Use cases:
@@ -264,12 +264,18 @@ def descendants_cte(root_asset_id: int, max_level: int = 10):
     """
     asset = GenericAsset.__table__
 
+    # Anchor (level 0)
     cte = (
         select(asset.c.id, asset.c.parent_asset_id, literal(0).label("level"))
-        .where(asset.c.id == root_asset_id)
+        .where(
+            asset.c.id == root_asset_id
+            if root_asset_id is not None
+            else asset.c.parent_asset_id.is_(None)
+        )
         .cte(name="asset_tree", recursive=True)
     )
 
+    # Recursion
     asset_alias = asset.alias()
 
     q = select(
@@ -284,7 +290,9 @@ def descendants_cte(root_asset_id: int, max_level: int = 10):
     return cte
 
 
-def filter_assets_under_root(query: Select, root_asset_id: int) -> Select:
+def filter_assets_under_root(
+    query: Select, root_asset: GenericAsset, max_level: int = 10
+) -> Select:
     """
     Restrict an asset query to a specific asset subtree up to a certain level.
 
@@ -301,10 +309,13 @@ def filter_assets_under_root(query: Select, root_asset_id: int) -> Select:
     :param query:
         A SQLAlchemy ``Select`` statement selecting from ``GenericAsset``.
     :param root_asset_id:
-        ID of the asset whose descendants should be included.
+        Asset whose descendants should be included.
     :returns:
         A modified ``Select`` statement scoped to the specified asset subtree.
     """
+    root_asset_id = None
+    if isinstance(root_asset, GenericAsset):
+        root_asset_id = root_asset.id
 
     tree = descendants_cte(root_asset_id=root_asset_id, max_level=max_level)
 

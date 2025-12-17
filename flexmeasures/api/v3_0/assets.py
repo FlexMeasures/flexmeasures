@@ -311,10 +311,9 @@ class AssetAPI(FlaskView):
             sort_dir=sort_dir,
         )
 
-        if root_asset:
-            query = filter_assets_under_root(
-                query, root_asset_id=root_asset.id, max_level=max_level
-            )
+        query = filter_assets_under_root(
+            query, root_asset=root_asset, max_level=max_level
+        )
 
         if page is None:
             response = asset_schema.dump(db.session.scalars(query).all(), many=True)
