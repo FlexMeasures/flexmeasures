@@ -52,7 +52,7 @@ def fm_jobs():
     """FlexMeasures: Job queueing."""
 
 
-@fm_jobs.command("queue-wait-times")
+@fm_jobs.command("stats")
 @with_appcontext
 @click.option(
     "--window",
@@ -60,15 +60,28 @@ def fm_jobs():
     show_default=True,
     help="Look-back window (seconds) to estimate per-queue arrival rates.",
 )
-def queue_wait_times(window: int):
+def stats(window: int):
     """
-    Compute Little's-law average waiting time for each RQ queue:
+    Show live statistics of the queueing system.
+
+    \b
+    Stats overall:
+    -   ρ = average capacity utilization (consider scaling up the number of workers when close to or higher than 100%)
+    -   Ls = average number of busy workers = average number of jobs being serviced simultaneously
+    -   k = total number of available workers (capacity to do work)
+
+    \b
+    Stats per queue:
+    -   W = average time until job is finished
+    -   Wq = average time spent waiting in queue
+    -   Ws = average time spent being serviced
+    -   Lq = current queue length
+    -   λ = arrival rate (estimated from enqueue timestamps over the most recent window)
+
+    Uses Little's-law to compute the average waiting times for each queue:
 
         W = L / λ
 
-    where:
-        L = current queue length
-        λ = arrival rate estimated from enqueue timestamps over the most recent window.
     """
     click.echo(f"Estimating arrival rates using a {window}-second window...")
 
