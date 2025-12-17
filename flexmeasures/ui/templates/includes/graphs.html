@@ -16,18 +16,6 @@
     5. Replay Mode: Logic for the chart/graph "Play/Pause/Stop" visualization of belief data.
     6. Customization: Handles logic for "sensors_to_show" legends and chart type switching.
 
-    CRITICAL INTEGRATION REQUIREMENTS:
-    Since this file does not generate HTML, the parent template MUST provide the following DOM elements
-    for this logic to bind to:
-    - #sensorchart              : Container where the Vega graph is embedded.
-    - #datepicker               : Input element for the Litepicker.
-    - #spinner                  : Loading indicator shown during data fetches.
-    - #kpi-cards                : Container for appending Asset KPI cards.
-    - #replay, #replay-time     : Controls and display for the replay feature.
-    - #chart-type-picker        : Dropdown for switching chart types (Line/Bar/Heatmap).
-    - #toggleStatsCheckbox      : (Sensors only) Toggle for showing statistical data.
-    - #submitUpload, #uploadForm: (Sensors only) Controls for uploading CSV data.
-
     DEPENDENCIES:
     - Requires `flexmeasures` global object and Jinja2 variables (e.g., `asset.id`, `sensor.id`, `event_starts_after`).
 -->

@@ -1,3 +1,16 @@
+<!--
+  ASSET GRAPH DASHBOARD & CUSTOMIZATION
+  =====================================
+
+  This template renders the graphs/sensors_to_show for an Asset.
+
+  Key Functionalities:
+  1. Base Structure: Sets up the container for the Vega chart, KPI cards, loading spinner, and replay controls.
+  2. Graph Customization: Contains the complete logic for the "Edit Graphs" modal, allowing users to 
+     configure `sensors_to_show` (add/remove/reorder sensors and grouping).
+  3. Charging Hub Visualization: specific support and UI notes for the "Charge Points" chart type.
+  4. URL Sharing: Logic to generate and copy the current URL (including the active date range) to the clipboard.
+-->
 {% extends "base.html" %}
 
 {% set active_page = "assets" %}
