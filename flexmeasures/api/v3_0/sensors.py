@@ -24,7 +24,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_event,
     unknown_schedule,
-    invalid_flex_config,
+    unprocessable_entity,
     fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -64,7 +64,7 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.data.models.forecasting import Forecaster
-from flexmeasures.cli.utils import get_data_generator
+from flexmeasures.data.services.data_sources import get_data_generator
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
@@ -795,9 +795,9 @@ class SensorAPI(FlaskView):
                 force_new_job_creation=force_new_job_creation,
             )
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         db.session.commit()
 
@@ -1539,7 +1539,7 @@ class SensorAPI(FlaskView):
                 application/json:
                   example:
                     status: "PROCESSED"
-                    forecasting_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
+                    forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                     message: "Forecasting job has been queued."
           tags:
             - Sensors
@@ -1554,15 +1554,12 @@ class SensorAPI(FlaskView):
             # Ensure the forecast is run as a job on a forecasting queue
             parameters["as_job"] = True
 
-            # Set up forecaster source
-            source = parameters.pop("source", None)
-
             # Set forecaster model
             model = parameters.pop("model", "TrainPredictPipeline")
 
             # Instantiate the forecaster
             forecaster = get_data_generator(
-                source=source,
+                source=None,
                 model=model,
                 config={},
                 save_config=True,
@@ -1570,24 +1567,16 @@ class SensorAPI(FlaskView):
             )
 
             # Queue forecasting job
-            results = forecaster.compute(parameters=parameters)
-
-            # Extract job ID (UUID)
-            job_ids = []
-            for result in results:
-                job_ids.extend(result.values())
-
-            # Commit DB transaction
-            db.session.commit()
+            wrap_up_job = forecaster.compute(parameters=parameters)
 
             d, s = request_processed()
-            return dict(forecasting_jobs=job_ids, **d), s
+            return dict(forecast=wrap_up_job, **d), s
 
         except ValidationError as e:
-            return invalid_flex_config(e.messages)
+            return unprocessable_entity(e.messages)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
-            return invalid_flex_config(str(e))
+            return unprocessable_entity(str(e))
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(
@@ -1631,7 +1620,7 @@ class SensorAPI(FlaskView):
 
             # Job does not exist
             if job is None:
-                return invalid_flex_config(f"Job {job_id} not found.")
+                return unprocessable_entity(f"Job {job_id} not found.")
 
             # Map RQ statuses to API statuses
             status = job.get_status()
@@ -1692,4 +1681,4 @@ class SensorAPI(FlaskView):
 
         except Exception as e:
             current_app.logger.exception("Failed to get forecast job status.")
-            return invalid_flex_config(str(e))
+            return unprocessable_entity(str(e))

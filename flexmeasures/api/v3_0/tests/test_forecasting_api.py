@@ -49,7 +49,8 @@ def test_trigger_and_fetch_forecasts(
     assert trigger_res.status_code == 200
 
     trigger_json = trigger_res.get_json()
-    job_ids = trigger_json["forecasting_jobs"]
+    wrap_up_job_id = app.queues["forecasting"].fetch_job(trigger_json["forecasts"])
+    job_ids = wrap_up_job_id.meta["cycle_job_ids"]
 
     # Two forecast cycles expected from payload
     assert len(job_ids) == 2

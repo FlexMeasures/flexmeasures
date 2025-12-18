@@ -28,7 +28,6 @@ from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
-    get_data_generator,
     JSONOrFile,
     MsgStyle,
     DeprecatedOption,
@@ -40,7 +39,10 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
-from flexmeasures.data.services.data_sources import get_or_create_source
+from flexmeasures.data.services.data_sources import (
+    get_or_create_source,
+    get_data_generator,
+)
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
