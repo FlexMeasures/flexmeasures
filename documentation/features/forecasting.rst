@@ -123,24 +123,24 @@ Checking job status & retrieving forecasts
 
    **Response when finished (200):**
 
-   .. code-block:: json
+.. sourcecode:: json
 
-       {
-         "status": "FINISHED",
-         "job_id": "<uuid>",
-         "sensor": 12,
-         "forecasts": {
-           "2025-01-04T00:15:00+00:00": [
-             {
-               "event_start": "2025-01-04T00:15:00+00:00",
-               "belief_time": "2025-01-04T00:00:00+00:00",
-               "cumulative_probability": 0.5,
-               "value": 3.27
-             },
-             ...
-           ]
-         }
-       }
+        {
+            "status": "FINISHED",
+            "job_id": "<uuid>",
+            "sensor": 12,
+            "forecasts": {
+                "2025-01-04T00:15:00+00:00": [
+                    {
+                        "event_start": "2025-01-04T00:15:00+00:00",
+                        "belief_time": "2025-01-04T00:00:00+00:00",
+                        "cumulative_probability": 0.5,
+                        "value": 3.27
+                    },
+                    ...
+                ]
+            }
+        }
 
    The returned forecasts are grouped by event start time. Only the most recent belief for each event is returned, matching the behavior of ``sensor.search_beliefs(..., most_recent_beliefs_only=True)``.
 
