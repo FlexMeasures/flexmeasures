@@ -206,9 +206,7 @@ def test_train_predict_pipeline(  # noqa: C901
         if dg_params["as_job"]:
 
             # Fetch wrap-up job
-            wrap_up_job = app.queues["forecasting"].fetch_job(
-                pipeline_returns
-            )
+            wrap_up_job = app.queues["forecasting"].fetch_job(pipeline_returns)
             assert wrap_up_job is not None, "Wrap-up job should exist"
 
             # Get cycle job IDs from wrap-up job kwargs
@@ -238,8 +236,7 @@ def test_train_predict_pipeline(  # noqa: C901
                     pipeline_return.keys()
                 ), "returned dict should have data and sensor keys"
                 assert (
-                    pipeline_return["sensor"].id
-                    == dg_params["sensor_to_save"].id
+                    pipeline_return["sensor"].id == dg_params["sensor_to_save"].id
                 ), "returned sensor should match sensor that forecasts will be saved into"
                 pd.testing.assert_frame_equal(
                     forecasts.sort_index(),
