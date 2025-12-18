@@ -221,10 +221,10 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+        .. :quickref: Assets; List all assets owned by user's accounts, or a certain account or all accessible accounts.
         ---
         get:
-          summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+          summary: List all assets owned by user's accounts, or a certain account or all accessible accounts.
           description: |
             This endpoint returns all accessible assets by accounts.
 
