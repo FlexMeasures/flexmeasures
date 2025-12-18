@@ -120,7 +120,9 @@ There are two ways to queue a forecasting job:
          "message": "Forecast job has been queued."
        }
 
-   FlexMeasures will process the job asynchronously and store the resulting
+   .. note:: The ``forecast`` field contains the ID of the wrap-up job created by this request.
+
+   FlexMeasures will process the jobs created asynchronously and store the resulting
    forecasts in the database.
 
    .. note::

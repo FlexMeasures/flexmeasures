@@ -101,6 +101,8 @@ Triggering a forecast
 
    This endpoint will queue a background job on the forecasting queue.
 
+   .. note:: The ``forecast`` field contains the ID of the wrap-up job created by this request.
+
 Checking job status & retrieving forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
