@@ -9,6 +9,7 @@ v0.31.0 | February XX, 2026
 
 New features
 -------------
+* Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
 
 Infrastructure / Support
 ----------------------
