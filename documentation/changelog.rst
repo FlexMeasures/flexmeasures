@@ -10,6 +10,7 @@ v0.31.0 | February XX, 2026
 New features
 -------------
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
+* Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_]
 
 Infrastructure / Support
 ----------------------
