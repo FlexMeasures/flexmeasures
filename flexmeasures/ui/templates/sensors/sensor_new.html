@@ -159,10 +159,9 @@ sensor {% endblock %} {% block divs %}
       showToast("Sensor created successfully.", "success");
       alertBox.innerHTML = `Sensor created successfully. You can visit your new sensor <a target="_blank" href='/sensors/${sensorId}'>here</a>.`;
       alertBox.style.display = "block";
-      // set all fields value to empty string
+      // set text fields value to empty string
       document.getElementById("name").value = "";
       document.getElementById("eventResolution").value = "";
-      document.getElementById("unit").value = "";
     } else {
       const errorData = await response.json();
       let errorMessage = response.statusText; // Default to statusText
