@@ -12,7 +12,7 @@ class AssetAPIQuerySchema(PaginationSchema):
     )
     account = AccountIdField(data_key="account_id", load_default=None)
     root_asset = AssetIdField(
-        data_key="asset",
+        data_key="root",
         load_default=None,
         metadata=dict(
             description="Select all descendants of a given root asset (including the root itself). Leave out to select top-level assets.",

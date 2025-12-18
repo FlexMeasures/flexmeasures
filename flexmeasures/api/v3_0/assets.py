@@ -231,8 +231,8 @@ class AssetAPI(FlaskView):
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
-              - The `asset` query parameter can be used to list only descendants of a given root asset (including the root itself).
-              - The `depth` query parameter can be used to search only a max number of descendant generations.
+              - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
+              - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
