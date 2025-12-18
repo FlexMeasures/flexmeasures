@@ -221,12 +221,12 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets owned by user's accounts, or a certain account or all accessible accounts.
+        .. :quickref: Assets; List all assets accessible by the user.
         ---
         get:
-          summary: List all assets owned by user's accounts, or a certain account or all accessible accounts.
+          summary: List all assets accessible by the user.
           description: |
-            This endpoint returns all accessible assets by accounts.
+            This endpoint returns all assets that are accessible by the user after applying optional filters.
 
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
