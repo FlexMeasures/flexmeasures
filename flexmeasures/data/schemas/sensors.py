@@ -39,6 +39,7 @@ from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
     units_are_convertible,
+    convert_units,
 )
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
@@ -553,6 +554,10 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+    unit = fields.String(
+        required=False,
+        data_key="unit",
+    )
 
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
@@ -600,6 +605,20 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         if errors:
             raise ValidationError(errors)
 
+    @validates_schema
+    def validate_unit(self, data, **kwargs):
+        """Validate unit compatibility with the sensor's unit."""
+        unit = data.get("unit")
+        sensor: Sensor = data.get("sensor")
+
+        if unit is not None:
+            if not units_are_convertible(unit, sensor.unit):
+                raise ValidationError(
+                    {
+                        "unit": f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'."
+                    }
+                )
+
     @post_load
     def post_load(self, fields, **kwargs):
         """Process the deserialized and validated fields.
@@ -609,10 +628,11 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+
         errors = {}
         for i, file in enumerate(files):
             try:
-                df = tb.read_csv(
+                bdf = tb.read_csv(
                     file,
                     sensor,
                     source=current_user.data_source[0],
@@ -624,15 +644,21 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
-                    resample=(
-                        True if sensor.event_resolution != timedelta(0) else False
-                    ),
+                    resample=True if sensor.event_resolution != timedelta(0) else False,
                     timezone=sensor.timezone,
                 )
                 assert is_numeric_dtype(
-                    df["event_value"]
+                    bdf["event_value"]
                 ), "event values should be numeric"
-                dfs.append(df)
+
+                from_unit = fields.get("unit", sensor.unit)
+                bdf["event_value"] = convert_units(
+                    bdf["event_value"],
+                    from_unit,
+                    sensor.unit,
+                    event_resolution=sensor.event_resolution,
+                )
+                dfs.append(bdf)
             except Exception as e:
                 error_message = (
                     f"Invalid content in file: {file.filename}. Failed with: {str(e)}"

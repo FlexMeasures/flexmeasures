@@ -4388,6 +4388,9 @@
               "null"
             ],
             "default": false
+          },
+          "unit": {
+            "type": "string"
           }
         },
         "additionalProperties": false
