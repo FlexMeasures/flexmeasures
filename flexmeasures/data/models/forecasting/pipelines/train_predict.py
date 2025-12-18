@@ -257,7 +257,9 @@ class TrainPredictPipeline(Forecaster):
                 )
                 current_app.queues[queue].enqueue_job(wrap_up_job)
 
-            return wrap_up_job.id
+                return wrap_up_job.id
+
+            return self.return_values
         except Exception as e:
             raise CustomException(
                 f"Error running Train-Predict Pipeline: {e}", sys
