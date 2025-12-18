@@ -1,0 +1,73 @@
+<nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2 navbar-fixed-top " id="topnavbar">
+    <div class="container-fluid" id="navbar-container">
+    
+                    
+        <div class="navbar-brand">
+            <a href="/">
+            <span class="navbar-tool-name">
+                {% if menu_logo %}
+                <img id="navbar-logo" src="{{menu_logo}}"/>
+                {% else %}
+                <img id="navbar-logo" src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="FlexMeasures"/>
+                {% endif %}
+            </span>
+            </a>
+        </div>
+        <div
+            class="navbar-toggler border-0"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+        >
+            <i class="fa fa-bars"></i>
+        </div>
+        
+        <div class="collapse navbar-collapse justify-content-end flex-row" id="navbarSupportedContent">
+        <ul class="nav navbar-nav d-flex">
+            {% for href, id, caption, tooltip, icon in navigation_bar %}
+            {% if id == "tasks" %}
+            <li {% if id == active_page %} class="nav-item dropdown active" {% else %} class="nav-item dropdown" {% endif %}>
+                <a class="nav-link dropdown-toggle" href="#" id="tasksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="fa fa-tasks" aria-hidden="true"></span>
+                    Tasks
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="tasksDropdown">
+                {% for queue in queue_names %}
+                    <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
+                    <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/0/view/jobs/{{ queue }}/started/10/asc/1" {% endif %}>
+                        {{ queue | capitalize }}
+                    </a>
+                    </li>
+                {% endfor %}
+                <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
+                    <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/" {% endif %}>
+                        Overview
+                    </a>
+                </li>
+                </ul>
+            </li>
+            {% else %}
+            <li {% if id == active_page %} class="nav-item active" {% else %} class="nav-item" {% endif %}
+                data-bs-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
+                {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
+                class="disabled" {% endif %}>
+                <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
+                {% if id in ['openapi-docs', 'docs'] %} target="_blank" {% endif %} class="nav-link">
+                    <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                    {{ caption|e }}
+
+                    {# use tooltip as caption for small screens showing a collapsed menu #}
+                    {% if not caption %}
+                        <span class="d-inline d-lg-none">{{ tooltip }}</span>
+                    {% endif %}
+                </a>
+            </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+        </div>
+    </div>
+</nav>

@@ -1,0 +1,148 @@
+<!-- The Container for the Toasts -->
+<div
+    class="position-fixed bottom-0 end-0 p-3"
+    id="toast-container"
+    role="alert"
+    aria-live="assertive"
+    aria-atomic="true"
+    style="z-index: 1000000"
+>
+    <button id="close-all-toasts" class="btn btn-sm btn-secondary mb-2" style="display: none;">Close All</button>
+</div>
+
+<!-- The Logic -->
+<script>
+    (function() { // Wrap in IIFE to avoid polluting global scope with helper vars
+        
+        const toastStack = document.getElementById("toast-container");
+        const closeToastBtn = document.getElementById("close-all-toasts");
+
+        function initiateToastCloseBtn() {
+            closeToastBtn.addEventListener("click", function () {
+                const toastElements = document.querySelectorAll(".toast");
+                toastElements.forEach((toast) => {
+                    const toastInstance = bootstrap.Toast.getInstance(toast);
+                    if (toastInstance) {
+                        toastInstance.dispose();
+                        toast.remove();
+                    }
+                });
+                closeToastBtn.style.display = "none";
+            });
+        }
+
+        function showAllToasts() {
+            const toastElements = document.querySelectorAll(".toast");
+            toastElements.forEach((toast) => {
+                const toastInstance = new bootstrap.Toast(toast);
+                toastInstance.show();
+            });
+        }
+
+        function maybeHideCloseToastBtn() {
+            const remainingToasts = toastStack.querySelectorAll(".toast");
+            if (remainingToasts.length === 0) {
+                closeToastBtn.style.display = "none";
+            }
+        }
+
+        // Initialize listeners when DOM is ready
+        document.addEventListener("DOMContentLoaded", function () {
+            if(closeToastBtn) initiateToastCloseBtn();
+        });
+
+        /**
+         * GLOBAL FUNCTION: showToast
+         * Attached to window so it can be called from anywhere.
+         */
+        window.showToast = function(message, type, { highlightDuplicates = true, showDuplicateCount = true } = {}) {
+            let colorClass;
+            let colorStyle = "";
+            let title;
+            let delay;
+
+            // Determine the type of toast
+            if (type == "error") {
+                delay = 10000;
+                colorClass = "bg-danger";
+                title = "Error";
+            } else if (type == "success") {
+                delay = 2000;
+                colorClass = "bg-success";
+                title = "Success";
+            } else {
+                delay = 5000;
+                // JINJA VARIABLE WORKS HERE NOW:
+                colorStyle = "background-color: {{ primary_color | default('#007bff') }};";
+                title = "Info";
+            }
+
+            // Search for duplicate
+            const existingToasts = toastStack.querySelectorAll(".toast");
+            for (const t of existingToasts) {
+                const body = t.querySelector(".toast-body");
+                if (body && body.dataset.originalMessage === message) {
+                    if (showDuplicateCount) {
+                        let count = parseInt(body.dataset.count || "1") + 1;
+                        body.dataset.count = count;
+                        body.innerHTML = `${message} <span class="text-muted ms-2">(x${count})</span>`;
+                    }
+
+                    if (highlightDuplicates) {
+                        t.classList.remove("highlight");
+                        void t.offsetWidth; // Trigger reflow
+                        t.classList.add("highlight");
+                    }
+
+                    const oldInstance = bootstrap.Toast.getInstance(t);
+                    if (oldInstance) oldInstance.dispose();
+                    
+                    const newInstance = new bootstrap.Toast(t);
+                    newInstance.show();
+                    return; 
+                }
+            }
+
+            // Create HTML
+            const toast = document.createElement("div");
+            toast.classList.add("toast", "mb-1");
+            toast.setAttribute("data-bs-autohide", "true");
+            toast.setAttribute("data-bs-delay", delay);
+            toast.setAttribute("role", "alert");
+            toast.setAttribute("aria-live", "assertive");
+            toast.setAttribute("aria-atomic", "true");
+
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
+                    <strong class="me-auto">${title}</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+                <div class="toast-body" data-original-message="${message}" data-count="1">
+                    ${message}
+                </div>
+            `;
+
+            toastStack.insertAdjacentElement("afterbegin", toast);
+            closeToastBtn.style.display = "block";
+            showAllToasts();
+
+            // Cleanup listeners
+            const handleClose = () => {
+                const instance = bootstrap.Toast.getInstance(toast);
+                if (instance) instance.dispose();
+                toast.remove();
+                maybeHideCloseToastBtn();
+            };
+
+            toast.addEventListener("hidden.bs.toast", handleClose);
+            toast.querySelector(".btn-close").addEventListener("click", function() {
+                const instance = new bootstrap.Toast(toast);
+                instance.dispose(); // Close immediately on click
+                toast.remove();
+                maybeHideCloseToastBtn();
+            });
+        };
+
+    })();
+</script>
