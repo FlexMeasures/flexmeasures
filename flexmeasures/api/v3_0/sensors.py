@@ -1538,7 +1538,7 @@ class SensorAPI(FlaskView):
                 application/json:
                   example:
                     status: "PROCESSED"
-                    forecast_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
+                    forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                     message: "Forecasting job has been queued."
           tags:
             - Sensors
