@@ -36,32 +36,33 @@
                             aria-expanded="false" aria-controls="havingTrouble">
                             Having trouble?
                         </a>
-
-                        <div class="collapse" id="havingTrouble">
-                            <div class="card card-body border-0 shadow-none px-1 m-0 pt-3 pb-0">
-                                {% if two_factor_rescue_form %}
-                                <form action="{{ url_for_security('two_factor_rescue') }}{{ prop_next() }}"
-                                    method="post" name="two_factor_rescue_form">
-                                    {# explicitly render csrf_token so we can change the ID so we don't get duplicates
-                                    #}
-                                    {{ render_csrf(two_factor_rescue_form, "rescue") }}
-                                    {{ render_field_with_errors(two_factor_rescue_form.help_setup, id="rescue-email") }}
-                                    {% if problem=="email" %}
-                                    <div class="alert alert-success mt-2">
-                                        {{ _fsdomain("The code for authentication was sent to your email address") }}.
-                                    </div>
-                                    {% endif %}
-                                    {% if problem=="help" %}
-                                    <div class="alert alert-success mt-2">
-                                        {{ _fsdomain("An email was sent to us in order to reset your application
-                                        account") }}.
-                                    </div>
-                                    {% endif %}
-                                    {{ render_field(two_factor_rescue_form.submit) }}
-                                </form>
-                                {% endif %}
+                        {% if two_factor_rescue_form %}
+                            {% if problem=="email" %}
+                            <div class="alert alert-success mt-2">
+                                {{ _fsdomain("The code for authentication was sent to your email address") }}.
                             </div>
-                        </div>
+                            {% endif %}
+                            {% if problem=="help" %}
+                            <div class="alert alert-success mt-2">
+                                {{ _fsdomain("An email was sent to us in order to reset your application
+                                account") }}.
+                            </div>
+                            {% endif %}
+                            
+                            <div class="collapse" id="havingTrouble">
+                                <div class="card card-body border-0 shadow-none px-1 m-0 pt-3 pb-0">
+                                    <form action="{{ url_for_security('two_factor_rescue') }}{{ prop_next() }}"
+                                        method="post" name="two_factor_rescue_form">
+                                        {# explicitly render csrf_token so we can change the ID so we don't get duplicates
+                                        #}
+                                        {{ render_csrf(two_factor_rescue_form, "rescue") }}
+                                        {{ render_field_with_errors(two_factor_rescue_form.help_setup, id="rescue-email") }}
+                
+                                        {{ render_field(two_factor_rescue_form.submit) }}
+                                    </form>
+                                </div>
+                            </div>
+                        {% endif %}
                     </div>
                     </div>
                 </div>
