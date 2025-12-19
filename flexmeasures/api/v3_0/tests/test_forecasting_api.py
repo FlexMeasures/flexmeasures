@@ -18,6 +18,7 @@ def test_trigger_forecast_endpoint(
     token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     sensor = setup_fresh_test_forecast_data["solar-sensor"]
     payload = {
+        "sensor": sensor.id,
         "start_date": "2025-01-01T00:00:00+00:00",
         "start_predict_date": "2025-01-05T00:00:00+00:00",
         "end_date": "2025-01-07T23:00:00+00:00",
