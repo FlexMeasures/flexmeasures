@@ -64,6 +64,9 @@ from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
+)
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
@@ -1513,8 +1516,9 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(ForecasterParametersSchema, location="json")
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def trigger_forecast(self, id: int, sensor: Sensor):
+    def trigger_forecast(self, id: int, sensor: Sensor, **params):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
         ---
@@ -1549,7 +1553,7 @@ class SensorAPI(FlaskView):
         try:
             # Load and validate JSON payload
             parameters = request.get_json()
-            parameters["sensor"] = sensor.id
+
             # Ensure the forecast is run as a job on a forecasting queue
             parameters["as_job"] = True
 
