@@ -22,37 +22,47 @@
                 <div class="card">
                     <div class="login-form">
                         <h1>{{ _fsdomain("Two-factor Authentication") }}</h1>
-                        <div class="alert alert-success mt-2">{{ _fsdomain("Please enter the code which was sent to you via: %(method)s", method=chosen_method) }}</div>
+                        <h6>{{ _fsdomain("Please enter your authentication code generated via: %(method)s", method=chosen_method) }}</h6>
                         <form action="{{ url_for_security('two_factor_token_validation') }}{{ prop_next() }}" method="post" name="two_factor_verify_code_form">
                             {{ two_factor_verify_code_form.hidden_tag() }}
                             {{ render_field_with_errors(two_factor_verify_code_form.code, placeholder=_fsdomain("enter numeric code")) }}
                             {{ render_field(two_factor_verify_code_form.submit) }}
                         </form>
 
-                        {% if two_factor_rescue_form %}
-                            <hr class="fs-gap">
-                            <form action="{{ url_for_security('two_factor_rescue') }}{{ prop_next() }}" method="post" name="two_factor_rescue_form">
-                            {# explicitly render csrf_token so we can change the ID so we don't get duplicates #}
-                            {{ render_csrf(two_factor_rescue_form, "rescue") }}
-                            {{ render_field_with_errors(two_factor_rescue_form.help_setup, id="rescue-email") }}
-                            {% if problem=="email" %}
-                                <div class="alert alert-success mt-2">
-                                    {{ _fsdomain("The code for authentication was sent to your email address") }}.
-                                </div>
-                            {% endif %}
-                            {% if problem=="help" %}
-                                <div class="alert alert-success mt-2">
-                                    {{ _fsdomain("An email was sent to us in order to reset your application account") }}.
-                                </div>
-                            {% endif %}
-                            {{ render_field(two_factor_rescue_form.submit) }}
-                            </form>
-                        {% endif %}
+                    <div class="mt-3">
+                        <a href="/login" class="btn-link me-1">Back to login</a>
 
-                        <!-- Add link to Login -->
-                        <form action="/login" method="get">
-                            <button class="btn btn-sm btn-responsive btn-link" type="submit">Back to login</button>
-                        </form>
+                        <a class="btn-link" data-bs-toggle="collapse" href="#havingTrouble" role="button"
+                            aria-expanded="false" aria-controls="havingTrouble">
+                            Having trouble?
+                        </a>
+
+                        <div class="collapse" id="havingTrouble">
+                            <div class="card card-body border-0 shadow-none px-1 m-0 pt-3 pb-0">
+                                {% if two_factor_rescue_form %}
+                                <form action="{{ url_for_security('two_factor_rescue') }}{{ prop_next() }}"
+                                    method="post" name="two_factor_rescue_form">
+                                    {# explicitly render csrf_token so we can change the ID so we don't get duplicates
+                                    #}
+                                    {{ render_csrf(two_factor_rescue_form, "rescue") }}
+                                    {{ render_field_with_errors(two_factor_rescue_form.help_setup, id="rescue-email") }}
+                                    {% if problem=="email" %}
+                                    <div class="alert alert-success mt-2">
+                                        {{ _fsdomain("The code for authentication was sent to your email address") }}.
+                                    </div>
+                                    {% endif %}
+                                    {% if problem=="help" %}
+                                    <div class="alert alert-success mt-2">
+                                        {{ _fsdomain("An email was sent to us in order to reset your application
+                                        account") }}.
+                                    </div>
+                                    {% endif %}
+                                    {{ render_field(two_factor_rescue_form.submit) }}
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
                     </div>
                 </div>
             </div>
