@@ -220,13 +220,13 @@ class TrainPredictPipeline(Forecaster):
                         ttl=int(
                             normalize_ttl(
                                 current_app.config.get("FLEXMEASURES_JOB_TTL"),
-                                timedelta(-1),  # default: persist forever
+                                timedelta(days=1),  # default 1 day
                             ).total_seconds()
                         ),
                         result_ttl=int(
                             normalize_ttl(
                                 current_app.config.get("FLEXMEASURES_PLANNING_TTL"),
-                                timedelta(-1),  # default: persist forever
+                                timedelta(days=7),  # default 7 days
                             ).total_seconds()
                         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
                     )

@@ -251,13 +251,13 @@ def create_scheduling_job(
         ttl=int(
             normalize_ttl(
                 current_app.config.get("FLEXMEASURES_JOB_TTL"),
-                timedelta(-1),  # default: persist forever
+                timedelta(days=1),  # default 1 day
             ).total_seconds()
         ),
         result_ttl=int(
             normalize_ttl(
                 current_app.config.get("FLEXMEASURES_PLANNING_TTL"),
-                timedelta(-1),  # default: persist forever
+                timedelta(days=7),  # default 7 days
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
         on_failure=Callback(trigger_optional_fallback),
@@ -400,13 +400,13 @@ def create_sequential_scheduling_job(
         ttl=int(
             normalize_ttl(
                 current_app.config.get("FLEXMEASURES_JOB_TTL"),
-                timedelta(-1),  # default: persist forever
+                timedelta(days=1),  # default 1 day
             ).total_seconds()
         ),
         result_ttl=int(
             normalize_ttl(
                 current_app.config.get("FLEXMEASURES_PLANNING_TTL"),
-                timedelta(-1),  # default: persist forever
+                timedelta(days=7),  # default 7 days
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
         on_success=success_callback,
