@@ -35,7 +35,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas.scheduling import MultiSensorFlexModelSchema
 from flexmeasures.data.utils import get_data_source, save_to_db
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import server_now, normalize_ttl
 from flexmeasures.data.services.utils import (
     job_cache,
     get_asset_or_sensor_ref,
@@ -249,13 +249,15 @@ def create_scheduling_job(
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(
-            current_app.config.get(
-                "FLEXMEASURES_JOB_TTL", timedelta(-1)
+            normalize_ttl(
+                current_app.config.get("FLEXMEASURES_JOB_TTL"),
+                timedelta(-1),  # default: persist forever
             ).total_seconds()
         ),
         result_ttl=int(
-            current_app.config.get(
-                "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+            normalize_ttl(
+                current_app.config.get("FLEXMEASURES_PLANNING_TTL"),
+                timedelta(-1),  # default: persist forever
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
         on_failure=Callback(trigger_optional_fallback),
@@ -396,13 +398,15 @@ def create_sequential_scheduling_job(
         args=([j.id for j in jobs],),
         depends_on=previous_job,
         ttl=int(
-            current_app.config.get(
-                "FLEXMEASURES_JOB_TTL", timedelta(-1)
+            normalize_ttl(
+                current_app.config.get("FLEXMEASURES_JOB_TTL"),
+                timedelta(-1),  # default: persist forever
             ).total_seconds()
         ),
         result_ttl=int(
-            current_app.config.get(
-                "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+            normalize_ttl(
+                current_app.config.get("FLEXMEASURES_PLANNING_TTL"),
+                timedelta(-1),  # default: persist forever
             ).total_seconds()
         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
         on_success=success_callback,
