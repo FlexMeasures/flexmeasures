@@ -17,6 +17,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* FLEXMEASURES_JOB_TTL and FLEXMEASURES_PLANNING_TTL now accept ISO-8601 strings or int days, normalized to timedelta internally to avoid type errors [see `PR  #1882 <https://www.github.com/FlexMeasures/flexmeasures/pull/1882>`_]
 
 
 v0.30.2 | December XX, 2025
