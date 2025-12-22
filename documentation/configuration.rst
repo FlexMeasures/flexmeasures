@@ -286,12 +286,22 @@ Time to live for jobs (e.g. forecasting, scheduling) in their respective queue.
 
 A job that is passed this time to live might get cleaned out by Redis' memory manager.
 
+**Supported formats:**
+- ISO-8601 duration string (recommended), e.g. ``"P1D"``
+- Integer (number of days), e.g. ``1``
+- Integer -1 or ``None`` → persist forever
+
 Default: ``timedelta(days=1)``
 
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Time to live for schedule UUIDs of successful scheduling jobs. Set a negative timedelta to persist forever.
+
+**Supported formats:**
+- ISO-8601 duration string (recommended), e.g. ``"P7D"``
+- Integer (number of days), e.g. ``7``
+- Integer -1 or ``None`` → persist forever
 
 Default: ``timedelta(days=7)``
 
