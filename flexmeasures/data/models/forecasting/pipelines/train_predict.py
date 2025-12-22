@@ -21,6 +21,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.utils.flexmeasures_inflection import p
+from flexmeasures.utils.time_utils import normalize_ttl
 
 
 class TrainPredictPipeline(Forecaster):
@@ -217,13 +218,15 @@ class TrainPredictPipeline(Forecaster):
                         kwargs={**param, **job_kwargs},
                         connection=current_app.queues[queue].connection,
                         ttl=int(
-                            current_app.config.get(
-                                "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                            normalize_ttl(
+                                current_app.config.get("FLEXMEASURES_JOB_TTL"),
+                                timedelta(-1),  # default: persist forever
                             ).total_seconds()
                         ),
                         result_ttl=int(
-                            current_app.config.get(
-                                "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+                            normalize_ttl(
+                                current_app.config.get("FLEXMEASURES_PLANNING_TTL"),
+                                timedelta(-1),  # default: persist forever
                             ).total_seconds()
                         ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
                     )
