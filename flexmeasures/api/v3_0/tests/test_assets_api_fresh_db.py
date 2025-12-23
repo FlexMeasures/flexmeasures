@@ -221,4 +221,4 @@ def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
             f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
         )
         assert len(beliefs) == expected_num_beliefs
-        assert expected_event_values == [b.event_value for b in beliefs]
+        assert [b.event_value for b in beliefs] == expected_event_values
