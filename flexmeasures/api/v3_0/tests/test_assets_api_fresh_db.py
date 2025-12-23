@@ -145,6 +145,18 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             ],  # we make (10/2 + 20/2) the first hour, and (20/2 + 40/2) the second hour
             200,
         ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,  # this sensor has unit=kWh, res=01:00
+            "kW",
+            timedelta(minutes=30),
+            [20, 40, 40, 80],
+            [
+                15,
+                30,
+            ],  # we make (10/2 + 20/2) the first hour, and (20/2 + 40/2) the second hour
+            200,
+        ),
     ],
     indirect=["requesting_user"],
 )
