@@ -144,7 +144,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
                 30,
             ],  # we make (10/2 + 20/2) the first hour, and (20/2 + 40/2) the second hour
             200,
-        ),  # this sensor has unit=kW
+        ),
     ],
     indirect=["requesting_user"],
 )
