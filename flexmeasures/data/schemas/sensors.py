@@ -656,7 +656,6 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     bdf["event_value"],
                     from_unit,
                     sensor.unit,
-                    event_resolution=bdf.event_resolution,
                 )
                 dfs.append(bdf)
             except Exception as e:
