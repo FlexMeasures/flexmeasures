@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import timedelta
 import numbers
 from pytz.exceptions import UnknownTimeZoneError
 
