@@ -644,7 +644,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
-                    resample=True if sensor.event_resolution != timedelta(0) else False,
+                    resample=False,
                     timezone=sensor.timezone,
                 )
                 assert is_numeric_dtype(
@@ -652,11 +652,13 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                 ), "event values should be numeric"
 
                 from_unit = fields.get("unit", sensor.unit)
+                bdf.event_resolution = bdf.event_frequency
                 bdf["event_value"] = convert_units(
                     bdf["event_value"],
                     from_unit,
                     sensor.unit,
                 )
+                bdf = bdf.resample_events(sensor.event_resolution)
                 dfs.append(bdf)
             except Exception as e:
                 error_message = (
