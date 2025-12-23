@@ -217,8 +217,8 @@ def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
         expected_num_beliefs = num_test_intervals * (
             data_resolution / sensor.event_resolution
         )
-        print(
-            f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
-        )
-        assert len(beliefs) == expected_num_beliefs
+        assert (
+            len(beliefs) == expected_num_beliefs
+        ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
+
         assert [b.event_value for b in beliefs] == expected_event_values
