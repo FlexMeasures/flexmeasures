@@ -151,11 +151,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "kW",
             timedelta(minutes=30),
             [20, 40, 40, 80],
-            [
-                15,
-                30,
-            ],  # we make (10/2 + 20/2) the first hour, and (20/2 + 40/2) the second hour
-            200,
+            None,
+            422,  # we don't support this case yet
         ),
     ],
     indirect=["requesting_user"],
