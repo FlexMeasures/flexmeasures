@@ -121,7 +121,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             * 6
             * 4,  # both power units, so 2 MW = 2000 kW, number *4 due to h->15min
             200,
-        ),  # this sensor has unit=kW
+        ),
         (
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
@@ -132,7 +132,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             * 12
             * 2,  # 10 kWh per half hour = 20 kW power, number *2 due to 30min->15min
             200,
-        ),  # this sensor has unit=kW
+        ),
         (
             "test_prosumer_user_2@seita.nl",
             2,  # this sensor has unit=kWh, res=01:00
