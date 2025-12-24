@@ -1,4 +1,5 @@
 from flask import current_app
+import isodate
 import pytest
 from flask import url_for
 from flexmeasures.data.services.scheduling import (
@@ -9,7 +10,6 @@ from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
-from collections import defaultdict
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -83,44 +83,34 @@ def test_trigger_and_fetch_forecasts(
 
         data = res.get_json()
 
-        # Validate structure
-        assert data["status"] == "FINISHED"
-        assert data["job_id"] == job_id
-        assert data["sensor"] == sensor_0.id
-        assert "forecasts" in data
-
-        api_forecasts = data["forecasts"]
-        assert isinstance(api_forecasts, dict)
-        assert len(api_forecasts) > 0
-
         # Retrieve the job so we know which timestamps to query
         queue = current_app.queues["forecasting"]
         job = Job.fetch(job_id, connection=queue.connection)
+
+        # Validate structure
+        assert data["start"] == '2025-01-05T00:00:00+00:00'
+        assert data["end"] == '2025-01-05T01:00:00+00:00'
+        assert data["unit"] == sensor_0.unit
+        assert data["resolution"] == isodate.duration_isoformat(sensor_0.event_resolution)
+        assert "values" in data
+
+        api_forecasts = data["values"]
+        assert isinstance(api_forecasts, list)
+        assert len(api_forecasts) > 0
 
         # Identify which data source wrote these beliefs
         data_source = get_data_source_for_job(job, type="forecasting")
 
         # Load only the latest belief per event_start
         forecasts_df = sensor_1.search_beliefs(
-            event_starts_after=job.kwargs.get("predict_start"),
-            event_ends_before=job.kwargs.get("predict_end") + sensor_1.event_resolution,
+            event_starts_after=job.meta.get("start_predict_date"),
+            event_ends_before=job.meta.get("end_date") + sensor_1.event_resolution,
             source=data_source,
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
         ).reset_index()
 
-        # Transform computed forecasts into the expected API format
-        latest_forecasts = defaultdict(list)
-        for row in forecasts_df.itertuples():
-            event_key = row.event_start.isoformat()
-            latest_forecasts[event_key].append(
-                {
-                    "event_start": row.event_start.isoformat(),
-                    "belief_time": row.belief_time.isoformat(),
-                    "cumulative_probability": row.cumulative_probability,
-                    "value": row.event_value,
-                }
-            )
+        expected_values = forecasts_df["event_value"].tolist()
 
         # API should return exactly these most-recent beliefs
-        assert api_forecasts == latest_forecasts
+        assert api_forecasts == expected_values
