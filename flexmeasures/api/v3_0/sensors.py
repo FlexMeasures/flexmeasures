@@ -7,7 +7,6 @@ from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
 )
 
-from collections import defaultdict
 from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
@@ -24,7 +23,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_event,
     unknown_schedule,
-    invalid_flex_config,
+    unprocessable_entity,
     fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -64,7 +63,10 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.data.models.forecasting import Forecaster
-from flexmeasures.cli.utils import get_data_generator
+from flexmeasures.data.services.data_sources import get_data_generator
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
+)
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
@@ -795,9 +797,9 @@ class SensorAPI(FlaskView):
                 force_new_job_creation=force_new_job_creation,
             )
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         db.session.commit()
 
@@ -1514,8 +1516,9 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(ForecasterParametersSchema, location="json")
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def trigger_forecast(self, id: int, sensor: Sensor):
+    def trigger_forecast(self, id: int, sensor: Sensor, **params):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
         ---
@@ -1523,24 +1526,77 @@ class SensorAPI(FlaskView):
           summary: Trigger forecasting job for one sensor
           description: |
             Launch a forecasting pipeline for the given sensor asynchronously.
+            The endpoint returns a job UUID which can be used to poll the
+            forecast results via the ``GET /sensors/<id>/forecasts/<uuid>`` endpoint.
 
-            Example:
-            ```
-            {
-              "start_date": "2026-01-01T00:00:00+01:00",
-              "start_predict_date": "2026-01-15T00:00:00+01:00",
-              "end_date": "2026-01-17T00:00:00+01:00"
-            }
-            ```
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the sensor for which to trigger forecasting.
+              example: 5
+              schema:
+                type: integer
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    sensor:
+                      type: integer
+                      description: ID of the sensor for which to trigger forecasting.
+                    start_date:
+                      type: string
+                      format: date-time
+                      description: Start date of the historical data used for training.
+                    start_predict_date:
+                      type: string
+                      format: date-time
+                      description: Start date of the forecast period.
+                    end_date:
+                      type: string
+                      format: date-time
+                      description: End date of the forecast period.
+                    max_forecast_horizon:
+                      type: string
+                      description: Maximum forecast horizon as an ISO-8601 duration.
+                      example: PT1H
+                    retrain_frequency:
+                      type: string
+                      description: Frequency at which the model is retrained (ISO-8601 duration).
+                      example: PT1H
+                example:
+                  start_date: "2026-01-01T00:00:00+01:00"
+                  start_predict_date: "2026-01-15T00:00:00+01:00"
+                  end_date: "2026-01-17T00:00:00+01:00"
           responses:
             200:
-              description: Forecasting job queued
+              description: PROCESSED
               content:
                 application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["PROCESSED"]
+                      forecast:
+                        type: string
+                        description: UUID of the queued forecasting job.
+                      message:
+                        type: string
                   example:
                     status: "PROCESSED"
-                    forecasting_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
+                    forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                     message: "Forecasting job has been queued."
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
@@ -1550,19 +1606,16 @@ class SensorAPI(FlaskView):
         try:
             # Load and validate JSON payload
             parameters = request.get_json()
-            parameters["sensor"] = sensor.id
+
             # Ensure the forecast is run as a job on a forecasting queue
             parameters["as_job"] = True
-
-            # Set up forecaster source
-            source = parameters.pop("source", None)
 
             # Set forecaster model
             model = parameters.pop("model", "TrainPredictPipeline")
 
             # Instantiate the forecaster
             forecaster = get_data_generator(
-                source=source,
+                source=None,
                 model=model,
                 config={},
                 save_config=True,
@@ -1570,24 +1623,16 @@ class SensorAPI(FlaskView):
             )
 
             # Queue forecasting job
-            results = forecaster.compute(parameters=parameters)
-
-            # Extract job ID (UUID)
-            job_ids = []
-            for result in results:
-                job_ids.extend(result.values())
-
-            # Commit DB transaction
-            db.session.commit()
+            wrap_up_job = forecaster.compute(parameters=parameters)
 
             d, s = request_processed()
-            return dict(forecasting_jobs=job_ids, **d), s
+            return dict(forecast=wrap_up_job, **d), s
 
         except ValidationError as e:
-            return invalid_flex_config(e.messages)
+            return unprocessable_entity(e.messages)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
-            return invalid_flex_config(str(e))
+            return unprocessable_entity(str(e))
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(
@@ -1598,7 +1643,7 @@ class SensorAPI(FlaskView):
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
-    def check_forecasts(self, id: int, uuid: str, sensor: Sensor, job_id: str):
+    def get_forecasts(self, id: int, uuid: str, sensor: Sensor, job_id: str):
         """
         .. :quickref: Forecasts; Check forecast job status for a sensor and fetch results.
         ---
@@ -1606,20 +1651,72 @@ class SensorAPI(FlaskView):
           summary: Check forecast job status for a sensor and fetch results.
           description: |
             Returns the status of a previously triggered forecasting job.
-            When the job is completed successfully, this endpoint returns the
-            generated forecast data.
+
+            While the job is still running, the endpoint returns its current status.
+            Once finished successfully, the endpoint returns the generated forecasts.
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the sensor for which the forecast was triggered.
+              example: 5
+              schema:
+                type: integer
+            - in: path
+              name: uuid
+              required: true
+              description: UUID of the forecasting job returned by the trigger endpoint.
+              example: b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b
+              schema:
+                type: string
           responses:
             200:
-              description: Forecast job status
+              description: Forecast job status or results
               content:
                 application/json:
-                  example:
-                    status: "FINISHED"
-                    forecasts:
-                      sensor: 2092
-                      values: [...]
-                      start: "2025-10-15T00:00:00+01:00"
-                      end: "2025-10-16T00:00:00+01:00"
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["PENDING", "RUNNING", "FAILED", "FINISHED"]
+                      job_id:
+                        type: string
+                        description: UUID of the forecasting job.
+                      start:
+                        type: string
+                        format: date-time
+                        description: Start time of the returned forecast values (ISO 8601).
+                      end:
+                        type: string
+                        format: date-time
+                        description: End time of the returned forecast values (ISO 8601).
+                      resolution:
+                        type: string
+                        description: Resolution of the forecast values as an ISO-8601 duration.
+                      values:
+                        type: array
+                        items:
+                          type: number
+                        description: Forecast values.
+                      unit:
+                        type: string
+                        description: Unit of the forecast values.
+                  examples:
+                    finished:
+                      summary: Finished forecasting job
+                      value:
+                        start: "2025-10-15T00:00:00+01:00"
+                        end: "2025-10-15T04:00:00+01:00"
+                        resolution: "PT1H"
+                        unit: "kW"
+                        values: [1.2, 1.5, 1.4, 0.8]
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
@@ -1631,11 +1728,11 @@ class SensorAPI(FlaskView):
 
             # Job does not exist
             if job is None:
-                return invalid_flex_config(f"Job {job_id} not found.")
+                return unprocessable_entity(f"Job {job_id} not found.")
 
             # Map RQ statuses to API statuses
             status = job.get_status()
-            if status in ("queued", "started"):
+            if status in ("queued", "started", "deferred"):
                 # Still running
                 response = dict(
                     status="RUNNING" if status == "started" else "PENDING",
@@ -1659,36 +1756,23 @@ class SensorAPI(FlaskView):
             data_source = get_data_source_for_job(job, type="forecasting")
 
             forecasts = sensor.search_beliefs(
-                event_starts_after=job.kwargs.get("predict_start"),
-                event_ends_before=job.kwargs.get("predict_end"),
+                event_starts_after=job.meta.get("start_predict_date"),
+                event_ends_before=job.meta.get("end_date") + sensor.event_resolution,
                 source=data_source,
                 most_recent_beliefs_only=True,
                 use_latest_version_per_event=True,
             ).reset_index()
 
-            forecast_by_event = defaultdict(list)
-
-            for row in forecasts.itertuples():
-                event_key = row.event_start.isoformat()
-
-                forecast_by_event[event_key].append(
-                    {
-                        "event_start": row.event_start.isoformat(),
-                        "belief_time": row.belief_time.isoformat(),
-                        "cumulative_probability": row.cumulative_probability,
-                        "value": row.event_value,
-                    }
-                )
-
             response = dict(
-                status="FINISHED",
-                job_id=job_id,
-                sensor=sensor.id,
-                forecasts=forecast_by_event,
+                start=forecasts["event_start"].min().isoformat(),
+                end=forecasts["event_start"].max().isoformat(),
+                resolution=isodate.duration_isoformat(sensor.event_resolution),
+                values=forecasts["event_value"].tolist(),
+                unit=sensor.unit,
             )
             d, s = request_processed()
             return dict(**response), s
 
         except Exception as e:
             current_app.logger.exception("Failed to get forecast job status.")
-            return invalid_flex_config(str(e))
+            return unprocessable_entity(str(e))

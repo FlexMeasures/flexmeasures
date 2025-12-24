@@ -53,6 +53,7 @@ class ForecasterParametersSchema(Schema):
     )
     model_save_dir = fields.Str(
         required=False,
+        allow_none=True,
         load_default="flexmeasures/data/models/forecasting/artifacts/models",
         metadata={
             "description": "Directory to save the trained model.",
@@ -242,12 +243,18 @@ class ForecasterParametersSchema(Schema):
 
         resolution = target_sensor.event_resolution
 
-        predict_start = data.get("start_predict_date") or floor_to_resolution(
-            server_now(), resolution
+        now = server_now()
+        floored_now = floor_to_resolution(now, resolution)
+
+        predict_start = data.get("start_predict_date") or floored_now
+        save_belief_time = (
+            now if data.get("start_predict_date") is None else predict_start
         )
+
         if data.get("start_predict_date") is None and data.get("train_period"):
 
             predict_start = data["start_date"] + data["train_period"]
+            save_belief_time = None
 
         if data.get("train_period") is None and data["start_date"] is None:
             train_period_in_hours = 30 * 24  # Set default train_period value to 30 days
@@ -305,13 +312,18 @@ class ForecasterParametersSchema(Schema):
         if output_path and not os.path.exists(output_path):
             os.makedirs(output_path)
 
+        model_save_dir = data.get("model_save_dir")
+        if model_save_dir is None:
+            # Read default from schema
+            model_save_dir = self.fields["model_save_dir"].load_default
+
         ensure_positive = data.get("ensure_positive")
 
         return dict(
             future_regressors=future_regressors,
             past_regressors=past_regressors,
             target=target_sensor,
-            model_save_dir=data["model_save_dir"],
+            model_save_dir=model_save_dir,
             output_path=output_path,
             start_date=start_date,
             end_date=data["end_date"],
@@ -326,4 +338,5 @@ class ForecasterParametersSchema(Schema):
             ensure_positive=ensure_positive,
             missing_threshold=data.get("missing_threshold"),
             as_job=data.get("as_job"),
+            save_belief_time=save_belief_time,
         )

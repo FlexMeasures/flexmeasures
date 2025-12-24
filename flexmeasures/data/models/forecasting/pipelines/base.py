@@ -65,6 +65,7 @@ class BasePipeline:
         forecast_frequency: int,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
+        save_belief_time: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
@@ -79,6 +80,9 @@ class BasePipeline:
         ) // forecast_frequency
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
+        self.save_belief_time = (
+            save_belief_time  # non floored belief time to save forecasts with
+        )
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
@@ -311,6 +315,12 @@ class BasePipeline:
                     first_forecast_end, utc=True
                 ).tz_localize(None)
 
+                # Initialize save_belief_time for the first iteration if it's specified
+                if self.save_belief_time:
+                    first_save_belief_time = pd.to_datetime(
+                        self.save_belief_time, utc=True
+                    ).tz_localize(None)
+
                 # Pre-compute per-event_start latest/closest rows
                 past_latest = None
                 if X_past_regressors_df is not None:
@@ -404,6 +414,14 @@ class BasePipeline:
                         seconds=index_offset * target_sensor_resolution.total_seconds()
                     )
                     belief_time = first_belief_time + delta
+
+                    # Update the save belief time for the next forecasting cycle:
+                    # - if no self.save_belief_time date exists, set the current belief_time
+                    save_belief_time = (
+                        first_save_belief_time + delta
+                        if self.save_belief_time
+                        else belief_time
+                    )
                     target_end = first_target_end + delta
                     forecast_end = first_forecast_end + delta
 
@@ -501,7 +519,7 @@ class BasePipeline:
                     target_list.append(y_split)
                     past_covariates_list.append(past_covariates)
                     future_covariates_list.append(future_covariates)
-                    belief_timestamps_list.append(belief_time)
+                    belief_timestamps_list.append(save_belief_time)
 
                 future_covariates_list = (
                     future_covariates_list

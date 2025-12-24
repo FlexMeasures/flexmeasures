@@ -36,6 +36,7 @@ class PredictPipeline(BasePipeline):
         quantiles: list[float] | None = None,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
+        save_belief_time: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         data_source: Source = None,
@@ -55,6 +56,7 @@ class PredictPipeline(BasePipeline):
         :param quantiles: Optional list of quantiles to predict for probabilistic forecasts. If None, predictions are deterministic.
         :param event_starts_after: Only consider events starting after this time.
         :param event_ends_before: Only consider events ending before this time.
+        :param save_belief_time: Save events with this non floored belief time.
         :param predict_start: Only save events starting after this time.
         :param predict_end: Only save events ending before this time.
         :param forecast_frequency: Create a forecast every Nth interval.
@@ -75,6 +77,7 @@ class PredictPipeline(BasePipeline):
             predict_start=predict_start,
             predict_end=predict_end,
             missing_threshold=missing_threshold,
+            save_belief_time=save_belief_time,
         )
         self.model_path = model_path
         self.output_path = output_path
