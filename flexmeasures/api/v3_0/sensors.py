@@ -1656,25 +1656,12 @@ class SensorAPI(FlaskView):
                 use_latest_version_per_event=True,
             ).reset_index()
 
-            forecast_by_event = defaultdict(list)
-
-            for row in forecasts.itertuples():
-                event_key = row.event_start.isoformat()
-
-                forecast_by_event[event_key].append(
-                    {
-                        "event_start": row.event_start.isoformat(),
-                        "belief_time": row.belief_time.isoformat(),
-                        "cumulative_probability": row.cumulative_probability,
-                        "value": row.event_value,
-                    }
-                )
-
             response = dict(
-                status="FINISHED",
-                job_id=job_id,
-                sensor=sensor.id,
-                forecasts=forecast_by_event,
+                start=forecasts["event_start"].min().isoformat(),
+                end=forecasts["event_start"].max().isoformat(),
+                resolution=isodate.duration_isoformat(sensor.event_resolution),
+                values=forecasts['event_value'].tolist(),
+                unit=sensor.unit,
             )
             d, s = request_processed()
             return dict(**response), s
