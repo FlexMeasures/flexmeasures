@@ -28,11 +28,8 @@ def log_error(exc: Exception, error_msg: str, verbose: bool = True):
 
     extra = dict(url=request.path, **get_err_source_info(last_traceback))
 
-    msg = (
-        '{error_name}: "{message}" [occurred at {src_module} (in {src_func}, line {src_linenr}), '
-        "URL was: {url}]".format(
-            error_name=exc.__class__.__name__, message=error_msg, **extra
-        )
+    msg = '{error_name} - URL was: {url} - "{message}" [occurred at {src_module} (in {src_func}, line {src_linenr})'.format(
+        error_name=exc.__class__.__name__, message=error_msg, **extra
     )
 
     if verbose:
