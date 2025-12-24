@@ -1738,9 +1738,9 @@ class SensorAPI(FlaskView):
                 return unprocessable_entity(
                     f"Sensor ID mismatch: job {job_id} is for sensor {job_sensor_id}, not sensor {sensor.id}."
                 )
-            if job.depends_on is not None:
+            if job.dependency_ids:
                 return unprocessable_entity(
-                    f"Job {job_id} is the wrap-up job; please query one of those cycle jobs {job.depends_on} instead."
+                    f"Job {job_id} is the wrap-up job; please query one of those cycle jobs {job.dependency_ids} instead."
                 )
 
             # Map RQ statuses to API statuses
