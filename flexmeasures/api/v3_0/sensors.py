@@ -1526,24 +1526,77 @@ class SensorAPI(FlaskView):
           summary: Trigger forecasting job for one sensor
           description: |
             Launch a forecasting pipeline for the given sensor asynchronously.
+            The endpoint returns a job UUID which can be used to poll the
+            forecast results via the ``GET /sensors/<id>/forecasts/<uuid>`` endpoint.
 
-            Example:
-            ```
-            {
-              "start_date": "2026-01-01T00:00:00+01:00",
-              "start_predict_date": "2026-01-15T00:00:00+01:00",
-              "end_date": "2026-01-17T00:00:00+01:00"
-            }
-            ```
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the sensor for which to trigger forecasting.
+              example: 5
+              schema:
+                type: integer
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    sensor:
+                      type: integer
+                      description: ID of the sensor for which to trigger forecasting.
+                    start_date:
+                      type: string
+                      format: date-time
+                      description: Start date of the historical data used for training.
+                    start_predict_date:
+                      type: string
+                      format: date-time
+                      description: Start date of the forecast period.
+                    end_date:
+                      type: string
+                      format: date-time
+                      description: End date of the forecast period.
+                    max_forecast_horizon:
+                      type: string
+                      description: Maximum forecast horizon as an ISO-8601 duration.
+                      example: PT1H
+                    retrain_frequency:
+                      type: string
+                      description: Frequency at which the model is retrained (ISO-8601 duration).
+                      example: PT1H
+                example:
+                  start_date: "2026-01-01T00:00:00+01:00"
+                  start_predict_date: "2026-01-15T00:00:00+01:00"
+                  end_date: "2026-01-17T00:00:00+01:00"
           responses:
             200:
-              description: Forecasting job queued
+              description: PROCESSED
               content:
                 application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["PROCESSED"]
+                      forecast:
+                        type: string
+                        description: UUID of the queued forecasting job.
+                      message:
+                        type: string
                   example:
                     status: "PROCESSED"
                     forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                     message: "Forecasting job has been queued."
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
