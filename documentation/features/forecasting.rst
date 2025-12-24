@@ -70,79 +70,20 @@ triggering forecasts and retrieving their results.
 
 These endpoints live under the Sensor API (``/api/v3_0/sensors``).
 
-Triggering a forecast
-^^^^^^^^^^^^^^^^^^^^^
+A typical workflow is:
 
-.. http:post:: /api/v3_0/sensors/<id>/forecasts/trigger
+1. Trigger a forecasting job for a sensor.
+2. Poll the job until it finishes.
+3. Retrieve the forecast results.
 
-   Launch a forecasting job asynchronously for the given sensor.
+For the exact API endpoints, parameters, and response formats, refer to the
+API v3 documentation:
 
-   .. note:: To use this endpoint, you need the  ``create-children`` permission on the sensor (meaning you should be in the same account or be a consultant on it).
+- ``POST /api/v3_0/sensors/<id>/forecasts/trigger``
+- ``GET /api/v3_0/sensors/<id>/forecasts/<uuid>``
 
-   **Request JSON:**
-
-   .. code-block:: json
-
-       {
-         "start_date": "2025-01-01T00:00:00+00:00",
-         "start_predict_date": "2025-01-04T00:00:00+00:00",
-         "end_date": "2025-01-04T04:00:00+00:00"
-       }
-
-   **Response (200):**
-
-   .. code-block:: json
-
-       {
-         "status": "PROCESSED",
-         "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
-         "message": "Forecast job has been queued."
-       }
-
-   This endpoint will queue a background job on the forecasting queue.
-
-   .. note:: The ``forecast`` field contains the ID of the wrap-up job created by this request.
-
-Checking job status & retrieving forecasts
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. http:get:: /api/v3_0/sensors/<id>/forecasts/<uuid>
-
-   Retrieve the status of a forecasting job and, if it finished, its forecast data.
-
-   **Permissions:** ``read`` on the sensor.
-
-   **Response when running:**
-
-   .. code-block:: json
-
-       {
-         "status": "RUNNING",
-         "job_id": "<uuid>"
-       }
-
-   **Response when finished (200):**
-
-.. sourcecode:: json
-
-        {
-            "status": "FINISHED",
-            "job_id": "<uuid>",
-            "sensor": 12,
-            "forecasts": {
-                "2025-01-04T00:15:00+00:00": [
-                    {
-                        "event_start": "2025-01-04T00:15:00+00:00",
-                        "belief_time": "2025-01-04T00:00:00+00:00",
-                        "cumulative_probability": 0.5,
-                        "value": 3.27
-                    },
-                    ...
-                ]
-            }
-        }
-
-   The returned forecasts are grouped by event start time. Only the most recent belief for each event is returned, matching the behavior of ``sensor.search_beliefs(..., most_recent_beliefs_only=True)``.
+See :ref:`v3_0` or use Swagger UI at ``/api/v3_0/docs`` to try the endpoints
+interactively.
 
 Technical specs
 -----------------
