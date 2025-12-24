@@ -282,7 +282,7 @@ class TrainPredictPipeline(Forecaster):
                 else:
                     return cycle_job_ids[
                         0
-                    ].id  # Return the single cycle job ID if only one job is queued
+                    ]  # Return the single cycle job ID if only one job is queued
 
             return self.return_values
         except Exception as e:
