@@ -16,7 +16,7 @@ from werkzeug.exceptions import (
 from sqlalchemy.orm import Query
 
 
-def log_error(exc: Exception, error_msg: str):
+def log_error(exc: Exception, error_msg: str, verbose: bool = True):
     """Collect metadata about the exception and log it.
     error_msg comes in as an extra attribute because Exception implementations differ here.
     """
@@ -35,7 +35,10 @@ def log_error(exc: Exception, error_msg: str):
         )
     )
 
-    current_app.logger.error(msg, exc_info=exc_info)
+    if verbose:
+        current_app.logger.error(msg, exc_info=exc_info)
+    else:
+        current_app.logger.error(msg)
 
 
 def get_err_source_info(original_traceback=None) -> dict:
