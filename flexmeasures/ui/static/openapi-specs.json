@@ -100,35 +100,6 @@
     "/api/ops/ping": {},
     "/api/ops/getLatestTaskRun": {},
     "/api/ops/postLatestTaskRun": {},
-    "/api/v3_0/sensors/{id}/forecasts/{uuid}": {
-      "get": {
-        "summary": "Check forecast job status for a sensor and fetch results.",
-        "description": "Returns the status of a previously triggered forecasting job.\nWhen the job is completed successfully, this endpoint returns the\ngenerated forecast data.\n",
-        "responses": {
-          "200": {
-            "description": "Forecast job status",
-            "content": {
-              "application/json": {
-                "example": {
-                  "status": "FINISHED",
-                  "forecasts": {
-                    "sensor": 2092,
-                    "values": [
-                      "..."
-                    ],
-                    "start": "2025-10-15T00:00:00+01:00",
-                    "end": "2025-10-16T00:00:00+01:00"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Sensors"
-        ]
-      }
-    },
     "/api/v3_0/sensors/{id}": {
       "delete": {
         "summary": "Delete a sensor",
