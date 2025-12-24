@@ -165,6 +165,7 @@ Here, we extend that (storage) example with an additional target value, represen
                     "value": "25 kWh",
                     "datetime": "2015-06-02T16:00:00+00:00"
                 }
+            ]
         }
     }
 
