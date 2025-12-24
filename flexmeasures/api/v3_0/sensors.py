@@ -1648,8 +1648,8 @@ class SensorAPI(FlaskView):
             data_source = get_data_source_for_job(job, type="forecasting")
 
             forecasts = sensor.search_beliefs(
-                event_starts_after=job.kwargs.get("predict_start"),
-                event_ends_before=job.kwargs.get("predict_end")
+                event_starts_after=job.meta.get("start_date"),
+                event_ends_before=job.meta.get("end_date")
                 + sensor.event_resolution,
                 source=data_source,
                 most_recent_beliefs_only=True,
