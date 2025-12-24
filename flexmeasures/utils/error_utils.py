@@ -66,7 +66,6 @@ def error_handling_router(error: HTTPException):
     We respond in json if the request content-type is JSON.
     The ui package can also define how it wants to render HTML errors, by setting a function.
     """
-    log_error(error, getattr(error, "description", str(error)))
 
     http_error_code = 500  # fallback
     if hasattr(error, "code"):
@@ -74,6 +73,13 @@ def error_handling_router(error: HTTPException):
             http_error_code = int(error.code)
         except (ValueError, TypeError):  # if code is not an int or None
             pass
+
+    log_error(
+        error,
+        getattr(error, "description", str(error)),
+        # Some errors don't need a verbose log statement
+        verbose=http_error_code not in (401, 403, 404, 410),
+    )
 
     error_text = getattr(
         error, "description", f"Something went wrong: {error.__class__.__name__}"
