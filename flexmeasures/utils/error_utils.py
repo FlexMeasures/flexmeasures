@@ -28,9 +28,12 @@ def log_error(exc: Exception, error_msg: str, verbose: bool = True):
 
     extra = dict(url=request.path, **get_err_source_info(last_traceback))
 
-    msg = '{error_name} - URL was: {url} - "{message}" [occurred at {src_module} (in {src_func}, line {src_linenr})'.format(
-        error_name=exc.__class__.__name__, message=error_msg, **extra
-    )
+    msg = "{error_name} - URL was: {url}"
+    if verbose:
+        msg += ' - "{message}" [occurred at {src_module} (in {src_func}, line {src_linenr})'
+
+    # Fill in message contents
+    msg = msg.format(error_name=exc.__class__.__name__, message=error_msg, **extra)
 
     if verbose:
         current_app.logger.error(msg, exc_info=exc_info)
@@ -71,12 +74,15 @@ def error_handling_router(error: HTTPException):
         except (ValueError, TypeError):  # if code is not an int or None
             pass
 
-    log_error(
-        error,
-        getattr(error, "description", str(error)),
-        # Some errors don't need a verbose log statement
-        verbose=http_error_code not in (401, 403, 404, 410),
-    )
+    # Some errors don't need a verbose log statement
+    if http_error_code in (401, 403, 404, 410):
+        log_error(
+            error,
+            error.name,
+            verbose=False,
+        )
+    else:
+        log_error(error, getattr(error, "description", str(error)))
 
     error_text = getattr(
         error, "description", f"Something went wrong: {error.__class__.__name__}"
