@@ -35,6 +35,7 @@ def log_error(exc: Exception, error_msg: str, verbose: bool = True):
     # Fill in message contents
     msg = msg.format(error_name=exc.__class__.__name__, message=error_msg, **extra)
 
+    # Log error with or without traceback
     if verbose:
         current_app.logger.error(msg, exc_info=exc_info)
     else:
