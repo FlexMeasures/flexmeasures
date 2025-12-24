@@ -1624,7 +1624,7 @@ class SensorAPI(FlaskView):
 
             # Map RQ statuses to API statuses
             status = job.get_status()
-            if status in ("queued", "started"):
+            if status in ("queued", "started", "deferred"):
                 # Still running
                 response = dict(
                     status="RUNNING" if status == "started" else "PENDING",
