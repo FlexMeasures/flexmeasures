@@ -1605,10 +1605,11 @@ class SensorAPI(FlaskView):
                   example:
                     status: "FINISHED"
                     forecasts:
-                      sensor: 2092
-                      values: [...]
                       start: "2025-10-15T00:00:00+01:00"
                       end: "2025-10-16T00:00:00+01:00"
+                      resolution: "PT15M"
+                      unit: "kW"
+                      values: [...]
           tags:
             - Sensors
         """
