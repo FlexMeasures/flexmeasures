@@ -88,10 +88,12 @@ def test_trigger_and_fetch_forecasts(
         job = Job.fetch(job_id, connection=queue.connection)
 
         # Validate structure
-        assert data["start"] == '2025-01-05T00:00:00+00:00'
-        assert data["end"] == '2025-01-05T01:00:00+00:00'
+        assert data["start"] == "2025-01-05T00:00:00+00:00"
+        assert data["end"] == "2025-01-05T01:00:00+00:00"
         assert data["unit"] == sensor_0.unit
-        assert data["resolution"] == isodate.duration_isoformat(sensor_0.event_resolution)
+        assert data["resolution"] == isodate.duration_isoformat(
+            sensor_0.event_resolution
+        )
         assert "values" in data
 
         api_forecasts = data["values"]
