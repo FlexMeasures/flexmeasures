@@ -238,6 +238,7 @@ class TrainPredictPipeline(Forecaster):
                             "data_source_info": {"id": self.data_source.id},
                             "start_predict_date": self._parameters["predict_start"],
                             "end_date": self._parameters["end_date"],
+                            "sensor_id": self._parameters["sensor_to_save"].id,
                         },
                         timeout=60 * 60,  # 1 hour
                     )
@@ -269,6 +270,7 @@ class TrainPredictPipeline(Forecaster):
                         "data_source_info": {"id": self.data_source.id},
                         "start_predict_date": self._parameters["predict_start"],
                         "end_date": self._parameters["end_date"],
+                        "sensor_id": self._parameters["sensor_to_save"].id,
                     },
                 )
                 current_app.queues[queue].enqueue_job(wrap_up_job)
