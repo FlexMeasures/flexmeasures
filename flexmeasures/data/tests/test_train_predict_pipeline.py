@@ -207,12 +207,14 @@ def test_train_predict_pipeline(  # noqa: C901
             # Fetch returned job
             job = app.queues["forecasting"].fetch_job(pipeline_returns)
 
-            assert job is not None, "a returned job should exist in the forecasting queue"
+            assert (
+                job is not None
+            ), "a returned job should exist in the forecasting queue"
 
             if job.dependency_ids:
-                cycle_job_ids = [job]   # only one cycle job, no wrap-up job
+                cycle_job_ids = [job]  # only one cycle job, no wrap-up job
             else:
-                cycle_job_ids = job.kwargs.get("cycle_job_ids", [])   # wrap-up job case
+                cycle_job_ids = job.kwargs.get("cycle_job_ids", [])  # wrap-up job case
 
             finished_jobs = app.queues["forecasting"].finished_job_registry
 
