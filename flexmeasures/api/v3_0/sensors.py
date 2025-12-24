@@ -1644,15 +1644,21 @@ class SensorAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_forecasts(self, id: int, uuid: str, sensor: Sensor, job_id: str):
         """
-        .. :quickref: Forecasts; Check forecast job status for a sensor and fetch results.
+        .. :quickref: Forecasts; Fetch forecast results for one sensor
         ---
         get:
-          summary: Check forecast job status for a sensor and fetch results.
+          summary: Fetch forecast results for one sensor
           description: |
-            Returns the status of a previously triggered forecasting job.
+            Fetch the results of a previously triggered forecasting job.
 
-            While the job is still running, the endpoint returns its current status.
-            Once finished successfully, the endpoint returns the generated forecasts.
+            While the forecasting job is still running, this endpoint returns its
+            current status. Once the job has completed successfully, the endpoint
+            returns the generated forecast.
+
+            The returned forecast represents the most recent belief per event and
+            covers the period for which forecasts were generated.
+          security:
+            - ApiKeyAuth: []
           parameters:
             - in: path
               name: id
@@ -1679,28 +1685,25 @@ class SensorAPI(FlaskView):
                       status:
                         type: string
                         enum: ["PENDING", "RUNNING", "FAILED", "FINISHED"]
-                      job_id:
-                        type: string
-                        description: UUID of the forecasting job.
                       start:
                         type: string
                         format: date-time
-                        description: Start time of the returned forecast values (ISO 8601).
+                        description: Start time of the forecast values (ISO 8601).
                       end:
                         type: string
                         format: date-time
-                        description: End time of the returned forecast values (ISO 8601).
+                        description: End time of the forecast values (ISO 8601).
                       resolution:
                         type: string
                         description: Resolution of the forecast values as an ISO-8601 duration.
+                      unit:
+                        type: string
+                        description: Unit of the forecast values.
                       values:
                         type: array
                         items:
                           type: number
                         description: Forecast values.
-                      unit:
-                        type: string
-                        description: Unit of the forecast values.
                   examples:
                     finished:
                       summary: Finished forecasting job
