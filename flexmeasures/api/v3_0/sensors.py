@@ -1730,6 +1730,13 @@ class SensorAPI(FlaskView):
             if job is None:
                 return unprocessable_entity(f"Job {job_id} not found.")
 
+            # Ensure the sensor in the URL matches the sensor associated with the forecast job
+            job_sensor_id = job.meta.get("sensor_id")
+            if job_sensor_id != sensor.id:
+                return unprocessable_entity(
+                    f"Sensor ID mismatch: job {job_id} is for sensor {job_sensor_id}, not sensor {sensor.id}."
+                )
+
             # Map RQ statuses to API statuses
             status = job.get_status()
             if status in ("queued", "started", "deferred"):
