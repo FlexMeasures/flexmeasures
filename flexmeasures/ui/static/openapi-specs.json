@@ -495,8 +495,13 @@
     },
     "/api/v3_0/sensors/{id}/forecasts/{uuid}": {
       "get": {
-        "summary": "Check forecast job status for a sensor and fetch results.",
-        "description": "Returns the status of a previously triggered forecasting job.\n\nWhile the job is still running, the endpoint returns its current status.\nOnce finished successfully, the endpoint returns the generated forecasts.\n",
+        "summary": "Fetch forecast results for one sensor",
+        "description": "Fetch the results of a previously triggered forecasting job.\n\nWhile the forecasting job is still running, this endpoint returns its\ncurrent status. Once the job has completed successfully, the endpoint\nreturns the generated forecast.\n\nThe returned forecast represents the most recent belief per event and\ncovers the period for which forecasts were generated.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",
@@ -536,23 +541,23 @@
                         "FINISHED"
                       ]
                     },
-                    "job_id": {
-                      "type": "string",
-                      "description": "UUID of the forecasting job."
-                    },
                     "start": {
                       "type": "string",
                       "format": "date-time",
-                      "description": "Start time of the returned forecast values (ISO 8601)."
+                      "description": "Start time of the forecast values (ISO 8601)."
                     },
                     "end": {
                       "type": "string",
                       "format": "date-time",
-                      "description": "End time of the returned forecast values (ISO 8601)."
+                      "description": "End time of the forecast values (ISO 8601)."
                     },
                     "resolution": {
                       "type": "string",
                       "description": "Resolution of the forecast values as an ISO-8601 duration."
+                    },
+                    "unit": {
+                      "type": "string",
+                      "description": "Unit of the forecast values."
                     },
                     "values": {
                       "type": "array",
@@ -560,10 +565,6 @@
                         "type": "number"
                       },
                       "description": "Forecast values."
-                    },
-                    "unit": {
-                      "type": "string",
-                      "description": "Unit of the forecast values."
                     }
                   }
                 },
@@ -1141,7 +1142,12 @@
     "/api/v3_0/sensors/{id}/forecasts/trigger": {
       "post": {
         "summary": "Trigger forecasting job for one sensor",
-        "description": "Launch a forecasting pipeline for the given sensor asynchronously.\nThe endpoint returns a job UUID which can be used to poll the\nforecast results via the ``GET /sensors/<id>/forecasts/<uuid>`` endpoint.\n",
+        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a\njob UUID. The job will run in the background and generate forecast values\nfor the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",
@@ -1179,16 +1185,6 @@
                     "type": "string",
                     "format": "date-time",
                     "description": "End date of the forecast period."
-                  },
-                  "max_forecast_horizon": {
-                    "type": "string",
-                    "description": "Maximum forecast horizon as an ISO-8601 duration.",
-                    "example": "PT1H"
-                  },
-                  "retrain_frequency": {
-                    "type": "string",
-                    "description": "Frequency at which the model is retrained (ISO-8601 duration).",
-                    "example": "PT1H"
                   }
                 }
               },
@@ -1208,15 +1204,15 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "forecast": {
+                      "type": "string",
+                      "description": "UUID of the queued forecasting job."
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
                         "PROCESSED"
                       ]
-                    },
-                    "forecast": {
-                      "type": "string",
-                      "description": "UUID of the queued forecasting job."
                     },
                     "message": {
                       "type": "string"
@@ -1224,8 +1220,8 @@
                   }
                 },
                 "example": {
-                  "status": "PROCESSED",
                   "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "status": "PROCESSED",
                   "message": "Forecasting job has been queued."
                 }
               }
