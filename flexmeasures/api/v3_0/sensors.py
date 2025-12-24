@@ -1651,21 +1651,72 @@ class SensorAPI(FlaskView):
           summary: Check forecast job status for a sensor and fetch results.
           description: |
             Returns the status of a previously triggered forecasting job.
-            When the job is completed successfully, this endpoint returns the
-            generated forecast data.
+
+            While the job is still running, the endpoint returns its current status.
+            Once finished successfully, the endpoint returns the generated forecasts.
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the sensor for which the forecast was triggered.
+              example: 5
+              schema:
+                type: integer
+            - in: path
+              name: uuid
+              required: true
+              description: UUID of the forecasting job returned by the trigger endpoint.
+              example: b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b
+              schema:
+                type: string
           responses:
             200:
-              description: Forecast job status
+              description: Forecast job status or results
               content:
                 application/json:
-                  example:
-                    status: "FINISHED"
-                    forecasts:
-                      start: "2025-10-15T00:00:00+01:00"
-                      end: "2025-10-16T00:00:00+01:00"
-                      resolution: "PT15M"
-                      unit: "kW"
-                      values: [...]
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["PENDING", "RUNNING", "FAILED", "FINISHED"]
+                      job_id:
+                        type: string
+                        description: UUID of the forecasting job.
+                      start:
+                        type: string
+                        format: date-time
+                        description: Start time of the returned forecast values (ISO 8601).
+                      end:
+                        type: string
+                        format: date-time
+                        description: End time of the returned forecast values (ISO 8601).
+                      resolution:
+                        type: string
+                        description: Resolution of the forecast values as an ISO-8601 duration.
+                      values:
+                        type: array
+                        items:
+                          type: number
+                        description: Forecast values.
+                      unit:
+                        type: string
+                        description: Unit of the forecast values.
+                  examples:
+                    finished:
+                      summary: Finished forecasting job
+                      value:
+                        start: "2025-10-15T00:00:00+01:00"
+                        end: "2025-10-15T04:00:00+01:00"
+                        resolution: "PT1H"
+                        unit: "kW"
+                        values: [1.2, 1.5, 1.4, 0.8]
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
