@@ -17,7 +17,7 @@ from sqlalchemy.orm import Query
 
 
 def log_error(exc: Exception, error_msg: str):
-    """Collect meta data about the exception and log it.
+    """Collect metadata about the exception and log it.
     error_msg comes in as an extra attribute because Exception implementations differ here.
     """
     exc_info = sys.exc_info()
@@ -29,7 +29,7 @@ def log_error(exc: Exception, error_msg: str):
     extra = dict(url=request.path, **get_err_source_info(last_traceback))
 
     msg = (
-        '{error_name}:"{message}" [occurred at {src_module}({src_func}):{src_linenr},'
+        '{error_name}: "{message}" [occurred at {src_module} (in {src_func}, line {src_linenr}), '
         "URL was: {url}]".format(
             error_name=exc.__class__.__name__, message=error_msg, **extra
         )
