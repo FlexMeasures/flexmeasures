@@ -7,7 +7,6 @@ from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
 )
 
-from collections import defaultdict
 from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
