@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.31.0"
+    "version": "0.28.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -477,6 +477,115 @@
           },
           "400": {
             "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/forecasts/{uuid}": {
+      "get": {
+        "summary": "Check forecast job status for a sensor and fetch results.",
+        "description": "Returns the status of a previously triggered forecasting job.\n\nWhile the job is still running, the endpoint returns its current status.\nOnce finished successfully, the endpoint returns the generated forecasts.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the sensor for which the forecast was triggered.",
+            "example": 5,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "uuid",
+            "required": true,
+            "description": "UUID of the forecasting job returned by the trigger endpoint.",
+            "example": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forecast job status or results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "RUNNING",
+                        "FAILED",
+                        "FINISHED"
+                      ]
+                    },
+                    "job_id": {
+                      "type": "string",
+                      "description": "UUID of the forecasting job."
+                    },
+                    "start": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Start time of the returned forecast values (ISO 8601)."
+                    },
+                    "end": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "End time of the returned forecast values (ISO 8601)."
+                    },
+                    "resolution": {
+                      "type": "string",
+                      "description": "Resolution of the forecast values as an ISO-8601 duration."
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "description": "Forecast values."
+                    },
+                    "unit": {
+                      "type": "string",
+                      "description": "Unit of the forecast values."
+                    }
+                  }
+                },
+                "examples": {
+                  "finished": {
+                    "summary": "Finished forecasting job",
+                    "value": {
+                      "start": "2025-10-15T00:00:00+01:00",
+                      "end": "2025-10-15T04:00:00+01:00",
+                      "resolution": "PT1H",
+                      "unit": "kW",
+                      "values": [
+                        1.2,
+                        1.5,
+                        1.4,
+                        0.8
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -1013,6 +1122,114 @@
           },
           "400": {
             "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/forecasts/trigger": {
+      "post": {
+        "summary": "Trigger forecasting job for one sensor",
+        "description": "Launch a forecasting pipeline for the given sensor asynchronously.\nThe endpoint returns a job UUID which can be used to poll the\nforecast results via the ``GET /sensors/<id>/forecasts/<uuid>`` endpoint.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the sensor for which to trigger forecasting.",
+            "example": 5,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sensor": {
+                    "type": "integer",
+                    "description": "ID of the sensor for which to trigger forecasting."
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start date of the historical data used for training."
+                  },
+                  "start_predict_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start date of the forecast period."
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "End date of the forecast period."
+                  },
+                  "max_forecast_horizon": {
+                    "type": "string",
+                    "description": "Maximum forecast horizon as an ISO-8601 duration.",
+                    "example": "PT1H"
+                  },
+                  "retrain_frequency": {
+                    "type": "string",
+                    "description": "Frequency at which the model is retrained (ISO-8601 duration).",
+                    "example": "PT1H"
+                  }
+                }
+              },
+              "example": {
+                "start_date": "2026-01-01T00:00:00+01:00",
+                "start_predict_date": "2026-01-15T00:00:00+01:00",
+                "end_date": "2026-01-17T00:00:00+01:00"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PROCESSED"
+                      ]
+                    },
+                    "forecast": {
+                      "type": "string",
+                      "description": "UUID of the queued forecasting job."
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "PROCESSED",
+                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "message": "Forecasting job has been queued."
+                }
+              }
+            }
           },
           "401": {
             "description": "UNAUTHORIZED"

@@ -28,7 +28,6 @@ from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
-    get_data_generator,
     JSONOrFile,
     MsgStyle,
     DeprecatedOption,
@@ -40,7 +39,10 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
-from flexmeasures.data.services.data_sources import get_or_create_source
+from flexmeasures.data.services.data_sources import (
+    get_or_create_source,
+    get_data_generator,
+)
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
@@ -1264,7 +1266,7 @@ def train_predict_pipeline(
         # direct computation: list of dicts containing BeliefsDataFrames
         total_beliefs = sum(len(item["data"]) for item in pipeline_returns)
         unique_belief_times = {
-            ts for item in pipeline_returns for ts in item["data"].belief_time.unique()
+            ts for item in pipeline_returns for ts in item["data"].belief_times.unique()
         }
         click.secho(
             f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",

@@ -7,7 +7,6 @@ import sys
 import time
 import logging
 from datetime import datetime, timedelta
-import uuid
 
 from rq.job import Job
 
@@ -46,7 +45,13 @@ class TrainPredictPipeline(Forecaster):
             setattr(self, k, v)
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
-        self.forecast_run_id = str(uuid.uuid4())
+
+    def run_wrap_up(self, cycle_job_ids: list[str]):
+        """Log the status of all cycle jobs after completion."""
+        for index, job_id in enumerate(cycle_job_ids):
+            logging.info(
+                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}"
+            )
 
     def run_cycle(
         self,
@@ -113,6 +118,7 @@ class TrainPredictPipeline(Forecaster):
             probabilistic=self._parameters["probabilistic"],
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
             event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period
+            save_belief_time=self._parameters["save_belief_time"],
             predict_start=predict_start,
             predict_end=predict_end,
             sensor_to_save=self._parameters["sensor_to_save"],
@@ -211,23 +217,33 @@ class TrainPredictPipeline(Forecaster):
                 )
 
             if as_job:
+                cycle_job_ids = []
                 for index, param in enumerate(cycles_job_params):
+                    # Combine cycle-specific parameters with general job kwargs
+                    joined_kwargs = {
+                        **param,
+                        **{k: v for k, v in job_kwargs.items() if k not in param},
+                    }
+
                     job = Job.create(
                         self.run_cycle,
-                        kwargs={**param, **job_kwargs},
+                        kwargs=joined_kwargs,
                         connection=current_app.queues[queue].connection,
                         ttl=int(
                             current_app.config.get(
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
-                        id=self.forecast_run_id,
-                        meta={"data_source_info": {"id": self.data_source.id}},
+                        meta={
+                            "data_source_info": {"id": self.data_source.id},
+                            "start_predict_date": self._parameters["predict_start"],
+                            "end_date": self._parameters["end_date"],
+                        },
                         timeout=60 * 60,  # 1 hour
                     )
 
                     # Store the job ID for this cycle
-                    self.return_values.append({f"job-{index}": job.id})
+                    cycle_job_ids.append(job.id)
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
@@ -236,6 +252,28 @@ class TrainPredictPipeline(Forecaster):
                         queue=queue,
                         asset_or_sensor_type="sensor",
                     )
+
+                wrap_up_job = Job.create(
+                    self.run_wrap_up,
+                    kwargs={
+                        "cycle_job_ids": cycle_job_ids
+                    },  # cycles jobs IDs to wait for
+                    connection=current_app.queues[queue].connection,
+                    depends_on=cycle_job_ids,  # wrap-job depends on all cycle jobs
+                    ttl=int(
+                        current_app.config.get(
+                            "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                        ).total_seconds()
+                    ),
+                    meta={
+                        "data_source_info": {"id": self.data_source.id},
+                        "start_predict_date": self._parameters["predict_start"],
+                        "end_date": self._parameters["end_date"],
+                    },
+                )
+                current_app.queues[queue].enqueue_job(wrap_up_job)
+
+                return wrap_up_job.id
 
             return self.return_values
         except Exception as e:
