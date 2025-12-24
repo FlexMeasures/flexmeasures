@@ -1525,10 +1525,17 @@ class SensorAPI(FlaskView):
         post:
           summary: Trigger forecasting job for one sensor
           description: |
-            Launch a forecasting pipeline for the given sensor asynchronously.
-            The endpoint returns a job UUID which can be used to poll the
-            forecast results via the ``GET /sensors/<id>/forecasts/<uuid>`` endpoint.
+            Trigger a forecasting job for a sensor.
 
+            This endpoint starts a forecasting job asynchronously and returns a
+            job UUID. The job will run in the background and generate forecast values
+            for the specified period.
+
+            Once triggered, the job status and results can be retrieved using the
+            ``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.
+
+          security:
+            - ApiKeyAuth: []
           parameters:
             - in: path
               name: id
@@ -1559,14 +1566,6 @@ class SensorAPI(FlaskView):
                       type: string
                       format: date-time
                       description: End date of the forecast period.
-                    max_forecast_horizon:
-                      type: string
-                      description: Maximum forecast horizon as an ISO-8601 duration.
-                      example: PT1H
-                    retrain_frequency:
-                      type: string
-                      description: Frequency at which the model is retrained (ISO-8601 duration).
-                      example: PT1H
                 example:
                   start_date: "2026-01-01T00:00:00+01:00"
                   start_predict_date: "2026-01-15T00:00:00+01:00"
@@ -1579,17 +1578,17 @@ class SensorAPI(FlaskView):
                   schema:
                     type: object
                     properties:
-                      status:
-                        type: string
-                        enum: ["PROCESSED"]
                       forecast:
                         type: string
                         description: UUID of the queued forecasting job.
+                      status:
+                        type: string
+                        enum: ["PROCESSED"]
                       message:
                         type: string
                   example:
-                    status: "PROCESSED"
                     forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    status: "PROCESSED"
                     message: "Forecasting job has been queued."
             401:
               description: UNAUTHORIZED
