@@ -10,8 +10,8 @@ v3.0-29 | 2025-12-10
 
 Added two new forecasting API endpoints:
 
-* ``POST /sensors/<id>/forecasts/trigger`` — queue forecasting jobs for a sensor  
-* ``GET /sensors/<id>/forecasts/<uuid>`` — retrieve job status and forecast results  
+* `POST /sensors/<id>/forecasts/trigger` — queue forecasting jobs for a sensor
+* `GET /sensors/<id>/forecasts/<uuid>` — retrieve job status and forecast results
 
 These endpoints enable programmatic triggering and retrieval of forecasts via the REST API.
 
@@ -21,7 +21,7 @@ v3.0-28 | 2025-10-14
 
 v3.0-27 | 2025-09-16
 """"""""""""""""""""
-- Fix schema validation in ``PATCH /assets/<id>``.
+- Fix schema validation in `PATCH /assets/<id>`.
 
 v3.0-26 | 2025-09-10
 """"""""""""""""""""
