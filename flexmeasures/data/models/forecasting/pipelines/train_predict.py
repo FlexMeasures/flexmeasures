@@ -236,7 +236,7 @@ class TrainPredictPipeline(Forecaster):
                         ),
                         meta={
                             "data_source_info": {"id": self.data_source.id},
-                            "start_date": self._parameters["predict_start"],
+                            "start_predict_date": self._parameters["predict_start"],
                             "end_date": self._parameters["end_date"],
                         },
                         timeout=60 * 60,  # 1 hour
@@ -267,7 +267,7 @@ class TrainPredictPipeline(Forecaster):
                     ),
                     meta={
                         "data_source_info": {"id": self.data_source.id},
-                        "start_date": self._parameters["predict_start"],
+                        "start_predict_date": self._parameters["predict_start"],
                         "end_date": self._parameters["end_date"],
                     },
                 )
