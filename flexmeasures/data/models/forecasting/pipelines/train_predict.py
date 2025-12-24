@@ -261,6 +261,11 @@ class TrainPredictPipeline(Forecaster):
                             "FLEXMEASURES_JOB_TTL", timedelta(-1)
                         ).total_seconds()
                     ),
+                    meta={
+                        "data_source_info": {"id": self.data_source.id},
+                        "start_date": self._parameters["predict_start"],
+                        "end_date": self._parameters["end_date"],
+                    },
                 )
                 current_app.queues[queue].enqueue_job(wrap_up_job)
 
