@@ -1535,6 +1535,11 @@ class SensorAPI(FlaskView):
               "end_date": "2026-01-17T00:00:00+01:00"
             }
             ```
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: ForecasterParametersSchema
           responses:
             200:
               description: Forecasting job queued
