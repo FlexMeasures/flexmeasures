@@ -682,9 +682,9 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def get_data_source_for_job(job: Job) -> DataSource | None:
+def get_data_source_for_job(job: Job, type: str = "scheduler") -> DataSource | None:
     """
-    Try to find the data source linked by this scheduling job.
+    Try to find the data source linked by this scheduling or forecasting job.
 
     We expect that enough info on the source was placed in the meta dict, either:
     - the DataSource ID itself (i.e. the normal situation), or
@@ -696,16 +696,16 @@ def get_data_source_for_job(job: Job) -> DataSource | None:
         return db.session.get(DataSource, data_source_info["id"])
     if data_source_info is None:
         raise ValueError(
-            "Cannot look up scheduling data without knowing the full data_source_info (version)."
+            f"Cannot look up {type} data without knowing the full data_source_info (version)."
         )
-    scheduler_sources = db.session.scalars(
+    sources = db.session.scalars(
         select(DataSource)
         .filter_by(
-            type="scheduler",
+            type=type,
             **data_source_info,
         )
         .order_by(DataSource.version.desc())
     ).all()  # Might still be more than one, e.g. per user
-    if len(scheduler_sources) == 0:
+    if len(sources) == 0:
         return None
-    return scheduler_sources[0]
+    return sources[0]

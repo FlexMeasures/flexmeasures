@@ -204,14 +204,17 @@ def test_train_predict_pipeline(  # noqa: C901
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
         if dg_params["as_job"]:
+            # Fetch returned job
+            job = app.queues["forecasting"].fetch_job(pipeline_returns)
 
-            # Fetch wrap-up job
-            wrap_up_job = app.queues["forecasting"].fetch_job(pipeline_returns)
-            assert wrap_up_job is not None, "Wrap-up job should exist"
+            assert (
+                job is not None
+            ), "a returned job should exist in the forecasting queue"
 
-            # Get cycle job IDs from wrap-up job kwargs
-            cycle_job_ids = wrap_up_job.kwargs.get("cycle_job_ids", [])
-            assert cycle_job_ids, "Wrap-up job should reference cycle jobs"
+            if job.dependency_ids:
+                cycle_job_ids = [job]  # only one cycle job, no wrap-up job
+            else:
+                cycle_job_ids = job.kwargs.get("cycle_job_ids", [])  # wrap-up job case
 
             finished_jobs = app.queues["forecasting"].finished_job_registry
 
