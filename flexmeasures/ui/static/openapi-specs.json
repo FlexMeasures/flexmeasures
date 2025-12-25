@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.28.1"
+    "version": "0.31.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -1022,6 +1022,39 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/forecasts/trigger": {
+      "post": {
+        "summary": "Trigger forecasting job for one sensor",
+        "description": "Launch a forecasting pipeline for the given sensor asynchronously.\n\nExample:\n```\n{\n  \"start_date\": \"2026-01-01T00:00:00+01:00\",\n  \"start_predict_date\": \"2026-01-15T00:00:00+01:00\",\n  \"end_date\": \"2026-01-17T00:00:00+01:00\"\n}\n```\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForecasterParameters"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Forecasting job queued",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "PROCESSED",
+                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "message": "Forecasting job has been queued."
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -4330,6 +4363,125 @@
           "sensor",
           "start",
           "unit"
+        ],
+        "additionalProperties": false
+      },
+      "ForecasterParameters": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "future_regressors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "past_regressors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "regressors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "model_save_dir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": "flexmeasures/data/models/forecasting/artifacts/models"
+          },
+          "output_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "train_period": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_predict_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "retrain_frequency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_forecast_horizon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": "P2D"
+          },
+          "forecast_frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": "PT1H"
+          },
+          "probabilistic": {
+            "type": "boolean",
+            "default": false
+          },
+          "sensor_to_save": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "ensure_positive": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "missing_threshold": {
+            "type": "number",
+            "default": 1.0
+          },
+          "as_job": {
+            "type": "boolean",
+            "default": false,
+            "description": "If True, forecast using RQ jobs in the background (needs a worker assigned to the forecasting queue)."
+          },
+          "max_training_period": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "end_date",
+          "sensor"
         ],
         "additionalProperties": false
       },

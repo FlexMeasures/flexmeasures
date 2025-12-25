@@ -33,7 +33,11 @@ class ForecasterParametersSchema(Schema):
         SensorIdField(),
         required=False,
     )
-    model_save_dir = fields.Str(required=True)
+    model_save_dir = fields.Str(
+        required=False,
+        allow_none=True,
+        load_default="flexmeasures/data/models/forecasting/artifacts/models",
+    )
     output_path = fields.Str(required=False, allow_none=True)
     start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
     end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
@@ -48,7 +52,7 @@ class ForecasterParametersSchema(Schema):
     forecast_frequency = DurationField(
         required=False, allow_none=True, load_default=timedelta(hours=1)
     )
-    probabilistic = fields.Bool(required=True)
+    probabilistic = fields.Bool(required=False, load_default=False)
     sensor_to_save = SensorIdField(required=False, allow_none=True)
     ensure_positive = fields.Bool(required=False, allow_none=True)
     missing_threshold = fields.Float(required=False, load_default=1.0)
@@ -198,13 +202,18 @@ class ForecasterParametersSchema(Schema):
         if output_path and not os.path.exists(output_path):
             os.makedirs(output_path)
 
+        model_save_dir = data.get("model_save_dir")
+        if model_save_dir is None:
+            # Read default from schema
+            model_save_dir = self.fields["model_save_dir"].load_default
+
         ensure_positive = data.get("ensure_positive")
 
         return dict(
             future_regressors=future_regressors,
             past_regressors=past_regressors,
             target=target_sensor,
-            model_save_dir=data["model_save_dir"],
+            model_save_dir=model_save_dir,
             output_path=output_path,
             start_date=start_date,
             end_date=data["end_date"],
