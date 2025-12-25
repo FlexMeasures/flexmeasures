@@ -11,7 +11,7 @@ v0.31.0 | February XX, 2026
 
 New features
 -------------
-* Add new forecasting API endpoint to trigger forecasts on a sensor [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_]
+* New forecasting API endpoint `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ to trigger forecasts on a sensor [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_]
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
 
 Infrastructure / Support
