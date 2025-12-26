@@ -5,6 +5,9 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-29 | 2025-12-24
+""""""""""""""""""""
+- New API endpoint `[POST] /sensors/<id>/forecasts/trigger` to trigger forecasting jobs for a sensor on forecasting queue.
 
 v3.0-29 | 2025-12-18
 """"""""""""""""""""

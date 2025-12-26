@@ -203,14 +203,35 @@ def test_train_predict_pipeline(  # noqa: C901
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
-        assert (
-            isinstance(pipeline_returns, list) and len(pipeline_returns) > 0
-        ), "pipeline should return a non-empty list"
-        assert all(
-            isinstance(item, dict) for item in pipeline_returns
-        ), "each item should be a dict"
-        for index, pipeline_return in enumerate(pipeline_returns):
-            if not dg_params["as_job"]:
+        if dg_params["as_job"]:
+
+            # Fetch wrap-up job
+            wrap_up_job = app.queues["forecasting"].fetch_job(pipeline_returns)
+            assert wrap_up_job is not None, "Wrap-up job should exist"
+
+            # Get cycle job IDs from wrap-up job kwargs
+            cycle_job_ids = wrap_up_job.kwargs.get("cycle_job_ids", [])
+            assert cycle_job_ids, "Wrap-up job should reference cycle jobs"
+
+            finished_jobs = app.queues["forecasting"].finished_job_registry
+
+            for job_id in cycle_job_ids:
+                job = app.queues["forecasting"].fetch_job(job_id)
+                assert job is not None, f"Job {job_id} should exist"
+                assert (
+                    job_id in finished_jobs
+                ), f"Job {job_id} should be in the finished registry"
+
+        else:
+            # Sync case: pipeline returns a non-empty list
+            assert (
+                isinstance(pipeline_returns, list) and len(pipeline_returns) > 0
+            ), "pipeline should return a non-empty list"
+            assert all(
+                isinstance(item, dict) for item in pipeline_returns
+            ), "each item should be a dict"
+
+            for pipeline_return in pipeline_returns:
                 assert {"data", "sensor"}.issubset(
                     pipeline_return.keys()
                 ), "returned dict should have data and sensor keys"
@@ -221,18 +242,6 @@ def test_train_predict_pipeline(  # noqa: C901
                     forecasts.sort_index(),
                     pipeline_return["data"].sort_index(),
                 )
-            else:
-                job_id = pipeline_return[f"job-{index}"]
-
-                # Check the job exists in the queue or registries
-                job = app.queues["forecasting"].fetch_job(job_id)
-                assert job is not None, f"Job {job_id} should exist"
-
-                # Check it's finished
-                finished_jobs = app.queues["forecasting"].finished_job_registry
-                assert (
-                    job_id in finished_jobs
-                ), f"Job {job_id} should be in the finished registry"
 
         # Check DataGenerator configuration stored under DataSource attributes
         data_generator_config = source.attributes["data_generator"]["config"]
