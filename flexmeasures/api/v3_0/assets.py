@@ -37,7 +37,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
+from flexmeasures.data.queries.generic_assets import (
+    filter_assets_under_root,
+    query_assets_by_search_terms,
+)
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -207,6 +210,8 @@ class AssetAPI(FlaskView):
     def index(
         self,
         account: Account | None,
+        root_asset: GenericAsset | None,
+        max_depth: int | None,
         all_accessible: bool,
         include_public: bool,
         page: int | None = None,
@@ -216,16 +221,18 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+        .. :quickref: Assets; List all assets accessible by the user.
         ---
         get:
-          summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+          summary: List all assets accessible by the user.
           description: |
-            This endpoint returns all accessible assets by accounts.
+            This endpoint returns all assets that are accessible by the user after applying optional filters.
 
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
+              - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
@@ -302,6 +309,10 @@ class AssetAPI(FlaskView):
             filter_statement=filter_statement,
             sort_by=sort_by,
             sort_dir=sort_dir,
+        )
+
+        query = filter_assets_under_root(
+            query=query, root_asset=root_asset, max_depth=max_depth
         )
 
         if page is None:

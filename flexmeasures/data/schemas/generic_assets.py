@@ -325,4 +325,4 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
 
     def _serialize(self, asset: GenericAsset, attr, data, **kwargs) -> int:
         """Turn a GenericAsset into a generic asset id."""
-        return asset.id
+        return asset.id if asset else None
