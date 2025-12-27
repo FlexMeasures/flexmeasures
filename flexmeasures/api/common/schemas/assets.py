@@ -15,7 +15,7 @@ class AssetAPIQuerySchema(PaginationSchema):
         data_key="root",
         load_default=None,
         metadata=dict(
-            description="Select all descendants of a given root asset (including the root itself). Leave out to select top-level assets.",
+            description="Select all descendants of a given root asset (including the root itself). Leave out to include top-level assets.",
             example=482,
         ),
     )
@@ -24,7 +24,7 @@ class AssetAPIQuerySchema(PaginationSchema):
         validate=validate.Range(min=0),
         load_default=None,
         metadata=dict(
-            description="Maximum number of levels of descendant assets to include. Set to 0 to include root assets only.",
+            description="Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
             example=2,
         ),
     )
