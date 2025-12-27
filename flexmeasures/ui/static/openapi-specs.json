@@ -3091,7 +3091,7 @@
           },
           {
             "in": "query",
-            "name": "included-fields",
+            "name": "included_fields",
             "description": "Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
             "schema": {
               "type": [
@@ -3985,7 +3985,7 @@
             "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only.",
             "example": 2
           },
-          "included-fields": {
+          "included_fields": {
             "type": [
               "string",
               "null"

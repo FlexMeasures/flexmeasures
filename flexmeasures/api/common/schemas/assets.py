@@ -52,7 +52,6 @@ class AssetAPIQuerySchema(PaginationSchema):
         ),
     )
     included_fields = PipedListField(
-        data_key="included-fields",
         load_default=None,
         metadata=dict(
             description="Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
