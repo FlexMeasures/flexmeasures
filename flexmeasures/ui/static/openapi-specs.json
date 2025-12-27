@@ -3286,6 +3286,22 @@
             "ApiKeyAuth": []
           }
         ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "included_fields",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": "",
+              "example": "id|name|flex_model"
+            },
+            "required": false
+          }
+        ],
         "responses": {
           "200": {
             "description": "PROCESSED"

@@ -1,4 +1,4 @@
-from marshmallow import fields, validate
+from marshmallow import Schema, fields, validate
 
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -60,6 +60,16 @@ class AssetAPIQuerySchema(PaginationSchema):
     )
     all_accessible = fields.Bool(data_key="all_accessible", load_default=False)
     include_public = fields.Bool(data_key="include_public", load_default=False)
+
+
+class PublicAssetAPISchema(Schema):
+    included_fields = PipedListField(
+        load_default=None,
+        metadata=dict(
+            description="Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
+            example="id|name|flex_model",
+        ),
+    )
 
 
 class AssetPaginationSchema(PaginationSchema):

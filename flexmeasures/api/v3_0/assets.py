@@ -30,6 +30,7 @@ from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
     AssetPaginationSchema,
+    PublicAssetAPISchema,
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -480,8 +481,9 @@ class AssetAPI(FlaskView):
         return response, 200
 
     @route("/public", methods=["GET"])
+    @use_kwargs(PublicAssetAPISchema, location="query")
     @as_json
-    def public(self):
+    def public(self, included_fields: list[str] | None):
         """
         .. :quickref: Assets; Return all public assets.
         ---
@@ -490,6 +492,9 @@ class AssetAPI(FlaskView):
           description: This endpoint returns all public assets.
           security:
             - ApiKeyAuth: []
+          parameters:
+            - in: query
+              schema: PublicAssetAPISchema
           responses:
             200:
               description: PROCESSED
@@ -505,7 +510,10 @@ class AssetAPI(FlaskView):
         assets = db.session.scalars(
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
         ).all()
-        return default_list_assets_schema.dump(assets), 200
+        response_schema = default_list_assets_schema
+        if included_fields is not None:
+            response_schema = AssetSchema(many=True, only=included_fields)
+        return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
     @permission_required_for_context(
