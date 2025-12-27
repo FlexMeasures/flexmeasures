@@ -63,6 +63,8 @@
           Math.floor(data["start"] / data["length"]) + 1
         }&per_page=${data["length"]}`;
 
+        url += "&included_fields=id|name|generic_asset_type|owner|latitude|longitude|sensors";
+
         {% if account %}
           url += "&account_id={{ account.id }}";
         {% else %}
