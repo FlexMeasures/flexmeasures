@@ -6,9 +6,10 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
 
-v3.0-29 | 2025-12-18
+v3.0-29 | 2025-12-28
 """"""""""""""""""""
 - Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
+- Added ``included_fields`` field to the `/assets` (GET) and `/assets/public` endpoints, to transfer less data by default.
 
 v3.0-28 | 2025-10-14
 """"""""""""""""""""
