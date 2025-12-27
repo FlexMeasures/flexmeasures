@@ -52,7 +52,7 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.api.common.responses import (
-    invalid_flex_config,
+    unprocessable_entity,
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -694,7 +694,7 @@ class AssetAPI(FlaskView):
         try:
             db_asset = patch_asset(db_asset, asset_data)
         except ValidationError as e:
-            return invalid_flex_config(str(e.messages))
+            return unprocessable_entity(str(e.messages))
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -1371,9 +1371,9 @@ class AssetAPI(FlaskView):
         try:
             job = f(asset=asset, enqueue=True, **scheduler_kwargs)
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         response = dict(schedule=job.id)
         d, s = request_processed()

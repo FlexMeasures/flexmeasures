@@ -31,8 +31,8 @@ tldextract
 pyomo>=5.6,<6.9
 tabulate
 timetomodel>=0.7.3
-# 3.3.0: significantly faster resampling
-timely-beliefs[forecast]>=3.3.0
+# 3.3.1: deal with SingleBlockManager warnings
+timely-beliefs[forecast]>=3.3.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
@@ -72,7 +72,8 @@ flask>=1.0
 werkzeug
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
-
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/508
+urllib3>=2.6.0
 # Concise asset audit log entries
 dictdiffer>=0.9.0
 

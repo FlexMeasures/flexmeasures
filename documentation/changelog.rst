@@ -4,8 +4,47 @@ FlexMeasures Changelog
 **********************
 
 
-v0.30.0 | November XX, 2025
+v0.31.0 | February XX, 2026
 ============================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
+* New forecasting API endpoint `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ to trigger forecasts on a sensor [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_]
+* Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
+
+Infrastructure / Support
+----------------------
+* Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
+* Improve general description on SwaggerDocs page and add two settings for hosts: FLEXMEASURES_SUPPORT_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_]
+* Migrated JSON fields to JSONB, so they can be used to look up sensors, attributes, sources [see `PR #1867 <https://www.github.com/FlexMeasures/flexmeasures/pull/1867>`_]
+* Refactor base.html template from 1500 to ~300 lines [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
+
+Bugfixes
+-----------
+
+v0.30.2 | December XX, 2025
+============================
+
+Bugfixes
+-----------
+* Make ``soc-usage`` & ``soc-gain`` fields editable again in the UI [see `PR #1860 <https://www.github.com/FlexMeasures/flexmeasures/pull/1860>`_]
+* Prevent duplicate forecasts from being saved when re-running the forecasting pipeline within the same resolution window by preserving the non-floored ``belief_time`` using a new ``save_belief_time`` field [see `PR #1853 <https://github.com/FlexMeasures/flexmeasures/pull/1853>`_]
+
+
+v0.30.1 | December 9, 2025
+============================
+
+Bugfixes
+-----------
+* Greatly reduce the number of various deprecation warnings when dealing with time series data [see `PR #1858 <https://www.github.com/FlexMeasures/flexmeasures/pull/1858>`_]
+
+
+v0.30.0 | December 2, 2025
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v030-forecasting-revamped/>`_.
 
 .. warning:: If you make use of ``flexmeasures add report`` with the ``--start-offset`` and/or ``--end-offset`` options (for instance, in a cron job), please check whether the report period logged by the CLI command still fits your use case.
              Your offsets may need to be adjusted in relation to your ``FLEXMEASURES_TIMEZONE`` config setting (its offset with respect to :abbr:`UTC (Coordinated Universal Time)`).
@@ -15,9 +54,10 @@ v0.30.0 | November XX, 2025
 
 New features
 -------------
+* Improve ``flexmeasures add forecasts`` CLI command with clearer success and error messages when creating jobs or beliefs [see `PR #1822 <https://github.com/FlexMeasures/flexmeasures/pull/1822>`_].
 * Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more) [see `PR #1546 <https://github.com/FlexMeasures/flexmeasures/pull/1546>`_, `PR #1744 <https://github.com/FlexMeasures/flexmeasures/pull/1744>`_ and `PR #1834 <https://github.com/FlexMeasures/flexmeasures/pull/1834>`_]
 * The new ``commitments`` field in the ``flex-context`` can be used to specify previous commitments (e.g. market positions) that the scheduler needs to take into account [see `PR #1754 <https://github.com/FlexMeasures/flexmeasures/pull/1754>`_ and `PR #1793 <https://github.com/FlexMeasures/flexmeasures/pull/1793>`_]
-* Many more field descriptions in Swagger, including flex-model and flex-context fields [see `PR #1777 <https://www.github.com/FlexMeasures/flexmeasures/pull/1777>`_]
+* Many more field descriptions in Swagger, including flex-model and flex-context fields [see `PR #1777 <https://www.github.com/FlexMeasures/flexmeasures/pull/1777>`_ and `PR #1841 <https://www.github.com/FlexMeasures/flexmeasures/pull/1841>`_]
 * Maps auto-zoom to cover the asset portfolio visible to the user, with fresh users prompted to pan to their own location when adding their first asset [see `PR #1644 <https://www.github.com/FlexMeasures/flexmeasures/pull/1644>`_]
 * Sticky replay button for asset and sensor pages [see `PR #1739 <https://github.com/FlexMeasures/flexmeasures/pull/1739>`_]
 * The ``flexmeasures delete beliefs``, ``flexmeasures delete nan-beliefs`` and ``flexmeasures delete unchanged-beliefs`` CLI commands now support limiting the action to a given set of data sources [see `PR #1770 <https://www.github.com/FlexMeasures/flexmeasures/pull/1770>`_]
@@ -29,9 +69,9 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Updated dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_, `PR #1820 <https://www.github.com/FlexMeasures/flexmeasures/pull/1820>`_ and `PR #1842 <https://www.github.com/FlexMeasures/flexmeasures/pull/1842>`_]
+* Upgraded dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_, `PR #1820 <https://www.github.com/FlexMeasures/flexmeasures/pull/1820>`_ and `PR #1842 <https://www.github.com/FlexMeasures/flexmeasures/pull/1842>`_]
 * Speed up data searches by refactoring our filter for selecting data from the latest version of a data generating model [see `PR #1698 <https://github.com/FlexMeasures/flexmeasures/pull/1698>`_]
-* Add new tutorial for PV curtailment and multi-asset scheduling [see `PR #1804 <https://github.com/FlexMeasures/flexmeasures/pull/1804>`_]
+* Add new tutorial for PV curtailment and multi-asset scheduling [see `PR #1804 <https://github.com/FlexMeasures/flexmeasures/pull/1804>`_ and `PR #1846 <https://github.com/FlexMeasures/flexmeasures/pull/1846>`_]
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
 * Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
 * Support skipping a ``PandasReporter`` transformation if any of its (keyword) arguments has no data [see `PR #1669 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
@@ -41,6 +81,7 @@ Infrastructure / Support
 * Improve performance of the endpoint profiler and support configuration using the new ``FLEXMEASURES_PROFILER_CONFIG`` setting [see `PR #1799 <https://www.github.com/FlexMeasures/flexmeasures/pull/1799>`_]
 * Use ``SimpleWorker`` instead of fork-based ``Worker`` on macOS to prevent segmentation faults when running ``flexmeasures jobs run-worker`` for development purposes on macOS. [see `PR #1818 <https://github.com/FlexMeasures/flexmeasures/pull/1818>`_]
 * Move flex model UI schema to server side [see `PR #1830 <https://github.com/FlexMeasures/flexmeasures/pull/1830>`_]
+* Fewer version details in OpenAPI specs, to make pre-commit step complain less [see `PR #1845 <https://github.com/FlexMeasures/flexmeasures/pull/1845>`_]
 
 Bugfixes
 -----------
@@ -65,6 +106,7 @@ Bugfixes
 * Allow consultants to view client users [see `PR #1755 <https://www.github.com/FlexMeasures/flexmeasures/pull/1755>`_]
 * Fix bug where removed flex-model fields don't show up under the dropdown for new fields, except after a page refresh [see `PR #1775 <https://www.github.com/FlexMeasures/flexmeasures/pull/1775>`_]
 * Fix bug in displaying user audit log (incl. expanding its API schema) [see `PR #1779 <https://github.com/FlexMeasures/flexmeasures/pull/1779>`_]
+* Support flex-context prices with SI-prefixed currencies (e.g. kEUR) [see `PR #1844 <https://github.com/FlexMeasures/flexmeasures/pull/1844>`_]
 
 
 v0.29.0 | October 14, 2025
@@ -1315,7 +1357,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
-* Updated dependencies, including Flask-Security-Too [see `PR #82 <https://www.github.com/FlexMeasures/flexmeasures/pull/82>`_]
+* Upgraded dependencies, including Flask-Security-Too [see `PR #82 <https://www.github.com/FlexMeasures/flexmeasures/pull/82>`_]
 * Improved documentation after user feedback [see `PR #97 <https://www.github.com/FlexMeasures/flexmeasures/pull/97>`_]
 * Begin experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: ``Sensor`` data as ``TimedBelief`` objects [see `PR #79 <https://www.github.com/FlexMeasures/flexmeasures/pull/79>`_ and `PR #99 <https://github.com/FlexMeasures/flexmeasures/pull/99>`_]
 * Add sensors with CLI command currently meant for developers only [see `PR #83 <https://github.com/FlexMeasures/flexmeasures/pull/83>`_]

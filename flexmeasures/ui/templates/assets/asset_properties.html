@@ -14,12 +14,7 @@
     <div class="row">
 
         <div class="col-md-2 on-top-md">
-            <div class="sidepanel-container d-none d-md-block">
-                <div class="left-sidepanel-label">Select dates</div>
-                <div class="sidepanel left-sidepanel">
-                    <div id="datepicker"></div>
-                </div>
-            </div>
+
             {% if user_can_update_asset %}
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
@@ -381,8 +376,6 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
 
-    {% block leftsidepanel %} {{ super() }} {% endblock %}
-
 
     <!-- Initialise the map -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
@@ -417,8 +410,7 @@
         // This variable is used to prevent reRenderForm from running on initial load
         let hasInitialized = false;
                 
-        const schemaSpecsString = '{{ flex_model_schema | tojson | safe  }}';
-        const schemaSpecs = JSON.parse(schemaSpecsString); 
+        const schemaSpecs = {{ flex_model_schema | tojson | safe  }};
         const assetFlexModelSchema = {};
         const FlexModelFieldValidTypes = {};
 
@@ -1090,7 +1082,7 @@
                 if (fieldDataTypes[0] === Array) {
                     const currentCarouselindex = selectedIndex();
                     if (currentCarouselindex >= 0) {
-                        fieldDataTypes.forEach((type, _) => {
+                        [String, Object].forEach((type, _) => {
                             const flexModel = getFlexModel()
                             const value = flexModel[name];
                             const indexValue = value[currentCarouselindex];

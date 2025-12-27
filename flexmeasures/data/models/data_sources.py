@@ -5,6 +5,7 @@ import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.dialects.postgresql import JSONB
 
 import pandas as pd
 import timely_beliefs as tb
@@ -131,7 +132,9 @@ class DataGenerator:
         self._parameters = self._parameters_schema.load(self._parameters)
 
         results = self._compute(**self._parameters)
-        results = self._assign_sensors_and_source(results)
+
+        if not self._parameters.get("as_job", False):
+            results = self._assign_sensors_and_source(results)
         return results
 
     def _assign_sensors_and_source(
@@ -260,7 +263,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     )
     user = db.relationship("User", backref=db.backref("data_source", lazy=True))
 
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     attributes_hash = db.Column(db.LargeBinary(length=256))
 
