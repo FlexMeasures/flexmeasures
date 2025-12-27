@@ -73,7 +73,9 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
-assets_schema = AssetSchema(many=True)
+default_list_assets_schema = AssetSchema(
+    many=True, only=["id", "name", "account_id", "generic_asset_type"]
+)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
@@ -212,6 +214,7 @@ class AssetAPI(FlaskView):
         account: Account | None,
         root_asset: GenericAsset | None,
         max_depth: int | None,
+        included_fields: list[str] | None,
         all_accessible: bool,
         include_public: bool,
         page: int | None = None,
@@ -240,6 +243,8 @@ class AssetAPI(FlaskView):
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
+            Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
+            You can use the `included_fields` query parameter to specify a custom set of fields to include in the response.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -315,8 +320,12 @@ class AssetAPI(FlaskView):
             query=query, root_asset=root_asset, max_depth=max_depth
         )
 
+        response_schema = default_list_assets_schema
+        if included_fields is not None:
+            response_schema = AssetSchema(many=True, only=included_fields)
+
         if page is None:
-            response = asset_schema.dump(db.session.scalars(query).all(), many=True)
+            response = response_schema.dump(db.session.scalars(query).all(), many=True)
         else:
             if per_page is None:
                 per_page = 10
@@ -328,7 +337,7 @@ class AssetAPI(FlaskView):
                 select(func.count(GenericAsset.id)).filter(filter_statement)
             )
             response = {
-                "data": asset_schema.dump(select_pagination.items, many=True),
+                "data": response_schema.dump(select_pagination.items, many=True),
                 "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
@@ -496,7 +505,7 @@ class AssetAPI(FlaskView):
         assets = db.session.scalars(
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
         ).all()
-        return assets_schema.dump(assets), 200
+        return default_list_assets_schema.dump(assets), 200
 
     @route("", methods=["POST"])
     @permission_required_for_context(

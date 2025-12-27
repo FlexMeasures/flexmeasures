@@ -5,12 +5,35 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas import AssetIdField
 
 
+class PipedListField(fields.Str):
+    """
+    Field that represents a list of Strings, in serialized form joined by "|".
+    """
+
+    def _deserialize(self, values: str, attr, obj, **kwargs) -> list[str]:
+        return values.split("|") if values else []
+
+    def _serialize(self, values: list[str], attr, obj, **kwargs) -> str:
+        if not values:
+            return ""
+        return "|".join(values)
+
+
 class AssetAPIQuerySchema(PaginationSchema):
     sort_by = fields.Str(
         required=False,
         validate=validate.OneOf(["id", "name", "owner"]),
+        metadata=dict(
+            description="Sort results by this field.",
+        ),
     )
-    account = AccountIdField(data_key="account_id", load_default=None)
+    account = AccountIdField(
+        data_key="account_id",
+        load_default=None,
+        metadata=dict(
+            description="Filter results by this account.",
+        ),
+    )
     root_asset = AssetIdField(
         data_key="root",
         load_default=None,
@@ -26,6 +49,14 @@ class AssetAPIQuerySchema(PaginationSchema):
         metadata=dict(
             description="Maximum number of levels of descendant assets to include. Set to 0 to include root assets only.",
             example=2,
+        ),
+    )
+    included_fields = PipedListField(
+        data_key="included-fields",
+        load_default=None,
+        metadata=dict(
+            description="Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
+            example="id|name|flex_model",
         ),
     )
     all_accessible = fields.Bool(data_key="all_accessible", load_default=False)
