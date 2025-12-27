@@ -221,10 +221,10 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets accessible by the user.
+        .. :quickref: Assets; List assets accessible by the user.
         ---
         get:
-          summary: List all assets accessible by the user.
+          summary: List assets accessible by the user.
           description: |
             This endpoint returns all assets that are accessible by the user after applying optional filters.
 
