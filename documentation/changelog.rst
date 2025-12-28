@@ -17,10 +17,11 @@ New features
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
-* Improve general description on SwaggerDocs page and add two settings for hosts: FLEXMEASURES_SUPPORT_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_]
+* Improve general description on SwaggerDocs page and add three settings for hosts: FLEXMEASURES_SUPPORT_PAGE, FLEXMEASURES_SIGNUP_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_ and `PR #1889 <https://www.github.com/FlexMeasures/flexmeasures/pull/1889>`_]
 * Migrated JSON fields to JSONB, so they can be used to look up sensors, attributes, sources [see `PR #1867 <https://www.github.com/FlexMeasures/flexmeasures/pull/1867>`_]
 * Less verbose error logs given common HTTP requests such as those leading to 404 (Not Found) responses [see `PR #1883 <https://www.github.com/FlexMeasures/flexmeasures/pull/1883>`_]
 * Refactor base.html template from 1500 to ~300 lines [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
+* Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 
 Bugfixes
 -----------
@@ -76,7 +77,6 @@ Infrastructure / Support
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
 * Support saving beliefs with a ``belief_horizon`` in the ``AggregatorReporter`` [see `PR #1735 <https://www.github.com/FlexMeasures/flexmeasures/pull/1735>`_]
 * Support skipping a ``PandasReporter`` transformation if any of its (keyword) arguments has no data [see `PR #1669 <https://www.github.com/FlexMeasures/flexmeasures/pull/1669>`_]
-* Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 * Assets now have an `external_id` field so data from external sources can be linked to the right FlexMeasures asset in custom integrations [see `PR #1774 <https://www.github.com/FlexMeasures/flexmeasures/pull/1774>`_ and `PR #1806 <https://www.github.com/FlexMeasures/flexmeasures/pull/1806>`_]
 * Save buttons in UI editors (flex-model, flex-context and data dashboards) [see `PR #1764 <https://www.github.com/FlexMeasures/flexmeasures/pull/1764>`_]
 * Improve performance of the endpoint profiler and support configuration using the new ``FLEXMEASURES_PROFILER_CONFIG`` setting [see `PR #1799 <https://www.github.com/FlexMeasures/flexmeasures/pull/1799>`_]
