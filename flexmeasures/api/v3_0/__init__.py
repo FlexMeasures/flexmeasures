@@ -91,14 +91,22 @@ def create_openapi_specs(app: Flask):
     token_header_name = app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
 
     api_intro = (
-        f"Welcome to the {platform_name} API.<br/>"
-        'This is a platform for smart energy scheduling (a "Cloud EMS").'
+        f"Welcome to the {platform_name} API."
+        "<br/>"
+        'This is a platform for smart energy scheduling (a "Cloud EMS"). '
         "<br/><br/>"
-        "You can try out all these endpoints if you are authenticated in the platform."
-        "Or you can paste your API key token with the button on the right."
-        "<br/><br/>"
-        f"To authenticate your code, include an `{token_header_name}` header with your API key."
-        'Also, check out the <a href="https://github.com/FlexMeasures/flexmeasures-client" target="_blank">Python client</a>.'
+        "To use the API, you need to be authenticated."
+        "<br/>"
+        "If you are currently logged in to the platform, you can try out all endpoints on this page right away!"
+        "<br/>"
+        'Otherwise, you can get an an API access token (on <a href="/logged-in-user">your user page</a>) and add it via the "Authorize" button on the right. '
+    )
+    if app.config.get("FLEXMEASURES_SIGNUP_PAGE", None):
+        api_intro += f'<br/>No account yet? <a href="{app.config.get("FLEXMEASURES_SIGNUP_PAGE")}">Sign up here</a>.<br/>'
+    api_intro += (
+        "<br/>"
+        f"If you write code against these API endpoints, then include an `{token_header_name}` header in your requests with the API token. "
+        'If you use Python, check out the <a href="https://github.com/FlexMeasures/flexmeasures-client" target="_blank">Python client</a>.'
     )
 
     spec = APISpec(
