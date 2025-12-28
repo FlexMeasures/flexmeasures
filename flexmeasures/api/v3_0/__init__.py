@@ -99,7 +99,7 @@ def create_openapi_specs(app: Flask):
         "<br/>"
         "If you are currently logged in to the platform, you can try out all endpoints on this page right away!"
         "<br/>"
-        'Otherwise, you can get an an API access token (on <a href="/logged-in-user">your user page</a>) and add it via the "Authorize" button on the right. '
+        'You can alternatively add a token via the "Authorize" button on the right. You can find an API access token on <a href="/logged-in-user">your user page</a> - or ask the host.'
     )
     if app.config.get("FLEXMEASURES_SIGNUP_PAGE", None):
         api_intro += f'<br/>No account yet? <a href="{app.config.get("FLEXMEASURES_SIGNUP_PAGE")}">Sign up here</a>.<br/>'

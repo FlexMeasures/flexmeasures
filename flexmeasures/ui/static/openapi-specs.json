@@ -1,6 +1,6 @@
 {
   "info": {
-    "description": "Welcome to the FlexMeasures API.<br/>This is a platform for smart energy scheduling (a \"Cloud EMS\"). <br/><br/>To use the API, you need to be authenticated.<br/>If you are currently logged in to the platform, you can try out all endpoints on this page right away!<br/>Otherwise, you can get an an API access token (on <a href=\"/logged-in-user\">your user page</a>) and add it via the \"Authorize\" button on the right. <br/>If you write code against these API endpoints, then include an `Authorization` header in your requests with the API token. If you use Python, check out the <a href=\"https://github.com/FlexMeasures/flexmeasures-client\" target=\"_blank\">Python client</a>.",
+    "description": "Welcome to the FlexMeasures API.<br/>This is a platform for smart energy scheduling (a \"Cloud EMS\"). <br/><br/>To use the API, you need to be authenticated.<br/>If you are currently logged in to the platform, you can try out all endpoints on this page right away!<br/>You can alternatively add a token via the \"Authorize\" button on the right. You can find an API access token on <a href=\"/logged-in-user\">your user page</a> - or ask the host.<br/>If you write code against these API endpoints, then include an `Authorization` header in your requests with the API token. If you use Python, check out the <a href=\"https://github.com/FlexMeasures/flexmeasures-client\" target=\"_blank\">Python client</a>.",
     "contact": {
       "name": "FlexMeasures Support",
       "url": null
