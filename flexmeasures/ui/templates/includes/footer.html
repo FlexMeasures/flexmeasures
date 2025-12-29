@@ -203,29 +203,61 @@
 
       <br />
 
-      {% block support %} {% if FLEXMEASURES_SUPPORT_PAGE %}
+      {% block support %}
+      {% if FLEXMEASURES_SUPPORT_PAGE %}
       <a
         href="{{ FLEXMEASURES_SUPPORT_PAGE }}"
         target="_blank"
         rel="noopener noreferrer"
-        >Get Support</a
-      >. {% endif %} {% endblock support %} {% block termsofservice %} {% if
-      FLEXMEASURES_TOS_PAGE %}
+      >
+          Get Support
+      </a>.
+      {% endif %}
+      {% endblock support %}
+      
+      {% block signup %}
+      {% if FLEXMEASURES_SIGNUP_PAGE %}
+      <a
+        href="{{ FLEXMEASURES_SIGNUP_PAGE }}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+          Sign up
+      </a>.
+      {% endif %}
+      {% endblock signup %}
+
+      {% block termsofservice %}
+      {% if FLEXMEASURES_TOS_PAGE %}
       <a
         href="{{ FLEXMEASURES_TOS_PAGE }}"
         target="_blank"
         rel="noopener noreferrer"
         >Terms of Service</a
-      >. {% endif %} {% endblock termsofservice %} {% block technical_info %} {#
-      We might render templates from plugins, where this meta info is not
-      available #} {% if app_running_since %} This app is running since {{
-      app_running_since }} {% endif %} {% if (flexmeasures_version or
-      git_version) and not current_user.has_role('anonymous') %} {% if
-      flexmeasures_version %} on version {{ flexmeasures_version }}. {% else %}
-      {% if git_version != "Unknown" %} on version {{ git_version }}+{{
-      git_commits_since }}. {% else %} on revision {{ git_hash }}. {% endif %}
-      {% endif %} {% endif %} {% if loaded_plugins %} Loaded plugins: {{
-      loaded_plugins }}. {% endif %} {% endblock technical_info %}
+      >.
+      {% endif %}
+      {% endblock termsofservice %}
+      
+      {% block technical_info %} 
+      {# We might render templates from plugins, where this meta info is not available #}
+      {% if app_running_since %}
+      This app is running since {{ app_running_since }}
+      {% endif %}
+      {% if (flexmeasures_version or git_version) and not current_user.has_role('anonymous') %}
+        {% if flexmeasures_version %}
+          on version {{ flexmeasures_version }}.
+        {% else %}
+          {% if git_version != "Unknown" %}
+          on version {{ git_version }}+{{ git_commits_since }}.
+          {% else %}
+          on revision {{ git_hash }}.
+          {% endif %}
+        {% endif %}
+      {% endif %}
+      {% if loaded_plugins %}
+      Loaded plugins: {{ loaded_plugins }}.
+      {% endif %}
+      {% endblock technical_info %}
     </div>
     {% block logo %}
     <div>

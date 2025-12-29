@@ -162,6 +162,15 @@ Will be displayed in the UI footer and on top of the OpenAPI docs page.
 Default: ``None``
 
 
+FLEXMEASURES_SIGNUP_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can create an account (or ask the FlexMeasures host for one).
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
 FLEXMEASURES_TOS_PAGE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
