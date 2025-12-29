@@ -202,7 +202,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
     ],
     indirect=["requesting_user"],
 )
-def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
+def test_authupload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
     fresh_db,
     client,
     add_battery_assets_fresh_db,
@@ -263,9 +263,9 @@ def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
         print("Stored beliefs: ==============================")
         print(bdf)
 
-        expected_num_beliefs = num_test_intervals * (
-            data_resolution / sensor.event_resolution
-        )
+        expected_num_beliefs = num_test_intervals
+        if sensor.event_resolution != timedelta(0):
+            expected_num_beliefs *= data_resolution / sensor.event_resolution
         assert (
             len(beliefs) == expected_num_beliefs
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
