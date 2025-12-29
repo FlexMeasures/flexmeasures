@@ -290,19 +290,20 @@ class AssetAPI(FlaskView):
         """
 
         # find out which accounts are relevant
-        use_all_accounts = all_accessible or (root_asset and not account)
-        if use_all_accounts:
-            accounts = get_accessible_accounts()
-        else:
-            if account is None:
-                account = current_user.account
+        if account is not None:
             check_access(account, "read")
-            accounts = [account]
-        filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
+            filter_statement = GenericAsset.account_id.is_(account.id)
+        else:
+            use_all_accounts = all_accessible or root_asset
+            if use_all_accounts:
+                accounts = get_accessible_accounts()
+            else:
+                accounts = [current_user.account]
+            filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
 
-        # add public assets if the request asks for all the accessible assets
-        if all_accessible or include_public or root_asset:
-            filter_statement = filter_statement | GenericAsset.account_id.is_(None)
+            # add public assets if the request asks for all the accessible assets
+            if all_accessible or include_public or root_asset:
+                filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
             search_terms=filter,
