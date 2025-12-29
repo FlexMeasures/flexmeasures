@@ -1729,48 +1729,59 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
+        # Fetch job from RQ
+        queue = current_app.queues["forecasting"]
+        connection = queue.connection
+
+        # Fetch job
         try:
-            # Fetch job from RQ
-            queue = current_app.queues["forecasting"]
-            job = Job.fetch(job_id, connection=queue.connection)
+            job = Job.fetch(job_id, connection=connection)
+        except NoSuchJobError:
+            return unprocessable_entity(f"Job {job_id} not found.")
 
-            # Job does not exist
-            if job is None:
-                return unprocessable_entity(f"Job {job_id} not found.")
+        # Ensure the sensor in the URL matches the sensor associated with the forecast job
+        job_sensor_id = job.meta.get("sensor_id")
+        if job_sensor_id != sensor.id:
+            return unprocessable_entity(
+                f"Sensor ID mismatch: job {job_id} is for sensor {job_sensor_id}, not sensor {sensor.id}."
+            )
+        if job.dependency_ids:
+            forecast_job_ids = [
+                dep.decode("utf-8").replace("rq:job:", "")
+                for dep in job.dependency_ids
+            ]
+            response = dict(
+                message="The forecasting job led to forecasts over different periods. Please query an individual period by calling this endpoint with one of the listed job IDs",
+                forecasts=forecast_job_ids,
+            )
 
-          if job.dependency_ids:
-              forecast_job_ids = [
-                  dep.decode("utf-8").replace("rq:job:", "")
-                  for dep in job.dependency_ids
-              ]
-              response = dict(
-                  message="The forecasting job led to forecasts over different periods. Please query an individual period by calling this endpoint with one of the listed job IDs",
-                  forecasts=forecast_job_ids,
-              )
+            d, s = request_processed()
+            return dict(**response), s
 
-            # Map RQ statuses to API statuses
-            status = job.get_status()
-            if status in ("queued", "started", "deferred"):
-                # Still running
-                response = dict(
-                    status="RUNNING" if status == "started" else "PENDING",
-                    job_id=job_id,
-                )
-                d, s = request_processed()
-                return dict(**response), s
+        # Map RQ statuses to API statuses
+        status = job.get_status()
+        if status in ("queued", "started", "deferred"):
+            # Still running
+            response = dict(
+                status="RUNNING" if status == "started" else "PENDING",
+                job_id=job_id,
+            )
+            d, s = request_processed()
+            return dict(**response), s
 
-            if status == "failed":
-                # Return error message
-                response = dict(
-                    status="FAILED",
-                    job_id=job_id,
-                    error=str(job.exc_info),
-                )
-                d, s = request_processed()
-                return dict(**response), s
+        if status == "failed":
+            # Return error message
+            response = dict(
+                status="FAILED",
+                job_id=job_id,
+                error=str(job.exc_info),
+            )
+            d, s = request_processed()
+            return dict(**response), s
 
-            # Job finished → fetch forecasts from DB
-            # search for forecasts linked to this job and sensor
+        # Job finished → fetch forecasts from DB
+        # search for forecasts linked to this job and sensor
+        try:
             data_source = get_data_source_for_job(job, type="forecasting")
 
             forecasts = sensor.search_beliefs(
@@ -1781,17 +1792,17 @@ class SensorAPI(FlaskView):
                 use_latest_version_per_event=True,
                 one_deterministic_belief_per_event=True
             ).reset_index()
-
-            response = dict(
-                start=forecasts["event_start"].min().isoformat(),
-                end=forecasts["event_start"].max().isoformat(),
-                resolution=isodate.duration_isoformat(sensor.event_resolution),
-                values=forecasts["event_value"].tolist(),
-                unit=sensor.unit,
-            )
-            d, s = request_processed()
-            return dict(**response), s
-
         except Exception as e:
             current_app.logger.exception("Failed to get forecast job status.")
             return unprocessable_entity(str(e))
+
+        response = dict(
+            start=forecasts["event_start"].min().isoformat(),
+            end=forecasts["event_start"].max().isoformat(),
+            resolution=isodate.duration_isoformat(sensor.event_resolution),
+            values=forecasts["event_value"].tolist(),
+            unit=sensor.unit,
+        )
+
+        d, s = request_processed()
+        return dict(**response), s
