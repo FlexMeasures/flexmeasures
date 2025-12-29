@@ -290,7 +290,7 @@ class AssetAPI(FlaskView):
         """
 
         # find out which accounts are relevant
-        if all_accessible or root_asset:
+        if all_accessible or (root_asset and not account):
             accounts = get_accessible_accounts()
         else:
             if account is None:
