@@ -3112,9 +3112,11 @@
           {
             "in": "query",
             "name": "all_accessible",
+            "description": "Whether to list assets from all accounts that the current_user has read-access to (plus all public assets).",
             "schema": {
               "type": "boolean",
-              "default": false
+              "default": false,
+              "example": false
             },
             "required": false
           },
@@ -3989,7 +3991,9 @@
           },
           "all_accessible": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Whether to list assets from all accounts that the current_user has read-access to (plus all public assets).",
+            "example": false
           },
           "include_public": {
             "type": "boolean",

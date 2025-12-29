@@ -28,7 +28,14 @@ class AssetAPIQuerySchema(PaginationSchema):
             example=2,
         ),
     )
-    all_accessible = fields.Bool(data_key="all_accessible", load_default=False)
+    all_accessible = fields.Bool(
+        data_key="all_accessible",
+        load_default=False,
+        metadata=dict(
+            description="Whether to list assets from all accounts that the current_user has read-access to (plus all public assets).",
+            example=False,
+        ),
+    )
     include_public = fields.Bool(
         data_key="include_public",
         load_default=False,
