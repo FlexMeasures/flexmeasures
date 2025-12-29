@@ -302,7 +302,7 @@ class AssetAPI(FlaskView):
             filter_statement = GenericAsset.account_id.is_(current_user.account)
 
             # add public assets if the request asks for all the accessible assets
-            if all_accessible or include_public or root_asset:
+            if include_public:
                 filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
