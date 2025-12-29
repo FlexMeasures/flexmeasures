@@ -202,7 +202,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
     ],
     indirect=["requesting_user"],
 )
-def test_authupload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
+def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
     fresh_db,
     client,
     add_battery_assets_fresh_db,
