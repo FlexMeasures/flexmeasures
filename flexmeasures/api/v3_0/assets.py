@@ -295,11 +295,9 @@ class AssetAPI(FlaskView):
             filter_statement = GenericAsset.account_id.is_(account.id)
         elif all_accessible or root_asset:
             accounts = get_accessible_accounts()
-            filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
-
-            # add public assets if the request asks for all the accessible assets
-            if all_accessible or include_public or root_asset:
-                filter_statement = filter_statement | GenericAsset.account_id.is_(None)
+            filter_statement = GenericAsset.account_id.in_(
+                [a.id for a in accounts]
+            ) | GenericAsset.account_id.is_(None)
         else:
             filter_statement = GenericAsset.account_id.is_(current_user.account)
 
