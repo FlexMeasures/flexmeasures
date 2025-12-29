@@ -5,6 +5,8 @@ import pytest
 from sqlalchemy import select
 from datetime import timedelta
 
+from timely_beliefs import BeliefsDataFrame
+
 from flexmeasures.api.tests.utils import AccountContext
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
@@ -86,7 +88,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
             "m/s",
-            timedelta(hours=1),
+            timedelta(hours=1),  # Upsampling
             [45.3, 45.3],
             None,
             422,  # units not convertible
@@ -94,8 +96,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
         (
             "test_prosumer_user_2@seita.nl",
             2,  # this sensor has unit=kWh, res=01:00
-            "kWh",
-            timedelta(hours=1),
+            "kWh",  # No Conversion needed - kWh to kWh
+            timedelta(hours=1),  # No resampling
             [45.3] * 4,
             [45.3] * 4,  # same unit and resolution - values stay the same
             200,
@@ -103,8 +105,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
         (
             "test_prosumer_user_2@seita.nl",
             0,  # this sensor has unit=MW, res=00:15
-            "kWh",
-            timedelta(hours=1),
+            "kWh",  # Conversion needed - kWh to MW
+            timedelta(hours=1),  # Upsampling
             [45.3] * 4,
             [45.3 / 1000.0]
             * 4
@@ -114,8 +116,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
         (
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
-            "MW",
-            timedelta(hours=1),
+            "MW",  # Conversion needed - MW to kW
+            timedelta(hours=1),  # Upsampling
             [2] * 6,
             [2 * 1000]
             * 6
@@ -125,8 +127,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
         (
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
-            "kWh",
-            timedelta(minutes=30),
+            "kWh",  # Conversion needed - kWh to kW
+            timedelta(minutes=30),  # Upsampling
             [10] * 12,
             [10 * 2]
             * 12
@@ -136,8 +138,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
         (
             "test_prosumer_user_2@seita.nl",
             2,  # this sensor has unit=kWh, res=01:00
-            "kWh",
-            timedelta(minutes=30),
+            "kWh",  # No Conversion needed - kWh to kWh
+            timedelta(minutes=30),  # Downsampling
             [10, 20, 20, 40],
             [
                 15,
@@ -148,11 +150,54 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
         (
             "test_prosumer_user_2@seita.nl",
             2,  # this sensor has unit=kWh, res=01:00
-            "kW",
-            timedelta(minutes=30),
+            "kW",  # Conversion needed - kW to kWh
+            timedelta(minutes=30),  # Downsampling
             [20, 40, 40, 80],
             None,
             422,  # we don't support this case yet
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,  # this sensor has unit=kW, res=00:15
+            "kWh",  # Conversion needed - kWh to kW
+            timedelta(minutes=7, seconds=30),  # Downsampling
+            [20, 40, 40, 80],
+            [
+                240,
+                480,
+            ],
+            200,
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,  # this sensor has unit=kW, res=00:15
+            "MW",  # Conversion needed - MW to kW
+            timedelta(minutes=7, seconds=30),  # Downsampling
+            [20, 40, 40, 80, 30, 60],
+            [
+                30000,
+                60000,
+                45000,
+            ],
+            200,
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            3,  # this sensor has unit=kWh, res=00:00
+            "MWh",  # Conversion needed - MWh to kWh
+            timedelta(minutes=7, seconds=30),  # No resampling
+            [10, 20, 40, 80],
+            [10000, 20000, 40000, 80000],
+            200,
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            3,  # this sensor has unit=kWh, res=00:00
+            "kW",  # Conversion needed - kW to kWh
+            timedelta(minutes=7, seconds=30),  # No resampling
+            [20, 40, 40, 80],
+            None,
+            422,
         ),
     ],
     indirect=["requesting_user"],
@@ -175,8 +220,9 @@ def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
     and the incoming data can also have differing resolutions and declared unit.
     This test needs to check if the resulting data matches expectations.
     """
+
     start_date = (
-        "2025-01-01T00:10:00+00:00"  # This date would be used to generate CSV content
+        "2025-01-01T10:00:00+00:00"  # This date would be used to generate CSV content
     )
     test_battery = add_battery_assets_fresh_db["Test battery"]
     sensor = test_battery.sensors[sensor_index]
@@ -213,6 +259,9 @@ def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
         ).scalars()
 
         beliefs = timed_beliefs.all()
+        bdf = BeliefsDataFrame(beliefs)
+        print("Stored beliefs: ==============================")
+        print(bdf)
 
         expected_num_beliefs = num_test_intervals * (
             data_resolution / sensor.event_resolution
