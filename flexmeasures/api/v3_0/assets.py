@@ -215,7 +215,7 @@ class AssetAPI(FlaskView):
         account: Account | None,
         root_asset: GenericAsset | None,
         max_depth: int | None,
-        included_fields: list[str] | None,
+        fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
         page: int | None = None,
@@ -245,7 +245,7 @@ class AssetAPI(FlaskView):
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
             Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
-            You can use the `included_fields` query parameter to specify a custom set of fields to include in the response.
+            You can use the `fields` query parameter to specify a custom set of fields to include in the response.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -322,8 +322,8 @@ class AssetAPI(FlaskView):
         )
 
         response_schema = default_list_assets_schema
-        if included_fields is not None:
-            response_schema = AssetSchema(many=True, only=included_fields)
+        if fields_in_response is not None:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
 
         if page is None:
             response = response_schema.dump(db.session.scalars(query).all(), many=True)
@@ -483,7 +483,7 @@ class AssetAPI(FlaskView):
     @route("/public", methods=["GET"])
     @use_kwargs(PublicAssetAPISchema, location="query")
     @as_json
-    def public(self, included_fields: list[str] | None):
+    def public(self, fields_in_response: list[str] | None):
         """
         .. :quickref: Assets; Return all public assets.
         ---
@@ -511,8 +511,8 @@ class AssetAPI(FlaskView):
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
         ).all()
         response_schema = default_list_assets_schema
-        if included_fields is not None:
-            response_schema = AssetSchema(many=True, only=included_fields)
+        if fields_in_response is not None:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
         return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])

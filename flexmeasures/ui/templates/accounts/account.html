@@ -592,7 +592,7 @@ $(document).ready(function () {
           {{ account.id }}
         }`;
         
-        url += "&included_fields=id|name|generic_asset_type|owner|latitude|longitude|sensors";
+        url += "&fields=id|name|generic_asset_type|owner|latitude|longitude|sensors";
 
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
