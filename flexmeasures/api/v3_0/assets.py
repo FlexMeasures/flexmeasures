@@ -1349,7 +1349,7 @@ class AssetAPI(FlaskView):
                           This message indicates that the scheduling request has been processed without any error.
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: PROCESSED
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
