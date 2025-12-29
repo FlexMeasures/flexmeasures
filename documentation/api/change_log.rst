@@ -9,6 +9,10 @@ v3.0-29 | 2025-12-24
 """"""""""""""""""""
 - New API endpoint `[POST] /sensors/<id>/forecasts/trigger` to trigger forecasting jobs for a sensor on forecasting queue.
 
+v3.0-29 | 2025-12-18
+""""""""""""""""""""
+- Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
+
 v3.0-28 | 2025-10-14
 """"""""""""""""""""
 - Moved documentation to OpenAPI standard (incl. smaller improvements), each instance now provides a Swagger UI.
