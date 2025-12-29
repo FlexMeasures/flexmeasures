@@ -10,7 +10,14 @@ class AssetAPIQuerySchema(PaginationSchema):
         required=False,
         validate=validate.OneOf(["id", "name", "owner"]),
     )
-    account = AccountIdField(data_key="account_id", load_default=None)
+    account = AccountIdField(
+        data_key="account_id",
+        load_default=None,
+        metadata=dict(
+            description="Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
+            example=67,
+        ),
+    )
     root_asset = AssetIdField(
         data_key="root",
         load_default=None,

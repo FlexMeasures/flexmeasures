@@ -3071,12 +3071,14 @@
           {
             "in": "query",
             "name": "account_id",
+            "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "default": null
+              "default": null,
+              "example": 67
             },
             "required": false
           },
@@ -3968,7 +3970,9 @@
               "integer",
               "null"
             ],
-            "default": null
+            "default": null,
+            "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
+            "example": 67
           },
           "root": {
             "type": [
