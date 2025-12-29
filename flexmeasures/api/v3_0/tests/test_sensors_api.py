@@ -205,7 +205,10 @@ def test_fetch_sensors(
             assert isinstance(response.json, list)
             assert is_valid_unit(response.json[0]["unit"])
             assert response.json[0]["name"] == exp_sensor_name
-            assert len(response.json) == exp_num_results
+            assert len(response.json) == exp_num_results, (
+                f"If this line fails, a conftest may have added another sensor "
+                f"accessible to {requesting_user}. Update the exp_num_results in the test parameters accordingly."
+            )
 
             if asset_id_of_of_first_sensor_result is not None:
                 assert (
