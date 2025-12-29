@@ -1638,7 +1638,7 @@ class SensorAPI(FlaskView):
             return unprocessable_entity(str(e))
 
         d, s = request_processed()
-        return dict(forecast=job_id, **d), s  
+        return dict(forecast=job_id, **d), s
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(
@@ -1753,8 +1753,7 @@ class SensorAPI(FlaskView):
             )
         if job.dependency_ids:
             forecast_job_ids = [
-                dep.decode("utf-8").replace("rq:job:", "")
-                for dep in job.dependency_ids
+                dep.decode("utf-8").replace("rq:job:", "") for dep in job.dependency_ids
             ]
             response = dict(
                 message="The forecasting job led to forecasts over different periods. Please query an individual period by calling this endpoint with one of the listed job IDs",
@@ -1771,51 +1770,66 @@ class SensorAPI(FlaskView):
         # Failed job
         elif job.is_failed:
             d, s = request_processed()
-            return dict(
-                status="FAILED",
-                job_id=job.id,
-                message="Forecasting job failed.",
-                **d,
-            ), s
+            return (
+                dict(
+                    status="FAILED",
+                    job_id=job.id,
+                    message="Forecasting job failed.",
+                    **d,
+                ),
+                s,
+            )
 
         # Started job
         elif job.is_started:
             d, s = request_processed()
-            return dict(
-                status="RUNNING",
-                job_id=job.id,
-                message="Forecasting job is currently running.",
-                **d,
-            ), s
+            return (
+                dict(
+                    status="RUNNING",
+                    job_id=job.id,
+                    message="Forecasting job is currently running.",
+                    **d,
+                ),
+                s,
+            )
 
         # Queued job
         elif job.is_queued:
             d, s = request_processed()
-            return dict(
-                status="PENDING",
-                job_id=job.id,
-                message="Forecasting job is waiting to be processed.",
-                **d,
-            ), s
+            return (
+                dict(
+                    status="PENDING",
+                    job_id=job.id,
+                    message="Forecasting job is waiting to be processed.",
+                    **d,
+                ),
+                s,
+            )
 
         # Deferred job
         elif job.is_deferred:
             d, s = request_processed()
-            return dict(
-                status="PENDING",
-                job_id=job.id,
-                message="Forecasting job is waiting for another job to finish.",
-                **d,
-            ), s
+            return (
+                dict(
+                    status="PENDING",
+                    job_id=job.id,
+                    message="Forecasting job is waiting for another job to finish.",
+                    **d,
+                ),
+                s,
+            )
 
         else:
             d, s = request_processed()
-            return dict(
-                status="UNKNOWN",
-                job_id=job.id,
-                message="Forecasting job is in an unknown state.",
-                **d,
-            ), s
+            return (
+                dict(
+                    status="UNKNOWN",
+                    job_id=job.id,
+                    message="Forecasting job is in an unknown state.",
+                    **d,
+                ),
+                s,
+            )
 
         # Job finished → fetch forecasts from DB
         # search for forecasts linked to this job and sensor
@@ -1828,7 +1842,7 @@ class SensorAPI(FlaskView):
                 source=data_source,
                 most_recent_beliefs_only=True,
                 use_latest_version_per_event=True,
-                one_deterministic_belief_per_event=True
+                one_deterministic_belief_per_event=True,
             ).reset_index()
         except Exception as e:
             current_app.logger.exception("Failed to get forecast job status.")
