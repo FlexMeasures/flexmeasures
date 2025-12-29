@@ -1780,6 +1780,7 @@ class SensorAPI(FlaskView):
                 source=data_source,
                 most_recent_beliefs_only=True,
                 use_latest_version_per_event=True,
+                one_deterministic_belief_per_event=True
             ).reset_index()
 
             response = dict(
