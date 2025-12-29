@@ -954,6 +954,12 @@ class SensorAPI(FlaskView):
                 )
                 return unrecognized_event(job.meta["fallback_job_id"], "fallback-job")
 
+        # Verify that the job is for this sensor
+        if sensor.id != job.kwargs.get("asset_or_sensor_id"):
+            return unprocessable_entity(
+                f"Job asset/sensor ID {job.kwargs.get('asset_or_sensor_id')} does not match sensor ID {sensor.id}.",
+            )
+
         scheduler_info = job.meta.get("scheduler_info", dict(scheduler=""))
         scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
 
