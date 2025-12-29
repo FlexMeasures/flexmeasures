@@ -73,12 +73,14 @@ Data
 -------
 
 The postgres database is a test database with toy data filled in when the flexmeasures container starts.
-You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config. 
-The database within the ``dev-db`` postgres container resides in ``/var/lib/postgresql/data``, which we map the local path ``./docker-compose-data/dev-db`` for persistence.
-A manual backup of the database can be made by copying this directory.
+You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config.
 
-.. note:: For a fresh start, you can delete this directory: ``rm -rf ./docker-compose-data/dev-db`` (``sudo`` might be required, if this directory was created by ``docker``). The database will be re-initialized when you restart the stack.
+The database within the ``dev-db`` postgres container resides in ``/var/lib/postgresql/data``, which we map the local path ``./docker-compose-data/dev-db`` iso as developer you can have persistence for your data across re-building the compose stack.
 
+* A manual backup of the database can be made by copying this directory.
+* For a fresh start, you can delete this directory: ``rm -rf ./docker-compose-data/dev-db`` (``sudo`` might be required, if this directory was created by ``docker``). The database will be re-initialized when you restart the stack.
+
+.. warning:: We fixed the postgres version to 17. Postgres sometimes requires structural changes between version upgrades. Deleting your dev db and re-creating it is one option. Another is `this upgrade procedure <https://helgeklein.com/blog/upgrading-postgresql-in-docker-container/>`_ if you want to continue with your dev data.
 
 
 .. _docker-compose-tutorial:
