@@ -1567,6 +1567,7 @@ class SensorAPI(FlaskView):
                       format: date-time
                       description: End date of the forecast period.
                 example:
+                  sensor: 5
                   start_date: "2026-01-01T00:00:00+01:00"
                   start_predict_date: "2026-01-15T00:00:00+01:00"
                   end_date: "2026-01-17T00:00:00+01:00"
