@@ -90,7 +90,7 @@ def test_trigger_and_fetch_forecasts(
 
         # Validate structure
         assert data["start"] == "2025-01-05T00:00:00+00:00"
-        assert data["end"] == "2025-01-05T01:00:00+00:00"
+        assert "duration" in data
         assert data["unit"] == sensor_0.unit
         assert data["resolution"] == isodate.duration_isoformat(
             sensor_0.event_resolution
@@ -114,6 +114,15 @@ def test_trigger_and_fetch_forecasts(
         ).reset_index()
 
         expected_values = forecasts_df["event_value"].tolist()
+
+        # Validate duration matches DB result
+        expected_start = forecasts_df["event_start"].min()
+        expected_last_start = forecasts_df["event_start"].max()
+        expected_duration = (
+            expected_last_start + sensor_1.event_resolution - expected_start
+        )
+
+        assert data["duration"] == isodate.duration_isoformat(expected_duration)
 
         # API should return exactly these most-recent beliefs
         assert api_forecasts == expected_values
