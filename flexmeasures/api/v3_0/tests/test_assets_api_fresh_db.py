@@ -102,17 +102,17 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             [45.3] * 4,  # same unit and resolution - values stay the same
             200,
         ),
-        # (
-        #     "test_prosumer_user_2@seita.nl",
-        #     0,  # this sensor has unit=MW, res=00:15
-        #     "kWh",  # Conversion needed - kWh to MW
-        #     timedelta(hours=1),  # Upsampling
-        #     [45.3] * 4,
-        #     [45.3 / 1000.0]
-        #     * 4
-        #     * 4,  # values: / 1000 due to kW(h)->MW, number *4 due to h->15min
-        #     200,
-        # ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            0,  # this sensor has unit=MW, res=00:15
+            "kWh",  # Conversion needed - kWh to MW
+            timedelta(hours=1),  # Upsampling
+            [45.3] * 4,
+            [45.3 / 1000.0]
+            * 4
+            * 4,  # values: / 1000 due to kW(h)->MW, number *4 due to h->15min
+            200,
+        ),
         (
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
@@ -124,17 +124,17 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             * 4,  # both power units, so 2 MW = 2000 kW, number *4 due to h->15min
             200,
         ),
-        # (
-        #     "test_prosumer_user_2@seita.nl",
-        #     1,  # this sensor has unit=kW, res=00:15
-        #     "kWh",  # Conversion needed - kWh to kW
-        #     timedelta(minutes=30),  # Upsampling
-        #     [10] * 12,
-        #     [10 * 2]
-        #     * 12
-        #     * 2,  # 10 kWh per half hour = 20 kW power, number *2 due to 30min->15min
-        #     200,
-        # ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,  # this sensor has unit=kW, res=00:15
+            "kWh",  # Conversion needed - kWh to kW
+            timedelta(minutes=30),  # Upsampling
+            [10] * 12,
+            [10 * 2]
+            * 12
+            * 2,  # 10 kWh per half hour = 20 kW power, number *2 due to 30min->15min
+            200,
+        ),
         (
             "test_prosumer_user_2@seita.nl",
             2,  # this sensor has unit=kWh, res=01:00
@@ -156,18 +156,18 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             None,
             422,  # we don't support this case yet
         ),
-        # (
-        #     "test_prosumer_user_2@seita.nl",
-        #     1,  # this sensor has unit=kW, res=00:15
-        #     "kWh",  # Conversion needed - kWh to kW
-        #     timedelta(minutes=7, seconds=30),  # Downsampling
-        #     [20, 40, 40, 80],
-        #     [
-        #         240,
-        #         480,
-        #     ],
-        #     200,
-        # ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,  # this sensor has unit=kW, res=00:15
+            "kWh",  # Conversion needed - kWh to kW
+            timedelta(minutes=7, seconds=30),  # Downsampling
+            [20, 40, 40, 80],
+            [
+                240,
+                480,
+            ],
+            200,
+        ),
         (
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
