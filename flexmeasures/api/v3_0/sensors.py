@@ -1848,10 +1848,16 @@ class SensorAPI(FlaskView):
             current_app.logger.exception("Failed to get forecast job status.")
             return unprocessable_entity(str(e))
 
+        start = forecasts["event_start"].min()
+        last_event_start = forecasts["event_start"].max()
+
+        resolution = sensor.event_resolution
+        duration = (last_event_start + resolution) - start
+
         response = dict(
-            start=forecasts["event_start"].min().isoformat(),
-            end=forecasts["event_start"].max().isoformat(),
-            resolution=isodate.duration_isoformat(sensor.event_resolution),
+            start=start.isoformat(),
+            duration=isodate.duration_isoformat(duration),
+            resolution=isodate.duration_isoformat(resolution),
             values=forecasts["event_value"].tolist(),
             unit=sensor.unit,
         )
