@@ -1714,6 +1714,11 @@ class SensorAPI(FlaskView):
                         resolution: "PT1H"
                         unit: "kW"
                         values: [1.2, 1.5, 1.4, 0.8]
+                    running:
+                      summary: Running forecasting job
+                      value:
+                        status: "RUNNING"
+                        job_id: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
             401:
               description: UNAUTHORIZED
             403:
