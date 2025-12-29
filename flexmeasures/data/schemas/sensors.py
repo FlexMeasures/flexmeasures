@@ -657,6 +657,8 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     bdf["event_value"],
                     from_unit,
                     sensor.unit,
+                    # todo: remove the next line when https://github.com/SeitaBV/timely-beliefs/issues/220 is fixed
+                    event_resolution=bdf.event_resolution,
                 )
                 if sensor.event_resolution != timedelta(minutes=0):
                     bdf = bdf.resample_events(sensor.event_resolution)
