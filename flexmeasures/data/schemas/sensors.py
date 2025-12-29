@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 import numbers
 from pytz.exceptions import UnknownTimeZoneError
 
@@ -657,7 +658,8 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     from_unit,
                     sensor.unit,
                 )
-                bdf = bdf.resample_events(sensor.event_resolution)
+                if sensor.event_resolution != timedelta(minutes=0):
+                    bdf = bdf.resample_events(sensor.event_resolution)
                 dfs.append(bdf)
             except Exception as e:
                 error_message = (
