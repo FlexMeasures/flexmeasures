@@ -300,6 +300,8 @@ The event_value should be a numeric value."
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
 
+{% include 'includes/graphs.html' %}
+
 <script>
     const apiBasePath = window.location.origin;
     const parentAssetId = "{{sensor.generic_asset.id}}"
@@ -406,8 +408,5 @@ The event_value should be a numeric value."
         }
     });
 </script>
-
-    {% block leftsidepanel %} {{ super() }} {% endblock %}
-    {% block sensorChartSetup %} {{ super() }} {% endblock %}
 
 {% endblock %}

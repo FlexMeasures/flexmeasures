@@ -269,7 +269,7 @@ def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
     )
 
 
-def invalid_flex_config(message: str) -> ResponseTuple:
+def unprocessable_entity(message: str) -> ResponseTuple:
     return (
         dict(
             result="Rejected", status="UNPROCESSABLE_ENTITY", message=dict(json=message)
