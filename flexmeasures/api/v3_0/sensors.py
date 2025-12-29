@@ -1764,26 +1764,58 @@ class SensorAPI(FlaskView):
             d, s = request_processed()
             return dict(**response), s
 
-        # Map RQ statuses to API statuses
-        status = job.get_status()
-        if status in ("queued", "started", "deferred"):
-            # Still running
-            response = dict(
-                status="RUNNING" if status == "started" else "PENDING",
-                job_id=job_id,
-            )
-            d, s = request_processed()
-            return dict(**response), s
+        # Check job status
+        if job.is_finished:
+            pass  # continue to fetch forecasts
 
-        if status == "failed":
-            # Return error message
-            response = dict(
-                status="FAILED",
-                job_id=job_id,
-                error=str(job.exc_info),
-            )
+        # Failed job
+        elif job.is_failed:
             d, s = request_processed()
-            return dict(**response), s
+            return dict(
+                status="FAILED",
+                job_id=job.id,
+                message="Forecasting job failed.",
+                **d,
+            ), s
+
+        # Started job
+        elif job.is_started:
+            d, s = request_processed()
+            return dict(
+                status="RUNNING",
+                job_id=job.id,
+                message="Forecasting job is currently running.",
+                **d,
+            ), s
+
+        # Queued job
+        elif job.is_queued:
+            d, s = request_processed()
+            return dict(
+                status="PENDING",
+                job_id=job.id,
+                message="Forecasting job is waiting to be processed.",
+                **d,
+            ), s
+
+        # Deferred job
+        elif job.is_deferred:
+            d, s = request_processed()
+            return dict(
+                status="PENDING",
+                job_id=job.id,
+                message="Forecasting job is waiting for another job to finish.",
+                **d,
+            ), s
+
+        else:
+            d, s = request_processed()
+            return dict(
+                status="UNKNOWN",
+                job_id=job.id,
+                message="Forecasting job is in an unknown state.",
+                **d,
+            ), s
 
         # Job finished → fetch forecasts from DB
         # search for forecasts linked to this job and sensor
