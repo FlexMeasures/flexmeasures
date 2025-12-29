@@ -29,7 +29,14 @@ class AssetAPIQuerySchema(PaginationSchema):
         ),
     )
     all_accessible = fields.Bool(data_key="all_accessible", load_default=False)
-    include_public = fields.Bool(data_key="include_public", load_default=False)
+    include_public = fields.Bool(
+        data_key="include_public",
+        load_default=False,
+        metadata=dict(
+            description="Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            example=False,
+        ),
+    )
 
 
 class AssetPaginationSchema(PaginationSchema):

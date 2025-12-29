@@ -3121,9 +3121,11 @@
           {
             "in": "query",
             "name": "include_public",
+            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             "schema": {
               "type": "boolean",
-              "default": false
+              "default": false,
+              "example": false
             },
             "required": false
           }
@@ -3991,7 +3993,9 @@
           },
           "include_public": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            "example": false
           }
         },
         "additionalProperties": false
