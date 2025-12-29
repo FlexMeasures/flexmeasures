@@ -1769,7 +1769,6 @@ class SensorAPI(FlaskView):
                     status="FAILED",
                     job_id=job.id,
                     message="Forecasting job failed.",
-                    **d,
                 ),
                 s,
             )
@@ -1782,7 +1781,6 @@ class SensorAPI(FlaskView):
                     status="RUNNING",
                     job_id=job.id,
                     message="Forecasting job is currently running.",
-                    **d,
                 ),
                 s,
             )
@@ -1795,7 +1793,6 @@ class SensorAPI(FlaskView):
                     status="PENDING",
                     job_id=job.id,
                     message="Forecasting job is waiting to be processed.",
-                    **d,
                 ),
                 s,
             )
@@ -1808,7 +1805,6 @@ class SensorAPI(FlaskView):
                     status="PENDING",
                     job_id=job.id,
                     message="Forecasting job is waiting for another job to finish.",
-                    **d,
                 ),
                 s,
             )
@@ -1820,7 +1816,6 @@ class SensorAPI(FlaskView):
                     status="UNKNOWN",
                     job_id=job.id,
                     message="Forecasting job is in an unknown state.",
-                    **d,
                 ),
                 s,
             )
