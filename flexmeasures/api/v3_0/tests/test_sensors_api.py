@@ -44,7 +44,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             "power",
-            3,
+            4,
             False,
             False,
             200,
