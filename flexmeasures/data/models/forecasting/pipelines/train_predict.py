@@ -225,6 +225,13 @@ class TrainPredictPipeline(Forecaster):
                         **{k: v for k, v in job_kwargs.items() if k not in param},
                     }
 
+                    # job metadata for tracking
+                    job_metadata = {
+                        "data_source_info": {"id": self.data_source.id},
+                        "start_predict_date": self._parameters["predict_start"],
+                        "end_date": self._parameters["end_date"],
+                        "sensor_id": self._parameters["sensor_to_save"].id,
+                    }
                     job = Job.create(
                         self.run_cycle,
                         kwargs=joined_kwargs,
@@ -234,12 +241,7 @@ class TrainPredictPipeline(Forecaster):
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
-                        meta={
-                            "data_source_info": {"id": self.data_source.id},
-                            "start_predict_date": self._parameters["predict_start"],
-                            "end_date": self._parameters["end_date"],
-                            "sensor_id": self._parameters["sensor_to_save"].id,
-                        },
+                        meta=job_metadata,
                         timeout=60 * 60,  # 1 hour
                     )
 
@@ -266,12 +268,7 @@ class TrainPredictPipeline(Forecaster):
                             "FLEXMEASURES_JOB_TTL", timedelta(-1)
                         ).total_seconds()
                     ),
-                    meta={
-                        "data_source_info": {"id": self.data_source.id},
-                        "start_predict_date": self._parameters["predict_start"],
-                        "end_date": self._parameters["end_date"],
-                        "sensor_id": self._parameters["sensor_to_save"].id,
-                    },
+                    meta=job_metadata,
                 )
                 current_app.queues[queue].enqueue_job(wrap_up_job)
 
