@@ -1738,16 +1738,15 @@ class SensorAPI(FlaskView):
             if job is None:
                 return unprocessable_entity(f"Job {job_id} not found.")
 
-            # Ensure the sensor in the URL matches the sensor associated with the forecast job
-            job_sensor_id = job.meta.get("sensor_id")
-            if job_sensor_id != sensor.id:
-                return unprocessable_entity(
-                    f"Sensor ID mismatch: job {job_id} is for sensor {job_sensor_id}, not sensor {sensor.id}."
-                )
-            if job.dependency_ids:
-                return unprocessable_entity(
-                    f"Job {job_id} is the wrap-up job; please query one of those cycle jobs {job.dependency_ids} instead."
-                )
+          if job.dependency_ids:
+              forecast_job_ids = [
+                  dep.decode("utf-8").replace("rq:job:", "")
+                  for dep in job.dependency_ids
+              ]
+              response = dict(
+                  message="The forecasting job led to forecasts over different periods. Please query an individual period by calling this endpoint with one of the listed job IDs",
+                  forecasts=forecast_job_ids,
+              )
 
             # Map RQ statuses to API statuses
             status = job.get_status()
