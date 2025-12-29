@@ -1603,17 +1603,17 @@ class SensorAPI(FlaskView):
         # NOTE: This endpoint reuses the same validation logic as the
         # `flexmeasures add forecasts` CLI command.
 
+        # Load and validate JSON payload
+        parameters = request.get_json()
+
+        # Ensure the forecast is run as a job on a forecasting queue
+        parameters["as_job"] = True
+
+        # Set forecaster model
+        model = parameters.pop("model", "TrainPredictPipeline")
+
+        # Instantiate the forecaster
         try:
-            # Load and validate JSON payload
-            parameters = request.get_json()
-
-            # Ensure the forecast is run as a job on a forecasting queue
-            parameters["as_job"] = True
-
-            # Set forecaster model
-            model = parameters.pop("model", "TrainPredictPipeline")
-
-            # Instantiate the forecaster
             forecaster = get_data_generator(
                 source=None,
                 model=model,
@@ -1621,18 +1621,18 @@ class SensorAPI(FlaskView):
                 save_config=True,
                 data_generator_type=Forecaster,
             )
+        except ValidationError as err:
+            return unprocessable_entity(err.messages)
 
-            # Queue forecasting job
-            return_job = forecaster.compute(parameters=parameters)
-
-            d, s = request_processed()
-            return dict(forecast=return_job, **d), s
-
-        except ValidationError as e:
-            return unprocessable_entity(e.messages)
+        # Queue forecasting job
+        try:
+            job_id = forecaster.compute(parameters=parameters)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
             return unprocessable_entity(str(e))
+
+        d, s = request_processed()
+        return dict(forecast=job_id, **d), s  
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(
