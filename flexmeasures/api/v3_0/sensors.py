@@ -1763,7 +1763,7 @@ class SensorAPI(FlaskView):
             return (
                 dict(
                     status=job.get_status().name,
-                    message=job_status_description(job, "forecasting"),
+                    message=job_status_description(job),
                 ),
                 s,
             )

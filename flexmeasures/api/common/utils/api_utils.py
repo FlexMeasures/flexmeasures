@@ -69,19 +69,17 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
     return u, s
 
 
-def job_status_description(
-    job: Job, queue_name: str, append_message: str | None = None
-):
+def job_status_description(job: Job, append_message: str | None = None):
     """Return a matching description for the job's status.
 
     Supports each rq.job.JobStatus (NB JobStatus.CREATED is deprecated).
 
     :param job:             The rq.Job.
-    :param queue_name:      The queue that the job is in.
     :param append_message:  Optionally, append a message to the job status description.
     """
 
     job_status = job.get_status()
+    queue_name = job.origin  # Name of the queue that the job is in
     if job_status == JobStatus.QUEUED:
         description = f"{capitalize(queue_name)} job is waiting to be processed."
     elif job_status == JobStatus.FINISHED:
