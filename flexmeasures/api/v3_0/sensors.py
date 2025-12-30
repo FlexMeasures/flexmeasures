@@ -1759,13 +1759,12 @@ class SensorAPI(FlaskView):
 
         # Check job status
         if not job.is_finished:
-            d, s = request_processed()
             return (
                 dict(
                     status=job.get_status().name,
                     message=job_status_description(job),
                 ),
-                s,
+                200,
             )
 
         # Job finished → fetch forecasts from DB
