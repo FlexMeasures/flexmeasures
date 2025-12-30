@@ -6,6 +6,9 @@ from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema
 
 
+default_response_fields = ["id", "name", "account_id", "generic_asset_type"]
+
+
 class PipedAssetFieldListField(fields.Str):
     """
     Field that represents a list of Strings, in serialized form joined by "|".
@@ -65,9 +68,9 @@ class AssetAPIQuerySchema(PaginationSchema):
     )
     fields_in_response = PipedAssetFieldListField(
         data_key="fields",
-        load_default=None,
+        load_default=default_response_fields,
         metadata=dict(
-            description="Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
+            description="Which fields to include in response. List fields separated by '|' (pipe).",
             example="id|name|flex_model",
         ),
     )
@@ -78,9 +81,9 @@ class AssetAPIQuerySchema(PaginationSchema):
 class PublicAssetAPISchema(Schema):
     fields_in_response = PipedAssetFieldListField(
         data_key="fields",
-        load_default=None,
+        load_default=default_response_fields,
         metadata=dict(
-            description="Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
+            description="Which fields to include in response. List fields separated by '|' (pipe).",
             example="id|name|flex_model",
         ),
     )

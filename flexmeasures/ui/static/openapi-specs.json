@@ -3092,13 +3092,10 @@
           {
             "in": "query",
             "name": "fields",
-            "description": "Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "default": "",
+              "type": "string",
+              "default": "id|name|account_id|generic_asset_type",
               "example": "id|name|flex_model"
             },
             "required": false
@@ -3290,13 +3287,10 @@
           {
             "in": "query",
             "name": "fields",
-            "description": "Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "default": "",
+              "type": "string",
+              "default": "id|name|account_id|generic_asset_type",
               "example": "id|name|flex_model"
             },
             "required": false
@@ -4002,12 +3996,9 @@
             "example": 2
           },
           "fields": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "",
-            "description": "Which fields to include in response. List fields separated by '|' (pipe). Defaults to 'id|name|account_id|generic_asset_type'.",
+            "type": "string",
+            "default": "id|name|account_id|generic_asset_type",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
             "example": "id|name|flex_model"
           },
           "all_accessible": {

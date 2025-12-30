@@ -60,6 +60,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.utils.coding_utils import (
     flatten_unique,
 )
@@ -74,9 +75,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
-default_list_assets_schema = AssetSchema(
-    many=True, only=["id", "name", "account_id", "generic_asset_type"]
-)
+default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
