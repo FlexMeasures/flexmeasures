@@ -152,6 +152,7 @@ We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--
 Here, we extend that (storage) example with an additional target value, representing a desired future state of charge.
 
 .. code-block:: json
+    :emphasize-lines: 6-11
 
     {
         "start": "2015-06-02T10:00:00+00:00",
@@ -239,6 +240,7 @@ Besides the UUID, the endpoint for retrieving schedules takes a sensor ID, which
 .. note:: If a ``state-of-charge`` sensor was referenced in the flex model (like in the example below), the scheduled state of charge can be retrieved using the same endpoint and UUID, but then using the state-of-charge sensor ID.
 
           .. code-block:: json
+              :emphasize-lines: 3
 
               "flex-model": {
                   "sensor": 15,
