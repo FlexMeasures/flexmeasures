@@ -1716,7 +1716,6 @@ class SensorAPI(FlaskView):
                       summary: Running forecasting job
                       value:
                         status: "RUNNING"
-                        job_id: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
             401:
               description: UNAUTHORIZED
             403:
@@ -1765,7 +1764,6 @@ class SensorAPI(FlaskView):
             return (
                 dict(
                     status="FAILED",
-                    job_id=job.id,
                     message="Forecasting job failed.",
                 ),
                 s,
@@ -1777,7 +1775,6 @@ class SensorAPI(FlaskView):
             return (
                 dict(
                     status="RUNNING",
-                    job_id=job.id,
                     message="Forecasting job is currently running.",
                 ),
                 s,
@@ -1789,7 +1786,6 @@ class SensorAPI(FlaskView):
             return (
                 dict(
                     status="PENDING",
-                    job_id=job.id,
                     message="Forecasting job is waiting to be processed.",
                 ),
                 s,
@@ -1801,7 +1797,6 @@ class SensorAPI(FlaskView):
             return (
                 dict(
                     status="PENDING",
-                    job_id=job.id,
                     message="Forecasting job is waiting for another job to finish.",
                 ),
                 s,
@@ -1812,7 +1807,6 @@ class SensorAPI(FlaskView):
             return (
                 dict(
                     status="UNKNOWN",
-                    job_id=job.id,
                     message="Forecasting job is in an unknown state.",
                 ),
                 s,
