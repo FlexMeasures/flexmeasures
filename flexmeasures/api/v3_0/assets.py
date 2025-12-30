@@ -56,7 +56,7 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.api.common.responses import (
-    invalid_flex_config,
+    unprocessable_entity,
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -224,10 +224,10 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets accessible by the user.
+        .. :quickref: Assets; List assets accessible by the user.
         ---
         get:
-          summary: List all assets accessible by the user.
+          summary: List assets accessible by the user.
           description: |
             This endpoint returns all assets that are accessible by the user after applying optional filters.
 
@@ -294,19 +294,21 @@ class AssetAPI(FlaskView):
             - Assets
         """
 
-        # find out which accounts are relevant
-        if all_accessible:
-            accounts = get_accessible_accounts()
-        else:
-            if account is None:
-                account = current_user.account
+        # Find out which accounts are relevant
+        if account is not None:
             check_access(account, "read")
-            accounts = [account]
-
-        filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
-
-        # add public assets if the request asks for all the accessible assets
-        if all_accessible or include_public:
+            account_ids = [account.id]
+            include_public_assets = False
+        else:
+            use_all_accounts = all_accessible or root_asset
+            include_public_assets = all_accessible or include_public or root_asset
+            account_ids = (
+                [a.id for a in get_accessible_accounts()]
+                if use_all_accounts
+                else [current_user.account.id]
+            )
+        filter_statement = GenericAsset.account_id.in_(account_ids)
+        if include_public_assets:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
@@ -721,7 +723,7 @@ class AssetAPI(FlaskView):
         try:
             db_asset = patch_asset(db_asset, asset_data)
         except ValidationError as e:
-            return invalid_flex_config(str(e.messages))
+            return unprocessable_entity(str(e.messages))
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -1363,7 +1365,7 @@ class AssetAPI(FlaskView):
                           This message indicates that the scheduling request has been processed without any error.
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: PROCESSED
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
@@ -1398,9 +1400,9 @@ class AssetAPI(FlaskView):
         try:
             job = f(asset=asset, enqueue=True, **scheduler_kwargs)
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         response = dict(schedule=job.id)
         d, s = request_processed()

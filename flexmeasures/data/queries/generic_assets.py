@@ -319,4 +319,7 @@ def filter_assets_under_root(
 
     tree = descendants_cte(root_asset_id=root_asset_id, max_depth=max_depth)
 
-    return query.join(tree, GenericAsset.id == tree.c.id)
+    # use the query's FROM element, which is GenericAsset or anon_1 (after the join for search terms)
+    from_ = query.get_final_froms()[0]
+
+    return query.join(tree, from_.c.id == tree.c.id)
