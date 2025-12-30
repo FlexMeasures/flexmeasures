@@ -10,6 +10,7 @@ v0.31.0 | February XX, 2026
 New features
 -------------
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
+* Improved the UX for creating sensors, clicking on ``Enter`` now validates and creates a sensor [see `PR #1876 <https://www.github.com/FlexMeasures/flexmeasures/pull/1876>`_]
 
 Infrastructure / Support
 ----------------------
