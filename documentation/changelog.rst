@@ -13,6 +13,7 @@ New features
 -------------
 * New forecasting API endpoint `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ to trigger forecasts on a sensor [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_]
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
+* Improved the UX for creating sensors, clicking on ``Enter`` now validates and creates a sensor [see `PR #1876 <https://www.github.com/FlexMeasures/flexmeasures/pull/1876>`_]
 * Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_]
 
 Infrastructure / Support

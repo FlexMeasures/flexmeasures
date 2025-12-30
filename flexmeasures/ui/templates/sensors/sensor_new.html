@@ -6,63 +6,33 @@ sensor {% endblock %} {% block divs %}
   <h3>Creating a new sensor on asset <a href="/assets/{{asset.id}}">{{asset.name}}</a></h3>
 
   <form id="sensorForm" class="form p-4" method="POST">
-    <div
-      id="alertbox"
-      class="alert alert-success"
-      role="alert"
-      style="display: none"
-    ></div>
+    <div id="alertbox" class="alert alert-success" role="alert" style="display: none"></div>
 
     <div class="mb-3">
       <label for="name" class="form-label">Name</label>
-      <input
-        type="text"
-        class="form-control"
-        id="name"
-        name="name"
-        placeholder="e.g power"
-        required
-      />
+      <input type="text" class="form-control" id="name" name="name" placeholder="e.g power" required />
     </div>
     <div class="mb-3">
-      <label for="eventResolution" class="form-label"
-        >Event Resolution
+      <label for="eventResolution" class="form-label">Event Resolution
 
-        <i
-          class="fa fa-info-circle ps-2"
-          data-bs-toggle="tooltip"
-          data-bs-placement="bottom"
+        <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="bottom"
           title="Enter an ISO 8601 duration (e.g., PT1H for one hour, PT15M for 15 minutes)."
-          style="font-size: 16px"
-        ></i>
+          style="font-size: 16px"></i>
       </label>
-      <input
-        type="text"
-        class="form-control"
-        id="eventResolution"
-        name="event_resolution"
+      <input type="text" class="form-control" id="eventResolution" name="event_resolution"
         placeholder="Expected resolution of the sensor's data. E.g. PT1H (which is one hour) or PT15M (15 minutes)"
-        required
-      />
+        required />
     </div>
     <div class="mb-3">
-      <label for="unit" class="form-label"
-        >Unit
+      <label for="unit" class="form-label">Unit
 
-        <i
-          class="fa fa-info-circle ps-2"
-          data-bs-toggle="tooltip"
-          data-bs-placement="bottom"
+        <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="bottom"
           title="The unit of the sensor's data (e.g. kW or EUR/MWh). Choose a unit from the list or type a custom unit (ensure it's recognized by 'pint' library)."
-          style="font-size: 16px"
-        ></i>
+          style="font-size: 16px"></i>
       </label>
       <div class="row">
         <div class="col-4 pe-0">
-          <select
-            class="form-select"
-            onchange="document.getElementById('unit').value = this.value"
-          >
+          <select class="form-select" onchange="document.getElementById('unit').value = this.value">
             <option selected>Choose from units already in use</option>
             {% for unit in available_units %}
             <option>{{ unit }}</option>
@@ -70,18 +40,12 @@ sensor {% endblock %} {% block divs %}
           </select>
         </div>
         <div class="col-8 ps-1">
-          <input
-            type="text"
-            class="form-control"
-            id="unit"
-            name="unit"
-            placeholder="Type in any unit by hand, e.g. 'kW' or 'EUR/kWh'"
-            required
-          />
+          <input type="text" class="form-control" id="unit" name="unit"
+            placeholder="Type in any unit by hand, e.g. 'kW' or 'EUR/kWh'" required />
         </div>
       </div>
     </div>
-    <button type="submit" class="btn btn-primary" onclick="createSensor(event)">
+    <button type="submit" class="btn btn-primary" onclick="createSensor(event)" id="createSensorButton">
       Create
     </button>
   </form>
@@ -117,6 +81,13 @@ sensor {% endblock %} {% block divs %}
 
     return true;
   }
+
+  // When "Enter" is pressed create sensor
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      createSensor(event);
+    }
+  });
 
   async function createSensor(event) {
     event.preventDefault();
@@ -159,10 +130,8 @@ sensor {% endblock %} {% block divs %}
       showToast("Sensor created successfully.", "success");
       alertBox.innerHTML = `Sensor created successfully. You can visit your new sensor <a target="_blank" href='/sensors/${sensorId}'>here</a>.`;
       alertBox.style.display = "block";
-      // set all fields value to empty string
+      // set name field to empty string, ready to enter a new one
       document.getElementById("name").value = "";
-      document.getElementById("eventResolution").value = "";
-      document.getElementById("unit").value = "";
     } else {
       const errorData = await response.json();
       let errorMessage = response.statusText; // Default to statusText
