@@ -1693,10 +1693,9 @@ class SensorAPI(FlaskView):
                         type: string
                         format: date-time
                         description: Start time of the forecast values (ISO 8601).
-                      end:
+                      duration:
                         type: string
-                        format: date-time
-                        description: End time of the forecast values (ISO 8601).
+                        description: Duration covered by the forecast, expressed as an ISO 8601 duration.
                       resolution:
                         type: string
                         description: Resolution of the forecast values as an ISO-8601 duration.
@@ -1713,7 +1712,7 @@ class SensorAPI(FlaskView):
                       summary: Finished forecasting job
                       value:
                         start: "2025-10-15T00:00:00+01:00"
-                        end: "2025-10-15T04:00:00+01:00"
+                        duration: "PT4H"
                         resolution: "PT1H"
                         unit: "kW"
                         values: [1.2, 1.5, 1.4, 0.8]
