@@ -477,13 +477,10 @@ def convert_units(
                 # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
                 if event_resolution is None and isinstance(data, tb.BeliefsSeries):
                     event_resolution = data.event_resolution
-                print(
-                    f"Converting from {from_unit} to {to_unit} with event resolution {event_resolution}"
-                )
+
                 multiplier = determine_unit_conversion_multiplier(
                     from_unit, to_unit, event_resolution
                 )
-                print(f"Using multiplier {multiplier}")
                 to_magnitudes = from_magnitudes * multiplier
 
         # Output type should match input type
