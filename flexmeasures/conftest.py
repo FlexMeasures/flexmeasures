@@ -1001,6 +1001,22 @@ def create_test_battery_assets(
     )
     db.session.add(test_battery_soc_sensor)
 
+    test_battery_price_sensor = Sensor(
+        name="consumption sensor",
+        generic_asset=test_battery,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/kWh",
+    )
+    db.session.add(test_battery_price_sensor)
+
+    test_battery_cost_sensor = Sensor(
+        name="cost sensor",
+        generic_asset=test_battery,
+        event_resolution=timedelta(hours=1),
+        unit="EUR",
+    )
+    db.session.add(test_battery_cost_sensor)
+
     test_battery_no_prices = GenericAsset(
         name="Test battery with no known prices",
         owner=setup_accounts["Prosumer"],

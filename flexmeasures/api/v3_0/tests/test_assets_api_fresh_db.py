@@ -199,10 +199,37 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             None,
             422,
         ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            4,  # this sensor has unit=EUR/kWh, res=01:00
+            "EUR/MWh",  # Conversion needed - EUR/MWh to EUR/kWh
+            timedelta(minutes=30),  # Downsampling
+            [200, 300, 400, 500],
+            [0.25, 0.45],
+            200,
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            4,  # this sensor has unit=EUR/kWh, res=01:00
+            "EUR/kWh",  # Conversion needed - EUR/kWh to EUR/kWh
+            timedelta(hours=2),  # Upsampling
+            [200, 300, 400],
+            [200, 200, 300, 300, 400, 400],
+            200,
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            5,  # this sensor has unit=EUR, res=01:00
+            "kEUR",  # Conversion needed - kEUR to EUR
+            timedelta(minutes=30),  # Downsampling
+            [2, 3, 4, 2],
+            [2500, 3000],
+            200,
+        ),
     ],
     indirect=["requesting_user"],
 )
-def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
+def test_auth_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
     fresh_db,
     client,
     add_battery_assets_fresh_db,
