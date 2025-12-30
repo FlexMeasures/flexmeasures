@@ -218,13 +218,7 @@ class TrainPredictPipeline(Forecaster):
 
             if as_job:
                 cycle_job_ids = []
-                for index, param in enumerate(cycles_job_params):
-                    # Combine cycle-specific parameters with general job kwargs
-                    joined_kwargs = {
-                        **param,
-                        **{k: v for k, v in job_kwargs.items() if k not in param},
-                    }
-
+                for cycle_params in cycles_job_params:
                     # job metadata for tracking
                     job_metadata = {
                         "data_source_info": {"id": self.data_source.id},
@@ -234,7 +228,8 @@ class TrainPredictPipeline(Forecaster):
                     }
                     job = Job.create(
                         self.run_cycle,
-                        kwargs=joined_kwargs,
+                        # Some cycle job params override job kwargs
+                        kwargs={**job_kwargs, **cycle_params},
                         connection=current_app.queues[queue].connection,
                         ttl=int(
                             current_app.config.get(
@@ -262,7 +257,7 @@ class TrainPredictPipeline(Forecaster):
                         "cycle_job_ids": cycle_job_ids
                     },  # cycles jobs IDs to wait for
                     connection=current_app.queues[queue].connection,
-                    depends_on=cycle_job_ids,  # wrap-job depends on all cycle jobs
+                    depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
                     ttl=int(
                         current_app.config.get(
                             "FLEXMEASURES_JOB_TTL", timedelta(-1)
