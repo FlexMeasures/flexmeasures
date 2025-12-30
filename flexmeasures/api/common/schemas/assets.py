@@ -84,7 +84,7 @@ class PublicAssetAPISchema(Schema):
         load_default=default_response_fields,
         metadata=dict(
             description="Which fields to include in response. List fields separated by '|' (pipe).",
-            example="id|name|flex_model",
+            example="id|name|sensors",
         ),
     )
 

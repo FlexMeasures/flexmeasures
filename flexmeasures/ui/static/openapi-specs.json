@@ -3291,7 +3291,7 @@
             "schema": {
               "type": "string",
               "default": "id|name|account_id|generic_asset_type",
-              "example": "id|name|flex_model"
+              "example": "id|name|sensors"
             },
             "required": false
           }
