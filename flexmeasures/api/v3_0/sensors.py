@@ -72,6 +72,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
+partial_forecast_schema = ForecasterParametersSchema(partial=True, exclude=["sensor"])
 
 
 class SensorKwargsSchema(Schema):
@@ -1520,7 +1521,7 @@ class SensorAPI(FlaskView):
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
-    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context("create-children", ctx_arg_name="sensor_to_save")
     def trigger_forecast(self, id: int, **params):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
