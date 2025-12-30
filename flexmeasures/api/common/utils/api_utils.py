@@ -69,36 +69,47 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
     return u, s
 
 
-def job_status_description(job: Job, queue_name: str):
+def job_status_description(
+    job: Job, queue_name: str, append_message: str | None = None
+):
     """Return a matching description for the job's status.
 
     Supports each rq.job.JobStatus (NB JobStatus.CREATED is deprecated).
+
+    :param job:             The rq.Job.
+    :param queue_name:      The queue that the job is in.
+    :param append_message:  Optionally, append a message to the job status description.
     """
 
     job_status = job.get_status()
     if job_status == JobStatus.QUEUED:
-        return f"{capitalize(queue_name)} job is waiting to be processed."
-    if job_status == JobStatus.FINISHED:
-        return f"{capitalize(queue_name)} job has finished."
-    if job_status == JobStatus.FAILED:
-        return f"{capitalize(queue_name)} job has failed."
-    if job_status == JobStatus.STARTED:
-        return f"{capitalize(queue_name)} job has started."
-    if job_status == JobStatus.DEFERRED:
+        description = f"{capitalize(queue_name)} job is waiting to be processed."
+    elif job_status == JobStatus.FINISHED:
+        description = f"{capitalize(queue_name)} job has finished."
+    elif job_status == JobStatus.FAILED:
+        description = f"{capitalize(queue_name)} job has failed."
+    elif job_status == JobStatus.STARTED:
+        description = f"{capitalize(queue_name)} job has started."
+    elif job_status == JobStatus.DEFERRED:
         try:
             preferred_job = job.dependency
+            description = f'{capitalize(queue_name)} job is waiting for {preferred_job.status} job "{preferred_job.id}" to finish.'
         except NoSuchJobError:
-            return (
+            description = (
                 f"{capitalize(queue_name)} job is waiting for an unknown job to finish."
             )
-        return f'{capitalize(queue_name)} job is waiting for {preferred_job.status} job "{preferred_job.id}" to finish.'
-    if job_status == JobStatus.SCHEDULED:
-        return f"{capitalize(queue_name)} job is scheduled to run at a later time."
-    if job_status == JobStatus.STOPPED:
-        return f"{capitalize(queue_name)} job has been stopped."
-    if job_status == JobStatus.CANCELED:
-        return f"{capitalize(queue_name)} job has been cancelled."
-    return f"{capitalize(queue_name)} job is in an unknown state."
+    elif job_status == JobStatus.SCHEDULED:
+        description = (
+            f"{capitalize(queue_name)} job is scheduled to run at a later time."
+        )
+    elif job_status == JobStatus.STOPPED:
+        description = f"{capitalize(queue_name)} job has been stopped."
+    elif job_status == JobStatus.CANCELED:
+        description = f"{capitalize(queue_name)} job has been cancelled."
+    else:
+        description = f"{capitalize(queue_name)} job is in an unknown state."
+
+    return description + f" {append_message}" if append_message else description
 
 
 def enqueue_forecasting_jobs(
