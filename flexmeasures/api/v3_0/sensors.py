@@ -1645,10 +1645,10 @@ class SensorAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_forecast(self, id: int, uuid: str, sensor: Sensor, job_id: str):
         """
-        .. :quickref: Forecasts; Fetch forecast results for one sensor
+        .. :quickref: Forecasts; Get forecast for one sensor
         ---
         get:
-          summary: Fetch forecast results for one sensor
+          summary: Get forecast for one sensor
           description: |
             Fetch the results of a previously triggered forecasting job.
 

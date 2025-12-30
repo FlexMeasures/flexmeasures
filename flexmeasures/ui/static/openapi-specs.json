@@ -495,7 +495,7 @@
     },
     "/api/v3_0/sensors/{id}/forecasts/{uuid}": {
       "get": {
-        "summary": "Fetch forecast results for one sensor",
+        "summary": "Get forecast for one sensor",
         "description": "Fetch the results of a previously triggered forecasting job.\n\nWhile the forecasting job is still running, this endpoint returns its\ncurrent status. Once the job has completed successfully, the endpoint\nreturns the generated forecast.\n\nThe returned forecast represents the most recent belief per event and\ncovers the period for which forecasts were generated.\n",
         "security": [
           {
