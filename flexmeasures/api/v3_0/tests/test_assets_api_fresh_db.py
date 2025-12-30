@@ -90,7 +90,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "m/s",
             timedelta(hours=1),  # Upsampling
             [45.3, 45.3],
-            None,
+            "Provided unit 'm/s' is not convertible to sensor unit 'kW'",
             422,  # units not convertible
         ),
         (
@@ -153,7 +153,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "kW",  # Conversion needed - kW to kWh
             timedelta(minutes=30),  # Downsampling
             [20, 40, 40, 80],
-            None,
+            "Provided unit 'kW' is not convertible to sensor unit 'kWh'",
             422,  # we don't support this case yet
         ),
         (
@@ -196,7 +196,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "kW",  # Conversion needed - kW to kWh
             timedelta(minutes=7, seconds=30),  # No resampling
             [20, 40, 40, 80],
-            None,
+            "Provided unit 'kW' is not convertible to sensor unit 'kWh'",
             422,
         ),
         (
@@ -298,3 +298,8 @@ def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
 
         assert [b.event_value for b in beliefs] == expected_event_values
+    elif response.status_code == 422:
+        assert (
+            expected_event_values
+            in response.json["message"]["combined_sensor_data_upload"]["_schema"]
+        )
