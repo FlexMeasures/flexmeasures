@@ -60,6 +60,12 @@ def test_trigger_and_fetch_forecasts(
         job = app.queues["forecasting"].fetch_job(job_id)
         assert job is not None, f"Job {job_id} should exist in the queue"
 
+        # Fetch queued forecasting job
+        fetch_url = url_for("SensorAPI:get_forecast", id=sensor_0.id, uuid=job_id)
+        res = client.get(fetch_url, headers={"Authorization": token})
+        assert res.status_code == 200
+        assert res.json["status"] == "PENDING"
+
     # Run forecasting queue
     work_on_rq(
         app.queues["forecasting"],
