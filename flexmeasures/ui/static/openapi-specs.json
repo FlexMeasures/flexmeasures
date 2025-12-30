@@ -3082,6 +3082,17 @@
           },
           {
             "in": "query",
+            "name": "fields",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
+            "schema": {
+              "type": "string",
+              "default": "id|name|account_id|generic_asset_type",
+              "example": "id|name|flex_model"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "account_id",
             "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             "schema": {
@@ -3120,46 +3131,6 @@
               "default": null,
               "minimum": 0,
               "example": 2
-            },
-            "required": false
-          },
-          {
-            "in": "query",
-            "name": "root",
-            "description": "Select all descendants of a given root asset (including the root itself). Leave out to select top-level assets.",
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "default": null,
-              "example": 482
-            },
-            "required": false
-          },
-          {
-            "in": "query",
-            "name": "depth",
-            "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only.",
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "default": null,
-              "minimum": 0,
-              "example": 2
-            },
-            "required": false
-          },
-          {
-            "in": "query",
-            "name": "fields",
-            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
-            "schema": {
-              "type": "string",
-              "default": "id|name|account_id|generic_asset_type",
-              "example": "id|name|flex_model"
             },
             "required": false
           },
@@ -4035,6 +4006,12 @@
             ],
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
           },
+          "fields": {
+            "type": "string",
+            "default": "id|name|account_id|generic_asset_type",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
+            "example": "id|name|flex_model"
+          },
           "account_id": {
             "type": [
               "integer",
@@ -4062,12 +4039,6 @@
             "minimum": 0,
             "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
             "example": 2
-          },
-          "fields": {
-            "type": "string",
-            "default": "id|name|account_id|generic_asset_type",
-            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
-            "example": "id|name|flex_model"
           },
           "all_accessible": {
             "type": "boolean",
