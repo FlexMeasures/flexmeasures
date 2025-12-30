@@ -1515,10 +1515,13 @@ class SensorAPI(FlaskView):
         return {"sensors_data": status_data}, 200
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @use_kwargs(ForecasterParametersSchema, location="json")
+    @use_args(
+        ForecasterParametersSchema(),
+        location="combined_sensor_data_description",
+        as_kwargs=True,
+    )
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def trigger_forecast(self, id: int, sensor: Sensor, **params):
+    def trigger_forecast(self, id: int, **params):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
         ---
@@ -1551,9 +1554,6 @@ class SensorAPI(FlaskView):
                 schema:
                   type: object
                   properties:
-                    sensor:
-                      type: integer
-                      description: ID of the sensor for which to trigger forecasting.
                     start_date:
                       type: string
                       format: date-time
@@ -1567,7 +1567,6 @@ class SensorAPI(FlaskView):
                       format: date-time
                       description: End date of the forecast period.
                 example:
-                  sensor: 5
                   start_date: "2026-01-01T00:00:00+01:00"
                   start_predict_date: "2026-01-15T00:00:00+01:00"
                   end_date: "2026-01-17T00:00:00+01:00"
@@ -1603,8 +1602,11 @@ class SensorAPI(FlaskView):
         # NOTE: This endpoint reuses the same validation logic as the
         # `flexmeasures add forecasts` CLI command.
 
-        # Load and validate JSON payload
+        # Load the original JSON payload
         parameters = request.get_json()
+
+        # Put the sensor to save in the parameters
+        parameters["sensor"] = params["sensor_to_save"].id
 
         # Ensure the forecast is run as a job on a forecasting queue
         parameters["as_job"] = True

@@ -1174,10 +1174,6 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "sensor": {
-                    "type": "integer",
-                    "description": "ID of the sensor for which to trigger forecasting."
-                  },
                   "start_date": {
                     "type": "string",
                     "format": "date-time",
@@ -1196,7 +1192,6 @@
                 }
               },
               "example": {
-                "sensor": 5,
                 "start_date": "2026-01-01T00:00:00+01:00",
                 "start_predict_date": "2026-01-15T00:00:00+01:00",
                 "end_date": "2026-01-17T00:00:00+01:00"
