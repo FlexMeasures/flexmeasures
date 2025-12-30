@@ -3,15 +3,27 @@ from marshmallow import Schema, fields, validate
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas import AssetIdField
+from flexmeasures.data.schemas.generic_assets import GenericAssetSchema
 
 
-class PipedListField(fields.Str):
+class PipedAssetFieldListField(fields.Str):
     """
     Field that represents a list of Strings, in serialized form joined by "|".
+    Each one should represent a field in the AssetAPIQuerySchema.
     """
 
     def _deserialize(self, values: str, attr, obj, **kwargs) -> list[str]:
-        return values.split("|") if values else []
+        if not isinstance(values, str):
+            raise validate.ValidationError(
+                "Invalid input type, should be a string, separable by '|'."
+            )
+        parameters = values.split("|") if values else []
+        for parameter in parameters:
+            if parameter not in GenericAssetSchema._declared_fields:
+                raise validate.ValidationError(
+                    f"Parameter '{parameter}' is not a valid asset field."
+                )
+        return parameters
 
     def _serialize(self, values: list[str], attr, obj, **kwargs) -> str:
         if not values:
@@ -51,7 +63,7 @@ class AssetAPIQuerySchema(PaginationSchema):
             example=2,
         ),
     )
-    fields_in_response = PipedListField(
+    fields_in_response = PipedAssetFieldListField(
         data_key="fields",
         load_default=None,
         metadata=dict(
@@ -64,7 +76,7 @@ class AssetAPIQuerySchema(PaginationSchema):
 
 
 class PublicAssetAPISchema(Schema):
-    fields_in_response = PipedListField(
+    fields_in_response = PipedAssetFieldListField(
         data_key="fields",
         load_default=None,
         metadata=dict(
