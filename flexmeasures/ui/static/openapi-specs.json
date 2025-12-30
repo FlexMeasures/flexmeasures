@@ -526,7 +526,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Forecast job status or results",
+            "description": "Forecast job results",
             "content": {
               "application/json": {
                 "schema": {
@@ -535,12 +535,9 @@
                     "status": {
                       "type": "string",
                       "enum": [
-                        "QUEUED",
-                        "DEFERRED",
-                        "STARTED",
-                        "FAILED",
                         "FINISHED"
-                      ]
+                      ],
+                      "description": "Processing status of the request."
                     },
                     "start": {
                       "type": "string",
@@ -578,7 +575,30 @@
                         0.8
                       ]
                     }
-                  },
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Forecast job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "DEFERRED",
+                        "STARTED"
+                      ],
+                      "description": "Processing status of the request."
+                    }
+                  }
+                },
+                "examples": {
                   "started": {
                     "summary": "Started forecasting job",
                     "value": {

@@ -14,7 +14,7 @@ from flask_json import as_json
 from flask_security import auth_required, current_user
 from marshmallow import fields, Schema, ValidationError
 import marshmallow.validate as validate
-from rq.job import Job, NoSuchJobError
+from rq.job import Job, JobStatus, NoSuchJobError
 import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
@@ -1665,7 +1665,7 @@ class SensorAPI(FlaskView):
                 type: string
           responses:
             200:
-              description: Forecast job status or results
+              description: Forecast job results
               content:
                 application/json:
                   schema:
@@ -1673,7 +1673,8 @@ class SensorAPI(FlaskView):
                     properties:
                       status:
                         type: string
-                        enum: ["QUEUED", "DEFERRED", "STARTED", "FAILED", "FINISHED"]
+                        enum: ["FINISHED"]
+                        description: Processing status of the request.
                       start:
                         type: string
                         format: date-time
@@ -1697,6 +1698,18 @@ class SensorAPI(FlaskView):
                         duration: "PT4H"
                         unit: "kW"
                         values: [1.2, 1.5, 1.4, 0.8]
+            202:
+              description: Forecast job status
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["QUEUED", "DEFERRED", "STARTED"]
+                        description: Processing status of the request.
+                  examples:
                     started:
                       summary: Started forecasting job
                       value:
@@ -1746,7 +1759,7 @@ class SensorAPI(FlaskView):
                     status=job.get_status().name,
                     message=job_status_description(job),
                 ),
-                200,
+                202 if job.get_status() != JobStatus.FAILED else 422,
             )
 
         # Job finished → fetch forecasts from DB
