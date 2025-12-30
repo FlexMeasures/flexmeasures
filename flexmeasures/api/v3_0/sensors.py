@@ -36,7 +36,10 @@ from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.api.common.utils.api_utils import save_and_enqueue
+from flexmeasures.api.common.utils.api_utils import (
+    job_status_description,
+    save_and_enqueue,
+)
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -1688,7 +1691,7 @@ class SensorAPI(FlaskView):
                     properties:
                       status:
                         type: string
-                        enum: ["PENDING", "RUNNING", "FAILED", "FINISHED"]
+                        enum: ["QUEUED", "DEFERRED", "STARTED", "FAILED", "FINISHED"]
                       start:
                         type: string
                         format: date-time
@@ -1712,10 +1715,10 @@ class SensorAPI(FlaskView):
                         duration: "PT4H"
                         unit: "kW"
                         values: [1.2, 1.5, 1.4, 0.8]
-                    running:
-                      summary: Running forecasting job
+                    started:
+                      summary: Started forecasting job
                       value:
-                        status: "RUNNING"
+                        status: "STARTED"
             401:
               description: UNAUTHORIZED
             403:
@@ -1755,59 +1758,12 @@ class SensorAPI(FlaskView):
             return dict(**response), s
 
         # Check job status
-        if job.is_finished:
-            pass  # continue to fetch forecasts
-
-        # Failed job
-        elif job.is_failed:
+        if not job.is_finished:
             d, s = request_processed()
             return (
                 dict(
-                    status="FAILED",
-                    message="Forecasting job failed.",
-                ),
-                s,
-            )
-
-        # Started job
-        elif job.is_started:
-            d, s = request_processed()
-            return (
-                dict(
-                    status="RUNNING",
-                    message="Forecasting job is currently running.",
-                ),
-                s,
-            )
-
-        # Queued job
-        elif job.is_queued:
-            d, s = request_processed()
-            return (
-                dict(
-                    status="PENDING",
-                    message="Forecasting job is waiting to be processed.",
-                ),
-                s,
-            )
-
-        # Deferred job
-        elif job.is_deferred:
-            d, s = request_processed()
-            return (
-                dict(
-                    status="PENDING",
-                    message="Forecasting job is waiting for another job to finish.",
-                ),
-                s,
-            )
-
-        else:
-            d, s = request_processed()
-            return (
-                dict(
-                    status="UNKNOWN",
-                    message="Forecasting job is in an unknown state.",
+                    status=job.get_status().name,
+                    message=job_status_description(job, "forecasting"),
                 ),
                 s,
             )

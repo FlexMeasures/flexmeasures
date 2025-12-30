@@ -535,8 +535,9 @@
                     "status": {
                       "type": "string",
                       "enum": [
-                        "PENDING",
-                        "RUNNING",
+                        "QUEUED",
+                        "DEFERRED",
+                        "STARTED",
                         "FAILED",
                         "FINISHED"
                       ]
@@ -578,10 +579,10 @@
                       ]
                     }
                   },
-                  "running": {
-                    "summary": "Running forecasting job",
+                  "started": {
+                    "summary": "Started forecasting job",
                     "value": {
-                      "status": "RUNNING"
+                      "status": "STARTED"
                     }
                   }
                 }

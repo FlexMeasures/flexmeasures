@@ -8,7 +8,7 @@ from flask import current_app
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
 from psycopg2.errors import UniqueViolation
-from rq.job import Job
+from rq.job import Job, JobStatus
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -23,6 +23,7 @@ from flexmeasures.api.common.responses import (
     already_received_and_successfully_processed,
 )
 from flexmeasures.utils.error_utils import error_handling_router
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 def upsample_values(
@@ -66,6 +67,32 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
             us.append(selector_element)
             s[u.index(iterable_element)] = us
     return u, s
+
+
+def job_status_description(job: Job, queue_name: str):
+    """Return a matching description for the job's status.
+
+    Supports each rq.job.JobStatus (NB JobStatus.CREATED is deprecated).
+    """
+
+    job_status = job.get_status()
+    if job_status == JobStatus.QUEUED:
+        return f"{capitalize(queue_name)} job is waiting to be processed."
+    if job_status == JobStatus.FINISHED:
+        return f"{capitalize(queue_name)} job has finished."
+    if job_status == JobStatus.FAILED:
+        return f"{capitalize(queue_name)} job has failed."
+    if job_status == JobStatus.STARTED:
+        return f"{capitalize(queue_name)} job has started."
+    if job_status == JobStatus.DEFERRED:
+        return f"{capitalize(queue_name)} job is waiting for another job to finish."
+    if job_status == JobStatus.SCHEDULED:
+        return f"{capitalize(queue_name)} job is scheduled to run at a later time."
+    if job_status == JobStatus.STOPPED:
+        return f"{capitalize(queue_name)} job has been stopped."
+    if job_status == JobStatus.CANCELED:
+        return f"{capitalize(queue_name)} job has been cancelled."
+    return f"{capitalize(queue_name)} job is in an unknown state."
 
 
 def enqueue_forecasting_jobs(
