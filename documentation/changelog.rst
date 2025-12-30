@@ -7,6 +7,9 @@ FlexMeasures Changelog
 v0.31.0 | February XX, 2026
 ============================
 
+.. warning:: From this version on, the endpoints `[GET] /assets` and `[GET] /assets/public` return fewer fields per default. Use the new `fields` parameter to specify extra fields you want in the response.
+
+
 New features
 -------------
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
