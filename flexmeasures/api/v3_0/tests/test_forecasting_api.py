@@ -91,9 +91,6 @@ def test_trigger_and_fetch_forecasts(
         assert data["start"] == "2025-01-05T00:00:00+00:00"
         assert "duration" in data
         assert data["unit"] == sensor_0.unit
-        assert data["resolution"] == isodate.duration_isoformat(
-            sensor_0.event_resolution
-        )
         assert "values" in data
 
         api_forecasts = data["values"]

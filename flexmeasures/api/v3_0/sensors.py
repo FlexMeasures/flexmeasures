@@ -1696,9 +1696,6 @@ class SensorAPI(FlaskView):
                       duration:
                         type: string
                         description: Duration covered by the forecast, expressed as an ISO 8601 duration.
-                      resolution:
-                        type: string
-                        description: Resolution of the forecast values as an ISO-8601 duration.
                       unit:
                         type: string
                         description: Unit of the forecast values.
@@ -1713,7 +1710,6 @@ class SensorAPI(FlaskView):
                       value:
                         start: "2025-10-15T00:00:00+01:00"
                         duration: "PT4H"
-                        resolution: "PT1H"
                         unit: "kW"
                         values: [1.2, 1.5, 1.4, 0.8]
                     running:
@@ -1848,7 +1844,6 @@ class SensorAPI(FlaskView):
         response = dict(
             start=start.isoformat(),
             duration=isodate.duration_isoformat(duration),
-            resolution=isodate.duration_isoformat(resolution),
             values=forecasts["event_value"].tolist(),
             unit=sensor.unit,
         )
