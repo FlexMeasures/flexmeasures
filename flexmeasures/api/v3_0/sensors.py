@@ -992,26 +992,8 @@ class SensorAPI(FlaskView):
             else:
                 return unknown_schedule(message)
 
-        elif job.is_started:
-            return unknown_schedule(f"Scheduling job in progress. {scheduler_info_msg}")
-        elif job.is_queued:
-            return unknown_schedule(
-                f"Scheduling job waiting to be processed. {scheduler_info_msg}"
-            )
-        elif job.is_deferred:
-            try:
-                preferred_job = job.dependency
-            except NoSuchJobError:
-                return unknown_schedule(
-                    f"Scheduling job waiting for unknown job to be processed. {scheduler_info_msg}"
-                )
-            return unknown_schedule(
-                f'Scheduling job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed. {scheduler_info_msg}'
-            )
         else:
-            return unknown_schedule(
-                f"Scheduling job has an unknown status. {scheduler_info_msg}"
-            )
+            return job_status_description(job, append_message=scheduler_info_msg)
         schedule_start = job.kwargs["start"]
 
         data_source = get_data_source_for_job(job)

@@ -81,20 +81,20 @@ def job_status_description(job: Job, append_message: str | None = None):
     job_status = job.get_status()
     queue_name = job.origin  # Name of the queue that the job is in
     if job_status == JobStatus.QUEUED:
-        description = f"{capitalize(queue_name)} job is waiting to be processed."
+        description = f"{capitalize(queue_name)} job waiting to be processed."
     elif job_status == JobStatus.FINISHED:
         description = f"{capitalize(queue_name)} job has finished."
     elif job_status == JobStatus.FAILED:
         description = f"{capitalize(queue_name)} job has failed."
     elif job_status == JobStatus.STARTED:
-        description = f"{capitalize(queue_name)} job has started."
+        description = f"{capitalize(queue_name)} job in progress."
     elif job_status == JobStatus.DEFERRED:
         try:
             preferred_job = job.dependency
-            description = f'{capitalize(queue_name)} job is waiting for {preferred_job.status} job "{preferred_job.id}" to finish.'
+            description = f'{capitalize(queue_name)} job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed.'
         except NoSuchJobError:
             description = (
-                f"{capitalize(queue_name)} job is waiting for an unknown job to finish."
+                f"{capitalize(queue_name)} job waiting for unknown job to be processed."
             )
     elif job_status == JobStatus.SCHEDULED:
         description = (
@@ -105,7 +105,7 @@ def job_status_description(job: Job, append_message: str | None = None):
     elif job_status == JobStatus.CANCELED:
         description = f"{capitalize(queue_name)} job has been cancelled."
     else:
-        description = f"{capitalize(queue_name)} job is in an unknown state."
+        description = f"{capitalize(queue_name)} job has an unknown status."
 
     return description + f" {append_message}" if append_message else description
 
