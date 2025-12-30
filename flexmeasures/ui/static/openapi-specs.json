@@ -583,6 +583,13 @@
                         0.8
                       ]
                     }
+                  },
+                  "running": {
+                    "summary": "Running forecasting job",
+                    "value": {
+                      "status": "RUNNING",
+                      "job_id": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    }
                   }
                 }
               }
@@ -1189,6 +1196,7 @@
                 }
               },
               "example": {
+                "sensor": 5,
                 "start_date": "2026-01-01T00:00:00+01:00",
                 "start_predict_date": "2026-01-15T00:00:00+01:00",
                 "end_date": "2026-01-17T00:00:00+01:00"
