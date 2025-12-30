@@ -8,7 +8,7 @@ from flask import current_app
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
 from psycopg2.errors import UniqueViolation
-from rq.job import Job, JobStatus
+from rq.job import Job, JobStatus, NoSuchJobError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -85,7 +85,13 @@ def job_status_description(job: Job, queue_name: str):
     if job_status == JobStatus.STARTED:
         return f"{capitalize(queue_name)} job has started."
     if job_status == JobStatus.DEFERRED:
-        return f"{capitalize(queue_name)} job is waiting for another job to finish."
+        try:
+            preferred_job = job.dependency
+        except NoSuchJobError:
+            return (
+                f"{capitalize(queue_name)} job is waiting for an unknown job to finish."
+            )
+        return f'{capitalize(queue_name)} job is waiting for {preferred_job.status} job "{preferred_job.id}" to finish.'
     if job_status == JobStatus.SCHEDULED:
         return f"{capitalize(queue_name)} job is scheduled to run at a later time."
     if job_status == JobStatus.STOPPED:
