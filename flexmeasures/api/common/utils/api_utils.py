@@ -69,13 +69,13 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
     return u, s
 
 
-def job_status_description(job: Job, append_message: str | None = None):
+def job_status_description(job: Job, extra_message: str | None = None):
     """Return a matching description for the job's status.
 
     Supports each rq.job.JobStatus (NB JobStatus.CREATED is deprecated).
 
     :param job:             The rq.Job.
-    :param append_message:  Optionally, append a message to the job status description.
+    :param extra_message:   Optionally, append a message to the job status description.
     """
 
     job_status = job.get_status()
@@ -107,7 +107,7 @@ def job_status_description(job: Job, append_message: str | None = None):
     else:
         description = f"{capitalize(queue_name)} job has an unknown status."
 
-    return description + f" {append_message}" if append_message else description
+    return description + f" {extra_message}" if extra_message else description
 
 
 def enqueue_forecasting_jobs(

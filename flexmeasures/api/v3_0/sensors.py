@@ -993,9 +993,7 @@ class SensorAPI(FlaskView):
                 return unknown_schedule(message)
 
         else:
-            return unknown_schedule(
-                job_status_description(job, append_message=scheduler_info_msg)
-            )
+            return unknown_schedule(job_status_description(job, scheduler_info_msg))
         schedule_start = job.kwargs["start"]
 
         data_source = get_data_source_for_job(job)
