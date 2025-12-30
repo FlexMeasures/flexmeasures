@@ -77,10 +77,10 @@ A typical workflow is:
 
 For the exact API endpoints, parameters, and response formats, refer to the API v3 documentation:
 
-- ``POST /api/v3_0/sensors/<id>/forecasts/trigger``
-- ``GET /api/v3_0/sensors/<id>/forecasts/<uuid>``
+- `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_
+- `[GET] /sensors/(id)/forecasts/(uuid) <api/v3_0.html#get--api-v3_0-sensors-id-forecasts-uuid>`_
 
-See :ref:`v3_0` or use Swagger UI at ``/api/v3_0/docs`` to try the endpoints interactively.
+or try the endpoints interactively with the Swagger UI at ``/api/v3_0/docs``.
 
 Technical specs
 -----------------
