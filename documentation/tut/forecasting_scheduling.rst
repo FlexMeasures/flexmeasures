@@ -38,7 +38,7 @@ You can also clear the job queues:
    $ flexmeasures jobs clear-queue --queue scheduling
 
 
-When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
+When the main FlexMeasures process runs (e.g. by ``flexmeasures run``), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``, respectively (by admins).
 
 When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/assets/<id>``.
 
@@ -97,8 +97,7 @@ There are two ways to queue a forecasting job:
 
    ``POST /api/v3_0/sensors/<id>/forecasts/trigger``
 
-   This endpoint validates the forecasting request (using the same logic as
-   the ``flexmeasures add forecasts`` CLI command) and queues a job on the forecasting queue.
+   This endpoint validates the forecasting request (using the same logic as the ``flexmeasures add forecasts`` CLI command) and queues a job on the forecasting queue.
 
    Example request:
 
@@ -122,11 +121,10 @@ There are two ways to queue a forecasting job:
 
    .. note:: The ``forecast`` field contains the ID of the wrap-up job created by this request.
 
-   FlexMeasures will process the jobs created asynchronously and store the resulting
-   forecasts in the database.
+   FlexMeasures will process the jobs created asynchronously and store the resulting forecasts in the database.
 
    .. note::
-      To use this endpoint, you need the  ``create-children`` permission on the sensor (meaning you should be in the same account or be a consultant on it).
+      To use this endpoint, you need the ``create-children`` permission on the sensor (meaning you should be in the same account or be a consultant on it).
 
 2. **Via the CLI**, for users hosting FlexMeasures themselves:
 

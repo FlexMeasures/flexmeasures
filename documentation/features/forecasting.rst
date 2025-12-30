@@ -65,8 +65,7 @@ Note that:
 Forecasting via the API
 -----------------------
 
-In addition to the CLI command, FlexMeasures provides API endpoints for
-triggering forecasts and retrieving their results.
+In addition to the CLI command, FlexMeasures provides API endpoints for triggering forecasts and retrieving their results.
 
 These endpoints live under the Sensor API (``/api/v3_0/sensors``).
 
@@ -76,14 +75,12 @@ A typical workflow is:
 2. Poll the job until it finishes.
 3. Retrieve the forecast results.
 
-For the exact API endpoints, parameters, and response formats, refer to the
-API v3 documentation:
+For the exact API endpoints, parameters, and response formats, refer to the API v3 documentation:
 
 - ``POST /api/v3_0/sensors/<id>/forecasts/trigger``
 - ``GET /api/v3_0/sensors/<id>/forecasts/<uuid>``
 
-See :ref:`v3_0` or use Swagger UI at ``/api/v3_0/docs`` to try the endpoints
-interactively.
+See :ref:`v3_0` or use Swagger UI at ``/api/v3_0/docs`` to try the endpoints interactively.
 
 Technical specs
 -----------------
