@@ -1,6 +1,6 @@
 {
   "info": {
-    "description": "Welcome to the FlexMeasures API.<br/>This is a platform for smart energy scheduling (a \"Cloud EMS\").<br/><br/>You can try out all these endpoints if you are authenticated in the platform.Or you can paste your API key token with the button on the right.<br/><br/>To authenticate your code, include an `Authorization` header with your API key.Also, check out the <a href=\"https://github.com/FlexMeasures/flexmeasures-client\" target=\"_blank\">Python client</a>.",
+    "description": "Welcome to the FlexMeasures API.<br/>This is a platform for smart energy scheduling (a \"Cloud EMS\"). <br/><br/>To use the API, you need to be authenticated.<br/>If you are currently logged in to the platform, you can try out all endpoints on this page right away!<br/>You can alternatively add a token via the \"Authorize\" button on the right. You can find an API access token on <a href=\"/logged-in-user\">your user page</a> - or ask the host.<br/>If you write code against these API endpoints, then include an `Authorization` header in your requests with the API token. If you use Python, check out the <a href=\"https://github.com/FlexMeasures/flexmeasures-client\" target=\"_blank\">Python client</a>.",
     "contact": {
       "name": "FlexMeasures Support",
       "url": null
@@ -1022,6 +1022,39 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{id}/forecasts/trigger": {
+      "post": {
+        "summary": "Trigger forecasting job for one sensor",
+        "description": "Launch a forecasting pipeline for the given sensor asynchronously.\n\nExample:\n```\n{\n  \"start_date\": \"2026-01-01T00:00:00+01:00\",\n  \"start_predict_date\": \"2026-01-15T00:00:00+01:00\",\n  \"end_date\": \"2026-01-17T00:00:00+01:00\"\n}\n```\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForecasterParameters"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Forecasting job queued",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "PROCESSED",
+                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "message": "Forecasting job has been queued."
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2975,8 +3008,8 @@
     },
     "/api/v3_0/assets": {
       "get": {
-        "summary": "List all assets owned  by user's accounts, or a certain account or all accessible accounts.",
-        "description": "This endpoint returns all accessible assets by accounts.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out assets where each search term is either present in their name or account name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n",
+        "summary": "List assets accessible by the user.",
+        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out assets where each search term is either present in their name or account name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3038,30 +3071,65 @@
           {
             "in": "query",
             "name": "account_id",
+            "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "default": null
+              "default": null,
+              "example": 67
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "root",
+            "description": "Select all descendants of a given root asset (including the root itself). Leave out to include top-level assets.",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null,
+              "example": 482
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "depth",
+            "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null,
+              "minimum": 0,
+              "example": 2
             },
             "required": false
           },
           {
             "in": "query",
             "name": "all_accessible",
+            "description": "Whether to list assets from all accounts that the current_user has read-access to (plus all public assets).",
             "schema": {
               "type": "boolean",
-              "default": false
+              "default": false,
+              "example": false
             },
             "required": false
           },
           {
             "in": "query",
             "name": "include_public",
+            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             "schema": {
               "type": "boolean",
-              "default": false
+              "default": false,
+              "example": false
             },
             "required": false
           }
@@ -3385,7 +3453,7 @@
                 },
                 "examples": {
                   "successful_response": {
-                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
+                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
                     "value": {
                       "status": "PROCESSED",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
@@ -3902,15 +3970,40 @@
               "integer",
               "null"
             ],
-            "default": null
+            "default": null,
+            "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
+            "example": 67
+          },
+          "root": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null,
+            "description": "Select all descendants of a given root asset (including the root itself). Leave out to include top-level assets.",
+            "example": 482
+          },
+          "depth": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null,
+            "minimum": 0,
+            "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
+            "example": 2
           },
           "all_accessible": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Whether to list assets from all accounts that the current_user has read-access to (plus all public assets).",
+            "example": false
           },
           "include_public": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            "example": false
           }
         },
         "additionalProperties": false
@@ -4330,6 +4423,125 @@
           "sensor",
           "start",
           "unit"
+        ],
+        "additionalProperties": false
+      },
+      "ForecasterParameters": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "future_regressors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "past_regressors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "regressors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "model_save_dir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": "flexmeasures/data/models/forecasting/artifacts/models"
+          },
+          "output_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "train_period": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_predict_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "retrain_frequency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_forecast_horizon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": "P2D"
+          },
+          "forecast_frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": "PT1H"
+          },
+          "probabilistic": {
+            "type": "boolean",
+            "default": false
+          },
+          "sensor_to_save": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "ensure_positive": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "missing_threshold": {
+            "type": "number",
+            "default": 1.0
+          },
+          "as_job": {
+            "type": "boolean",
+            "default": false,
+            "description": "If True, forecast using RQ jobs in the background (needs a worker assigned to the forecasting queue)."
+          },
+          "max_training_period": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "end_date",
+          "sensor"
         ],
         "additionalProperties": false
       },

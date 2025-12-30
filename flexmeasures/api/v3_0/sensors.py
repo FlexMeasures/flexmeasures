@@ -8,7 +8,7 @@ from flexmeasures.data.services.sensors import (
 )
 
 from werkzeug.exceptions import Unauthorized
-from flask import current_app, url_for
+from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
@@ -23,7 +23,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_event,
     unknown_schedule,
-    invalid_flex_config,
+    unprocessable_entity,
     fallback_schedule_redirect,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -62,6 +62,11 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.data.models.forecasting import Forecaster
+from flexmeasures.data.services.data_sources import get_data_generator
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
+)
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
@@ -792,9 +797,9 @@ class SensorAPI(FlaskView):
                 force_new_job_creation=force_new_job_creation,
             )
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         db.session.commit()
 
@@ -1508,3 +1513,75 @@ class SensorAPI(FlaskView):
         status_data = serialize_sensor_status_data(sensor=sensor)
 
         return {"sensors_data": status_data}, 200
+
+    @route("/<id>/forecasts/trigger", methods=["POST"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(ForecasterParametersSchema, location="json")
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    def trigger_forecast(self, id: int, sensor: Sensor, **params):
+        """
+        .. :quickref: Forecasts; Trigger forecasting job for one sensor
+        ---
+        post:
+          summary: Trigger forecasting job for one sensor
+          description: |
+            Launch a forecasting pipeline for the given sensor asynchronously.
+
+            Example:
+            ```
+            {
+              "start_date": "2026-01-01T00:00:00+01:00",
+              "start_predict_date": "2026-01-15T00:00:00+01:00",
+              "end_date": "2026-01-17T00:00:00+01:00"
+            }
+            ```
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: ForecasterParametersSchema
+          responses:
+            200:
+              description: Forecasting job queued
+              content:
+                application/json:
+                  example:
+                    status: "PROCESSED"
+                    forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    message: "Forecasting job has been queued."
+          tags:
+            - Sensors
+        """
+        # NOTE: This endpoint reuses the same validation logic as the
+        # `flexmeasures add forecasts` CLI command.
+
+        try:
+            # Load and validate JSON payload
+            parameters = request.get_json()
+
+            # Ensure the forecast is run as a job on a forecasting queue
+            parameters["as_job"] = True
+
+            # Set forecaster model
+            model = parameters.pop("model", "TrainPredictPipeline")
+
+            # Instantiate the forecaster
+            forecaster = get_data_generator(
+                source=None,
+                model=model,
+                config={},
+                save_config=True,
+                data_generator_type=Forecaster,
+            )
+
+            # Queue forecasting job
+            wrap_up_job = forecaster.compute(parameters=parameters)
+
+            d, s = request_processed()
+            return dict(forecast=wrap_up_job, **d), s
+
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+        except Exception as e:
+            current_app.logger.exception("Forecast job failed to enqueue.")
+            return unprocessable_entity(str(e))
