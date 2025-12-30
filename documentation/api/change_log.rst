@@ -9,7 +9,7 @@ API change log
 v3.0-29 | 2025-12-28
 """"""""""""""""""""
 - Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
-- Added ``included_fields`` field to the `/assets` (GET) and `/assets/public` endpoints, to transfer less data by default.
+- Added ``fields`` field to the `/assets` (GET) and `/assets/public` endpoints, to transfer less data by default.
 
 v3.0-28 | 2025-10-14
 """"""""""""""""""""
