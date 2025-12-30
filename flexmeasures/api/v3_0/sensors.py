@@ -1643,7 +1643,7 @@ class SensorAPI(FlaskView):
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
-    def get_forecasts(self, id: int, uuid: str, sensor: Sensor, job_id: str):
+    def get_forecast(self, id: int, uuid: str, sensor: Sensor, job_id: str):
         """
         .. :quickref: Forecasts; Fetch forecast results for one sensor
         ---
