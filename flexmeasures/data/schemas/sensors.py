@@ -614,9 +614,8 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         if unit is not None:
             if not units_are_convertible(unit, sensor.unit):
                 raise ValidationError(
-                    {
-                        "unit": f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'."
-                    }
+                    field="unit",
+                    message=f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'",
                 )
 
     @post_load
