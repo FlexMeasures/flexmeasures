@@ -964,25 +964,18 @@ class SensorAPI(FlaskView):
         if job.is_finished:
             error_message = "A scheduling job has been processed with your job ID, but "
 
-        elif job.is_failed:  # Try to inform the user on why the job failed
-            message = job_status_description(job, scheduler_info_msg)
-            fallback_job_id = job.meta.get("fallback_job_id")
-
+        elif job.is_failed and (fallback_job_id := job.meta.get("fallback_job_id")):
             # redirect to the fallback schedule endpoint if the fallback_job_id
             # is defined in the metadata of the original job
-            if fallback_job_id is not None:
-                return fallback_schedule_redirect(
-                    message,
-                    url_for(
-                        "SensorAPI:get_schedule",
-                        uuid=fallback_job_id,
-                        id=sensor.id,
-                        _external=True,
-                    ),
-                )
-            else:
-                return unknown_schedule(message)
-
+            return fallback_schedule_redirect(
+                job_status_description(job, scheduler_info_msg),
+                url_for(
+                    "SensorAPI:get_schedule",
+                    uuid=fallback_job_id,
+                    id=sensor.id,
+                    _external=True,
+                ),
+            )
         else:
             return unknown_schedule(job_status_description(job, scheduler_info_msg))
         schedule_start = job.kwargs["start"]
