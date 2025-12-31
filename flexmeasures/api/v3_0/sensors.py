@@ -968,9 +968,9 @@ class SensorAPI(FlaskView):
             # redirect to the fallback schedule endpoint if the fallback_job_id
             # is defined in the metadata of the original job
             return fallback_schedule_redirect(
-                job_status_description(job, scheduler_info_msg),
-                url_for(
-                    "SensorAPI:get_schedule",
+                message=job_status_description(job, scheduler_info_msg),
+                location=url_for(
+                    endpoint="SensorAPI:get_schedule",
                     uuid=fallback_job_id,
                     id=sensor.id,
                     _external=True,
