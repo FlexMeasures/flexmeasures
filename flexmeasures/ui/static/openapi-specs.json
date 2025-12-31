@@ -493,6 +493,137 @@
         ]
       }
     },
+    "/api/v3_0/sensors/{id}/forecasts/{uuid}": {
+      "get": {
+        "summary": "Get forecast for one sensor",
+        "description": "Fetch the results of a previously triggered forecasting job.\n\nWhile the forecasting job is still running, this endpoint returns its\ncurrent status. Once the job has completed successfully, the endpoint\nreturns the generated forecast.\n\nThe returned forecast represents the most recent belief per event and\ncovers the period for which forecasts were generated.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the sensor for which the forecast was triggered.",
+            "example": 5,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "uuid",
+            "required": true,
+            "description": "UUID of the forecasting job returned by the trigger endpoint.",
+            "example": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forecast job results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "FINISHED"
+                      ],
+                      "description": "Processing status of the request."
+                    },
+                    "start": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Start time of the forecast values (ISO 8601)."
+                    },
+                    "duration": {
+                      "type": "string",
+                      "description": "Duration covered by the forecast, expressed as an ISO 8601 duration."
+                    },
+                    "unit": {
+                      "type": "string",
+                      "description": "Unit of the forecast values."
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "description": "Forecast values."
+                    }
+                  }
+                },
+                "examples": {
+                  "finished": {
+                    "summary": "Finished forecasting job",
+                    "value": {
+                      "start": "2025-10-15T00:00:00+01:00",
+                      "duration": "PT4H",
+                      "unit": "kW",
+                      "values": [
+                        1.2,
+                        1.5,
+                        1.4,
+                        0.8
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Forecast job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "DEFERRED",
+                        "STARTED"
+                      ],
+                      "description": "Processing status of the request."
+                    }
+                  }
+                },
+                "examples": {
+                  "started": {
+                    "summary": "Started forecasting job",
+                    "value": {
+                      "status": "STARTED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
@@ -1032,29 +1163,95 @@
     "/api/v3_0/sensors/{id}/forecasts/trigger": {
       "post": {
         "summary": "Trigger forecasting job for one sensor",
-        "description": "Launch a forecasting pipeline for the given sensor asynchronously.\n\nExample:\n```\n{\n  \"start_date\": \"2026-01-01T00:00:00+01:00\",\n  \"start_predict_date\": \"2026-01-15T00:00:00+01:00\",\n  \"end_date\": \"2026-01-17T00:00:00+01:00\"\n}\n```\n",
+        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a\njob UUID. The job will run in the background and generate forecast values\nfor the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the sensor for which to trigger forecasting.",
+            "example": 5,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ForecasterParameters"
+                "type": "object",
+                "properties": {
+                  "start_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start date of the historical data used for training."
+                  },
+                  "start_predict_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start date of the forecast period."
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "End date of the forecast period."
+                  }
+                }
+              },
+              "example": {
+                "start_date": "2026-01-01T00:00:00+01:00",
+                "start_predict_date": "2026-01-15T00:00:00+01:00",
+                "end_date": "2026-01-17T00:00:00+01:00"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Forecasting job queued",
+            "description": "PROCESSED",
             "content": {
               "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "forecast": {
+                      "type": "string",
+                      "description": "UUID of the queued forecasting job."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PROCESSED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
                 "example": {
-                  "status": "PROCESSED",
                   "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "status": "PROCESSED",
                   "message": "Forecasting job has been queued."
                 }
               }
             }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
           }
         },
         "tags": [
@@ -4423,125 +4620,6 @@
           "sensor",
           "start",
           "unit"
-        ],
-        "additionalProperties": false
-      },
-      "ForecasterParameters": {
-        "type": "object",
-        "properties": {
-          "sensor": {
-            "type": "integer"
-          },
-          "future_regressors": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
-          },
-          "past_regressors": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
-          },
-          "regressors": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
-          },
-          "model_save_dir": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "flexmeasures/data/models/forecasting/artifacts/models"
-          },
-          "output_path": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "start_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "end_date": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "train_period": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "start_predict_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "retrain_frequency": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "max_forecast_horizon": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "P2D"
-          },
-          "forecast_frequency": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "PT1H"
-          },
-          "probabilistic": {
-            "type": "boolean",
-            "default": false
-          },
-          "sensor_to_save": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "ensure_positive": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "missing_threshold": {
-            "type": "number",
-            "default": 1.0
-          },
-          "as_job": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, forecast using RQ jobs in the background (needs a worker assigned to the forecasting queue)."
-          },
-          "max_training_period": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "end_date",
-          "sensor"
         ],
         "additionalProperties": false
       },
