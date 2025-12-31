@@ -85,10 +85,22 @@ def job_status_description(job: Job, extra_message: str | None = None):
     elif job_status == JobStatus.FINISHED:
         description = f"{capitalize(queue_name)} job has finished."
     elif job_status == JobStatus.FAILED:
-        description = f"{capitalize(queue_name)} job has failed."
+        # Try to inform the user on why the job failed
+        e = job.meta.get(
+            "exception",
+            Exception(
+                "The job does not state why it failed. "
+                "The worker may be missing an exception handler, "
+                "or its exception handler is not storing the exception as job meta data."
+            ),
+        )
+        description = (
+            f"{capitalize(queue_name)} job failed with {type(e).__name__}: {e}."
+        )
     elif job_status == JobStatus.STARTED:
         description = f"{capitalize(queue_name)} job in progress."
     elif job_status == JobStatus.DEFERRED:
+        # Try to inform the user on what other job the job is waiting for
         try:
             preferred_job = job.dependency
             description = f'{capitalize(queue_name)} job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed.'
