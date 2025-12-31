@@ -75,7 +75,6 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
-partial_forecast_schema = ForecasterParametersSchema(partial=True, exclude=["sensor"])
 
 
 class SensorKwargsSchema(Schema):
