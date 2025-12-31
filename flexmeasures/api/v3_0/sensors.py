@@ -965,16 +965,7 @@ class SensorAPI(FlaskView):
             error_message = "A scheduling job has been processed with your job ID, but "
 
         elif job.is_failed:  # Try to inform the user on why the job failed
-            e = job.meta.get(
-                "exception",
-                Exception(
-                    "The job does not state why it failed. "
-                    "The worker may be missing an exception handler, "
-                    "or its exception handler is not storing the exception as job meta data."
-                ),
-            )
-            message = f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}"
-
+            message = job_status_description(job, scheduler_info_msg)
             fallback_job_id = job.meta.get("fallback_job_id")
 
             # redirect to the fallback schedule endpoint if the fallback_job_id
