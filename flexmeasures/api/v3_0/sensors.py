@@ -962,8 +962,7 @@ class SensorAPI(FlaskView):
         scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
 
         if job.is_finished:
-            error_message = "A scheduling job has been processed with your job ID, but "
-
+            message = "A scheduling job has been processed with your job ID"
         elif job.is_failed and (fallback_job_id := job.meta.get("fallback_job_id")):
             # redirect to the fallback schedule endpoint if the fallback_job_id
             # is defined in the metadata of the original job
@@ -983,8 +982,7 @@ class SensorAPI(FlaskView):
         data_source = get_data_source_for_job(job)
         if data_source is None:
             return unknown_schedule(
-                error_message
-                + f"no data source could be found for {data_source}. {scheduler_info_msg}"
+                f"{message}, but no data source could be found for {data_source}. {scheduler_info_msg}"
             )
 
         power_values = sensor.search_beliefs(
@@ -1005,7 +1003,7 @@ class SensorAPI(FlaskView):
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             return unknown_schedule(
-                f"{error_message} the schedule was not found in the database. {scheduler_info_msg}"
+                f"{message}, but the schedule was not found in the database. {scheduler_info_msg}"
             )
 
         # Update the planning window
