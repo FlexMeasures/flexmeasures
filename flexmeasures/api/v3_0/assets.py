@@ -37,7 +37,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
+from flexmeasures.data.queries.generic_assets import (
+    filter_assets_under_root,
+    query_assets_by_search_terms,
+)
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -52,7 +55,7 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.api.common.responses import (
-    invalid_flex_config,
+    unprocessable_entity,
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -207,6 +210,8 @@ class AssetAPI(FlaskView):
     def index(
         self,
         account: Account | None,
+        root_asset: GenericAsset | None,
+        max_depth: int | None,
         all_accessible: bool,
         include_public: bool,
         page: int | None = None,
@@ -216,16 +221,18 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+        .. :quickref: Assets; List assets accessible by the user.
         ---
         get:
-          summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+          summary: List assets accessible by the user.
           description: |
-            This endpoint returns all accessible assets by accounts.
+            This endpoint returns all assets that are accessible by the user after applying optional filters.
 
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
+              - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
@@ -282,19 +289,21 @@ class AssetAPI(FlaskView):
             - Assets
         """
 
-        # find out which accounts are relevant
-        if all_accessible:
-            accounts = get_accessible_accounts()
-        else:
-            if account is None:
-                account = current_user.account
+        # Find out which accounts are relevant
+        if account is not None:
             check_access(account, "read")
-            accounts = [account]
-
-        filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
-
-        # add public assets if the request asks for all the accessible assets
-        if all_accessible or include_public:
+            account_ids = [account.id]
+            include_public_assets = False
+        else:
+            use_all_accounts = all_accessible or root_asset
+            include_public_assets = all_accessible or include_public or root_asset
+            account_ids = (
+                [a.id for a in get_accessible_accounts()]
+                if use_all_accounts
+                else [current_user.account.id]
+            )
+        filter_statement = GenericAsset.account_id.in_(account_ids)
+        if include_public_assets:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
@@ -302,6 +311,10 @@ class AssetAPI(FlaskView):
             filter_statement=filter_statement,
             sort_by=sort_by,
             sort_dir=sort_dir,
+        )
+
+        query = filter_assets_under_root(
+            query=query, root_asset=root_asset, max_depth=max_depth
         )
 
         if page is None:
@@ -694,7 +707,7 @@ class AssetAPI(FlaskView):
         try:
             db_asset = patch_asset(db_asset, asset_data)
         except ValidationError as e:
-            return invalid_flex_config(str(e.messages))
+            return unprocessable_entity(str(e.messages))
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -1336,7 +1349,7 @@ class AssetAPI(FlaskView):
                           This message indicates that the scheduling request has been processed without any error.
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: PROCESSED
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
@@ -1371,9 +1384,9 @@ class AssetAPI(FlaskView):
         try:
             job = f(asset=asset, enqueue=True, **scheduler_kwargs)
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         response = dict(schedule=job.id)
         d, s = request_processed()

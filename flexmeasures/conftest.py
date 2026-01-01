@@ -32,6 +32,7 @@ from flexmeasures.data.models.user import User, Account, AccountRole
 
 from flexmeasures.utils.time_utils import as_server_time
 
+from flexmeasures import Asset
 
 """
 Useful things for all tests.
@@ -1675,3 +1676,115 @@ def add_beliefs(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(beliefs)
+
+
+@pytest.fixture(scope="function")
+def setup_fresh_test_forecast_data(
+    fresh_db,
+    app,
+) -> dict[str, Sensor]:
+    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=False)
+
+
+@pytest.fixture(scope="function")
+def setup_fresh_test_forecast_data_with_missing_data(
+    fresh_db,
+    app,
+) -> dict[str, Sensor]:
+    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=True)
+
+
+def add_test_solar_sensor_and_irradiance_with_forecasts(
+    db: SQLAlchemy,
+    empty: bool = False,
+) -> dict[str, Sensor]:
+    """7 days of test data (one complete sine curve) for two sensors and irradiance sensor has forecasts"""
+
+    # Ensure DataSource and AssetType are persisted
+    data_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one_or_none()
+    if not data_source:
+        data_source = DataSource(name="Seita", type="demo script")
+        db.session.add(data_source)
+
+    asset_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="Site")
+    ).scalar_one_or_none()
+    if not asset_type:
+        asset_type = GenericAssetType(name="Site")
+        db.session.add(asset_type)
+
+    db.session.flush()
+
+    # Create asset and sensors
+    asset = Asset(
+        name="Test station farther away",
+        generic_asset_type=asset_type,
+        latitude=100,
+        longitude=100,
+    )
+    db.session.add(asset)
+
+    sensor_specs = {
+        "irradiance-sensor": {
+            "unit": "kW/m²",
+            "multiplier": 600,
+            "horizon": timedelta(hours=6),
+            "resolution": timedelta(minutes=60),
+        },
+        "solar-sensor": {
+            "unit": "kW",
+            "multiplier": 1000,
+            "horizon": timedelta(hours=0),
+            "resolution": timedelta(minutes=60),
+        },
+        "solar-sensor-1": {
+            "unit": "kW",
+            "multiplier": 1000,
+            "horizon": timedelta(hours=0),
+            "resolution": timedelta(minutes=60),
+        },
+    }
+
+    time_slots = pd.date_range(
+        datetime(2025, 1, 1), datetime(2025, 1, 7, 23, 00), freq="60min"
+    )
+
+    sensors: dict[str, Sensor] = {}
+
+    for name, config in sensor_specs.items():
+        sensor = Sensor(
+            name=name,
+            generic_asset=asset,
+            unit=config["unit"],
+            event_resolution=config["resolution"],
+        )
+        db.session.add(sensor)
+
+        random_seed = (
+            42 if name == "irradiance-sensor" else 43
+        )  # to keep solar-sensor and solar-sensor-1 values the same
+        seed(random_seed)
+        values = [
+            random() * (1 + np.sin(x / 15)) * config["multiplier"]
+            for x in range(len(time_slots))
+        ]
+        if empty:
+            for i in range(0, len(values) // 2):
+                values[i] = np.nan
+        beliefs = [
+            TimedBelief(
+                sensor=sensor,
+                event_start=as_server_time(dt),
+                event_value=val,
+                belief_horizon=config["horizon"],
+                source=data_source,
+            )
+            for dt, val in zip(time_slots, values)
+        ]
+        db.session.add_all(beliefs)
+        sensors[name] = sensor
+
+    db.session.commit()
+    return sensors

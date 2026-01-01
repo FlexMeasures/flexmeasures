@@ -21,9 +21,15 @@ services:
       POSTGRES_DB: fm-dev-db
       POSTGRES_USER: fm-dev-db-user
       POSTGRES_PASSWORD: fm-dev-db-pass
+      PGDATA: /var/lib/postgresql/data
     volumes:
       - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
       - ./docker-compose-data/dev-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fm-dev-db-user -d fm-dev-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
   queue-db:
     image: redis
     restart: always
@@ -69,10 +75,11 @@ services:
       MAIL_PORT: 1025        # MailHog mail port
       LOGGING_LEVEL: INFO
     volumes:
-      # a place for config and plugin code, and custom requirements.txt
-      # the 1st mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
-      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
-      - ./flexmeasures-instance/:/app/instance/:ro
+      # A place for config and plugin code, and custom requirements.txt
+      # The 1st mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
+      # We use :rw so flexmeasures CLI commands can write log files
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:rw
+      - ./flexmeasures-instance/:/app/instance/:rw
     entrypoint: ["/bin/sh", "-c"]
     command:
     - |
@@ -101,7 +108,7 @@ services:
       LOGGING_LEVEL: INFO 
     volumes:
       # a place for config and plugin code, and custom requirements.txt
-      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:rw
     entrypoint: ["/bin/sh", "-c"]
     command: 
     - |
