@@ -97,7 +97,7 @@ Make sure postgres represents datetimes in UTC timezone
 
 (Otherwise, pandas can get confused with daylight saving time.)
 
-Luckily, many web hosters already have ``timezone= 'UTC'`` set correctly by default,
+Luckily, many web hosts already have ``timezone= 'UTC'`` set correctly by default,
 but local postgres installations often use ``timezone='localtime'``.
 
 In any case, check both your local installation and the server, like this:
