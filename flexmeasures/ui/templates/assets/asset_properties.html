@@ -14,12 +14,7 @@
     <div class="row">
 
         <div class="col-md-2 on-top-md">
-            <div class="sidepanel-container d-none d-md-block">
-                <div class="left-sidepanel-label">Select dates</div>
-                <div class="sidepanel left-sidepanel">
-                    <div id="datepicker"></div>
-                </div>
-            </div>
+
             {% if user_can_update_asset %}
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
@@ -380,8 +375,6 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
-
-    {% block leftsidepanel %} {{ super() }} {% endblock %}
 
 
     <!-- Initialise the map -->
