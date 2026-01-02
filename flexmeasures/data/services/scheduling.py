@@ -503,7 +503,7 @@ def create_simultaneous_scheduling_job(
     return job
 
 
-def make_schedule(
+def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
