@@ -226,9 +226,8 @@ class SensorSchemaMixin(Schema):
     def set_default_timezone(self, data, **kwargs):
         """Set the default timezone to the server timezone only for a full load (POST, not PATCH)."""
         partial = kwargs.get("partial", False)
-        if not partial:
-            if "timezone" not in data or data["timezone"] is None:
-                data["timezone"] = str(get_timezone())
+        if not partial and not data.get("timezone"):
+            data["timezone"] = str(get_timezone())
         return data
 
 
