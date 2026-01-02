@@ -15,7 +15,7 @@ but in the background your custom scheduling algorithm is being used.
 
 Let's walk through an example!
 
-First, we need to write a a class (inhering from the Base Scheduler) with a `schedule` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
+First, we need to write a class (inhering from the Base Scheduler) with a `schedule` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
 The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a scheduling function:
 
 .. code-block:: python
