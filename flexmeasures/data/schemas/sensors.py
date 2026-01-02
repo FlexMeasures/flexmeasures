@@ -11,6 +11,7 @@ from marshmallow import (
     ValidationError,
     fields,
     post_load,
+    pre_load,
     validates,
     validates_schema,
 )
@@ -35,6 +36,7 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
     convert_to_quantity,
 )
+from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
@@ -219,6 +221,12 @@ class SensorSchemaMixin(Schema):
     def validate_unit(self, unit: str, **kwargs):
         if not is_valid_unit(unit):
             raise ValidationError(f"Unit '{unit}' cannot be handled.")
+
+    @pre_load
+    def set_default_timezone(self, data, **kwargs):
+        if "timezone" not in data or data["timezone"] is None:
+            data["timezone"] = str(get_timezone())
+        return data
 
 
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
