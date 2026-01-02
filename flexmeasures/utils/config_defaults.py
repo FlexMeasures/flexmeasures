@@ -106,6 +106,7 @@ class Config(object):
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_SUPPORT_PAGE: str | None = None
+    FLEXMEASURES_SIGNUP_PAGE: str | None = None
     FLEXMEASURES_TOS_PAGE: str | None = None
     FLEXMEASURES_ALLOW_DATA_OVERWRITE: bool = False
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"

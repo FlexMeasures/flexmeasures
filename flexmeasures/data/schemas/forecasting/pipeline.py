@@ -20,45 +20,159 @@ class TrainPredictPipelineConfigSchema(Schema):
 
 class ForecasterParametersSchema(Schema):
 
-    sensor = SensorIdField(required=True)
+    sensor = SensorIdField(
+        required=True,
+        metadata={
+            "description": "ID of the sensor to forecast.",
+            "example": 2092,
+        },
+    )
     future_regressors = fields.List(
         SensorIdField(),
         required=False,
+        metadata={
+            "description": "Sensor IDs to be treated only as future regressors.",
+            "example": [2093, 2094],
+        },
     )
     past_regressors = fields.List(
         SensorIdField(),
         required=False,
+        metadata={
+            "description": "Sensor IDs to be treated only as past regressors.",
+            "example": [2095],
+        },
     )
     regressors = fields.List(
         SensorIdField(),
         required=False,
+        metadata={
+            "description": "Sensor IDs used as both past and future regressors.",
+            "example": [2093, 2094, 2095],
+        },
     )
-    model_save_dir = fields.Str(required=True)
-    output_path = fields.Str(required=False, allow_none=True)
-    start_date = AwareDateTimeOrDateField(required=False, allow_none=True)
-    end_date = AwareDateTimeOrDateField(required=True, inclusive=True)
-    train_period = DurationField(required=False, allow_none=True)
-    start_predict_date = AwareDateTimeOrDateField(required=False, allow_none=True)
+    model_save_dir = fields.Str(
+        required=False,
+        allow_none=True,
+        load_default="flexmeasures/data/models/forecasting/artifacts/models",
+        metadata={
+            "description": "Directory to save the trained model.",
+            "example": "flexmeasures/data/models/forecasting/artifacts/models",
+        },
+    )
+    output_path = fields.Str(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Directory to save prediction outputs. Defaults to None (no outputs saved).",
+            "example": "flexmeasures/data/models/forecasting/artifacts/forecasts",
+        },
+    )
+    start_date = AwareDateTimeOrDateField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
+            "example": "2025-01-01T00:00:00+01:00",
+        },
+    )
+    end_date = AwareDateTimeOrDateField(
+        required=True,
+        inclusive=True,
+        metadata={
+            "description": "End date for running the pipeline.",
+            "example": "2025-10-15T00:00:00+01:00",
+        },
+    )
+    train_period = DurationField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
+            "example": "P7D",
+        },
+    )
+    start_predict_date = AwareDateTimeOrDateField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
+            "example": "2025-01-08T00:00:00+01:00",
+        },
+    )
     retrain_frequency = DurationField(
-        required=False, allow_none=True
-    )  # aka the predict period
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
+            "example": "PT24H",
+        },
+    )
     max_forecast_horizon = DurationField(
-        required=False, allow_none=True, load_default=timedelta(hours=48)
+        required=False,
+        allow_none=True,
+        load_default=timedelta(hours=48),
+        metadata={
+            "description": "Maximum forecast horizon. Defaults to 48 hours if not set.",
+            "example": "PT48H",
+        },
     )
     forecast_frequency = DurationField(
-        required=False, allow_none=True, load_default=timedelta(hours=1)
+        required=False,
+        allow_none=True,
+        load_default=timedelta(hours=1),
+        metadata={
+            "description": "How often to recompute forecasts. Defaults to 1 hour.",
+            "example": "PT1H",
+        },
     )
-    probabilistic = fields.Bool(required=True)
-    sensor_to_save = SensorIdField(required=False, allow_none=True)
-    ensure_positive = fields.Bool(required=False, allow_none=True)
-    missing_threshold = fields.Float(required=False, load_default=1.0)
+    probabilistic = fields.Bool(
+        required=False,
+        load_default=False,
+        metadata={
+            "description": "Enable probabilistic predictions if True. Defaults to false.",
+            "example": False,
+        },
+    )
+    sensor_to_save = SensorIdField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Sensor ID where forecasts will be saved; defaults to target sensor.",
+            "example": 2092,
+        },
+    )
+    ensure_positive = fields.Bool(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "example": True,
+        },
+    )
+    missing_threshold = fields.Float(
+        required=False,
+        load_default=1.0,
+        metadata={
+            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
+            "example": 0.1,
+        },
+    )
     as_job = fields.Bool(
         load_default=False,
         metadata={
-            "description": "If True, forecast using RQ jobs in the background (needs a worker assigned to the forecasting queue)."
+            "description": "If True, compute forecasts asynchronously using RQ jobs. Defaults to False.",
+            "example": True,
         },
     )
-    max_training_period = DurationField(required=False, allow_none=True)
+    max_training_period = DurationField(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
+            "example": "P1Y",
+        },
+    )
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
@@ -198,13 +312,18 @@ class ForecasterParametersSchema(Schema):
         if output_path and not os.path.exists(output_path):
             os.makedirs(output_path)
 
+        model_save_dir = data.get("model_save_dir")
+        if model_save_dir is None:
+            # Read default from schema
+            model_save_dir = self.fields["model_save_dir"].load_default
+
         ensure_positive = data.get("ensure_positive")
 
         return dict(
             future_regressors=future_regressors,
             past_regressors=past_regressors,
             target=target_sensor,
-            model_save_dir=data["model_save_dir"],
+            model_save_dir=model_save_dir,
             output_path=output_path,
             start_date=start_date,
             end_date=data["end_date"],
