@@ -640,7 +640,7 @@ def make_schedule(  # noqa: C901
             save_to_db(bdf)
         else:
             print(
-                f"Not saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
+                f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
             )
 
     if not dry_run:
