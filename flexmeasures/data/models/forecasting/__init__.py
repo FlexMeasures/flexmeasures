@@ -86,11 +86,12 @@ class Forecaster(DataGenerator):
 
         results = self._compute_forecast(**kwargs)
 
-        for result in results:
-            # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
-            assert not check_output_resolution or (
-                result["sensor"].event_resolution == result["data"].event_resolution
-            ), f"The resolution of the results ({result['data'].event_resolution}) should match that of the output sensor ({result['sensor'].event_resolution}, ID {result['sensor'].id})."
+        if not kwargs.get("as_job", False):
+            for result in results:
+                # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
+                assert not check_output_resolution or (
+                    result["sensor"].event_resolution == result["data"].event_resolution
+                ), f"The resolution of the results ({result['data'].event_resolution}) should match that of the output sensor ({result['sensor'].event_resolution}, ID {result['sensor'].id})."
 
         return results
 
@@ -112,6 +113,7 @@ class Forecaster(DataGenerator):
 
         These parameters are already contained in the TimedBelief:
 
+        - end_date:             as the event end
         - max_forecast_horizon: as the maximum belief horizon of the beliefs for a given event
         - forecast_frequency:   as the spacing between unique belief times
         - probabilistic:        as the cumulative_probability of each belief
@@ -121,9 +123,11 @@ class Forecaster(DataGenerator):
 
         - model_save_dir:       used internally for the train and predict pipelines to save and load the model
         - output_path:          for exporting forecasts to file, more of a developer feature
+        - as_job:               only indicates whether the computation was offloaded to a worker
         """
         _parameters = deepcopy(parameters)
         fields_to_remove = [
+            "end_date",
             "max_forecast_horizon",
             "forecast_frequency",
             "probabilistic",

@@ -5,6 +5,19 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-29 | 2025-12-10
+--------------------
+
+Added two new forecasting API endpoints:
+
+* `POST /sensors/<id>/forecasts/trigger` — queue forecasting jobs for a sensor
+* `GET /sensors/<id>/forecasts/<uuid>` — retrieve job status and forecast results
+
+These endpoints enable programmatic triggering and retrieval of forecasts via the REST API.
+
+v3.0-29 | 2025-12-18
+""""""""""""""""""""
+- Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
 
 v3.0-28 | 2025-10-14
 """"""""""""""""""""
@@ -12,7 +25,7 @@ v3.0-28 | 2025-10-14
 
 v3.0-27 | 2025-09-16
 """"""""""""""""""""
-- Fix schema validation in ``PATCH /assets/<id>``.
+- Fix schema validation in `PATCH /assets/<id>`.
 
 v3.0-26 | 2025-09-10
 """"""""""""""""""""
@@ -29,7 +42,7 @@ v3.0-25 | 2025-07-24
 
 v3.0-24 | 2025-06-10
 """"""""""""""""""""
-- New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-(id)-schedules-trigger>`_ to schedule a site with multiple flexible devices.
+- New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ to schedule a site with multiple flexible devices.
 - Introduce new ``relax-constraints`` field in the ``flex-context`` to relax all eligible constraints with default breach prices.
 - Updated message for 404 Not Found on endpoints for managing assets: `/assets` (GET, POST) and `/assets/<id>` (GET, PATCH, DELETE).
 

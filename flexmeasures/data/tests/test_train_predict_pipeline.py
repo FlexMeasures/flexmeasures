@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 import logging
-
+import pandas as pd
 from datetime import timedelta
 
 from marshmallow import ValidationError
@@ -133,7 +133,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         # )
     ],
 )
-def test_train_predict_pipeline(
+def test_train_predict_pipeline(  # noqa: C901
     app,
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
@@ -172,7 +172,7 @@ def test_train_predict_pipeline(
         assert expected_error[1] in str(e_info)
     else:
         pipeline = TrainPredictPipeline(config=config)
-        pipeline.compute(parameters=params)
+        pipeline_returns = pipeline.compute(parameters=params)
 
         # Check pipeline properties
         for attr in ("model",):
@@ -202,6 +202,49 @@ def test_train_predict_pipeline(
         assert "TrainPredictPipeline" in str(
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
+
+        if dg_params["as_job"]:
+            # Fetch returned job
+            job = app.queues["forecasting"].fetch_job(pipeline_returns)
+
+            assert (
+                job is not None
+            ), "a returned job should exist in the forecasting queue"
+
+            if job.dependency_ids:
+                cycle_job_ids = [job]  # only one cycle job, no wrap-up job
+            else:
+                cycle_job_ids = job.kwargs.get("cycle_job_ids", [])  # wrap-up job case
+
+            finished_jobs = app.queues["forecasting"].finished_job_registry
+
+            for job_id in cycle_job_ids:
+                job = app.queues["forecasting"].fetch_job(job_id)
+                assert job is not None, f"Job {job_id} should exist"
+                assert (
+                    job_id in finished_jobs
+                ), f"Job {job_id} should be in the finished registry"
+
+        else:
+            # Sync case: pipeline returns a non-empty list
+            assert (
+                isinstance(pipeline_returns, list) and len(pipeline_returns) > 0
+            ), "pipeline should return a non-empty list"
+            assert all(
+                isinstance(item, dict) for item in pipeline_returns
+            ), "each item should be a dict"
+
+            for pipeline_return in pipeline_returns:
+                assert {"data", "sensor"}.issubset(
+                    pipeline_return.keys()
+                ), "returned dict should have data and sensor keys"
+                assert (
+                    pipeline_return["sensor"].id == dg_params["sensor_to_save"].id
+                ), "returned sensor should match sensor that forecasts will be saved into"
+                pd.testing.assert_frame_equal(
+                    forecasts.sort_index(),
+                    pipeline_return["data"].sort_index(),
+                )
 
         # Check DataGenerator configuration stored under DataSource attributes
         data_generator_config = source.attributes["data_generator"]["config"]

@@ -212,7 +212,7 @@ class Scheduler:
             amended_flex_model.append(flex_model_d)
             asset_ids.append(asset_id)
         amended_db_flex_model = [
-            v for k, v in db_flex_model.items() if k not in asset_ids
+            {**v, "asset": k} for k, v in db_flex_model.items() if k not in asset_ids
         ]
         combined_flex_model = amended_db_flex_model + amended_flex_model
         # For the single-asset case, revert the flex-model listification

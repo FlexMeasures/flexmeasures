@@ -44,6 +44,14 @@ class TrainPredictPipeline(Forecaster):
         for k, v in self._config.items():
             setattr(self, k, v)
         self.delete_model = delete_model
+        self.return_values = []  # To store forecasts and jobs
+
+    def run_wrap_up(self, cycle_job_ids: list[str]):
+        """Log the status of all cycle jobs after completion."""
+        for index, job_id in enumerate(cycle_job_ids):
+            logging.info(
+                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}"
+            )
 
     def run_cycle(
         self,
@@ -85,7 +93,6 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Training cycle completed in {train_runtime:.2f} seconds."
         )
-
         # Make predictions
         predict_pipeline = PredictPipeline(
             future_regressors=self._parameters["future_regressors"],
@@ -111,6 +118,7 @@ class TrainPredictPipeline(Forecaster):
             probabilistic=self._parameters["probabilistic"],
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
             event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period
+            save_belief_time=self._parameters["save_belief_time"],
             predict_start=predict_start,
             predict_end=predict_end,
             sensor_to_save=self._parameters["sensor_to_save"],
@@ -121,7 +129,7 @@ class TrainPredictPipeline(Forecaster):
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
         )
         predict_start_time = time.time()
-        predict_pipeline.run(delete_model=self.delete_model)
+        forecasts = predict_pipeline.run(delete_model=self.delete_model)
         predict_runtime = time.time() - predict_start_time
         logging.info(
             f"{p.ordinal(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
@@ -133,14 +141,14 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
-
+        self.return_values.append(
+            {"data": forecasts, "sensor": self._parameters["target"]}
+        )
         return total_runtime
 
     def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
         # Run the train-and-predict pipeline
-        self.run(**kwargs)
-        # todo: return results
-        return []
+        return self.run(**kwargs)
 
     def run(
         self,
@@ -153,14 +161,14 @@ class TrainPredictPipeline(Forecaster):
                 f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
             )
 
-            train_start = self._parameters["start_date"]
-            train_end = train_start + timedelta(
-                hours=self._parameters["train_period_in_hours"]
-            )
             predict_start = self._parameters["predict_start"]
             predict_end = predict_start + timedelta(
                 hours=self._parameters["predict_period_in_hours"]
             )
+            train_start = predict_start - timedelta(
+                hours=self._parameters["train_period_in_hours"]
+            )
+            train_end = predict_start
             counter = 0
 
             sensor_resolution = self._parameters["target"].event_resolution
@@ -209,20 +217,36 @@ class TrainPredictPipeline(Forecaster):
                 )
 
             if as_job:
-                jobs = []
-                for param in cycles_job_params:
+                cycle_job_ids = []
+                for cycle_params in cycles_job_params:
+                    # job metadata for tracking
+                    job_metadata = {
+                        "data_source_info": {"id": self.data_source.id},
+                        "start_predict_date": self._parameters["predict_start"],
+                        "end_date": self._parameters["end_date"],
+                        "sensor_id": self._parameters["sensor_to_save"].id,
+                    }
                     job = Job.create(
                         self.run_cycle,
-                        kwargs={**param, **job_kwargs},
+                        # Some cycle job params override job kwargs
+                        kwargs={**job_kwargs, **cycle_params},
                         connection=current_app.queues[queue].connection,
                         ttl=int(
                             current_app.config.get(
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
+                        result_ttl=int(
+                            current_app.config.get(
+                                "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+                            ).total_seconds()
+                        ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
+                        meta=job_metadata,
+                        timeout=60 * 60,  # 1 hour
                     )
 
-                    jobs.append(job)
+                    # Store the job ID for this cycle
+                    cycle_job_ids.append(job.id)
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
@@ -231,7 +255,31 @@ class TrainPredictPipeline(Forecaster):
                         queue=queue,
                         asset_or_sensor_type="sensor",
                     )
-                return jobs
+
+                wrap_up_job = Job.create(
+                    self.run_wrap_up,
+                    kwargs={
+                        "cycle_job_ids": cycle_job_ids
+                    },  # cycles jobs IDs to wait for
+                    connection=current_app.queues[queue].connection,
+                    depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
+                    ttl=int(
+                        current_app.config.get(
+                            "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                        ).total_seconds()
+                    ),
+                    meta=job_metadata,
+                )
+                current_app.queues[queue].enqueue_job(wrap_up_job)
+
+                if len(cycle_job_ids) > 1:
+                    # Return the wrap-up job ID if multiple cycle jobs are queued
+                    return wrap_up_job.id
+                else:
+                    # Return the single cycle job ID if only one job is queued
+                    return cycle_job_ids[0]
+
+            return self.return_values
         except Exception as e:
             raise CustomException(
                 f"Error running Train-Predict Pipeline: {e}", sys

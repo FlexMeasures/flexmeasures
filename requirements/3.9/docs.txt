@@ -6,12 +6,6 @@
 #
 alabaster==0.7.16
     # via sphinx
-apispec[yaml]==6.8.4
-    # via
-    #   -r requirements/docs.in
-    #   apispec-webframeworks
-apispec-webframeworks==1.2.0
-    # via -r requirements/docs.in
 attrs==25.4.0
     # via
     #   -c requirements/3.9/app.txt
@@ -21,7 +15,7 @@ babel==2.17.0
     # via
     #   -c requirements/3.9/app.txt
     #   sphinx
-certifi==2025.10.5
+certifi==2025.11.12
     # via
     #   -c requirements/3.9/app.txt
     #   requests
@@ -68,7 +62,6 @@ mistune==3.1.4
 packaging==25.0
     # via
     #   -c requirements/3.9/app.txt
-    #   apispec
     #   sphinx
 picobox==4.0.0
     # via sphinxcontrib-openapi
@@ -80,7 +73,6 @@ pygments==2.19.2
 pyyaml==6.0.3
     # via
     #   -c requirements/3.9/app.txt
-    #   apispec
     #   sphinxcontrib-mermaid
     #   sphinxcontrib-openapi
 referencing==0.36.2
@@ -139,7 +131,7 @@ sphinxcontrib-jquery==4.1
     # via sphinx-rtd-theme
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
-sphinxcontrib-mermaid==1.0.0
+sphinxcontrib-mermaid==1.2.3
     # via -r requirements/docs.in
 sphinxcontrib-openapi==0.8.4
     # via -r requirements/docs.in
@@ -157,7 +149,7 @@ typing-extensions==4.15.0
     #   deepmerge
     #   mistune
     #   referencing
-urllib3==2.5.0
+urllib3==2.6.0
     # via
     #   -c requirements/3.9/app.txt
     #   requests

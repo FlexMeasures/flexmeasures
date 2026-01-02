@@ -18,8 +18,10 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
 )
-from flexmeasures.data.schemas.utils import FMValidationError
+from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.utils.flexmeasures_inflection import p
 from flexmeasures.utils.unit_utils import (
     ur,
@@ -138,35 +140,49 @@ class FlexContextSchema(Schema):
         data_key="consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata=metadata.CONSUMPTION_BREACH_PRICE.to_dict(),
     )
     production_breach_price = VariableQuantityField(
         "/MW",
         data_key="production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata=metadata.PRODUCTION_BREACH_PRICE.to_dict(),
     )
     soc_minima_breach_price = VariableQuantityField(
         "/MWh",
         data_key="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata=metadata.SOC_MINIMA_BREACH_PRICE.to_dict(),
     )
     soc_maxima_breach_price = VariableQuantityField(
         "/MWh",
         data_key="soc-maxima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata=metadata.SOC_MAXIMA_BREACH_PRICE.to_dict(),
     )
-    relax_constraints = fields.Bool(data_key="relax-constraints", load_default=False)
+    relax_constraints = fields.Bool(
+        data_key="relax-constraints",
+        load_default=False,
+        metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
+    )
     # Dev fields
     relax_soc_constraints = fields.Bool(
-        data_key="relax-soc-constraints", load_default=False
+        data_key="relax-soc-constraints",
+        load_default=False,
+        metadata=metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
     )
     relax_capacity_constraints = fields.Bool(
-        data_key="relax-capacity-constraints", load_default=False
+        data_key="relax-capacity-constraints",
+        load_default=False,
+        metadata=metadata.RELAX_CAPACITY_CONSTRAINTS.to_dict(),
     )
     relax_site_capacity_constraints = fields.Bool(
-        data_key="relax-site-capacity-constraints", load_default=False
+        data_key="relax-site-capacity-constraints",
+        load_default=False,
+        metadata=metadata.RELAX_SITE_CAPACITY_CONSTRAINTS.to_dict(),
     )
 
     # Energy commitments
@@ -175,6 +191,7 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-power-capacity",
         value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_POWER_CAPACITY.to_dict(),
     )
     # todo: deprecated since flexmeasures==0.23
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
@@ -184,12 +201,14 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="consumption-price",
         return_magnitude=False,
+        metadata=metadata.CONSUMPTION_PRICE.to_dict(),
     )
     production_price = VariableQuantityField(
         "/MWh",
         required=False,
         data_key="production-price",
         return_magnitude=False,
+        metadata=metadata.PRODUCTION_PRICE.to_dict(),
     )
 
     # Capacity breach commitments
@@ -198,24 +217,28 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-production-capacity",
         value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
     )
     ems_consumption_capacity_in_mw = VariableQuantityField(
         "MW",
         required=False,
         data_key="site-consumption-capacity",
         value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_CONSUMPTION_CAPACITY.to_dict(),
     )
     ems_consumption_breach_price = VariableQuantityField(
         "/MW",
         data_key="site-consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
     )
     ems_production_breach_price = VariableQuantityField(
         "/MW",
         data_key="site-production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PRODUCTION_BREACH_PRICE.to_dict(),
     )
 
     # Peak consumption commitment
@@ -224,13 +247,15 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-peak-consumption",
         value_validator=validate.Range(min=0),
-        load_default="0 kW",
+        load_default=ur.Quantity("0 kW"),
+        metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
     )
     ems_peak_consumption_price = VariableQuantityField(
         "/MW",
         data_key="site-peak-consumption-price",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PEAK_CONSUMPTION_PRICE.to_dict(),
     )
 
     # Peak production commitment
@@ -239,22 +264,30 @@ class FlexContextSchema(Schema):
         required=False,
         data_key="site-peak-production",
         value_validator=validate.Range(min=0),
-        load_default="0 kW",
+        load_default=ur.Quantity("0 kW"),
+        metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
     )
     ems_peak_production_price = VariableQuantityField(
         "/MW",
         data_key="site-peak-production-price",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
     )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
 
     commitments = fields.Nested(
-        CommitmentSchema, data_key="commitments", required=False, many=True
+        CommitmentSchema,
+        data_key="commitments",
+        required=False,
+        many=True,
+        metadata=metadata.COMMITMENTS.to_dict(),
     )
 
     inflexible_device_sensors = fields.List(
-        SensorIdField(), data_key="inflexible-device-sensors"
+        SensorIdField(),
+        data_key="inflexible-device-sensors",
+        metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
 
     def set_default_breach_prices(
@@ -424,93 +457,256 @@ class FlexContextSchema(Schema):
 EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
     "energy-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
     "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
-    "power": ["kW"],
+    "power": ["MW", "kW"],
+    "energy": ["MWh", "kWh"],
+    "boolean": ["Boolean"],
+    "efficiency": ["%"],
 }
 
 UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "consumption-price": {
         "default": None,  # Refers to default value of the field
-        "description": "Set the sensor that represents the consumption price of the site. This value will be used in the optimization.",
+        "description": rst_to_openapi(metadata.CONSUMPTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "production-price": {
         "default": None,
-        "description": "Set the sensor that represents the production price of the site. This value will be used in the optimization.",
+        "description": rst_to_openapi(metadata.PRODUCTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "site-power-capacity": {
         "default": None,
-        "description": "This value represents the maximum power that the site can consume or produce. This value will be used in the optimization.",
-        "example-units": EXAMPLE_UNIT_TYPES["power"] + ["kVA", "MVA"],
+        "description": rst_to_openapi(metadata.SITE_POWER_CAPACITY.description),
+        "example-units": ["kVA", "MVA"] + EXAMPLE_UNIT_TYPES["power"],
     },
     "site-production-capacity": {
         "default": None,
-        "description": "This value represents the maximum power that the site can produce. This value will be used in the optimization.",
+        "description": rst_to_openapi(metadata.SITE_PRODUCTION_CAPACITY.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-consumption-capacity": {
         "default": None,
-        "description": "This value represents the maximum power that the site can consume. This value will be used in the optimization.",
+        "description": rst_to_openapi(metadata.SITE_CONSUMPTION_CAPACITY.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "soc-minima-breach-price": {
         "default": None,
-        "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge minima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site. If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect. Without this value, any infeasible state-of-charge minima would prevent a complete schedule from being computed.",
+        "description": rst_to_openapi(metadata.SOC_MINIMA_BREACH_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "soc-maxima-breach-price": {
         "default": None,
-        "description": "This <b>penalty value</b> is used to discourage the violation of <b>state-of-charge maxima</b> constraints, which the scheduler will attempt to minimize. It must use the same currency as the other settings and cannot be negative. While it's an <b>internal nudge</b> to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.",
+        "description": rst_to_openapi(metadata.SOC_MAXIMA_BREACH_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "consumption-breach-price": {
         "default": None,
-        "description": "This <b>penalty value</b> is used to discourage the violation of the <b>consumption-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
+        "description": rst_to_openapi(metadata.CONSUMPTION_BREACH_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "production-breach-price": {
         "default": None,
-        "description": "This <b>penalty value</b> is used to discourage the violation of the <b>production-capacity</b> constraint in the flex-model. It effectively treats the capacity as a <b>soft constraint</b>, allowing the scheduler to exceed it when necessary but with a high cost. The scheduler will attempt to minimize this penalty. It must use the same currency as the other settings and cannot be negative.",
+        "description": rst_to_openapi(metadata.PRODUCTION_BREACH_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-consumption-breach-price": {
         "default": None,
-        "description": "This value represents the price that will be paid if the site consumes more power than the site consumption capacity. This value will be used in the optimization.",
+        "description": rst_to_openapi(
+            metadata.SITE_CONSUMPTION_BREACH_PRICE.description
+        ),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-production-breach-price": {
         "default": None,
-        "description": "This value represents the price that will be paid if the site produces more power than the site production capacity. This value will be used in the optimization.",
+        "description": rst_to_openapi(
+            metadata.SITE_PRODUCTION_BREACH_PRICE.description
+        ),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-peak-consumption": {
         "default": None,
-        "description": "This value represents the peak consumption of the site. This value will be used in the optimization.",
+        "description": rst_to_openapi(metadata.SITE_PEAK_CONSUMPTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-peak-production": {
         "default": None,
-        "description": "This value represents the peak production of the site. This value will be used in the optimization.",
+        "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-peak-consumption-price": {
         "default": None,
-        "description": "This value represents the price paid for increasing the site peak consumption any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "description": rst_to_openapi(metadata.SITE_PEAK_CONSUMPTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-peak-production-price": {
         "default": None,
-        "description": "This value represents the price paid for increasing the site peak production any further. It is used in the scheduling optimization to motivate peak shaving.",
+        "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "inflexible-device-sensors": {
         "default": [],
-        "description": "This value represents the sensors that are inflexible and cannot be controlled. These sensors will be used in the optimization.",
+        "description": rst_to_openapi(metadata.INFLEXIBLE_DEVICE_SENSORS.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "commitments": {
         "default": None,
-        "description": "Work in progress",
+        "description": rst_to_openapi(metadata.COMMITMENTS.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+}
+
+UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "soc-min": {
+        "default": None,
+        "description": rst_to_openapi(metadata.SOC_MIN.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["energy"],
+    },
+    "soc-max": {
+        "default": None,
+        "description": rst_to_openapi(metadata.SOC_MAX.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["energy"],
+    },
+    "soc-minima": {
+        "default": None,
+        "description": rst_to_openapi(metadata.SOC_MINIMA.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the state of charge.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["energy"],
+    },
+    "soc-maxima": {
+        "default": None,
+        "description": rst_to_openapi(metadata.SOC_MAXIMA.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the state of charge.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["energy"],
+    },
+    "soc-targets": {
+        "default": None,
+        "description": rst_to_openapi(metadata.SOC_TARGETS.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the state of charge.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["energy"],
+    },
+    "state-of-charge": {
+        "default": None,
+        "description": rst_to_openapi(metadata.STATE_OF_CHARGE.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the state of charge.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["energy"],
+    },
+    "soc-gain": {
+        "default": [],
+        "description": rst_to_openapi(metadata.SOC_GAIN.description),
+        "types": {
+            "backend": "typeFour",
+            "ui": "Multiple settings possible - either fixed values or dynamic signals (via a sensor).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "soc-usage": {
+        "default": [],
+        "description": rst_to_openapi(metadata.SOC_USAGE.description),
+        "types": {
+            "backend": "typeFour",
+            "ui": "Multiple settings possible - either fixed values or dynamic signals (via a sensor).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "roundtrip-efficiency": {
+        "default": None,
+        "description": rst_to_openapi(metadata.ROUNDTRIP_EFFICIENCY.description),
+        "types": {
+            "backend": "typeFive",
+            "ui": "Fixed value only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
+    },
+    "charging-efficiency": {
+        "default": None,
+        "description": rst_to_openapi(metadata.CHARGING_EFFICIENCY.description),
+        "types": {
+            "backend": "typeFive",
+            "ui": "Fixed value only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
+    },
+    "discharging-efficiency": {
+        "default": None,
+        "description": rst_to_openapi(metadata.DISCHARGING_EFFICIENCY.description),
+        "types": {
+            "backend": "typeFive",
+            "ui": "Fixed value only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
+    },
+    "storage-efficiency": {
+        "default": None,
+        "description": rst_to_openapi(metadata.STORAGE_EFFICIENCY.description),
+        "types": {
+            "backend": "typeFive",
+            "ui": "Fixed value only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
+    },
+    "prefer-charging-sooner": {
+        "default": True,
+        "description": rst_to_openapi(metadata.PREFER_CHARGING_SOONER.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "Boolean option only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["boolean"],
+    },
+    "prefer-curtailing-later": {
+        "default": True,
+        "description": rst_to_openapi(metadata.PREFER_CURTAILING_LATER.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "Boolean option only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["boolean"],
+    },
+    "power-capacity": {
+        "default": None,
+        "description": rst_to_openapi(metadata.POWER_CAPACITY.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "consumption-capacity": {
+        "default": None,
+        "description": rst_to_openapi(metadata.CONSUMPTION_CAPACITY.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "production-capacity": {
+        "default": None,
+        "description": rst_to_openapi(metadata.PRODUCTION_CAPACITY.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
 }
@@ -700,18 +896,49 @@ class AssetTriggerSchema(Schema):
     }
     """
 
-    asset = GenericAssetIdField(data_key="id")
-    start_of_schedule = AwareDateTimeField(
-        data_key="start", format="iso", required=True
+    asset = GenericAssetIdField(
+        data_key="id",
+        metadata=dict(
+            description="ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account.",
+        ),
     )
-    belief_time = AwareDateTimeField(format="iso", data_key="prior")
-    duration = PlanningDurationField(load_default=PlanningDurationField.load_default)
+    start_of_schedule = AwareDateTimeField(
+        data_key="start",
+        format="iso",
+        required=True,
+        metadata=dict(
+            description="Start time of the schedule, in ISO 8601 datetime format.",
+            example="2026-01-15T10:00+01:00",
+        ),
+    )
+    belief_time = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+        "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+        example="2026-01-15T10:00+01:00",
+    )
+    duration = PlanningDurationField(
+        load_default=PlanningDurationField.load_default,
+        metadata=dict(
+            description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            example="PT24H",
+        ),
+    )
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
         data_key="flex-model",
     )
-    flex_context = fields.Dict(required=False, data_key="flex-context")
-    sequential = fields.Bool(load_default=False)
+    flex_context = fields.Dict(
+        required=False,
+        data_key="flex-context",
+    )
+    sequential = fields.Bool(
+        load_default=False,
+        metadata=dict(
+            description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device.",
+        ),
+    )
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):

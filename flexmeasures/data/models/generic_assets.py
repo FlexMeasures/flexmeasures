@@ -7,11 +7,11 @@ import json
 from flask import current_app
 from flask_security import current_user
 import pandas as pd
-from sqlalchemy import select
-from sqlalchemy.engine import Row
+from sqlalchemy import select, and_
 from sqlalchemy.ext.hybrid import hybrid_method
-from sqlalchemy.sql.expression import func, text
+from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict, MutableList
+from sqlalchemy.dialects.postgresql import JSONB
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
@@ -77,16 +77,14 @@ class GenericAsset(db.Model, AuthModelMixin):
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     sensors_to_show = db.Column(
-        MutableList.as_mutable(db.JSON), nullable=False, default=[]
+        MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
-    flex_context = db.Column(
-        MutableDict.as_mutable(db.JSON), nullable=False, default={}
-    )
-    flex_model = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    flex_context = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    flex_model = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     sensors_to_show_as_kpis = db.Column(
-        MutableList.as_mutable(db.JSON), nullable=False, default=[]
+        MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
     account_id = db.Column(
         db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
@@ -704,6 +702,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
+        use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
@@ -722,6 +721,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
@@ -745,6 +745,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
+                use_latest_version_per_event=use_latest_version_per_event,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,
                 one_deterministic_belief_per_event_per_source=True,
@@ -1078,23 +1079,49 @@ def assets_share_location(assets: list[GenericAsset]) -> bool:
     return all([a.location == assets[0].location for a in assets])
 
 
-def get_center_location_of_assets(user: User | None) -> tuple[float, float]:
+def get_bounding_box_of_assets(
+    user: User | None,
+) -> tuple[tuple[float, float], tuple[float, float]]:
     """
-    Find the center position between all generic assets of the user's account.
+    Compute the bounding box covering all assets of the user's account,
+    correctly handling antimeridian crossings.
     """
-    query = (
-        "Select (min(latitude) + max(latitude)) / 2 as latitude,"
-        " (min(longitude) + max(longitude)) / 2 as longitude"
-        " from generic_asset"
-    )
     if user is None:
         user = current_user
-    query += f" where generic_asset.account_id = {user.account_id}"
-    locations: list[Row] = db.session.execute(text(query + ";")).fetchall()
-    if (
-        len(locations) == 0
-        or locations[0].latitude is None
-        or locations[0].longitude is None
-    ):
-        return 52.366, 4.904  # Amsterdam, NL
-    return locations[0].latitude, locations[0].longitude
+
+    # ORM query to fetch all lat/lng values
+    stmt = select(GenericAsset.latitude, GenericAsset.longitude).where(
+        and_(
+            GenericAsset.account_id == user.account_id,
+            GenericAsset.latitude.isnot(None),
+            GenericAsset.longitude.isnot(None),
+        )
+    )
+
+    results = db.session.execute(stmt).all()
+    if not results:
+        return current_app.config["FLEXMEASURES_DEFAULT_BOUNDING_BOX"]
+
+    def normalize_lng(lng: float) -> float:
+        """Wrap longitude to [-180, 180)"""
+        return ((lng + 180) % 360) - 180
+
+    lats = [row.latitude for row in results]
+    lngs = [normalize_lng(row.longitude) for row in results]
+
+    min_lat, max_lat = min(lats), max(lats)
+
+    sorted_lngs = sorted(lngs)
+    normal_span = sorted_lngs[-1] - sorted_lngs[0]
+    wrap_span = (sorted_lngs[0] + 360) - sorted_lngs[-1]
+
+    if wrap_span < normal_span:
+        # Wrapping eastward is shorter
+        min_lng, max_lng = sorted_lngs[-1], sorted_lngs[0] + 360
+    else:
+        min_lng, max_lng = sorted_lngs[0], sorted_lngs[-1]
+
+    return (
+        (min_lat, normalize_lng(min_lng)),
+        (max_lat, normalize_lng(max_lng)),
+    )

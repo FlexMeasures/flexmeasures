@@ -269,6 +269,9 @@ def delete_prognoses(
     required=False,
     help="Delete beliefs about events ending at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
+@click.option(
+    "--force/--no-force", default=False, help="Skip warning about consequences."
+)
 @click.option("--offspring", type=bool, required=False, default=False, is_flag=True)
 def delete_beliefs(  # noqa: C901
     generic_assets: list[GenericAsset],
@@ -276,6 +279,7 @@ def delete_beliefs(  # noqa: C901
     sources: list[Source],
     start: datetime | None = None,
     end: datetime | None = None,
+    force: bool = False,
     offspring: bool = False,
 ):
     """Delete all beliefs recorded on a given sensor (or on sensors of a given asset)."""
@@ -327,11 +331,12 @@ def delete_beliefs(  # noqa: C901
     if num_beliefs_up_for_deletion == 0:
         done("0 beliefs found.")
         return
-    if sensors:
-        prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on {join_words_into_a_list([repr(sensor) for sensor in sensors])}?"
-    elif generic_assets:
-        prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
-    click.confirm(prompt, abort=True)
+    if not force:
+        if sensors:
+            prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on {join_words_into_a_list([repr(sensor) for sensor in sensors])}?"
+        elif generic_assets:
+            prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
+        click.confirm(prompt, abort=True)
     db.session.execute(delete(TimedBelief).where(*entity_filters, *event_filters))
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()

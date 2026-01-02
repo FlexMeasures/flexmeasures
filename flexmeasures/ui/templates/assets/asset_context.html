@@ -329,8 +329,7 @@
         "default": "fa fa-solid fa-question-circle",
     }
     
-    const schemaSpecsString = '{{ flex_context_schema | tojson | safe  }}';
-    const schemaSpecs = JSON.parse(schemaSpecsString); 
+    const schemaSpecs = {{ flex_context_schema | tojson | safe  }};
     const assetFlexContextSchema = {};
     for (const [key, value] of Object.entries(schemaSpecs)) {
         assetFlexContextSchema[key] = value["default"];
@@ -345,7 +344,7 @@
     const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
 
     function reRenderForm() {
-        // Skip on first init. This code prevents the access to teh variable 'getFlexcontext'
+        // Skip on first init. This code prevents the access to the variable 'getFlexContext'
         // on initial run of the script as its not available at that point
         if (!hasInitialized) {
             hasInitialized = true;
