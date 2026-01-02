@@ -514,6 +514,7 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
     scheduler_specs: dict | None = None,
+    dry_run: bool = False,
     **scheduler_kwargs: dict,
 ) -> bool:
     """
@@ -525,7 +526,8 @@ def make_schedule(
 
     This is what this function does:
     - Find out which scheduler should be used & compute the schedule
-    - Turn scheduled values into beliefs and save them to db
+    - Turn scheduled values into beliefs
+    - Save the beliefs to the database, unless dry_run is False
     """
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
     db.engine.dispose()
@@ -634,10 +636,16 @@ def make_schedule(
             for dt, value in result["data"].items()
         ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
         bdf = tb.BeliefsDataFrame(ts_value_schedule)
-        save_to_db(bdf)
+        if not dry_run:
+            save_to_db(bdf)
+        else:
+            print(
+                f"Not saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
+            )
 
-    scheduler.persist_flex_model()
-    db.session.commit()
+    if not dry_run:
+        scheduler.persist_flex_model()
+        db.session.commit()
 
     return True
 
