@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.31.0 | February XX, 2026
+=================================
+
+* New ``-dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
+
 since v0.30.0 | December 02, 2025
 =================================
 
