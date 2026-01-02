@@ -15,7 +15,7 @@ but in the background your custom scheduling algorithm is being used.
 
 Let's walk through an example!
 
-First, we need to write a class (inhering from the Base Scheduler) with a `schedule` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
+First, we need to write a class (inhering from the Base Scheduler) with a ``schedule`` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
 The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a scheduling function:
 
 .. code-block:: python
@@ -178,7 +178,7 @@ Set config programmatically - Example of using a custom logo
 
 Finally, you might want to override some FlexMeasures configuration settings from within your plugin.
 Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below).
-There is a `record_once` function on Blueprints which can help with this. An example:
+There is a ``record_once`` function on Blueprints which can help with this. An example:
 
 .. code-block:: python
 
