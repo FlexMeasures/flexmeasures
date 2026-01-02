@@ -112,6 +112,8 @@ def find_smallest_common_unit(units: list[str]) -> tuple[str, dict[str, float]]:
     """
     if not units:
         return "a.u.", {}
+    if len(units) == 1:
+        return units[0], {unit: 1.0 for unit in units}
 
     try:
         # Convert all to quantities and check dimensionality
