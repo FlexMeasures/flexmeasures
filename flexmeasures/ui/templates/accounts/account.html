@@ -591,6 +591,8 @@ $(document).ready(function () {
         }&per_page=${data["length"]}&include_public=${includePublicAssets}&account_id=${
           {{ account.id }}
         }`;
+        
+        url += "&fields=id|name|generic_asset_type|owner|latitude|longitude|sensors";
 
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;

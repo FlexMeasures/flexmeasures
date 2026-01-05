@@ -16,6 +16,10 @@ New features
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
 * Improved the UX for creating sensors, clicking on ``Enter`` now validates and creates a sensor [see `PR #1876 <https://www.github.com/FlexMeasures/flexmeasures/pull/1876>`_]
 * Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_]
+* Add ``fields`` param to the asset-listing endpoints, to save bandwith in response data [see `PR #1884 <https://www.github.com/FlexMeasures/flexmeasures/pull/1884>`_]
+
+.. note:: For backwards-compatibility, the new ``fields`` parameter will only be fully active, i.e. also returning less fields per default, in v0.32. Set ``FLEXMEASURES_API_SUNSET_ACTIVE=True`` to test the full effect now.
+
 
 Infrastructure / Support
 ----------------------
