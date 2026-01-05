@@ -18,15 +18,16 @@ test:
 
 gen_code_docs := False # by default code documentation is not generated
 
+# Note: this makes docs for the FkexMeasures project, free from custom settings and plugins
 update-docs:
 	@echo "Creating docs environment ..."
 	make install-docs-dependencies
-	export FLEXMEASURES_ENV=documentation; make generate-openapi
+	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; make generate-openapi
 	@echo "Creating documentation ..."
 	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
 	sed -i 's/(id)/id/g' flexmeasures/ui/static/documentation/html/api/v3_0.html # make sphinxcontrib-httpdomain links point to openapi-sphinx links
 
-# Note: this will create SwaggerDocs with host-specific settings (e.g. platform name, support page, TOS), set FLEXMEASURES_ENV=documentation to keep generic
+# Note: this will create SwaggerDocs with host-specific settings (e.g. platform name, support page, TOS) and plugins - use update-docs to make generic specs
 generate-openapi:
 	@echo "Generating OpenAPI specifications... "
 	python flexmeasures/api/scripts/generate_open_api_specs.py
