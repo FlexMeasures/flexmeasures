@@ -21,12 +21,16 @@ class PipedAssetFieldListField(fields.Str):
                 "Invalid input type, should be a string, separable by '|'."
             )
         parameters = values.split("|") if values else []
-        for parameter in parameters:
-            if parameter not in GenericAssetSchema._declared_fields:
+        non_empty_parameters = [p for p in parameters if p.strip()]
+        for parameter in non_empty_parameters:
+            if (
+                parameter.strip()
+                and parameter not in GenericAssetSchema._declared_fields
+            ):
                 raise validate.ValidationError(
                     f"Parameter '{parameter}' is not a valid asset field."
                 )
-        return parameters
+        return non_empty_parameters
 
     def _serialize(self, values: list[str], attr, obj, **kwargs) -> str:
         if not values:
