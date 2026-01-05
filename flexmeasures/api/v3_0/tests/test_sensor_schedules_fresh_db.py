@@ -22,16 +22,14 @@ from flexmeasures.utils.calculations import integrate_time_series
 @pytest.mark.parametrize(
     "message, asset_name",
     [
-        (message_for_trigger_schedule(use_coarser_resolution=True), "Test battery"),
+        (message_for_trigger_schedule(resolution="PT1H"), "Test battery"),
         (
-            message_for_trigger_schedule(
-                use_coarser_resolution=True, with_targets=True
-            ),
+            message_for_trigger_schedule(resolution="PT1H", with_targets=True),
             "Test charging station",
         ),
         (
             message_for_trigger_schedule(
-                use_coarser_resolution=True, with_targets=True, use_time_window=True
+                resolution="PT1H", with_targets=True, use_time_window=True
             ),
             "Test charging station",
         ),

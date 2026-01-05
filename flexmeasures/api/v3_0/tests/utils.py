@@ -59,15 +59,15 @@ def message_for_trigger_schedule(
     too_far_into_the_future_targets: bool = False,
     use_time_window: bool = False,
     use_perfect_efficiencies: bool = False,
-    use_coarser_resolution: bool = False,
+    resolution: str | None = None,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
         "duration": "PT24H",  # Will be extended in case of targets that would otherwise lie beyond the schedule's end
     }
-    if use_coarser_resolution:
-        # The sensor resolution is 15 minutes, so we'll schedule more coarsely here
-        message["resolution"] = "PT1H"
+    if resolution:
+        # The sensor resolution is 15 minutes, but we can override the scheduling resolution here
+        message["resolution"] = resolution
     if unknown_prices:
         # We have no beliefs in our test database about 2040 prices
         message["start"] = "2040-01-01T00:00:00+01:00"
