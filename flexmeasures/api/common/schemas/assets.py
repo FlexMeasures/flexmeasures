@@ -23,10 +23,7 @@ class PipedAssetFieldListField(fields.Str):
         parameters = values.split("|") if values else []
         non_empty_parameters = [p for p in parameters if p.strip()]
         for parameter in non_empty_parameters:
-            if (
-                parameter.strip()
-                and parameter not in GenericAssetSchema._declared_fields
-            ):
+            if parameter not in GenericAssetSchema._declared_fields:
                 raise validate.ValidationError(
                     f"Parameter '{parameter}' is not a valid asset field."
                 )
