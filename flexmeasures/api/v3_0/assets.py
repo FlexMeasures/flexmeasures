@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import request
+from flask import request, current_app
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -75,6 +75,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
+# creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
@@ -322,8 +323,14 @@ class AssetAPI(FlaskView):
             query=query, root_asset=root_asset, max_depth=max_depth
         )
 
-        response_schema = default_list_assets_schema
-        if fields_in_response is not None:
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
 
         if page is None:
@@ -511,8 +518,14 @@ class AssetAPI(FlaskView):
         assets = db.session.scalars(
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
         ).all()
-        response_schema = default_list_assets_schema
-        if fields_in_response is not None:
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
         return response_schema.dump(assets), 200
 
