@@ -251,11 +251,6 @@ function ready() {
         scrollContainer: true
     });
 
-    $(document).on('change', '#user-list-options input[name="include_inactive"]', function () {
-        //Users list inactive
-        $(this).closest('form').submit();
-    })
-
 
     // Check button behaviour
 
