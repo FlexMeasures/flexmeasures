@@ -1347,6 +1347,12 @@ def train_predict_pipeline(
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
+@click.option(
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    help="Add this flag to avoid saving the results to the database.",
+)
 def add_schedule(  # noqa C901
     power_sensor: Sensor,
     asset: GenericAsset,
@@ -1358,6 +1364,7 @@ def add_schedule(  # noqa C901
     flex_context: str | None = None,
     flex_model: str | None = None,
     as_job: bool = False,
+    dry_run: bool = False,
 ):
     """Create a new schedule for an asset.
 
@@ -1440,9 +1447,10 @@ def add_schedule(  # noqa C901
     else:
         success = make_schedule(
             asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
+            dry_run=dry_run,
             **scheduling_kwargs,
         )
-        if success:
+        if success and not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
