@@ -1,6 +1,7 @@
 from flask import url_for
 import pytest
 from isodate import parse_datetime
+import pandas as pd
 
 from rq.job import Job
 from sqlalchemy import select
@@ -207,6 +208,7 @@ def test_get_schedule_fallback(
     message = {
         "start": start,
         "duration": "PT24H",
+        "resolution": "PT15M",  # just schedule in the original sensor resolution
         "flex-model": {
             "soc-at-start": 10,
             "soc-min": charging_station.get_attribute("min_soc_in_mwh", 0),
@@ -256,6 +258,9 @@ def test_get_schedule_fallback(
 
         # Make sure that the db flex_context shows up in the job kwargs
         assert "flex-context" not in message and job.kwargs.get("flex_context")
+
+        # Make sure the resolution shows up in the job kwargs
+        assert job.kwargs.get("resolution") == pd.Timedelta(message["resolution"])
 
         # the callback creates the fallback job which is still pending
         assert len(app.queues["scheduling"]) == 1
