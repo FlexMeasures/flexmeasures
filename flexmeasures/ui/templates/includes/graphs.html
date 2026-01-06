@@ -620,7 +620,7 @@
                 // Update beliefs in the replayed data given the new data
                 replayedData = updateBeliefs(replayedData, newData);
 
-                /** When selecting a longer time periods (more than a week), the replay slows down a bit. This
+                /** When selecting a longer time period (more than a week), the replay slows down a bit. This
                  * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
                  * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
                  * graph. After trying different approaches, we fell back to the original approach of telling vega
