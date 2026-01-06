@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import select
 
 from flexmeasures import Asset, User
