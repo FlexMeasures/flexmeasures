@@ -1307,6 +1307,13 @@ def train_predict_pipeline(
     help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
+    "--prior",
+    "belief_time",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Schedule with only information known prior to this datetime. If not set, defaults to now. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
     "--soc-at-start",
     "soc_at_start",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
@@ -1351,6 +1358,7 @@ def add_schedule(  # noqa C901
     asset: GenericAsset,
     start: datetime,
     duration: timedelta,
+    belief_time: datetime,
     scheduler_class: str,
     soc_at_start: ur.Quantity,
     flex_context: str | None = None,
@@ -1415,7 +1423,7 @@ def add_schedule(  # noqa C901
     scheduling_kwargs = dict(
         start=start,
         end=start + duration,
-        belief_time=server_now(),
+        belief_time=belief_time or server_now(),
         flex_model=flex_model,
         flex_context=flex_context,
         scheduler_specs={

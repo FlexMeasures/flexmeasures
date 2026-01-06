@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v0.31.0 | February XX, 2026
 =================================
 
+* Let ``flexmeasures add schedule`` create schedules with only information known prior to some time using the ``prior`` option.
 * New ``-dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
 
 since v0.30.0 | December 02, 2025
