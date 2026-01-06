@@ -168,7 +168,13 @@
         </div>
         <div class="col-md-2 replay-column">
             <div class="replay-container">
-                <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
+                <div
+                     id="replay"
+                     data-bs-toggle="tooltip"
+                     data-bs-html="true"
+                     data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step."
+                     class="stopped">
+                </div>
                 <div id="replay-time"></div>
             </div>
         </div>
