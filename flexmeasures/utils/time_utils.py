@@ -14,6 +14,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import pytz
 from dateutil import tz
+import isodate
 
 
 def server_now() -> datetime:
@@ -449,3 +450,41 @@ def to_utc_timestamp(value):
 
     # Return Unix timestamp (seconds since epoch)
     return value.timestamp()
+
+
+def normalize_ttl(value, default: timedelta) -> timedelta:
+    """
+    Normalize a TTL (time-to-live) configuration value into a datetime.timedelta.
+
+    Supported input types:
+    - datetime.timedelta: returned as-is
+    - int: interpreted as number of days, -1 means persist forever
+    - ISO-8601 duration string (e.g., "P2D", "PT12H"): parsed into a timedelta
+    - None: defaults to the given default value
+
+    Raises:
+        TypeError: if the input value is not one of the supported types
+
+    This ensures that all TTL values used in the application are consistently
+    represented as timedelta, avoiding type errors at runtime.
+    """
+    if value is None:
+        # user didn't specify → use default
+        return default
+
+    if isinstance(value, timedelta):
+        return value
+
+    if isinstance(value, int):
+        if value == -1:
+            return timedelta(-1)  # persist forever
+        return timedelta(days=value)
+
+    if isinstance(value, str):
+        # ISO-8601 duration
+        return isodate.parse_duration(value)
+
+    raise TypeError(
+        "FLEXMEASURES_*_TTL must be a timedelta, int (days, or -1 for persist forever), "
+        "or ISO-8601 duration string"
+    )
