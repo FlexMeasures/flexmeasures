@@ -36,7 +36,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
-v0.30.2 | January XX, 2026
+v0.30.2 | January 6, 2026
 ============================
 
 Bugfixes
@@ -306,7 +306,7 @@ Bugfixes
 * Fix deletion of sensors in the UI, also move the delete button for assets & sensors to the bottom of the page [see `PR #1597 <https://github.com/FlexMeasures/flexmeasures/pull/1597>`_]
 
 
-v0.26.1 | June 09, 2025
+v0.26.1 | June 9, 2025
 ============================
 
 Bugfixes
@@ -315,7 +315,7 @@ Bugfixes
 * Show job information again on the job page on rq-dashboard [see `PR #1526 <https://github.com/FlexMeasures/flexmeasures/pull/1526>`_]
 
 
-v0.26.0 | June 03, 2025
+v0.26.0 | June 3, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v026-relaxed-scheduling-cleaner-asset-pages/>`_.
@@ -365,7 +365,7 @@ Bugfixes
 * Make flex context usage safer against this field being `None` [see `PR #1503 <https://github.com/FlexMeasures/flexmeasures/pull/1503>`_]
 
 
-v0.25.0 | April 01, 2025
+v0.25.0 | April 1, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v025-flex-context-fully-editable-nicer-status-page/>`_.
