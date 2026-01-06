@@ -29,6 +29,7 @@ Infrastructure / Support
 * Migrated JSON fields to JSONB, so they can be used to look up sensors, attributes, sources [see `PR #1867 <https://www.github.com/FlexMeasures/flexmeasures/pull/1867>`_]
 * Less verbose error logs given common HTTP requests such as those leading to 404 (Not Found) responses [see `PR #1883 <https://www.github.com/FlexMeasures/flexmeasures/pull/1883>`_]
 * Refactor base.html template from 1500 to ~300 lines [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
+* 2FA UX: Hide rescue form by default & improve main message [see `PR #1875 <https://www.github.com/FlexMeasures/flexmeasures/pull/1875>`_]
 * Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 
 Bugfixes
