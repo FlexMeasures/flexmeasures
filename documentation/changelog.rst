@@ -34,7 +34,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
-v0.30.2 | December XX, 2025
+v0.30.2 | January XX, 2026
 ============================
 
 Bugfixes
