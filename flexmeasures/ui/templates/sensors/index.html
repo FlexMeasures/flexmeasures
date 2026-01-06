@@ -190,8 +190,15 @@ The event_value should be a numeric value."
               </div>
               <div class="col-sm-2 replay-column">
                   <div class="replay-container">
-                    <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
-                    <div id="replay-time"></div>
+                      <div
+                         id="replay"
+                         data-bs-toggle="tooltip"
+                         data-bs-html="true"
+                         data-bs-custom-class="replay-tooltip"
+                         data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step."
+                         class="stopped">
+                      </div>
+                      <div id="replay-time"></div>
                   </div>
               </div>
           </div>
