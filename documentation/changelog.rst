@@ -4,7 +4,7 @@ FlexMeasures Changelog
 **********************
 
 
-v0.30.2 | December XX, 2025
+v0.30.2 | January 6, 2026
 ============================
 
 Bugfixes
@@ -13,7 +13,7 @@ Bugfixes
 * New sensors created through the API and UI get the server timezone rather than :abbr:`UTC (Coordinated Universal Time)` [see `PR #1894 <https://www.github.com/FlexMeasures/flexmeasures/pull/1894>`_]
 * Correctly derive the shared unit in charts showing multiple temperature sensors [see `PR #1890 <https://www.github.com/FlexMeasures/flexmeasures/pull/1890>`_]
 * Prevent duplicate forecasts from being saved when re-running the forecasting pipeline within the same resolution window by preserving the non-floored ``belief_time`` using a new ``save_belief_time`` field [see `PR #1853 <https://github.com/FlexMeasures/flexmeasures/pull/1853>`_]
-* Keep around finished forecasting jobs just as long as finished scheduling jobs (configurable through the ``FLEXMEASURES_PLANNING_TTL`` config setting) [see `PR #1890 <https://github.com/FlexMeasures/flexmeasures/pull/1890>`_]
+* Keep around finished forecasting jobs just as long as finished scheduling jobs (configurable through the ``FLEXMEASURES_PLANNING_TTL`` config setting) [see `PR #1870 <https://github.com/FlexMeasures/flexmeasures/pull/1870>`_]
 
 
 v0.30.1 | December 9, 2025
@@ -51,7 +51,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Updated dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_, `PR #1820 <https://www.github.com/FlexMeasures/flexmeasures/pull/1820>`_ and `PR #1842 <https://www.github.com/FlexMeasures/flexmeasures/pull/1842>`_]
+* Upgraded dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_, `PR #1820 <https://www.github.com/FlexMeasures/flexmeasures/pull/1820>`_ and `PR #1842 <https://www.github.com/FlexMeasures/flexmeasures/pull/1842>`_]
 * Speed up data searches by refactoring our filter for selecting data from the latest version of a data generating model [see `PR #1698 <https://github.com/FlexMeasures/flexmeasures/pull/1698>`_]
 * Add new tutorial for PV curtailment and multi-asset scheduling [see `PR #1804 <https://github.com/FlexMeasures/flexmeasures/pull/1804>`_ and `PR #1846 <https://github.com/FlexMeasures/flexmeasures/pull/1846>`_]
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
@@ -273,7 +273,7 @@ Bugfixes
 * Fix deletion of sensors in the UI, also move the delete button for assets & sensors to the bottom of the page [see `PR #1597 <https://github.com/FlexMeasures/flexmeasures/pull/1597>`_]
 
 
-v0.26.1 | June 09, 2025
+v0.26.1 | June 9, 2025
 ============================
 
 Bugfixes
@@ -282,7 +282,7 @@ Bugfixes
 * Show job information again on the job page on rq-dashboard [see `PR #1526 <https://github.com/FlexMeasures/flexmeasures/pull/1526>`_]
 
 
-v0.26.0 | June 03, 2025
+v0.26.0 | June 3, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v026-relaxed-scheduling-cleaner-asset-pages/>`_.
@@ -332,7 +332,7 @@ Bugfixes
 * Make flex context usage safer against this field being `None` [see `PR #1503 <https://github.com/FlexMeasures/flexmeasures/pull/1503>`_]
 
 
-v0.25.0 | April 01, 2025
+v0.25.0 | April 1, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v025-flex-context-fully-editable-nicer-status-page/>`_.
@@ -1338,7 +1338,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
-* Updated dependencies, including Flask-Security-Too [see `PR #82 <https://www.github.com/FlexMeasures/flexmeasures/pull/82>`_]
+* Upgraded dependencies, including Flask-Security-Too [see `PR #82 <https://www.github.com/FlexMeasures/flexmeasures/pull/82>`_]
 * Improved documentation after user feedback [see `PR #97 <https://www.github.com/FlexMeasures/flexmeasures/pull/97>`_]
 * Begin experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: ``Sensor`` data as ``TimedBelief`` objects [see `PR #79 <https://www.github.com/FlexMeasures/flexmeasures/pull/79>`_ and `PR #99 <https://github.com/FlexMeasures/flexmeasures/pull/99>`_]
 * Add sensors with CLI command currently meant for developers only [see `PR #83 <https://github.com/FlexMeasures/flexmeasures/pull/83>`_]
