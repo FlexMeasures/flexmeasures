@@ -24,7 +24,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_of_first_sensor_result",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_first_sensor_result",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -44,7 +44,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             "power",
-            4,
+            6,
             False,
             False,
             200,
@@ -147,7 +147,7 @@ def test_fetch_sensors(
     expected_status_code,
     filter_account_id,
     filter_asset_id,
-    asset_id_of_of_first_sensor_result,
+    asset_id_of_first_sensor_result,
 ):
     """
     Retrieve all sensors.
@@ -157,7 +157,7 @@ def test_fetch_sensors(
 
     The `filter_asset_id` specifies the asset_id to filter for.
 
-    The `asset_id_of_of_first_sensor_result` specifies the asset_id of the first sensor
+    The `asset_id_of_first_sensor_result` specifies the asset_id of the first sensor
     in the result list. This sensors is expected to be from a child asset of the asset
     specified in `filter_asset_id`.
 
@@ -210,10 +210,10 @@ def test_fetch_sensors(
                 f"accessible to {requesting_user}. Update the exp_num_results in the test parameters accordingly."
             )
 
-            if asset_id_of_of_first_sensor_result is not None:
+            if asset_id_of_first_sensor_result is not None:
                 assert (
                     response.json[0]["generic_asset_id"]
-                    == asset_id_of_of_first_sensor_result
+                    == asset_id_of_first_sensor_result
                 )
             elif filter_asset_id:
                 assert response.json[0]["generic_asset_id"] == filter_asset_id
