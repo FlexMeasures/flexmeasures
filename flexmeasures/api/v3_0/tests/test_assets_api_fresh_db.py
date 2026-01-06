@@ -142,9 +142,9 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             timedelta(minutes=30),  # Downsampling
             [10, 20, 20, 40],
             [
-                15,
                 30,
-            ],  # we make (10/2 + 20/2) the first hour, and (20/2 + 40/2) the second hour
+                60,
+            ],  # we make (10 + 20) kWh the first hour, and (20 + 40) kWh the second hour
             200,
         ),
         (
