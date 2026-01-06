@@ -5,8 +5,8 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-29 | 2025-12-10
---------------------
+v3.0-29 | 2025-12-30
+""""""""""""""""""""
 
 Added two new forecasting API endpoints:
 
@@ -15,9 +15,10 @@ Added two new forecasting API endpoints:
 
 These endpoints enable programmatic triggering and retrieval of forecasts via the REST API.
 
-v3.0-29 | 2025-12-18
-""""""""""""""""""""
+Also:
+
 - Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
+- Added ``fields`` field to the `/assets` (GET) and `/assets/public` endpoints, to transfer less data by default (will be fully active, i.e. also returning less fiels per default, in v0.32).
 
 v3.0-28 | 2025-10-14
 """"""""""""""""""""
