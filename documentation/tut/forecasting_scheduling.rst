@@ -38,7 +38,7 @@ You can also clear the job queues:
    $ flexmeasures jobs clear-queue --queue scheduling
 
 
-When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
+When the main FlexMeasures process runs (e.g. by ``flexmeasures run``), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``, respectively (by admins).
 
 When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/assets/<id>``.
 
@@ -88,6 +88,54 @@ If you use it, the forecasting jobs will be queued and picked up by worker proce
 Run flexmeasures add forecasts --help for details on CLI parameters, or see :ref:forecasting to learn more about forecasting.
 
 
+Queuing forecasting jobs
+------------------------
+
+There are two ways to queue a forecasting job:
+
+1. **Via the API**, using the endpoint:
+
+   ``POST /api/v3_0/sensors/<id>/forecasts/trigger``
+
+   This endpoint validates the forecasting request (using the same logic as the ``flexmeasures add forecasts`` CLI command) and queues a job on the forecasting queue.
+
+   Example request:
+
+   .. code-block:: json
+
+       {
+         "start_date": "2025-01-01T00:00:00+00:00",
+         "start_predict_date": "2025-01-04T00:00:00+00:00",
+         "end_date": "2025-01-04T04:00:00+00:00"
+       }
+
+   Example response:
+
+   .. code-block:: json
+
+       {
+         "status": "QUEUED",
+         "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+         "message": "Forecasting job waiting to be processed."
+       }
+
+   .. note:: The ``forecast`` field contains the ID of the forecasting job created by this request.
+
+   FlexMeasures will process the jobs created asynchronously and store the resulting forecasts in the database.
+
+   .. note::
+      To use this endpoint, you need the ``create-children`` permission on the sensor (meaning you should be in the same account or be a consultant on it).
+
+2. **Via the CLI**, for users hosting FlexMeasures themselves:
+
+   .. code-block:: bash
+
+       flexmeasures add forecasts --sensor 12 \
+           --from-date 2024-02-02 --to-date 2024-02-02 \
+           --max-forecast-horizon 6 --as-job
+
+   Using ``--as-job`` queues the forecasting computation instead of running it immediately. This allows distributing workload across multiple workers.
+
 .. _how_queue_scheduling:
 
 How scheduling jobs are queued
@@ -104,6 +152,7 @@ We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--
 Here, we extend that (storage) example with an additional target value, representing a desired future state of charge.
 
 .. code-block:: json
+    :emphasize-lines: 6-11
 
     {
         "start": "2015-06-02T10:00:00+00:00",
@@ -115,6 +164,7 @@ Here, we extend that (storage) example with an additional target value, represen
                     "value": "25 kWh",
                     "datetime": "2015-06-02T16:00:00+00:00"
                 }
+            ]
         }
     }
 
@@ -190,6 +240,7 @@ Besides the UUID, the endpoint for retrieving schedules takes a sensor ID, which
 .. note:: If a ``state-of-charge`` sensor was referenced in the flex model (like in the example below), the scheduled state of charge can be retrieved using the same endpoint and UUID, but then using the state-of-charge sensor ID.
 
           .. code-block:: json
+              :emphasize-lines: 3
 
               "flex-model": {
                   "sensor": 15,
