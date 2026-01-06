@@ -223,7 +223,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "kEUR",  # Conversion needed - kEUR to EUR
             timedelta(minutes=30),  # Downsampling
             [2, 3, 4, 2],
-            [2500, 3000],
+            [5, 6],  # we make (2 + 3) EUR the first hour, and (4 + 2) EUR the second hour
             200,
         ),
     ],
