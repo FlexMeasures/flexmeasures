@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import numbers
+import pytz
 from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
@@ -18,7 +19,7 @@ import marshmallow.validate as validate
 from pandas.api.types import is_numeric_dtype
 import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
-from marshmallow.validate import Validator
+from marshmallow.validate import Validator, OneOf
 
 import json
 import re
@@ -229,6 +230,9 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     generic_asset_id = fields.Integer(
         required=True,
         metadata=dict(description="The asset that the sensor belongs to.", example=1),
+    )
+    timezone = fields.String(
+        validate=OneOf(pytz.all_timezones),
     )
 
     @validates("generic_asset_id")

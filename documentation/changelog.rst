@@ -24,6 +24,7 @@ Infrastructure / Support
 * Less verbose error logs given common HTTP requests such as those leading to 404 (Not Found) responses [see `PR #1883 <https://www.github.com/FlexMeasures/flexmeasures/pull/1883>`_]
 * Refactor base.html template from 1500 to ~300 lines [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
 * Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
+* Give ability to edit sensor timezone from the UI [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 
 Bugfixes
 -----------
