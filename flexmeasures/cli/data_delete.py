@@ -327,10 +327,7 @@ def delete_beliefs(  # noqa: C901
         ]
 
     # Create query
-    q = select(TimedBelief).join(Sensor).where(*entity_filters, *event_filters)
-
-    if sources:
-        q = q.filter(TimedBelief.source_id.in_([source.id for source in sources]))
+    q = select(TimedBelief).join(Sensor).where(*entity_filters, *event_filters, *source_filters)
 
     # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
