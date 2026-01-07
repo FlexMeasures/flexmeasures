@@ -51,6 +51,7 @@
     let sessionEnd = null;
     let minRes;
     let toggle;
+    let stepTriggered = false;
 
     if ('{{ active_page }}' == 'assets') {
         chartType = 'chart_for_multiple_sensors';
@@ -239,6 +240,8 @@
             toggleReplay();
         } else if (e.key === 's') {
             stopReplay();
+        } else if (e.key === 'n') {
+            stepReplay();
         }
     }, false);
 
@@ -495,6 +498,18 @@
         });
     }
 
+    function stepReplay() {
+        if (toggle.classList.contains('stopped')) {
+            startReplay();
+            pauseReplay();
+            stepTriggered = true;
+        } else if (toggle.classList.contains('paused')) {
+            stepTriggered = true;
+        } else if (toggle.classList.contains('playing')) {
+            pauseReplay();
+        }
+    }
+
     function toggleReplay() {
         if (toggle.classList.contains('stopped')) {
             startReplay();
@@ -536,6 +551,7 @@
     }
 
     function startReplay() {
+        stepTriggered = false;
         toggle.classList.remove('stopped');
         toggle.classList.add('playing');
         var beliefTime = new Date(storeStartDate);
@@ -583,7 +599,11 @@
             var replayedData = [];
             for (var beliefTime = new Date(storeStartDate); beliefTime <= storeEndDate; beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)) {
                 while (document.getElementById('replay').classList.contains('paused')) {
-                    await timer(1000);
+                    if (stepTriggered) {
+                        stepTriggered = false;
+                        break;
+                    }
+                    await timer(100);
                 }
                 if (document.getElementById('replay').classList.contains('stopped')) {
                     break;
@@ -600,7 +620,7 @@
                 // Update beliefs in the replayed data given the new data
                 replayedData = updateBeliefs(replayedData, newData);
 
-                /** When selecting a longer time periode (more than a week), the replay slows down a bit. This
+                /** When selecting a longer time period (more than a week), the replay slows down a bit. This
                  * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
                  * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
                  * graph. After trying different approaches, we fell back to the original approach of telling vega
