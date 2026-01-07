@@ -307,7 +307,6 @@ The event_value should be a numeric value."
             window.location.reload();
         } else {
             const errorData = await response.json();
-            console
             let errorMessage = response.statusText; // Default to statusText
 
             const messageUnitError = errorData?.message?.json?.unit?.[0];
