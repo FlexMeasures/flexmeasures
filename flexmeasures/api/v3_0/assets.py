@@ -299,7 +299,7 @@ class AssetAPI(FlaskView):
         if account is not None:
             check_access(account, "read")
             account_ids = [account.id]
-            include_public_assets = False
+            include_public_assets = include_public
         else:
             use_all_accounts = all_accessible or root_asset
             include_public_assets = all_accessible or include_public or root_asset
