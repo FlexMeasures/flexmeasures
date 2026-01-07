@@ -319,6 +319,13 @@ def delete_beliefs(  # noqa: C901
             Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
         ]
 
+    # Source filter
+    source_filters = []
+    if sources:
+        source_filters += [
+            TimedBelief.source_id.in_([source.id for source in sources])
+        ]
+
     # Create query
     q = select(TimedBelief).join(Sensor).where(*entity_filters, *event_filters)
 
