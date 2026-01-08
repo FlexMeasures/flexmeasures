@@ -97,6 +97,47 @@ class SensorsToShowSchema(fields.Field):
                 "Invalid item type in 'sensors_to_show'. Expected int, list, or dict."
             )
 
+    # def _standardize_item(self, item) -> dict:
+    #     """
+    #     Standardize different input formats to a consistent dictionary format.
+    #     """
+    #     if isinstance(item, int):
+    #         return {"title": None, "sensors": [item]}
+    #     elif isinstance(item, list):
+    #         if not all(isinstance(sensor_id, int) for sensor_id in item):
+    #             raise ValidationError(
+    #                 "All elements in a list within 'sensors_to_show' must be integers."
+    #             )
+    #         return {"title": None, "sensors": item}
+    #     elif isinstance(item, dict):
+    #         if "title" not in item:
+    #             raise ValidationError("Dictionary must contain a 'title' key.")
+    #         else:
+    #             title = item["title"]
+    #             if not isinstance(title, str) and title is not None:
+    #                 raise ValidationError("'title' value must be a string.")
+
+    #         if "sensor" in item:
+    #             sensor = item["sensor"]
+    #             if not isinstance(sensor, int):
+    #                 raise ValidationError("'sensor' value must be an integer.")
+    #             return {"title": title, "sensors": [sensor]}
+    #         elif "sensors" in item:
+    #             sensors = item["sensors"]
+    #             if not isinstance(sensors, list) or not all(
+    #                 isinstance(sensor_id, int) for sensor_id in sensors
+    #             ):
+    #                 raise ValidationError("'sensors' value must be a list of integers.")
+    #             return {"title": title, "sensors": sensors}
+    #         else:
+    #             raise ValidationError(
+    #                 "Dictionary must contain either 'sensor' or 'sensors' key."
+    #             )
+    #     else:
+    #         raise ValidationError(
+    #             "Invalid item type in 'sensors_to_show'. Expected int, list, or dict."
+    #         )
+
     def _standardize_dict_item(self, item: dict) -> dict:
         if "title" not in item:
             raise ValidationError("Dictionary must contain a 'title' key.")

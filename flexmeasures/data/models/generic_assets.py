@@ -286,6 +286,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
 
         sensor_ids_to_show = self.sensors_to_show
+        print("===========================: sensor_ids_to_show: ", sensor_ids_to_show)
         # Import the schema for validation
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
@@ -296,7 +297,11 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensor_ids_to_show
         )
 
+        print("===========================: ")
+        print("standardized_sensors_to_show: ", standardized_sensors_to_show)
+
         sensor_id_allowlist = SensorsToShowSchema.flatten(standardized_sensors_to_show)
+        print("sensor_id_allowlist: ", sensor_id_allowlist)
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
