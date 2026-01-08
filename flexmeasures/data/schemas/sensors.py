@@ -676,18 +676,20 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     event_resolution=bdf.event_resolution,
                 )
 
-                # Special cases for resampling known stock units
-                # todo: allow users to override this behaviour
-                known_stock_unit_validators = [is_currency_unit, is_energy_unit]
-                if units_are_convertible(
-                    from_unit, sensor.unit, duration_known=False
-                ) and any(
-                    is_stock_unit(from_unit)
-                    for is_stock_unit in known_stock_unit_validators
-                ):
-                    bdf = bdf.resample_events(sensor.event_resolution, method="sum")
-                elif sensor.event_resolution != timedelta(0):
-                    bdf = bdf.resample_events(sensor.event_resolution)
+                if sensor.event_resolution != timedelta(0):
+
+                    # Special cases for resampling known stock units
+                    # todo: allow users to override this behaviour
+                    known_stock_unit_validators = [is_currency_unit, is_energy_unit]
+                    if units_are_convertible(
+                        from_unit, sensor.unit, duration_known=False
+                    ) and any(
+                        is_stock_unit(from_unit)
+                        for is_stock_unit in known_stock_unit_validators
+                    ):
+                        bdf = bdf.resample_events(sensor.event_resolution, method="sum")
+                    else:
+                        bdf = bdf.resample_events(sensor.event_resolution)
                 dfs.append(bdf)
             except Exception as e:
                 error_message = (
