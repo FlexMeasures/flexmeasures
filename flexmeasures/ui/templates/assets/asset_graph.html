@@ -1,6 +1,20 @@
+<!--
+  ASSET GRAPH DASHBOARD & CUSTOMIZATION
+  =====================================
+
+  This template renders the graphs/sensors_to_show for an Asset.
+
+  Key Functionalities:
+  1. Base Structure: Sets up the container for the Vega chart, KPI cards, loading spinner, and replay controls.
+  2. Graph Customization: Contains the complete logic for the "Edit Graphs" modal, allowing users to 
+     configure `sensors_to_show` (add/remove/reorder sensors and grouping).
+  3. Charging Hub Visualization: specific support and UI notes for the "Charge Points" chart type.
+  4. URL Sharing: Logic to generate and copy the current URL (including the active date range) to the clipboard.
+-->
 {% extends "base.html" %}
 
 {% set active_page = "assets" %}
+{% set active_subpage = "asset_graph" %}
 
 {% block title %} {{asset.name}} {% endblock %}
 
@@ -16,9 +30,9 @@
             <div class="header-action-button">
                 <div>
                     <button class="btn btn-primary" type="button" data-bs-toggle="modal"
-                                        data-bs-target="#sensorsToShowModal">
-                                        Edit Graphs
-                                    </button>
+                        data-bs-target="#sensorsToShowModal">
+                        Edit Graphs
+                    </button>
                 </div>
             </div>
             <div class="sidepanel-container ">
@@ -27,13 +41,66 @@
                     <div id="datepicker"></div>
                 </div>
             </div>
+            <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3" style="display: none">
+                <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Select chart
+                </button>
+                <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center" href="#" data-chart-type="chart_for_chargepoint_sessions">
+                        <span>Charge Points</span>
+                        <i class="bi bi-info-circle"
+                           style="margin-left: 8px;"
+                           tabindex="0"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="right"
+                           data-bs-html="true"
+                           title="<div style='max-width: 300px;'>
+                             <strong>This chart shows charge hub patterns.
+                             Especially useful for many chargers. <br>It only shows <em>when</em> charging happened, not <em>how much</em>.</strong>
+                             <hr style='border-top: 1px; margin: 0.75rem 0 0.5rem 0;'>
+                             <strong>
+                             This chart will also show two context graphs if your main dashboard includes them - their titles should be `Power flow by type` and `Prices`.
+                             </strong>
+                             <hr style='border-top: 1px; margin: 0.75rem 0 0.5rem 0;'>
+                             <strong>Dashed line: Arrival → Departure</strong>
+                             <small>Shows the time the vehicle was present at the location.</small>
+                             <strong>Thin line: Plug-in → Plug-out</strong>
+                             <small>Indicates when the EV was physically plugged in but not necessarily charging.</small>
+                             <strong>Bold line: Start → Stop Charging</strong>
+                             <small>Marks the actual charging period, when energy is being delivered to the EV.</small>
+                           </div>">
+                        </i>
+                      </a>
+                    </li>
+                </ul>
+            </div>
    
         </div>
         <div class="col-md-8">
-            <div id="spinner">
+            <div id="spinner" class="spinner">
                 <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                 <span class="sr-only">Loading...</span>
             </div>
+            {% if has_kpis %}
+            <div class="row">
+                <div class="col-md-12">
+                    <div id="kpi-cards" class="row g-3">
+                        {% for kpi in asset_kpis %}
+                        <div class="col-md-3 d-flex">
+                            <div class="card flex-fill">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ kpi.title }}</h5>
+                                    <p class="card-text">Loading...</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             <div id="sensorchart" class="card" style="width: 100%;"></div>
             <div class="row">
                 <div class="copy-url" title="Click to copy the URL to the current time range to clipboard.">
@@ -54,19 +121,6 @@
                                 dif + pad(Math.floor(Math.abs(tzo) / 60)) +
                                 ':' + pad(Math.abs(tzo) % 60);
                         }
-
-                        $(window).ready(() => {
-                            picker.on('selected', (startDate, endDate) => {
-                                startDate = encodeURIComponent(toIsoString(startDate.toJSDate()));
-                                endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
-                                var base_url = window.location.href.split("?")[0];
-                                var new_url = `${base_url}?start_time=${startDate}&end_time=${endDate}`;
-
-                                // change current url without reloading the page
-                                window.history.pushState({}, null, new_url);
-                            });
-
-                        });
 
                         function copyUrl(event) {
                             event.preventDefault();
@@ -112,12 +166,52 @@
             
 
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 replay-column">
             <div class="replay-container">
-                <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
+                <div
+                     id="replay"
+                     data-bs-toggle="tooltip"
+                     data-bs-html="true"
+                     data-bs-custom-class="replay-tooltip"
+                     data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step."
+                     class="stopped">
+                </div>
                 <div id="replay-time"></div>
             </div>
         </div>
+
+        <div id="chartInfoNote" class="text-center text-muted fst-italic my-2" style="display: none;">
+          ℹ️ Click legend to filter | Hold <kbd>Ctrl</kbd> + drag to pan
+        </div>
+        <script>
+              document.addEventListener('DOMContentLoaded', function () {
+                const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.forEach(function (el) {
+                  new bootstrap.Tooltip(el);
+                });
+              });
+            document.addEventListener("DOMContentLoaded", function () {
+                const note = document.getElementById("chartInfoNote");
+                const chartTypeDropdown = document.getElementById("chartTypeDropdown");
+
+                // Initial check
+                if (chartTypeDropdown.innerText.includes("ChargePoints Chart")) {
+                    note.style.display = "block";
+                }
+
+                // Show note only if "ChargePoints Chart" is selected
+                document.querySelectorAll("[data-chart-type]").forEach((el) => {
+                    el.addEventListener("click", (e) => {
+                        const chartType = el.getAttribute("data-chart-type");
+                        if (chartType === "chart_for_chargepoint_sessions") {
+                            note.style.display = "block";
+                        } else {
+                            note.style.display = "none";
+                        }
+                    });
+                });
+            });
+        </script>
     </div>
     <!-- Modal -->
     <div class="modal fade modal-xl" id="sensorsToShowModal" tabindex="-1" aria-labelledby="sensorsToShowModalLabel"
@@ -127,10 +221,13 @@
                 <div class="modal-header">
                     <h5 class="modal-title pe-2">Edit Dashboard Graphs</h5>
 
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+                    <div class="dropdown">
+                        <span class="fa fa-info dropdown-toggle" 
+                            role="button" 
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false" 
+                            tabindex="0">
+                        </span>
 
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
@@ -152,7 +249,10 @@
                         </div>
                     </div>
 
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -209,12 +309,9 @@
 <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
 
-{% block leftsidepanel %} {{ super() }} {% endblock %}
-{% block sensorChartSetup %} {{ super() }} {% endblock %}
+{% include 'includes/graphs.html' %}
 
-<!-- Initialise the map -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
-<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+<!-- Graph editing support -->
 <script>
     const senSearchResEle = document.getElementById("sensorsSearchResults")
 
@@ -230,6 +327,11 @@
     let selectedGraphTitle; // keeps track of the graph title that is currently selected
     const apiBasePath = window.location.origin;
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+
+    const saveChangesBtn = document.getElementById("saveChangesBtn");
+    saveChangesBtn.onclick = async function () {
+        await updateAssetSensorsToShow();
+    };
 
     // Fetch Account Details
     async function getAccount(accountId) {
@@ -560,7 +662,7 @@
                     <h5 class="card-title">${sensor.name}</h5>
                     <p class="card-text">
                         <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                        <b>Unit:</b> ${sensor.unit},
+                        <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                         <b>Asset:</b> ${Asset.name},
                         <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                     </p>
@@ -596,11 +698,11 @@
                         <h5 class="card-title">${sensor.name}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                            <b>Unit:</b> ${sensor.unit},
+                            <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
                             <b>Asset:</b> ${Asset.name},
                             <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
                         </p>
-                        <button class="btn btn-primary btn-sm" onclick="udpateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
+                        <button class="btn btn-primary btn-sm" onclick="updateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
                     </div>
                 </div>
             `;
@@ -609,24 +711,14 @@
         });
     }
 
-    async function updateAssetSensorsToShow(dataType) {
+    async function updateAssetSensorsToShow() {
+        const refreshSpinner = document.getElementById('spinner');
+        const sensorChartDiv = document.getElementById('sensorchart');
 
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        let requestBody;
-
-        if (dataType === "sensorToShow") {
-            requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
-            // Only show the spinner if relevant to this specific data type
-            document.getElementById('spinner').style.display = 'block';
-        } else if (dataType === "flexContext") {
-            // remove null fields
-            for (const [key, value] of Object.entries(assetFlexContext)) {
-                if (value === null) {
-                    delete assetFlexContext[key];
-                }
-            }
-            requestBody = JSON.stringify({ flex_context: JSON.stringify(assetFlexContext) });
-        }
+        const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
+        refreshSpinner.style.display = 'block';
+        sensorChartDiv.style.display = 'none';
 
         const response = await fetch(apiURL, {
             method: "PATCH",
@@ -638,11 +730,13 @@
 
         if (!response.ok) {
             const errorData = await response.json();
-            const errorMessage = errorData?.message || errorData?.error || response.statusText;
+            const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
             showToast(`Failed to update the asset: ${errorMessage}`, "error");
         } else {
             document.dispatchEvent(new Event('sensorsToShowUpdated'));
             showToast("Changes saved successfully", "success");
+            refreshSpinner.style.display = 'none';
+            sensorChartDiv.style.display = 'block';
         }
     }
 
@@ -687,11 +781,24 @@
             renderApiSensors(cachedFilteredSensors, graphIndex);
         }
     }
-
+    async function showAssetChartSelection(){
+        let asset = await getAsset({{ asset.id }})
+        for (let child of asset.child_assets){
+            if (child['generic_asset_type']['name'] == 'smartbuilding.chargepoint'){
+                return true;
+            };
+        };
+        return false;
+    }
 
     // ============== Page Events ============== //
-    formModal.addEventListener('hidden.bs.modal', function () {
-        updateAssetSensorsToShow("sensorToShow");
+    document.addEventListener('DOMContentLoaded', async () => {
+        const shouldShow = await showAssetChartSelection();
+        const chartTypeDropdown = document.getElementById('chart-type-picker');
+        if (shouldShow) {
+            console.log("Show chart selection!");
+            chartTypeDropdown.style.display = 'block';
+        }
     });
 
     formModal.addEventListener('shown.bs.modal', function () {
@@ -734,6 +841,7 @@
             renderApiSensors([], undefined);
         }
     });
+
 
     // ============== Page Events ============== //
 </script>

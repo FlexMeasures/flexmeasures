@@ -73,13 +73,20 @@ Data
 -------
 
 The postgres database is a test database with toy data filled in when the flexmeasures container starts.
-You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config. 
+You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config.
+
+The database within the ``dev-db`` postgres container resides in ``/var/lib/postgresql/data``, which we map the local path ``./docker-compose-data/dev-db`` iso as developer you can have persistence for your data across re-building the compose stack.
+
+* A manual backup of the database can be made by copying this directory.
+* For a fresh start, you can delete this directory: ``rm -rf ./docker-compose-data/dev-db`` (``sudo`` might be required, if this directory was created by ``docker``). The database will be re-initialized when you restart the stack.
+
+.. warning:: We fixed the postgres version to 17. Postgres sometimes requires structural changes between version upgrades. Deleting your dev db and re-creating it is one option. Another is `this upgrade procedure <https://helgeklein.com/blog/upgrading-postgresql-in-docker-container/>`_ if you want to continue with your dev data.
 
 
 .. _docker-compose-tutorial:
 
 Seeing it work: Running the toy tutorial
---------------------------------------
+-----------------------------------------
 
 A good way to see if these containers work well together, and maybe to inspire how to use them for your own purposes, is the :ref:`tut_toy_schedule`.
 
@@ -97,9 +104,9 @@ Next, we put a scheduling job in the worker's queue. This only works because we 
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
+    $ flexmeasures add schedule --sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-        --roundtrip-efficiency 90% --as-job
+        --flex-model '{"soc-min": "50 kWh"}' --as-job
 
 We should now see in the output of ``docker logs flexmeasures-worker-1`` something like the following:
 
@@ -146,6 +153,18 @@ Like in the original toy tutorial, we can also check in the server container's `
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+|
+
+.. note::
+    Actually, we keep scripts for the first 5 tutorial steps. You can run them easily (just do it in order):
+    
+    .. code-block:: bash
+
+        $ ./documentation/tut/scripts/run-tutorial-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial2-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial3-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial4-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial5-in-docker.sh
 
 
 Email Testing

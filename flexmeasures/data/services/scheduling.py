@@ -15,8 +15,9 @@ from copy import deepcopy
 from traceback import print_tb
 
 
-from flask import current_app
 import click
+from flask import current_app
+from isodate import duration_isoformat
 from rq import get_current_job, Callback
 from rq.exceptions import InvalidJobOperation
 from rq.job import Job
@@ -123,7 +124,8 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 
         scheduler_kwargs = job.meta["scheduler_kwargs"]
 
-        # Deserialize start and end
+        # Deserialize start, end, resolution and belief_time
+        # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
         timezone = "UTC"
         if hasattr(asset_or_sensor, "timezone"):
             timezone = asset_or_sensor.timezone
@@ -133,6 +135,14 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
         scheduler_kwargs["end"] = pd.Timestamp(scheduler_kwargs["end"]).tz_convert(
             timezone
         )
+        if isinstance(scheduler_kwargs.get("belief_time"), str):
+            scheduler_kwargs["belief_time"] = pd.Timestamp(
+                scheduler_kwargs["belief_time"]
+            ).tz_convert(timezone)
+        if isinstance(scheduler_kwargs.get("resolution"), str):
+            scheduler_kwargs["resolution"] = pd.Timedelta(
+                scheduler_kwargs["resolution"]
+            )
 
         if ("scheduler_specs" in job.kwargs) and (
             job.kwargs["scheduler_specs"] is not None
@@ -175,7 +185,6 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 @job_cache("scheduling")
 def create_scheduling_job(
     asset_or_sensor: Asset | Sensor | None = None,
-    sensor: Sensor | None = None,
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
@@ -214,12 +223,6 @@ def create_scheduling_job(
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We should put only serializable scheduler_kwargs into the job!
 
-    if sensor is not None:
-        current_app.logger.warning(
-            "The `sensor` keyword argument is deprecated. Please, consider using the argument `asset_or_sensor`."
-        )
-        asset_or_sensor = sensor
-
     if scheduler_specs:
         scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
     else:
@@ -230,6 +233,9 @@ def create_scheduling_job(
         asset_or_sensor=asset_or_sensor,
         scheduler_params=scheduler_kwargs,
     )
+    scheduler.collect_flex_config()
+    scheduler_kwargs["flex_context"] = scheduler.flex_context
+    scheduler_kwargs["flex_model"] = scheduler.flex_model
     scheduler.deserialize_config()
 
     asset_or_sensor = get_asset_or_sensor_ref(asset_or_sensor)
@@ -260,13 +266,23 @@ def create_scheduling_job(
     job.meta["asset_or_sensor"] = asset_or_sensor
     job.meta["scheduler_kwargs"] = scheduler_kwargs
 
-    # Serialize start and end
+    # Serialize start, end, resolution and belief_time
+    # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
     job.meta["scheduler_kwargs"]["start"] = job.meta["scheduler_kwargs"][
         "start"
     ].isoformat()
     job.meta["scheduler_kwargs"]["end"] = job.meta["scheduler_kwargs"][
         "end"
     ].isoformat()
+    if job.meta["scheduler_kwargs"].get("belief_time") is not None:
+        job.meta["scheduler_kwargs"]["belief_time"] = job.meta["scheduler_kwargs"][
+            "belief_time"
+        ].isoformat()
+
+    if job.meta["scheduler_kwargs"].get("resolution") is not None:
+        job.meta["scheduler_kwargs"]["resolution"] = duration_isoformat(
+            job.meta["scheduler_kwargs"]["resolution"]
+        )
 
     job.save_meta()
 
@@ -487,7 +503,7 @@ def create_simultaneous_scheduling_job(
     return job
 
 
-def make_schedule(
+def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
@@ -498,6 +514,7 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
     scheduler_specs: dict | None = None,
+    dry_run: bool = False,
     **scheduler_kwargs: dict,
 ) -> bool:
     """
@@ -509,7 +526,8 @@ def make_schedule(
 
     This is what this function does:
     - Find out which scheduler should be used & compute the schedule
-    - Turn scheduled values into beliefs and save them to db
+    - Turn scheduled values into beliefs
+    - Save the beliefs to the database, unless dry_run is False
     """
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
     db.engine.dispose()
@@ -618,10 +636,16 @@ def make_schedule(
             for dt, value in result["data"].items()
         ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
         bdf = tb.BeliefsDataFrame(ts_value_schedule)
-        save_to_db(bdf)
+        if not dry_run:
+            save_to_db(bdf)
+        else:
+            print(
+                f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
+            )
 
-    scheduler.persist_flex_model()
-    db.session.commit()
+    if not dry_run:
+        scheduler.persist_flex_model()
+        db.session.commit()
 
     return True
 
@@ -666,9 +690,9 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def get_data_source_for_job(job: Job) -> DataSource | None:
+def get_data_source_for_job(job: Job, type: str = "scheduler") -> DataSource | None:
     """
-    Try to find the data source linked by this scheduling job.
+    Try to find the data source linked by this scheduling or forecasting job.
 
     We expect that enough info on the source was placed in the meta dict, either:
     - the DataSource ID itself (i.e. the normal situation), or
@@ -680,16 +704,16 @@ def get_data_source_for_job(job: Job) -> DataSource | None:
         return db.session.get(DataSource, data_source_info["id"])
     if data_source_info is None:
         raise ValueError(
-            "Cannot look up scheduling data without knowing the full data_source_info (version)."
+            f"Cannot look up {type} data without knowing the full data_source_info (version)."
         )
-    scheduler_sources = db.session.scalars(
+    sources = db.session.scalars(
         select(DataSource)
         .filter_by(
-            type="scheduler",
+            type=type,
             **data_source_info,
         )
         .order_by(DataSource.version.desc())
     ).all()  # Might still be more than one, e.g. per user
-    if len(scheduler_sources) == 0:
+    if len(sources) == 0:
         return None
-    return scheduler_sources[0]
+    return sources[0]

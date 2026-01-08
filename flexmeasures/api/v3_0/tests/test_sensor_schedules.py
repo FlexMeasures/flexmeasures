@@ -136,10 +136,11 @@ def test_trigger_and_get_schedule_with_unknown_prices(
 
     # process the scheduling queue
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
-    assert (
-        Job.fetch(job_id, connection=app.queues["scheduling"].connection).is_failed
-        is True
-    )
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_failed
+
+    # Make sure that the db flex_context shows up in the job kwargs
+    assert "flex-context" not in message and job.kwargs.get("flex_context")
 
     # check results are not in the database
     scheduler_source = db.session.execute(
@@ -250,9 +251,11 @@ def test_get_schedule_fallback(
         )
 
         # check that the job is failing
-        assert Job.fetch(
-            job_id, connection=app.queues["scheduling"].connection
-        ).is_failed
+        job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+        assert job.is_failed
+
+        # Make sure that the db flex_context shows up in the job kwargs
+        assert "flex-context" not in message and job.kwargs.get("flex_context")
 
         # the callback creates the fallback job which is still pending
         assert len(app.queues["scheduling"]) == 1
@@ -273,7 +276,7 @@ def test_get_schedule_fallback(
         )  # Status code for redirect ("See other")
         assert (
             get_schedule_response.json["message"]
-            == "Scheduling job failed with InfeasibleProblemException: . StorageScheduler was used."
+            == "Scheduling job failed with InfeasibleProblemException: infeasible. StorageScheduler was used."
         )
         assert get_schedule_response.json["status"] == "UNKNOWN_SCHEDULE"
         assert get_schedule_response.json["result"] == "Rejected"
@@ -400,9 +403,11 @@ def test_get_schedule_fallback_not_redirect(
         )
 
         # check that the job is failing
-        assert Job.fetch(
-            job_id, connection=app.queues["scheduling"].connection
-        ).is_failed
+        job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+        assert job.is_failed
+
+        # Make sure that the db flex_context shows up in the job kwargs
+        assert "flex-context" not in message and job.kwargs.get("flex_context")
 
         # the callback creates the fallback job which is still pending
         assert len(app.queues["scheduling"]) == 1

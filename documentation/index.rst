@@ -51,13 +51,14 @@ The main purpose of FlexMeasures is to create optimized schedules. Let's have a 
 
             $ pip install flexmeasures  # FlexMeasures can also be run via Docker
             $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
-            $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
+            $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret && export SECURITY_TOTP_SECRETS={"1":"something-secret"}
             $ flexmeasures db upgrade  # create tables
             $ flexmeasures add toy-account --kind battery  # setup account incl. a user, battery (ID 2) and market (ID 1)
             $ flexmeasures add beliefs --sensor 2 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
-            $ flexmeasures add schedule for-storage --sensor 2 --consumption-price-sensor 1 \
+            $ flexmeasures add schedule --sensor 2 \
                 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-                --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
+                --soc-at-start 50% --flex-context '{"consumption-price": {"sensor": 1}}' \
+                --flex-model '{"roundtrip-efficiency": "90%"}' # this is also possible per API
             $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
     
 
@@ -89,7 +90,7 @@ What FlexMeasures does
     - API
         FlexMeasures runs in the cloud (although it can also run on-premise if needed, for instance as Docker container). Therefore, a well-supported REST-like API is crucial. You can add & retrieve data, trigger schedule computations and even add and edit the structure (of assets and sensors). Read more at :ref:`api_introduction`.  
     - UI
-        We built a user interface for FlexMeasures, so assets, data and schedules can be inspected by devs, hosters and analysts. You can start with :ref:`_dashboard` to get an idea. We expect that real energy flexibility services will come with their own UI, maybe as they are connecting FlexMeasures as a smart backend to an existing user-facing ESCO platform. In these cases, the API is more useful. However, FlexMeasures can provide its data plots and visualizations through the API in these cases, see :ref:`tut_building_uis`.
+        We built a user interface for FlexMeasures, so assets, data and schedules can be inspected by devs, hosts and analysts. You can start with :ref:`_dashboard` to get an idea. We expect that real energy flexibility services will come with their own UI, maybe as they are connecting FlexMeasures as a smart backend to an existing user-facing ESCO platform. In these cases, the API is more useful. However, FlexMeasures can provide its data plots and visualizations through the API in these cases, see :ref:`tut_building_uis`.
     - CLI
         For the engineers hosting FlexMeasures, a command-line interface is crucial. We developed a range of :ref:`cli` based on the ``flexmeasures`` directive (see also the code example above), so that DevOps personnel can administer accounts & users, load & review data and heck on computation jobs. The CLI is also useful to automate calls to third party APIs (via CRON jobs for instance) ― this is usually done when plugins add their own ``flexmeasures`` commands. 
     - FlexMeasures Client
@@ -99,7 +100,7 @@ What FlexMeasures does
 .. _use_cases_and_users:
 
 Use cases & Users
------------
+------------------
 
 .. tabs::
 
@@ -172,6 +173,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     tut/toy-example-setup
     tut/toy-example-from-scratch
     tut/toy-example-expanded
+    tut/toy-example-multiasset-curtailment
     tut/flex-model-v2g
     tut/toy-example-process
     tut/toy-example-reporter
@@ -227,6 +229,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     host/data
     host/deployment
     configuration
+    host/white-labelling
     host/queues
     host/error-monitoring
     host/modes

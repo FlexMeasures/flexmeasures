@@ -11,6 +11,7 @@ from marshmallow import (
     ValidationError,
     fields,
     post_load,
+    pre_load,
     validates,
     validates_schema,
 )
@@ -23,6 +24,7 @@ from marshmallow.validate import Validator
 import json
 import re
 import isodate
+from marshmallow_oneofschema import OneOfSchema
 import pandas as pd
 
 from flexmeasures.data import ma, db
@@ -34,6 +36,7 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
     convert_to_quantity,
 )
+from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
@@ -95,7 +98,7 @@ class TimedEventSchema(Schema):
         setattr(self.fields["value"], "return_magnitude", return_magnitude)
 
     @validates("value")
-    def validate_value(self, _value):
+    def validate_value(self, _value, **kwargs):
         if self.value_validator is not None:
             self.value_validator(_value)
 
@@ -170,36 +173,81 @@ class SensorSchemaMixin(Schema):
             model = Asset
     """
 
-    id = ma.auto_field(dump_only=True)
-    name = ma.auto_field(required=True)
-    unit = ma.auto_field(required=True)
-    timezone = ma.auto_field()
-    event_resolution = DurationField(required=True)
-    entity_address = fields.String(dump_only=True)
-    attributes = JSON(required=False)
+    id = ma.auto_field(
+        dump_only=True,
+        metadata=dict(
+            description="The sensor's ID, which is automatically assigned.",
+            example=5,
+        ),
+    )
+    name = ma.auto_field(
+        required=True, metadata=dict(description="The sensor's name.", example="power")
+    )
+    unit = ma.auto_field(
+        required=True,
+        metadata=dict(
+            description="The sensor's (physical or economical) unit. Supports [<abbr title='International System of Units'>SI</abbr> units](https://en.wikipedia.org/wiki/International_System_of_Units) and [currency codes](https://en.wikipedia.org/wiki/ISO_4217).",
+            example="EUR/kWh",
+        ),
+    )
+    timezone = ma.auto_field(
+        metadata=dict(
+            description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
+            example="Europe/Amsterdam",
+        )
+    )
+    event_resolution = DurationField(
+        required=True,
+        metadata=dict(
+            description="The duration of events recorded by the sensor.",
+            example="PT15M",
+        ),
+    )
+    entity_address = fields.String(
+        dump_only=True,
+        metadata=dict(
+            description="Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+        ),
+    )
+    attributes = JSON(
+        required=False,
+        metadata=dict(
+            description="JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
+            example="{consumption_is_positive: True}",
+        ),
+    )
 
     @validates("unit")
-    def validate_unit(self, unit: str):
+    def validate_unit(self, unit: str, **kwargs):
         if not is_valid_unit(unit):
             raise ValidationError(f"Unit '{unit}' cannot be handled.")
+
+    @pre_load
+    def set_default_timezone(self, data, **kwargs):
+        """Set the default timezone to the server timezone only for a full load (POST, not PATCH)."""
+        partial = kwargs.get("partial", False)
+        if not partial and not data.get("timezone"):
+            data["timezone"] = str(get_timezone())
+        return data
 
 
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
-    Sensor schema, with validations.
+    Sensor schema with validations.
     """
 
-    generic_asset_id = fields.Integer(required=True)
+    generic_asset_id = fields.Integer(
+        required=True,
+        metadata=dict(description="The asset that the sensor belongs to.", example=1),
+    )
 
     @validates("generic_asset_id")
-    def validate_generic_asset(self, generic_asset_id: int):
+    def validate_generic_asset(self, generic_asset_id: int, **kwargs):
         generic_asset = db.session.get(GenericAsset, generic_asset_id)
         if not generic_asset:
             raise ValidationError(
                 f"Generic asset with id {generic_asset_id} doesn't exist."
             )
-        # Add it to context to use it for AssetAuditLog record
-        self.context["generic_asset"] = generic_asset
 
     class Meta:
         model = Sensor
@@ -238,7 +286,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         sensor = db.session.get(Sensor, value)
 
         if sensor is None:
-            raise FMValidationError(f"No sensor found with id {value}.")
+            raise FMValidationError(f"No sensor found with ID {value}.")
 
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
@@ -413,14 +461,43 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         return super().convert(_value, param, ctx, **kwargs)
 
-    def _get_unit(self, variable_quantity: ur.Quantity | list[dict | Sensor]) -> str:
-        """Obtain the unit from the variable quantity."""
+    def _get_original_unit(
+        self,
+        serialized_variable_quantity: str | list[dict] | dict,
+        deserialized_variable_quantity: ur.Quantity | list[dict] | Sensor,
+    ) -> str:
+        """Obtain the original unit from the still serialized variable quantity."""
+        if isinstance(serialized_variable_quantity, str):
+            unit = str(ur.Quantity(serialized_variable_quantity).units)
+        elif isinstance(serialized_variable_quantity, list):
+            unit = str(ur.Quantity(serialized_variable_quantity[0]["value"]).units)
+        elif isinstance(serialized_variable_quantity, dict):
+            # use deserialized quantity to avoid another Sensor query; the serialized quantity only has the sensor ID
+            unit = deserialized_variable_quantity.unit
+        else:
+            raise NotImplementedError(
+                f"Unexpected type '{type(serialized_variable_quantity)}' for serialized_variable_quantity describing '{self.data_key}': {serialized_variable_quantity}."
+            )
+        return unit
+
+    def _get_unit(self, variable_quantity: ur.Quantity | list[dict] | Sensor) -> str:
+        """Obtain the unit from the (deserialized) variable quantity.
+
+        >>> VariableQuantityField("MW")._get_unit(ur.Quantity("3 kWh"))
+        'kWh'
+        >>> VariableQuantityField("/MW")._get_unit([{'value': ur.Quantity("3 kEUR/MWh")}, {'value': ur.Quantity("0 EUR/kWh")}])
+        'kEUR/MWh'
+        """
         if isinstance(variable_quantity, ur.Quantity):
             unit = str(variable_quantity.units)
         elif isinstance(variable_quantity, list):
             unit = str(variable_quantity[0]["value"].units)
             if not all(
-                str(variable_quantity[j]["value"].units) == unit
+                units_are_convertible(
+                    from_unit=str(variable_quantity[j]["value"].units),
+                    to_unit=unit,
+                    duration_known=False,  # prevent mistakes by not allowing to mix kW and kWh units within a single time series specification
+                )
                 for j in range(len(variable_quantity))
             ):
                 raise ValidationError(
@@ -467,9 +544,15 @@ class TimeSeriesOrSensor(VariableQuantityField):
         super().__init__(return_magnitude=True, *args, **kwargs)
 
 
-class SensorDataFileSchema(Schema):
+class SensorDataFileDescriptionSchema(Schema):
+    """
+    Schema for uploading a file with sensor data.
+    This one describes only the file upload part, not the sensor itself.
+    See SensorDataFileSchema for the full schema.
+    """
+
     uploaded_files = fields.List(
-        fields.Field(metadata={"type": "string", "format": "byte"}),
+        fields.Raw(metadata={"type": "file"}),
         data_key="uploaded-files",
     )
     belief_time_measured_instantly = fields.Boolean(
@@ -480,6 +563,9 @@ class SensorDataFileSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+
+
+class SensorDataFileSchema(SensorDataFileDescriptionSchema):
     sensor = SensorIdField(data_key="id")
 
     _valid_content_types = {
@@ -491,7 +577,7 @@ class SensorDataFileSchema(Schema):
     }
 
     @validates("uploaded_files")
-    def validate_uploaded_files(self, files: list[FileStorage]):
+    def validate_uploaded_files(self, files: list[FileStorage], **kwargs):
         """Validate the deserialized fields."""
         errors = {}
         for i, file in enumerate(files):
@@ -549,7 +635,7 @@ class SensorDataFileSchema(Schema):
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
                     resample=(
-                        True if sensor.event_resolution is not timedelta(0) else False
+                        True if sensor.event_resolution != timedelta(0) else False
                     ),
                     timezone=sensor.timezone,
                 )
@@ -568,4 +654,66 @@ class SensorDataFileSchema(Schema):
         if errors:
             raise ValidationError(errors)
         fields["data"] = dfs
+        fields["filenames"] = [file.filename for file in files]
         return fields
+
+
+class QuantitySchema(Schema):
+    """Represents a quantity string like '1 EUR/MWh'."""
+
+    quantity = fields.Str(
+        required=True,
+        metadata=dict(
+            description="Quantity string describing a fixed quantity.",
+            example="130 EUR/MWh",
+            # "examples": ["130 EUR/MWh", "230 V", "4.5 m/s"],
+        ),
+    )
+
+
+class SensorReferenceSchema(Schema):
+    """Sensor reference."""
+
+    class Meta:
+        description = "Sensor reference from which to look up a variable quantity."
+
+    sensor = SensorIdField(
+        required=True,
+        metadata=dict(
+            description="ID of the sensor on which the data is recorded.",
+        ),
+    )
+
+
+class TimeSeriesSchema(Schema):
+    """List of time series segments."""
+
+    timeseries = fields.List(
+        fields.Dict,
+        required=True,
+        metadata=dict(
+            description="Time series specification containing a list of segments that together describe a variable quantity.",
+            example=[
+                {"value": "23 kW", "start": "2025-11-20T15:15+01", "duration": "PT1H"}
+            ],
+        ),
+    )
+
+
+class VariableQuantityOpenAPISchema(OneOfSchema):
+    type_schemas = {
+        "quantity_string": QuantitySchema,
+        "sensor_reference": SensorReferenceSchema,
+        "timeseries_specs": TimeSeriesSchema,
+    }
+
+    def get_obj_type(self, obj):
+        # Required for OneOfSchema; not used during OpenAPI generation
+        if isinstance(obj, dict) and "sensor" in obj:
+            return "sensor_reference"
+        if isinstance(obj, str):
+            # Pretend incoming string maps to the string schema
+            return "quantity_string"
+        if isinstance(obj, list):
+            return "timeseries_specs"
+        return None

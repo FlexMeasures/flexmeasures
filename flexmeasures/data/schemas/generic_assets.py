@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import timedelta
 import json
 from http import HTTPStatus
 
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
+from marshmallow.validate import OneOf
 from flask_security import current_user
 from sqlalchemy import select
 
@@ -13,6 +15,7 @@ from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
+from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -150,6 +153,24 @@ class SensorsToShowSchema(fields.Field):
         return list(dict.fromkeys(all_objects).keys())
 
 
+class SensorKPIFieldSchema(ma.SQLAlchemySchema):
+    title = fields.Str(required=True)
+    sensor = SensorIdField(required=True)
+    function = fields.Str(required=False, validate=OneOf(["sum", "min", "max", "mean"]))
+
+    @validates("sensor")
+    def validate_sensor(self, value, **kwargs):
+        if value.event_resolution != timedelta(days=1):
+            raise ValidationError(f"Sensor with ID {value} is not a daily sensor.")
+        return value
+
+
+class SensorsToShowAsKPIsSchema(ma.SQLAlchemySchema):
+    sensors_to_show_as_kpis = fields.List(
+        fields.Nested(SensorKPIFieldSchema), required=True
+    )
+
+
 class GenericAssetSchema(ma.SQLAlchemySchema):
     """
     GenericAsset schema, with validations.
@@ -176,32 +197,43 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     sensors = ma.Nested("SensorSchema", many=True, dump_only=True, only=("id", "name"))
     sensors_to_show = JSON(required=False)
     flex_context = JSON(required=False)
+    flex_model = JSON(required=False)
+    sensors_to_show_as_kpis = JSON(required=False)
+    external_id = fields.Str(
+        required=False,
+        metadata=dict(
+            description="ID for this asset in another system.",
+            example="c8a53865-4702-494d-b559-9eefce296038",
+        ),
+    )
 
     class Meta:
         model = GenericAsset
 
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_under_parent(self, data, **kwargs):
-        if "name" in data:
-
+        """
+        Validate that name is unique among siblings.
+        This is also checked by a db constraint.
+        Here, we can only check if we have all information (a full form),
+        which usually is at creation time.
+        """
+        if "name" in data and "parent_asset_id" in data:
             asset = db.session.scalars(
                 select(GenericAsset)
                 .filter_by(
                     name=data["name"],
                     parent_asset_id=data.get("parent_asset_id"),
-                    account_id=data.get("account_id"),
                 )
                 .limit(1)
             ).first()
 
             if asset:
-                raise ValidationError(
-                    f"An asset with the name '{data['name']}' already exists under parent asset with id={data.get('parent_asset_id')}.",
-                    "name",
-                )
+                err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
+                raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
-    def validate_generic_asset_type(self, generic_asset_type_id: int):
+    def validate_generic_asset_type(self, generic_asset_type_id: int, **kwargs):
         generic_asset_type = db.session.get(GenericAssetType, generic_asset_type_id)
         if not generic_asset_type:
             raise ValidationError(
@@ -209,7 +241,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("parent_asset_id")
-    def validate_parent_asset(self, parent_asset_id: int | None):
+    def validate_parent_asset(self, parent_asset_id: int | None, **kwargs):
         if parent_asset_id is not None:
             parent_asset = db.session.get(GenericAsset, parent_asset_id)
             if not parent_asset:
@@ -218,7 +250,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                 )
 
     @validates("account_id")
-    def validate_account(self, account_id: int | None):
+    def validate_account(self, account_id: int | None, **kwargs):
         if account_id is None and (
             running_as_cli() or user_has_admin_access(current_user, "update")
         ):
@@ -235,7 +267,12 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             )
 
     @validates("attributes")
-    def validate_attributes(self, attributes: dict):
+    def validate_attributes(self, attributes: dict, **kwargs):
+        """
+        Validate sensors_to_show if sent within attributes.
+        Deprecated, as this is now its own field on the model.
+        Can be deleted once we stop supporting storing them under here.
+        """
         sensors_to_show = attributes.get("sensors_to_show", [])
         if sensors_to_show:
 
@@ -288,4 +325,4 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
 
     def _serialize(self, asset: GenericAsset, attr, data, **kwargs) -> int:
         """Turn a GenericAsset into a generic asset id."""
-        return asset.id
+        return asset.id if asset else None

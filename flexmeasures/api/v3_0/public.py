@@ -31,9 +31,9 @@ class ServicesAPI(FlaskView):
                 methods: str = "/".join(
                     [m for m in rule.methods if m not in ("OPTIONS", "HEAD")]
                 )
-                stripped_url = removeprefix(url, self.route_base)
+                stripped_url = url.removeprefix(self.route_base)
                 full_url = (
-                    removesuffix(request.url_root, "/") + url
+                    request.url_root.removesuffix("/") + url
                     if url.startswith("/")
                     else request.url_root + url
                 )
@@ -75,27 +75,3 @@ def quickref_directive(content):
             break
 
     return description
-
-
-def removeprefix(text: str, prefix: str) -> str:
-    """Remove a prefix from a text.
-
-    todo: use text.removeprefix(prefix) instead of this method, after dropping support for Python 3.8
-          See https://docs.python.org/3.9/library/stdtypes.html#str.removeprefix
-    """
-    if text.startswith(prefix):
-        return text[len(prefix) :]
-    else:
-        return text
-
-
-def removesuffix(text: str, suffix: str) -> str:
-    """Remove a suffix from a text.
-
-    todo: use text.removesuffix(suffix) instead of this method, after dropping support for Python 3.8
-        See https://docs.python.org/3.9/library/stdtypes.html#str.removesuffix
-    """
-    if text.endswith(suffix):
-        return text[: -len(suffix)]
-    else:
-        return text

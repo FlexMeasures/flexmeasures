@@ -228,11 +228,6 @@ def invalid_message_type(message_type: str) -> ResponseTuple:
     )
 
 
-@BaseMessage("Request message should include 'backup'.")
-def no_backup(message: str) -> ResponseTuple:
-    return dict(result="Rejected", status="NO_BACKUP", message=message), 400
-
-
 @BaseMessage("Request message should include 'type'.")
 def no_message_type(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="NO_MESSAGE_TYPE", message=message), 400
@@ -274,18 +269,13 @@ def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
     )
 
 
-def invalid_flex_config(message: str) -> ResponseTuple:
+def unprocessable_entity(message: str) -> ResponseTuple:
     return (
         dict(
             result="Rejected", status="UNPROCESSABLE_ENTITY", message=dict(json=message)
         ),
         422,
     )
-
-
-@BaseMessage("The requested backup is not known.")
-def unrecognized_backup(message: str) -> ResponseTuple:
-    return dict(result="Rejected", status="UNRECOGNIZED_BACKUP", message=message), 400
 
 
 @BaseMessage("One or more connections in your request were not found in your account.")

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify
+from flask import request, jsonify, Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -30,6 +30,9 @@ from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User, Account, AccountRole
 
+from flexmeasures.utils.time_utils import as_server_time
+
+from flexmeasures import Asset
 
 """
 Useful things for all tests.
@@ -84,17 +87,18 @@ def fresh_db(app):
 
 
 @contextmanager
-def create_test_db(app):
+def create_test_db(app: Flask):
     """
-    Provide a db object with the structure freshly created. This assumes a clean database.
-    It does clean up after itself when it's done (drops everything).
+    Provide a db object with the structure freshly created.
+    It cleans up before it starts and after it's done (drops everything).
     """
     print("DB FIXTURE")
-    # app is an instance of a flask app, _db a SQLAlchemy DB
+    # _db is a SQLAlchemy DB instance
     from flexmeasures.data import db as _db
 
     _db.app = app
     with app.app_context():
+        _db.drop_all()
         _db.create_all()
 
     yield _db
@@ -522,6 +526,7 @@ def create_assets(
                 "site-power-capacity": "1 MVA",
                 "consumption-price": {"sensor": setup_markets["epex_da"].id},
             },
+            # TODO: move attributes to flex model
             attributes=dict(
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
@@ -798,6 +803,110 @@ def add_battery_assets_fresh_db(
     )
 
 
+def create_test_battery_kWh_assets(
+    db: SQLAlchemy, setup_accounts, setup_markets, generic_asset_types
+) -> dict[str, GenericAsset]:
+    """
+    Add a battery asset, with consumption sensor and inflexible device sensor with MWh unit.
+    """
+    battery_type = generic_asset_types["battery"]
+
+    test_battery = GenericAsset(
+        name="Test battery",
+        owner=setup_accounts["Prosumer"],
+        generic_asset_type=battery_type,
+        latitude=10,
+        longitude=100,
+        flex_context={
+            "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": setup_markets["epex_da"].id},
+        },
+        # TODO: move attributes to flex model
+        attributes={
+            "max_soc_in_mwh": 5,
+            "min_soc_in_mwh": 0,
+            # TODO: stop using the three soc_ attributes all together
+            "soc_in_mwh": 2.5,
+            "soc_datetime": "2015-01-01T00:00+01",
+            "soc_udi_event_id": 203,
+            "soc-usage": "0 kW",
+            "is_consumer": True,
+            "is_producer": True,
+            "can_curtail": True,
+            "can_shift": True,
+        },
+    )
+    test_battery_consumption_sensor = Sensor(
+        name="consumption",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="MWh",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+    test_battery_inflexible_sensor = Sensor(
+        name="inflexible-device",
+        generic_asset=test_battery,
+        event_resolution=timedelta(minutes=15),
+        unit="MWh",
+        attributes=dict(
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        ),
+    )
+
+    db.session.add(test_battery_consumption_sensor, test_battery_inflexible_sensor)
+
+    data_source = DataSource("source1")
+
+    db.session.add(data_source)
+
+    time_slots = pd.date_range(
+        datetime(2015, 1, 1), datetime(2015, 1, 3, 23, 45), freq="15min"
+    )
+
+    values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
+
+    beliefs = [
+        TimedBelief(
+            sensor=test_battery_inflexible_sensor,
+            event_start=as_server_time(dt),
+            event_value=val,
+            belief_horizon=timedelta(minutes=15),
+            source=data_source,
+        )
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(beliefs)
+
+    db.session.commit()
+    db.session.flush()
+
+    return {
+        "Test battery": test_battery,
+    }
+
+
+@pytest.fixture(scope="function")
+def add_battery_kWh_assets_fresh_db(
+    fresh_db,
+    setup_roles_users_fresh_db,
+    setup_accounts_fresh_db,
+    setup_markets_fresh_db,
+    setup_generic_asset_types_fresh_db,
+) -> dict[str, GenericAsset]:
+    return create_test_battery_kWh_assets(
+        fresh_db,
+        setup_accounts_fresh_db,
+        setup_markets_fresh_db,
+        setup_generic_asset_types_fresh_db,
+    )
+
+
 def create_test_battery_assets(
     db: SQLAlchemy, setup_accounts, setup_markets, generic_asset_types
 ) -> dict[str, GenericAsset]:
@@ -830,9 +939,11 @@ def create_test_battery_assets(
             "site-power-capacity": "2 MVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
+            # TODO: stop using the three soc_ attributes all together
             "soc_in_mwh": 2.5,
             "soc_datetime": "2015-01-01T00:00+01",
             "soc_udi_event_id": 203,
@@ -848,6 +959,7 @@ def create_test_battery_assets(
         generic_asset=test_battery,
         event_resolution=timedelta(minutes=15),
         unit="MW",
+        # TODO: move attributes to flex model or remove (?)
         attributes=dict(
             daily_seasonality=True,
             weekly_seasonality=True,
@@ -879,6 +991,7 @@ def create_test_battery_assets(
             "site-power-capacity": "2 MVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -925,6 +1038,7 @@ def create_test_battery_assets(
         generic_asset=test_battery_dynamic_power_capacity,
         event_resolution=timedelta(minutes=15),
         unit="MW",
+        # TODO: move attributes to flex model
         attributes=dict(
             capacity_in_mw=10,
             production_capacity="8 MW",
@@ -943,6 +1057,7 @@ def create_test_battery_assets(
             "site-power-capacity": "10 kVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=0.01,
             min_soc_in_mwh=0,
@@ -976,6 +1091,50 @@ def create_test_battery_assets(
         "Test battery with no known prices": test_battery_no_prices,
         "Test small battery": test_small_battery,
         "Test battery with dynamic power capacity": test_battery_dynamic_power_capacity,
+    }
+
+
+@pytest.fixture(scope="module")
+def add_consultancy_assets(
+    db: SQLAlchemy, setup_accounts, setup_generic_asset_types
+) -> dict[str, GenericAsset]:
+    """
+    Add consultancy assets.
+    """
+    return create_test_consultancy_assets(db, setup_accounts, setup_generic_asset_types)
+
+
+def create_test_consultancy_assets(
+    db: SQLAlchemy, setup_accounts, generic_asset_types
+) -> dict[str, GenericAsset]:
+    """
+    Add consultancy assets.
+    """
+    wind_type = generic_asset_types["wind"]
+
+    test_wind_turbine = GenericAsset(
+        name="Test wind turbine",
+        owner=setup_accounts["ConsultancyClient"],
+        generic_asset_type=wind_type,
+        latitude=10,
+        longitude=100,
+    )
+    db.session.add(test_wind_turbine)
+    db.session.flush()
+
+    test_wind_sensor = Sensor(
+        name="wind speed tracker",
+        generic_asset=test_wind_turbine,
+        event_resolution=timedelta(minutes=15),
+        unit="m/s",
+    )
+
+    db.session.add(test_wind_sensor)
+    db.session.flush()
+
+    return {
+        "Test wind turbine": test_wind_turbine,
+        "wind speed tracker": test_wind_sensor,
     }
 
 
@@ -1022,6 +1181,7 @@ def create_charging_station_assets(
             "site-power-capacity": "2 MVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -1058,6 +1218,7 @@ def create_charging_station_assets(
             "site-power-capacity": "2 MVA",
             "consumption-price": {"sensor": setup_markets["epex_da"].id},
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -1120,6 +1281,7 @@ def add_assets_with_site_power_limits(
         flex_context={
             "site-power-capacity": "2 MVA",
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -1140,6 +1302,7 @@ def add_assets_with_site_power_limits(
             "site-consumption-capacity": "900 kW",
             "site-production-capacity": "750 kW",
         },
+        # TODO: move attributes to flex model
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
@@ -1514,3 +1677,115 @@ def add_beliefs(
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(beliefs)
+
+
+@pytest.fixture(scope="function")
+def setup_fresh_test_forecast_data(
+    fresh_db,
+    app,
+) -> dict[str, Sensor]:
+    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=False)
+
+
+@pytest.fixture(scope="function")
+def setup_fresh_test_forecast_data_with_missing_data(
+    fresh_db,
+    app,
+) -> dict[str, Sensor]:
+    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=True)
+
+
+def add_test_solar_sensor_and_irradiance_with_forecasts(
+    db: SQLAlchemy,
+    empty: bool = False,
+) -> dict[str, Sensor]:
+    """7 days of test data (one complete sine curve) for two sensors and irradiance sensor has forecasts"""
+
+    # Ensure DataSource and AssetType are persisted
+    data_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one_or_none()
+    if not data_source:
+        data_source = DataSource(name="Seita", type="demo script")
+        db.session.add(data_source)
+
+    asset_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="Site")
+    ).scalar_one_or_none()
+    if not asset_type:
+        asset_type = GenericAssetType(name="Site")
+        db.session.add(asset_type)
+
+    db.session.flush()
+
+    # Create asset and sensors
+    asset = Asset(
+        name="Test station farther away",
+        generic_asset_type=asset_type,
+        latitude=100,
+        longitude=100,
+    )
+    db.session.add(asset)
+
+    sensor_specs = {
+        "irradiance-sensor": {
+            "unit": "kW/m²",
+            "multiplier": 600,
+            "horizon": timedelta(hours=6),
+            "resolution": timedelta(minutes=60),
+        },
+        "solar-sensor": {
+            "unit": "kW",
+            "multiplier": 1000,
+            "horizon": timedelta(hours=0),
+            "resolution": timedelta(minutes=60),
+        },
+        "solar-sensor-1": {
+            "unit": "kW",
+            "multiplier": 1000,
+            "horizon": timedelta(hours=0),
+            "resolution": timedelta(minutes=60),
+        },
+    }
+
+    time_slots = pd.date_range(
+        datetime(2025, 1, 1), datetime(2025, 1, 7, 23, 00), freq="60min"
+    )
+
+    sensors: dict[str, Sensor] = {}
+
+    for name, config in sensor_specs.items():
+        sensor = Sensor(
+            name=name,
+            generic_asset=asset,
+            unit=config["unit"],
+            event_resolution=config["resolution"],
+        )
+        db.session.add(sensor)
+
+        random_seed = (
+            42 if name == "irradiance-sensor" else 43
+        )  # to keep solar-sensor and solar-sensor-1 values the same
+        seed(random_seed)
+        values = [
+            random() * (1 + np.sin(x / 15)) * config["multiplier"]
+            for x in range(len(time_slots))
+        ]
+        if empty:
+            for i in range(0, len(values) // 2):
+                values[i] = np.nan
+        beliefs = [
+            TimedBelief(
+                sensor=sensor,
+                event_start=as_server_time(dt),
+                event_value=val,
+                belief_horizon=config["horizon"],
+                source=data_source,
+            )
+            for dt, val in zip(time_slots, values)
+        ]
+        db.session.add_all(beliefs)
+        sensors[name] = sensor
+
+    db.session.commit()
+    return sensors

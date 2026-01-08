@@ -7,14 +7,15 @@ import json
 from flask import current_app
 from flask_security import current_user
 import pandas as pd
-from sqlalchemy import select
-from sqlalchemy.engine import Row
+from sqlalchemy import select, and_
 from sqlalchemy.ext.hybrid import hybrid_method
-from sqlalchemy.sql.expression import func, text
+from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict, MutableList
+from sqlalchemy.dialects.postgresql import JSONB
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
+from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
@@ -26,6 +27,7 @@ from flexmeasures.auth.policy import (
     AuthModelMixin,
     EVERY_LOGGED_IN_USER,
     ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
@@ -63,6 +65,11 @@ class GenericAsset(db.Model, AuthModelMixin):
             "parent_asset_id",
             name="generic_asset_name_parent_asset_id_key",
         ),
+        db.UniqueConstraint(
+            "account_id",
+            "external_id",
+            name="generic_asset_account_id_external_id_key",
+        ),
     )
 
     # No relationship
@@ -70,13 +77,29 @@ class GenericAsset(db.Model, AuthModelMixin):
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     sensors_to_show = db.Column(
-        MutableList.as_mutable(db.JSON), nullable=False, default=[]
+        MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
-    flex_context = db.Column(
-        MutableDict.as_mutable(db.JSON), nullable=False, default={}
+    flex_context = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    flex_model = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    sensors_to_show_as_kpis = db.Column(
+        MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
+    )  # if null, asset is public
+    owner = db.relationship(
+        "Account",
+        backref=db.backref(
+            "generic_assets",
+            foreign_keys=[account_id],
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        ),
+    )
+
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE"), nullable=True
@@ -97,6 +120,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("generic_assets", lazy=True),
     )
 
+    # not a FK, but representation of this asset in an external system (e.g. IoT solution)
+    external_id = db.Column(db.String(80), default=None)
+
     # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",
@@ -104,22 +130,87 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("assets", lazy="dynamic"),
     )
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Otherwise, the attributes only default to {} when flushing/committing to the db
+        if self.flex_model is None:
+            self.flex_model = {}
+        if self.attributes is None:
+            self.attributes = {}
+
+        # For backwards compatibility, when setting attributes that served as flex-model fields,
+        # move them to the flex_context (and don't store them as attributes)
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
+        to_delete = []
+        for attribute in self.attributes:
+            for field in DBStorageFlexModelSchema().fields.values():
+                if attribute == field.metadata.get("deprecated field"):
+                    # Move the attribute to the flex_model db column
+                    if field.data_key in self.flex_model:
+                        raise ValueError(
+                            f"Cannot move attribute {attribute} of asset {self.name} to its flex-model, because the {field.data_key} field is already set."
+                        )
+                    self.flex_model[field.data_key] = upgrade_value(
+                        attribute, self.attributes[attribute]
+                    )
+                    # Remove the original attribute
+                    current_app.logger.warning(
+                        f"Attribute {attribute} of asset {self.name} was moved to its flex-model under the {field.data_key} field."
+                    )
+                    to_delete.append(attribute)
+        for attr in to_delete:
+            del self.attributes[attr]
+
     def __acl__(self):
         """
         All logged-in users can read if the asset is public.
-        For non-public assets, we allow reading to whoever can read the account,
-        and editing for every user in the account.
-        Deletion is left to account admins.
+        For non-public assets, we allow reading to whoever can read the account.
+        Both creation of children (beliefs, child assets) as well as editing
+        is allowed for every user in the account or consultants.
+        Deletion is only allowed for account admins, as well as for consultants.
         """
         return {
-            "create-children": f"account:{self.account_id}",
+            "create-children": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
             "read": (
                 self.owner.__acl__()["read"]
                 if self.account_id is not None
                 else EVERY_LOGGED_IN_USER
             ),
-            "update": f"account:{self.account_id}",
-            "delete": (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            "update": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
+            "delete": [
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
         }
 
     def __repr__(self):
@@ -256,21 +347,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         """This property prepares for dropping the "generic" prefix later"""
         return self.generic_asset_type
 
-    account_id = db.Column(
-        db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
-    )  # if null, asset is public
-
-    owner = db.relationship(
-        "Account",
-        backref=db.backref(
-            "generic_assets",
-            foreign_keys=[account_id],
-            lazy=True,
-            cascade="all, delete-orphan",
-            passive_deletes=True,
-        ),
-    )
-
     def get_path(self, separator: str = ">") -> str:
         if self.parent_asset is not None:
             return f"{self.parent_asset.get_path(separator=separator)}{separator}{self.name}"
@@ -340,8 +416,11 @@ class GenericAsset(db.Model, AuthModelMixin):
     def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
-        if self.flex_context and attribute in self.flex_context:
-            return self.flex_context[attribute]
+        if self.flex_model and attribute in self.flex_model:
+            return self.flex_model[attribute]
+        flex_context = self.get_flex_context()
+        if attribute in flex_context:
+            return flex_context[attribute]
         return default
 
     def has_attribute(self, attribute: str) -> bool:
@@ -369,6 +448,20 @@ class GenericAsset(db.Model, AuthModelMixin):
             flex_context = {**parent_asset.flex_context, **flex_context}
             parent_asset = parent_asset.parent_asset
         return flex_context
+
+    def get_flex_model(self) -> dict[int, dict]:
+        """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
+
+        Recursive function returning a multi-asset flex-model.
+
+        :returns: dictionary with asset IDs as keys and serialized flex-model dicts as values.
+        """
+        flex_model = {}
+        if self.flex_model:
+            flex_model[self.id] = dict(asset=self.id, **self.flex_model)
+        for child in self.child_assets:
+            flex_model = {**flex_model, **child.get_flex_model()}
+        return flex_model
 
     def get_consumption_price_sensor(self):
         """Searches for consumption_price_sensor upwards on the asset tree"""
@@ -597,7 +690,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         return chart_specs
 
-    def search_beliefs(
+    def search_beliefs(  # noqa C901
         self,
         sensors: list["Sensor"] | None = None,  # noqa F821
         event_starts_after: datetime | None = None,
@@ -609,9 +702,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
+        use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
+        compress_json: bool = False,
         resolution: timedelta | None = None,
     ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
@@ -626,8 +721,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
         :param resolution: optionally set the resolution of data being displayed
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
@@ -648,21 +745,25 @@ class GenericAsset(db.Model, AuthModelMixin):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
+                use_latest_version_per_event=use_latest_version_per_event,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,
                 one_deterministic_belief_per_event_per_source=True,
                 resolution=resolution,
             )
-        if as_json:
+        if as_json and not compress_json:
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
-                minimum_resampling_resolution = determine_minimum_resampling_resolution(
-                    [bdf.event_resolution for bdf in bdf_dict.values()]
-                )
                 if resolution is not None:
                     minimum_resampling_resolution = resolution
-                df_dict = {}
+                else:
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
+                dfs = []
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
                         bdf = bdf.resample_events(minimum_resampling_resolution)
@@ -674,19 +775,27 @@ class GenericAsset(db.Model, AuthModelMixin):
                             if most_recent_beliefs_only
                             else ["belief_time", "source"]
                         ),
-                    ).set_index(
-                        (
-                            ["source"]
-                            if most_recent_beliefs_only
-                            else ["belief_time", "source"]
-                        ),
-                        append=True,
                     )
+
+                    # Convert event values recording seconds to datetimes
+                    # todo: invalid assumption for sensors measuring durations
+                    if sensor.unit == "s":
+                        time_mask = df["event_value"].notna()
+                        time_values = df.loc[time_mask, "event_value"]
+                        df["event_value"] = df["event_value"].astype(
+                            f"datetime64[ns, {self.timezone}]"
+                        )
+                        df.loc[time_mask, "event_value"] = (
+                            pd.to_datetime(time_values, unit="s", origin="unix")
+                            .dt.tz_localize("UTC")
+                            .dt.tz_convert(self.timezone)
+                        )
+
                     df["sensor"] = sensor  # or some JSONifiable representation
+                    df["sensor_unit"] = sensor.unit
                     df["scale_factor"] = factors[sensor.unit]
-                    df = df.set_index(["sensor"], append=True)
-                    df_dict[sensor.id] = df
-                df = pd.concat(df_dict.values())
+                    dfs.append(df.reset_index())
+                df = pd.concat(dfs)
             else:
                 df = simplify_index(
                     BeliefsDataFrame(),
@@ -695,19 +804,161 @@ class GenericAsset(db.Model, AuthModelMixin):
                         if most_recent_beliefs_only
                         else ["belief_time", "source"]
                     ),
-                ).set_index(
-                    (
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"]
-                    ),
-                    append=True,
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+
+            # Map all sensors and sources to their dictionary representations
+            df["sensor"] = df["sensor"].map(
+                {sensor: sensor.as_dict for sensor in df["sensor"].unique()}
+            )
+            df["source"] = df["source"].map(
+                {source: source.as_dict for source in df["source"].unique()}
+            )
+
             return df.to_json(orient="records")
+        elif as_json and compress_json:
+            from flexmeasures.data.services.time_series import simplify_index
+
+            if sensors:
+                if resolution is not None:
+                    minimum_resampling_resolution = resolution
+                else:
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
+
+                sensors_metadata = {}
+                sources_metadata = {}
+                all_source_objs = set()
+
+                # Collect all unique sources first
+                for sensor, bdf in bdf_dict.items():
+                    if not bdf.empty and "source" in bdf.index.names:
+                        all_source_objs.update(
+                            bdf.index.get_level_values("source").unique()
+                        )
+
+                # Build source metadata once
+                for source_obj in all_source_objs:
+                    if hasattr(source_obj, "id"):
+                        source_dict = source_obj.as_dict
+                        sources_metadata[source_obj.id] = {
+                            "name": source_dict.get("name", ""),
+                            "model": source_dict.get("model", ""),
+                            "type": source_dict.get("type", "other"),
+                            "description": source_dict.get("description", ""),
+                        }
+
+                all_records = []
+
+                for sensor, bdf in bdf_dict.items():
+                    if bdf.empty:
+                        continue
+
+                    # Build metadata lookup table for this sensor
+                    sensor_dict = sensor.as_dict
+                    sensors_metadata[sensor.id] = {
+                        "name": sensor_dict.get("name", ""),
+                        "unit": sensor_dict.get("unit", sensor.unit),
+                        "description": sensor_dict.get("description", ""),
+                        "asset_id": sensor_dict.get(
+                            "asset_id", getattr(sensor, "generic_asset_id", None)
+                        ),
+                        "asset_description": sensor_dict.get("asset_description", ""),
+                    }
+
+                    if bdf.event_resolution > timedelta(0):
+                        bdf = bdf.resample_events(minimum_resampling_resolution)
+                    bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
+                    df = simplify_index(
+                        bdf,
+                        index_levels_to_columns=(
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
+                    ).reset_index()
+
+                    # VECTORIZED PROCESSING instead of for loops for speed
+                    # Convert timestamps to milliseconds vectorized
+                    event_start_ms = (
+                        df["event_start"].astype("int64") // 1_000_000
+                    ).astype(int)
+
+                    # Create base records using DataFrame operations
+                    base_records = {
+                        "ts": event_start_ms.tolist(),
+                        "sid": [sensor.id] * len(df),
+                        "val": df["event_value"].tolist(),
+                        "sf": [factors.get(sensor.unit, 1.0)] * len(df),
+                    }
+
+                    # Add source IDs if available
+                    if "source" in df.columns:
+                        source_ids = (
+                            df["source"]
+                            .apply(lambda x: x.id if hasattr(x, "id") else None)
+                            .tolist()
+                        )
+                        base_records["src"] = source_ids
+
+                    # Add belief horizons if available
+                    if "belief_horizon" in df.columns:
+                        belief_horizons_sec = (
+                            df["belief_horizon"]
+                            .apply(
+                                lambda x: (
+                                    int(x.total_seconds() * 1000)
+                                    if pd.notnull(x)
+                                    else None
+                                )
+                            )
+                            .tolist()
+                        )
+                        base_records["bh"] = belief_horizons_sec
+
+                    # Add belief times if needed
+                    if not most_recent_beliefs_only and "belief_time" in df.columns:
+                        belief_times_ms = (
+                            df["belief_time"]
+                            .apply(
+                                lambda x: (
+                                    int(x.timestamp() * 1000) if pd.notnull(x) else None
+                                )
+                            )
+                            .tolist()
+                        )
+                        base_records["bt"] = belief_times_ms
+
+                    cleaned_records = {}
+                    for key, values in base_records.items():
+                        if isinstance(values, list):
+                            cleaned_records[key] = values
+                        else:
+                            cleaned_records[key] = (
+                                pd.Series(values).fillna(None).tolist()
+                            )
+
+                    # Convert to list of dictionaries
+                    for i in range(len(df)):
+                        record = {
+                            key: values[i] for key, values in cleaned_records.items()
+                        }
+                        all_records.append(record)
+
+                return json.dumps(
+                    {
+                        "data": all_records,
+                        "sensors": sensors_metadata,
+                        "sources": sources_metadata,
+                    }
+                )
+            else:
+                return json.dumps({"data": [], "sensors": {}, "sources": {}})
+
         return bdf_dict
 
     @property
@@ -828,23 +1079,49 @@ def assets_share_location(assets: list[GenericAsset]) -> bool:
     return all([a.location == assets[0].location for a in assets])
 
 
-def get_center_location_of_assets(user: User | None) -> tuple[float, float]:
+def get_bounding_box_of_assets(
+    user: User | None,
+) -> tuple[tuple[float, float], tuple[float, float]]:
     """
-    Find the center position between all generic assets of the user's account.
+    Compute the bounding box covering all assets of the user's account,
+    correctly handling antimeridian crossings.
     """
-    query = (
-        "Select (min(latitude) + max(latitude)) / 2 as latitude,"
-        " (min(longitude) + max(longitude)) / 2 as longitude"
-        " from generic_asset"
-    )
     if user is None:
         user = current_user
-    query += f" where generic_asset.account_id = {user.account_id}"
-    locations: list[Row] = db.session.execute(text(query + ";")).fetchall()
-    if (
-        len(locations) == 0
-        or locations[0].latitude is None
-        or locations[0].longitude is None
-    ):
-        return 52.366, 4.904  # Amsterdam, NL
-    return locations[0].latitude, locations[0].longitude
+
+    # ORM query to fetch all lat/lng values
+    stmt = select(GenericAsset.latitude, GenericAsset.longitude).where(
+        and_(
+            GenericAsset.account_id == user.account_id,
+            GenericAsset.latitude.isnot(None),
+            GenericAsset.longitude.isnot(None),
+        )
+    )
+
+    results = db.session.execute(stmt).all()
+    if not results:
+        return current_app.config["FLEXMEASURES_DEFAULT_BOUNDING_BOX"]
+
+    def normalize_lng(lng: float) -> float:
+        """Wrap longitude to [-180, 180)"""
+        return ((lng + 180) % 360) - 180
+
+    lats = [row.latitude for row in results]
+    lngs = [normalize_lng(row.longitude) for row in results]
+
+    min_lat, max_lat = min(lats), max(lats)
+
+    sorted_lngs = sorted(lngs)
+    normal_span = sorted_lngs[-1] - sorted_lngs[0]
+    wrap_span = (sorted_lngs[0] + 360) - sorted_lngs[-1]
+
+    if wrap_span < normal_span:
+        # Wrapping eastward is shorter
+        min_lng, max_lng = sorted_lngs[-1], sorted_lngs[0] + 360
+    else:
+        min_lng, max_lng = sorted_lngs[0], sorted_lngs[-1]
+
+    return (
+        (min_lat, normalize_lng(min_lng)),
+        (max_lat, normalize_lng(max_lng)),
+    )

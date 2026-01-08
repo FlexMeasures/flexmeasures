@@ -7,6 +7,8 @@ from __future__ import annotations
 from typing import Any
 from datetime import datetime, timedelta
 
+import os
+import json
 import click
 from tabulate import tabulate
 import pytz
@@ -364,3 +366,72 @@ def tabulate_account_assets(assets):
     click.echo(
         tabulate(asset_data, headers=["ID", "Name", "Type", "Parent ID", "Location"])
     )
+
+
+class JSONOrFile(click.ParamType):
+    """
+    A Click parameter type that accepts either a JSON string or a file path
+    to a JSON file.
+
+    It attempts to load the input as a file first. If that fails, it assumes
+    the input is a JSON string and tries to parse it.
+    """
+
+    name = "json_or_file"
+
+    def convert(self, value, param, ctx):
+        """
+        Converts the input value to a Python dictionary.
+
+        Args:
+            value (str): The input string from the command line.
+            param (click.Parameter): The parameter instance.
+            ctx (click.Context): The context instance.
+
+        Returns:
+            dict: The parsed JSON data.
+
+        Raises:
+            click.BadParameter: If the input is not a valid file path or JSON string.
+        """
+        if not value:
+            return None
+
+        # Try to treat the value as a file path first.
+        if os.path.isfile(value):
+            try:
+                with open(value, "r") as f:
+                    return json.load(f)
+            except (IOError, json.JSONDecodeError) as e:
+                # If there's an issue reading the file or parsing its content,
+                # raise an informative error.
+                self.fail(
+                    f"Could not read or parse JSON file '{value}': {e}", param, ctx
+                )
+
+        # If it's not a file, assume it's a JSON string.
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as e:
+            # If the string is not valid JSON, raise an error.
+            self.fail(
+                f"Invalid JSON string or file path. Got: '{value}'. JSON parsing error: {e}",
+                param,
+                ctx,
+            )
+
+
+def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+    delta_seconds = resolution.total_seconds()
+    floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
+    return datetime.fromtimestamp(floored, tz=dt.tzinfo)
+
+
+def split_commas(ctx, param, value):
+    """Converge comma-separated lists of items with a list of unique items."""
+    if not value:
+        return []
+    result = []
+    for v in value:
+        result.extend(v.split(","))
+    return list(set([x.strip() for x in result if x.strip()]))

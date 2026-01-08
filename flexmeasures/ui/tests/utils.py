@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import copy
+import json
+from sqlalchemy import select
 
 from flask import url_for
+
+from flexmeasures.data.models.time_series import Sensor
 
 
 def login(the_client, email, password):
@@ -19,7 +23,7 @@ def logout(client):
     return client.get(url_for("security.logout"), follow_redirects=True)
 
 
-def mock_asset_response(
+def mock_asset_data(
     asset_id: int = 2,
     account_id: int = 1,
     as_list: bool = True,
@@ -32,10 +36,11 @@ def mock_asset_response(
     asset = dict(
         id=asset_id,
         name="TestAsset",
-        generic_asset_type={"id": 1, "name": "battery"},
+        generic_asset_type_id=1,
         account_id=int(account_id),
         latitude=70.4,
         longitude=30.9,
+        external_id=None,
     )
     if as_list:
         asset_list = [asset]
@@ -48,39 +53,47 @@ def mock_asset_response(
     return asset
 
 
-def mock_user_response(
-    user_id: int = 1,
-    username: str = "Alex",
-    email="alex@seita.nl",
-    active: bool = True,
+def mock_asset_data_with_kpis(
+    db,
+    asset_id: int = 1,
+    account_id: int = 1,
     as_list: bool = True,
     multiple: bool = False,
 ) -> dict | list[dict]:
-    user = dict(
-        id=user_id,
-        username=username,
-        email=email,
-        active=active,
-        password="secret",
-        flexmeasures_roles=[1],
-        last_login_at="2021-05-14T20:00:00+02:00",
-        account_id=1,
+    asset = mock_asset_data(
+        asset_id=asset_id, account_id=account_id, as_list=as_list, multiple=multiple
     )
-    if as_list:
-        user_list = [user]
-        if multiple:
-            user2 = copy.deepcopy(user)
-            user2["id"] = 2
-            user2["username"] = "Bert"
-            user2["email"] = "bert@seita.nl"
-            user_list.append(user2)
-        return user_list
-    return user
+    sensor: Sensor = db.session.execute(
+        select(Sensor).filter_by(event_resolution="PT24H")
+    ).scalar_one_or_none()
+
+    if not sensor:
+        # Create a sensor first with PT24H
+        sensor = Sensor(
+            name="KPI sensor",
+            generic_asset_id=asset["id"],
+            event_resolution="PT24H",
+            unit="kWh",
+            attributes={},
+        )
+        db.session.add(sensor)
+        db.session.flush()
+    sensors_to_show_as_kpis = [
+        {
+            "title": "My KPIs",
+            "sensor": sensor.id,
+            "function": "sum",
+        }
+    ]
+    asset["sensors_to_show_as_kpis"] = json.dumps(sensors_to_show_as_kpis)
+    return asset
 
 
-def mock_api_data_as_form_input(api_data: dict) -> dict:
+def mock_asset_data_as_form_input(api_data: dict) -> dict:
     form_input = copy.deepcopy(api_data)
     form_input["account"] = api_data["account_id"]
+    if api_data.get("external_id") is None:
+        form_input["external_id"] = ""
     return form_input
 
 

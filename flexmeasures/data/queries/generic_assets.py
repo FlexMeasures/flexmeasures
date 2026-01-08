@@ -3,14 +3,14 @@ from __future__ import annotations
 from itertools import groupby
 from flask_login import current_user
 
-from sqlalchemy import select, Select, or_, and_, union_all
+from sqlalchemy import and_, select, Select, literal, or_, union_all
 from sqlalchemy.orm import aliased
 from flexmeasures.data import db
 from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.queries.utils import potentially_limit_assets_query_to_account
+from flexmeasures.data.queries.utils import potentially_limit_assets_query_to_accounts
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
@@ -35,7 +35,7 @@ def query_assets_by_type(
         query = query.filter(GenericAssetType.name == type_names)
     else:
         query = query.filter(GenericAssetType.name.in_(type_names))
-    query = potentially_limit_assets_query_to_account(query, account_id)
+    query = potentially_limit_assets_query_to_accounts(query, account_id)
     return query
 
 
@@ -62,7 +62,7 @@ def get_location_queries(
     """
     asset_queries = {}
     all_assets = db.session.scalars(
-        potentially_limit_assets_query_to_account(select(GenericAsset), account_id)
+        potentially_limit_assets_query_to_accounts(select(GenericAsset), account_id)
     ).all()
     loc_groups = group_assets_by_location(all_assets)
     for loc_group in loc_groups:
@@ -80,7 +80,7 @@ def get_location_queries(
         location_query = select(GenericAsset).filter(
             GenericAsset.name.in_([asset.name for asset in loc_group])
         )
-        asset_queries[location_name] = potentially_limit_assets_query_to_account(
+        asset_queries[location_name] = potentially_limit_assets_query_to_accounts(
             location_query, account_id
         )
     return asset_queries
@@ -137,12 +137,33 @@ def get_asset_group_queries(
                     asset_type.name
                 )
 
-    # 3. Include a group per account (admins only)  # TODO: we can later adjust this for accounts who admin certain others, not all
-    if group_by_account and user_has_admin_access(current_user, "read"):
-        for account in db.session.scalars(select(Account)).all():
-            asset_queries[account.name] = select(GenericAsset).filter_by(
-                account_id=account.id
-            )
+    # 3. Include a group per account
+    if group_by_account:
+        eligible_accounts = [current_user.account]
+        if user_has_admin_access(current_user, "read"):
+            # show all accounts that are not clients
+            # if they are consultants, we query assets from all their clients
+            eligible_accounts = db.session.scalars(
+                select(Account).filter(
+                    or_(
+                        Account.consultancy_account_id == None,  # noqa E711
+                        Account.consultancy_account_id == current_user.account_id,
+                    )
+                )
+            ).all()
+            for account in eligible_accounts:
+                asset_queries[account.name] = select(GenericAsset).filter(
+                    GenericAsset.account_id.in_(
+                        [account.id] + [c.id for c in account.get_all_client_accounts()]
+                    )
+                )
+        elif current_user.has_role("consultant"):
+            # show only their account and their direct clients
+            eligible_accounts += current_user.account.consultancy_client_accounts
+            for account in eligible_accounts:
+                asset_queries[account.name] = select(GenericAsset).filter_by(
+                    account_id=account.id
+                )
 
     # 4. Finally, we can group assets by location
     if group_by_location:
@@ -223,3 +244,82 @@ def query_assets_by_search_terms(
                 )
                 query = query.order_by(order_by_clause)
     return query
+
+
+def descendants_cte(root_asset_id: int, max_depth: int):
+    """
+    Build a recursive Common Table Expression (CTE) selecting all descendant assets of a given root asset.
+
+    This CTE walks the asset hierarchy by repeatedly following ``parent_asset_id`` relationships, starting from the given root asset.
+    The result includes the root asset itself and all of its descendants up to a given depth.
+
+    \b
+    Use cases:
+    -   Server-side filtering of asset subtrees
+    -   Efficient hierarchical queries without Python-side traversal
+    -   Combining hierarchy constraints with search, sorting, or pagination
+
+    :param root_asset_id:   ID of the asset that acts as the root of the subtree.
+    :returns:               A recursive SQLAlchemy CTE yielding asset IDs and parent IDs for the entire subtree.
+    """
+    asset = GenericAsset.__table__
+
+    # Anchor (level 0)
+    cte = (
+        select(asset.c.id, asset.c.parent_asset_id, literal(0).label("level"))
+        .where(
+            asset.c.id == root_asset_id
+            if root_asset_id is not None
+            else asset.c.parent_asset_id.is_(None)
+        )
+        .cte(name="asset_tree", recursive=True)
+    )
+
+    # Recursion
+    asset_alias = asset.alias()
+
+    q = select(
+        asset_alias.c.id,
+        asset_alias.c.parent_asset_id,
+        (cte.c.level + 1).label("level"),
+    ).where(asset_alias.c.parent_asset_id == cte.c.id)
+    if isinstance(max_depth, int):
+        q = q.filter(cte.c.level < max_depth)
+    cte = cte.union_all(q)
+
+    return cte
+
+
+def filter_assets_under_root(
+    query: Select, root_asset: GenericAsset, max_depth: int
+) -> Select:
+    """
+    Restrict an asset query to a specific asset subtree to a certain depth.
+
+    This function joins the given query against a recursive CTE so that
+    only assets that are descendants of the specified root asset
+    (including the root itself) are returned.
+
+    \b
+    Characteristics:
+    -   Fully server-side
+    -   Supports arbitrary hierarchy depth
+    -   Compatible with sorting, pagination, and additional filters
+
+    :param query:
+        A SQLAlchemy ``Select`` statement selecting from ``GenericAsset``.
+    :param root_asset_id:
+        Asset whose descendants should be included.
+    :returns:
+        A modified ``Select`` statement scoped to the specified asset subtree.
+    """
+    root_asset_id = None
+    if isinstance(root_asset, GenericAsset):
+        root_asset_id = root_asset.id
+
+    tree = descendants_cte(root_asset_id=root_asset_id, max_depth=max_depth)
+
+    # use the query's FROM element, which is GenericAsset or anon_1 (after the join for search terms)
+    from_ = query.get_final_froms()[0]
+
+    return query.join(tree, from_.c.id == tree.c.id)

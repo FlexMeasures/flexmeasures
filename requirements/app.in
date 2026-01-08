@@ -11,8 +11,6 @@ inflect
 pydantic
 humanize
 psycopg2-binary
-# due to https://github.com/pallets-eco/flask-security/issues/907 (should be re-opened as of Sep 24) -> https://foss.heptapod.net/python-libs/passlib/-/issues/187
-bcrypt<=4.0.1
 # hashing backend for passlib, not sure why we need it now
 argon2_cffi
 pytz
@@ -33,30 +31,37 @@ tldextract
 pyomo>=5.6,<6.9
 tabulate
 timetomodel>=0.7.3
-# 3.0.2: significantly faster db queries, incl. bulk saving, 3.1: numpy/pandas upgrade
-timely-beliefs[forecast]>=3.2
+# 3.3.1: deal with SingleBlockManager warnings
+timely-beliefs[forecast]>=3.3.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
 # see GH#607 for issue on this pin
 sqlalchemy>=2.0
 Flask-SSLify
-# use <0.4 if not compatible with Flask2.2 yet
 Flask_JSON
 Flask-Migrate
 Flask-WTF
 Flask-Mail
-# <5.2: https://github.com/Parallels/rq-dashboard/issues/417 as 5.2 requires Flask 2.3
-Flask-Security-Too>=5.0
+Flask-Security-Too[fsqla,mfa]>=5.0
 Flask-Login
 Flask-Classful>=0.16
 Flask-Marshmallow
 Flask-Cors
+flask-swagger-ui
 sentry-sdk[flask]
-# <4: https://github.com/FlexMeasures/flexmeasures/issues/1447
-marshmallow>=3,<4
+marshmallow>=3
+# See GH#1450 (failing tests on older Python versions)
+marshmallow~=3.0; python_version < "3.11"
+marshmallow_oneofschema
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
+
+# OpenAPI Documentation
+apispec
+apispec-oneofschema
+apispec-webframeworks
+
 webargs
 # Minimum version that supports datetimes on the (x-)axis.
 uniplot>=0.12.1
@@ -67,4 +72,12 @@ flask>=1.0
 werkzeug
 vl-convert-python
 Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/508
+urllib3>=2.6.0
+# Concise asset audit log entries
+dictdiffer>=0.9.0
+
+# Forecaster: TrainPredictPipeline
+lightgbm
+u8darts>=0.29.0
 flask-sock

@@ -197,9 +197,9 @@ def test_reporter(app, db, add_nearby_weather_sensors):
         _parameters_schema = TestReporterParametersSchema()
 
         def _compute_report(self, **kwargs) -> list:
-            start = kwargs.get("start")
-            end = kwargs.get("end")
             sensor = kwargs["output"][0]["sensor"]
+            start = pd.Timestamp(kwargs.get("start")).tz_convert(sensor.timezone)
+            end = pd.Timestamp(kwargs.get("end")).tz_convert(sensor.timezone)
             resolution = sensor.event_resolution
 
             index = pd.date_range(start=start, end=end, freq=resolution)
@@ -436,5 +436,14 @@ def flex_description_sequential(
         ],
         "site-production-capacity": "2kW",
         "site-consumption-capacity": "5kW",
+        # Cheap commitments that are not expected to affect the resulting schedule
+        "commitments": [
+            {
+                "name": "a sample commitment rewarding supply",
+                "baseline": "0 kW",
+                "up-price": "0 EUR/MWh",
+                "down-price": "1 EUR/MWh",
+            },
+        ],
     }
     return dict(flex_model=flex_model, flex_context=flex_context)

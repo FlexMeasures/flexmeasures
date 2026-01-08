@@ -4,8 +4,6 @@ Populate the database with data we know or read in.
 
 from __future__ import annotations
 
-from pathlib import Path
-from shutil import rmtree
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -13,8 +11,6 @@ from flask import current_app as app
 from flask_sqlalchemy import SQLAlchemy
 import click
 from sqlalchemy import func, and_, select, delete
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.serializer import loads, dumps
 from timetomodel.forecasting import make_rolling_forecasts
 from timetomodel.exceptions import MissingData, NaNData
 from humanize import naturaldelta
@@ -23,7 +19,7 @@ import inflect
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.user import User, Role, RolesUsers, AccountRole
+from flexmeasures.data.models.user import User, Role, AccountRole
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.utils.time_utils import ensure_local_timezone
@@ -43,13 +39,13 @@ def add_default_data_sources(db: SQLAlchemy):
         ("Seita", "forecaster"),
         ("Seita", "scheduler"),
     ):
-        source = db.session.execute(
+        sources = db.session.execute(
             select(DataSource).filter(
                 and_(DataSource.name == source_name, DataSource.type == source_type)
             )
-        ).scalar_one_or_none()
-        if source:
-            click.echo(f"Source {source_name} ({source_type}) already exists.")
+        ).scalar()
+        if sources:
+            click.echo(f"A source {source_name} ({source_type}) already exists.")
         else:
             db.session.add(DataSource(name=source_name, type=source_type))
 
@@ -67,6 +63,7 @@ def add_default_asset_types(db: SQLAlchemy) -> dict[str, GenericAssetType]:
         ("battery", "stationary battery"),
         ("building", "building"),
         ("process", "process"),
+        ("heat-storage", "thermal storage / buffer"),
     ):
         _type = db.session.execute(
             select(GenericAssetType).filter_by(name=type_name)
@@ -105,7 +102,7 @@ def add_default_user_roles(db: SQLAlchemy):
             select(Role).filter_by(name=role_name)
         ).scalar_one_or_none()
         if role:
-            click.echo(f"Role {role_name} already exists.")
+            click.echo(f"User role {role_name} already exists.")
         else:
             db.session.add(Role(name=role_name, description=role_description))
 
@@ -312,13 +309,13 @@ def depopulate_structure(db: SQLAlchemy):
 @as_transaction
 def depopulate_measurements(
     db: SQLAlchemy,
-    sensor_id: id | None = None,
+    sensor: Sensor | None = None,
 ):
     click.echo("Deleting (time series) data from the database %s ..." % db.engine)
 
     query = delete(TimedBelief).filter(TimedBelief.belief_horizon <= timedelta(hours=0))
-    if sensor_id is not None:
-        query = query.filter(TimedBelief.sensor_id == sensor_id)
+    if sensor is not None:
+        query = query.filter(TimedBelief.sensor_id == sensor.id)
     deletion_result = db.session.execute(query)
     num_measurements_deleted = deletion_result.rowcount
 
@@ -328,13 +325,13 @@ def depopulate_measurements(
 @as_transaction
 def depopulate_prognoses(
     db: SQLAlchemy,
-    sensor_id: id | None = None,
+    sensor: Sensor | None = None,
 ):
     """
-    Delete all prognosis data (with an horizon > 0).
+    Delete all prognosis data (with a horizon > 0).
     This affects forecasts as well as schedules.
 
-    Pass a sensor ID to restrict to data on one sensor only.
+    Pass a sensor to restrict to data on one sensor only.
 
     If no sensor is specified, this function also deletes forecasting and scheduling jobs.
     (Doing this only for jobs which forecast/schedule one sensor is not implemented and also tricky.)
@@ -344,19 +341,19 @@ def depopulate_prognoses(
         % db.engine
     )
 
-    if not sensor_id:
+    if not sensor:
         num_forecasting_jobs_deleted = app.queues["forecasting"].empty()
         num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
     query = delete(TimedBelief).filter(TimedBelief.belief_horizon > timedelta(hours=0))
 
-    if sensor_id is not None:
-        query = query.filter(TimedBelief.sensor_id == sensor_id)
+    if sensor is not None:
+        query = query.filter(TimedBelief.sensor_id == sensor.id)
     deletion_result = db.session.execute(query)
     num_forecasts_deleted = deletion_result.rowcount
 
-    if not sensor_id:
+    if not sensor:
         click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
         click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
     click.echo("Deleted %d forecasts (ex-ante beliefs)" % num_forecasts_deleted)
@@ -371,107 +368,3 @@ def reset_db(db: SQLAlchemy):
     db.create_all()
     click.echo("Committing ...")
     db.session.commit()
-
-
-def save_tables(
-    db: SQLAlchemy,
-    backup_name: str = "",
-    structure: bool = True,
-    data: bool = False,
-    backup_path: str = BACKUP_PATH,
-):
-    # Make a new folder for the backup
-    backup_folder = Path("%s/%s" % (backup_path, backup_name))
-    try:
-        backup_folder.mkdir(parents=True, exist_ok=False)
-    except FileExistsError:
-        click.echo(
-            "Can't save backup, because directory %s/%s already exists."
-            % (backup_path, backup_name)
-        )
-        return
-
-    affected_classes = get_affected_classes(structure, data)
-    c = None
-    try:
-        for c in affected_classes:
-            file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
-
-            with open(file_path, "xb") as file_handler:
-                file_handler.write(dumps(db.session.scalars(select(c))).all())
-            click.echo("Successfully saved %s/%s." % (backup_name, c.__tablename__))
-    except SQLAlchemyError as e:
-        click.echo(
-            "Can't save table %s because of the following error:\n\n\t%s\n\nCleaning up..."
-            % (c.__tablename__, e)
-        )
-        rmtree(backup_folder)
-        click.echo("Removed directory %s/%s." % (backup_path, backup_name))
-
-
-@as_transaction
-def load_tables(
-    db: SQLAlchemy,
-    backup_name: str = "",
-    structure: bool = True,
-    data: bool = False,
-    backup_path: str = BACKUP_PATH,
-):
-    if (
-        Path("%s/%s" % (backup_path, backup_name)).exists()
-        and Path("%s/%s" % (backup_path, backup_name)).is_dir()
-    ):
-        affected_classes = get_affected_classes(structure, data)
-        statement = "SELECT sequence_name from information_schema.sequences;"
-        data = db.session.execute(statement).fetchall()
-        sequence_names = [s.sequence_name for s in data]
-        for c in affected_classes:
-            file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
-            sequence_name = "%s_id_seq" % c.__tablename__
-            try:
-                with open(file_path, "rb") as file_handler:
-                    for row in loads(file_handler.read()):
-                        db.session.merge(row)
-                if sequence_name in sequence_names:
-
-                    # Get max id
-                    max_id = db.session.execute(
-                        select(func.max(c.id)).select_from(c)
-                    ).scalar_one_or_none()
-                    max_id = 1 if max_id is None else max_id
-
-                    # Set table seq to max id
-                    db.engine.execute(
-                        "SELECT setval('%s', %s, true);" % (sequence_name, max_id)
-                    )
-
-                click.echo(
-                    "Successfully loaded %s/%s." % (backup_name, c.__tablename__)
-                )
-            except FileNotFoundError:
-                click.echo(
-                    "Can't load table, because filename %s does not exist."
-                    % c.__tablename__
-                )
-    else:
-        click.echo(
-            "Can't load backup, because directory %s/%s does not exist."
-            % (backup_path, backup_name)
-        )
-
-
-def get_affected_classes(structure: bool = True, data: bool = False) -> list:
-    affected_classes = []
-    if structure:
-        affected_classes += [
-            Role,
-            User,
-            RolesUsers,
-            Sensor,
-            GenericAssetType,
-            GenericAsset,
-            DataSource,
-        ]
-    if data:
-        affected_classes += [TimedBelief]
-    return affected_classes

@@ -65,6 +65,25 @@ class Config(object):
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
 
+    # Two Factor Authentication
+    SECURITY_TWO_FACTOR_ENABLED_METHODS = [
+        "email"
+    ]  # 'authenticator' will be made possible later
+    SECURITY_TWO_FACTOR = False
+    SECURITY_TOTP_SECRETS: dict | None = None
+    SECURITY_TOTP_ISSUER = "FlexMeasures"
+    SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (
+        True  # False if you want to skip validation for testing
+    )
+    SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
+    SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
+    # this default probably is not what you want (default sender is usually a no-reply address)
+    SECURITY_TWO_FACTOR_RESCUE_MAIL = (
+        MAIL_DEFAULT_SENDER[1]
+        if isinstance(MAIL_DEFAULT_SENDER, tuple) and len(MAIL_DEFAULT_SENDER) > 1
+        else None
+    )
+
     # Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" here
     CORS_ORIGINS: list[str] | str = []
     # this can be a dict with all possible options as value per regex, see https://flask-cors.readthedocs.io/en/latest/configuration.html
@@ -86,6 +105,9 @@ class Config(object):
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
+    FLEXMEASURES_SUPPORT_PAGE: str | None = None
+    FLEXMEASURES_SIGNUP_PAGE: str | None = None
+    FLEXMEASURES_TOS_PAGE: str | None = None
     FLEXMEASURES_ALLOW_DATA_OVERWRITE: bool = False
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
@@ -96,6 +118,11 @@ class Config(object):
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict[str, str] = {"flexmeasures.io": "2021-01"}
     FLEXMEASURES_PLUGINS: list[str] | str = []  # str will be checked for commas
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
+    FLEXMEASURES_PROFILER_CONFIG: dict = dict(
+        async_mode="disabled",
+        interval=0.01,  # 10 ms sampling interval, enables coarse timer
+        use_timing_thread=True,
+    )
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_MENU_LOGO_PATH: str = ""
     FLEXMEASURES_EXTRA_CSS_PATH: str = ""
@@ -119,6 +146,7 @@ class Config(object):
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
     FLEXMEASURES_DEFAULT_DATASOURCE: str = "FlexMeasures"
+    FLEXMEASURES_DEFAULT_BOUNDING_BOX: tuple[tuple, tuple] = (54, 2), (50.732, 7.808)
     FLEXMEASURES_JOB_CACHE_TTL: int = (
         3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     )
@@ -138,6 +166,7 @@ class Config(object):
         # todo: expand with other js versions used in FlexMeasures
     )
     FLEXMEASURES_JSON_COMPACT = False
+    OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
@@ -159,6 +188,7 @@ class Config(object):
 
 #  names of settings which cannot be None
 #  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.
+#  SECURITY_TOTP_SECRETS is also required but utils.app_utils.set_totp_secrets takes care of this better.
 required: list[str] = ["SQLALCHEMY_DATABASE_URI"]
 
 #  settings whose absence should trigger a warning
@@ -221,7 +251,11 @@ class TestingConfig(Config):
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
 
+    SECURITY_TWO_FACTOR = False  # disable 2FA
+    SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
+
 
 class DocumentationConfig(Config):
     SECRET_KEY: str = "dummy-key-for-documentation"
     SQLALCHEMY_DATABASE_URI: str = "postgresql://dummy:uri@for/documentation"
+    SECURITY_TOTP_SECRETS = {"1": "222222222222222222222222222222222"}

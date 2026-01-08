@@ -7,13 +7,14 @@ from __future__ import annotations
 import os
 import random
 import string
+import sys
 from types import TracebackType
 from typing import Type
 
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
-from rq import Queue, Worker
+from rq import Queue, Worker, SimpleWorker
 from rq.job import Job
 from rq.registry import (
     CanceledJobRegistry,
@@ -31,6 +32,7 @@ from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 
 REGISTRY_MAP = dict(
@@ -46,6 +48,26 @@ REGISTRY_MAP = dict(
 @click.group("jobs")
 def fm_jobs():
     """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("run-job")
+@with_appcontext
+@click.option(
+    "--job",
+    "job_id",
+    required=True,
+    help="Job UUID of the job you want to run.",
+)
+def run_job(job_id: str):
+    """
+    Run a single job.
+
+    We use the app context to find out which redis queues to use.
+    """
+    connection = app.queues["scheduling"].connection
+    job = Job.fetch(job_id, connection=connection)
+    result = job.func(**job.kwargs)
+    click.echo(f"Job {job_id} finished with: {result}")
 
 
 @fm_jobs.command("run-worker")
@@ -92,12 +114,25 @@ def run_worker(queue: str, name: str | None):
         error_handler = handle_scheduling_exception
     elif queue == "forecasting":
         error_handler = handle_forecasting_exception
-    worker = Worker(
-        q_list,
-        connection=connection,
-        name=used_name,
-        exception_handlers=[error_handler],
-    )
+
+    # On macOS: RQ's fork-based Worker triggers a known OpenSSL/psycopg2
+    # segmentation fault due to reinitialization of SSL state in forked children.
+    # SimpleWorker executes jobs in-process (no fork) and is therefore the correct
+    # choice for macOS development environments.
+    if sys.platform == "darwin":
+        worker = SimpleWorker(
+            q_list,
+            connection=connection,
+            name=used_name,
+            exception_handlers=[error_handler],
+        )
+    else:
+        worker = Worker(
+            q_list,
+            connection=connection,
+            name=used_name,
+            exception_handlers=[error_handler],
+        )
 
     click.echo("\n=========================================================")
     click.secho(
@@ -126,18 +161,29 @@ def show_queues():
     queue_data = [
         (
             q.name,
-            q.started_job_registry.count,
             q.count,
             q.deferred_job_registry.count,
             q.scheduled_job_registry.count,
+            q.started_job_registry.count,
+            q.finished_job_registry.count,
             q.failed_job_registry.count,
+            q.canceled_job_registry.count,
         )
         for q in app.queues.values()
     ]
     click.echo(
         tabulate(
             queue_data,
-            headers=["Queue", "Started", "Queued", "Deferred", "Scheduled", "Failed"],
+            headers=[
+                "Queue",
+                "Queued jobs",
+                "Deferred jobs",
+                "Scheduled jobs",
+                "Started jobs",
+                "Finished jobs",
+                "Failed jobs",
+                "Canceled jobs",
+            ],
         )
     )
 
@@ -200,7 +246,7 @@ def save_last(
     available_queues = app.queues
     if queue_name not in available_queues.keys():
         click.secho(
-            f"Unknown queue '{queue_name}'. Available queues: {available_queues.keys()}",
+            f"Unknown queue '{queue_name}'. Available queues: {join_words_into_a_list(list(available_queues.keys()))}",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
