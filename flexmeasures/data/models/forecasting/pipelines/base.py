@@ -82,7 +82,7 @@ class BasePipeline:
         self.event_ends_before = event_ends_before
         self.save_belief_time = pd.to_datetime(save_belief_time, utc=True).tz_localize(
             None
-        )
+        )  # non floored belief time to save forecasts with
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
