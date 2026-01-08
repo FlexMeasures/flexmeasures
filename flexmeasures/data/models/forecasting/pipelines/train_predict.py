@@ -74,6 +74,7 @@ class TrainPredictPipeline(Forecaster):
             // self._parameters["target"].event_resolution,
             event_starts_after=train_start,
             event_ends_before=train_end,
+            save_belief_time=self._parameters["save_belief_time"],
             probabilistic=self._parameters["probabilistic"],
             ensure_positive=self._parameters["ensure_positive"],
             missing_threshold=self._parameters.get("missing_threshold"),
@@ -112,6 +113,7 @@ class TrainPredictPipeline(Forecaster):
             probabilistic=self._parameters["probabilistic"],
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
             event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period
+            save_belief_time=self._parameters["save_belief_time"],
             predict_start=predict_start,
             predict_end=predict_end,
             sensor_to_save=self._parameters["sensor_to_save"],
