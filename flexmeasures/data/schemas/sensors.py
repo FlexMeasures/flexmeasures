@@ -664,6 +664,9 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     )
                 else:
                     bdf.event_resolution = bdf.event_frequency
+                if bdf.event_resolution is None:
+                    # Reraise the error if an event frequency could not be inferred
+                    pd.infer_freq(bdf.index.unique("event_start"))
 
                 bdf["event_value"] = convert_units(
                     bdf["event_value"],
