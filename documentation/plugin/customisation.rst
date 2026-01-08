@@ -103,7 +103,7 @@ The following minimal example gives you an idea of some meta information you can
     _parameters_schema = Schema(unknown="include")
 
     def _compute_forecast(self, **kwargs):
-        target_sensor: Sensor = kwargs["target"]
+        target_sensor: Sensor = kwargs["sensor"]
         bdf = BeliefsDataFrame()
         return [
             {
