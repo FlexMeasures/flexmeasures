@@ -192,10 +192,11 @@ class SensorSchemaMixin(Schema):
         ),
     )
     timezone = ma.auto_field(
+        validate=OneOf(pytz.all_timezones),
         metadata=dict(
             description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
             example="Europe/Amsterdam",
-        )
+        ),
     )
     event_resolution = DurationField(
         required=True,
@@ -240,13 +241,6 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     generic_asset_id = fields.Integer(
         required=True,
         metadata=dict(description="The asset that the sensor belongs to.", example=1),
-    )
-    timezone = fields.String(
-        validate=OneOf(pytz.all_timezones),
-        metadata=dict(
-            description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
-            example="Europe/Amsterdam",
-        ),
     )
 
     @validates("generic_asset_id")
