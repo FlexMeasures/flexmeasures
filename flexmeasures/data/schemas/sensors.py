@@ -40,6 +40,8 @@ from flexmeasures.utils.unit_utils import (
     ur,
     units_are_convertible,
     convert_units,
+    is_currency_unit,
+    is_energy_unit,
 )
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
@@ -659,7 +661,51 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     # todo: remove the next line when https://github.com/SeitaBV/timely-beliefs/issues/220 is fixed
                     event_resolution=bdf.event_resolution,
                 )
-                if sensor.event_resolution != timedelta(minutes=0):
+                if units_are_convertible(
+                    from_unit, sensor.unit, duration_known=False
+                ) and (is_currency_unit(from_unit) or is_energy_unit(from_unit)):
+                    # Special cases for resampling known stock units
+                    # todo: move this resampling logic to timely-beliefs
+                    if (
+                        bdf.event_resolution == sensor.event_resolution
+                        or sensor.event_resolution == timedelta(0)
+                    ):
+                        pass
+                    else:
+                        belief_timing_col = (
+                            "belief_time"
+                            if "belief_time" in bdf.index.names
+                            else "belief_horizon"
+                        )
+                        if bdf.event_resolution < sensor.event_resolution:
+                            # Downsample
+                            column_functions = {
+                                "event_value": "sum",
+                                "source": "first",  # keep the only source
+                                belief_timing_col: (
+                                    "max"
+                                    if belief_timing_col == "belief_time"
+                                    else "min"
+                                ),  # keep only most recent belief
+                                "cumulative_probability": "mean",  # we just have one point on each CDF
+                            }
+                            indices = [
+                                belief_timing_col,
+                                "source",
+                                "cumulative_probability",
+                            ]
+                            bdf = (
+                                bdf.reset_index(indices)
+                                .resample(sensor.event_resolution)
+                                .agg(column_functions)
+                                .set_index(indices, append=True)
+                            )
+                        else:
+                            # Upsample
+                            bdf = bdf.resample(sensor.event_resolution).ffill()
+                            factor = bdf.event_resolution / sensor.event_resolution
+                            bdf /= factor
+                elif sensor.event_resolution != timedelta(0):
                     bdf = bdf.resample_events(sensor.event_resolution)
                 dfs.append(bdf)
             except Exception as e:
