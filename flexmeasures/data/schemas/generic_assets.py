@@ -83,41 +83,94 @@ class SensorsToShowSchema(fields.Field):
         Standardize different input formats to a consistent dictionary format.
         """
         if isinstance(item, int):
-            return {"title": None, "sensors": [item]}
+            return {"title": None, "plots": {"sensor": item}}
         elif isinstance(item, list):
             if not all(isinstance(sensor_id, int) for sensor_id in item):
                 raise ValidationError(
                     "All elements in a list within 'sensors_to_show' must be integers."
                 )
-            return {"title": None, "sensors": item}
+            return {"title": None, "plots": {"sensors": item}}
         elif isinstance(item, dict):
-            if "title" not in item:
-                raise ValidationError("Dictionary must contain a 'title' key.")
-            else:
-                title = item["title"]
-                if not isinstance(title, str) and title is not None:
-                    raise ValidationError("'title' value must be a string.")
-
-            if "sensor" in item:
-                sensor = item["sensor"]
-                if not isinstance(sensor, int):
-                    raise ValidationError("'sensor' value must be an integer.")
-                return {"title": title, "sensors": [sensor]}
-            elif "sensors" in item:
-                sensors = item["sensors"]
-                if not isinstance(sensors, list) or not all(
-                    isinstance(sensor_id, int) for sensor_id in sensors
-                ):
-                    raise ValidationError("'sensors' value must be a list of integers.")
-                return {"title": title, "sensors": sensors}
-            else:
-                raise ValidationError(
-                    "Dictionary must contain either 'sensor' or 'sensors' key."
-                )
+            return self._standardize_dict_item(item)
         else:
             raise ValidationError(
                 "Invalid item type in 'sensors_to_show'. Expected int, list, or dict."
             )
+
+    def _standardize_dict_item(self, item: dict) -> dict:
+        if "title" not in item:
+            raise ValidationError("Dictionary must contain a 'title' key.")
+
+        title = item["title"]
+        if not isinstance(title, str) and title is not None:
+            raise ValidationError("'title' value must be a string.")
+
+        if "sensor" in item:
+            sensor = item["sensor"]
+            if not isinstance(sensor, int):
+                raise ValidationError("'sensor' value must be an integer.")
+            return {"title": title, "plots": {"sensor": sensor}}
+        elif "sensors" in item:
+            sensors = item["sensors"]
+            if not isinstance(sensors, list) or not all(
+                isinstance(sensor_id, int) for sensor_id in sensors
+            ):
+                raise ValidationError("'sensors' value must be a list of integers.")
+            return {"title": title, "plots": {"sensors": sensors}}
+        elif "plots" in item:
+            plots = item["plots"]
+            if not isinstance(plots, list):
+                raise ValidationError("'plots' must be a list or dictionary.")
+
+            for plot in plots:
+                self._validate_single_plot(plot)
+
+            return {"title": title, "plots": plots}
+        else:
+            raise ValidationError(
+                "Dictionary must contain either 'sensor' or 'sensors' key."
+            )
+
+    def _validate_single_plot(self, plot):
+        if not isinstance(plot, dict):
+            raise ValidationError("Each plot in 'plots' must be a dictionary.")
+
+        if "asset" in plot:
+            self._validate_asset_in_plot(plot)
+
+        if "sensor" not in plot and "sensors" not in plot and "asset" not in plot:
+            raise ValidationError(
+                "Each plot must contain either 'sensor', 'sensors' or an 'asset' key."
+            )
+
+    def _validate_asset_in_plot(self, plot):
+        from flexmeasures.data.schemas.scheduling import (
+            DBFlexContextSchema,
+        )
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
+        if "flex-context" not in plot or "flex-model" not in plot:
+            raise ValidationError(
+                "When 'asset' is provided in a plot, 'flex-context' and 'flex-model' must also be provided."
+            )
+
+        self._validate_string_field_in_collection(
+            plot, "flex-context", DBFlexContextSchema.mapped_schema_keys.values()
+        )
+        self._validate_string_field_in_collection(
+            plot, "flex-model", DBStorageFlexModelSchema.mapped_schema_keys.values()
+        )
+
+    def _validate_string_field_in_collection(self, data, field_name, valid_collection):
+        if field_name in data:
+            value = data[field_name]
+            if not isinstance(value, str):
+                raise ValidationError(f"'{field_name}' must be a string.")
+
+            if value not in valid_collection:
+                raise ValidationError(f"'{field_name}' value '{value}' is not valid.")
 
     @classmethod
     def flatten(cls, nested_list) -> list[int]:
