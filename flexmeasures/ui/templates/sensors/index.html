@@ -40,12 +40,12 @@
                                 
                                     <div class="form-group">
                                         <label for="name" class="form-label">Name</label>
-                                        <input type="text" class="form-control" id="name" name="name" placeholder="e.g power" value="{{sensor.name}}" required />
+                                        <input type="text" class="form-control" id="name" name="name" value="{{sensor.name}}" required />
                                     </div>
 
                                      <div class="form-group pt-3">
                                         <label for="timezone" class="form-label">Timezone</label>
-                                        <input type="text" class="form-control" id="timezone" name="timezone" placeholder="e.g UTC+0" value="{{sensor.timezone}}" required />
+                                        <input type="text" class="form-control" id="timezone" name="timezone" value="{{sensor.timezone}}" required />
                                     </div>
                                 
                                     <button class="btn btn-sm btn-responsive btn-success create-button" type="submit" onclick="updateSensor(event)"
