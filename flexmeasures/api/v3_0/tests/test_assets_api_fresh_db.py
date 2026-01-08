@@ -245,6 +245,18 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             [2500, 2500, 3000, 3000],
             200,
         ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            5,  # this sensor has unit=EUR, res=01:00
+            "kEUR",  # Conversion needed                        - kEUR to EUR
+            timedelta(hours=1),  # No resampling                - 1 hour (!) to 1 hour
+            # Note that this test case could also define 2 hours between rows, but since there is only 1 row of data,
+            # the data does not actually contain any 2-hour delta.
+            # Therefore, FlexMeasures assumes the data resolution already matches the sensor resolution.
+            [5],
+            [5000],  # we make 5 kEUR the first hour
+            200,
+        ),
     ],
     indirect=["requesting_user"],
 )
