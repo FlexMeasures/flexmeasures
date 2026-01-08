@@ -128,7 +128,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
             "kWh",  # Conversion needed                         - kWh to kW
-            timedelta(minutes=30),  # Upsampling                - 30 minutes to 15 minutes
+            # Upsampling                                        - 30 minutes to 15 minutes
+            timedelta(minutes=30),
             [10] * 12,
             [10 * 2]
             * 12
@@ -160,7 +161,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
             "kWh",  # Conversion needed                         - kWh to kW
-            timedelta(minutes=7, seconds=30),  # Downsampling   - 7.5 minutes to 15 minutes
+            # Downsampling                                      - 7.5 minutes to 15 minutes
+            timedelta(minutes=7, seconds=30),
             [20, 40, 40, 80],
             [
                 240,
@@ -172,7 +174,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
             "MW",  # Conversion needed                          - MW to kW
-            timedelta(minutes=7, seconds=30),  # Downsampling   - 7.5 minutes to 15 minutes
+            # Downsampling                                      - 7.5 minutes to 15 minutes
+            timedelta(minutes=7, seconds=30),
             [20, 40, 40, 80, 30, 60],
             [
                 30000,
@@ -185,7 +188,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "test_prosumer_user_2@seita.nl",
             3,  # this sensor has unit=kWh, res=00:00
             "MWh",  # Conversion needed                         - MWh to kWh
-            timedelta(minutes=7, seconds=30),  # No resampling  - 7.5 minutes to instantaneous
+            # No resampling                                     - 7.5 minutes to instantaneous
+            timedelta(minutes=7, seconds=30),
             [10, 20, 40, 80],
             [10000, 20000, 40000, 80000],
             200,
@@ -194,7 +198,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "test_prosumer_user_2@seita.nl",
             3,  # this sensor has unit=kWh, res=00:00
             "kW",  # Conversion needed                          - kW to kWh
-            timedelta(minutes=7, seconds=30),  # No resampling  - 7.5 minutes to instantaneous
+            # No resampling                                     - 7.5 minutes to instantaneous
+            timedelta(minutes=7, seconds=30),
             [20, 40, 40, 80],
             "Provided unit 'kW' is not convertible to sensor unit 'kWh'",
             422,
@@ -223,10 +228,8 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "kEUR",  # Conversion needed                        - kEUR to EUR
             timedelta(minutes=30),  # Downsampling              - 30 minutes to 1 hour
             [2, 3, 4, 2],
-            [
-                5000,
-                6000,
-            ],  # we make (2 + 3) kEUR the first hour, and (4 + 2) kEUR the second hour
+            # we make (2 + 3) kEUR the first hour, and (4 + 2) kEUR the second hour
+            [5000, 6000],
             200,
         ),
         (
@@ -245,7 +248,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
     ],
     indirect=["requesting_user"],
 )
-def test_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
+def test_authupload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
     fresh_db,
     client,
     add_battery_assets_fresh_db,
