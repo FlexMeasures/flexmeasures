@@ -129,9 +129,16 @@ class ForecasterParametersSchema(Schema):
 
         resolution = target_sensor.event_resolution
 
-        predict_start = data.get("start_predict_date") or floor_to_resolution(
-            server_now(), resolution
-        )
+        now = server_now()
+        floored_now = floor_to_resolution(now, resolution)
+
+        if data.get("start_predict_date"):
+            predict_start = data["start_predict_date"]
+            save_belief_time = None
+        else:
+            predict_start = floored_now
+            save_belief_time = now
+
         if data.get("start_predict_date") is None and data.get("train_period"):
 
             predict_start = data["start_date"] + data["train_period"]
@@ -213,4 +220,5 @@ class ForecasterParametersSchema(Schema):
             ensure_positive=ensure_positive,
             missing_threshold=data.get("missing_threshold"),
             as_job=data.get("as_job"),
+            save_belief_time=save_belief_time,
         )
