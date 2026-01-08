@@ -682,6 +682,11 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                             if "belief_time" in bdf.index.names
                             else "belief_horizon"
                         )
+                        indices = [
+                            belief_timing_col,
+                            "source",
+                            "cumulative_probability",
+                        ]
                         if bdf.event_resolution < sensor.event_resolution:
                             # Downsample
                             column_functions = {
@@ -694,11 +699,6 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                                 ),  # keep only most recent belief
                                 "cumulative_probability": "mean",  # we just have one point on each CDF
                             }
-                            indices = [
-                                belief_timing_col,
-                                "source",
-                                "cumulative_probability",
-                            ]
                             bdf = (
                                 bdf.reset_index(indices)
                                 .resample(sensor.event_resolution)
@@ -707,7 +707,12 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                             )
                         else:
                             # Upsample
-                            bdf = bdf.resample(sensor.event_resolution).ffill()
+                            bdf = (
+                                bdf.reset_index(indices)
+                                .resample(sensor.event_resolution)
+                                .ffill()
+                                .set_index(indices, append=True)
+                            )
                             factor = bdf.event_resolution / sensor.event_resolution
                             bdf /= factor
                 elif sensor.event_resolution != timedelta(0):
