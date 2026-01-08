@@ -661,9 +661,13 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     # todo: remove the next line when https://github.com/SeitaBV/timely-beliefs/issues/220 is fixed
                     event_resolution=bdf.event_resolution,
                 )
+                known_stock_unit_validators = [is_currency_unit, is_energy_unit]
                 if units_are_convertible(
                     from_unit, sensor.unit, duration_known=False
-                ) and (is_currency_unit(from_unit) or is_energy_unit(from_unit)):
+                ) and any(
+                    is_stock_unit(from_unit)
+                    for is_stock_unit in known_stock_unit_validators
+                ):
                     # Special cases for resampling known stock units
                     # todo: move this resampling logic to timely-beliefs
                     if (
