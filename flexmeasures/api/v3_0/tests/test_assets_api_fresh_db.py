@@ -223,7 +223,24 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
             "kEUR",  # Conversion needed - kEUR to EUR
             timedelta(minutes=30),  # Downsampling
             [2, 3, 4, 2],
-            [5000, 6000],  # we make (2 + 3) kEUR the first hour, and (4 + 2) kEUR the second hour
+            [
+                5000,
+                6000,
+            ],  # we make (2 + 3) kEUR the first hour, and (4 + 2) kEUR the second hour
+            200,
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            5,  # this sensor has unit=EUR, res=01:00
+            "kEUR",  # Conversion needed - kEUR to EUR
+            timedelta(hours=2),  # Upsampling
+            [5, 6],
+            [
+                2500,
+                2500,
+                3000,
+                3000,
+            ],  # we make (2.5 + 2.5) kEUR the first two hours, and (3 + 3) kEUR the second two hours
             200,
         ),
     ],
