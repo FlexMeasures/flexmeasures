@@ -65,6 +65,7 @@ class BasePipeline:
         forecast_frequency: int,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
+        save_belief_time: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
@@ -79,6 +80,9 @@ class BasePipeline:
         ) // forecast_frequency
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
+        self.save_belief_time = pd.to_datetime(save_belief_time, utc=True).tz_localize(
+            None
+        )
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
