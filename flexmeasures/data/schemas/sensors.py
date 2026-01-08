@@ -653,7 +653,18 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                 ), "event values should be numeric"
 
                 from_unit = fields.get("unit", sensor.unit)
-                bdf.event_resolution = bdf.event_frequency
+
+                # Start to infer the event resolution
+                if len(bdf) == 1:
+                    bdf.event_resolution = sensor.event_resolution
+                elif len(bdf) == 2:
+                    # Pandas cannot infer an event frequency, but we can (try)
+                    bdf.event_resolution = abs(
+                        bdf.event_starts[-1] - bdf.event_starts[0]
+                    )
+                else:
+                    bdf.event_resolution = bdf.event_frequency
+
                 bdf["event_value"] = convert_units(
                     bdf["event_value"],
                     from_unit,
