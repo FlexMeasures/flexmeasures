@@ -286,7 +286,6 @@ class GenericAsset(db.Model, AuthModelMixin):
             return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
 
         sensor_ids_to_show = self.sensors_to_show
-        print("===========================: sensor_ids_to_show: ", sensor_ids_to_show)
         # Import the schema for validation
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
@@ -297,11 +296,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensor_ids_to_show
         )
 
-        print("===========================: ")
-        print("standardized_sensors_to_show: ", standardized_sensors_to_show)
-
         sensor_id_allowlist = SensorsToShowSchema.flatten(standardized_sensors_to_show)
-        print("sensor_id_allowlist: ", sensor_id_allowlist)
 
         # Only allow showing sensors from assets owned by the user's organization,
         # except in play mode, where any sensor may be shown
@@ -329,7 +324,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         for entry in standardized_sensors_to_show:
 
             title = entry.get("title")
-            sensors = entry.get("sensors")
+            sensors = entry.get("plots", {}).get("sensors")
 
             accessible_sensors = [
                 accessible_sensor_map.get(sid)
@@ -339,12 +334,16 @@ class GenericAsset(db.Model, AuthModelMixin):
             inaccessible = [sid for sid in sensors if sid not in accessible_sensor_map]
             missed_sensor_ids.extend(inaccessible)
             if accessible_sensors:
-                sensors_to_show.append({"title": title, "sensors": accessible_sensors})
+                sensors_to_show.append(
+                    {"title": title, "plots": [{"sensors": accessible_sensors}]}
+                )
 
         if missed_sensor_ids:
             current_app.logger.warning(
                 f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
             )
+        print("=================== sensors_to_show: ", sensors_to_show)
+
         return sensors_to_show
 
     @property
