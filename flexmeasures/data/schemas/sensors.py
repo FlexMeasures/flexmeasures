@@ -661,6 +661,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     # todo: remove the next line when https://github.com/SeitaBV/timely-beliefs/issues/220 is fixed
                     event_resolution=bdf.event_resolution,
                 )
+                # todo: allow users to override this behaviour
                 known_stock_unit_validators = [is_currency_unit, is_energy_unit]
                 if units_are_convertible(
                     from_unit, sensor.unit, duration_known=False
