@@ -408,6 +408,7 @@ class BasePipeline:
                         seconds=index_offset * target_sensor_resolution.total_seconds()
                     )
                     belief_time = first_belief_time + delta
+                    save_belief_time = self.save_belief_time + delta
                     target_end = first_target_end + delta
                     forecast_end = first_forecast_end + delta
 
@@ -505,7 +506,7 @@ class BasePipeline:
                     target_list.append(y_split)
                     past_covariates_list.append(past_covariates)
                     future_covariates_list.append(future_covariates)
-                    belief_timestamps_list.append(belief_time)
+                    belief_timestamps_list.append(save_belief_time)
 
                 future_covariates_list = (
                     future_covariates_list
