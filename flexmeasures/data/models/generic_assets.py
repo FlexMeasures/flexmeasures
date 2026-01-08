@@ -342,8 +342,6 @@ class GenericAsset(db.Model, AuthModelMixin):
             current_app.logger.warning(
                 f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
             )
-        print("=================== sensors_to_show: ", sensors_to_show)
-
         return sensors_to_show
 
     @property
