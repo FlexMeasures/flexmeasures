@@ -106,7 +106,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         kwargs = dict(horizons_at_most=timedelta(0))
     bdf_db = bdf.sensor.search_beliefs(
         event_starts_after=bdf.event_starts[0],
-        event_ends_before=bdf.event_ends[-1],  # - timedelta(hours=24),
+        event_ends_before=bdf.event_ends[-1],
         most_recent_beliefs_only=False,  # all beliefs
         **kwargs,
     )
