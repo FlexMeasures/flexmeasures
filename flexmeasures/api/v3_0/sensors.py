@@ -14,7 +14,7 @@ from flask_json import as_json
 from flask_security import auth_required, current_user
 from marshmallow import fields, Schema, ValidationError
 import marshmallow.validate as validate
-from rq.job import Job, NoSuchJobError
+from rq.job import Job, JobStatus, NoSuchJobError
 import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
@@ -36,7 +36,10 @@ from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.api.common.utils.api_utils import save_and_enqueue
+from flexmeasures.api.common.utils.api_utils import (
+    job_status_description,
+    save_and_enqueue,
+)
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -962,63 +965,27 @@ class SensorAPI(FlaskView):
         scheduler_info_msg = f"{scheduler_info['scheduler']} was used."
 
         if job.is_finished:
-            error_message = "A scheduling job has been processed with your job ID, but "
-
-        elif job.is_failed:  # Try to inform the user on why the job failed
-            e = job.meta.get(
-                "exception",
-                Exception(
-                    "The job does not state why it failed. "
-                    "The worker may be missing an exception handler, "
-                    "or its exception handler is not storing the exception as job meta data."
-                ),
-            )
-            message = f"Scheduling job failed with {type(e).__name__}: {e}. {scheduler_info_msg}"
-
-            fallback_job_id = job.meta.get("fallback_job_id")
-
+            message = "A scheduling job has been processed with your job ID"
+        elif job.is_failed and (fallback_job_id := job.meta.get("fallback_job_id")):
             # redirect to the fallback schedule endpoint if the fallback_job_id
             # is defined in the metadata of the original job
-            if fallback_job_id is not None:
-                return fallback_schedule_redirect(
-                    message,
-                    url_for(
-                        "SensorAPI:get_schedule",
-                        uuid=fallback_job_id,
-                        id=sensor.id,
-                        _external=True,
-                    ),
-                )
-            else:
-                return unknown_schedule(message)
-
-        elif job.is_started:
-            return unknown_schedule(f"Scheduling job in progress. {scheduler_info_msg}")
-        elif job.is_queued:
-            return unknown_schedule(
-                f"Scheduling job waiting to be processed. {scheduler_info_msg}"
-            )
-        elif job.is_deferred:
-            try:
-                preferred_job = job.dependency
-            except NoSuchJobError:
-                return unknown_schedule(
-                    f"Scheduling job waiting for unknown job to be processed. {scheduler_info_msg}"
-                )
-            return unknown_schedule(
-                f'Scheduling job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed. {scheduler_info_msg}'
+            return fallback_schedule_redirect(
+                message=job_status_description(job, scheduler_info_msg),
+                location=url_for(
+                    endpoint="SensorAPI:get_schedule",
+                    uuid=fallback_job_id,
+                    id=sensor.id,
+                    _external=True,
+                ),
             )
         else:
-            return unknown_schedule(
-                f"Scheduling job has an unknown status. {scheduler_info_msg}"
-            )
+            return unknown_schedule(job_status_description(job, scheduler_info_msg))
         schedule_start = job.kwargs["start"]
 
         data_source = get_data_source_for_job(job)
         if data_source is None:
             return unknown_schedule(
-                error_message
-                + f"no data source could be found for {data_source}. {scheduler_info_msg}"
+                f"{message}, but no data source could be found for {data_source}. {scheduler_info_msg}"
             )
 
         power_values = sensor.search_beliefs(
@@ -1039,7 +1006,7 @@ class SensorAPI(FlaskView):
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             return unknown_schedule(
-                f"{error_message} the schedule was not found in the database. {scheduler_info_msg}"
+                f"{message}, but the schedule was not found in the database. {scheduler_info_msg}"
             )
 
         # Update the planning window
@@ -1519,57 +1486,107 @@ class SensorAPI(FlaskView):
         return {"sensors_data": status_data}, 200
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @use_kwargs(ForecasterParametersSchema, location="json")
-    @permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def trigger_forecast(self, id: int, sensor: Sensor, **params):
+    @use_args(
+        ForecasterParametersSchema(),
+        location="combined_sensor_data_description",
+        as_kwargs=True,
+    )
+    @permission_required_for_context("create-children", ctx_arg_name="sensor_to_save")
+    def trigger_forecast(self, id: int, **params):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
         ---
         post:
           summary: Trigger forecasting job for one sensor
           description: |
-            Launch a forecasting pipeline for the given sensor asynchronously.
+            Trigger a forecasting job for a sensor.
 
-            Example:
-            ```
-            {
-              "start_date": "2026-01-01T00:00:00+01:00",
-              "start_predict_date": "2026-01-15T00:00:00+01:00",
-              "end_date": "2026-01-17T00:00:00+01:00"
-            }
-            ```
+            This endpoint starts a forecasting job asynchronously and returns a
+            job UUID. The job will run in the background and generate forecast values
+            for the specified period.
+
+            Once triggered, the job status and results can be retrieved using the
+            ``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the sensor for which to trigger forecasting.
+              example: 5
+              schema:
+                type: integer
           requestBody:
             required: true
             content:
               application/json:
-                schema: ForecasterParametersSchema
+                schema:
+                  type: object
+                  properties:
+                    start_date:
+                      type: string
+                      format: date-time
+                      description: Start date of the historical data used for training.
+                    start_predict_date:
+                      type: string
+                      format: date-time
+                      description: Start date of the forecast period.
+                    end_date:
+                      type: string
+                      format: date-time
+                      description: End date of the forecast period.
+                example:
+                  start_date: "2026-01-01T00:00:00+01:00"
+                  start_predict_date: "2026-01-15T00:00:00+01:00"
+                  end_date: "2026-01-17T00:00:00+01:00"
           responses:
             200:
-              description: Forecasting job queued
+              description: PROCESSED
               content:
                 application/json:
+                  schema:
+                    type: object
+                    properties:
+                      forecast:
+                        type: string
+                        description: UUID of the queued forecasting job.
+                      status:
+                        type: string
+                        enum: ["PROCESSED"]
+                      message:
+                        type: string
                   example:
-                    status: "PROCESSED"
                     forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    status: "PROCESSED"
                     message: "Forecasting job has been queued."
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
         # NOTE: This endpoint reuses the same validation logic as the
         # `flexmeasures add forecasts` CLI command.
 
+        # Load the original JSON payload
+        parameters = request.get_json()
+
+        # Put the sensor to save in the parameters
+        parameters["sensor"] = params["sensor_to_save"].id
+
+        # Ensure the forecast is run as a job on a forecasting queue
+        parameters["as_job"] = True
+
+        # Set forecaster model
+        model = parameters.pop("model", "TrainPredictPipeline")
+
+        # Instantiate the forecaster
         try:
-            # Load and validate JSON payload
-            parameters = request.get_json()
-
-            # Ensure the forecast is run as a job on a forecasting queue
-            parameters["as_job"] = True
-
-            # Set forecaster model
-            model = parameters.pop("model", "TrainPredictPipeline")
-
-            # Instantiate the forecaster
             forecaster = get_data_generator(
                 source=None,
                 model=model,
@@ -1577,15 +1594,188 @@ class SensorAPI(FlaskView):
                 save_config=True,
                 data_generator_type=Forecaster,
             )
+        except ValidationError as err:
+            return unprocessable_entity(err.messages)
 
-            # Queue forecasting job
-            wrap_up_job = forecaster.compute(parameters=parameters)
-
-            d, s = request_processed()
-            return dict(forecast=wrap_up_job, **d), s
-
-        except ValidationError as e:
-            return unprocessable_entity(e.messages)
+        # Queue forecasting job
+        try:
+            job_id = forecaster.compute(parameters=parameters)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
             return unprocessable_entity(str(e))
+
+        d, s = request_processed()
+        return dict(forecast=job_id, **d), s
+
+    @route("/<id>/forecasts/<uuid>", methods=["GET"])
+    @use_kwargs(
+        {
+            "sensor": SensorIdField(data_key="id"),
+            "job_id": fields.Str(data_key="uuid", required=True),
+        },
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    def get_forecast(self, id: int, uuid: str, sensor: Sensor, job_id: str):
+        """
+        .. :quickref: Forecasts; Get forecast for one sensor
+        ---
+        get:
+          summary: Get forecast for one sensor
+          description: |
+            Fetch the results of a previously triggered forecasting job.
+
+            While the forecasting job is still running, this endpoint returns its
+            current status. Once the job has completed successfully, the endpoint
+            returns the generated forecast.
+
+            The returned forecast represents the most recent belief per event and
+            covers the period for which forecasts were generated.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the sensor for which the forecast was triggered.
+              example: 5
+              schema:
+                type: integer
+            - in: path
+              name: uuid
+              required: true
+              description: UUID of the forecasting job returned by the trigger endpoint.
+              example: b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b
+              schema:
+                type: string
+          responses:
+            200:
+              description: Forecast job results
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["FINISHED"]
+                        description: Processing status of the request.
+                      start:
+                        type: string
+                        format: date-time
+                        description: Start time of the forecast values (ISO 8601).
+                      duration:
+                        type: string
+                        description: Duration covered by the forecast, expressed as an ISO 8601 duration.
+                      unit:
+                        type: string
+                        description: Unit of the forecast values.
+                      values:
+                        type: array
+                        items:
+                          type: number
+                        description: Forecast values.
+                  examples:
+                    finished:
+                      summary: Finished forecasting job
+                      value:
+                        start: "2025-10-15T00:00:00+01:00"
+                        duration: "PT4H"
+                        unit: "kW"
+                        values: [1.2, 1.5, 1.4, 0.8]
+            202:
+              description: Forecast job status
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["QUEUED", "DEFERRED", "STARTED"]
+                        description: Processing status of the request.
+                  examples:
+                    started:
+                      summary: Started forecasting job
+                      value:
+                        status: "STARTED"
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Sensors
+        """
+
+        # Fetch job from RQ
+        queue = current_app.queues["forecasting"]
+        connection = queue.connection
+
+        # Fetch job
+        try:
+            job = Job.fetch(job_id, connection=connection)
+        except NoSuchJobError:
+            return unprocessable_entity(f"Job {job_id} not found.")
+
+        # Ensure the sensor in the URL matches the sensor associated with the forecast job
+        job_sensor_id = job.meta.get("sensor_id")
+        if job_sensor_id != sensor.id:
+            return unprocessable_entity(
+                f"Sensor ID mismatch: job {job_id} is for sensor {job_sensor_id}, not sensor {sensor.id}."
+            )
+        if job.dependency_ids:
+            forecast_job_ids = [
+                dep.decode("utf-8").replace("rq:job:", "") for dep in job.dependency_ids
+            ]
+            response = dict(
+                message="The forecasting job led to forecasts over different periods. Please query an individual period by calling this endpoint with one of the listed job IDs",
+                forecasts=forecast_job_ids,
+            )
+
+            d, s = request_processed()
+            return dict(**response), s
+
+        # Check job status
+        if not job.is_finished:
+            return (
+                dict(
+                    status=job.get_status().name,
+                    message=job_status_description(job),
+                ),
+                202 if job.get_status() != JobStatus.FAILED else 422,
+            )
+
+        # Job finished → fetch forecasts from DB
+        # search for forecasts linked to this job and sensor
+        try:
+            data_source = get_data_source_for_job(job, type="forecasting")
+
+            forecasts = sensor.search_beliefs(
+                event_starts_after=job.meta.get("start_predict_date"),
+                event_ends_before=job.meta.get("end_date"),
+                source=data_source,
+                most_recent_beliefs_only=True,
+                use_latest_version_per_event=True,
+                one_deterministic_belief_per_event=True,
+            ).reset_index()
+        except Exception as e:
+            current_app.logger.exception("Failed to get forecast job status.")
+            return unprocessable_entity(str(e))
+
+        start = forecasts["event_start"].min()
+        last_event_start = forecasts["event_start"].max()
+
+        resolution = sensor.event_resolution
+        duration = (last_event_start + resolution) - start
+
+        response = dict(
+            start=start.isoformat(),
+            duration=isodate.duration_isoformat(duration),
+            values=forecasts["event_value"].tolist(),
+            unit=sensor.unit,
+        )
+
+        d, s = request_processed()
+        return dict(**response), s

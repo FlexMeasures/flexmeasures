@@ -11,28 +11,43 @@ v0.31.0 | February XX, 2026
 
 New features
 -------------
-* New forecasting API endpoint `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ to trigger forecasts on a sensor [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_]
+* New forecasting API endpoints `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ and `[GET] /sensors/(id)/forecasts/(uuid) <api/v3_0.html#get--api-v3_0-sensors-id-forecasts-uuid>`_ to forecast sensor data [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_ and `PR #1823 <https://www.github.com/FlexMeasures/flexmeasures/pull/1823>`_]
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
+* Step-by-step replay in the UI, using the **n** key to go to the **n**\ ext time step [see `PR #1898 <https://www.github.com/FlexMeasures/flexmeasures/pull/1898>`_]
+* Improved the UX for creating sensors, clicking on ``Enter`` now validates and creates a sensor [see `PR #1876 <https://www.github.com/FlexMeasures/flexmeasures/pull/1876>`_]
+* Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_ and `PR #1899 <https://www.github.com/FlexMeasures/flexmeasures/pull/1899>`_]
+* Support creating schedules with only information known prior to some time, now also via the CLI (the API already supported it) [see `PR #1871 <https://www.github.com/FlexMeasures/flexmeasures/pull/1871>`_].
+* Add ``fields`` param to the asset-listing endpoints, to save bandwidth in response data [see `PR #1884 <https://www.github.com/FlexMeasures/flexmeasures/pull/1884>`_]
+
+  .. note:: For backwards-compatibility, the new ``fields`` parameter will only be fully active, i.e. also returning less fields per default, in v0.32. Set ``FLEXMEASURES_API_SUNSET_ACTIVE=True`` to test the full effect now.
+
+* Allow testing out the scheduling CLI without saving anything, using ``flexmeasures add schedule --dry-run`` [see `PR #1892 <https://www.github.com/FlexMeasures/flexmeasures/pull/1892>`_]
 
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
 * Improve general description on SwaggerDocs page and add three settings for hosts: FLEXMEASURES_SUPPORT_PAGE, FLEXMEASURES_SIGNUP_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_ and `PR #1889 <https://www.github.com/FlexMeasures/flexmeasures/pull/1889>`_]
+* Allow plugins to register forecasters [see `PR #1863 <https://www.github.com/FlexMeasures/flexmeasures/pull/1863>`_]
 * Migrated JSON fields to JSONB, so they can be used to look up sensors, attributes, sources [see `PR #1867 <https://www.github.com/FlexMeasures/flexmeasures/pull/1867>`_]
 * Less verbose error logs given common HTTP requests such as those leading to 404 (Not Found) responses [see `PR #1883 <https://www.github.com/FlexMeasures/flexmeasures/pull/1883>`_]
 * Refactor base.html template from 1500 to ~300 lines [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
+* 2FA UX: Hide rescue form by default & improve main message [see `PR #1875 <https://www.github.com/FlexMeasures/flexmeasures/pull/1875>`_]
 * Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 
 Bugfixes
 -----------
+* Fix ``delete-beliefs`` CLI command to correctly apply the ``--source`` filter when deleting beliefs, preventing unintended removal of beliefs from other sources. [see `PR #1903 <https://www.github.com/FlexMeasures/flexmeasures/pull/1903>`_]
 
-v0.30.2 | December XX, 2025
+v0.30.2 | January 6, 2026
 ============================
 
 Bugfixes
 -----------
 * Make ``soc-usage`` & ``soc-gain`` fields editable again in the UI [see `PR #1860 <https://www.github.com/FlexMeasures/flexmeasures/pull/1860>`_]
+* New sensors created through the API and UI get the server timezone rather than :abbr:`UTC (Coordinated Universal Time)` [see `PR #1894 <https://www.github.com/FlexMeasures/flexmeasures/pull/1894>`_]
+* Correctly derive the shared unit in charts showing multiple temperature sensors [see `PR #1890 <https://www.github.com/FlexMeasures/flexmeasures/pull/1890>`_]
 * Prevent duplicate forecasts from being saved when re-running the forecasting pipeline within the same resolution window by preserving the non-floored ``belief_time`` using a new ``save_belief_time`` field [see `PR #1853 <https://github.com/FlexMeasures/flexmeasures/pull/1853>`_]
+* Keep around finished forecasting jobs just as long as finished scheduling jobs (configurable through the ``FLEXMEASURES_PLANNING_TTL`` config setting) [see `PR #1870 <https://github.com/FlexMeasures/flexmeasures/pull/1870>`_]
 
 
 v0.30.1 | December 9, 2025
@@ -294,7 +309,7 @@ Bugfixes
 * Fix deletion of sensors in the UI, also move the delete button for assets & sensors to the bottom of the page [see `PR #1597 <https://github.com/FlexMeasures/flexmeasures/pull/1597>`_]
 
 
-v0.26.1 | June 09, 2025
+v0.26.1 | June 9, 2025
 ============================
 
 Bugfixes
@@ -303,7 +318,7 @@ Bugfixes
 * Show job information again on the job page on rq-dashboard [see `PR #1526 <https://github.com/FlexMeasures/flexmeasures/pull/1526>`_]
 
 
-v0.26.0 | June 03, 2025
+v0.26.0 | June 3, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v026-relaxed-scheduling-cleaner-asset-pages/>`_.
@@ -353,7 +368,7 @@ Bugfixes
 * Make flex context usage safer against this field being `None` [see `PR #1503 <https://github.com/FlexMeasures/flexmeasures/pull/1503>`_]
 
 
-v0.25.0 | April 01, 2025
+v0.25.0 | April 1, 2025
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v025-flex-context-fully-editable-nicer-status-page/>`_.

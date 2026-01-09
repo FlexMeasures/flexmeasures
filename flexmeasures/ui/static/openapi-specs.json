@@ -493,6 +493,137 @@
         ]
       }
     },
+    "/api/v3_0/sensors/{id}/forecasts/{uuid}": {
+      "get": {
+        "summary": "Get forecast for one sensor",
+        "description": "Fetch the results of a previously triggered forecasting job.\n\nWhile the forecasting job is still running, this endpoint returns its\ncurrent status. Once the job has completed successfully, the endpoint\nreturns the generated forecast.\n\nThe returned forecast represents the most recent belief per event and\ncovers the period for which forecasts were generated.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the sensor for which the forecast was triggered.",
+            "example": 5,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "uuid",
+            "required": true,
+            "description": "UUID of the forecasting job returned by the trigger endpoint.",
+            "example": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forecast job results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "FINISHED"
+                      ],
+                      "description": "Processing status of the request."
+                    },
+                    "start": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Start time of the forecast values (ISO 8601)."
+                    },
+                    "duration": {
+                      "type": "string",
+                      "description": "Duration covered by the forecast, expressed as an ISO 8601 duration."
+                    },
+                    "unit": {
+                      "type": "string",
+                      "description": "Unit of the forecast values."
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "description": "Forecast values."
+                    }
+                  }
+                },
+                "examples": {
+                  "finished": {
+                    "summary": "Finished forecasting job",
+                    "value": {
+                      "start": "2025-10-15T00:00:00+01:00",
+                      "duration": "PT4H",
+                      "unit": "kW",
+                      "values": [
+                        1.2,
+                        1.5,
+                        1.4,
+                        0.8
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Forecast job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "DEFERRED",
+                        "STARTED"
+                      ],
+                      "description": "Processing status of the request."
+                    }
+                  }
+                },
+                "examples": {
+                  "started": {
+                    "summary": "Started forecasting job",
+                    "value": {
+                      "status": "STARTED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
@@ -1032,29 +1163,95 @@
     "/api/v3_0/sensors/{id}/forecasts/trigger": {
       "post": {
         "summary": "Trigger forecasting job for one sensor",
-        "description": "Launch a forecasting pipeline for the given sensor asynchronously.\n\nExample:\n```\n{\n  \"start_date\": \"2026-01-01T00:00:00+01:00\",\n  \"start_predict_date\": \"2026-01-15T00:00:00+01:00\",\n  \"end_date\": \"2026-01-17T00:00:00+01:00\"\n}\n```\n",
+        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a\njob UUID. The job will run in the background and generate forecast values\nfor the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the sensor for which to trigger forecasting.",
+            "example": 5,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ForecasterParameters"
+                "type": "object",
+                "properties": {
+                  "start_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start date of the historical data used for training."
+                  },
+                  "start_predict_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start date of the forecast period."
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "End date of the forecast period."
+                  }
+                }
+              },
+              "example": {
+                "start_date": "2026-01-01T00:00:00+01:00",
+                "start_predict_date": "2026-01-15T00:00:00+01:00",
+                "end_date": "2026-01-17T00:00:00+01:00"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Forecasting job queued",
+            "description": "PROCESSED",
             "content": {
               "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "forecast": {
+                      "type": "string",
+                      "description": "UUID of the queued forecasting job."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PROCESSED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
                 "example": {
-                  "status": "PROCESSED",
                   "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "status": "PROCESSED",
                   "message": "Forecasting job has been queued."
                 }
               }
             }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
           }
         },
         "tags": [
@@ -1571,6 +1768,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Filter results by this keyword.",
             "schema": {
               "type": "string"
             },
@@ -1593,6 +1791,7 @@
           {
             "in": "query",
             "name": "sort_dir",
+            "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
               "enum": [
@@ -1704,6 +1903,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Filter results by this keyword.",
             "schema": {
               "type": "string"
             },
@@ -1727,6 +1927,7 @@
           {
             "in": "query",
             "name": "sort_dir",
+            "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
               "enum": [
@@ -1969,6 +2170,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Filter results by this keyword.",
             "schema": {
               "type": "string"
             },
@@ -1991,6 +2193,7 @@
           {
             "in": "query",
             "name": "sort_dir",
+            "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
               "enum": [
@@ -2237,6 +2440,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Filter results by this keyword.",
             "schema": {
               "type": "string"
             },
@@ -2375,6 +2579,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Filter results by this keyword.",
             "schema": {
               "type": "string"
             },
@@ -2394,6 +2599,7 @@
           {
             "in": "query",
             "name": "sort_dir",
+            "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
               "enum": [
@@ -3008,8 +3214,8 @@
     },
     "/api/v3_0/assets": {
       "get": {
-        "summary": "List all assets owned  by user's accounts, or a certain account or all accessible accounts.",
-        "description": "This endpoint returns all accessible assets by accounts.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out assets where each search term is either present in their name or account name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n",
+        "summary": "List assets accessible by the user.",
+        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out assets where each search term is either present in their name or account name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3038,6 +3244,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Filter results by this keyword.",
             "schema": {
               "type": "string"
             },
@@ -3046,6 +3253,7 @@
           {
             "in": "query",
             "name": "sort_by",
+            "description": "Sort results by this field.",
             "schema": {
               "type": "string",
               "enum": [
@@ -3059,6 +3267,7 @@
           {
             "in": "query",
             "name": "sort_dir",
+            "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
               "enum": [
@@ -3070,31 +3279,77 @@
           },
           {
             "in": "query",
+            "name": "fields",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
+            "schema": {
+              "type": "string",
+              "default": "id|name|account_id|generic_asset_type",
+              "example": "id|name|flex_model"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "account_id",
+            "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "default": null
+              "default": null,
+              "example": 67
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "root",
+            "description": "Select all descendants of a given root asset (including the root itself). Leave out to include top-level assets.",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null,
+              "example": 482
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "depth",
+            "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null,
+              "minimum": 0,
+              "example": 2
             },
             "required": false
           },
           {
             "in": "query",
             "name": "all_accessible",
+            "description": "Whether to list assets from all accounts that the current_user has read-access to (plus all public assets).",
             "schema": {
               "type": "boolean",
-              "default": false
+              "default": false,
+              "example": false
             },
             "required": false
           },
           {
             "in": "query",
             "name": "include_public",
+            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             "schema": {
               "type": "boolean",
-              "default": false
+              "default": false,
+              "example": false
             },
             "required": false
           }
@@ -3263,6 +3518,19 @@
             "ApiKeyAuth": []
           }
         ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "fields",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
+            "schema": {
+              "type": "string",
+              "default": "id|name|account_id|generic_asset_type",
+              "example": "id|name|sensors"
+            },
+            "required": false
+          }
+        ],
         "responses": {
           "200": {
             "description": "PROCESSED"
@@ -3418,7 +3686,7 @@
                 },
                 "examples": {
                   "successful_response": {
-                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
+                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
                     "value": {
                       "status": "PROCESSED",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
@@ -3868,7 +4136,8 @@
             "minimum": 1
           },
           "filter": {
-            "type": "string"
+            "type": "string",
+            "description": "Filter results by this keyword."
           },
           "sort_by": {
             "type": "string",
@@ -3884,7 +4153,8 @@
             "enum": [
               "asc",
               "desc"
-            ]
+            ],
+            "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
           },
           "account_id": {
             "type": [
@@ -3913,7 +4183,8 @@
             "minimum": 1
           },
           "filter": {
-            "type": "string"
+            "type": "string",
+            "description": "Filter results by this keyword."
           },
           "sort_by": {
             "type": "string",
@@ -3921,29 +4192,62 @@
               "id",
               "name",
               "owner"
-            ]
+            ],
+            "description": "Sort results by this field."
           },
           "sort_dir": {
             "type": "string",
             "enum": [
               "asc",
               "desc"
-            ]
+            ],
+            "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
+          },
+          "fields": {
+            "type": "string",
+            "default": "id|name|account_id|generic_asset_type",
+            "description": "Which fields to include in response. List fields separated by '|' (pipe).",
+            "example": "id|name|flex_model"
           },
           "account_id": {
             "type": [
               "integer",
               "null"
             ],
-            "default": null
+            "default": null,
+            "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
+            "example": 67
+          },
+          "root": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null,
+            "description": "Select all descendants of a given root asset (including the root itself). Leave out to include top-level assets.",
+            "example": 482
+          },
+          "depth": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null,
+            "minimum": 0,
+            "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
+            "example": 2
           },
           "all_accessible": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Whether to list assets from all accounts that the current_user has read-access to (plus all public assets).",
+            "example": false
           },
           "include_public": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            "example": false
           }
         },
         "additionalProperties": false
@@ -4208,7 +4512,8 @@
             "minimum": 1
           },
           "filter": {
-            "type": "string"
+            "type": "string",
+            "description": "Filter results by this keyword."
           },
           "sort_by": {
             "type": "string",
@@ -4224,7 +4529,8 @@
             "enum": [
               "asc",
               "desc"
-            ]
+            ],
+            "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
           }
         },
         "additionalProperties": false
@@ -4363,125 +4669,6 @@
           "sensor",
           "start",
           "unit"
-        ],
-        "additionalProperties": false
-      },
-      "ForecasterParameters": {
-        "type": "object",
-        "properties": {
-          "sensor": {
-            "type": "integer"
-          },
-          "future_regressors": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
-          },
-          "past_regressors": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
-          },
-          "regressors": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
-          },
-          "model_save_dir": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "flexmeasures/data/models/forecasting/artifacts/models"
-          },
-          "output_path": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "start_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "end_date": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "train_period": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "start_predict_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "retrain_frequency": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "max_forecast_horizon": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "P2D"
-          },
-          "forecast_frequency": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "PT1H"
-          },
-          "probabilistic": {
-            "type": "boolean",
-            "default": false
-          },
-          "sensor_to_save": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "ensure_positive": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "missing_threshold": {
-            "type": "number",
-            "default": 1.0
-          },
-          "as_job": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, forecast using RQ jobs in the background (needs a worker assigned to the forecasting queue)."
-          },
-          "max_training_period": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "end_date",
-          "sensor"
         ],
         "additionalProperties": false
       },
