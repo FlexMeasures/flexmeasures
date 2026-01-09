@@ -88,7 +88,7 @@ def test_trigger_and_fetch_forecasts(
     payload = {
         "start_date": "2025-01-01T00:00:00+00:00",
         "start_predict_date": "2025-01-04T00:00:00+00:00",
-        "end_date": "2025-01-04T04:00:00+00:00",
+        "end_date": "2025-01-04T00:30:00+00:00",
     }
 
     trigger_url = url_for("SensorAPI:trigger_forecast", sensor=sensor.id)
@@ -143,7 +143,7 @@ def test_trigger_and_fetch_forecasts(
 
         forecasts = sensor.search_beliefs(
             event_starts_after="2025-01-04T00:00:00+00:00",
-            event_ends_before="2025-01-04T04:00:00+00:00",
+            event_ends_before="2025-01-04T00:30:00+00:00",
             source=data_source,
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
