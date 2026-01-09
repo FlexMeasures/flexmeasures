@@ -210,7 +210,7 @@ class SensorSchemaMixin(Schema):
         metadata=dict(
             description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
             example="Europe/Amsterdam",
-            enum=pytz.all_timezones,
+            enum=pytz.common_timezones,
         ),
     )
     event_resolution = DurationField(
