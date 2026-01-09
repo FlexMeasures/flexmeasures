@@ -69,9 +69,20 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
     if not ex_ante_bdf.empty and not ex_post_bdf.empty:
         # We treat each part separately to avoid that ex-post knowledge would be lost
-        ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf)
-        ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf)
+        canonical_order = [
+            "event_start",
+            "belief_time",
+            "source",
+            "cumulative_probability",
+        ]
+        ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf).reorder_levels(
+            canonical_order
+        )
+        ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf).reorder_levels(
+            canonical_order
+        )
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
+        breakpoint()
         return bdf
 
     # Remove unchanged beliefs from within the new data itself
@@ -95,7 +106,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         kwargs = dict(horizons_at_most=timedelta(0))
     bdf_db = bdf.sensor.search_beliefs(
         event_starts_after=bdf.event_starts[0],
-        event_ends_before=bdf.event_ends[-1],
+        event_ends_before=bdf.event_ends[-1],  # - timedelta(hours=24),
         most_recent_beliefs_only=False,  # all beliefs
         **kwargs,
     )
