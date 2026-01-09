@@ -20,7 +20,7 @@ import marshmallow.validate as validate
 from pandas.api.types import is_numeric_dtype
 import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
-from marshmallow.validate import Validator, OneOf
+from marshmallow.validate import Validator
 
 import json
 import re
@@ -191,8 +191,15 @@ class SensorSchemaMixin(Schema):
             example="EUR/kWh",
         ),
     )
+
+    def timezone_validator(value: str):
+        if value not in pytz.all_timezones:
+            raise ValidationError(
+                f"Invalid timezone '{value}'. Example: {get_timezone()}."
+            )
+
     timezone = ma.auto_field(
-        validate=OneOf(pytz.all_timezones),
+        validate=timezone_validator,
         metadata=dict(
             description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
             example="Europe/Amsterdam",
