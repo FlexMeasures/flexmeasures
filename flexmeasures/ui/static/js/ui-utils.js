@@ -56,11 +56,11 @@ export async function getSensor(id) {
 
 export function processResourceRawJSON(schema, rawJSON) {
   let processedJSON = rawJSON.replace(/'/g, '"');
-  // change None to null
-  processedJSON = processedJSON.replace(/None/g, "null");
-  // change True to true and False to false
-  processedJSON = processedJSON.replace("True", "true");
-  processedJSON = processedJSON.replace("False", "false");
+  // change None to null, True to true and False to false
+  processedJSON = processedJSON.replaceAll("None", "null");
+  processedJSON = processedJSON.replaceAll("True", "true");
+  processedJSON = processedJSON.replaceAll("False", "false");
+  console.log(processedJSON);
   // update the assetFlexModel fields
   processedJSON = JSON.parse(processedJSON);
 
