@@ -15,15 +15,6 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
     [
         (
             "test_prosumer_user_2@seita.nl",
-            1,  # this sensor has unit=kW, res=00:15
-            "m/s",  # Invalid conversion                        - m/s to kW
-            timedelta(hours=1),  # Upsampling                   - 1 hour to 15 minutes
-            [45.3, 45.3],
-            "Provided unit 'm/s' is not convertible to sensor unit 'kW'",
-            422,  # units not convertible
-        ),
-        (
-            "test_prosumer_user_2@seita.nl",
             2,  # this sensor has unit=kWh, res=01:00
             "kWh",  # No conversion needed                      - kWh to kWh
             timedelta(hours=1),  # No resampling                - 1 hour to 1 hour
@@ -79,15 +70,6 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            2,  # this sensor has unit=kWh, res=01:00
-            "kW",  # Conversion needed                          - kW to kWh
-            timedelta(minutes=30),  # Downsampling              - 30 minutes to 1 hour
-            [20, 40, 40, 80],
-            "Provided unit 'kW' is not convertible to sensor unit 'kWh'",
-            422,  # we don't support this case yet
-        ),
-        (
-            "test_prosumer_user_2@seita.nl",
             1,  # this sensor has unit=kW, res=00:15
             "kWh",  # Conversion needed                         - kWh to kW
             # Downsampling                                      - 7.5 minutes to 15 minutes
@@ -122,16 +104,6 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
             [10, 20, 40, 80],
             [10000, 20000, 40000, 80000],
             200,
-        ),
-        (
-            "test_prosumer_user_2@seita.nl",
-            3,  # this sensor has unit=kWh, res=00:00
-            "kW",  # Conversion needed                          - kW to kWh
-            # No resampling                                     - 7.5 minutes to instantaneous
-            timedelta(minutes=7, seconds=30),
-            [20, 40, 40, 80],
-            "Provided unit 'kW' is not convertible to sensor unit 'kWh'",
-            422,
         ),
         (
             "test_prosumer_user_2@seita.nl",
@@ -189,7 +161,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
     ],
     indirect=["requesting_user"],
 )
-def test_auth_upload_sensor_data_with_distinct_to_from_units_and_target_resolutions(
+def test_upload_sensor_data_with_unit_conversion_success(
     fresh_db,
     client,
     add_battery_assets_fresh_db,
@@ -202,7 +174,8 @@ def test_auth_upload_sensor_data_with_distinct_to_from_units_and_target_resoluti
     expected_status,
 ):
     """
-    Check if unit validation works fine for sensor data upload.
+    These are a list of only successful conversion cases. Here we are
+    checking if unit validation works fine for data uploaded to a sensor.
     The target sensors can have different units and resolution,
     and the incoming data can also have differing resolutions and declared unit.
     This test needs to check if the resulting data matches expectations.
@@ -247,7 +220,6 @@ def test_auth_upload_sensor_data_with_distinct_to_from_units_and_target_resoluti
 
         beliefs = timed_beliefs.all()
         bdf = BeliefsDataFrame(beliefs)
-        print("Stored beliefs: ==============================")
         print(bdf)
 
         expected_num_beliefs = num_test_intervals
@@ -258,8 +230,93 @@ def test_auth_upload_sensor_data_with_distinct_to_from_units_and_target_resoluti
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
 
         assert [b.event_value for b in beliefs] == expected_event_values
-    elif response.status_code == 422:
+
+
+@pytest.mark.parametrize(
+    "requesting_user, sensor_index, data_unit, data_resolution, data_values, expected_err_msg, expected_status",
+    [
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,  # this sensor has unit=kW, res=00:15
+            "m/s",  # Invalid conversion                        - m/s to kW
+            timedelta(hours=1),  # Upsampling                   - 1 hour to 15 minutes
+            [45.3, 45.3],
+            "Provided unit 'm/s' is not convertible to sensor unit 'kW'",
+            422,  # units not convertible
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,  # this sensor has unit=kWh, res=01:00
+            "kW",  # Conversion needed                          - kW to kWh
+            timedelta(minutes=30),  # Downsampling              - 30 minutes to 1 hour
+            [20, 40, 40, 80],
+            "Provided unit 'kW' is not convertible to sensor unit 'kWh'",
+            422,  # we don't support this case yet
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            3,  # this sensor has unit=kWh, res=00:00
+            "kW",  # Conversion needed                          - kW to kWh
+            # No resampling                                     - 7.5 minutes to instantaneous
+            timedelta(minutes=7, seconds=30),
+            [20, 40, 40, 80],
+            "Provided unit 'kW' is not convertible to sensor unit 'kWh'",
+            422,
+        ),
+    ],
+    indirect=["requesting_user"],
+)
+def test_upload_sensor_data_with_unit_conversion_failure(
+    fresh_db,
+    client,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    sensor_index,
+    data_unit,
+    data_resolution,
+    data_values,
+    expected_err_msg,
+    expected_status,
+):
+    """
+    These are a list of only invalid conversion cases. in these
+    cases we expect the conversion logic to fail for these invalid setups.
+    This test need to then check if the error response matches expectations.
+    """
+
+    start_date = (
+        "2025-01-01T10:00:00+00:00"  # This date would be used to generate CSV content
+    )
+    test_battery = add_battery_assets_fresh_db["Test battery"]
+    sensor = test_battery.sensors[sensor_index]
+    print(
+        f"Uploading data to sensor '{sensor.name}' with unit={sensor.unit} and resolution={sensor.event_resolution}."
+    )
+    print(f"Data unit is {data_unit} and resolution is {data_resolution}")
+
+    csv_content = generate_csv_content(
+        start_time_str=start_date,
+        interval=data_resolution,
+        values=data_values,
+    )
+    print("Generated CSV content:")
+    print(csv_content)
+    file_obj = io.BytesIO(csv_content.encode("utf-8"))
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": (file_obj, "data.csv"), "unit": data_unit},
+        content_type="multipart/form-data",
+    )
+    print("Response:\n%s" % response.status_code, expected_status)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == expected_status
+
+    # fetch the save timedBeliefs and check if they have the right values
+    if response.status_code == 422:
         assert (
-            expected_event_values
+            expected_err_msg
             in response.json["message"]["combined_sensor_data_upload"]["_schema"]
         )
+    else:
+        pytest.fail("Test case did not fail as expected.")
