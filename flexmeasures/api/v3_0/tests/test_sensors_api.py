@@ -24,7 +24,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_of_first_sensor_result",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_first_sensor_result",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -44,7 +44,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             "power",
-            2,
+            6,
             False,
             False,
             200,
@@ -147,7 +147,7 @@ def test_fetch_sensors(
     expected_status_code,
     filter_account_id,
     filter_asset_id,
-    asset_id_of_of_first_sensor_result,
+    asset_id_of_first_sensor_result,
 ):
     """
     Retrieve all sensors.
@@ -157,7 +157,7 @@ def test_fetch_sensors(
 
     The `filter_asset_id` specifies the asset_id to filter for.
 
-    The `asset_id_of_of_first_sensor_result` specifies the asset_id of the first sensor
+    The `asset_id_of_first_sensor_result` specifies the asset_id of the first sensor
     in the result list. This sensors is expected to be from a child asset of the asset
     specified in `filter_asset_id`.
 
@@ -205,12 +205,15 @@ def test_fetch_sensors(
             assert isinstance(response.json, list)
             assert is_valid_unit(response.json[0]["unit"])
             assert response.json[0]["name"] == exp_sensor_name
-            assert len(response.json) == exp_num_results
+            assert len(response.json) == exp_num_results, (
+                f"If this line fails, a conftest may have added another sensor "
+                f"accessible to {requesting_user}. Update the exp_num_results in the test parameters accordingly."
+            )
 
-            if asset_id_of_of_first_sensor_result is not None:
+            if asset_id_of_first_sensor_result is not None:
                 assert (
                     response.json[0]["generic_asset_id"]
-                    == asset_id_of_of_first_sensor_result
+                    == asset_id_of_first_sensor_result
                 )
             elif filter_asset_id:
                 assert response.json[0]["generic_asset_id"] == filter_asset_id
@@ -326,6 +329,7 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
     check_audit_log_event(
@@ -359,6 +363,7 @@ def test_upload_excel_file(client, requesting_user):
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
 

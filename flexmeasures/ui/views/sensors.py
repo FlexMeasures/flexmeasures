@@ -7,7 +7,10 @@ from webargs.flaskparser import use_kwargs
 from flexmeasures.data import db
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures import Sensor
-from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.utils.view_utils import (
+    render_flexmeasures_template,
+    available_units,
+)
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.ui.views.assets.utils import (
     user_can_delete,
@@ -41,6 +44,7 @@ class SensorUI(FlaskView):
             sensor=sensor,
             user_can_update_sensor=user_can_update(sensor),
             user_can_delete_sensor=user_can_delete(sensor),
+            available_units=available_units(),
             msg="",
             breadcrumb_info=get_breadcrumb_info(sensor),
             event_starts_after=request.args.get("start_time"),

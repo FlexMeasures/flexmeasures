@@ -43,6 +43,9 @@ from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
     units_are_convertible,
+    convert_units,
+    is_currency_unit,
+    is_energy_unit,
 )
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
@@ -580,6 +583,10 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+    unit = fields.String(
+        required=False,
+        data_key="unit",
+    )
 
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
@@ -627,6 +634,19 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         if errors:
             raise ValidationError(errors)
 
+    @validates_schema
+    def validate_unit(self, data, **kwargs):
+        """Validate unit compatibility with the sensor's unit."""
+        unit = data.get("unit")
+        sensor: Sensor = data.get("sensor")
+
+        if unit is not None:
+            if not units_are_convertible(unit, sensor.unit):
+                raise ValidationError(
+                    field="unit",
+                    message=f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'",
+                )
+
     @post_load
     def post_load(self, fields, **kwargs):
         """Process the deserialized and validated fields.
@@ -636,10 +656,11 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+
         errors = {}
         for i, file in enumerate(files):
             try:
-                df = tb.read_csv(
+                bdf = tb.read_csv(
                     file,
                     sensor,
                     source=current_user.data_source[0],
@@ -651,15 +672,52 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
-                    resample=(
-                        True if sensor.event_resolution != timedelta(0) else False
-                    ),
+                    resample=False,
                     timezone=sensor.timezone,
                 )
                 assert is_numeric_dtype(
-                    df["event_value"]
+                    bdf["event_value"]
                 ), "event values should be numeric"
-                dfs.append(df)
+
+                from_unit = fields.get("unit", sensor.unit)
+
+                # Start to infer the event resolution
+                if len(bdf) == 1:
+                    bdf.event_resolution = sensor.event_resolution
+                elif len(bdf) == 2:
+                    # Pandas cannot infer an event frequency, but we can (try)
+                    bdf.event_resolution = abs(
+                        bdf.event_starts[-1] - bdf.event_starts[0]
+                    )
+                else:
+                    bdf.event_resolution = bdf.event_frequency
+                if bdf.event_resolution is None:
+                    # Reraise the error if an event frequency could not be inferred
+                    pd.infer_freq(bdf.index.unique("event_start"))
+
+                bdf["event_value"] = convert_units(
+                    bdf["event_value"],
+                    from_unit,
+                    sensor.unit,
+                    # todo: remove the next line when https://github.com/SeitaBV/timely-beliefs/issues/220 is fixed
+                    event_resolution=bdf.event_resolution,
+                )
+
+                if sensor.event_resolution != timedelta(0):
+
+                    # Special cases for resampling known stock units
+                    # todo: allow users to override this behaviour
+                    known_stock_unit_validators = [is_currency_unit, is_energy_unit]
+                    if units_are_convertible(
+                        from_unit, sensor.unit, duration_known=False
+                    ) and any(
+                        is_stock_unit(from_unit)
+                        for is_stock_unit in known_stock_unit_validators
+                    ):
+                        bdf = bdf.resample_events(sensor.event_resolution, method="sum")
+                    else:
+                        bdf = bdf.resample_events(sensor.event_resolution)
+                dfs.append(bdf)
             except Exception as e:
                 error_message = (
                     f"Invalid content in file: {file.filename}. Failed with: {str(e)}"
