@@ -1513,7 +1513,7 @@ class SensorAPI(FlaskView):
 
     @route("/<sensor>/forecasts/trigger", methods=["POST"])
     @use_kwargs({"sensor": SensorIdField()}, location="path")
-    @permission_required_for_context("write", ctx_arg_name="sensor")
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def trigger_forecast(self, sensor: Sensor):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
