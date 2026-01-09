@@ -82,7 +82,6 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
             canonical_order
         )
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
-        breakpoint()
         return bdf
 
     # Remove unchanged beliefs from within the new data itself
