@@ -134,7 +134,7 @@ class ForecasterParametersSchema(Schema):
 
         if data.get("start_predict_date"):
             predict_start = data["start_predict_date"]
-            save_belief_time = None
+            save_belief_time = predict_start
         else:
             predict_start = floored_now
             save_belief_time = now
