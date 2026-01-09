@@ -98,7 +98,7 @@ def test_trigger_and_fetch_forecasts(
     assert trigger_res.status_code == 200
 
     trigger_json = trigger_res.get_json()
-    job_ids = trigger_json["forecast_jobs"]
+    job_ids = trigger_json["forecasting_jobs"]
     assert len(job_ids) >= 1
 
     # Run forecasting queue
