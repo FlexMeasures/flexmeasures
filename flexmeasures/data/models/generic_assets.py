@@ -324,7 +324,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         for entry in standardized_sensors_to_show:
 
             title = entry.get("title")
-            sensors = entry.get("sensors")
+            sensors = entry.get("plots", {}).get("sensors")
 
             accessible_sensors = [
                 accessible_sensor_map.get(sid)
@@ -334,7 +334,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             inaccessible = [sid for sid in sensors if sid not in accessible_sensor_map]
             missed_sensor_ids.extend(inaccessible)
             if accessible_sensors:
-                sensors_to_show.append({"title": title, "sensors": accessible_sensors})
+                sensors_to_show.append(
+                    {"title": title, "plots": [{"sensors": accessible_sensors}]}
+                )
 
         if missed_sensor_ids:
             current_app.logger.warning(

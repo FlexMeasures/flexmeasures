@@ -514,7 +514,14 @@ def chart_for_multiple_sensors(
         title = entry.get("title")
         if title == "Charge Point sessions":
             continue
-        sensors = entry.get("sensors")
+        plots = entry.get("plots", [])
+        sensors = []
+        for plot in plots:
+            if "sensors" in plot:
+                sensors.extend(plot.get("sensors"))
+            elif "sensor" in plot:
+                sensors.extend([plot.get("sensor")])
+
         # List the sensors that go into one row
         row_sensors: list["Sensor"] = sensors  # noqa F821
 
