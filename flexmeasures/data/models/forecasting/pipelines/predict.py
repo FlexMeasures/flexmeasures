@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from darts import TimeSeries
 from isodate import duration_isoformat
+from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures import Sensor, Source
 from flexmeasures.data import db
@@ -267,7 +268,7 @@ class PredictPipeline(BasePipeline):
         except Exception as e:
             raise CustomException(f"Error saving predictions: {e}", sys) from e
 
-    def run(self, delete_model: bool = False):
+    def run(self, delete_model: bool = False) -> BeliefsDataFrame:
         """
         Execute the prediction pipeline.
         """

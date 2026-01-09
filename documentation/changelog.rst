@@ -12,6 +12,8 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
+* Improve general description on SwaggerDocs page and add two settings for hosts: FLEXMEASURES_SUPPORT_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_]
 
 Bugfixes
 -----------
@@ -38,6 +40,7 @@ v0.30.0 | December 02, 2025
 
 New features
 -------------
+* Improve ``flexmeasures add forecasts`` CLI command with clearer success and error messages when creating jobs or beliefs [see `PR #1822 <https://github.com/FlexMeasures/flexmeasures/pull/1822>`_].
 * Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more) [see `PR #1546 <https://github.com/FlexMeasures/flexmeasures/pull/1546>`_, `PR #1744 <https://github.com/FlexMeasures/flexmeasures/pull/1744>`_ and `PR #1834 <https://github.com/FlexMeasures/flexmeasures/pull/1834>`_]
 * The new ``commitments`` field in the ``flex-context`` can be used to specify previous commitments (e.g. market positions) that the scheduler needs to take into account [see `PR #1754 <https://github.com/FlexMeasures/flexmeasures/pull/1754>`_ and `PR #1793 <https://github.com/FlexMeasures/flexmeasures/pull/1793>`_]
 * Many more field descriptions in Swagger, including flex-model and flex-context fields [see `PR #1777 <https://www.github.com/FlexMeasures/flexmeasures/pull/1777>`_ and `PR #1841 <https://www.github.com/FlexMeasures/flexmeasures/pull/1841>`_]
@@ -52,7 +55,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Updated dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_, `PR #1820 <https://www.github.com/FlexMeasures/flexmeasures/pull/1820>`_ and `PR #1842 <https://www.github.com/FlexMeasures/flexmeasures/pull/1842>`_]
+* Upgraded dependencies [see `PR #1752 <https://www.github.com/FlexMeasures/flexmeasures/pull/1752>`_, `PR #1820 <https://www.github.com/FlexMeasures/flexmeasures/pull/1820>`_ and `PR #1842 <https://www.github.com/FlexMeasures/flexmeasures/pull/1842>`_]
 * Speed up data searches by refactoring our filter for selecting data from the latest version of a data generating model [see `PR #1698 <https://github.com/FlexMeasures/flexmeasures/pull/1698>`_]
 * Add new tutorial for PV curtailment and multi-asset scheduling [see `PR #1804 <https://github.com/FlexMeasures/flexmeasures/pull/1804>`_ and `PR #1846 <https://github.com/FlexMeasures/flexmeasures/pull/1846>`_]
 * Drop need for .env file in favour of more adaptation of flexmeasures.cfg config file [see `PR #1759 <https://github.com/FlexMeasures/flexmeasures/pull/1759>`_]
@@ -1339,7 +1342,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
-* Updated dependencies, including Flask-Security-Too [see `PR #82 <https://www.github.com/FlexMeasures/flexmeasures/pull/82>`_]
+* Upgraded dependencies, including Flask-Security-Too [see `PR #82 <https://www.github.com/FlexMeasures/flexmeasures/pull/82>`_]
 * Improved documentation after user feedback [see `PR #97 <https://www.github.com/FlexMeasures/flexmeasures/pull/97>`_]
 * Begin experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: ``Sensor`` data as ``TimedBelief`` objects [see `PR #79 <https://www.github.com/FlexMeasures/flexmeasures/pull/79>`_ and `PR #99 <https://github.com/FlexMeasures/flexmeasures/pull/99>`_]
 * Add sensors with CLI command currently meant for developers only [see `PR #83 <https://github.com/FlexMeasures/flexmeasures/pull/83>`_]

@@ -66,7 +66,6 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.cli.utils import get_data_generator
 
-
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
@@ -1515,7 +1514,7 @@ class SensorAPI(FlaskView):
 
     @route("/<sensor>/forecasts/trigger", methods=["POST"])
     @use_kwargs({"sensor": SensorIdField()}, location="path")
-    @permission_required_for_context("read", ctx_arg_name="sensor")
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def trigger_forecast(self, sensor: Sensor):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
@@ -1524,7 +1523,6 @@ class SensorAPI(FlaskView):
           summary: Trigger forecasting job for one sensor
           description: |
             Launch a forecasting pipeline for the given sensor asynchronously.
-            This reuses the same validation as the CLI command `flexmeasures add forecasts`.
 
             Example:
             ```
@@ -1546,6 +1544,8 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+        # NOTE: This endpoint reuses the same validation logic as the
+        # `flexmeasures add forecasts` CLI command.
 
         try:
             # Load and validate JSON payload
@@ -1581,7 +1581,7 @@ class SensorAPI(FlaskView):
             db.session.commit()
 
             d, s = request_processed()
-            return dict(forecast_jobs=job_ids, **d), s
+            return dict(forecasting_jobs=job_ids, **d), s
 
         except ValidationError as e:
             return invalid_flex_config(e.messages)

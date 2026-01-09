@@ -226,11 +226,8 @@ class TrainPredictPipeline(Forecaster):
                         timeout=60 * 60,  # 1 hour
                     )
 
-                    # Attach job to the corresponding forecast entry
-                    if self.return_values:
-                        self.return_values[index]["job"] = job.id
-                    else:
-                        self.return_values.append({f"job-{index}": job.id})
+                    # Store the job ID for this cycle
+                    self.return_values.append({f"job-{index}": job.id})
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
