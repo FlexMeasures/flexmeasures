@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import request
+from flask import request, current_app
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -30,6 +30,7 @@ from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
     AssetPaginationSchema,
+    PublicAssetAPISchema,
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -37,7 +38,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
+from flexmeasures.data.queries.generic_assets import (
+    filter_assets_under_root,
+    query_assets_by_search_terms,
+)
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -56,6 +60,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.utils.coding_utils import (
     flatten_unique,
 )
@@ -70,7 +75,8 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
-assets_schema = AssetSchema(many=True)
+# creating this once to avoid recreating it on every request
+default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
@@ -207,6 +213,9 @@ class AssetAPI(FlaskView):
     def index(
         self,
         account: Account | None,
+        root_asset: GenericAsset | None,
+        max_depth: int | None,
+        fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
         page: int | None = None,
@@ -216,16 +225,18 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+        .. :quickref: Assets; List assets accessible by the user.
         ---
         get:
-          summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+          summary: List assets accessible by the user.
           description: |
-            This endpoint returns all accessible assets by accounts.
+            This endpoint returns all assets that are accessible by the user after applying optional filters.
 
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
+              - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
@@ -233,6 +244,8 @@ class AssetAPI(FlaskView):
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
+            Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
+            You can use the `fields` query parameter to specify a custom set of fields to include in the response.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -282,19 +295,20 @@ class AssetAPI(FlaskView):
             - Assets
         """
 
-        # find out which accounts are relevant
-        if all_accessible:
-            accounts = get_accessible_accounts()
-        else:
-            if account is None:
-                account = current_user.account
+        # Find out which accounts are relevant
+        if account is not None:
             check_access(account, "read")
-            accounts = [account]
-
-        filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
-
-        # add public assets if the request asks for all the accessible assets
-        if all_accessible or include_public:
+            account_ids = [account.id]
+        else:
+            use_all_accounts = all_accessible or root_asset
+            include_public = all_accessible or include_public or root_asset
+            account_ids = (
+                [a.id for a in get_accessible_accounts()]
+                if use_all_accounts
+                else [current_user.account.id]
+            )
+        filter_statement = GenericAsset.account_id.in_(account_ids)
+        if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
@@ -304,8 +318,22 @@ class AssetAPI(FlaskView):
             sort_dir=sort_dir,
         )
 
+        query = filter_assets_under_root(
+            query=query, root_asset=root_asset, max_depth=max_depth
+        )
+
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
+
         if page is None:
-            response = asset_schema.dump(db.session.scalars(query).all(), many=True)
+            response = response_schema.dump(db.session.scalars(query).all(), many=True)
         else:
             if per_page is None:
                 per_page = 10
@@ -317,7 +345,7 @@ class AssetAPI(FlaskView):
                 select(func.count(GenericAsset.id)).filter(filter_statement)
             )
             response = {
-                "data": asset_schema.dump(select_pagination.items, many=True),
+                "data": response_schema.dump(select_pagination.items, many=True),
                 "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
@@ -460,8 +488,9 @@ class AssetAPI(FlaskView):
         return response, 200
 
     @route("/public", methods=["GET"])
+    @use_kwargs(PublicAssetAPISchema, location="query")
     @as_json
-    def public(self):
+    def public(self, fields_in_response: list[str] | None):
         """
         .. :quickref: Assets; Return all public assets.
         ---
@@ -470,6 +499,9 @@ class AssetAPI(FlaskView):
           description: This endpoint returns all public assets.
           security:
             - ApiKeyAuth: []
+          parameters:
+            - in: query
+              schema: PublicAssetAPISchema
           responses:
             200:
               description: PROCESSED
@@ -485,7 +517,16 @@ class AssetAPI(FlaskView):
         assets = db.session.scalars(
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
         ).all()
-        return assets_schema.dump(assets), 200
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
+        return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
     @permission_required_for_context(
@@ -1336,7 +1377,7 @@ class AssetAPI(FlaskView):
                           This message indicates that the scheduling request has been processed without any error.
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: PROCESSED
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
