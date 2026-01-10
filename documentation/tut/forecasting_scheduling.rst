@@ -88,6 +88,56 @@ If you use it, the forecasting jobs will be queued and picked up by worker proce
 Run flexmeasures add forecasts --help for details on CLI parameters, or see :ref:forecasting to learn more about forecasting.
 
 
+Queuing forecasting jobs
+------------------------
+
+There are two ways to queue a forecasting job:
+
+1. **Via the API**, using the endpoint:
+
+   ``POST /api/v3_0/sensors/<sensor_id>/forecasts/trigger``
+
+   This endpoint validates the forecasting request (using the same logic as
+   the ``flexmeasures add forecasts`` CLI command) and queues the task on the
+   forecasting worker queue.
+
+   Example request:
+
+   .. code-block:: json
+
+       {
+         "start_date": "2025-01-01T00:00:00+00:00",
+         "start_predict_date": "2025-01-04T00:00:00+00:00",
+         "end_date": "2025-01-04T04:00:00+00:00"
+       }
+
+   Example response:
+
+   .. code-block:: json
+
+       {
+         "status": "PROCESSED",
+         "forecasting_jobs": ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"],
+         "message": "Forecast job has been queued."
+       }
+
+   FlexMeasures will process the job asynchronously and store the resulting
+   forecasts in the database.
+
+   .. note::
+      This method requires ``create-children`` permission on the sensor.
+
+2. **Via the CLI**, for users hosting FlexMeasures themselves:
+
+   .. code-block:: bash
+
+       flexmeasures add forecasts --sensor 12 \
+           --from-date 2024-02-02 --to-date 2024-02-02 \
+           --max-forecast-horizon 6 --as-job
+
+   Using ``--as-job`` queues the forecasting computation instead of running it
+   immediately. This allows distributing workload across multiple workers
+
 .. _how_queue_scheduling:
 
 How scheduling jobs are queued
