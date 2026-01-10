@@ -80,9 +80,7 @@ class BasePipeline:
         ) // forecast_frequency
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
-        self.save_belief_time = pd.to_datetime(save_belief_time, utc=True).tz_localize(
-            None
-        )  # non floored belief time to save forecasts with
+        self.save_belief_time = save_belief_time  # non floored belief time to save forecasts with
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
@@ -315,6 +313,12 @@ class BasePipeline:
                     first_forecast_end, utc=True
                 ).tz_localize(None)
 
+                # Initialize save_belief_time for the first iteration if it's specified
+                if self.save_belief_time:
+                    first_save_belief_time = pd.to_datetime(
+                        self.save_belief_time, utc=True
+                    ).tz_localize(None)
+
                 # Pre-compute per-event_start latest/closest rows
                 past_latest = None
                 if X_past_regressors_df is not None:
@@ -411,10 +415,7 @@ class BasePipeline:
 
                     # Update the save belief time for the next forecasting cycle:
                     # - if no self.save_belief_time date exists, set the current belief_time
-                    if pd.isna(self.save_belief_time):
-                        save_belief_time = belief_time
-                    else:
-                        save_belief_time = self.save_belief_time + delta
+                    save_belief_time = first_save_belief_time + delta if self.save_belief_time else belief_time
                     target_end = first_target_end + delta
                     forecast_end = first_forecast_end + delta
 
