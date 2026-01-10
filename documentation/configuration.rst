@@ -109,6 +109,24 @@ Interesting for developers.
 Default: ``False``
 
 
+FLEXMEASURES_PROFILER_CONFIG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
+
+Interesting for developers.
+
+Default:
+
+.. code-block:: python
+
+   dict(
+       async_mode="disabled",
+       interval=0.01,  # 10 ms sampling interval, enables coarse timer
+       use_timing_thread=True,
+   )
+
+
 UI
 --
 
@@ -133,6 +151,35 @@ A URL path to identify an image being used as logo in the upper left corner (rep
 The path can be a complete URL or a relative from the app root. 
 
 Default: ``""``
+
+
+FLEXMEASURES_SUPPORT_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can ask the FlexMeasures host for technical support.
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+FLEXMEASURES_SIGNUP_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can create an account (or ask the FlexMeasures host for one).
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+FLEXMEASURES_TOS_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can see the terms of service (TOS) under which FlexMeasures is being hosted.
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
 
 
 .. _extra-css-config:
@@ -284,6 +331,16 @@ The default DataSource of the resulting data from `DataGeneration` classes.
 Default: ``"FlexMeasures"``
 
 
+.. _bounding_box_config:
+
+FLEXMEASURES_DEFAULT_BOUNDING_BOX
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The default bounding box of maps if the user has no geolocated assets yet.
+
+Default: ``(54, 2), (50.732, 7.808)`` (`The Netherlands after the oceans drop 50 meters <https://what-if.xkcd.com/53/>`_)
+
+
 .. _planning_horizon_config:
 
 FLEXMEASURES_PLANNING_HORIZON
@@ -354,15 +411,15 @@ SQLALCHEMY_ENGINE_OPTIONS
 
 Configuration of the SQLAlchemy engine.
 
-Default: 
+Default:
 
 .. code-block:: python
 
-       {
-           "pool_recycle": 299,
-           "pool_pre_ping": True,
-           "connect_args": {"options": "-c timezone=utc"},
-       }
+   {
+       "pool_recycle": 299,
+       "pool_pre_ping": True,
+       "connect_args": {"options": "-c timezone=utc"},
+   }
 
 
 SQLALCHEMY_TEST_DATABASE_URI
@@ -422,6 +479,8 @@ SECURITY_TOKEN_AUTHENTICATION_HEADER
 
 Name of the header which carries the auth bearer token in API requests.
 
+.. warning:: If you change this, make sure your API clients know about this! For instance, `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_. expects the default.
+
 Default: ``Authorization``
 
 SECURITY_TOKEN_MAX_AGE
@@ -429,13 +488,15 @@ SECURITY_TOKEN_MAX_AGE
 
 Maximal age of security tokens in seconds.
 
+.. note:: Token expiration time can be user-specific, see `SECURITY_TOKEN_EXPIRE_TIMESTAMP <https://flask-security-too.readthedocs.io/en/stable/configuration.html#SECURITY_TOKEN_EXPIRE_TIMESTAMP>`_.
+
 Default: ``60 * 60 * 6``  (six hours)
 
 SECURITY_TRACKABLE
 ^^^^^^^^^^^^^^^^^^
 
 Whether to track user statistics. Turning this on requires certain user fields.
-We do not use this feature, but we do track number of logins.
+FlexMeasures does not use this feature, but does track when a user was last seen and their number of logins.
 
 Default: ``False``
 
@@ -689,4 +750,4 @@ Extend this list if you want to permit additional pseudo-methods in reporter pip
 
 .. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
 
-Default: `["get_attribute"]`
+Default: ``["get_attribute"]``

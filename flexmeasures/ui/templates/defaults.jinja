@@ -40,20 +40,20 @@
     {% set has_admin_reader_rights = True if (current_user.has_role(ADMIN_ROLE) or current_user.has_role(ADMIN_READER_ROLE) or FLEXMEASURES_MODE == "demo") %}
     {% set is_consultant = True if current_user.has_role(CONSULTANT_ROLE) %}
     {% if has_admin_reader_rights %}
-        {% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul'))  %}
-        {% do navigation_bar.append(('users', 'users', 'Users', '', 'users')) %}
         {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', '', 'tasks')) %}
     {% endif %}
 
     {% if is_consultant or has_admin_reader_rights %}
         {% do navigation_bar.append(('accounts', 'accounts', 'Accounts', '', 'cubes')) %}
+        {% do navigation_bar.append(('assets', 'assets', 'Assets', '', 'list-ul'))  %}
+        {% do navigation_bar.append(('users', 'users', 'Users', '', 'users')) %}
     {% else %}
         {% do navigation_bar.append(("accounts/{}".format(current_user.account.id), 'accounts', 'My Account', '', 'cubes')) %}
     {% endif %}
 
     {% do navigation_bar.append(('logged-in-user', 'logged-in-user', '', user_name, 'user')) %}
     
-    {% do navigation_bar.append(('api/v3_0/docs', 'openapi-docs', '', 'OpenAPI Docs', 'book')) if openapi_docs_exist %}
+    {% do navigation_bar.append(('api/v3_0/docs', 'openapi-docs', '', 'OpenAPI Docs (new window)', 'book')) if openapi_docs_exist %}
 
     {% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'Documentation (new window)', 'question')) if sphinx_docs_exist %}
 

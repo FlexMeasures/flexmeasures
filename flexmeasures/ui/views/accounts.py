@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from sqlalchemy import select
 from werkzeug.exceptions import Forbidden, Unauthorized
-from flask import request
 from flask_classful import FlaskView
 from flask_security import login_required
 from flask_security.core import current_user
 
 from flexmeasures.auth.policy import user_has_admin_access, check_access
 
-from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
@@ -31,7 +30,6 @@ class AccountCrudUI(FlaskView):
     @login_required
     def get(self, account_id: str):
         """/accounts/<account_id>"""
-        include_inactive = request.args.get("include_inactive", "0") != "0"
         account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
         if account.consultancy_account_id:
             consultancy_account = db.session.execute(
@@ -66,10 +64,10 @@ class AccountCrudUI(FlaskView):
             "accounts/account.html",
             account=account,
             accounts=potential_consultant_accounts,
-            include_inactive=include_inactive,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
+            asset_icon_map=ICON_MAPPING,
         )
 
     @login_required

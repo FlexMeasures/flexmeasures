@@ -26,14 +26,14 @@ Notes:
 Install
 ^^^^^^^^^^^^^
 
-We believe FlexMeasures works with Postgres above version 9 and we ourselves have run it with versions up to 14.
+We believe FlexMeasures works with Postgres above version 9 and we ourselves have run it with versions up to 17.
 
 On Linux:
 
 .. code-block:: bash
 
    $ # On Ubuntu and Debian, you can install postgres like this:
-   $ sudo apt-get install postgresql-12  # replace 12 with the version available in your packages
+   $ sudo apt-get install postgresql-17  # replace 17 with the version available in your packages
    $ pip install psycopg2-binary
 
    $ # On Fedora, you can install postgres like this:
@@ -56,9 +56,9 @@ On Macos:
 
    $ brew update
    $ brew doctor
-   $ # Need to specify postgres version, in this example we use 13
-   $ brew install postgresql@13
-   $ brew link postgresql@13 --force
+   $ # Need to specify postgres version, in this example we use 17
+   $ brew install postgresql@17
+   $ brew link postgresql@17 --force
    $ # Start postgres (you can change /usr/local/var/postgres to any directory you like)
    $ pg_ctl -D /usr/local/var/postgres -l logfile start
 
@@ -97,7 +97,7 @@ Make sure postgres represents datetimes in UTC timezone
 
 (Otherwise, pandas can get confused with daylight saving time.)
 
-Luckily, many web hosters already have ``timezone= 'UTC'`` set correctly by default,
+Luckily, many web hosts already have ``timezone= 'UTC'`` set correctly by default,
 but local postgres installations often use ``timezone='localtime'``.
 
 In any case, check both your local installation and the server, like this:

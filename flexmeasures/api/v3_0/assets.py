@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import request
+from flask import request, current_app
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -30,6 +30,7 @@ from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
     AssetPaginationSchema,
+    PublicAssetAPISchema,
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -37,7 +38,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
+from flexmeasures.data.queries.generic_assets import (
+    filter_assets_under_root,
+    query_assets_by_search_terms,
+)
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -52,10 +56,11 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
 from flexmeasures.api.common.responses import (
-    invalid_flex_config,
+    unprocessable_entity,
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.utils.coding_utils import (
     flatten_unique,
 )
@@ -70,7 +75,8 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
-assets_schema = AssetSchema(many=True)
+# creating this once to avoid recreating it on every request
+default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
@@ -82,8 +88,22 @@ flex_context_schema_openAPI = make_openapi_compatible(FlexContextSchema)
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
-    flex_context = fields.Nested(flex_context_schema_openAPI, required=True)
-    flex_model = fields.Nested(storage_flex_model_schema_openAPI, required=True)
+    flex_context = fields.Nested(
+        flex_context_schema_openAPI,
+        required=True,
+        data_key="flex-context",
+        metadata=dict(
+            description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+        ),
+    )
+    flex_model = fields.Nested(
+        storage_flex_model_schema_openAPI,
+        required=True,
+        data_key="flex-model",
+        metadata=dict(
+            description="The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+        ),
+    )
 
 
 class AssetChartKwargsSchema(Schema):
@@ -193,6 +213,9 @@ class AssetAPI(FlaskView):
     def index(
         self,
         account: Account | None,
+        root_asset: GenericAsset | None,
+        max_depth: int | None,
+        fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
         page: int | None = None,
@@ -202,16 +225,18 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+        .. :quickref: Assets; List assets accessible by the user.
         ---
         get:
-          summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+          summary: List assets accessible by the user.
           description: |
-            This endpoint returns all accessible assets by accounts.
+            This endpoint returns all assets that are accessible by the user after applying optional filters.
 
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
+              - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
@@ -219,6 +244,8 @@ class AssetAPI(FlaskView):
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
+            Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
+            You can use the `fields` query parameter to specify a custom set of fields to include in the response.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -268,19 +295,20 @@ class AssetAPI(FlaskView):
             - Assets
         """
 
-        # find out which accounts are relevant
-        if all_accessible:
-            accounts = get_accessible_accounts()
-        else:
-            if account is None:
-                account = current_user.account
+        # Find out which accounts are relevant
+        if account is not None:
             check_access(account, "read")
-            accounts = [account]
-
-        filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
-
-        # add public assets if the request asks for all the accessible assets
-        if all_accessible or include_public:
+            account_ids = [account.id]
+        else:
+            use_all_accounts = all_accessible or root_asset
+            include_public = all_accessible or include_public or root_asset
+            account_ids = (
+                [a.id for a in get_accessible_accounts()]
+                if use_all_accounts
+                else [current_user.account.id]
+            )
+        filter_statement = GenericAsset.account_id.in_(account_ids)
+        if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
@@ -290,8 +318,22 @@ class AssetAPI(FlaskView):
             sort_dir=sort_dir,
         )
 
+        query = filter_assets_under_root(
+            query=query, root_asset=root_asset, max_depth=max_depth
+        )
+
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
+
         if page is None:
-            response = asset_schema.dump(db.session.scalars(query).all(), many=True)
+            response = response_schema.dump(db.session.scalars(query).all(), many=True)
         else:
             if per_page is None:
                 per_page = 10
@@ -303,7 +345,7 @@ class AssetAPI(FlaskView):
                 select(func.count(GenericAsset.id)).filter(filter_statement)
             )
             response = {
-                "data": asset_schema.dump(select_pagination.items, many=True),
+                "data": response_schema.dump(select_pagination.items, many=True),
                 "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
@@ -446,8 +488,9 @@ class AssetAPI(FlaskView):
         return response, 200
 
     @route("/public", methods=["GET"])
+    @use_kwargs(PublicAssetAPISchema, location="query")
     @as_json
-    def public(self):
+    def public(self, fields_in_response: list[str] | None):
         """
         .. :quickref: Assets; Return all public assets.
         ---
@@ -456,6 +499,9 @@ class AssetAPI(FlaskView):
           description: This endpoint returns all public assets.
           security:
             - ApiKeyAuth: []
+          parameters:
+            - in: query
+              schema: PublicAssetAPISchema
           responses:
             200:
               description: PROCESSED
@@ -471,7 +517,16 @@ class AssetAPI(FlaskView):
         assets = db.session.scalars(
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
         ).all()
-        return assets_schema.dump(assets), 200
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
+        return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
     @permission_required_for_context(
@@ -665,6 +720,7 @@ class AssetAPI(FlaskView):
                         latitude: 11.1
                         longitude: 99.9
                         account_id: 1
+                        external_id: ""
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -679,7 +735,7 @@ class AssetAPI(FlaskView):
         try:
             db_asset = patch_asset(db_asset, asset_data)
         except ValidationError as e:
-            return invalid_flex_config(str(e.messages))
+            return unprocessable_entity(str(e.messages))
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -797,6 +853,9 @@ class AssetAPI(FlaskView):
             "event_ends_before": AwareDateTimeField(format="iso", required=False),
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
+            "use_latest_version_per_event": fields.Boolean(
+                required=False, load_default=False
+            ),
             "most_recent_beliefs_only": fields.Boolean(required=False),
             "compress_json": fields.Boolean(required=False),
         },
@@ -995,14 +1054,14 @@ class AssetAPI(FlaskView):
                       summary: List of jobs
                       value:
                         jobs:
-                          -job_id: 1
-                          queue: scheduling
-                          asset_or_sensor_type: asset
-                          asset_id: 1
-                          status: finished
-                          err: null
-                          enqueued_at: "2023-10-01T00:00:00"
-                          metadata_hash: abc123
+                          - job_id: 1
+                            queue: scheduling
+                            asset_or_sensor_type: asset
+                            asset_id: 1
+                            status: finished
+                            err: null
+                            enqueued_at: "2023-10-01T00:00:00"
+                            metadata_hash: abc123
                         redis_connection_err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
@@ -1107,6 +1166,66 @@ class AssetAPI(FlaskView):
             "message": "Default asset view updated successfully.",
         }, 200
 
+    @route("/keep_legends_below_graphs", methods=["POST"])
+    @as_json
+    @use_kwargs(
+        {"keep_legends_below_graphs": fields.Boolean(required=False)}, location="json"
+    )
+    def update_keep_legends_below_graphs(self, **kwargs):
+        """
+        .. :quickref: Assets; Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
+        ---
+        post:
+          summary: Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
+          description: |
+            This endpoint toggles whether the legend position for graphs is always at the bottom, even with many plots. The default is `False`, meaning that from 7 sensors or above, the legends will be shown to the right of graphs, for better readability. On narrow screens, users might want to turn this to `True`.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    keep_legends_below_graphs:
+                      type: boolean
+                  required:
+                    - keep_legends_below_graphs
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Legend position preference updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+          tags:
+            - Assets
+        """
+        # Update the request.values
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        keep_legends_below_graphs = kwargs.get("keep_legends_below_graphs", True)
+        if keep_legends_below_graphs:
+            # Set the default legend position for asset charts for the current user session
+            set_session_variables(
+                "keep_legends_below_graphs",
+            )
+        else:
+            # Remove the default legend position from the session
+            clear_session(keys_to_clear=["keep_legends_below_graphs"])
+
+        return {
+            "message": "Default legend position updated successfully.",
+        }, 200
+
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
@@ -1149,9 +1268,9 @@ class AssetAPI(FlaskView):
             > To use sequential scheduling, use ``sequential=true`` in the JSON body.
 
             The length of the schedule can be set explicitly through the 'duration' field.
-            Otherwise, it is set by the config setting [see planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.
+            Otherwise, it is set by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.
             If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-            Finally, the schedule length is limited by [see max_planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
+            Finally, the schedule length is limited by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
             Targets that exceed the max planning horizon are not accepted.
 
             The appropriate algorithm is chosen by FlexMeasures (based on asset type).
@@ -1188,25 +1307,62 @@ class AssetAPI(FlaskView):
                           The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
                           Finally, the site consumption capacity is limited by sensor 32.
                         value:
-                          "start": "2015-06-02T10:00:00+00:00"
-                          "flex-model":
-                            - "sensor": 931
-                              "soc-at-start": 12.1
-                              "state-of-charge": {"sensor": 74}
-                              "soc-unit": "kWh"
-                              "power-capacity": "25kW"
-                              "consumption-capacity" : {"sensor": 42}
-                              "production-capacity" : "30 kW"
-                            - "sensor": 932
-                              "consumption-capacity": "0 kW"
-                              "production-capacity": {"sensor": 760}
-                          "flex-context":
-                            "consumption-price": {"sensor": 9}
-                            "production-price": {"sensor": 10}
-                            "inflexible-device-sensors": [13, 14, 15]
-                            "site-power-capacity": "100kW"
-                            "site-production-capacity": "80kW"
-                            "site-consumption-capacity": {"sensor": 32}
+                          start: "2015-06-02T10:00:00+00:00"
+                          flex-model:
+                            - sensor: 931
+                              soc-at-start: 12.1 kWh
+                              state-of-charge: {sensor: 74}
+                              power-capacity: 25 kW
+                              consumption-capacity: {sensor: 42}
+                              production-capacity: 30 kW
+                            - sensor: 932
+                              consumption-capacity: 0 kW
+                              production-capacity: {sensor: 760}
+                          flex-context:
+                            consumption-price: {sensor: 9}
+                            production-price: {sensor: 10}
+                            inflexible-device-sensors: [13, 14, 15]
+                            site-power-capacity: 100 kVA
+                            site-production-capacity: 80 kW
+                            site-consumption-capacity: {sensor: 32}
+                      heating_system:
+                        description: |
+                          This message triggers a schedule, starting at 10.00am, for a heating system that consists of a heat pump (with power sensor 931) and a heat buffer (with thermal state of charge sensor 74).
+                          This also schedules a curtailable production asset (with power sensor 932),
+                          whose production forecasts are recorded under sensor 760.
+
+                          Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+                          and aggregate production should be priced by sensor 10,
+                          where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+                          and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
+
+                          The heat pump's consumption power capacity is limited by sensor 42, and it cannot produce electricity (only heat).
+                          It turns power to heat with a Coefficient of Performance (COP) of 4.
+                          The heat buffer has a constant heat demand of 5 kW thermal, and a storage efficiency of 99.7%.
+                          Finally, the site consumption capacity is limited by sensor 32.
+                        value:
+                          start: "2015-06-02T10:00:00+00:00"
+                          flex-model:
+                            - sensor: 931
+                              soc-at-start: 12.1 kWh
+                              state-of-charge: {sensor: 74}
+                              power-capacity: 25 kW
+                              consumption-capacity: {sensor: 42}
+                              production-capacity: 0 kW
+                              soc-usage:
+                                - "5 kW"
+                              charging-efficiency: "4"  # COP
+                              storage-efficiency: 99.7%
+                            - sensor: 932
+                              consumption-capacity: 0 kW
+                              production-capacity: {sensor: 760}
+                          flex-context:
+                            consumption-price: {sensor: 9}
+                            production-price: {sensor: 10}
+                            inflexible-device-sensors: [13, 14, 15]
+                            site-power-capacity: 100 kVA
+                            site-production-capacity: 80 kW
+                            site-consumption-capacity: {sensor: 32}
 
           responses:
               200:
@@ -1221,7 +1377,7 @@ class AssetAPI(FlaskView):
                           This message indicates that the scheduling request has been processed without any error.
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: PROCESSED
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
@@ -1256,9 +1412,9 @@ class AssetAPI(FlaskView):
         try:
             job = f(asset=asset, enqueue=True, **scheduler_kwargs)
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         response = dict(schedule=job.id)
         d, s = request_processed()

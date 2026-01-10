@@ -14,12 +14,7 @@
     <div class="row">
 
         <div class="col-md-2 on-top-md">
-            <div class="sidepanel-container d-none d-md-block">
-                <div class="left-sidepanel-label">Select dates</div>
-                <div class="sidepanel left-sidepanel">
-                    <div id="datepicker"></div>
-                </div>
-            </div>
+
             {% if user_can_update_asset %}
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
@@ -79,6 +74,7 @@
                                 <div class="form-group">
                                     {{ asset_form.attributes.label(class="col-sm-3 control-label") }}
                                     <div class="col-md-3">
+                                        <small>{{ asset_form.attributes.description }}</small>
                                         {{ asset_form.attributes(class_="form-control") }}
                                         {% for error in asset_form.errors.attributes %}
                                         <span style="color: red;">[{{error}}]</span>
@@ -89,10 +85,25 @@
                                 <div class="form-group">
                                     {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
                                     <div class="col-md-3">
+                                        <small>{{ asset_form.sensors_to_show_as_kpis.description }}</small>
                                         {{ asset_form.sensors_to_show_as_kpis(class_="form-control") }}
+                                        {% for error in asset_form.errors.sensors_to_show_as_kpis %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
                                     </div>
                                 </div>
 
+                                <div class="form-group">
+                                    {{ asset_form.external_id.label(class="col-sm-3 control-label") }}
+                                    <div class="col-md-3">
+                                        <small>{{ asset_form.external_id.description }}</small>
+                                        {{ asset_form.external_id(class_="form-control") }}
+                                        {% for error in asset_form.errors.external_id %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                
                                 <div class="form-group">
                                     <label class="control-label">Location</label>
                                     <small>(Click map to edit latitude and longitude in form)</small>
@@ -267,10 +278,13 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-model</h5>
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+                    <div class="dropdown">
+                        <span class="fa fa-info dropdown-toggle" 
+                            role="button" 
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false" 
+                            tabindex="0">
+                        </span>
 
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
@@ -304,6 +318,7 @@
                         </div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
                 </div>
                 <div class="px-2 pt-3 pb-2">
                     <div class="row">
@@ -361,8 +376,6 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
 
-    {% block leftsidepanel %} {{ super() }} {% endblock %}
-
 
     <!-- Initialise the map -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
@@ -377,14 +390,6 @@
             getAccount, getSensor, apiBasePath, renderSensorSearchResults
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
-
-        const typeOne = [Boolean];
-        const typeTwo = [Object];
-        const typeThree = [String, Object];
-        const typeFour = [Array];
-        const typeFive = [String];
-
-
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         const senSearchResEle = document.getElementById("sensorsSearchResults")
 
@@ -396,84 +401,40 @@
             "default": "fa fa-solid fa-question-circle",
         }
 
-        const flexModelExampleUnits = {
-            "power": ["MW", "kW"],
-            "energy": ["MWh", "kWh"],
-            "boolean": ["Boolean"],
-            "efficiency": ["%"],
-        }
-
-        const assetFlexModelSchema = {
-            "soc-min": null,
-            "soc-max": null,
-            "soc-minima": null,
-            "soc-maxima": null,
-            "soc-targets": null,
-            "state-of-charge": null,
-            "soc-gain": [],
-            "soc-usage": [],
-            "roundtrip-efficiency": null,
-            "charging-efficiency": null,
-            "discharging-efficiency": null,
-            "storage-efficiency": null,
-            "prefer-charging-sooner": null,
-            "prefer-curtailing-later": null,
-            "power-capacity": null,
-            "consumption-capacity": null,
-            "production-capacity": null,
-        }
-
-        const FlexModelFieldValidTypes = {
-            "soc-min": typeThree,
-            "soc-max": typeThree,
-            "soc-minima": typeTwo,
-            "soc-maxima": typeTwo,
-            "soc-targets": typeTwo,
-            "state-of-charge": typeTwo,
-            "soc-gain": typeFour,
-            "soc-usage": typeFour,
-            "roundtrip-efficiency": typeFive,
-            "charging-efficiency": typeThree,
-            "discharging-efficiency": typeThree,
-            "storage-efficiency": typeThree,
-            "prefer-charging-sooner": typeOne,
-            "prefer-curtailing-later": typeOne,
-            "power-capacity": typeThree,
-            "consumption-capacity": typeThree,
-            "production-capacity": typeThree,
-        };
-
-        const assetFlexModelFieldDesc = {
-            "soc-min": { "units": flexModelExampleUnits.energy, "desc": "A constant lower boundary for all values in the schedule (defaults to 0).", "types": "One fixed value or a dynamic signal (via a sensor)." },
-            "soc-max": { "units": flexModelExampleUnits.energy, "desc": "A constant upper boundary for all values in the schedule (defaults to max soc target, if provided).", "types": "One fixed value or a dynamic signal (via a sensor)." },
-            "soc-minima": { "units": flexModelExampleUnits.energy, "desc": "Set points that form lower boundaries, e.g. to target a full car battery in the morning", "types": "A sensor which records the set points as energy targets." },
-            "soc-maxima": { "units": flexModelExampleUnits.energy, "desc": "Set points that form upper boundaries at certain times.", "types": "A sensor which records the set points as energy targets." },
-            "soc-targets": { "units": flexModelExampleUnits.energy, "desc": "Exact set point(s) that the scheduler needs to realize.", "types": "A sensor which records the set points as energy targets." },
-            "state-of-charge": { "units": flexModelExampleUnits.energy, "desc": "Sensor used to record the scheduled state of charge.", "types": "A sensor which records the state of charge." },
-            "soc-gain": { "units": flexModelExampleUnits.power, "desc": "SoC gain per time step, e.g. from a secondary energy source (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated gain.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
-            "soc-usage": { "units": flexModelExampleUnits.power, "desc": "SoC reduction per time step, e.g. from a load or heat sink (defaults to zero). This field allows multiple settings, either fixed or dynamic, which add up to an aggregated usage.", "types": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)." },
-            "roundtrip-efficiency": { "units": flexModelExampleUnits.efficiency, "desc": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries. Can be a percentage or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
-            "charging-efficiency": { "units": flexModelExampleUnits.efficiency, "desc": "Apply efficiency losses only at time of charging, not across roundtrip. Can be a percentage, ratio [0,1], or a coefficient of performance (>1). Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
-            "discharging-efficiency": { "units": flexModelExampleUnits.efficiency, "desc": "Apply efficiency losses only at time of discharging, not across roundtrip. Can be a percentage or ratio [0,1]. Defaults to 100% or 1.0 (no loss).", "types": "Fixed value only." },
-            "storage-efficiency": {
-                "units": flexModelExampleUnits.efficiency,
-                "desc": "This can encode losses over time, so each time step the energy is held longer leads to higher losses. For example 95% (or 0.95) means a loss of 5% each step. Defaults to 100% or 1.0 (no loss). Note that the storage efficiency to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent  per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865",
-                "types": "Fixed value only."
-            },
-            "prefer-charging-sooner": { "units": flexModelExampleUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True). It also signals a preference to discharge later.", "types": "Boolean option only." },
-            "prefer-curtailing-later": { "units": flexModelExampleUnits.boolean, "desc": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True).", "types": "Boolean option only." },
-            "power-capacity": { "units": flexModelExampleUnits.power, "desc": "Device-level power constraint. How much power can be applied to this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
-            "consumption-capacity": { "units": flexModelExampleUnits.power, "desc": "Device-level power constraint on consumption. How much power can be drawn by this asset.", "types": "One fixed value or a dynamic signal (via a sensor)." },
-            "production-capacity": { "units": flexModelExampleUnits.power, "desc": "Device-level power constraint on production. How much power can be supplied by this asset. For PV curtailment (staying within promised output), set this to reference a sensor containing PV power forecasts.", "types": "One fixed value or a dynamic signal (via a sensor)." },
-        }
-
-        let assetFlexModelRawJSON = '{{ asset_flexmodel | safe}}';
-        assetFlexModelRawJSON = Object.assign({}, assetFlexModelSchema, processResourceRawJSON(assetFlexModelSchema, assetFlexModelRawJSON));
+        // Parse available units
         let availableUnitsRawJSON = "{{ available_units | safe }}";
         availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
         const availableUnits = JSON.parse(availableUnitsRawJSON);
-        let hasInitialized = false;
 
+
+        // This variable is used to prevent reRenderForm from running on initial load
+        let hasInitialized = false;
+                
+        const schemaSpecs = {{ flex_model_schema | tojson | safe  }};
+        const assetFlexModelSchema = {};
+        const FlexModelFieldValidTypes = {};
+
+        for (const [key, value] of Object.entries(schemaSpecs)) {
+            assetFlexModelSchema[key] = value["default"];
+
+            const type = value["types"]["backend"];
+            let validTypes = [];
+            if (type === "typeOne") {
+                validTypes = [Boolean];
+            } else if (type === "typeTwo") {
+                validTypes = [Object];
+            } else if (type === "typeThree") {
+                validTypes = [String, Object];
+            } else if (type === "typeFour") {
+                validTypes = [Array];
+            } else if (type === "typeFive") {
+                validTypes = [String];
+            }
+            FlexModelFieldValidTypes[key] = validTypes;
+        }
+
+        const assetFlexModelRawJSON = { ...assetFlexModelSchema };
+        processResourceRawJSON(assetFlexModelRawJSON, '{{ asset_flexmodel | safe }}');
 
         document.addEventListener('DOMContentLoaded', async function () {
             const flexOptionsContainer = document.getElementById('flexOptionsContainer');
@@ -525,7 +486,6 @@
                 }
             }
 
-
             addModelFieldbtn.onclick = async function () {
                 const fieldName = flexSelect.value; // value from the select dropdown
                 if (fieldName === "blank") {
@@ -545,16 +505,16 @@
                 }
 
                 // Initialize the field with an empty value or an empty array
-                const currentFlexmodel = getFlexModel()
+                const currentFlexModel = getFlexModel()
 
                 if (FlexModelFieldValidTypes[fieldName].includes(Array)) {
-                    currentFlexmodel[fieldName] = ["Not Set"];
+                    currentFlexModel[fieldName] = ["Not Set"];
                 } else if (FlexModelFieldValidTypes[fieldName].includes(Boolean)) {
-                    currentFlexmodel[fieldName] = true;
+                    currentFlexModel[fieldName] = true;
                 } else {
-                    currentFlexmodel[fieldName] = "Not Set";
+                    currentFlexModel[fieldName] = "Not Set";
                 }
-                setFlexModel(currentFlexmodel)
+                setFlexModel(currentFlexModel)
 
                 setTimeout(() => {
                     const card = document.getElementById(`${fieldName}-control`);
@@ -644,11 +604,13 @@
 
                 // Clean null values
                 for (const [key, value] of Object.entries(data)) {
-                    if (value === null) {
-                        delete data[key];
-                    } else if (Array.isArray(value) && value.length === 0) {
-                        delete data[key];
-                    } else if (typeof value === 'object' && Object.keys(value).length === 0) {
+                   if (
+                        value === null ||
+                        value === "" ||
+                        value === "Not Set" ||
+                        (Array.isArray(value) && value.length === 0) ||
+                        (typeof value === 'object' && value !== null && Object.keys(value).length === 0)
+                    ) {
                         delete data[key];
                     }
                 }
@@ -665,7 +627,7 @@
 
                 if (response.status !== 200) {
                     const errorData = await response.json();
-                    const errorMessage = errorData?.message || errorData?.error || response.statusText;
+                    const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
                     showToast(`Failed to update the flex model: ${errorMessage}`, "error");
                     reRenderForm();
                 } else {
@@ -681,12 +643,12 @@
                         <div class="alert alert-info" role="alert">
                             <b> About ${getFlexFieldTitle(modelKey)}
                             <div class="pt-2 fw-normal">
-                                ${assetFlexModelFieldDesc[modelKey]["desc"] || "No description available."}
+                                ${schemaSpecs[modelKey]["description"] || "No description available."}
                             </div>
 
                              <div class="pt-2 fw-bold"> 
-                                Possible Types: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["types"] || "No types available."} </span> <br/>
-                                Example Units: <span class="fw-normal"> ${assetFlexModelFieldDesc[modelKey]["units"].join(", ")} </span>
+                                Possible Types: <span class="fw-normal"> ${schemaSpecs[modelKey]["types"]["ui"] || "No types available."} </span> <br/>
+                                Example Units: <span class="fw-normal"> ${schemaSpecs[modelKey]["example-units"].join(", ")} </span>
                             </div>
                         </div>
                     </div>
@@ -975,7 +937,7 @@
 
                     const boolTabContentSaveBtn = document.createElement('button');
                     boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    boolTabContentSaveBtn.textContent = 'Set Value';
+                    boolTabContentSaveBtn.textContent = 'Save value';
                     boolTabContentSaveBtn.onclick = function () {
                         const checkbox = document.getElementById('flexBoolInput');
                         flexModel[name] = checkbox.checked;
@@ -1040,7 +1002,7 @@
 
                     const stringTabContentSaveBtn = document.createElement('button');
                     stringTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    stringTabContentSaveBtn.textContent = 'Set Value';
+                    stringTabContentSaveBtn.textContent = 'Save value';
                     stringTabContentSaveBtn.onclick = function () {
                         const input = document.getElementById('flexStringInput');
                         if (!input.value) {
@@ -1075,7 +1037,7 @@
                     input.className = 'form-control';
                     input.id = 'flexStringInput';
                     input.placeholder = 'Enter a value';
-                    input.value = `${typeof value === 'string' ? value : ''}`;
+                    input.value = `${(typeof value === 'string' && value !== "Not Set")? value : ''}`;
                     input.onkeydown = function (event) {
                         if (event.key === 'Enter') {
                             event.preventDefault();
@@ -1104,7 +1066,7 @@
                 const name = card.id.replace('-control', '');
                 const fieldDataTypes = FlexModelFieldValidTypes[name];
 
-                // main tab components contianer
+                // main tab components container
                 const tabsContainer = document.createElement('div');
                 tabsContainer.className = 'card-header';
                 // tab headers
@@ -1120,7 +1082,7 @@
                 if (fieldDataTypes[0] === Array) {
                     const currentCarouselindex = selectedIndex();
                     if (currentCarouselindex >= 0) {
-                        typeThree.forEach((type, _) => {
+                        [String, Object].forEach((type, _) => {
                             const flexModel = getFlexModel()
                             const value = flexModel[name];
                             const indexValue = value[currentCarouselindex];
@@ -1188,11 +1150,7 @@
                 renderFlexModelForm(); // Initial render of flex model form
                 renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
             });
-
-            flexModelModal.addEventListener('hidden.bs.modal', function () {
-                updateFlexModel();
-            });
-
+            
             flexSelect.addEventListener('change', (event) => {
                 const selectedKey = event.target.value;
                 renderSelectInfoCards(selectedKey);
@@ -1243,7 +1201,7 @@
         ) {
             this.id = id;
             this.name = name;
-            this.unit = unit;
+            this.unit = unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : unit;
             this.resolution = resolution
             this.url = `/sensors/${id}`;
         }

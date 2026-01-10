@@ -515,7 +515,14 @@ input:checked + .slider:before {
     color: var(--light-gray);
 }
 
-.supersize {
+.map-icon > i {
+    font-size: normal;
+    position: relative;
+}
+.map-icon > i:not(.supersize):before, i:not(.supersize):after {
+    font-size: 24px;
+}
+.map-icon > .supersize {
     font-size: 48px;
 }
 
@@ -1302,7 +1309,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 
 .role-title-text text {
-    font-size: 20px;
     fill: var(--primary-color);
 }
 
@@ -1926,6 +1932,11 @@ div.heading-group {
   color: var(--primary-color);
 }
 
+
+/* Tooltip alignment */
+.replay-tooltip > .tooltip-inner {
+  text-align: left;
+}
 
 /* Show tooltip titles on touch screens */
 [title] {

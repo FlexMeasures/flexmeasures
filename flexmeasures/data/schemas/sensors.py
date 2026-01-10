@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from difflib import get_close_matches
 import numbers
+import pytz
 from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
@@ -11,6 +13,7 @@ from marshmallow import (
     ValidationError,
     fields,
     post_load,
+    pre_load,
     validates,
     validates_schema,
 )
@@ -23,6 +26,7 @@ from marshmallow.validate import Validator
 import json
 import re
 import isodate
+from marshmallow_oneofschema import OneOfSchema
 import pandas as pd
 
 from flexmeasures.data import ma, db
@@ -34,6 +38,7 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
     convert_to_quantity,
 )
+from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
@@ -170,18 +175,77 @@ class SensorSchemaMixin(Schema):
             model = Asset
     """
 
-    id = ma.auto_field(dump_only=True)
-    name = ma.auto_field(required=True)
-    unit = ma.auto_field(required=True)
-    timezone = ma.auto_field()
-    event_resolution = DurationField(required=True)
-    entity_address = fields.String(dump_only=True)
-    attributes = JSON(required=False)
+    id = ma.auto_field(
+        dump_only=True,
+        metadata=dict(
+            description="The sensor's ID, which is automatically assigned.",
+            example=5,
+        ),
+    )
+    name = ma.auto_field(
+        required=True, metadata=dict(description="The sensor's name.", example="power")
+    )
+    unit = ma.auto_field(
+        required=True,
+        metadata=dict(
+            description="The sensor's (physical or economical) unit. Supports [<abbr title='International System of Units'>SI</abbr> units](https://en.wikipedia.org/wiki/International_System_of_Units) and [currency codes](https://en.wikipedia.org/wiki/ISO_4217).",
+            example="EUR/kWh",
+        ),
+    )
+
+    def timezone_validator(value: str):
+        """Validate timezone, suggesting the closest match if possible or the server default otherwise."""
+        if value not in pytz.all_timezones:
+            suggestion = get_close_matches(value, pytz.all_timezones, n=1, cutoff=0.6)
+            if suggestion:
+                raise ValidationError(
+                    f"Invalid timezone '{value}'. Did you mean '{suggestion[0]}'?"
+                )
+            raise ValidationError(
+                f"Invalid timezone '{value}'. Example: {get_timezone()}."
+            )
+
+    timezone = ma.auto_field(
+        validate=timezone_validator,
+        metadata=dict(
+            description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
+            example="Europe/Amsterdam",
+            enum=pytz.common_timezones,
+        ),
+    )
+    event_resolution = DurationField(
+        required=True,
+        metadata=dict(
+            description="The duration of events recorded by the sensor.",
+            example="PT15M",
+        ),
+    )
+    entity_address = fields.String(
+        dump_only=True,
+        metadata=dict(
+            description="Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+        ),
+    )
+    attributes = JSON(
+        required=False,
+        metadata=dict(
+            description="JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
+            example="{consumption_is_positive: True}",
+        ),
+    )
 
     @validates("unit")
     def validate_unit(self, unit: str, **kwargs):
         if not is_valid_unit(unit):
             raise ValidationError(f"Unit '{unit}' cannot be handled.")
+
+    @pre_load
+    def set_default_timezone(self, data, **kwargs):
+        """Set the default timezone to the server timezone only for a full load (POST, not PATCH)."""
+        partial = kwargs.get("partial", False)
+        if not partial and not data.get("timezone"):
+            data["timezone"] = str(get_timezone())
+        return data
 
 
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
@@ -189,7 +253,10 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     Sensor schema with validations.
     """
 
-    generic_asset_id = fields.Integer(required=True)
+    generic_asset_id = fields.Integer(
+        required=True,
+        metadata=dict(description="The asset that the sensor belongs to.", example=1),
+    )
 
     @validates("generic_asset_id")
     def validate_generic_asset(self, generic_asset_id: int, **kwargs):
@@ -431,13 +498,23 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         return unit
 
     def _get_unit(self, variable_quantity: ur.Quantity | list[dict] | Sensor) -> str:
-        """Obtain the unit from the (deserialized) variable quantity."""
+        """Obtain the unit from the (deserialized) variable quantity.
+
+        >>> VariableQuantityField("MW")._get_unit(ur.Quantity("3 kWh"))
+        'kWh'
+        >>> VariableQuantityField("/MW")._get_unit([{'value': ur.Quantity("3 kEUR/MWh")}, {'value': ur.Quantity("0 EUR/kWh")}])
+        'kEUR/MWh'
+        """
         if isinstance(variable_quantity, ur.Quantity):
             unit = str(variable_quantity.units)
         elif isinstance(variable_quantity, list):
             unit = str(variable_quantity[0]["value"].units)
             if not all(
-                str(variable_quantity[j]["value"].units) == unit
+                units_are_convertible(
+                    from_unit=str(variable_quantity[j]["value"].units),
+                    to_unit=unit,
+                    duration_known=False,  # prevent mistakes by not allowing to mix kW and kWh units within a single time series specification
+                )
                 for j in range(len(variable_quantity))
             ):
                 raise ValidationError(
@@ -596,3 +673,64 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         fields["data"] = dfs
         fields["filenames"] = [file.filename for file in files]
         return fields
+
+
+class QuantitySchema(Schema):
+    """Represents a quantity string like '1 EUR/MWh'."""
+
+    quantity = fields.Str(
+        required=True,
+        metadata=dict(
+            description="Quantity string describing a fixed quantity.",
+            example="130 EUR/MWh",
+            # "examples": ["130 EUR/MWh", "230 V", "4.5 m/s"],
+        ),
+    )
+
+
+class SensorReferenceSchema(Schema):
+    """Sensor reference."""
+
+    class Meta:
+        description = "Sensor reference from which to look up a variable quantity."
+
+    sensor = SensorIdField(
+        required=True,
+        metadata=dict(
+            description="ID of the sensor on which the data is recorded.",
+        ),
+    )
+
+
+class TimeSeriesSchema(Schema):
+    """List of time series segments."""
+
+    timeseries = fields.List(
+        fields.Dict,
+        required=True,
+        metadata=dict(
+            description="Time series specification containing a list of segments that together describe a variable quantity.",
+            example=[
+                {"value": "23 kW", "start": "2025-11-20T15:15+01", "duration": "PT1H"}
+            ],
+        ),
+    )
+
+
+class VariableQuantityOpenAPISchema(OneOfSchema):
+    type_schemas = {
+        "quantity_string": QuantitySchema,
+        "sensor_reference": SensorReferenceSchema,
+        "timeseries_specs": TimeSeriesSchema,
+    }
+
+    def get_obj_type(self, obj):
+        # Required for OneOfSchema; not used during OpenAPI generation
+        if isinstance(obj, dict) and "sensor" in obj:
+            return "sensor_reference"
+        if isinstance(obj, str):
+            # Pretend incoming string maps to the string schema
+            return "quantity_string"
+        if isinstance(obj, list):
+            return "timeseries_specs"
+        return None

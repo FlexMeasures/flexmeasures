@@ -4,10 +4,23 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.30.0 | November xx, 2025
+since v0.31.0 | February XX, 2026
 =================================
 
+* Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
+* Let ``flexmeasures add schedule`` create schedules with only information known prior to some time using the ``prior`` option.
+* New ``-dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
+
+since v0.30.0 | December 02, 2025
+=================================
+
+* Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more).
 * Fix the interpretation of ``--start-offset`` and ``--end-offset`` options in ``flexmeasures add report``, which was not using the correct time at which the command was run; instead, that time was off by and offset corresponding to the offset between the ``FLEXMEASURES_TIMEZONE`` config setting and :abbr:`UTC (Coordinated Universal Time)`).
+* Add `--force` option to ``flexmeasures delete beliefs`` 
+* The ``flexmeasures delete beliefs``, ``flexmeasures delete nan-beliefs`` and ``flexmeasures delete unchanged-beliefs`` CLI commands now support limiting the action to a given set of data sources.
+* Allow asset-level scheduling in ``flexmeasures add schedule`` using the ``--asset`` option.
+* Allow modifying asset trees with the CLI using ``flexmeasures edit transfer-parenthood``.
+* ``flexmeasures show asset`` will now also display the flex model. 
 
 since v0.29.0 | October 14, 2025
 =================================

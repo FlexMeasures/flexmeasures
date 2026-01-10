@@ -38,9 +38,11 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.utils.time_utils import get_max_planning_horizon
-from flexmeasures.utils.coding_utils import deprecated
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units
+
+
+storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
 
 
 class MetaStorageScheduler(Scheduler):
@@ -49,6 +51,8 @@ class MetaStorageScheduler(Scheduler):
 
     __version__ = None
     __author__ = "Seita"
+
+    default_resolution = timedelta(minutes=15)
 
     COLUMNS = [
         "equals",
@@ -104,7 +108,7 @@ class MetaStorageScheduler(Scheduler):
             # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
             resolution = determine_minimum_resampling_resolution(
                 [s.event_resolution for s in sensors if s is not None],
-                fallback_resolution=timedelta(minutes=15),
+                fallback_resolution=self.default_resolution,
             )
             asset = self.asset
         else:
@@ -233,7 +237,9 @@ class MetaStorageScheduler(Scheduler):
         )
 
         # Set up commitments to optimise for
-        commitments = []
+        commitments = self.convert_to_commitments(
+            query_window=(start, end), resolution=resolution, beliefs_before=belief_time
+        )
 
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
@@ -924,17 +930,62 @@ class MetaStorageScheduler(Scheduler):
             commitments,
         )
 
+    def convert_to_commitments(
+        self,
+        **timing_kwargs,
+    ) -> list[FlowCommitment]:
+        """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
+        commitment_specs = self.flex_context.get("commitments", [])
+        if len(commitment_specs) == 0:
+            return []
+
+        start, end = timing_kwargs["query_window"]
+        price_unit = self.flex_context["shared_currency_unit"] + "/MW"
+        commitments = []
+        for commitment_spec in commitment_specs:
+            # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
+            if "up_price" in commitment_spec:
+                commitment_spec["upwards_deviation_price"] = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=commitment_spec.pop("up_price"),
+                        unit=price_unit,
+                        **timing_kwargs,
+                    )
+                )
+            if "down_price" in commitment_spec:
+                commitment_spec["downwards_deviation_price"] = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=commitment_spec.pop("down_price"),
+                        unit=price_unit,
+                        **timing_kwargs,
+                    )
+                )
+            if "baseline" in commitment_spec:
+                commitment_spec["quantity"] = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=commitment_spec.pop("baseline"),
+                    unit="MW",
+                    **timing_kwargs,
+                )
+            commitment_spec["index"] = initialize_index(
+                start, end, timing_kwargs["resolution"]
+            )
+            commitments.append(FlowCommitment(**commitment_spec))
+
+        return commitments
+
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes
 
         This method should become obsolete when all SoC information is recorded on a sensor, instead.
+
+        Deprecated: get rid of this when moving to v1.0 (requiring to also remove attributes from test data assets)
         """
         if self.sensor is not None:
             self.sensor.generic_asset.set_attribute(
                 "soc_datetime", self.start.isoformat()
             )
             self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model["soc_at_start"]
+                "soc_in_mwh", self.flex_model.get("soc_at_start")
             )
 
     def deserialize_flex_config(self):
@@ -955,27 +1006,13 @@ class MetaStorageScheduler(Scheduler):
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
         if isinstance(self.flex_model, dict):
-            # Check state of charge.
-            # Preferably, a starting soc is given.
-            # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
-            # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
-            # and without soc targets and limits the starting soc doesn't matter).
+            if self.sensor.generic_asset.asset_type.name in storage_asset_types:
+                self.ensure_soc_at_start()
             if (
-                "soc-at-start" not in self.flex_model
-                or self.flex_model["soc-at-start"] is None
+                self.sensor.generic_asset.asset_type.name in storage_asset_types
+                or self.has_soc_at_start()
             ):
-                if (
-                    self.sensor is not None
-                    and self.start == self.sensor.get_attribute("soc_datetime")
-                    and self.sensor.get_attribute("soc_in_mwh") is not None
-                ):
-                    self.flex_model["soc-at-start"] = self.sensor.get_attribute(
-                        "soc_in_mwh"
-                    )
-                else:
-                    self.flex_model["soc-at-start"] = 0
-
-            self.ensure_soc_min_max()
+                self.ensure_soc_min_max()
 
             # Now it's time to check if our flex configuration holds up to schemas
             self.flex_model = StorageFlexModelSchema(
@@ -1000,6 +1037,7 @@ class MetaStorageScheduler(Scheduler):
                     ),
                 ).load(sensor_flex_model["sensor_flex_model"])
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
+                self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
 
                 # Extend schedule period in case a target exceeds its end
                 self.possibly_extend_end(
@@ -1013,6 +1051,12 @@ class MetaStorageScheduler(Scheduler):
             )
 
         return self.flex_model
+
+    def has_soc_at_start(self) -> bool:
+        return (
+            "soc-at-start" in self.flex_model
+            and self.flex_model["soc-at-start"] is not None
+        )
 
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
         """Extend schedule period in case a target exceeds its end.
@@ -1035,6 +1079,28 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     self.end = max_target_datetime
 
+    def ensure_soc_at_start(self):
+        """
+        Ensure we have a starting state of charge - if needed.
+        Preferably, a starting soc is given.
+        Otherwise, we try to retrieve the current state of charge from the (old-style) attribute (if that is the valid one at the start).
+        If that doesn't work, we default the starting soc to be 0 (only if there are soc limits, though, as some assets don't use the concept of a state of charge,
+        and without soc targets and limits the starting soc doesn't matter).
+        """
+        if not self.has_soc_at_start() and self.sensor is not None:
+            # TODO: remove this check when moving to v1.0 (requiring to also remove attributes from test data assets)
+            if (
+                self.start == self.sensor.get_attribute("soc_datetime")
+                and self.sensor.get_attribute("soc_in_mwh") is not None
+            ):
+                self.flex_model["soc-at-start"] = self.sensor.get_attribute(
+                    "soc_in_mwh"
+                )
+        if not self.has_soc_at_start() and (
+            "soc-min" in self.flex_model or "soc-max" in self.flex_model
+        ):
+            self.flex_model["soc-at-start"] = 0
+
     def get_min_max_targets(self) -> tuple[float | None, float | None]:
         """This happens before deserializing the flex-model."""
         min_target = None
@@ -1053,31 +1119,33 @@ class MetaStorageScheduler(Scheduler):
             )
         return min_target, max_target
 
-    def get_min_max_soc_from_db(self) -> tuple[str | None, str | None]:
+    def get_min_max_soc_from_asset(self) -> tuple[str | None, str | None]:
         """This happens before deserializing the flex-model."""
         if self.asset is not None:
             return self.asset.flex_model.get("soc-min"), self.asset.flex_model.get(
                 "soc-max"
             )
-        return self.sensor.generic_asset.flex_model.get(
-            "soc-min"
-        ), self.sensor.generic_asset.flex_model.get("soc-max")
+        if self.sensor is not None:
+            return self.sensor.generic_asset.flex_model.get(
+                "soc-min"
+            ), self.sensor.generic_asset.flex_model.get("soc-max")
+        return None, None
 
     def ensure_soc_min_max(self):
         """
         Make sure we have min and max SOC.
-        If not passed directly, then get default from sensor or targets.
+        If not passed directly, then get default from asset or targets.
         This happens before deserializing the flex-model.
         """
-        _, max_target = self.get_min_max_targets()
-        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_from_db()
+        soc_min_asset, soc_max_asset = self.get_min_max_soc_from_asset()
         if "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
             # Default is 0 - can't drain the storage by more than it contains
-            self.flex_model["soc-min"] = soc_min_sensor if soc_min_sensor else 0
+            self.flex_model["soc-min"] = soc_min_asset if soc_min_asset else 0
         if "soc-max" not in self.flex_model or self.flex_model["soc-max"] is None:
-            self.flex_model["soc-max"] = soc_max_sensor
+            self.flex_model["soc-max"] = soc_max_asset
             # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
             if self.flex_model["soc-max"] is None:
+                _, max_target = self.get_min_max_targets()
                 if max_target:
                     self.flex_model["soc-max"] = max_target
                 else:
@@ -1119,7 +1187,7 @@ class MetaStorageScheduler(Scheduler):
                     site_power_capacity = site_power_capacity.get("sensor", None)
                     if site_power_capacity is None:
                         raise ValueError(
-                            "site-power-capacity attribute is a dict, but has no sensor key."
+                            f"site-power-capacity attribute on asset {asset.id} is a dict, but has no sensor key."
                         )
 
                 power_capacities.append(
@@ -1127,7 +1195,9 @@ class MetaStorageScheduler(Scheduler):
                 )
                 continue
 
-            raise ValueError("Power capacity is not defined in the flex-model.")
+            raise ValueError(
+                f"Power capacity on asset {asset.id} is not defined in the flex-model."
+            )
         return power_capacities
 
     def _ensure_variable_quantity(
@@ -1183,7 +1253,12 @@ class StorageFallbackScheduler(MetaStorageScheduler):
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
-            sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
+            sensor: convert_units(
+                storage_schedule[sensor],
+                "MW",
+                sensor.unit,
+                event_resolution=sensor.event_resolution,
+            )
             for sensor in sensors
             if sensor is not None
         }
@@ -1211,7 +1286,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
 
 
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "5"
+    __version__ = "6"
     __author__ = "Seita"
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
@@ -1248,8 +1323,8 @@ class StorageScheduler(MetaStorageScheduler):
                 for soc_at_start_d in soc_at_start
             ],
         )
-        if scheduler_results.solver.termination_condition == "infeasible":
-            raise InfeasibleProblemException()
+        if "infeasible" in (tc := scheduler_results.solver.termination_condition):
+            raise InfeasibleProblemException(tc)
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = {
@@ -1260,7 +1335,12 @@ class StorageScheduler(MetaStorageScheduler):
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
-            sensor: convert_units(storage_schedule[sensor], "MW", sensor.unit)
+            sensor: convert_units(
+                storage_schedule[sensor],
+                "MW",
+                sensor.unit,
+                event_resolution=sensor.event_resolution,
+            )
             for sensor in sensors
             if sensor is not None
         }
@@ -1807,24 +1887,3 @@ def prepend_series(series: pd.Series, value) -> pd.Series:
     # sort index to keep the time ordering
     series = series.sort_index()
     return series.shift(1)
-
-
-#####################
-# TO BE DEPRECATED #
-####################
-@deprecated(build_device_soc_values, "0.14")
-def build_device_soc_targets(
-    targets: list[dict[str, datetime | float]] | pd.Series,
-    soc_at_start: float,
-    start_of_schedule: datetime,
-    end_of_schedule: datetime,
-    resolution: timedelta,
-) -> pd.Series:
-    return build_device_soc_values(
-        targets, soc_at_start, start_of_schedule, end_of_schedule, resolution
-    )
-
-
-StorageScheduler.compute_schedule = deprecated(StorageScheduler.compute, "0.14")(
-    StorageScheduler.compute_schedule
-)

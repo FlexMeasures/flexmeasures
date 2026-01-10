@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.dialects.postgresql import JSONB
 
 import pandas as pd
 import timely_beliefs as tb
@@ -95,6 +97,16 @@ class DataGenerator:
             self._config = self._config_schema.load({})
 
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
+        """Overwrite with the actual computation of your data generator.
+
+        :returns list of dictionaries, for example:
+                 [
+                     {
+                         "sensor": 501,
+                         "data": <a BeliefsDataFrame>,
+                     },
+                 ]
+        """
         raise NotImplementedError()
 
     def compute(self, parameters: dict | None = None, **kwargs) -> list[dict[str, Any]]:
@@ -105,7 +117,8 @@ class DataGenerator:
         `parameters` cannot contain the key `parameters` at its top level, otherwise it could conflict with keyword argument `parameters`
         of the method compute when passing the `parameters` as deserialized attributes.
 
-        :param parameters: serialized `parameters` parameters, defaults to None
+        :param parameters:  Serialized parameters, defaults to None.
+        :param kwargs:      Deserialized parameters (can be used as an alternative to the `parameters` kwarg).
         """
 
         if self._parameters is None:
@@ -118,10 +131,32 @@ class DataGenerator:
 
         self._parameters = self._parameters_schema.load(self._parameters)
 
-        return self._compute(**self._parameters)
+        results = self._compute(**self._parameters)
+
+        if not self._parameters.get("as_job", False):
+            results = self._assign_sensors_and_source(results)
+        return results
+
+    def _assign_sensors_and_source(
+        self, results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Assign sensors and the DataGenerator's source to the results."""
+        for result in results:
+
+            # Update the BeliefDataFrame's sensor to be the intended sensor
+            result["data"].sensor = result["sensor"]
+
+            # Update all data sources in the BeliefsDataFrame to the data source representing the configured reporter
+            result["data"].index = result["data"].index.set_levels(
+                [self.data_source] * len(result["data"]),
+                level="source",
+                verify_integrity=False,
+            )
+
+        return results
 
     @staticmethod
-    def validate_deserialized(values: dict, schema: Schema) -> bool:
+    def validate_deserialized(values: dict, schema: Schema):
         schema.load(schema.dump(values))
 
     @classmethod
@@ -177,7 +212,7 @@ class DataGenerator:
 
         Example:
 
-            An DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
+            A DataGenerator has the following parameters: ["start", "end", "field1", "field2"] and we want just "field1" and "field2"
             to be persisted.
 
             Parameters provided to the `compute` method (input of the method `_clean_parameters`):
@@ -191,8 +226,24 @@ class DataGenerator:
             Parameters persisted to the DB (output of the method `_clean_parameters`):
             parameters = {"field1" : 1,"field2" : 2}
         """
+        _parameters = deepcopy(parameters)
+        fields_to_remove = ["start", "end", "resolution", "belief_time"]
 
-        raise NotImplementedError()
+        for field in fields_to_remove:
+            _parameters.pop(field, None)
+
+        fields_to_remove_input = [
+            "event_starts_after",
+            "event_ends_before",
+            "belief_time",
+            "resolution",
+        ]
+
+        for _input in _parameters["input"]:
+            for field in fields_to_remove_input:
+                _input.pop(field, None)
+
+        return _parameters
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
@@ -212,7 +263,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     )
     user = db.relationship("User", backref=db.backref("data_source", lazy=True))
 
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     attributes_hash = db.Column(db.LargeBinary(length=256))
 
@@ -399,8 +450,8 @@ def keep_latest_version(
 
     The function performs the following steps:
 
-    1. Adds columns for the source's name, type, model, and version.
-    2. Sorts the rows by `source.version` in descending order.
+    1. Adds columns for the source's name, type, model, version and id.
+    2. Sorts the rows by `source.version` and `source.id`, both in descending order.
     3. Removes duplicates based on `source.name`, `source.type`, and `source.model`,
        keeping the latest version for each `event_start` (and `belief_time`).
     4. Drops the temporary columns added for source attributes.
@@ -435,25 +486,36 @@ def keep_latest_version(
             "source.type": s.type,
             "source.model": s.model,
             "source.version": Version(s.version or "0.0.0"),
+            "source.id": s.id,
         }
         for s in source_values
     }
     source_expanded = bdf.index.get_level_values("source").map(source_to_fields)
 
-    bdf[["source.name", "source.type", "source.model", "source.version"]] = (
-        pd.DataFrame(source_expanded.tolist(), index=bdf.index)
-    )
+    bdf[
+        ["source.name", "source.type", "source.model", "source.version", "source.id"]
+    ] = pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     bdf["_" + event_column] = bdf.index.get_level_values(event_column)
     if not one_deterministic_belief_per_event:
         bdf["_" + belief_column] = bdf.index.get_level_values(belief_column)
-    # Sort by event_start (belief_time) and version, keeping only the latest version
+    # Sort by event_start (belief_time), version and ID, keeping only the latest version and highest ID
     if one_deterministic_belief_per_event:
-        sort_by = ["_" + event_column, "source.version"]
-        ascending = [True, False]
+        sort_by = ["_" + event_column, "source.version", "source.id"]
+        ascending = [True, False, False]
     else:
-        sort_by = ["_" + event_column, "_" + belief_column, "source.version"]
-        ascending = [True, True if belief_column == "belief_time" else False, False]
-    bdf = bdf.sort_values(by=sort_by, ascending=ascending)
+        sort_by = [
+            "_" + event_column,
+            "_" + belief_column,
+            "source.version",
+            "source.id",
+        ]
+        ascending = [
+            True,
+            True if belief_column == "belief_time" else False,
+            False,
+            False,
+        ]
+    bdf_sorted = bdf.sort_values(by=sort_by, ascending=ascending)
 
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
     unique_columns = [
@@ -466,11 +528,11 @@ def keep_latest_version(
         unique_columns += ["_" + belief_column]
     # Keep probabilistic beliefs intact
     unique_keys = (
-        bdf[unique_columns].drop_duplicates().droplevel("cumulative_probability")
+        bdf_sorted[unique_columns].drop_duplicates().droplevel("cumulative_probability")
     )
     bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
 
     # Remove temporary columns
-    bdf = bdf.drop(columns=unique_columns + ["source.version"])
+    bdf = bdf.drop(columns=unique_columns + ["source.version", "source.id"])
 
     return bdf

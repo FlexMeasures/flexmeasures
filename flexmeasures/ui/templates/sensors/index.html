@@ -40,7 +40,12 @@
                                 
                                     <div class="form-group">
                                         <label for="name" class="form-label">Name</label>
-                                        <input type="text" class="form-control" id="name" name="name" placeholder="e.g power" value="{{sensor.name}}" required />
+                                        <input type="text" class="form-control" id="name" name="name" value="{{sensor.name}}" required />
+                                    </div>
+
+                                     <div class="form-group pt-3">
+                                        <label for="timezone" class="form-label">Timezone</label>
+                                        <input type="text" class="form-control" id="timezone" name="timezone" value="{{sensor.timezone}}" required />
                                     </div>
                                 
                                     <button class="btn btn-sm btn-responsive btn-success create-button" type="submit" onclick="updateSensor(event)"
@@ -138,7 +143,7 @@ The event_value should be a numeric value."
                               </tr>
                               <tr>
                                   <th>Unit</th>
-                                  <td>{{ sensor.unit }}</td>
+                                  <td>{{ sensor._ui_unit | safe }}</td>
                               </tr>
                               <tr>
                                   <th>Event resolution</th>
@@ -190,8 +195,15 @@ The event_value should be a numeric value."
               </div>
               <div class="col-sm-2 replay-column">
                   <div class="replay-container">
-                    <div id="replay" title="Press 'p' to play/pause/resume or 's' to stop." class="stopped"></div>
-                    <div id="replay-time"></div>
+                      <div
+                         id="replay"
+                         data-bs-toggle="tooltip"
+                         data-bs-html="true"
+                         data-bs-custom-class="replay-tooltip"
+                         data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step."
+                         class="stopped">
+                      </div>
+                      <div id="replay-time"></div>
                   </div>
               </div>
           </div>
@@ -264,6 +276,8 @@ The event_value should be a numeric value."
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
 
+{% include 'includes/graphs.html' %}
+
 <script>
     const apiBasePath = window.location.origin;
     const parentAssetId = "{{sensor.generic_asset.id}}"
@@ -272,13 +286,14 @@ The event_value should be a numeric value."
         event.preventDefault();
 
         const name = document.getElementById("name").value;
+        const timezone = document.getElementById("timezone").value;
 
-        if (!name) {
+        if (!name || !timezone) {
             showToast("Please fill in all fields.", "error");
             return;
         }
 
-        const data = { name: name }
+        const data = { name: name, timezone: timezone };
 
         const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}", {
             method: "PATCH",
@@ -302,8 +317,14 @@ The event_value should be a numeric value."
             let errorMessage = response.statusText; // Default to statusText
 
             const messageUnitError = errorData?.message?.json?.unit?.[0];
+            const messageTimezoneError = errorData?.message?.json?.timezone?.[0];
+            const truncate = (str, n) => {
+                return (str.length > n) ? str.substr(0, n-1) + '...' : str;
+            };
             if (messageUnitError) {
                 errorMessage = messageUnitError;
+            } else if (messageTimezoneError) {
+                errorMessage = truncate(messageTimezoneError, 800);
             } else if (errorData?.message) {
                 errorMessage = errorData.message;
             } else if (errorData?.error) {
@@ -350,8 +371,5 @@ The event_value should be a numeric value."
         }
     });
 </script>
-
-    {% block leftsidepanel %} {{ super() }} {% endblock %}
-    {% block sensorChartSetup %} {{ super() }} {% endblock %}
 
 {% endblock %}

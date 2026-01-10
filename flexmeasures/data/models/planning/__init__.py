@@ -178,7 +178,6 @@ class Scheduler:
         """Merge the flex-config from the db (from the asset and its ancestors) with the initialization flex-config.
 
         Note that self.flex_context overrides db_flex_context (from the asset and its ancestors).
-        # todo: also fetch db_flex_model once that exists
         """
         if self.asset is not None:
             asset = self.asset
@@ -193,11 +192,13 @@ class Scheduler:
         asset_ids = []
         flex_model = self.flex_model.copy()
         if not isinstance(self.flex_model, list):
+            # To enable the matching of the passed flex_model with db_flex_models, we need to find out the asset ID
             if "asset" not in flex_model:
                 if self.asset is not None:
                     flex_model["asset"] = asset.id
                 else:
                     flex_model["asset"] = self.sensor.generic_asset.id
+            # Listify the flex-model for the next code block, which actually does the merging with the db_flex_model
             flex_model = [flex_model]
 
         for flex_model_d in flex_model:
@@ -211,12 +212,15 @@ class Scheduler:
             amended_flex_model.append(flex_model_d)
             asset_ids.append(asset_id)
         amended_db_flex_model = [
-            v for k, v in db_flex_model.items() if k not in asset_ids
+            {**v, "asset": k} for k, v in db_flex_model.items() if k not in asset_ids
         ]
         combined_flex_model = amended_db_flex_model + amended_flex_model
-        if len(combined_flex_model) == 1:
+        # For the single-asset case, revert the flex-model listification
+        if len(combined_flex_model) == 1 and "sensor" not in combined_flex_model[0]:
+            # Single-asset case
             self.flex_model = combined_flex_model[0]
         else:
+            # Multi-asset case
             self.flex_model = combined_flex_model
 
     def deserialize_config(self):
