@@ -1,7 +1,5 @@
 {
-    "spellright.language": [
-        "en_US"
-    ],
+    "spellright.language": ["en_US"],
     "spellright.documentTypes": [
         "markdown",
         "latex",
@@ -14,10 +12,10 @@
     "python.linting.flake8Enabled": true,
     "workbench.editor.wrapTabs": true,
     "python.formatting.provider": "black",
-    "python.testing.pytestArgs": [
-        "flexmeasures"
-    ],
+    "python.testing.pytestArgs": ["flexmeasures"],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "python.analysis.autoImportCompletions": true
+    "python.analysis.autoImportCompletions": true,
+    "stm32-for-vscode.openOCDPath": false,
+    "stm32-for-vscode.armToolchainPath": false
 }

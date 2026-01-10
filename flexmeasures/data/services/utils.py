@@ -7,7 +7,6 @@ import functools
 from copy import deepcopy
 import inspect
 
-import click
 from sqlalchemy import JSON, String, cast, literal
 from flask import current_app
 from rq import Queue
@@ -130,7 +129,6 @@ def get_or_create_model(
         model = model_class(**init_kwargs)
         db.session.add(model)
         db.session.flush()  # assign ID
-        click.echo(f"Created {repr(model)}")
     return model
 
 
