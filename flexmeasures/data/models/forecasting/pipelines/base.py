@@ -408,6 +408,9 @@ class BasePipeline:
                         seconds=index_offset * target_sensor_resolution.total_seconds()
                     )
                     belief_time = first_belief_time + delta
+
+                    # Update the save belief time for the next forecasting cycle:
+                    # - if no self.save_belief_time date exists, set the current belief_time
                     if pd.isna(self.save_belief_time):
                         save_belief_time = belief_time
                     else:
