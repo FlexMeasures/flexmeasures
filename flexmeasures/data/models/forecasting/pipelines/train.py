@@ -32,7 +32,6 @@ class TrainPipeline(BasePipeline):
         probabilistic: bool = False,
         ensure_positive: bool = False,
         missing_threshold: float = 1.0,
-        save_belief_time: datetime | None = None,
     ) -> None:
         """
         Initialize the TrainPipeline.
@@ -46,7 +45,6 @@ class TrainPipeline(BasePipeline):
         :param max_forecast_horizon: Maximum forecast horizon in steps of 1 resolution.
         :param event_starts_after: Only consider events starting after this time.
         :param event_ends_before: Only consider events ending before this time.
-        :param save_belief_time: Save events with this non floored belief time.
         :param forecast_frequency: Frequency of the forecast in hours.
         :param probabilistic: Whether to use a probabilistic model.
         :param ensure_positive: Whether to ensure that predictions are positive.
@@ -67,7 +65,6 @@ class TrainPipeline(BasePipeline):
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,
             forecast_frequency=forecast_frequency,
-            save_belief_time=save_belief_time,
             missing_threshold=missing_threshold,
         )
 
