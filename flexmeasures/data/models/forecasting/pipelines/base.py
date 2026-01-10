@@ -80,7 +80,9 @@ class BasePipeline:
         ) // forecast_frequency
         self.event_starts_after = event_starts_after
         self.event_ends_before = event_ends_before
-        self.save_belief_time = save_belief_time  # non floored belief time to save forecasts with
+        self.save_belief_time = (
+            save_belief_time  # non floored belief time to save forecasts with
+        )
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
@@ -415,7 +417,11 @@ class BasePipeline:
 
                     # Update the save belief time for the next forecasting cycle:
                     # - if no self.save_belief_time date exists, set the current belief_time
-                    save_belief_time = first_save_belief_time + delta if self.save_belief_time else belief_time
+                    save_belief_time = (
+                        first_save_belief_time + delta
+                        if self.save_belief_time
+                        else belief_time
+                    )
                     target_end = first_target_end + delta
                     forecast_end = first_forecast_end + delta
 
