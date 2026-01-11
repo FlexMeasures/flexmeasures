@@ -99,7 +99,7 @@ Triggering a forecast
          "message": "Forecast job has been queued."
        }
 
-   This endpoint will queue a background forecasting job on the forecasting worker queue.
+   This endpoint will queue a background job on the forecasting queue.
 
 Checking job status & retrieving forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
