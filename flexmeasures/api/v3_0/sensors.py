@@ -1539,7 +1539,7 @@ class SensorAPI(FlaskView):
                 application/json:
                   example:
                     status: "PROCESSED"
-                    forecast_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
+                    forecasting_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
                     message: "Forecasting job has been queued."
           tags:
             - Sensors
@@ -1595,7 +1595,7 @@ class SensorAPI(FlaskView):
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
-    def check_forecasts(self, sensor: Sensor, job_id: str):
+    def check_forecasts(self, id: int, uuid: str, sensor: Sensor, job_id: str):
         """
         .. :quickref: Forecasts; Check forecast job status for a sensor and fetch results.
         ---
