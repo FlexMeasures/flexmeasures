@@ -11,7 +11,7 @@ v3.0-29 | 2025-12-10
 Added two new forecasting API endpoints:
 
 * ``POST /sensors/<id>/forecasts/trigger`` — queue forecasting jobs for a sensor  
-* ``GET /sensors/<id>/forecasts/<job_id>`` — retrieve job status and forecast results  
+* ``GET /sensors/<id>/forecasts/<uuid>`` — retrieve job status and forecast results  
 
 These endpoints enable programmatic triggering and retrieval of forecasts via the REST API.
 
