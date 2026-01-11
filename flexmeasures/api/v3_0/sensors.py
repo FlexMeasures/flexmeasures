@@ -1511,8 +1511,8 @@ class SensorAPI(FlaskView):
 
         return {"sensors_data": status_data}, 200
 
-    @route("/<sensor>/forecasts/trigger", methods=["POST"])
-    @use_kwargs({"sensor": SensorIdField()}, location="path")
+    @route("/<id>/forecasts/trigger", methods=["POST"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def trigger_forecast(self, sensor: Sensor):
         """
