@@ -73,7 +73,7 @@ These endpoints live under the Sensor API (``/api/v3_0/sensors``).
 Triggering a forecast
 ^^^^^^^^^^^^^^^^^^^^^
 
-.. http:post:: /api/v3_0/sensors/<sensor>/forecasts/trigger
+.. http:post:: /api/v3_0/sensors/<id>/forecasts/trigger
 
    Launch a forecasting job asynchronously for the given sensor.
 
@@ -104,7 +104,7 @@ Triggering a forecast
 Checking job status & retrieving forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. http:get:: /api/v3_0/sensors/<sensor>/forecasts/<job_id>
+.. http:get:: /api/v3_0/sensors/<id>/forecasts/<uuid>
 
    Retrieve the status of a forecasting job and, when finished, its forecast data.
 

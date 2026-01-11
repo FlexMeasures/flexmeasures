@@ -95,11 +95,10 @@ There are two ways to queue a forecasting job:
 
 1. **Via the API**, using the endpoint:
 
-   ``POST /api/v3_0/sensors/<sensor_id>/forecasts/trigger``
+   ``POST /api/v3_0/sensors/<id>/forecasts/trigger``
 
    This endpoint validates the forecasting request (using the same logic as
-   the ``flexmeasures add forecasts`` CLI command) and queues the task on the
-   forecasting worker queue.
+   the ``flexmeasures add forecasts`` CLI command) and queues a job on the forecasting queue.
 
    Example request:
 
