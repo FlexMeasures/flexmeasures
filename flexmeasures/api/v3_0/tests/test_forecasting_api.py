@@ -32,7 +32,7 @@ def test_trigger_forecast_endpoint(
         "end_date": "2025-01-07T23:00:00+00:00",
     }
 
-    url = url_for("SensorAPI:trigger_forecast", sensor=sensor.id)
+    url = url_for("SensorAPI:trigger_forecast", id=sensor.id)
 
     response = client.post(
         url,
