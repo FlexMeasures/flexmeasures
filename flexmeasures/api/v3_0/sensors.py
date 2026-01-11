@@ -1589,9 +1589,9 @@ class SensorAPI(FlaskView):
             current_app.logger.exception("Forecast job failed to enqueue.")
             return invalid_flex_config(str(e))
 
-    @route("/<sensor>/forecasts/<job_id>", methods=["GET"])
+    @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(
-        {"sensor": SensorIdField(), "job_id": fields.Str(required=True)},
+        {"sensor": SensorIdField(data_key="id"), "job_id": fields.Str(data_key="uuid", required=True)},
         location="path",
     )
     @permission_required_for_context("read", ctx_arg_name="sensor")
