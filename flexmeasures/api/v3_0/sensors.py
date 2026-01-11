@@ -1612,7 +1612,7 @@ class SensorAPI(FlaskView):
                 application/json:
                   example:
                     status: "FINISHED"
-                    forecast:
+                    forecasts:
                       sensor: 2092
                       values: [...]
                       start: "2025-10-15T00:00:00+01:00"
