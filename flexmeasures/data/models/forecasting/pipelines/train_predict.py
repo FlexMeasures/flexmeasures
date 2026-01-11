@@ -7,6 +7,7 @@ import sys
 import time
 import logging
 from datetime import datetime, timedelta
+import uuid
 
 from rq.job import Job
 
@@ -45,6 +46,7 @@ class TrainPredictPipeline(Forecaster):
             setattr(self, k, v)
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
+        self.forecast_run_id = str(uuid.uuid4())
 
     def run_cycle(
         self,
@@ -86,7 +88,6 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Training cycle completed in {train_runtime:.2f} seconds."
         )
-
         # Make predictions
         predict_pipeline = PredictPipeline(
             future_regressors=self._parameters["future_regressors"],
@@ -220,6 +221,9 @@ class TrainPredictPipeline(Forecaster):
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
+                        id=self.forecast_run_id,
+                        meta={"data_source_info": {"id": self.data_source.id}},
+                        timeout=60 * 60,  # 1 hour
                     )
 
                     # Store the job ID for this cycle

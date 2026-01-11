@@ -7,8 +7,9 @@ from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
 )
 
+from collections import defaultdict
 from werkzeug.exceptions import Unauthorized
-from flask import current_app, url_for
+from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
@@ -62,6 +63,8 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.data.models.forecasting import Forecaster
+from flexmeasures.cli.utils import get_data_generator
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
@@ -1508,3 +1511,181 @@ class SensorAPI(FlaskView):
         status_data = serialize_sensor_status_data(sensor=sensor)
 
         return {"sensors_data": status_data}, 200
+
+    @route("/<sensor>/forecasts/trigger", methods=["POST"])
+    @use_kwargs({"sensor": SensorIdField()}, location="path")
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    def trigger_forecast(self, sensor: Sensor):
+        """
+        .. :quickref: Forecasts; Trigger forecasting job for one sensor
+        ---
+        post:
+          summary: Trigger forecasting job for one sensor
+          description: |
+            Launch a forecasting pipeline for the given sensor asynchronously.
+
+            Example:
+            ```
+            {
+              "start_date": "2026-01-01T00:00:00+01:00",
+              "start_predict_date": "2026-01-15T00:00:00+01:00",
+              "end_date": "2026-01-17T00:00:00+01:00"
+            }
+            ```
+          responses:
+            200:
+              description: Forecasting job queued
+              content:
+                application/json:
+                  example:
+                    status: "PROCESSED"
+                    forecast_jobs: ["b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"]
+                    message: "Forecasting job has been queued."
+          tags:
+            - Sensors
+        """
+        # NOTE: This endpoint reuses the same validation logic as the
+        # `flexmeasures add forecasts` CLI command.
+
+        try:
+            # Load and validate JSON payload
+            parameters = request.get_json()
+            parameters["sensor"] = sensor.id
+            # Ensure the forecast is run as a job on a forecasting queue
+            parameters["as_job"] = True
+
+            # Set up forecaster source
+            source = parameters.pop("source", None)
+
+            # Set forecaster model
+            model = parameters.pop("model", "TrainPredictPipeline")
+
+            # Instantiate the forecaster
+            forecaster = get_data_generator(
+                source=source,
+                model=model,
+                config={},
+                save_config=True,
+                data_generator_type=Forecaster,
+            )
+
+            # Queue forecasting job
+            results = forecaster.compute(parameters=parameters)
+
+            # Extract job ID (UUID)
+            job_ids = []
+            for result in results:
+                job_ids.extend(result.values())
+
+            # Commit DB transaction
+            db.session.commit()
+
+            d, s = request_processed()
+            return dict(forecasting_jobs=job_ids, **d), s
+
+        except ValidationError as e:
+            return invalid_flex_config(e.messages)
+        except Exception as e:
+            current_app.logger.exception("Forecast job failed to enqueue.")
+            return invalid_flex_config(str(e))
+
+    @route("/<sensor>/forecasts/<job_id>", methods=["GET"])
+    @use_kwargs(
+        {"sensor": SensorIdField(), "job_id": fields.Str(required=True)},
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="sensor")
+    def check_forecasts(self, sensor: Sensor, job_id: str):
+        """
+        .. :quickref: Forecasts; Check forecast job status for a sensor and fetch results.
+        ---
+        get:
+          summary: Check forecast job status for a sensor and fetch results.
+          description: |
+            Returns the status of a previously triggered forecasting job.
+            When the job is completed successfully, this endpoint returns the
+            generated forecast data.
+          responses:
+            200:
+              description: Forecast job status
+              content:
+                application/json:
+                  example:
+                    status: "FINISHED"
+                    forecast:
+                      sensor: 2092
+                      values: [...]
+                      start: "2025-10-15T00:00:00+01:00"
+                      end: "2025-10-16T00:00:00+01:00"
+          tags:
+            - Sensors
+        """
+
+        try:
+            # Fetch job from RQ
+            queue = current_app.queues["forecasting"]
+            job = Job.fetch(job_id, connection=queue.connection)
+
+            # Job does not exist
+            if job is None:
+                return invalid_flex_config(f"Job {job_id} not found.")
+
+            # Map RQ statuses to API statuses
+            status = job.get_status()
+            if status in ("queued", "started"):
+                # Still running
+                response = dict(
+                    status="RUNNING" if status == "started" else "PENDING",
+                    job_id=job_id,
+                )
+                d, s = request_processed()
+                return dict(**response), s
+
+            if status == "failed":
+                # Return error message
+                response = dict(
+                    status="FAILED",
+                    job_id=job_id,
+                    error=str(job.exc_info),
+                )
+                d, s = request_processed()
+                return dict(**response), s
+
+            # Job finished → fetch forecasts from DB
+            # search for forecasts linked to this job and sensor
+            data_source = get_data_source_for_job(job, type="forecasting")
+
+            forecasts = sensor.search_beliefs(
+                event_starts_after=job.kwargs.get("predict_start"),
+                event_ends_before=job.kwargs.get("predict_end"),
+                source=data_source,
+                most_recent_beliefs_only=True,
+                use_latest_version_per_event=True,
+            ).reset_index()
+
+            forecast_by_event = defaultdict(list)
+
+            for row in forecasts.itertuples():
+                event_key = row.event_start.isoformat()
+
+                forecast_by_event[event_key].append(
+                    {
+                        "event_start": row.event_start.isoformat(),
+                        "belief_time": row.belief_time.isoformat(),
+                        "cumulative_probability": row.cumulative_probability,
+                        "value": row.event_value,
+                    }
+                )
+
+            response = dict(
+                status="FINISHED",
+                job_id=job_id,
+                sensor=sensor.id,
+                forecasts=forecast_by_event,
+            )
+            d, s = request_processed()
+            return dict(**response), s
+
+        except Exception as e:
+            current_app.logger.exception("Failed to get forecast job status.")
+            return invalid_flex_config(str(e))
