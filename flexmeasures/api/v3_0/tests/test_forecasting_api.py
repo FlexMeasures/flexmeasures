@@ -32,7 +32,7 @@ def test_trigger_forecast_endpoint(
         "end_date": "2025-01-07T23:00:00+00:00",
     }
 
-    url = url_for("SensorAPI:trigger_forecast", sensor=sensor.id)
+    url = url_for("SensorAPI:trigger_forecast", id=sensor.id)
 
     response = client.post(
         url,
@@ -92,7 +92,7 @@ def test_trigger_and_fetch_forecasts(
         "end_date": "2025-01-04T00:30:00+00:00",
     }
 
-    trigger_url = url_for("SensorAPI:trigger_forecast", sensor=sensor.id)
+    trigger_url = url_for("SensorAPI:trigger_forecast", id=sensor.id)
     trigger_res = client.post(
         trigger_url, json=payload, headers={"Authorization": token}
     )
@@ -111,7 +111,7 @@ def test_trigger_and_fetch_forecasts(
     # Fetch forecasts for each job
     for job_id in job_ids:
         fetch_url = url_for(
-            "SensorAPI:check_forecasts", sensor=sensor.id, job_id=job_id
+            "SensorAPI:check_forecasts", id=sensor.id, uuid=job_id
         )
         res = client.get(fetch_url, headers={"Authorization": token})
         assert res.status_code == 200
