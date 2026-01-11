@@ -116,7 +116,7 @@ Checking job status & retrieving forecasts
 
        {
          "status": "RUNNING",
-         "job_id": "<job-id>"
+         "job_id": "<uuid>"
        }
 
    **Response when finished (200):**
@@ -125,7 +125,7 @@ Checking job status & retrieving forecasts
 
        {
          "status": "FINISHED",
-         "job_id": "<job-id>",
+         "job_id": "<uuid>",
          "sensor": 12,
          "forecasts": {
            "2025-01-04T00:15:00+00:00": [
