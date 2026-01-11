@@ -134,8 +134,7 @@ There are two ways to queue a forecasting job:
            --from-date 2024-02-02 --to-date 2024-02-02 \
            --max-forecast-horizon 6 --as-job
 
-   Using ``--as-job`` queues the forecasting computation instead of running it
-   immediately. This allows distributing workload across multiple workers
+   Using ``--as-job`` queues the forecasting computation instead of running it immediately. This allows distributing workload across multiple workers.
 
 .. _how_queue_scheduling:
 
