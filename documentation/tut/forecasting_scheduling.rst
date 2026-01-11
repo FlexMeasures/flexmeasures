@@ -124,7 +124,7 @@ There are two ways to queue a forecasting job:
    forecasts in the database.
 
    .. note::
-      This method requires ``create-children`` permission on the sensor.
+      To use this endpoint, you need the  ``create-children`` permission on the sensor (meaning you should be in the same account or be a consultant on it).
 
 2. **Via the CLI**, for users hosting FlexMeasures themselves:
 
