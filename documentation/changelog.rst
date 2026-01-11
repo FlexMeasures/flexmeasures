@@ -38,7 +38,14 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+
+v0.30.3 | January 11, 2026
+============================
+
+Bugfixes
+-----------
 * Fix ``delete-beliefs`` CLI command to correctly apply the ``--source`` filter when deleting beliefs, preventing unintended removal of beliefs from other sources. [see `PR #1903 <https://www.github.com/FlexMeasures/flexmeasures/pull/1903>`_]
+* Fix concatenation of DataFrames with mixed-order index level when dropping unchanged beliefs, which could cause saving data to fail in rare cases of running ``flexmeasures add report``. [see `PR #1905 <https://www.github.com/FlexMeasures/flexmeasures/pull/1905>`_]
 
 v0.30.2 | January 6, 2026
 ============================
