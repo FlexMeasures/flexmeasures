@@ -100,6 +100,35 @@
     "/api/ops/ping": {},
     "/api/ops/getLatestTaskRun": {},
     "/api/ops/postLatestTaskRun": {},
+    "/api/v3_0/sensors/{sensor}/forecasts/{job_id}": {
+      "get": {
+        "summary": "Check forecast job status for a sensor and fetch results.",
+        "description": "Returns the status of a previously triggered forecasting job.\nWhen the job is completed successfully, this endpoint returns the\ngenerated forecast data.\n",
+        "responses": {
+          "200": {
+            "description": "Forecast job status",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "FINISHED",
+                  "forecast": {
+                    "sensor": 2092,
+                    "values": [
+                      "..."
+                    ],
+                    "start": "2025-10-15T00:00:00+01:00",
+                    "end": "2025-10-16T00:00:00+01:00"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
     "/api/v3_0/sensors/{id}": {
       "delete": {
         "summary": "Delete a sensor",
@@ -1022,6 +1051,31 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
+    "/api/v3_0/sensors/{sensor}/forecasts/trigger": {
+      "post": {
+        "summary": "Trigger forecasting job for one sensor",
+        "description": "Launch a forecasting pipeline for the given sensor asynchronously.\n\nExample:\n```\n{\n  \"start_date\": \"2026-01-01T00:00:00+01:00\",\n  \"start_predict_date\": \"2026-01-15T00:00:00+01:00\",\n  \"end_date\": \"2026-01-17T00:00:00+01:00\"\n}\n```\n",
+        "responses": {
+          "200": {
+            "description": "Forecasting job queued",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "PROCESSED",
+                  "forecast_jobs": [
+                    "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                  ],
+                  "message": "Forecasting job has been queued."
+                }
+              }
+            }
           }
         },
         "tags": [
