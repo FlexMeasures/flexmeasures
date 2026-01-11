@@ -9,6 +9,11 @@ since v0.30.3 | January 11, 2026
 
 * Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
 
+since v0.30.3 | January 11, 2026
+=================================
+
+* Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
+
 since v0.30.0 | December 02, 2025
 =================================
 
