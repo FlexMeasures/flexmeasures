@@ -38,8 +38,16 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+
+
+v0.30.3 | January 11, 2026
+============================
+
+Bugfixes
+-----------
 * Fix ``delete-beliefs`` CLI command to correctly apply the ``--source`` filter when deleting beliefs, preventing unintended removal of beliefs from other sources. [see `PR #1903 <https://www.github.com/FlexMeasures/flexmeasures/pull/1903>`_]
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value. [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
+* Fix concatenation of DataFrames with mixed-order index level when dropping unchanged beliefs, which could cause saving data to fail in rare cases of running ``flexmeasures add report``. [see `PR #1905 <https://www.github.com/FlexMeasures/flexmeasures/pull/1905>`_]
 
 
 v0.30.2 | January 6, 2026
@@ -114,6 +122,7 @@ Bugfixes
 * Enhance dates on UI(sensor page) to be human friendly when representing future dates [see `PR #1832 <https://github.com/FlexMeasures/flexmeasures/pull/1832>`_]
 * Fix spinner not disappearing on the asset graph page [see `PR #1831 <https://github.com/FlexMeasures/flexmeasures/pull/1831>`_]
 * Fix links to API endpoint docs in Sphinx documentation [see `PR #1843 <https://github.com/FlexMeasures/flexmeasures/pull/1843>`_]
+
 
 v0.29.1 | November 5, 2025
 ============================
