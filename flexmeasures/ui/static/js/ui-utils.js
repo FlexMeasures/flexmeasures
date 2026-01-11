@@ -60,7 +60,6 @@ export function processResourceRawJSON(schema, rawJSON) {
   processedJSON = processedJSON.replaceAll("None", "null");
   processedJSON = processedJSON.replaceAll("True", "true");
   processedJSON = processedJSON.replaceAll("False", "false");
-  console.log(processedJSON);
   // update the assetFlexModel fields
   processedJSON = JSON.parse(processedJSON);
 
