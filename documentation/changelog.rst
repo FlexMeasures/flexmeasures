@@ -39,7 +39,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
-v0.30.3 | January 11, 2026
+v0.30.3 | January 12, 2026
 ============================
 
 Bugfixes
