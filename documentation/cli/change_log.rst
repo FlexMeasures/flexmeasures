@@ -11,7 +11,7 @@ since v0.31.0 | February XX, 2026
 * Let ``flexmeasures add schedule`` create schedules with only information known prior to some time using the ``prior`` option.
 * New ``-dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
 
-since v0.30.3 | January 11, 2026
+since v0.30.3 | January 12, 2026
 =================================
 
 * Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
