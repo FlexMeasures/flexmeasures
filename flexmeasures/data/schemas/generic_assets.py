@@ -83,13 +83,13 @@ class SensorsToShowSchema(fields.Field):
         Standardize different input formats to a consistent dictionary format.
         """
         if isinstance(item, int):
-            return {"title": None, "plots": {"sensor": item}}
+            return {"title": None, "plots": [{"sensor": item}]}
         elif isinstance(item, list):
             if not all(isinstance(sensor_id, int) for sensor_id in item):
                 raise ValidationError(
                     "All elements in a list within 'sensors_to_show' must be integers."
                 )
-            return {"title": None, "plots": {"sensors": item}}
+            return {"title": None, "plots": [{"sensors": item}]}
         elif isinstance(item, dict):
             return self._standardize_dict_item(item)
         else:
@@ -150,14 +150,14 @@ class SensorsToShowSchema(fields.Field):
             sensor = item["sensor"]
             if not isinstance(sensor, int):
                 raise ValidationError("'sensor' value must be an integer.")
-            return {"title": title, "plots": {"sensor": sensor}}
+            return {"title": title, "plots": [{"sensor": sensor}]}
         elif "sensors" in item:
             sensors = item["sensors"]
             if not isinstance(sensors, list) or not all(
                 isinstance(sensor_id, int) for sensor_id in sensors
             ):
                 raise ValidationError("'sensors' value must be a list of integers.")
-            return {"title": title, "plots": {"sensors": sensors}}
+            return {"title": title, "plots": [{"sensors": sensors}]}
         elif "plots" in item:
             plots = item["plots"]
             if not isinstance(plots, list):

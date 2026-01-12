@@ -84,8 +84,8 @@ def test_string_json_input():
         '[{"title": "Test", "sensors": [1, 2]}, {"title": "Test2", "sensors": [3]}]'
     )
     expected_output = [
-        {"title": "Test", "sensors": [1, 2]},
-        {"title": "Test2", "sensors": [3]},
+        {"title": "Test", "plots": [{"sensors": [1, 2]}]},
+        {"title": "Test2", "plots": [{"sensors": [3]}]},
     ]
     assert schema.deserialize(input_value) == expected_output
 
