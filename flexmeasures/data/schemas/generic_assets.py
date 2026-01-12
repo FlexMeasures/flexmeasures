@@ -239,10 +239,11 @@ class SensorsToShowSchema(fields.Field):
                 all_objects.extend(s)
             elif isinstance(s, dict):
                 if "plots" in s:
-                    if "sensors" in s["plots"]:
-                        all_objects.extend(s["plots"]["sensors"])
-                    if "sensor" in s["plots"]:
-                        all_objects.append(s["plots"]["sensor"])
+                    for plot in s["plots"]:
+                        if "sensors" in plot:
+                            all_objects.extend(plot["sensors"])
+                        if "sensor" in plot:
+                            all_objects.append(plot["sensor"])
             else:
                 all_objects.append(s)
         return list(dict.fromkeys(all_objects).keys())
