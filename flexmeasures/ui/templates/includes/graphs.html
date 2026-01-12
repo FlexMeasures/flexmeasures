@@ -254,7 +254,6 @@
     });
 
     {% if event_starts_after and event_ends_before %}
-    // Initialize picker to the date selection specified in the session
     $("#spinner").show();
     {% if active_subpage == "asset_graph" and has_kpis %}
     getAssetKPIs(storeStartDate, storeEndDate);
