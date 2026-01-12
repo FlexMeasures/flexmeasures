@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from difflib import get_close_matches
 import numbers
+import pytz
 from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
@@ -193,11 +195,26 @@ class SensorSchemaMixin(Schema):
             example="EUR/kWh",
         ),
     )
+
+    def timezone_validator(value: str):
+        """Validate timezone, suggesting the closest match if possible or the server default otherwise."""
+        if value not in pytz.all_timezones:
+            suggestion = get_close_matches(value, pytz.all_timezones, n=1, cutoff=0.6)
+            if suggestion:
+                raise ValidationError(
+                    f"Invalid timezone '{value}'. Did you mean '{suggestion[0]}'?"
+                )
+            raise ValidationError(
+                f"Invalid timezone '{value}'. Example: {get_timezone()}."
+            )
+
     timezone = ma.auto_field(
+        validate=timezone_validator,
         metadata=dict(
             description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
             example="Europe/Amsterdam",
-        )
+            enum=pytz.common_timezones,
+        ),
     )
     event_resolution = DurationField(
         required=True,
