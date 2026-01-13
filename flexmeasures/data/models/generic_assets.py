@@ -324,7 +324,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         for entry in standardized_sensors_to_show:
 
             title = entry.get("title")
-            sensors = entry.get("plots", {}).get("sensors")
+            sensors = []
+            plots = entry.get("plots", [])
+            if len(plots) > 0:
+                for plot in plots:
+                    if "sensor" in plot:
+                        sensors.append(plot["sensor"])
+                    if "sensors" in plot:
+                        sensors.extend(plot["sensors"])
 
             accessible_sensors = [
                 accessible_sensor_map.get(sid)
