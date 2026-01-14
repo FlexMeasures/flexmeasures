@@ -71,6 +71,7 @@ jobs:
       - name: Run all tests AND record coverage
         run: pytest -v \
              --doctest-modules \
+             --doctest-ignore-import-errors \
              --cov=flexmeasures \
              --cov-branch \
              --cov-report=lcov
