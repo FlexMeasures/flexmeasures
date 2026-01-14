@@ -7,7 +7,7 @@
 [![](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Documentation Status](https://readthedocs.org/projects/flexmeasures/badge/?version=latest)](https://flexmeasures.readthedocs.io/en/latest/?badge=latest)
-[![Coverage](https://coveralls.io/repos/github/FlexMeasures/flexmeasures/badge.svg)](https://coveralls.io/github/FlexMeasures/flexmeasures)
+[![Coverage](https://coveralls.io/repos/github/FlexMeasures/flexmeasures/badge.svg?kill_cache=1)](https://coveralls.io/github/FlexMeasures/flexmeasures)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/6095/badge)](https://bestpractices.coreinfrastructure.org/projects/6095)
 
 *FlexMeasures* is an intelligent EMS (energy management system) to optimize behind-the-meter energy flexibility.
