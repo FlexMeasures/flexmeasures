@@ -106,26 +106,6 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
         return f"Updated: {field_name}, From: {old_value}, To: {new_value}"
 
 
-def sort_flex_config_extra_fields(flex_config: dict, flex_schema) -> tuple[dict, dict]:
-    """
-    Sort extra fields of flex context or flex model to ensure consistent ordering.
-
-    :param flex_config: The flex context or flex model dictionary.
-    :param flex_schema: The corresponding schema to identify standard fields.
-    :return: Two dictionaries: one with standard fields and one with extra fields.
-    """
-    standard_fields = {}
-    extra_fields = {}
-
-    for key, value in flex_config.items():
-        if key in flex_schema.values():
-            standard_fields[key] = value
-        else:
-            extra_fields[key] = value
-
-    return standard_fields, extra_fields
-
-
 def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     """
     Patch an asset.
@@ -154,11 +134,8 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
                     )
             continue
         if k in schema_map:
-            standard_fields, _ = sort_flex_config_extra_fields(
-                v, schema_map[k]().mapped_schema_keys
-            )
-            # Validate the given schema
-            schema_map[k]().load(standard_fields)
+            # Validate the JSON field against the given schema
+            schema_map[k](unknown="include").load(v)
 
         if k.lower() in {"sensors_to_show", "flex_context", "flex_model"}:
             audit_log_data.append(format_json_field_change(k, getattr(db_asset, k), v))
