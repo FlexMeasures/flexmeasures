@@ -62,9 +62,9 @@ jobs:
       - name: Run all tests AND record coverage
         run: |
           if [[ "${{ matrix.py_version }}" < "3.11" ]]; then
-            PYTEST_K="not find_smallest_common_unit"
+            PYTEST_K="not get_object_or_literal and not get_or_create_model and not find_smallest_common_unit"
           else
-            PYTEST_K=""
+            PYTEST_K="not get_object_or_literal and not get_or_create_model"
           fi
           
           pytest -v \
@@ -80,8 +80,6 @@ jobs:
           --ignore flexmeasures/cli/monitor.py \
           --ignore flexmeasures/data/migrations \
           --ignore flexmeasures/data/scripts \
-          -k "not get_object_or_literal" \
-          -k "not get_or_create_model" \
           -k "$PYTEST_K" \
           --cov=flexmeasures \
           --cov-branch \
