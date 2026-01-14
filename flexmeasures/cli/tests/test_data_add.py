@@ -1,4 +1,3 @@
-import pytest
 from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import to_flags
@@ -14,7 +13,6 @@ from flexmeasures.cli.tests.utils import (
 )
 
 
-@pytest.mark.skip_github
 def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_annotation
 
@@ -51,7 +49,6 @@ def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
     ).scalar_one_or_none()
 
 
-@pytest.mark.skip_github
 def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_holidays
 
