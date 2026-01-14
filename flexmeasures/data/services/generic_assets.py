@@ -46,6 +46,14 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
     ========
 
     >>> json = {
+    ...     "field_name": "flex_model",
+    ...     "old_value": {"production-capacity": "15 kW"},
+    ...     "new_value": {"production-capacity": "15 kW", "storage-efficiency": "99.92%"}
+    ... }
+    >>> format_json_field_change(**json)
+    'Updated: flex_model, add storage-efficiency: 99.92%'
+
+    >>> json = {
     ...     "field_name": "flex_context",
     ...     "old_value": {"site-production-capacity": "1500 kW", "site-peak-production": "20000kW", "inflexible-device-sensors": []},
     ...     "new_value": {"site-production-capacity": "15000 kW", "site-peak-production": "20000kW", "inflexible-device-sensors": []}
