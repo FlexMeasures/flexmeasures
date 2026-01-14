@@ -82,9 +82,9 @@ jobs:
           --ignore flexmeasures/cli/jobs.py \
           --ignore flexmeasures/cli/monitor.py \
           --ignore flexmeasures/data/migrations \
-          --ignore flexmeasures/data/models/reporting/pandas_reporter.py \
           --ignore flexmeasures/data/scripts \
-          --ignore flexmeasures/data/services/utils.py \
+          -k "not get_object_or_literal" \
+          -k "not get_or_create_model"
           --cov=flexmeasures \
           --cov-branch \
           --cov-report=lcov
