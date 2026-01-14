@@ -158,7 +158,9 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
                     )
             continue
         if k in schema_map:
-            standard_fields, _ = sort_flex_config_extra_fields(v, schema_map[k]().mapped_schema_keys)
+            standard_fields, _ = sort_flex_config_extra_fields(
+                v, schema_map[k]().mapped_schema_keys
+            )
             # Validate the given schema
             schema_map[k]().load(standard_fields)
 
