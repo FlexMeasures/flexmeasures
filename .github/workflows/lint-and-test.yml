@@ -74,6 +74,8 @@ jobs:
           --doctest-modules \
           --doctest-ignore-import-errors \
           --ignore wsgi.py \
+          --ignore flexmeasures/data/migrations \
+          --ignore flexmeasures/data/scripts \
           --cov=flexmeasures \
           --cov-branch \
           --cov-report=lcov
