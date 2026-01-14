@@ -2,7 +2,7 @@
 ![FlexMeasures Logo Dark](https://github.com/FlexMeasures/screenshots/blob/main/logo/flexmeasures-horizontal-dark.svg#gh-dark-mode-only)
 
 [![License](https://img.shields.io/github/license/seitabv/flexmeasures?color=blue)](https://github.com/FlexMeasures/flexmeasures/blob/main/LICENSE)
-![lint-and-test](https://github.com/FlexMeasures/flexmeasures/workflows/lint-and-test/badge.svg)
+![lint-and-test](https://github.com/FlexMeasures/flexmeasures/actions/workflows/lint-and-test.yml/badge.svg)
 [![Pypi Version](https://img.shields.io/pypi/v/flexmeasures.svg)](https://pypi.python.org/pypi/flexmeasures)
 [![](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
