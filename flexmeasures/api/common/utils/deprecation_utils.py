@@ -138,14 +138,14 @@ def deprecate_blueprint(
     >>> from flask import Flask, Blueprint
     >>> app = Flask('some_app')
     >>> deprecated_bp = Blueprint('API version 1', 'v1_bp')
-    >>> app.register_blueprint(deprecated_bp, url_prefix='/v1')
     >>> deprecate_blueprint(
-            deprecated_bp,
-            deprecation_date="2022-12-14",
-            deprecation_link="https://flexmeasures.readthedocs.io/some-deprecation-notice",
-            sunset_date="2023-02-01",
-            sunset_link="https://flexmeasures.readthedocs.io/some-sunset-notice",
-        )
+    ...     deprecated_bp,
+    ...     deprecation_date="2022-12-14",
+    ...     deprecation_link="https://flexmeasures.readthedocs.io/some-deprecation-notice",
+    ...     sunset_date="2023-02-01",
+    ...     sunset_link="https://flexmeasures.readthedocs.io/some-sunset-notice",
+    ... )
+    >>> app.register_blueprint(deprecated_bp, url_prefix='/v1')
 
     :param blueprint:        The blueprint to be deprecated
     :param deprecation_date: date indicating when the API endpoint was deprecated, used for the "Deprecation" header
