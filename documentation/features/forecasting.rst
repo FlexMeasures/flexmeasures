@@ -55,12 +55,12 @@ The main CLI parameters that control this process are:
 - ``to-date``: The global cutoff point. Training and prediction cycles continue until the ``predict-end`` reaches this date.
 - ``max-forecast-horizon``: The maximum length of a forecast into the future.
 - ``forecast-frequency``: Determines the number of prediction cycles within the forecast period (e.g. daily, hourly).
-- ``start-date``: Define the start of historical data used for training.
+- ``max-training-period``: Define a cap on how much historical data to use for training.
 
 Note that:
 
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
-``start-date`` / ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
+``max-training-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
 
 Forecasting via the API
 -----------------------
