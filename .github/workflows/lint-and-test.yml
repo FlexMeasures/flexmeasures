@@ -81,7 +81,7 @@ jobs:
           --ignore flexmeasures/data/migrations \
           --ignore flexmeasures/data/scripts \
           -k "not get_object_or_literal" \
-          -k "not get_or_create_model"
+          -k "not get_or_create_model" \
           -k "$PYTEST_K" \
           --cov=flexmeasures \
           --cov-branch \
