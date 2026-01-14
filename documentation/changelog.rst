@@ -24,6 +24,7 @@ New features
   .. note:: For backwards-compatibility, the new ``fields`` parameter will only be fully active, i.e. also returning less fields per default, in v0.32. Set ``FLEXMEASURES_API_SUNSET_ACTIVE=True`` to test the full effect now.
 
 * Allow testing out the scheduling CLI without saving anything, using ``flexmeasures add schedule --dry-run`` [see `PR #1892 <https://www.github.com/FlexMeasures/flexmeasures/pull/1892>`_]
+* Allow unsupported ``flex-context`` or ``flex-model`` fields to be shown in the UI editors (they will be un-editable) [see `PR #1915 <https://www.github.com/FlexMeasures/flexmeasures/pull/1915>`_]
 
 Infrastructure / Support
 ----------------------

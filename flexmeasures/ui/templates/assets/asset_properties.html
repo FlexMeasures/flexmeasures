@@ -433,8 +433,7 @@
             FlexModelFieldValidTypes[key] = validTypes;
         }
 
-        const assetFlexModelRawJSON = { ...assetFlexModelSchema };
-        processResourceRawJSON(assetFlexModelRawJSON, '{{ asset_flexmodel | safe }}');
+        const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON( {...assetFlexModelSchema }, '{{ asset_flexmodel | safe }}', true);
 
         document.addEventListener('DOMContentLoaded', async function () {
             const flexOptionsContainer = document.getElementById('flexOptionsContainer');
@@ -731,9 +730,19 @@
             }
 
             async function renderFlexModelFieldCard(name, value) {
+                const isExtraField = name in extraFields;
                 const card = document.createElement('div');
                 card.className = 'card m-1 mt-0';
                 card.id = `${name}-control`;
+
+                // set card element to disabled if its an extrafield
+                if (isExtraField) {
+                    card.setAttribute("data-disabled", "true");
+                    card.style.pointerEvents = "none";
+                    card.style.opacity = "0.5";
+                }
+
+
 
                 card.onclick = function () {
                     if (card.classList.contains('border-on-click')) {
