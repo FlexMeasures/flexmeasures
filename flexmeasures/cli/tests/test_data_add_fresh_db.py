@@ -1,6 +1,7 @@
 import pytest
 import json
 import yaml
+import logging
 import os
 from datetime import datetime
 import pytz
@@ -16,7 +17,7 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
 
-def test_add_reporter(app, fresh_db, setup_dummy_data):
+def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -52,6 +53,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
     # Running the command with start and end values.
 
     runner = app.test_cli_runner()
+    caplog.set_level(logging.INFO)
 
     cli_input_params = {
         "config": "reporter_config.yaml",
@@ -93,7 +95,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
             Sensor, report_sensor_id
         )  # get fresh report sensor instance
 
-        assert "Reporter PandasReporter found" in result.output
+        assert "Reporter PandasReporter found." in caplog.text
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
         # Check report is saved to the database
@@ -146,7 +148,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
 
         assert (
             "Reporter `PandasReporter` fetched successfully from the database."
-            in result.output
+            in caplog.text
         )
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
@@ -158,7 +160,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
         assert len(stored_report) == 95
 
 
-def test_add_multiple_output(app, fresh_db, setup_dummy_data):
+def test_add_multiple_output(app, fresh_db, setup_dummy_data, caplog):
     """ """
 
     from flexmeasures.cli.data_add import add_report
@@ -189,6 +191,7 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
     # Running the command with start and end values.
 
     runner = app.test_cli_runner()
+    caplog.set_level(logging.INFO)
 
     cli_input_params = {
         "config": "reporter_config.yaml",
@@ -232,7 +235,7 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
         report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
         report_sensor_2 = fresh_db.session.get(Sensor, report_sensor_2_id)
 
-        assert "Reporter PandasReporter found" in result.output
+        assert "Reporter PandasReporter found" in caplog.text
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
         assert (
             f"Report computation done for sensor `{report_sensor_2}`." in result.output
