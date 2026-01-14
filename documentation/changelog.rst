@@ -35,7 +35,7 @@ Infrastructure / Support
 * Refactor base.html template from 1500 to ~300 lines [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
 * 2FA UX: Hide rescue form by default & improve main message [see `PR #1875 <https://www.github.com/FlexMeasures/flexmeasures/pull/1875>`_]
 * Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
-* Improve reported test coverage by bringing back CLI tests to GitHub Actions [see `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_]
+* Improve reported test coverage by including doctests and bringing back CLI tests to GitHub Actions [see `PR #1914 <https://www.github.com/FlexMeasures/flexmeasures/pull/1914>`_ and `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_, respectively]
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
 
 Bugfixes
