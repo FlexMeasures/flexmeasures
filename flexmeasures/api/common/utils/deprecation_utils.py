@@ -59,21 +59,23 @@ def deprecate_fields(
     Also logs a warning when a deprecated field is used.
 
     >>> from flask_classful import route
+    >>> from marshmallow import fields
+    >>> from webargs.flaskparser import use_kwargs
     >>> @route("/item/", methods=["POST"])
-        @use_kwargs(
-            {
-                "color": ColorField,
-                "length": LengthField,
-            }
-        )
-        def post_item(color, length):
-            deprecate_field(
-                "color",
-                deprecation_date="2022-12-14",
-                deprecation_link="https://flexmeasures.readthedocs.io/some-deprecation-notice",
-                sunset_date="2023-02-01",
-                sunset_link="https://flexmeasures.readthedocs.io/some-sunset-notice",
-            )
+    ... @use_kwargs(
+    ...     {
+    ...         "color": fields.String(),
+    ...         "length": fields.String(),
+    ...     }
+    ... )
+    ... def post_item(color, length):
+    ...     deprecate_field(
+    ...         "color",
+    ...         deprecation_date="2022-12-14",
+    ...         deprecation_link="https://flexmeasures.readthedocs.io/some-deprecation-notice",
+    ...         sunset_date="2023-02-01",
+    ...         sunset_link="https://flexmeasures.readthedocs.io/some-sunset-notice",
+    ...     )
 
     :param fields:           The fields (as a list of strings) to be deprecated
     :param deprecation_date: date indicating when the field was deprecated, used for the "Deprecation" header
