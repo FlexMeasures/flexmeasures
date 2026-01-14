@@ -438,7 +438,7 @@ class FlexContextSchema(Schema):
         elif sensor := data.get("production_price_sensor"):
             data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
         else:
-            data["shared_currency_unit"] = "dimensionless"
+            data["shared_currency_unit"] = "EUR"
         return data
 
     @staticmethod
