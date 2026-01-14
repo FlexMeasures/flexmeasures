@@ -8,7 +8,6 @@ from flexmeasures.cli.tests.utils import (
 from flexmeasures.tests.utils import get_test_sensor
 
 
-@pytest.mark.skip_github
 def test_list_accounts(app, fresh_db, setup_accounts_fresh_db):
     from flexmeasures.cli.data_show import list_accounts
 
