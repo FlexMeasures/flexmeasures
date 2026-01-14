@@ -326,6 +326,7 @@
     const iconMap = {
         "sensor": "fa fa-microchip",
         "string": "fa fa-solid fa-lock fa-lg",
+        "boolean": "fa fa-solid fa-flag",
         "default": "fa fa-solid fa-question-circle",
     }
     
@@ -334,8 +335,7 @@
     for (const [key, value] of Object.entries(schemaSpecs)) {
         assetFlexContextSchema[key] = value["default"];
     }
-    const assetFlexContextRawJSON = { ...assetFlexContextSchema };
-    processResourceRawJSON(assetFlexContextRawJSON, "{{ asset.flex_context | safe }}");
+    const [assetFlexContextRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexContextSchema }, "{{ asset.flex_context | safe }}", true);
 
     const spinnerElement = document.getElementById('spinnerElement');
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -518,6 +518,7 @@
         }
 
         const isString = typeof fieldValue === "string";
+        const isBool = typeof fieldValue === "boolean";
         const isArray = Array.isArray(fieldValue);
         const isKeyValueObject = typeof fieldValue === "object" &&
             fieldValue !== null &&
@@ -558,9 +559,17 @@
             return activeCard && activeCard === fieldName;
         };
 
+        const isExtraField = fieldName in extraFields;
+
         const card = document.createElement("div");
         card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
         card.id = `${fieldName}-control`;
+        // set card element to disabled if its an extrafield
+        if (isExtraField) {
+            card.setAttribute("data-disabled", "true");
+            card.style.pointerEvents = "none";
+            card.style.opacity = "0.5";
+        }
 
 
         card.onclick = function () {
@@ -627,6 +636,9 @@
         if (isKeyValueObject || isArray) {
             fieldIconClass = iconMap["sensor"];
             fieldIconTitle = "A dynamic signal (via a sensor)";
+         } else if (isBool) {
+            fieldIconClass = iconMap["boolean"];
+            fieldIconTitle = "True or False (a boolean)";
         } else if (isString) {
             fieldIconClass = iconMap["string"];
             fieldIconTitle = "A Fixed Value";
@@ -660,7 +672,16 @@
             valueSpan.innerHTML = newFieldValue ? newFieldValue : "<i>Not Set</i>";
             valueContainer.appendChild(valueSpan);
             highlightCard.appendChild(valueContainer);
+        } else if (isBool) {
+            const valueContainer = document.createElement('div');
+            valueContainer.className = 'pb-2';
+            const valueSpan = document.createElement('span');
+            valueSpan.className = 'fw-light fs-4';
+            valueSpan.innerHTML = fieldValue ? `<i>${String(fieldValue).charAt(0).toUpperCase() + String(fieldValue).slice(1)} </i>` : "";
+            valueContainer.appendChild(valueSpan);
+            highlightCard.appendChild(valueContainer);
         }
+
 
         highlightCard.appendChild(identityIcon);
         return card;

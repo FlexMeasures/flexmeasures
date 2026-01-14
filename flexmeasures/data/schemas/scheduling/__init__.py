@@ -665,7 +665,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
     "prefer-charging-sooner": {
-        "default": True,
+        "default": None,
         "description": rst_to_openapi(metadata.PREFER_CHARGING_SOONER.description),
         "types": {
             "backend": "typeOne",
@@ -674,7 +674,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "example-units": EXAMPLE_UNIT_TYPES["boolean"],
     },
     "prefer-curtailing-later": {
-        "default": True,
+        "default": None,
         "description": rst_to_openapi(metadata.PREFER_CURTAILING_LATER.description),
         "types": {
             "backend": "typeOne",
