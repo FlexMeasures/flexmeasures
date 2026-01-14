@@ -16,7 +16,6 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
 
-@pytest.mark.skip_github
 def test_add_reporter(app, fresh_db, setup_dummy_data):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
@@ -159,7 +158,6 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
         assert len(stored_report) == 95
 
 
-@pytest.mark.skip_github
 def test_add_multiple_output(app, fresh_db, setup_dummy_data):
     """ """
 
@@ -250,7 +248,6 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
         assert all(report_sensor_2.search_beliefs() == 0)
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
 def test_add_process(
     app, process_power_sensor, process_type, add_market_prices_fresh_db, db
@@ -298,7 +295,6 @@ def test_add_process(
     assert (schedule == -0.4).event_value.sum() == 4
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "event_resolution, name, success",
     [("PT20M", "ONE", True), (15, "TWO", True), ("some_string", "THREE", False)],
@@ -330,7 +326,6 @@ def test_add_sensor(app, fresh_db, setup_dummy_asset, event_resolution, name, su
         assert sensor is None
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "name, consultancy_account_id, success",
     [
@@ -365,7 +360,6 @@ def test_add_account(
         assert result.exit_code == 1
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])
 @pytest.mark.parametrize("storage_efficiency", ["sensor", "quantity", None])
 def test_add_storage_schedule(
