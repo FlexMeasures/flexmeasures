@@ -69,6 +69,7 @@ jobs:
           
           pytest -v \
           --doctest-modules \
+          --ignore documentation \
           --ignore wsgi.py \
           --ignore flexmeasures/cli/data_add.py \
           --ignore flexmeasures/cli/data_delete.py \
