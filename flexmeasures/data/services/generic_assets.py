@@ -35,43 +35,31 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
     Format JSON field changes using dictdiffer.
 
     This function attempts to provide a detailed diff of changes between two JSON-like structures.
-    If the structures are not dicts or lists, or if an error occurs, it fall back to a simple change description.
+    If the structures are not dicts or lists, or if an error occurs, it falls back to a simple change description.
 
-    :param field_name: Name of the field being changed.
-    :param old_value: The old value of the field.
-    :param new_value: The new value of the field.
-    :return: A formatted string describing the changes.
+    :param field_name:  Name of the field being changed.
+    :param old_value:   The old value of the field.
+    :param new_value:   The new value of the field.
+    :return:            A formatted string describing the changes.
 
-    **Example input 1**
+    Examples
+    ========
 
-    .. sourcecode:: json
+    >>> json = {
+    ...     "field_name": "flex_context",
+    ...     "old_value": {"site-production-capacity": "1500 kW", "site-peak-production": "20000kW", "inflexible-device-sensors": []},
+    ...     "new_value": {"site-production-capacity": "15000 kW", "site-peak-production": "20000kW", "inflexible-device-sensors": []}
+    ... }
+    >>> format_json_field_change(**json)
+    'Updated: flex_context, change site-production-capacity: 1500 kW -> 15000 kW'
 
-        {
-            "field_name": "flex_context",
-            "old_value": {'site-production-capacity': '1500 kW', 'site-peak-production': '20000kW', 'inflexible-device-sensors': []},
-            "new_value": {'site-production-capacity': '15000 kW', 'site-peak-production': '20000kW', 'inflexible-device-sensors': []}
-        }
-
-    **Example output 1**
-
-    .. sourcecode:: text
-
-        Updated: flex_context, change site-production-capacity:: 1500 kW -> 15000 kW
-
-    **Example input 2**
-
-    .. sourcecode:: json
-
-        {
-            "field_name": "flex_context",
-            "old_value": {'site-production-capacity': '15000 kW', 'site-peak-production': '20000kW'},
-            "new_value": {'site-peak-production': '20000kW'}
-        }
-
-    **Example output 2**
-
-    .. sourcecode:: text
-        Updated: flex_context, remove site-production-capacity
+    >>> json = {
+    ...     "field_name": "flex_context",
+    ...     "old_value": {"site-production-capacity": "15000 kW", "site-peak-production": "20000kW"},
+    ...     "new_value": {"site-peak-production": "20000kW"}
+    ... }
+    >>> format_json_field_change(**json)
+    'Updated: flex_context, remove site-production-capacity'
     """
     try:
         if isinstance(old_value, list):
