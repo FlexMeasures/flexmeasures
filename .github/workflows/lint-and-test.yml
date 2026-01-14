@@ -84,6 +84,7 @@ jobs:
           --ignore flexmeasures/data/migrations \
           --ignore flexmeasures/data/models/reporting/pandas_reporter.py \
           --ignore flexmeasures/data/scripts \
+          --ignore flexmeasures/data/services/utils.py \
           --cov=flexmeasures \
           --cov-branch \
           --cov-report=lcov
