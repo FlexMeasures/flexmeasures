@@ -20,7 +20,6 @@ def test_list_accounts(app, fresh_db, setup_accounts_fresh_db):
     check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 def test_list_roles(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_show import list_roles
 
@@ -34,7 +33,6 @@ def test_list_roles(app, fresh_db, setup_roles_users_fresh_db):
     check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 def test_list_asset_types(app, fresh_db, setup_generic_asset_types_fresh_db):
     from flexmeasures.cli.data_show import list_asset_types
 
@@ -46,7 +44,6 @@ def test_list_asset_types(app, fresh_db, setup_generic_asset_types_fresh_db):
     check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 def test_list_sources(app, fresh_db, setup_sources_fresh_db):
     from flexmeasures.cli.data_show import list_data_sources
 
@@ -58,7 +55,6 @@ def test_list_sources(app, fresh_db, setup_sources_fresh_db):
     check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 def test_show_accounts(app, fresh_db, setup_accounts_fresh_db):
     from flexmeasures.cli.data_show import show_account
 
@@ -74,7 +70,6 @@ def test_show_accounts(app, fresh_db, setup_accounts_fresh_db):
     check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
     from flexmeasures.cli.data_show import show_generic_asset
 
@@ -91,7 +86,6 @@ def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
     assert result.exit_code == 1  # command raises a click.Abort Exception
 
 
-@pytest.mark.skip_github
 def test_show_forecasters(app, db):
     from flexmeasures.cli.data_show import list_forecasters
 
@@ -103,7 +97,6 @@ def test_show_forecasters(app, db):
     check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 def test_show_reporters(app, db):
     from flexmeasures.cli.data_show import list_reporters
 
@@ -115,7 +108,6 @@ def test_show_reporters(app, db):
     check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 def test_show_schedulers(app, db):
     from flexmeasures.cli.data_show import list_schedulers
 
@@ -127,7 +119,6 @@ def test_show_schedulers(app, db):
     check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
     from flexmeasures.cli.data_show import plot_beliefs
 
@@ -163,7 +154,6 @@ def test_cli_help(app):
         check_command_ran_without_error(result)
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "_format, combine_legend",
     [("png", True), ("png", False), ("svg", True), ("svg", False)],
