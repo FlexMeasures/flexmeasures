@@ -73,6 +73,7 @@ jobs:
           pytest -v \
           --doctest-modules \
           --doctest-ignore-import-errors \
+          --ignore wsgi.py \
           --cov=flexmeasures \
           --cov-branch \
           --cov-report=lcov
