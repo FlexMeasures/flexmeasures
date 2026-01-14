@@ -2,7 +2,6 @@
 Auth decorators for endpoints
 """
 
-
 from __future__ import annotations
 
 from typing import Callable
@@ -17,7 +16,7 @@ from flask_security import (
 )
 from werkzeug.local import LocalProxy
 from werkzeug.exceptions import Forbidden
-
+from flexmeasures.data import db
 from flexmeasures.auth.policy import ADMIN_ROLE, AuthModelMixin, check_access
 
 
@@ -178,7 +177,12 @@ def permission_required_for_context(
             elif ctx_arg_pos is not None:
                 context_from_args = args[ctx_arg_pos]
             elif ctx_arg_name is not None:
-                context_from_args = kwargs[ctx_arg_name]
+                try:
+                    context_from_args = kwargs[ctx_arg_name]
+                except KeyError as exc:
+                    raise KeyError(
+                        f"The '{ctx_arg_name}' kwarg seems to be missing from the schema after loading."
+                    ) from exc
             elif len(args) > 0:
                 context_from_args = args[0]
 
@@ -188,7 +192,7 @@ def permission_required_for_context(
                     if inspect.isclass(ctx_loader) and issubclass(
                         ctx_loader, AuthModelMixin
                     ):
-                        context = ctx_loader.query.get(context_from_args)
+                        context = db.session.get(ctx_loader, context_from_args)
                     else:
                         context = ctx_loader(context_from_args)
                 else:

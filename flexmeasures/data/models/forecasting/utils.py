@@ -1,8 +1,16 @@
-from typing import Tuple, List, Union
-from datetime import datetime, timedelta
+from __future__ import annotations
 
-from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+import numpy as np
+import pandas as pd
+import timely_beliefs as tb
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
+
+from datetime import datetime, timedelta
+from sqlalchemy import select
+
+from flexmeasures.data import db
+from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.utils.time_utils import as_server_time
 
 
@@ -11,24 +19,35 @@ def check_data_availability(
     old_time_series_data_model,
     forecast_start: datetime,
     forecast_end: datetime,
-    query_window: Tuple[datetime, datetime],
+    query_window: tuple[datetime, datetime],
     horizon: timedelta,
 ):
     """Check if enough data is available in the database in the first place,
     for training window and lagged variables. Otherwise, suggest new forecast period.
     TODO: we could also check regressor data, if we get regressor specs passed in here.
+    TODO: The join is probably not needed, should be removed. The speed impactof join is negligible
     """
-    q = old_time_series_data_model.query.join(old_sensor_model.__class__).filter(
-        old_sensor_model.__class__.name == old_sensor_model.name
+    from sqlalchemy import func
+
+    # Use aggregate MIN and MAX queries in the database, matching O(n) approach
+    first_q = (
+        select(func.min(old_time_series_data_model.event_start))
+        .join(old_sensor_model.__class__)
+        .filter(old_sensor_model.__class__.id == old_sensor_model.id)
     )
-    first_value = q.order_by(old_time_series_data_model.event_start.asc()).first()
-    last_value = q.order_by(old_time_series_data_model.event_start.desc()).first()
-    if first_value is None:
+    last_q = (
+        select(func.max(old_time_series_data_model.event_start))
+        .join(old_sensor_model.__class__)
+        .filter(old_sensor_model.__class__.id == old_sensor_model.id)
+    )
+    first_event_start = db.session.execute(first_q).scalar()
+    last_event_start = db.session.execute(last_q).scalar()
+    if first_event_start is None or last_event_start is None:
         raise NotEnoughDataException(
             "No data available at all. Forecasting impossible."
         )
-    first = as_server_time(first_value.event_start)
-    last = as_server_time(last_value.event_start)
+    first = as_server_time(first_event_start)
+    last = as_server_time(last_event_start)
     if query_window[0] < first:
         suggested_start = forecast_start + (first - query_window[0])
         raise NotEnoughDataException(
@@ -55,7 +74,7 @@ def create_lags(
     horizon: timedelta,
     resolution: timedelta,
     use_periodicity: bool,
-) -> List[timedelta]:
+) -> list[timedelta]:
     """List the lags for this asset type, using horizon and resolution information."""
     lags = []
 
@@ -82,8 +101,8 @@ def create_lags(
 
 
 def get_query_window(
-    training_start: datetime, forecast_end: datetime, lags: List[timedelta]
-) -> Tuple[datetime, datetime]:
+    training_start: datetime, forecast_end: datetime, lags: list[timedelta]
+) -> tuple[datetime, datetime]:
     """Derive query window from start and end date, as well as lags (if any).
     This makes sure we have enough data for lagging and forecasting."""
     if not lags:
@@ -96,8 +115,8 @@ def get_query_window(
 
 def set_training_and_testing_dates(
     forecast_start: datetime,
-    training_and_testing_period: Union[timedelta, Tuple[datetime, datetime]],
-) -> Tuple[datetime, datetime]:
+    training_and_testing_period: timedelta | tuple[datetime, datetime],
+) -> tuple[datetime, datetime]:
     """If needed (if training_and_testing_period is a timedelta),
     derive training_start and testing_end from forecasting_start,
     otherwise simply return training_and_testing_period.
@@ -130,3 +149,119 @@ def set_training_and_testing_dates(
         return forecast_start - training_and_testing_period, forecast_start
     else:
         return training_and_testing_period
+
+
+def negative_to_zero(x: np.ndarray) -> np.ndarray:
+    return np.where(x < 0, 0, x)
+
+
+def data_to_bdf(
+    data: pd.DataFrame,
+    horizon: int,
+    probabilistic: bool,
+    target_sensor: Sensor,
+    sensor_to_save: Sensor,
+    data_source: DataSource,
+) -> tb.BeliefsDataFrame:
+    """
+    Converts a prediction DataFrame into a BeliefsDataFrame for saving to the database.
+
+    :param data:            DataFrame containing predictions for different forecast horizons.
+                            If probabilistic forecasts are generated, `data` includes a `component` column,
+                            which encodes which quantile (cumulative probability) the row corresponds to.
+    :param horizon:         Maximum forecast horizon in time-steps relative to the sensor's resolution.
+                            For example, if the sensor resolution is 1 hour, a horizon of 48 represents
+                            a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes,
+                            a horizon of 4*48 represents a forecast horizon of 48 hours.
+    :param probabilistic:   Whether the forecasts are probabilistic or deterministic.
+    :param target_sensor:   The Sensor object for which the predictions are made.
+    :param sensor_to_save:  The Sensor object to save the forecasts to.
+    :param data_source:     The DataSource object to attribute the forecasts to.
+    :returns:               A formatted BeliefsDataFrame ready for database insertion.
+    """
+    df = data.copy()
+    df.reset_index(inplace=True)
+
+    # Rename target to '0h'
+    df = df.rename(columns={f"{target_sensor.name} (ID: {target_sensor.id})": "0h"})
+    df["event_start"] = pd.to_datetime(df["event_start"])
+    df["belief_time"] = pd.to_datetime(df["belief_time"])
+
+    # Probabilities
+    probabilistic_values = (
+        [float(x.rsplit("_", 1)[-1]) for x in data.index.get_level_values("component")]
+        if probabilistic
+        else [0.5] * len(df)
+    )
+
+    # Build horizons
+    horizons = pd.Series(range(1, horizon + 1), name="h")
+    expanded = pd.concat([df.assign(h=h) for h in horizons], ignore_index=True)
+
+    # Add shifted event_starts
+    expanded["event_start"] = expanded["event_start"] + expanded["h"].apply(
+        lambda h: target_sensor.event_resolution * h
+    )
+
+    # Forecast values
+    expanded["forecasts"] = expanded.apply(lambda r: r[f"{r.h}h"], axis=1)
+
+    # Probabilities (repeat original values across horizons)
+    expanded["cumulative_probability"] = np.repeat(probabilistic_values, horizon)
+
+    # Cleanup
+    test_df = expanded[
+        ["event_start", "belief_time", "forecasts", "cumulative_probability"]
+    ].copy()
+    test_df["event_start"] = (
+        test_df["event_start"]
+        .dt.tz_localize("UTC")
+        .dt.tz_convert(target_sensor.timezone)
+    )
+    test_df["belief_time"] = (
+        test_df["belief_time"]
+        .dt.tz_localize("UTC")
+        .dt.tz_convert(target_sensor.timezone)
+    )
+
+    # Build forecast DataFrame
+    forecast_df = pd.DataFrame(
+        {
+            "forecasts": test_df["forecasts"].values,
+            "cumulative_probability": test_df["cumulative_probability"].values,
+        },
+        index=pd.MultiIndex.from_arrays(
+            [test_df["event_start"], test_df["belief_time"]],
+            names=["event_start", "belief_time"],
+        ),
+    )
+
+    # # Set up forecaster regressors attributes to be saved on the datasource
+    # # use sensor names from the database and id's in attribute
+    # # use sensor names from cli command for model name
+    #
+    # if "autoregressive" in regressors:
+    #     regressors_names = "autoregressive"
+    # else:
+    #     regressors_names = ", ".join(regressors)
+    #
+    # data_source = get_or_create_source(
+    #     source="forecaster",
+    #     model=f"CustomLGBM ({regressors_names})",
+    #     source_type="forecaster",
+    #     attributes=self.data_source.attributes,
+    # )
+
+    # Convert to BeliefsDataFrame
+    bdf = tb.BeliefsDataFrame(
+        forecast_df.reset_index().rename(columns={"forecasts": "event_value"}),
+        source=data_source,
+        sensor=sensor_to_save,
+    )
+    return bdf
+
+
+def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+    delta_seconds = resolution.total_seconds()
+    floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
+    return datetime.fromtimestamp(floored, tz=dt.tzinfo)

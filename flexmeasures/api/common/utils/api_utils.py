@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
-from typing import List, Sequence, Union
+from typing import Sequence
 from datetime import timedelta
 
 from flask import current_app
+from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
 from psycopg2.errors import UniqueViolation
-from rq.job import Job
+from rq.job import Job, JobStatus, NoSuchJobError
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.utils import save_to_db
+from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
     invalid_replacement,
     ResponseTuple,
@@ -19,13 +23,14 @@ from flexmeasures.api.common.responses import (
     already_received_and_successfully_processed,
 )
 from flexmeasures.utils.error_utils import error_handling_router
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 def upsample_values(
-    value_groups: Union[List[List[float]], List[float]],
+    value_groups: list[list[float]] | list[float],
     from_resolution: timedelta,
     to_resolution: timedelta,
-) -> Union[List[List[float]], List[float]]:
+) -> list[list[float]] | list[float]:
     """Upsample the values (in value groups) to a smaller resolution.
     from_resolution has to be a multiple of to_resolution"""
     if from_resolution % to_resolution == timedelta(hours=0):
@@ -64,6 +69,59 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
     return u, s
 
 
+def job_status_description(job: Job, extra_message: str | None = None):
+    """Return a matching description for the job's status.
+
+    Supports each rq.job.JobStatus (NB JobStatus.CREATED is deprecated).
+
+    :param job:             The rq.Job.
+    :param extra_message:   Optionally, append a message to the job status description.
+    """
+
+    job_status = job.get_status()
+    queue_name = job.origin  # Name of the queue that the job is in
+    if job_status == JobStatus.QUEUED:
+        description = f"{capitalize(queue_name)} job waiting to be processed."
+    elif job_status == JobStatus.FINISHED:
+        description = f"{capitalize(queue_name)} job has finished."
+    elif job_status == JobStatus.FAILED:
+        # Try to inform the user on why the job failed
+        e = job.meta.get(
+            "exception",
+            Exception(
+                "The job does not state why it failed. "
+                "The worker may be missing an exception handler, "
+                "or its exception handler is not storing the exception as job meta data."
+            ),
+        )
+        description = (
+            f"{capitalize(queue_name)} job failed with {type(e).__name__}: {e}."
+        )
+    elif job_status == JobStatus.STARTED:
+        description = f"{capitalize(queue_name)} job in progress."
+    elif job_status == JobStatus.DEFERRED:
+        # Try to inform the user on what other job the job is waiting for
+        try:
+            preferred_job = job.dependency
+            description = f'{capitalize(queue_name)} job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed.'
+        except NoSuchJobError:
+            description = (
+                f"{capitalize(queue_name)} job waiting for unknown job to be processed."
+            )
+    elif job_status == JobStatus.SCHEDULED:
+        description = (
+            f"{capitalize(queue_name)} job is scheduled to run at a later time."
+        )
+    elif job_status == JobStatus.STOPPED:
+        description = f"{capitalize(queue_name)} job has been stopped."
+    elif job_status == JobStatus.CANCELED:
+        description = f"{capitalize(queue_name)} job has been cancelled."
+    else:
+        description = f"{capitalize(queue_name)} job has an unknown status."
+
+    return description + f" {extra_message}" if extra_message else description
+
+
 def enqueue_forecasting_jobs(
     forecasting_jobs: list[Job] | None = None,
 ):
@@ -76,7 +134,7 @@ def enqueue_forecasting_jobs(
 
 
 def save_and_enqueue(
-    data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
+    data: BeliefsDataFrame | list[BeliefsDataFrame],
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
@@ -112,3 +170,15 @@ def catch_timed_belief_replacements(error: IntegrityError):
 
     # Forward to our generic error handler
     return error_handling_router(error)
+
+
+def get_accessible_accounts() -> list[Account]:
+    accounts = []
+    for _account in db.session.scalars(select(Account)).all():
+        try:
+            check_access(_account, "read")
+            accounts.append(_account)
+        except (Forbidden, Unauthorized):
+            pass
+
+    return accounts

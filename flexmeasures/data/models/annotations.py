@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pandas as pd
+from sqlalchemy import select
 
 from flexmeasures.data import db
 
@@ -22,14 +23,23 @@ class Annotation(db.Model):
     start = db.Column(db.DateTime(timezone=True), nullable=False)
     end = db.Column(db.DateTime(timezone=True), nullable=False)
     belief_time = db.Column(db.DateTime(timezone=True), nullable=True)
-    source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"))
+    source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"), nullable=False)
     source = db.relationship(
         "DataSource",
         foreign_keys=[source_id],
         backref=db.backref("annotations", lazy=True),
     )
     type = db.Column(
-        db.Enum("alert", "holiday", "label", "feedback", name="annotation_type")
+        db.Enum(
+            "alert",
+            "holiday",
+            "label",
+            "feedback",
+            "warning",
+            "error",
+            name="annotation_type",
+        ),
+        nullable=False,
     )
     content = db.Column(db.String(1024), nullable=False)
     __table_args__ = (
@@ -132,8 +142,10 @@ class AccountAnnotationRelationship(db.Model):
     __tablename__ = "annotations_accounts"
 
     id = db.Column(db.Integer(), primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey("account.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    account_id = db.Column(db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"))
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE")
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",
@@ -149,8 +161,12 @@ class GenericAssetAnnotationRelationship(db.Model):
     __tablename__ = "annotations_assets"
 
     id = db.Column(db.Integer(), primary_key=True)
-    generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    generic_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id", ondelete="CASCADE")
+    )
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE")
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",
@@ -166,8 +182,10 @@ class SensorAnnotationRelationship(db.Model):
     __tablename__ = "annotations_sensors"
 
     id = db.Column(db.Integer(), primary_key=True)
-    sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id", ondelete="CASCADE"))
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id", ondelete="CASCADE")
+    )
     __table_args__ = (
         db.UniqueConstraint(
             "annotation_id",
@@ -185,17 +203,15 @@ def get_or_create_annotation(
     Return the old annotation object if it exists (and expunge the new one). Otherwise, return the new one.
     """
     with db.session.no_autoflush:
-        existing_annotation = (
-            db.session.query(Annotation)
-            .filter(
+        existing_annotation = db.session.execute(
+            select(Annotation).filter(
                 Annotation.content == annotation.content,
                 Annotation.start == annotation.start,
                 Annotation.end == annotation.end,
                 Annotation.source == annotation.source,
                 Annotation.type == annotation.type,
             )
-            .one_or_none()
-        )
+        ).scalar_one_or_none()
     if existing_annotation is None:
         db.session.add(annotation)
         return annotation

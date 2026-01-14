@@ -1,21 +1,25 @@
 import pytest
 from datetime import timedelta
 
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 
 
 @pytest.fixture(scope="module")
-def setup_dummy_sensors(db, app):
-
+def dummy_asset(db, app):
     dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
     db.session.add(dummy_asset_type)
 
-    dummy_asset = GenericAsset(
+    _dummy_asset = GenericAsset(
         name="DummyGenericAsset", generic_asset_type=dummy_asset_type
     )
-    db.session.add(dummy_asset)
+    db.session.add(_dummy_asset)
 
+    return _dummy_asset
+
+
+@pytest.fixture(scope="module")
+def setup_dummy_sensors(db, app, dummy_asset):
     sensor1 = Sensor(
         "sensor 1",
         generic_asset=dummy_asset,
@@ -50,4 +54,61 @@ def setup_dummy_sensors(db, app):
 
     db.session.commit()
 
-    yield sensor1, sensor2
+    yield sensor1, sensor2, sensor3, sensor4
+
+
+@pytest.fixture(scope="module")
+def setup_efficiency_sensors(db, app, dummy_asset):
+    sensor = Sensor(
+        "efficiency",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(hours=1),
+        unit="%",
+    )
+    db.session.add(sensor)
+    db.session.commit()
+
+    return sensor
+
+
+@pytest.fixture(scope="module")
+def setup_site_capacity_sensor(db, app, dummy_asset, setup_sources):
+    sensor = Sensor(
+        "site-power-capacity",
+        generic_asset=dummy_asset,
+        event_resolution="P1Y",
+        unit="MVA",
+    )
+    db.session.add(sensor)
+    capacity = TimedBelief(
+        sensor=sensor,
+        source=setup_sources["Seita"],
+        event_value=0.8,
+        belief_horizon="P45D",
+        event_start="2024-02-26T00:00+02",
+    )
+    db.session.add(capacity)
+
+    db.session.commit()
+
+    return {sensor.name: sensor}
+
+
+@pytest.fixture(scope="module")
+def setup_price_sensors(db, app, dummy_asset, setup_sources):
+    sensor_names = ["consumption-price", "production-price"]
+    units = ["SEK/kWh", "SEK/MWh"]
+    sensors = []
+    for sensor_name in sensor_names:
+        for unit in units:
+            sensor = Sensor(
+                name=f"{sensor_name} in {unit}",
+                generic_asset=dummy_asset,
+                event_resolution="PT1H",
+                unit=unit,
+            )
+            db.session.add(sensor)
+            sensors.append(sensor)
+    db.session.commit()
+
+    return {sensor.name: sensor for sensor in sensors}

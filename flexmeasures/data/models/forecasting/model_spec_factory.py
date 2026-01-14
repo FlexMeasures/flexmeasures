@@ -1,6 +1,8 @@
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
+
 from datetime import datetime, timedelta, tzinfo
 from pprint import pformat
+from typing import Any
 import logging
 import pytz
 
@@ -51,13 +53,13 @@ class TBSeriesSpecs(SeriesSpecs):
         self,
         search_params: dict,
         name: str,
-        time_series_class: Optional[type] = TimedBelief,
+        time_series_class: type | None = TimedBelief,
         search_fnc: str = "search",
-        original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
-        feature_transformation: Optional[ReversibleTransformation] = None,
-        post_load_processing: Optional[Transformation] = None,
-        resampling_config: Dict[str, Any] = None,
-        interpolation_config: Dict[str, Any] = None,
+        original_tz: tzinfo | None = pytz.utc,  # postgres stores naive datetimes
+        feature_transformation: ReversibleTransformation | None = None,
+        post_load_processing: Transformation | None = None,
+        resampling_config: dict[str, Any] = None,
+        interpolation_config: dict[str, Any] = None,
     ):
         super().__init__(
             name,
@@ -88,7 +90,8 @@ class TBSeriesSpecs(SeriesSpecs):
 
     def check_data(self, df: pd.DataFrame):
         """Raise error if data is empty or contains nan values.
-        Here, other than in load_series, we can show the query, which is quite helpful."""
+        Here, other than in load_series, we can show the query, which is quite helpful.
+        """
         if df.empty:
             raise MissingData(
                 "No values found in database for the requested %s data. It's no use to continue I'm afraid."
@@ -114,14 +117,14 @@ def create_initial_model_specs(  # noqa: C901
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
     forecast_horizon: timedelta,  # Duration between time of forecasting and end time of the event that is forecast
-    ex_post_horizon: Optional[timedelta] = None,
+    ex_post_horizon: timedelta | None = None,
     transform_to_normal: bool = True,
     use_regressors: bool = True,  # If false, do not create regressor specs
     use_periodicity: bool = True,  # If false, do not create lags given the asset's periodicity
-    custom_model_params: Optional[
-        dict
-    ] = None,  # overwrite model params, most useful for tests or experiments
-    time_series_class: Optional[type] = TimedBelief,
+    custom_model_params: (
+        dict | None
+    ) = None,  # overwrite model params, most useful for tests or experiments
+    time_series_class: type | None = TimedBelief,
 ) -> ModelSpecs:
     """
     Generic model specs for all asset types (also for markets and weather sensors) and horizons.
@@ -220,16 +223,16 @@ def _parameterise_forecasting_by_asset_and_asset_type(
     params["resolution"] = sensor.event_resolution
 
     if transform_to_normal:
-        params[
-            "outcome_var_transformation"
-        ] = get_normalization_transformation_from_sensor_attributes(sensor)
+        params["outcome_var_transformation"] = (
+            get_normalization_transformation_from_sensor_attributes(sensor)
+        )
 
     return params
 
 
 def get_normalization_transformation_from_sensor_attributes(
     sensor: Sensor,
-) -> Optional[Transformation]:
+) -> Transformation | None:
     """
     Transform data to be normal, using the BoxCox transformation. Lambda parameter is chosen
     according to the asset type.
@@ -259,8 +262,8 @@ def configure_regressors_for_nearest_weather_sensor(
     horizon,
     regressor_transformation,  # the regressor transformation can be passed in
     transform_to_normal,  # if not, it a normalization can be applied
-) -> List[TBSeriesSpecs]:
-    """For Assets, we use weather data as regressors. Here, we configure them."""
+) -> list[TBSeriesSpecs]:
+    """We use weather data as regressors. Here, we configure them."""
     regressor_specs = []
     correlated_sensor_names = sensor.get_attribute("weather_correlations")
     if correlated_sensor_names:

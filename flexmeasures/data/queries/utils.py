@@ -1,13 +1,16 @@
-from typing import List, Optional, Type, Tuple, Union
+from __future__ import annotations
+
+from typing import Type
 from datetime import datetime, timedelta
 
 from flask_security import current_user
 from werkzeug.exceptions import Forbidden
 import pandas as pd
 import timely_beliefs as tb
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import BinaryExpression, or_
 from sqlalchemy.sql.expression import null
+from sqlalchemy import select, Select
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -22,14 +25,12 @@ def create_beliefs_query(
     cls: "Type[ts.TimedValue]",
     session: Session,
     old_sensor_class: db.Model,
-    old_sensor_names: Tuple[str],
-    start: Optional[datetime],
-    end: Optional[datetime],
-) -> Query:
+    old_sensor_names: tuple[str],
+    start: datetime | None,
+    end: datetime | None,
+) -> Select:
     query = (
-        session.query(
-            old_sensor_class.name, cls.datetime, cls.value, cls.horizon, DataSource
-        )
+        select(old_sensor_class.name, cls.datetime, cls.value, cls.horizon, DataSource)
         .join(DataSource)
         .filter(cls.data_source_id == DataSource.id)
         .join(old_sensor_class)
@@ -42,19 +43,20 @@ def create_beliefs_query(
     return query
 
 
-def potentially_limit_assets_query_to_account(
-    query: Query,
-    account_id: Optional[int] = None,
-) -> Query:
-    """Filter out all assets that are not in the current user's account.
-    For admins and CLI users, no assets are filtered out, unless an account_id is set.
+def potentially_limit_assets_query_to_accounts(
+    query: Select[tuple[GenericAsset]],
+    account_id: int | None = None,
+) -> Select[tuple[GenericAsset]]:
+    """Filter out all assets that are not in the current user's account or accounts they are allowed to access.
+    The search can also be limited to only one specific account.
+    For admins and CLI users, no assets are filtered out, unless an account_id is explicitly set.
 
-    :param account_id: if set, all assets that are not in the given account will be filtered out (only works for admins and CLI users). For querying public assets in particular, don't use this function.
+    :param account_id: if set, all assets that are not in the given account will be filtered out (only works for admins, consultants and CLI users). For querying public assets in particular, don't use this function.
     """
     if not running_as_cli() and not current_user.is_authenticated:
         raise Forbidden("Unauthenticated user cannot list assets.")
     user_is_admin = running_as_cli() or user_has_admin_access(
-        current_user, permission="read" if query.statement.is_select else "update"
+        current_user, permission="read" if query.is_select else "update"
     )
     if account_id is None and user_is_admin:
         return query  # allow admins to query assets across all accounts
@@ -64,24 +66,29 @@ def potentially_limit_assets_query_to_account(
         and not user_is_admin
     ):
         raise Forbidden("Non-admin cannot access assets from other accounts.")
-    account_id_to_filter = (
+    account_ids_to_filter = [
         account_id if account_id is not None else current_user.account_id
-    )
+    ]
+    if account_id is None and current_user.has_role("consultant"):
+        account_ids_to_filter += [
+            a.id for a in current_user.account.consultancy_client_accounts
+        ]
+
     return query.filter(
         or_(
-            GenericAsset.account_id == account_id_to_filter,
+            GenericAsset.account_id.in_(account_ids_to_filter),
             GenericAsset.account_id == null(),
         )
     )
 
 
 def get_source_criteria(
-    cls: "Union[Type[ts.TimedValue], Type[ts.TimedBelief]]",
-    user_source_ids: Union[int, List[int]],
-    source_types: List[str],
-    exclude_source_types: List[str],
-) -> List[BinaryExpression]:
-    source_criteria: List[BinaryExpression] = []
+    cls: "Type[ts.TimedValue] | Type[ts.TimedBelief]",
+    user_source_ids: int | list[int],
+    source_types: list[str],
+    exclude_source_types: list[str],
+) -> list[BinaryExpression]:
+    source_criteria: list[BinaryExpression] = []
     if user_source_ids is not None:
         source_criteria.append(user_source_criterion(cls, user_source_ids))
     if source_types is not None:
@@ -96,8 +103,8 @@ def get_source_criteria(
 
 
 def user_source_criterion(
-    cls: "Union[Type[ts.TimedValue], Type[ts.TimedBelief]]",
-    user_source_ids: Union[int, List[int]],
+    cls: "Type[ts.TimedValue] | Type[ts.TimedBelief]",
+    user_source_ids: int | list[int],
 ) -> BinaryExpression:
     """Criterion to search only through user data from the specified user sources.
 
@@ -109,11 +116,11 @@ def user_source_criterion(
     """
     if user_source_ids is not None and not isinstance(user_source_ids, list):
         user_source_ids = [user_source_ids]  # ensure user_source_ids is a list
-    ignorable_user_sources = (
-        DataSource.query.filter(DataSource.type == "user")
+    ignorable_user_sources = db.session.scalars(
+        select(DataSource)
+        .filter(DataSource.type == "user")
         .filter(DataSource.id.not_in(user_source_ids))
-        .all()
-    )
+    ).all()
     ignorable_user_source_ids = [
         user_source.id for user_source in ignorable_user_sources
     ]
@@ -124,12 +131,12 @@ def user_source_criterion(
     return cls.source_id.not_in(ignorable_user_source_ids)
 
 
-def source_type_criterion(source_types: List[str]) -> BinaryExpression:
+def source_type_criterion(source_types: list[str]) -> BinaryExpression:
     """Criterion to collect only data from sources that are of the given type."""
     return DataSource.type.in_(source_types)
 
 
-def source_type_exclusion_criterion(source_types: List[str]) -> BinaryExpression:
+def source_type_exclusion_criterion(source_types: list[str]) -> BinaryExpression:
     """Criterion to exclude sources that are of the given type."""
     return DataSource.type.not_in(source_types)
 
@@ -137,9 +144,9 @@ def source_type_exclusion_criterion(source_types: List[str]) -> BinaryExpression
 def get_belief_timing_criteria(
     cls: "Type[ts.TimedValue]",
     asset_class: db.Model,
-    belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
-    belief_time_window: Tuple[Optional[datetime], Optional[datetime]],
-) -> List[BinaryExpression]:
+    belief_horizon_window: tuple[timedelta | None, timedelta | None],
+    belief_time_window: tuple[datetime | None, datetime | None],
+) -> list[BinaryExpression]:
     """Get filter criteria for the desired windows with relevant belief times and belief horizons.
 
     # todo: interpret belief horizons with respect to knowledge time rather than event end.
@@ -178,7 +185,7 @@ def get_belief_timing_criteria(
         belief_time_window = (None, datetime(2020, 5, 13))
 
     """
-    criteria: List[BinaryExpression] = []
+    criteria: list[BinaryExpression] = []
     earliest_belief_time, latest_belief_time = belief_time_window
     if (
         earliest_belief_time is not None
@@ -216,7 +223,7 @@ def get_belief_timing_criteria(
 
 
 def simplify_index(
-    bdf: tb.BeliefsDataFrame, index_levels_to_columns: Optional[List[str]] = None
+    bdf: tb.BeliefsDataFrame, index_levels_to_columns: list[str] | None = None
 ) -> pd.DataFrame:
     """Drops indices other than event_start.
     Optionally, salvage index levels as new columns.
@@ -247,7 +254,7 @@ def multiply_dataframe_with_deterministic_beliefs(
     df1: pd.DataFrame,
     df2: pd.DataFrame,
     multiplication_factor: float = 1,
-    result_source: Optional[str] = None,
+    result_source: str | None = None,
 ) -> pd.DataFrame:
     """
     Create new DataFrame where the event_value columns of df1 and df2 are multiplied.
@@ -274,6 +281,7 @@ def multiply_dataframe_with_deterministic_beliefs(
     df = (df1["event_value"] * df2["event_value"] * multiplication_factor).to_frame(
         name="event_value"
     )
+
     if "belief_horizon" in df1.columns and "belief_horizon" in df2.columns:
         df["belief_horizon"] = (
             df1["belief_horizon"]
@@ -282,7 +290,8 @@ def multiply_dataframe_with_deterministic_beliefs(
             .join(df2["belief_horizon"], how="outer")
             .min(axis=1)
             .rename("belief_horizon")
-        )  # Add existing belief_horizon information, keeping only the smaller horizon per row
+        )
+        # Add existing belief_horizon information, keeping only the smaller horizon per row
     if result_source is not None:
         df["source"] = result_source  # also for rows with nan event_value
     return df

@@ -5,14 +5,17 @@ from datetime import timedelta
 from flask_login import current_user
 from isodate import datetime_isoformat
 from marshmallow import fields, post_load, validates_schema, ValidationError
-from marshmallow.validate import OneOf
+from marshmallow.validate import OneOf, Length
 from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.api.common.schemas.sensors import SensorField
+from flexmeasures.api.common.schemas.sensors import (
+    SensorEntityAddressField,
+    SensorIdField,
+)
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
@@ -63,22 +66,68 @@ def select_schema_to_ensure_list_of_floats(
     This ensures that we are not requiring the same flexibility from users who are retrieving data.
     """
     if isinstance(values, list):
-        return fields.List(fields.Float(allow_none=True))
+        return fields.List(fields.Float(allow_none=True), validate=Length(min=1))
     else:
         return SingleValueField()
 
 
-class SensorDataDescriptionSchema(ma.Schema):
+class SensorDataTimingDescriptionSchema(ma.Schema):
     """
-    Schema describing sensor data (specifically, the sensor and the timing of the data).
+    Schema describing sensor data (specifically, the timing of the data).
     """
 
-    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
-    start = AwareDateTimeField(required=True, format="iso")
-    duration = DurationField(required=True)
-    horizon = DurationField(required=False)
-    prior = AwareDateTimeField(required=False, format="iso")
-    unit = fields.Str(required=True)
+    start = AwareDateTimeField(
+        required=True,
+        format="iso",
+        metadata=dict(
+            description="Start time of the first event described in the time series data, in ISO 8601 datetime format.",
+            example="2026-01-15T10:00+01:00",
+        ),
+    )
+    duration = DurationField(
+        required=True,
+        metadata=dict(
+            description="Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
+            example="PT1H",
+        ),
+    )
+    horizon = DurationField(
+        required=False,
+        metadata=dict(
+            description="All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
+            example="PT2H",
+        ),
+    )
+    prior = AwareDateTimeField(
+        required=False,
+        format="iso",
+        metadata=dict(
+            description="All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            example="2026-01-14T20:00+01:00",
+        ),
+    )
+    unit = fields.Str(
+        required=True,
+        metadata=dict(
+            description="The unit of the sensor data, which must be convertible to the sensor unit.",
+            example="m³/h",
+        ),
+    )
+
+
+class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
+    """
+    Schema describing sensor data (specifically, adding the sensor to timing of the data
+    and adding validation).
+    """
+
+    sensor = SensorIdField(
+        required=True,
+        metadata=dict(
+            description="ID of the sensor on which the data is recorded.",
+            example=14,
+        ),
+    )
 
     @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
@@ -101,7 +150,6 @@ class SensorDataDescriptionSchema(ma.Schema):
 
 
 class GetSensorDataSchema(SensorDataDescriptionSchema):
-
     resolution = DurationField(required=False)
     source = SourceIdField(required=False)
 
@@ -218,12 +266,18 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
-    This schema includes data, so it can be used for POST requests
-    or GET responses.
-
-    TODO: For the GET use case, look at api/common/validators.py::get_data_downsampling_allowed
-          (sets a resolution parameter which we can pass to the data collection function).
+    This schema includes data (values) and still describes it.
     """
+
+    values = PolyField(
+        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        many=False,
+        metadata=dict(
+            description="The event values.",
+            example=[2.2, 2.6, 2.6, 2.7],
+        ),
+    )
 
     # Optional field that can be used for extra validation
     type = fields.Str(
@@ -237,11 +291,9 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 "PostWeatherDataRequest",
             ]
         ),
-    )
-    values = PolyField(
-        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        many=False,
+        metadata=dict(
+            description="Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+        ),
     )
 
     @validates_schema
@@ -269,6 +321,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         Currently, only upsampling is supported (e.g. converting hourly events to 15-minute events).
         """
         required_resolution = data["sensor"].event_resolution
+
         if required_resolution == timedelta(hours=0):
             # For instantaneous sensors, any event frequency is compatible
             return
@@ -281,9 +334,25 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
             )
 
+    @validates_schema
+    def check_multiple_instantaneous_values(self, data, **kwargs):
+        """Ensure that we are not getting multiple instantaneous values that overlap.
+        That is, two values spanning the same moment (a zero duration).
+        """
+
+        if len(data["values"]) > 1 and data["duration"] / len(
+            data["values"]
+        ) == timedelta(0):
+            raise ValidationError(
+                "Cannot save multiple instantaneous values that overlap. That is, two values spanning the same moment (a zero duration). Try sending a single value or definining a non-zero duration."
+            )
+
     @post_load()
     def post_load_sequence(self, data: dict, **kwargs) -> BeliefsDataFrame:
-        """If needed, upsample and convert units, then deserialize to a BeliefsDataFrame."""
+        """
+        If needed, upsample and convert units, then deserialize to a BeliefsDataFrame.
+        Returns a dict with the BDF in it, as that is expected by webargs when used with as_kwargs=True.
+        """
         data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
         bdf = self.load_bdf(data)
@@ -297,7 +366,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             if any(h < timedelta(0) for h in bdf.belief_horizons):
                 raise ValidationError("Prognoses must lie in the future.")
 
-        return bdf
+        return dict(bdf=bdf)
 
     @staticmethod
     def possibly_convert_units(data):
@@ -345,11 +414,23 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         source = get_or_create_source(current_user)
         num_values = len(sensor_data["values"])
         event_resolution = sensor_data["duration"] / num_values
-        dt_index = pd.date_range(
-            sensor_data["start"],
-            periods=num_values,
-            freq=event_resolution,
-        )
+        start = sensor_data["start"]
+        sensor = sensor_data["sensor"]
+
+        if frequency := sensor.get_attribute("frequency"):
+            start = pd.Timestamp(start).round(frequency)
+
+        if event_resolution == timedelta(hours=0):
+            dt_index = pd.date_range(
+                start,
+                periods=num_values,
+            )
+        else:
+            dt_index = pd.date_range(
+                start,
+                periods=num_values,
+                freq=event_resolution,
+            )
         s = pd.Series(sensor_data["values"], index=dt_index)
 
         # Work out what the recording time should be
@@ -365,4 +446,20 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             source=source,
             sensor=sensor_data["sensor"],
             **belief_timing,
-        ).dropna()
+        )
+
+
+class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorEntityAddressField(
+        required=True, entity_type="sensor", fm_scheme="fm1"
+    )
+
+
+class PostSensorDataSchemaEntityAddress(PostSensorDataSchema):
+    """DEPRECATED, only here to support deprecated endpoints"""
+
+    sensor = SensorEntityAddressField(
+        required=True, entity_type="sensor", fm_scheme="fm1"
+    )

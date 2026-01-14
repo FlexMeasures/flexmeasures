@@ -10,7 +10,7 @@ Let's take a look at how FlexMeasures users can access information from these se
     :local:
     :depth: 1
 
-If you want to learn more about the actual algorithms used in the background, head over to :ref:`algorithms`.
+If you want to learn more about the actual algorithms used in the background, head over to :ref:`scheduling` and :ref:`forecasting`.
 
 .. note:: FlexMeasures comes with in-built scheduling algorithms. You can use your own algorithm, as well, see :ref:`plugin-customization`.
 
@@ -38,7 +38,7 @@ You can also clear the job queues:
    $ flexmeasures jobs clear-queue --queue scheduling
 
 
-When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
+When the main FlexMeasures process runs (e.g. by ``flexmeasures run``), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``, respectively (by admins).
 
 When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/assets/<id>``.
 
@@ -67,15 +67,15 @@ You can also add forecasting jobs directly via the CLI. We explain this practice
 Historical forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There might be reasons to add forecasts of past time ranges. For instance, for visualisation of past system behaviour and to check how well the forecasting models have been doing on a longer stretch of data.
+There might be reasons to add forecasts of past time ranges. For instance, for visualization of past system behavior and to check how well the forecasting models have been doing on a longer stretch of data.
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 
-Here we request 6-hour forecasts to be made for two sensors, for a period of two days:
+Here we request 6-hour forecasts to be made for one sensor, for a period of two days:
 
 .. code-block:: bash
 
-    $ flexmeasures add forecasts --sensor-id 2 --sensor-id 3 \
+    $ flexmeasures add forecasts --sensor 2 \
         --from-date 2015-02-01 --to-date 2015-08-31 \
         --horizon 6 --as-job
 
@@ -85,8 +85,56 @@ It can be good advice to dispatch this work in smaller chunks.
 Alternatively, note the ``--as-job`` parameter.
 If you use it, the forecasting jobs will be queued and picked up by worker processes (see above). You could run several workers (e.g. one per CPU) to get this work load done faster.
 
-Run ``flexmeasures add forecasts --help`` for more information.
+Run flexmeasures add forecasts --help for details on CLI parameters, or see :ref:forecasting to learn more about forecasting.
 
+
+Queuing forecasting jobs
+------------------------
+
+There are two ways to queue a forecasting job:
+
+1. **Via the API**, using the endpoint:
+
+   ``POST /api/v3_0/sensors/<id>/forecasts/trigger``
+
+   This endpoint validates the forecasting request (using the same logic as the ``flexmeasures add forecasts`` CLI command) and queues a job on the forecasting queue.
+
+   Example request:
+
+   .. code-block:: json
+
+       {
+         "start_date": "2025-01-01T00:00:00+00:00",
+         "start_predict_date": "2025-01-04T00:00:00+00:00",
+         "end_date": "2025-01-04T04:00:00+00:00"
+       }
+
+   Example response:
+
+   .. code-block:: json
+
+       {
+         "status": "QUEUED",
+         "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+         "message": "Forecasting job waiting to be processed."
+       }
+
+   .. note:: The ``forecast`` field contains the ID of the forecasting job created by this request.
+
+   FlexMeasures will process the jobs created asynchronously and store the resulting forecasts in the database.
+
+   .. note::
+      To use this endpoint, you need the ``create-children`` permission on the sensor (meaning you should be in the same account or be a consultant on it).
+
+2. **Via the CLI**, for users hosting FlexMeasures themselves:
+
+   .. code-block:: bash
+
+       flexmeasures add forecasts --sensor 12 \
+           --from-date 2024-02-02 --to-date 2024-02-02 \
+           --max-forecast-horizon 6 --as-job
+
+   Using ``--as-job`` queues the forecasting computation instead of running it immediately. This allows distributing workload across multiple workers.
 
 .. _how_queue_scheduling:
 
@@ -99,27 +147,29 @@ It usually involves a linear program that combines a state of energy flexibility
 There are two ways to queue a scheduling job:
 
 First, we can add a scheduling job to the queue via the API.
-We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
+We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
 
 Here, we extend that (storage) example with an additional target value, representing a desired future state of charge.
 
 .. code-block:: json
+    :emphasize-lines: 6-11
 
     {
         "start": "2015-06-02T10:00:00+00:00",
         "flex-model": {
-            "soc-at-start": 12.1,
-            "soc-unit": "kWh"
+            "sensor": 15,
+            "soc-at-start": "12.1 kWh",
             "soc-targets": [
                 {
-                    "value": 25,
+                    "value": "25 kWh",
                     "datetime": "2015-06-02T16:00:00+00:00"
                 }
+            ]
         }
     }
 
 
-We now have described the state of charge at 10am to be ``12.1``. In addition, we requested that it should be ``25`` at 4pm.
+We now have described the state of charge at 10am to be ``"12.1 kWh"``. In addition, we requested that it should be ``"25 kWh"`` at 4pm.
 For instance, this could mean that a car should be charged at 90% at that time.
 
 If FlexMeasures receives this message, a scheduling job will be made and put into the queue. In turn, the scheduling job creates a proposed schedule. We'll look a bit deeper into those further down in :ref:`getting_schedules`.
@@ -131,13 +181,13 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 1 --consumption-price-sensor 2 \
-        --start 2022-07-05T07:00+01:00 --duration PT12H \
-        --soc-at-start 50% --roundtrip-efficiency 90% --as-job
+    $ flexmeasures add schedule --sensor 15 \
+        --start 2022-07-05T07:00+01:00 --duration PT12H --soc-at-start 50% --as-job \
+        --flex-context '{"consumption-price": {"sensor": 2}}' --flex-model '{"roundtrip-efficiency": "90%"}'
 
 Here, the ``--as-job`` parameter makes the difference for queueing ― without it, the schedule is computed right away.
 
-Run ``flexmeasures add schedule for-storage --help`` for more information.
+Run ``flexmeasures add schedule --help`` for more information.
 
 
 .. _getting_prognoses:
@@ -147,15 +197,15 @@ Getting power forecasts (prognoses)
 
 Prognoses (the USEF term used for power forecasts) are used by FlexMeasures to determine the best control signals to valorise on balancing opportunities.
 
-You can access forecasts via the FlexMeasures API at `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_.
+You can access forecasts via the FlexMeasures API at `[GET] /sensors/<id>/data <../api/v3_0.html#get--api-v3_0-sensors-id-data>`_.
 Getting them might be useful if you want to use prognoses in your own system, or to check their accuracy against meter data, i.e. the realised power measurements.
-The FlexMeasures UI also lists forecast accuracy, and visualises prognoses and meter data next to each other.
+The FlexMeasures UI also visualizes prognoses and meter data next to each other.
 
 A prognosis can be requested at a URL looking like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/sensors/data
+    https://company.flexmeasures.io/api/v3_0/sensors/1/data
 
 This example requests a prognosis for 24 hours, with a rolling horizon of 6 hours before realisation.
 
@@ -163,7 +213,6 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
 
     {
         "type": "GetPrognosisRequest",
-        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT24H",
         "horizon": "PT6H",
@@ -177,15 +226,28 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
 Getting schedules (control signals)
 -----------------------
 
-We saw above how FlexMeasures can create optimised schedules with control signals for flexible devices (see :ref:`posting_flex_states`). You can access the schedules via the `[GET] /schedules/<uuid> <../api/v3_0.html#get--api-v3_0-sensors-(id)-schedules-(uuid)>`_ endpoint. The URL then looks like this:
+We saw above how FlexMeasures can create optimised schedules with control signals for flexible devices (see :ref:`posting_flex_states`). You can access the schedules via the `[GET] /schedules/<uuid> <../api/v3_0.html#get--api-v3_0-sensors-id-schedules-uuid>`_ endpoint. The URL then looks like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/sensors/<id>/schedules/<uuid>
+    https://company.flexmeasures.io/api/v3_0/sensors/<id>/schedules/<uuid>
 
-Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ response.
+Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ response.
 Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).
-Afterwards, the exact schedule can still be retrieved through the `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
+Afterwards, the exact schedule can still be retrieved through the `[GET] /sensors/<id>/data <../api/v3_0.html#get--api-v3_0-sensors-id-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
+Besides the UUID, the endpoint for retrieving schedules takes a sensor ID, which is the sensor ID of one of the power sensors that was referenced in the flex model.
+
+.. note:: If a ``state-of-charge`` sensor was referenced in the flex model (like in the example below), the scheduled state of charge can be retrieved using the same endpoint and UUID, but then using the state-of-charge sensor ID.
+
+          .. code-block:: json
+              :emphasize-lines: 3
+
+              "flex-model": {
+                  "sensor": 15,
+                  "state-of-charge": {"sensor": 16}
+              }
+
+          For instance, if the above snippet represents the flex model used by FlexMeasures to compute the schedule, then to fetch the scheduled state of charge you simply replace the power sensor ID in the URL of the `[GET] /sensors/<id>/data <../api/v3_0.html#get--api-v3_0-sensors-id-data>`_ endpoint with the state-of-charge sensor ID.
 
 The following example response indicates that FlexMeasures planned ahead 45 minutes for the requested battery power sensor.
 The list of consecutive power values represents the target consumption of the battery (negative values for production).
@@ -213,3 +275,8 @@ However, because the targets values represent averages over 15-minute time inter
 For example, the battery might start to consume with 2.1 MW at 10.00am and increase its consumption to 2.25 at 10.10am,
 increase its consumption to 5 MW at 10.15am and decrease its consumption to 2 MW at 10.20am.
 That should result in the same average values for each quarter-hour.
+
+Likewise, the control signals can be used to schedule devices that only run at specific power levels.
+For example, let's assume the battery only supports running at an integer number of MW.
+In that case, the battery could start to consume with 2 MW at 10.00am, increase its consumption to 3 MW at (15 seconds before) 10.12am, and decrease its consumption to 2 MW at 10.30am.
+Again, this results in the same average values for each quarter-hour.

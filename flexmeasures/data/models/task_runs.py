@@ -1,5 +1,6 @@
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone
+
+from sqlalchemy import select
 
 from flexmeasures.data import db
 
@@ -12,9 +13,7 @@ class LatestTaskRun(db.Model):
     """
 
     name = db.Column(db.String(80), primary_key=True)
-    datetime = db.Column(
-        db.DateTime(timezone=True), default=datetime.utcnow().replace(tzinfo=pytz.utc)
-    )
+    datetime = db.Column(db.DateTime(timezone=True), default=datetime.now(timezone.utc))
     status = db.Column(db.Boolean, default=True)
 
     def __repr__(self):
@@ -31,11 +30,11 @@ class LatestTaskRun(db.Model):
         If the row is not yet in the table, create it first.
         Does not commit.
         """
-        task_run = LatestTaskRun.query.filter(
-            LatestTaskRun.name == task_name
-        ).one_or_none()
+        task_run = db.session.execute(
+            select(LatestTaskRun).filter(LatestTaskRun.name == task_name)
+        ).scalar_one_or_none()
         if task_run is None:
             task_run = LatestTaskRun(name=task_name)
             db.session.add(task_run)
-        task_run.datetime = datetime.utcnow().replace(tzinfo=pytz.utc)
+        task_run.datetime = datetime.now(timezone.utc)
         task_run.status = status

@@ -15,22 +15,39 @@ import pandas as pd
 import uniplot
 import vl_convert as vlc
 from string import Template
-import pytz
 import json
+from sqlalchemy import select, func
 
+from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetIdField,
+    SensorsToShowSchema,
+)
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
-from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    server_now,
+)
+from flexmeasures.cli.utils import (
+    MsgStyle,
+    validate_unique,
+    tabulate_account_assets,
+)
 from flexmeasures.utils.coding_utils import delete_key_recursive
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.cli.utils import (
+    DeprecatedOptionsCommand,
+    DeprecatedOption,
+    get_sensor_aliases,
+)
 
 
 @click.group("show")
@@ -44,7 +61,7 @@ def list_accounts():
     """
     List all accounts on this FlexMeasures instance.
     """
-    accounts = Account.query.order_by(Account.name).all()
+    accounts = db.session.scalars(select(Account).order_by(Account.name)).all()
     if not accounts:
         click.secho("No accounts created yet.", **MsgStyle.WARN)
         raise click.Abort()
@@ -53,7 +70,11 @@ def list_accounts():
         (
             account.id,
             account.name,
-            GenericAsset.query.filter(GenericAsset.account_id == account.id).count(),
+            db.session.scalar(
+                select(func.count())
+                .select_from(GenericAsset)
+                .filter_by(account_id=account.id)
+            ),
         )
         for account in accounts
     ]
@@ -66,7 +87,9 @@ def list_roles():
     """
     Show available account and user roles
     """
-    account_roles = AccountRole.query.order_by(AccountRole.name).all()
+    account_roles = db.session.scalars(
+        select(AccountRole).order_by(AccountRole.name)
+    ).all()
     if not account_roles:
         click.secho("No account roles created yet.", **MsgStyle.WARN)
         raise click.Abort()
@@ -78,7 +101,7 @@ def list_roles():
         )
     )
     click.echo()
-    user_roles = Role.query.order_by(Role.name).all()
+    user_roles = db.session.scalars(select(Role).order_by(Role.name)).all()
     if not user_roles:
         click.secho("No user roles created yet, not even admin.", **MsgStyle.WARN)
         raise click.Abort()
@@ -110,7 +133,9 @@ def show_account(account):
         click.secho("Account has no roles.", **MsgStyle.WARN)
     click.echo()
 
-    users = User.query.filter_by(account_id=account.id).order_by(User.username).all()
+    users = db.session.scalars(
+        select(User).filter_by(account_id=account.id).order_by(User.username)
+    ).all()
     if not users:
         click.secho("No users in account ...", **MsgStyle.WARN)
     else:
@@ -134,20 +159,48 @@ def show_account(account):
         )
 
     click.echo()
-    assets = (
-        GenericAsset.query.filter_by(account_id=account.id)
+    assets = db.session.scalars(
+        select(GenericAsset)
+        .filter_by(account_id=account.id)
         .order_by(GenericAsset.name)
-        .all()
-    )
+    ).all()
     if not assets:
         click.secho("No assets in account ...", **MsgStyle.WARN)
     else:
         click.echo("All assets:\n ")
-        asset_data = [
-            (asset.id, asset.name, asset.generic_asset_type.name, asset.location)
-            for asset in assets
-        ]
-        click.echo(tabulate(asset_data, headers=["ID", "Name", "Type", "Location"]))
+        tabulate_account_assets(assets)
+
+
+@fm_show_data.command("assets")
+@with_appcontext
+@click.option("--account", "account", type=AccountIdField(), required=False)
+def show_account_assets(account: Account | None = None):
+    """
+    Show all the assets for a given account if account id is provided
+    Show only public assets if account id is not provided
+    """
+
+    if account:
+        click.echo(f"========{len(account.name) * '='}========")
+        click.echo(f"Account {account.name} (ID: {account.id})")
+        click.echo(f"========{len(account.name) * '='}========\n")
+        assets = db.session.scalars(
+            select(GenericAsset)
+            .filter_by(account_id=account.id)
+            .order_by(GenericAsset.name)
+        ).all()
+    else:
+        click.echo(f"========{18 * '='}========")
+        click.echo("Public Assets")
+        click.echo(f"========{18 * '='}========\n")
+        assets = db.session.scalars(
+            select(GenericAsset).filter_by(account_id=None).order_by(GenericAsset.name)
+        ).all()
+    if not assets:
+        click.secho("No assets in account ...", **MsgStyle.WARN)
+    else:
+        click.echo("All assets:\n ")
+        tabulate_account_assets(assets)
 
 
 @fm_show_data.command("asset-types")
@@ -156,7 +209,9 @@ def list_asset_types():
     """
     Show available asset types
     """
-    asset_types = GenericAssetType.query.order_by(GenericAssetType.name).all()
+    asset_types = db.session.scalars(
+        select(GenericAssetType).order_by(GenericAssetType.name)
+    ).all()
     if not asset_types:
         click.secho("No asset types created yet.", **MsgStyle.WARN)
         raise click.Abort()
@@ -175,23 +230,82 @@ def show_generic_asset(asset):
     """
     Show asset info and list sensors
     """
-    click.echo(f"======{len(asset.name) * '='}========")
+    separator_num = 18 if asset.parent_asset is not None else 8
+    click.echo(f"======{len(asset.name) * '='}{separator_num * '='}")
     click.echo(f"Asset {asset.name} (ID: {asset.id})")
-    click.echo(f"======{len(asset.name) * '='}========\n")
+    if asset.parent_asset is not None:
+        click.echo(
+            f"Child of asset {asset.parent_asset.name} (ID: {asset.parent_asset.id})"
+        )
+    click.echo(f"======{len(asset.name) * '='}{separator_num * '='}\n")
 
+    standardized_sensors_to_show = SensorsToShowSchema().deserialize(
+        asset.sensors_to_show
+    )
     asset_data = [
         (
             asset.generic_asset_type.name,
             asset.location,
+            "".join(
+                [
+                    f"{graph['title']}: {graph['sensors']} \n"
+                    for graph in standardized_sensors_to_show
+                ]
+            ),
             "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
+            asset.external_id,
         )
     ]
-    click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
+    click.echo(
+        tabulate(
+            asset_data,
+            headers=[
+                "Type",
+                "Location",
+                "Sensors to show",
+                "Attributes",
+                "External ID",
+            ],
+        )
+    )
+
+    flex_config = [
+        (
+            "".join([f"{k}: {v}\n" for k, v in asset.flex_context.items()]),
+            "".join([f"{k}: {v}\n" for k, v in asset.flex_model.items()]),
+        )
+    ]
+    click.echo(
+        tabulate(
+            flex_config,
+            headers=[
+                "Flex-Context",
+                "Flex-Model",
+            ],
+        )
+    )
+
+    child_asset_data = [
+        (
+            child.id,
+            child.name,
+            child.generic_asset_type.name,
+        )
+        for child in asset.child_assets
+    ]
+    click.echo()
+    click.echo(f"======{len(asset.name) * '='}===================")
+    click.echo(f"Child assets of {asset.name} (ID: {asset.id})")
+    click.echo(f"======{len(asset.name) * '='}===================\n")
+    if child_asset_data:
+        click.echo(tabulate(child_asset_data, headers=["ID", "Name", "Type"]))
+    else:
+        click.secho("No child assets ...", **MsgStyle.WARN)
 
     click.echo()
-    sensors = (
-        Sensor.query.filter_by(generic_asset_id=asset.id).order_by(Sensor.name).all()
-    )
+    sensors = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=asset.id).order_by(Sensor.name)
+    ).all()
     if not sensors:
         click.secho("No sensors in asset ...", **MsgStyle.WARN)
         raise click.Abort()
@@ -237,13 +351,13 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     Show available data sources
     """
     if source is None:
-        sources = (
-            DataSource.query.order_by(DataSource.type)
+        sources = db.session.scalars(
+            select(DataSource)
+            .order_by(DataSource.type)
             .order_by(DataSource.name)
             .order_by(DataSource.model)
             .order_by(DataSource.version)
-            .all()
-        )
+        ).all()
     else:
         sources = [source]
 
@@ -342,9 +456,26 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
     required=False,
     type=str,
     default="chart-$now.png",
-    help="Format of the output file. Use dollar sign ($) to interpolate values among the following ones:"
-    " now (current time), id (id of the sensor or asset), entity_type (either 'asset' or 'sensor')"
-    " Example: 'result_file_$entity_type_$id_$now.csv' -> 'result_file_asset_1_2023-08-24T14:47:08' ",
+    help="Output filename template. You can use the following placeholders with a dollar sign ($): "
+    "$now (current timestamp), $id (sensor or asset ID), and $entity_type ('asset' or 'sensor'). "
+    "Example: 'chart_$entity_type_$id_$now.png' → 'chart_asset_1_2023-08-24T14:47:08.png'. "
+    "Note: you may need to escape the dollar sign (\\$) in your terminal.",
+)
+@click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(),
+    required=False,
+    help="Resolution of the data in ISO 8601 format. If not set, defaults to the minimum resolution of the sensor data. Note: Nominal durations like 'P1D' are converted to absolute timedeltas.",
+)
+@click.option(
+    "--combine-legend",
+    "combine_legend",
+    type=bool,
+    default=False,
+    required=False,
+    is_flag=True,
+    help="If True, then legend will be combined and put in the bottom of all charts, otherwise each chart for an asset can have a separate legend. Default value is False.",
 )
 def chart(
     sensors: list[Sensor] | None = None,
@@ -355,11 +486,13 @@ def chart(
     height: int | None = None,
     width: int | None = None,
     filename_template: str | None = None,
+    resolution: timedelta | None = None,
+    combine_legend: bool = False,
 ):
     """
     Export sensor or asset charts in PNG or SVG formats. For example:
 
-        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3
+        flexmeasures show chart --start 2023-08-15T00:00:00+02:00 --end 2023-08-16T00:00:00+02:00 --asset 1 --sensor 3 --resolution P1D
     """
 
     datetime_format = "%Y-%m-%dT%H:%M:%S"
@@ -377,14 +510,10 @@ def chart(
         assets = []
 
     for entity in sensors + assets:
-
         entity_type = "sensor"
 
         if isinstance(entity, GenericAsset):
             entity_type = "asset"
-
-        timezone = app.config["FLEXMEASURES_TIMEZONE"]
-        now = pytz.timezone(zone=timezone).localize(datetime.now())
 
         belief_time_str = ""
 
@@ -395,7 +524,7 @@ def chart(
         filename = template.safe_substitute(
             id=entity.id,
             entity_type=entity_type,
-            now=now.strftime(datetime_format),
+            now=server_now().strftime(datetime_format),
             start=start.strftime(datetime_format),
             end=end.strftime(datetime_format),
             belief_time=belief_time_str,
@@ -405,15 +534,17 @@ def chart(
         # need to fetch the entities as they get detached
         # and we get the (in)famous detached instance error.
         if entity_type == "asset":
-            entity = GenericAsset.query.get(entity.id)
+            entity = db.session.get(GenericAsset, entity.id)
         else:
-            entity = Sensor.query.get(entity.id)
+            entity = db.session.get(Sensor, entity.id)
 
         chart_description = entity.chart(
             event_starts_after=start,
             event_ends_before=end,
             beliefs_before=belief_time,
             include_data=True,
+            resolution=resolution,
+            combine_legend=combine_legend,
         )
 
         # remove formatType as it relies on a custom JavaScript function
@@ -434,14 +565,19 @@ def chart(
         )
 
 
-@fm_show_data.command("beliefs")
+@fm_show_data.command("beliefs", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
     "sensors",
     required=True,
     multiple=True,
+    callback=validate_unique,
     type=SensorIdField(),
+    cls=DeprecatedOption,
+    preferred="--sensor",
+    deprecated=["--sensor-id"],
     help="ID of sensor(s). This argument can be given multiple times.",
 )
 @click.option(
@@ -466,11 +602,22 @@ def chart(
     help="Time at which beliefs had been known. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
+    "--source",
     "--source-id",
     "source",
     required=False,
     type=DataSourceIdField(),
+    cls=DeprecatedOption,
+    preferred="--source",
+    deprecated=["--source-id"],
     help="Source of the beliefs (an existing source id).",
+)
+@click.option(
+    "--source-type",
+    "source_types",
+    required=False,
+    type=str,
+    help="Only show beliefs from this type of source, for example, 'user', 'forecaster' or 'scheduler'.",
 )
 @click.option(
     "--resolution",
@@ -493,6 +640,23 @@ def chart(
     type=str,
     help="Set a filepath to store the beliefs as a CSV file.",
 )
+@click.option(
+    "--include-ids/--exclude-ids",
+    "include_ids",
+    default=False,
+    type=bool,
+    help="Include sensor IDs in the plot's legend labels and the file's column headers. "
+    "NB non-unique sensor names will always show an ID.",
+)
+@click.option(
+    "--reduced-paths/--full-paths",
+    "reduce_paths",
+    default=True,
+    type=bool,
+    help="Whether to include the full path to the asset that the sensor belongs to"
+    "which shows any parent assets and their account, "
+    "or a reduced version of the path, which shows as much detail as is needed to distinguish the sensors.",
+)
 def plot_beliefs(
     sensors: list[Sensor],
     start: datetime,
@@ -502,6 +666,9 @@ def plot_beliefs(
     belief_time_before: datetime | None,
     source: DataSource | None,
     filepath: str | None,
+    source_types: list[str] = None,
+    include_ids: bool = False,
+    reduce_paths: bool = True,
 ):
     """
     Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
@@ -519,24 +686,26 @@ def plot_beliefs(
         event_ends_before=start + duration,
         beliefs_before=belief_time_before,
         source=source,
+        source_types=source_types,
         one_deterministic_belief_per_event=True,
         resolution=resolution,
         sum_multiple=False,
     )
-    # only keep non-empty
-    empty_sensors = []
+
+    # Only keep non-empty (and abort in case of no data)
     for s in sensors:
-        if beliefs_by_sensor[s.name].empty:
-            click.secho(
-                f"No data found for sensor '{s.name}' (ID: {s.id})", **MsgStyle.WARN
-            )
-            beliefs_by_sensor.pop(s.name)
-            empty_sensors.append(s)
-    for s in empty_sensors:
-        sensors.remove(s)
-    if len(beliefs_by_sensor.keys()) == 0:
+        if beliefs_by_sensor[s].empty:
+            click.secho(f"No data found for sensor {s.id} ({s.name})", **MsgStyle.WARN)
+            beliefs_by_sensor.pop(s)
+    if len(beliefs_by_sensor) == 0:
         click.secho("No data found!", **MsgStyle.WARN)
         raise click.Abort()
+    sensors = list(beliefs_by_sensor.keys())
+
+    # Concatenate data
+    df = pd.concat([simplify_index(df) for df in beliefs_by_sensor.values()], axis=1)
+
+    # Find out whether the Y-axis should show a shared unit
     if all(sensor.unit == sensors[0].unit for sensor in sensors):
         shared_unit = sensors[0].unit
     else:
@@ -545,8 +714,25 @@ def plot_beliefs(
             "The y-axis shows no unit, because the selected sensors do not share the same unit.",
             **MsgStyle.WARN,
         )
-    df = pd.concat([simplify_index(df) for df in beliefs_by_sensor.values()], axis=1)
-    df.columns = beliefs_by_sensor.keys()
+
+    # Decide whether to include sensor IDs
+    if include_ids:
+        df.columns = [f"{s.name} (ID {s.id})" for s in sensors]
+    else:
+        # In case of non-unique sensor names, show more of the sensor's ancestry
+        duplicates = find_duplicates(sensors, "name")
+        if duplicates:
+            message = "The following sensor name"
+            message += "s are " if len(duplicates) > 1 else " is "
+            message += (
+                f"duplicated: {join_words_into_a_list(duplicates)}. "
+                f"To distinguish the sensors, their plot labels will include more parent assets and their account, as needed. "
+                f"To show the full path for each sensor, use the --full-path flag. "
+                f"Or to uniquely label them by their ID instead, use the --include-ids flag."
+            )
+            click.secho(message, **MsgStyle.WARN)
+        sensor_aliases = get_sensor_aliases(sensors, reduce_paths=reduce_paths)
+        df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
     if timezone is not None:
@@ -557,23 +743,24 @@ def plot_beliefs(
     if len(sensors) == 1:
         title = f"Beliefs for Sensor '{sensors[0].name}' (ID {sensors[0].id}).\n"
     else:
-        title = f"Beliefs for Sensor(s) [{', '.join([s.name for s in sensors])}], (ID(s): [{', '.join([str(s.id) for s in sensors])}]).\n"
-    title += f"Data spans {naturaldelta(duration)} and starts at {start}."
+        title = f"Beliefs for Sensors {join_words_into_a_list([s.name + ' (ID ' + str(s.id) + ')' for s in sensors])}.\n"
+    title += f"Data spans {naturaldelta(duration)} and starts at {start}.\n"
+    title += f"The time resolution (x-axis) is {naturaldelta(resolution)}.\n"
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    title += f"\nThe time resolution (x-axis) is {naturaldelta(resolution)}."
 
     uniplot.plot(
-        [df[col] for col in df.columns],
+        ys=[df[col] for col in df.columns],
+        xs=[df.index for _ in df.columns],
         title=title,
         color=True,
         lines=True,
         y_unit=shared_unit,
-        legend_labels=[s.name for s in sensors]
-        if shared_unit
-        else [s.name + f" (in {s.unit})" for s in sensors],
+        legend_labels=(
+            df.columns if shared_unit else [f"{col} in {s.unit}" for col in df.columns]
+        ),
     )
     if filepath is not None:
         df.columns = pd.MultiIndex.from_arrays(
@@ -583,12 +770,25 @@ def plot_beliefs(
         click.secho("Data saved to file.", **MsgStyle.SUCCESS)
 
 
-def list_items(item_type):
+def find_duplicates(_list: list, attr: str | None = None) -> list:
+    """Find duplicates in a list, optionally based on a specified attribute.
+
+    :param _list:   The input list to search for duplicates.
+    :param attr:    The attribute name to consider when identifying duplicates.
+                    If None, the function will check for duplicates based on the elements themselves.
+    :returns:       A list containing the duplicate elements found in the input list.
     """
-    Show available items of a specific type.
+    if attr:
+        _list = [getattr(item, attr) for item in _list]
+    return [item for item in set(_list) if _list.count(item) > 1]
+
+
+def list_data_generators(generator_type: str):
+    """
+    Show available data generators of a specific type.
     """
 
-    click.echo(f"{item_type.capitalize()}:\n")
+    click.echo(f"{generator_type.capitalize()}:\n")
     click.echo(
         tabulate(
             [
@@ -598,11 +798,22 @@ def list_items(item_type):
                     item_class.__author__,
                     item_class.__module__,
                 )
-                for item_name, item_class in getattr(app, item_type).items()
+                for item_name, item_class in app.data_generators[generator_type].items()
             ],
             headers=["name", "version", "author", "module"],
         )
     )
+
+
+@fm_show_data.command("forecasters")
+@with_appcontext
+def list_forecasters():
+    """
+    Show available forecasters.
+    """
+
+    with app.app_context():
+        list_data_generators("forecaster")
 
 
 @fm_show_data.command("reporters")
@@ -613,7 +824,7 @@ def list_reporters():
     """
 
     with app.app_context():
-        list_items("reporters")
+        list_data_generators("reporter")
 
 
 @fm_show_data.command("schedulers")
@@ -624,7 +835,7 @@ def list_schedulers():
     """
 
     with app.app_context():
-        list_items("schedulers")
+        list_data_generators("scheduler")
 
 
 app.cli.add_command(fm_show_data)

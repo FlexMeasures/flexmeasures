@@ -34,7 +34,7 @@ Now ― you probably have only one Python version installed. Let's say you add a
 
 .. code-block:: bash
 
-    $ cd ci; ./update-packages.sh
+    $ cd ci; ./update-packages.sh; cd ../
 
 This script will use docker to do these upgrades per Python version.
 

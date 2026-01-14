@@ -3,7 +3,7 @@ dist
 
 raw_data
 instance
-venv
+*venv/
 .eggs
 .env
 .vscode
@@ -39,3 +39,24 @@ db_schema.png
 htmlcov
 test/*
 profile_reports/*
+
+poetry.lock
+.venv
+.vscode/
+
+.DS_Store
+
+.gitconfig.*
+
+/postgres-data
+coverage.lcov
+venv*
+logs/
+*.dump
+iframe_figures/
+/docker-compose-data
+
+# Ignore all forecasting artifacts (models, predictions, etc.)
+flexmeasures/data/models/forecasting/**/artifacts/
+flexmeasures/data/models/forecasting/**/*.pkl
+flexmeasures/data/models/forecasting/**/*.csv

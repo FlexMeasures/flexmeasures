@@ -1,8 +1,11 @@
 from flask import abort
 from flask_security import current_user
-from marshmallow import fields
+from marshmallow import fields, validate
+from sqlalchemy import select
 
+from flexmeasures.data import db
 from flexmeasures.data.models.user import User, Account
+from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
 
 class AccountIdField(fields.Integer):
@@ -11,13 +14,15 @@ class AccountIdField(fields.Integer):
     """
 
     def _deserialize(self, account_id: str, attr, obj, **kwargs) -> Account:
-        account: Account = Account.query.filter_by(id=int(account_id)).one_or_none()
+        account: Account = db.session.execute(
+            select(Account).filter_by(id=int(account_id))
+        ).scalar_one_or_none()
         if account is None:
             raise abort(404, f"Account {account_id} not found")
         return account
 
     def _serialize(self, account: Account, attr, data, **kwargs) -> int:
-        return account.id
+        return account.id if account else None
 
     @classmethod
     def load_current(cls):
@@ -34,16 +39,25 @@ class UserIdField(fields.Integer):
     """
 
     def __init__(self, *args, **kwargs):
-        kwargs["load_default"] = (
-            lambda: current_user if not current_user.is_anonymous else None
+        kwargs["load_default"] = lambda: (
+            current_user if not current_user.is_anonymous else None
         )
         super().__init__(*args, **kwargs)
 
     def _deserialize(self, user_id: int, attr, obj, **kwargs) -> User:
-        user: User = User.query.filter_by(id=int(user_id)).one_or_none()
+        user: User = db.session.execute(
+            select(User).filter_by(id=int(user_id))
+        ).scalar_one_or_none()
         if user is None:
             raise abort(404, f"User {user_id} not found")
         return user
 
     def _serialize(self, user: User, attr, data, **kwargs) -> int:
         return user.id
+
+
+class AccountAPIQuerySchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(["id", "name", "assets", "users"]),
+    )

@@ -7,6 +7,7 @@ import logging
 import pytz
 import pytest
 from rq.job import Job, JobStatus
+from sqlalchemy import select
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -135,13 +136,13 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
 
     # Here, we need to obtain the object through a db query, otherwise we run into session issues with deepcopy later on
     # charging_station = add_charging_station_assets["Test charging station"].sensors[0]
-    charging_station = (
-        Sensor.query.filter(Sensor.name == "power")
-        .join(GenericAsset)
+    charging_station = db.session.execute(
+        select(Sensor)
+        .filter(Sensor.name == "power")
+        .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
         .filter(GenericAsset.id == Sensor.generic_asset_id)
         .filter(GenericAsset.name == "Test charging stations")
-        .one_or_none()
-    )
+    ).scalar_one_or_none()
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -197,9 +198,9 @@ def test_scheduling_multiple_triggers(
     soc_start = 2.5
 
     assert (
-        DataSource.query.filter_by(name="FlexMeasures", type="scheduling script")
-        .where()
-        .one_or_none()
+        db.session.execute(
+            select(DataSource).filter_by(name="FlexMeasures", type="scheduling script")
+        ).scalar_one_or_none()
         is None
     )  # Make sure the scheduler data source isn't there
 
@@ -213,7 +214,7 @@ def test_scheduling_multiple_triggers(
         soc_targets = [dict(datetime=target_datetime.isoformat(), value=target_soc)]
 
         job = create_scheduling_job(
-            sensor=charging_station,
+            asset_or_sensor=charging_station,
             start=start,
             end=end,
             belief_time=start,

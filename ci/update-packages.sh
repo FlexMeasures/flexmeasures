@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /bin/bash
 
 ######################################################################
 # This script sets up docker environments for supported Python versions
@@ -12,7 +12,7 @@
 set -e
 set -x
 
-PYTHON_VERSIONS=(3.8 3.9 3.10 3.11)
+PYTHON_VERSIONS=(3.9 3.10 3.11 3.12)
 
 # check if we will upgrade or just freeze
 UPDATE_CMD=freeze-deps
@@ -29,8 +29,8 @@ if ! [ -x "$(command -v docker)" ]; then
   exit 1
 fi
 
-# Check if we can run docker without sudo
-if ! docker ps > /dev/null 2>&1; then
+# Check if we can run docker without sudo (check is not needed for Macos system)
+if ! docker ps > /dev/null 2>&1 && [[ "$(uname)" != "Darwin" ]]; then
   echo "Docker is not running without sudo. Please add your user to the docker group and try again."
   echo "You may use the following command to do so:"
   echo "sudo usermod -aG docker $USER"
@@ -52,6 +52,7 @@ cd $TEMP_DIR
 
 for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"
 do
+    echo "Working on dependencies for Python $PYTHON_VERSION ..."
     # Check if container exists and remove it
     docker container inspect flexmeasures-update-packages-$PYTHON_VERSION > /dev/null 2>&1 && docker rm --force flexmeasures-update-packages-$PYTHON_VERSION
     # Build the docker image

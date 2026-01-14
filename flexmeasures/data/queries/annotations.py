@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.models.annotations import (
@@ -19,10 +20,15 @@ def query_asset_annotations(
     annotation_type: str | None = None,
 ) -> Query:
     """Match annotations assigned to the given asset."""
-    query = Annotation.query.join(GenericAssetAnnotationRelationship).filter(
-        GenericAssetAnnotationRelationship.generic_asset_id == asset_id,
-        GenericAssetAnnotationRelationship.annotation_id == Annotation.id,
+    query = (
+        select(Annotation)
+        .join(GenericAssetAnnotationRelationship)
+        .filter(
+            GenericAssetAnnotationRelationship.generic_asset_id == asset_id,
+            GenericAssetAnnotationRelationship.annotation_id == Annotation.id,
+        )
     )
+
     if annotations_after is not None:
         query = query.filter(
             Annotation.end > annotations_after,

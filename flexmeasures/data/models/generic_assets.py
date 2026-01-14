@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Tuple, List, Union
+from typing import Any
 import json
 
 from flask import current_app
 from flask_security import current_user
 import pandas as pd
-from sqlalchemy.engine import Row
+from sqlalchemy import select, and_
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.ext.mutable import MutableDict, MutableList
+from sqlalchemy.dialects.postgresql import JSONB
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
+from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
@@ -21,10 +23,16 @@ from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.data.services.timerange import get_timerange
-from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
+from flexmeasures.auth.policy import (
+    AuthModelMixin,
+    EVERY_LOGGED_IN_USER,
+    ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
+)
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
 
 class GenericAssetType(db.Model):
@@ -57,6 +65,11 @@ class GenericAsset(db.Model, AuthModelMixin):
             "parent_asset_id",
             name="generic_asset_name_parent_asset_id_key",
         ),
+        db.UniqueConstraint(
+            "account_id",
+            "external_id",
+            name="generic_asset_account_id_external_id_key",
+        ),
     )
 
     # No relationship
@@ -64,7 +77,28 @@ class GenericAsset(db.Model, AuthModelMixin):
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    sensors_to_show = db.Column(
+        MutableList.as_mutable(JSONB), nullable=False, default=[]
+    )
+    flex_context = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    flex_model = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    sensors_to_show_as_kpis = db.Column(
+        MutableList.as_mutable(JSONB), nullable=False, default=[]
+    )
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
+    )  # if null, asset is public
+    owner = db.relationship(
+        "Account",
+        backref=db.backref(
+            "generic_assets",
+            foreign_keys=[account_id],
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        ),
+    )
 
     # One-to-many (or many-to-one?) relationships
     parent_asset_id = db.Column(
@@ -86,6 +120,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("generic_assets", lazy=True),
     )
 
+    # not a FK, but representation of this asset in an external system (e.g. IoT solution)
+    external_id = db.Column(db.String(80), default=None)
+
     # Many-to-many relationships
     annotations = db.relationship(
         "Annotation",
@@ -93,19 +130,87 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("assets", lazy="dynamic"),
     )
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Otherwise, the attributes only default to {} when flushing/committing to the db
+        if self.flex_model is None:
+            self.flex_model = {}
+        if self.attributes is None:
+            self.attributes = {}
+
+        # For backwards compatibility, when setting attributes that served as flex-model fields,
+        # move them to the flex_context (and don't store them as attributes)
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
+        to_delete = []
+        for attribute in self.attributes:
+            for field in DBStorageFlexModelSchema().fields.values():
+                if attribute == field.metadata.get("deprecated field"):
+                    # Move the attribute to the flex_model db column
+                    if field.data_key in self.flex_model:
+                        raise ValueError(
+                            f"Cannot move attribute {attribute} of asset {self.name} to its flex-model, because the {field.data_key} field is already set."
+                        )
+                    self.flex_model[field.data_key] = upgrade_value(
+                        attribute, self.attributes[attribute]
+                    )
+                    # Remove the original attribute
+                    current_app.logger.warning(
+                        f"Attribute {attribute} of asset {self.name} was moved to its flex-model under the {field.data_key} field."
+                    )
+                    to_delete.append(attribute)
+        for attr in to_delete:
+            del self.attributes[attr]
+
     def __acl__(self):
         """
         All logged-in users can read if the asset is public.
-        Within same account, everyone can create, read and update.
-        Deletion is left to account admins.
+        For non-public assets, we allow reading to whoever can read the account.
+        Both creation of children (beliefs, child assets) as well as editing
+        is allowed for every user in the account or consultants.
+        Deletion is only allowed for account admins, as well as for consultants.
         """
         return {
-            "create-children": f"account:{self.account_id}",
-            "read": f"account:{self.account_id}"
-            if self.account_id is not None
-            else EVERY_LOGGED_IN_USER,
-            "update": f"account:{self.account_id}",
-            "delete": (f"account:{self.account_id}", "role:account-admin"),
+            "create-children": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
+            "read": (
+                self.owner.__acl__()["read"]
+                if self.account_id is not None
+                else EVERY_LOGGED_IN_USER
+            ),
+            "update": [
+                f"account:{self.account_id}",
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
+            "delete": [
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    (
+                        f"account:{self.owner.consultancy_account_id}",
+                        f"role:{CONSULTANT_ROLE}",
+                    )
+                    if self.owner is not None
+                    else ()
+                ),
+            ],
         }
 
     def __repr__(self):
@@ -115,28 +220,153 @@ class GenericAsset(db.Model, AuthModelMixin):
             self.generic_asset_type.name,
         )
 
+    def validate_sensors_to_show(
+        self,
+        suggest_default_sensors: bool = True,
+    ) -> list[dict[str, str | None | "Sensor" | list["Sensor"]]]:  # noqa: F821
+        """
+        Validate and transform the 'sensors_to_show' attribute into the latest format for use in graph-making code.
+
+        This function ensures that the 'sensors_to_show' attribute:
+        1. Follows the latest format, even if the data in the database uses an older format.
+        2. Contains only sensors that the user has access to (based on the current asset, account, or public availability).
+
+        Steps:
+        - The function deserializes the 'sensors_to_show' data from the database, ensuring that older formats are parsed correctly.
+        - It checks if each sensor is accessible by the user and filters out any unauthorized sensors.
+        - The sensor structure is rebuilt according to the latest format, which allows for grouping sensors and adding optional titles.
+
+        Details on format:
+        - The 'sensors_to_show' attribute is defined as a list of sensor IDs or nested lists of sensor IDs (to indicate grouping).
+        - Titles may be associated with rows of sensors. If no title is provided, `{"title": None}` will be assigned.
+        - Nested lists of sensors indicate that they should be shown together (e.g., layered in the same chart).
+
+        Example inputs:
+        1. Simple list of sensors, where sensors 42 and 44 are grouped:
+            sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
+
+        2. List with titles and sensor groupings:
+            sensors_to_show = [
+                {"title": "Title 1", "sensor": 40},
+                {"title": "Title 2", "sensors": [41, 42]},
+                [43, 44], 45, 46
+            ]
+
+        Parameters:
+        - suggest_default_sensors: If True, the function will suggest default sensors if 'sensors_to_show' is not set.
+        - If False, the function will return an empty list if 'sensors_to_show' is not set.
+
+        Returned structure:
+        - The function returns a list of dictionaries, with each dictionary containing either a 'sensor' (for individual sensors) or 'sensors' (for groups of sensors), and an optional 'title'.
+        - Example output:
+            [
+                {"title": "Title 1", "sensor": <Sensor object for sensor 40>},
+                {"title": "Title 2", "sensors": [<Sensor object for sensor 41>, <Sensor object for sensor 42>]},
+                {"title": None, "sensors": [<Sensor object for sensor 43>, <Sensor object for sensor 44>]},
+                {"title": None, "sensor": <Sensor object for sensor 45>},
+                {"title": None, "sensor": <Sensor object for sensor 46>}
+            ]
+
+        If the 'sensors_to_show' attribute is missing, the function defaults to showing two of the asset's sensors, grouped together if they share the same unit, or separately if not.
+        If the suggest_default_sensors flag is set to False, the function will not suggest default sensors and will return an empty list if 'sensors_to_show' is not set.
+
+        Note:
+        Unauthorized sensors are filtered out, and a warning is logged. Only sensors the user has permission to access are included in the final result.
+        """
+        # If not set, use defaults (show first 2 sensors)
+        if not self.sensors_to_show and suggest_default_sensors:
+            sensors_to_show = self.sensors[:2]
+            if (
+                len(sensors_to_show) == 2
+                and sensors_to_show[0].unit == sensors_to_show[1].unit
+            ):
+                # Sensors are shown together (e.g. they can share the same y-axis)
+                return [{"title": None, "sensors": sensors_to_show}]
+            # Otherwise, show separately
+            return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
+
+        sensor_ids_to_show = self.sensors_to_show
+        # Import the schema for validation
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+        sensors_to_show_schema = SensorsToShowSchema()
+
+        # Deserialize the sensor_ids_to_show using SensorsToShowSchema
+        standardized_sensors_to_show = sensors_to_show_schema.deserialize(
+            sensor_ids_to_show
+        )
+
+        sensor_id_allowlist = SensorsToShowSchema.flatten(standardized_sensors_to_show)
+
+        # Only allow showing sensors from assets owned by the user's organization,
+        # except in play mode, where any sensor may be shown
+        accounts = [self.owner] if self.owner is not None else None
+        if current_app.config.get("FLEXMEASURES_MODE") == "play":
+            from flexmeasures.data.models.user import Account
+
+            accounts = db.session.scalars(select(Account)).all()
+
+        from flexmeasures.data.services.sensors import get_sensors
+
+        accessible_sensor_map = {
+            sensor.id: sensor
+            for sensor in get_sensors(
+                account=accounts,
+                include_public_assets=True,
+                sensor_id_allowlist=sensor_id_allowlist,
+            )
+        }
+
+        # Build list of sensor objects that are accessible
+        sensors_to_show = []
+        missed_sensor_ids = []
+
+        for entry in standardized_sensors_to_show:
+
+            title = entry.get("title")
+            sensors = entry.get("sensors")
+
+            accessible_sensors = [
+                accessible_sensor_map.get(sid)
+                for sid in sensors
+                if sid in accessible_sensor_map
+            ]
+            inaccessible = [sid for sid in sensors if sid not in accessible_sensor_map]
+            missed_sensor_ids.extend(inaccessible)
+            if accessible_sensors:
+                sensors_to_show.append({"title": title, "sensors": accessible_sensors})
+
+        if missed_sensor_ids:
+            current_app.logger.warning(
+                f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
+            )
+        return sensors_to_show
+
     @property
     def asset_type(self) -> GenericAssetType:
         """This property prepares for dropping the "generic" prefix later"""
         return self.generic_asset_type
 
-    account_id = db.Column(
-        db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
-    )  # if null, asset is public
-
-    owner = db.relationship(
-        "Account",
-        backref=db.backref(
-            "generic_assets",
-            foreign_keys=[account_id],
-            lazy=True,
-            cascade="all, delete-orphan",
-            passive_deletes=True,
-        ),
-    )
+    def get_path(self, separator: str = ">") -> str:
+        if self.parent_asset is not None:
+            return f"{self.parent_asset.get_path(separator=separator)}{separator}{self.name}"
+        elif self.owner is None:
+            return f"PUBLIC{separator}{self.name}"
+        else:
+            return f"{self.owner.get_path(separator=separator)}{separator}{self.name}"
 
     @property
-    def location(self) -> Optional[Tuple[float, float]]:
+    def offspring(self) -> list[GenericAsset]:
+        """Returns a flattened list of all offspring, which is looked up recursively."""
+        offspring = []
+
+        for child in self.child_assets:
+            offspring.extend(child.offspring)
+
+        return offspring + self.child_assets
+
+    @property
+    def location(self) -> tuple[float, float] | None:
         location = (self.latitude, self.longitude)
         if None not in location:
             return location
@@ -186,6 +416,11 @@ class GenericAsset(db.Model, AuthModelMixin):
     def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
+        if self.flex_model and attribute in self.flex_model:
+            return self.flex_model[attribute]
+        flex_context = self.get_flex_context()
+        if attribute in flex_context:
+            return flex_context[attribute]
         return default
 
     def has_attribute(self, attribute: str) -> bool:
@@ -194,6 +429,95 @@ class GenericAsset(db.Model, AuthModelMixin):
     def set_attribute(self, attribute: str, value):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
+
+    def get_flex_context(self) -> dict:
+        """Reconstitutes the asset's serialized flex-context by gathering flex-contexts upwards in the asset tree.
+
+        Flex-context fields of ancestors that are nearer have priority.
+        We return once we collect all flex-context fields or reach the top asset.
+        """
+        from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+
+        flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
+        if self.flex_context:
+            flex_context = self.flex_context.copy()
+        else:
+            flex_context = {}
+        parent_asset = self.parent_asset
+        while set(flex_context.keys()) != flex_context_field_names and parent_asset:
+            flex_context = {**parent_asset.flex_context, **flex_context}
+            parent_asset = parent_asset.parent_asset
+        return flex_context
+
+    def get_flex_model(self) -> dict[int, dict]:
+        """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
+
+        Recursive function returning a multi-asset flex-model.
+
+        :returns: dictionary with asset IDs as keys and serialized flex-model dicts as values.
+        """
+        flex_model = {}
+        if self.flex_model:
+            flex_model[self.id] = dict(asset=self.id, **self.flex_model)
+        for child in self.child_assets:
+            flex_model = {**flex_model, **child.get_flex_model()}
+        return flex_model
+
+    def get_consumption_price_sensor(self):
+        """Searches for consumption_price_sensor upwards on the asset tree"""
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        flex_context = self.get_flex_context()
+        sensor_id = flex_context.get("consumption-price-sensor")
+
+        if sensor_id is None:
+            consumption_price_data = flex_context.get("consumption-price")
+            if consumption_price_data:
+                sensor_id = consumption_price_data.get("sensor")
+        if sensor_id:
+            return Sensor.query.get(sensor_id) or None
+
+        if self.parent_asset:
+            return self.parent_asset.get_consumption_price_sensor()
+        return None
+
+    def get_production_price_sensor(self):
+        """Searches for production_price_sensor upwards on the asset tree"""
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        flex_context = self.get_flex_context()
+        sensor_id = flex_context.get("production-price-sensor")
+
+        if sensor_id is None:
+            production_price_data = flex_context.get("production-price")
+            if production_price_data:
+                sensor_id = production_price_data.get("sensor")
+        if sensor_id:
+            return Sensor.query.get(sensor_id) or None
+        if self.parent_asset:
+            return self.parent_asset.get_production_price_sensor()
+        return None
+
+    def get_inflexible_device_sensors(self):
+        """
+        Searches for inflexible_device_sensors upwards on the asset tree
+        This search will stop once any sensors are found (will not aggregate towards the top of the tree)
+        """
+
+        from flexmeasures.data.models.time_series import Sensor
+
+        flex_context = self.get_flex_context()
+        # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
+        if flex_context.get("inflexible-device-sensors"):
+            sensors = Sensor.query.filter(
+                Sensor.id.in_(flex_context["inflexible-device-sensors"])
+            ).all()
+            return sensors or []
+        if self.parent_asset:
+            return self.parent_asset.get_inflexible_device_sensors()
+        return []
 
     @property
     def has_power_sensors(self) -> bool:
@@ -220,15 +544,15 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def search_annotations(
         self,
-        annotations_after: Optional[datetime] = None,
-        annotations_before: Optional[datetime] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        annotations_after: datetime | None = None,
+        annotations_before: datetime | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         annotation_type: str = None,
         include_account_annotations: bool = False,
         as_frame: bool = False,
-    ) -> Union[List[Annotation], pd.DataFrame]:
+    ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
 
         The returned annotations do not include any annotations on public accounts.
@@ -237,12 +561,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param annotations_before: only return annotations that start before this datetime (exclusive)
         """
         parsed_sources = parse_source_arg(source)
-        annotations = query_asset_annotations(
-            asset_id=self.id,
-            annotations_after=annotations_after,
-            annotations_before=annotations_before,
-            sources=parsed_sources,
-            annotation_type=annotation_type,
+        annotations = db.session.scalars(
+            query_asset_annotations(
+                asset_id=self.id,
+                annotations_after=annotations_after,
+                annotations_before=annotations_before,
+                sources=parsed_sources,
+                annotation_type=annotation_type,
+            )
         ).all()
         if include_account_annotations and self.owner is not None:
             annotations += self.owner.search_annotations(
@@ -255,13 +581,13 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def count_annotations(
         self,
-        annotation_starts_after: Optional[datetime] = None,  # deprecated
-        annotations_after: Optional[datetime] = None,
-        annotation_ends_before: Optional[datetime] = None,  # deprecated
-        annotations_before: Optional[datetime] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        annotation_starts_after: datetime | None = None,  # deprecated
+        annotations_after: datetime | None = None,
+        annotation_ends_before: datetime | None = None,  # deprecated
+        annotations_before: datetime | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         annotation_type: str = None,
     ) -> int:
         """Count the number of annotations assigned to this asset."""
@@ -296,15 +622,17 @@ class GenericAsset(db.Model, AuthModelMixin):
     def chart(
         self,
         chart_type: str = "chart_for_multiple_sensors",
-        event_starts_after: Optional[datetime] = None,
-        event_ends_before: Optional[datetime] = None,
-        beliefs_after: Optional[datetime] = None,
-        beliefs_before: Optional[datetime] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        event_starts_after: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        combine_legend: bool = True,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         include_data: bool = False,
-        dataset_name: Optional[str] = None,
+        dataset_name: str | None = None,
+        resolution: str | timedelta | None = None,
         **kwargs,
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
@@ -314,12 +642,16 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param combine_legend: show a combined legend of all plots below the chart
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param include_data: if True, include data in the chart, or if False, exclude data
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
-        sensors = flatten_unique(self.sensors_to_show)
+        processed_sensors_to_show = self.validate_sensors_to_show()
+        sensors = flatten_unique(processed_sensors_to_show)
+
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
 
@@ -332,8 +664,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             kwargs["event_ends_before"] = event_ends_before
         chart_specs = chart_type_to_chart_specs(
             chart_type,
-            sensors_to_show=self.sensors_to_show,
+            sensors_to_show=processed_sensors_to_show,
             dataset_name=dataset_name,
+            combine_legend=combine_legend,
             **kwargs,
         )
 
@@ -347,6 +680,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
                 source=source,
+                resolution=resolution,
             )
 
             # Combine chart specs and data
@@ -356,22 +690,25 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         return chart_specs
 
-    def search_beliefs(
+    def search_beliefs(  # noqa C901
         self,
-        sensors: Optional[List["Sensor"]] = None,  # noqa F821
-        event_starts_after: Optional[datetime] = None,
-        event_ends_before: Optional[datetime] = None,
-        beliefs_after: Optional[datetime] = None,
-        beliefs_before: Optional[datetime] = None,
-        horizons_at_least: Optional[timedelta] = None,
-        horizons_at_most: Optional[timedelta] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        sensors: list["Sensor"] | None = None,  # noqa F821
+        event_starts_after: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
+        use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
-    ) -> Union[BeliefsDataFrame, str]:
+        compress_json: bool = False,
+        resolution: timedelta | None = None,
+    ) -> BeliefsDataFrame | str:
         """Search all beliefs about events for all sensors of this asset
 
         If you don't set any filters, you get the most recent beliefs about all events.
@@ -384,13 +721,21 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
+        :param resolution: optionally set the resolution of data being displayed
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
         bdf_dict = {}
         if sensors is None:
             sensors = self.sensors
+
+        _, factors = find_smallest_common_unit(
+            list(set([sensor.unit for sensor in sensors]))
+        )
+
         for sensor in sensors:
             bdf_dict[sensor] = sensor.search_beliefs(
                 event_starts_after=event_starts_after,
@@ -400,129 +745,221 @@ class GenericAsset(db.Model, AuthModelMixin):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
+                use_latest_version_per_event=use_latest_version_per_event,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,
                 one_deterministic_belief_per_event_per_source=True,
+                resolution=resolution,
             )
-        if as_json:
+        if as_json and not compress_json:
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
-                minimum_resampling_resolution = determine_minimum_resampling_resolution(
-                    [bdf.event_resolution for bdf in bdf_dict.values()]
-                )
-                df_dict = {}
+                if resolution is not None:
+                    minimum_resampling_resolution = resolution
+                else:
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
+                dfs = []
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
                         bdf = bdf.resample_events(minimum_resampling_resolution)
                     bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
                     df = simplify_index(
                         bdf,
-                        index_levels_to_columns=["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"],
-                    ).set_index(
-                        ["source"]
-                        if most_recent_beliefs_only
-                        else ["belief_time", "source"],
-                        append=True,
+                        index_levels_to_columns=(
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
                     )
+
+                    # Convert event values recording seconds to datetimes
+                    # todo: invalid assumption for sensors measuring durations
+                    if sensor.unit == "s":
+                        time_mask = df["event_value"].notna()
+                        time_values = df.loc[time_mask, "event_value"]
+                        df["event_value"] = df["event_value"].astype(
+                            f"datetime64[ns, {self.timezone}]"
+                        )
+                        df.loc[time_mask, "event_value"] = (
+                            pd.to_datetime(time_values, unit="s", origin="unix")
+                            .dt.tz_localize("UTC")
+                            .dt.tz_convert(self.timezone)
+                        )
+
                     df["sensor"] = sensor  # or some JSONifiable representation
-                    df = df.set_index(["sensor"], append=True)
-                    df_dict[sensor.id] = df
-                df = pd.concat(df_dict.values())
+                    df["sensor_unit"] = sensor.unit
+                    df["scale_factor"] = factors[sensor.unit]
+                    dfs.append(df.reset_index())
+                df = pd.concat(dfs)
             else:
                 df = simplify_index(
                     BeliefsDataFrame(),
-                    index_levels_to_columns=["source"]
-                    if most_recent_beliefs_only
-                    else ["belief_time", "source"],
-                ).set_index(
-                    ["source"]
-                    if most_recent_beliefs_only
-                    else ["belief_time", "source"],
-                    append=True,
+                    index_levels_to_columns=(
+                        ["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"]
+                    ),
                 )
                 df["sensor"] = {}  # ensure the same columns as a non-empty frame
             df = df.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.to_dict())
-            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
+
+            # Map all sensors and sources to their dictionary representations
+            df["sensor"] = df["sensor"].map(
+                {sensor: sensor.as_dict for sensor in df["sensor"].unique()}
+            )
+            df["source"] = df["source"].map(
+                {source: source.as_dict for source in df["source"].unique()}
+            )
+
             return df.to_json(orient="records")
-        return bdf_dict
+        elif as_json and compress_json:
+            from flexmeasures.data.services.time_series import simplify_index
 
-    @property
-    def sensors_to_show(self) -> list["Sensor" | list["Sensor"]]:  # noqa F821
-        """Sensors to show, as defined by the sensors_to_show attribute.
-
-        Sensors to show are defined as a list of sensor ids, which
-        is set by the "sensors_to_show" field of the asset's "attributes" column.
-        Valid sensors either belong to the asset itself, to other assets in the same account,
-        or to public assets. In play mode, sensors from different accounts can be added.
-        In case the field is missing, defaults to two of the asset's sensors.
-
-        Sensor ids can be nested to denote that sensors should be 'shown together',
-        for example, layered rather than vertically concatenated.
-        How to interpret 'shown together' is technically left up to the function returning chart specs,
-        as are any restrictions regarding what sensors can be shown together, such as:
-        - whether they should share the same unit
-        - whether they should share the same name
-        - whether they should belong to different assets
-
-        For example, this denotes showing sensors 42 and 44 together:
-
-            sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
-
-        """
-        if not self.has_attribute("sensors_to_show"):
-            return self.sensors[:2]
-
-        # Only allow showing sensors from assets owned by the user's organization,
-        # except in play mode, where any sensor may be shown
-        accounts = [self.owner] if self.owner is not None else None
-        if current_app.config.get("FLEXMEASURES_MODE") == "play":
-            from flexmeasures.data.models.user import Account
-
-            accounts = Account.query.all()
-
-        from flexmeasures.data.services.sensors import get_sensors
-
-        sensor_ids_to_show = self.get_attribute("sensors_to_show")
-        accessible_sensor_map = {
-            sensor.id: sensor
-            for sensor in get_sensors(
-                account=accounts,
-                include_public_assets=True,
-                sensor_id_allowlist=flatten_unique(sensor_ids_to_show),
-            )
-        }
-
-        # Build list of sensor objects that are accessible
-        sensors_to_show = []
-        missed_sensor_ids = []
-
-        # we make sure to build in the order given by the sensors_to_show attribute, and with the same nesting
-        for s in sensor_ids_to_show:
-            if isinstance(s, list):
-                inaccessible = [sid for sid in s if sid not in accessible_sensor_map]
-                missed_sensor_ids.extend(inaccessible)
-                if len(inaccessible) < len(s):
-                    sensors_to_show.append(
-                        [
-                            accessible_sensor_map[sensor_id]
-                            for sensor_id in s
-                            if sensor_id in accessible_sensor_map
-                        ]
-                    )
-            else:
-                if s not in accessible_sensor_map:
-                    missed_sensor_ids.append(s)
+            if sensors:
+                if resolution is not None:
+                    minimum_resampling_resolution = resolution
                 else:
-                    sensors_to_show.append(accessible_sensor_map[s])
-        if missed_sensor_ids:
-            current_app.logger.warning(
-                f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
-            )
-        return sensors_to_show
+                    minimum_resampling_resolution = (
+                        determine_minimum_resampling_resolution(
+                            [bdf.event_resolution for bdf in bdf_dict.values()]
+                        )
+                    )
+
+                sensors_metadata = {}
+                sources_metadata = {}
+                all_source_objs = set()
+
+                # Collect all unique sources first
+                for sensor, bdf in bdf_dict.items():
+                    if not bdf.empty and "source" in bdf.index.names:
+                        all_source_objs.update(
+                            bdf.index.get_level_values("source").unique()
+                        )
+
+                # Build source metadata once
+                for source_obj in all_source_objs:
+                    if hasattr(source_obj, "id"):
+                        source_dict = source_obj.as_dict
+                        sources_metadata[source_obj.id] = {
+                            "name": source_dict.get("name", ""),
+                            "model": source_dict.get("model", ""),
+                            "type": source_dict.get("type", "other"),
+                            "description": source_dict.get("description", ""),
+                        }
+
+                all_records = []
+
+                for sensor, bdf in bdf_dict.items():
+                    if bdf.empty:
+                        continue
+
+                    # Build metadata lookup table for this sensor
+                    sensor_dict = sensor.as_dict
+                    sensors_metadata[sensor.id] = {
+                        "name": sensor_dict.get("name", ""),
+                        "unit": sensor_dict.get("unit", sensor.unit),
+                        "description": sensor_dict.get("description", ""),
+                        "asset_id": sensor_dict.get(
+                            "asset_id", getattr(sensor, "generic_asset_id", None)
+                        ),
+                        "asset_description": sensor_dict.get("asset_description", ""),
+                    }
+
+                    if bdf.event_resolution > timedelta(0):
+                        bdf = bdf.resample_events(minimum_resampling_resolution)
+                    bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
+                    df = simplify_index(
+                        bdf,
+                        index_levels_to_columns=(
+                            ["source"]
+                            if most_recent_beliefs_only
+                            else ["belief_time", "source"]
+                        ),
+                    ).reset_index()
+
+                    # VECTORIZED PROCESSING instead of for loops for speed
+                    # Convert timestamps to milliseconds vectorized
+                    event_start_ms = (
+                        df["event_start"].astype("int64") // 1_000_000
+                    ).astype(int)
+
+                    # Create base records using DataFrame operations
+                    base_records = {
+                        "ts": event_start_ms.tolist(),
+                        "sid": [sensor.id] * len(df),
+                        "val": df["event_value"].tolist(),
+                        "sf": [factors.get(sensor.unit, 1.0)] * len(df),
+                    }
+
+                    # Add source IDs if available
+                    if "source" in df.columns:
+                        source_ids = (
+                            df["source"]
+                            .apply(lambda x: x.id if hasattr(x, "id") else None)
+                            .tolist()
+                        )
+                        base_records["src"] = source_ids
+
+                    # Add belief horizons if available
+                    if "belief_horizon" in df.columns:
+                        belief_horizons_sec = (
+                            df["belief_horizon"]
+                            .apply(
+                                lambda x: (
+                                    int(x.total_seconds() * 1000)
+                                    if pd.notnull(x)
+                                    else None
+                                )
+                            )
+                            .tolist()
+                        )
+                        base_records["bh"] = belief_horizons_sec
+
+                    # Add belief times if needed
+                    if not most_recent_beliefs_only and "belief_time" in df.columns:
+                        belief_times_ms = (
+                            df["belief_time"]
+                            .apply(
+                                lambda x: (
+                                    int(x.timestamp() * 1000) if pd.notnull(x) else None
+                                )
+                            )
+                            .tolist()
+                        )
+                        base_records["bt"] = belief_times_ms
+
+                    cleaned_records = {}
+                    for key, values in base_records.items():
+                        if isinstance(values, list):
+                            cleaned_records[key] = values
+                        else:
+                            cleaned_records[key] = (
+                                pd.Series(values).fillna(None).tolist()
+                            )
+
+                    # Convert to list of dictionaries
+                    for i in range(len(df)):
+                        record = {
+                            key: values[i] for key, values in cleaned_records.items()
+                        }
+                        all_records.append(record)
+
+                return json.dumps(
+                    {
+                        "data": all_records,
+                        "sensors": sensors_metadata,
+                        "sources": sources_metadata,
+                    }
+                )
+            else:
+                return json.dumps({"data": [], "sensors": {}, "sources": {}})
+
+        return bdf_dict
 
     @property
     def timezone(
@@ -539,7 +976,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return "UTC"
 
     @property
-    def timerange(self) -> Dict[str, datetime]:
+    def timerange(self) -> dict[str, datetime]:
         """Time range for which sensor data exists.
 
         :returns: dictionary with start and end, for example:
@@ -551,7 +988,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return self.get_timerange(self.sensors)
 
     @property
-    def timerange_of_sensors_to_show(self) -> Dict[str, datetime]:
+    def timerange_of_sensors_to_show(self) -> dict[str, datetime]:
         """Time range for which sensor data exists, for sensors to show.
 
         :returns: dictionary with start and end, for example:
@@ -560,10 +997,10 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        return self.get_timerange(self.sensors_to_show)
+        return self.get_timerange(self.validate_sensors_to_show())
 
     @classmethod
-    def get_timerange(cls, sensors: List["Sensor"]) -> Dict[str, datetime]:  # noqa F821
+    def get_timerange(cls, sensors: list["Sensor"]) -> dict[str, datetime]:  # noqa F821
         """Time range for which sensor data exists.
 
         :param sensors: sensors to check
@@ -576,6 +1013,23 @@ class GenericAsset(db.Model, AuthModelMixin):
         sensor_ids = [s.id for s in flatten_unique(sensors)]
         start, end = get_timerange(sensor_ids)
         return dict(start=start, end=end)
+
+    def set_inflexible_sensors(self, inflexible_sensor_ids: list[int]) -> None:
+        """Set inflexible sensors for this asset.
+
+        :param inflexible_sensor_ids: list of sensor ids
+        """
+        from flexmeasures.data.models.time_series import Sensor
+
+        # -1 choice corresponds to "--Select sensor id--" which means no sensor is selected
+        # and all linked sensors should be unlinked
+        if len(inflexible_sensor_ids) == 1 and inflexible_sensor_ids[0] == -1:
+            self.inflexible_device_sensors = []
+        else:
+            self.inflexible_device_sensors = Sensor.query.filter(
+                Sensor.id.in_(inflexible_sensor_ids)
+            ).all()
+        db.session.add(self)
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
@@ -595,9 +1049,9 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
             asset_type_name = kwargs.pop(f"{generic_asset_type}_type").name
         else:
             asset_type_name = kwargs.pop("sensor_type").name
-    generic_asset_type = GenericAssetType.query.filter_by(
-        name=asset_type_name
-    ).one_or_none()
+    generic_asset_type = db.session.execute(
+        select(GenericAssetType).filter_by(name=asset_type_name)
+    ).scalar_one_or_none()
     if generic_asset_type is None:
         raise ValueError(f"Cannot find GenericAssetType {asset_type_name} in database.")
 
@@ -615,7 +1069,7 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     return new_generic_asset
 
 
-def assets_share_location(assets: List[GenericAsset]) -> bool:
+def assets_share_location(assets: list[GenericAsset]) -> bool:
     """
     Return True if all assets in this list are located on the same spot.
     TODO: In the future, we might soften this to compare if assets are in the same "housing" or "site".
@@ -625,23 +1079,49 @@ def assets_share_location(assets: List[GenericAsset]) -> bool:
     return all([a.location == assets[0].location for a in assets])
 
 
-def get_center_location_of_assets(user: Optional[User]) -> Tuple[float, float]:
+def get_bounding_box_of_assets(
+    user: User | None,
+) -> tuple[tuple[float, float], tuple[float, float]]:
     """
-    Find the center position between all generic assets of the user's account.
+    Compute the bounding box covering all assets of the user's account,
+    correctly handling antimeridian crossings.
     """
-    query = (
-        "Select (min(latitude) + max(latitude)) / 2 as latitude,"
-        " (min(longitude) + max(longitude)) / 2 as longitude"
-        " from generic_asset"
-    )
     if user is None:
         user = current_user
-    query += f" where generic_asset.account_id = {user.account_id}"
-    locations: List[Row] = db.session.execute(query + ";").fetchall()
-    if (
-        len(locations) == 0
-        or locations[0].latitude is None
-        or locations[0].longitude is None
-    ):
-        return 52.366, 4.904  # Amsterdam, NL
-    return locations[0].latitude, locations[0].longitude
+
+    # ORM query to fetch all lat/lng values
+    stmt = select(GenericAsset.latitude, GenericAsset.longitude).where(
+        and_(
+            GenericAsset.account_id == user.account_id,
+            GenericAsset.latitude.isnot(None),
+            GenericAsset.longitude.isnot(None),
+        )
+    )
+
+    results = db.session.execute(stmt).all()
+    if not results:
+        return current_app.config["FLEXMEASURES_DEFAULT_BOUNDING_BOX"]
+
+    def normalize_lng(lng: float) -> float:
+        """Wrap longitude to [-180, 180)"""
+        return ((lng + 180) % 360) - 180
+
+    lats = [row.latitude for row in results]
+    lngs = [normalize_lng(row.longitude) for row in results]
+
+    min_lat, max_lat = min(lats), max(lats)
+
+    sorted_lngs = sorted(lngs)
+    normal_span = sorted_lngs[-1] - sorted_lngs[0]
+    wrap_span = (sorted_lngs[0] + 360) - sorted_lngs[-1]
+
+    if wrap_span < normal_span:
+        # Wrapping eastward is shorter
+        min_lng, max_lng = sorted_lngs[-1], sorted_lngs[0] + 360
+    else:
+        min_lng, max_lng = sorted_lngs[0], sorted_lngs[-1]
+
+    return (
+        (min_lat, normalize_lng(min_lng)),
+        (max_lat, normalize_lng(max_lng)),
+    )

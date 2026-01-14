@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, Type
+from typing import Any, Dict, List, Type, Union
 
 import pandas as pd
 from flask import current_app
 
+from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.utils.coding_utils import deprecated
+from .exceptions import WrongEntityException
+
+
+# todo: Use | instead of Union, list instead of List and dict instead of Dict when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
+SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
 
 
 class Scheduler:
@@ -31,29 +39,42 @@ class Scheduler:
     __version__ = None
     __author__ = None
 
-    sensor: Sensor
+    sensor: Sensor | None = None
+    asset: Asset | None = None
+
     start: datetime
     end: datetime
     resolution: timedelta
     belief_time: datetime
+
     round_to_decimals: int
-    flex_model: Optional[dict] = None
-    flex_context: Optional[dict] = None
+
+    flex_model: list[dict] | dict | None = None
+    flex_context: dict | None = None
+
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
 
     config_deserialized = False  # This flag allows you to let the scheduler skip checking config, like timing, flex_model and flex_context
 
+    # set to True if the Scheduler supports triggering on an Asset or False
+    # if the Scheduler expects a Sensor
+    supports_scheduling_an_asset = False
+
+    return_multiple: bool = False
+
     def __init__(
         self,
-        sensor,
-        start,
-        end,
-        resolution,
-        belief_time: Optional[datetime] = None,
-        round_to_decimals: Optional[int] = 6,
-        flex_model: Optional[dict] = None,
-        flex_context: Optional[dict] = None,
+        sensor: Sensor | None = None,  # deprecated
+        start: datetime | None = None,
+        end: datetime | None = None,
+        resolution: timedelta | None = None,
+        belief_time: datetime | None = None,
+        asset_or_sensor: Asset | Sensor | None = None,
+        round_to_decimals: int | None = 6,
+        flex_model: list[dict] | dict | None = None,
+        flex_context: dict | None = None,
+        return_multiple: bool = False,
     ):
         """
         Initialize a new Scheduler.
@@ -66,7 +87,30 @@ class Scheduler:
               For now, we don't see the best separation between config and state parameters (esp. within flex models)
               E.g. start and flex_model[soc_at_start] are intertwined.
         """
-        self.sensor = sensor
+
+        if sensor is not None:
+            current_app.logger.warning(
+                "The `sensor` keyword argument is deprecated. Please, consider using the argument `asset_or_sensor`."
+            )
+            asset_or_sensor = sensor
+
+        if self.supports_scheduling_an_asset and isinstance(asset_or_sensor, Sensor):
+            raise WrongEntityException(
+                f"The scheduler class {self.__class__.__name__} expects an Asset object but a Sensor was provided."
+            )
+
+        self.sensor = None
+        self.asset = None
+
+        if isinstance(asset_or_sensor, Sensor):
+            self.sensor = asset_or_sensor
+        elif isinstance(asset_or_sensor, Asset):
+            self.asset = asset_or_sensor
+        else:
+            raise WrongEntityException(
+                f"The scheduler class {self.__class__.__name__} expects an Asset or Sensor objects but an object of class `{asset_or_sensor.__class__.__name__}` was provided."
+            )
+
         self.start = start
         self.end = end
         self.resolution = resolution
@@ -80,9 +124,11 @@ class Scheduler:
         self.flex_context = flex_context
 
         if self.info is None:
-            self.info = dict(scheduler="")
+            self.info = dict(scheduler=self.__class__.__name__)
 
-    def compute_schedule(self) -> Optional[pd.Series]:
+        self.return_multiple = return_multiple
+
+    def compute_schedule(self) -> pd.Series | None:
         """
         Overwrite with the actual computation of your schedule.
 
@@ -90,7 +136,7 @@ class Scheduler:
         """
         return self.compute()
 
-    def compute(self) -> Optional[pd.Series]:
+    def compute(self) -> SchedulerOutputType:
         """
         Overwrite with the actual computation of your schedule.
         """
@@ -128,6 +174,55 @@ class Scheduler:
         """
         pass
 
+    def collect_flex_config(self):
+        """Merge the flex-config from the db (from the asset and its ancestors) with the initialization flex-config.
+
+        Note that self.flex_context overrides db_flex_context (from the asset and its ancestors).
+        """
+        if self.asset is not None:
+            asset = self.asset
+        else:
+            asset = self.sensor.generic_asset
+        db_flex_context = asset.get_flex_context()
+        self.flex_context = {**db_flex_context, **self.flex_context}
+
+        # Merge the passed flex_model with the db_flex_model by matching asset IDs
+        db_flex_model = asset.get_flex_model()
+        amended_flex_model = []
+        asset_ids = []
+        flex_model = self.flex_model.copy()
+        if not isinstance(self.flex_model, list):
+            # To enable the matching of the passed flex_model with db_flex_models, we need to find out the asset ID
+            if "asset" not in flex_model:
+                if self.asset is not None:
+                    flex_model["asset"] = asset.id
+                else:
+                    flex_model["asset"] = self.sensor.generic_asset.id
+            # Listify the flex-model for the next code block, which actually does the merging with the db_flex_model
+            flex_model = [flex_model]
+
+        for flex_model_d in flex_model:
+            asset_id = flex_model_d.get("asset")
+            if asset_id is None:
+                sensor_id = flex_model_d["sensor"]
+                sensor = db.session.get(Sensor, sensor_id)
+                asset_id = sensor.asset_id
+            if asset_id in db_flex_model:
+                flex_model_d = {**db_flex_model[asset_id], **flex_model_d}
+            amended_flex_model.append(flex_model_d)
+            asset_ids.append(asset_id)
+        amended_db_flex_model = [
+            {**v, "asset": k} for k, v in db_flex_model.items() if k not in asset_ids
+        ]
+        combined_flex_model = amended_db_flex_model + amended_flex_model
+        # For the single-asset case, revert the flex-model listification
+        if len(combined_flex_model) == 1 and "sensor" not in combined_flex_model[0]:
+            # Single-asset case
+            self.flex_model = combined_flex_model[0]
+        else:
+            # Multi-asset case
+            self.flex_model = combined_flex_model
+
     def deserialize_config(self):
         """
         Check all configurations we have, throwing either ValidationErrors or ValueErrors.
@@ -159,6 +254,117 @@ class Scheduler:
         Raises ValidationErrors or ValueErrors.
         """
         pass
+
+
+@dataclass
+class Commitment:
+    """Contractual commitment specifying prices for deviating from a given position.
+
+    Attributes:
+        name:       Name of the commitment.
+        device:     Device to which the commitment pertains. If None, the commitment pertains to the EMS.
+        index:      Pandas DatetimeIndex defining the time slots to which the commitment applies.
+                    The index is shared by the group, quantity, upwards_deviation_price and downwards_deviation_price Pandas Series.
+        _type:      'any' or 'each'. Any deviation is penalized via 1 group, whereas each deviation is penalized via n groups.
+        group:      Each time slot is assigned to a group. Deviations are determined for each group.
+                    The deviation of a group is determined by the time slot with the maximum deviation within that group.
+        quantity:   The deviation for each group is determined with respect to this quantity.
+                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+        upwards_deviation_price:
+                    The deviation in the upwards direction is priced against this price. Use a positive price to set a penalty.
+                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+        downwards_deviation_price:
+                    The deviation in the downwards direction is priced against this price. Use a negative price to set a penalty.
+                    Can be initialized with a constant value, but always returns a Pandas Series (see also the `index` parameter).
+    """
+
+    name: str
+    device: pd.Series = None
+    index: pd.DatetimeIndex = field(repr=False, default=None)
+    _type: str = field(repr=False, default="each")
+    group: pd.Series = field(init=False)
+    quantity: pd.Series = 0
+    upwards_deviation_price: pd.Series = 0
+    downwards_deviation_price: pd.Series = 0
+
+    def __post_init__(self):
+        series_attributes = [
+            attr
+            for attr, _type in self.__annotations__.items()
+            if _type == "pd.Series" and hasattr(self, attr)
+        ]
+        for series_attr in series_attributes:
+            val = getattr(self, series_attr)
+
+            # Convert from single-column DataFrame to Series
+            if isinstance(val, pd.DataFrame):
+                val = val.squeeze()
+                setattr(self, series_attr, val)
+
+            # Try to set the time series index for the commitment
+            if (
+                self.index is None
+                and isinstance(getattr(self, series_attr), pd.Series)
+                and isinstance(val.index, pd.DatetimeIndex)
+            ):
+                self.index = val.index
+
+        if self.index is None:
+            raise ValueError(
+                "Commitment must be initialized with a pd.DatetimeIndex. Hint: use the `index` argument."
+            )
+
+        # Force type conversion of repr fields to pd.Series
+        for series_attr in series_attributes:
+            val = getattr(self, series_attr)
+            if not isinstance(val, pd.Series):
+                setattr(self, series_attr, pd.Series(val, index=self.index))
+
+        if self._type == "any":
+            # add all time steps to the same group
+            self.group = pd.Series(0, index=self.index)
+        elif self._type == "each":
+            # add each time step to their own group
+            self.group = pd.Series(list(range(len(self.index))), index=self.index)
+        else:
+            raise ValueError('Commitment `_type` must be "any" or "each".')
+
+        # Name the Series as expected by our device scheduler
+        self.device = self.device.rename("device")
+        self.quantity = self.quantity.rename("quantity")
+        self.upwards_deviation_price = self.upwards_deviation_price.rename(
+            "upwards deviation price"
+        )
+        self.downwards_deviation_price = self.downwards_deviation_price.rename(
+            "downwards deviation price"
+        )
+        self.group = self.group.rename("group")
+
+    def to_frame(self) -> pd.DataFrame:
+        """Contains all info apart from the name."""
+        return pd.concat(
+            [
+                self.device,
+                self.quantity,
+                self.upwards_deviation_price,
+                self.downwards_deviation_price,
+                self.group,
+                pd.Series(self.__class__, index=self.index, name="class"),
+            ],
+            axis=1,
+        )
+
+
+class FlowCommitment(Commitment):
+    """NB index contains event start, while quantity applies to average flow between event start and end."""
+
+    pass
+
+
+class StockCommitment(Commitment):
+    """NB index contains event start, while quantity applies to stock at event end."""
+
+    pass
 
 
 """

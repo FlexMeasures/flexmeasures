@@ -1,5 +1,6 @@
-from flask import url_for
 import pytest
+from flask import url_for
+from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import AccountContext
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -14,7 +15,7 @@ from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
     ],
     indirect=True,
 )
-def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, requesting_user):
+def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, requesting_user, db):
     """
     Post one extra asset, as an admin user.
     """
@@ -33,15 +34,15 @@ def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, requesting_us
     assert post_assets_response.status_code == 201
     assert post_assets_response.json["latitude"] == 30.1
 
-    asset: GenericAsset = GenericAsset.query.filter(
-        GenericAsset.name == post_data["name"]
-    ).one_or_none()
+    asset: GenericAsset = db.session.execute(
+        select(GenericAsset).filter_by(name=post_data["name"])
+    ).scalar_one_or_none()
     assert asset is not None
     assert asset.latitude == 30.1
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user):
+def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
     with AccountContext("Test Supplier Account") as supplier:
         existing_asset = supplier.generic_assets[0]
 
@@ -51,14 +52,16 @@ def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user):
         json=post_data,
     )
     assert edit_asset_response.status_code == 200
-    updated_asset = GenericAsset.query.filter_by(id=existing_asset.id).one_or_none()
+    updated_asset = db.session.execute(
+        select(GenericAsset).filter_by(id=existing_asset.id)
+    ).scalar_one_or_none()
     assert updated_asset.latitude == 10  # changed value
     assert updated_asset.longitude == existing_asset.longitude
     assert updated_asset.name == existing_asset.name
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user):
+def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
     with AccountContext("Test Prosumer Account") as prosumer:
         existing_asset_id = prosumer.generic_assets[0].id
 
@@ -66,5 +69,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user):
         url_for("AssetAPI:delete", id=existing_asset_id),
     )
     assert delete_asset_response.status_code == 204
-    deleted_asset = GenericAsset.query.filter_by(id=existing_asset_id).one_or_none()
+    deleted_asset = db.session.execute(
+        select(GenericAsset).filter_by(id=existing_asset_id)
+    ).scalar_one_or_none()
     assert deleted_asset is None

@@ -13,7 +13,7 @@ from flexmeasures.data.schemas.times import DurationField, DurationValidationErr
         ("PT1H", timedelta(hours=1)),
         ("PT6M", timedelta(minutes=6)),
         ("PT6H", timedelta(hours=6)),
-        ("P2DT1H", timedelta(hours=49)),
+        ("P2DT1H", timedelta(hours=49)),  # https://github.com/gweis/isodate/issues/74
     ],
 )
 def test_duration_field_straightforward(duration_input, exp_deserialization):

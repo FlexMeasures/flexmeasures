@@ -5,6 +5,7 @@ Revises: 1ae32ffc8c3f
 Create Date: 2021-11-11 17:18:15.395915
 
 """
+
 import json
 from datetime import datetime
 
@@ -320,7 +321,7 @@ def copy_location_columns_to_generic_asset(
     ]
     # Get columns from old model
     results = connection.execute(
-        sa.select([getattr(t_old_model.c, a) for a in old_model_attributes])
+        sa.select(*[getattr(t_old_model.c, a) for a in old_model_attributes])
     ).fetchall()
 
     for sensor_id, *args in results:
@@ -353,7 +354,7 @@ def copy_sensor_columns(connection, t_old_model, t_sensor):
 
     # Get columns from old model
     results = connection.execute(
-        sa.select([getattr(t_old_model.c, a) for a in old_model_attributes])
+        sa.select(*[getattr(t_old_model.c, a) for a in old_model_attributes])
     ).fetchall()
 
     for sensor_id, *args in results:
@@ -396,7 +397,7 @@ def copy_attributes(
     """
     # Get attributes from old model
     results = connection.execute(
-        sa.select([getattr(t_old_model.c, a) for a in old_model_attributes])
+        sa.select(*[getattr(t_old_model.c, a) for a in old_model_attributes])
     ).fetchall()
 
     for _id, type_name, *args in results:
@@ -483,7 +484,7 @@ def get_generic_asset_id(connection, old_model_id: int, t_sensors) -> int:
     """Get the Sensor with the same id as the OldModel, and then get the id of the GenericAsset of that Sensor."""
     (generic_asset_id,) = connection.execute(
         sa.select(
-            [
+            *[
                 t_sensors.c.generic_asset_id,
             ]
         ).filter(t_sensors.c.id == old_model_id)
@@ -498,7 +499,7 @@ def get_old_model_type_attributes(
     """Get the attributes from the OldModelType."""
     values = connection.execute(
         sa.select(
-            [getattr(t_old_model_types.c, a) for a in old_model_type_attributes]
+            *[getattr(t_old_model_types.c, a) for a in old_model_type_attributes]
         ).filter(t_old_model_types.c.name == old_model_type_name)
     ).one_or_none()
     assert values is not None

@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% set active_page = "assets" %}
+
+{% block title %} {{ asset.name }} - Status {% endblock %}
+
+{% block divs %}
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-sm-2"></div>
+    <div class="col-sm-8">
+      <div class="card p-3">
+
+        <!-- SENSOR STATUS TABLE -->
+        <h4>
+          Data connectivity for sensors of {{ asset.name }}
+          <span class="fa fa-info-circle" title="
+          This table shows the connectivity status for all sensors under or relevant to this asset. Click the table to see the actual data. Per sensor, we report the different data source types. We only explicitly support source types 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter'.
+
+A red traffic light indicates that the last time a record was made was too long ago (it is 'stale'). Hover the light to learn more about why it is displayed red. It could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made.
+
+How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future.
+
+Sensors shown on this page are the ones relevant for correct functioning of the asset. We list the ones linked in the flex-context and the graphs page.
+          "></span>
+        </h4>
+
+        <div class="table-responsive">
+          <table id="sensorStatusTable" class="table table-striped paginate w-100"></table>
+        </div>
+
+        <!-- JOBS TABLE -->
+        <h4 class="">
+          Latest jobs of {{ asset.name }}
+          <span class="fa fa-info-circle " title="This table shows forecasting or scheduling jobs for this asset."></span>
+          <span class="jobs-time-ago" data-timestamp="Loading">
+            <small>
+              <i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>
+              <span id="jobs_time_ago"></span>
+            </small>
+          </span>
+        </h4>
+
+        <div class="table-responsive">
+          <table id="jobsTable" class="table table-striped paginate nav-on-click w-100"></table>
+        </div>
+
+        <div class="alert alert-warning d-none mt-2" id="redis_connection_err"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const assetId = "{{ asset.id }}";
+  const sensors = {{ sensors | tojson }};
+
+  function SensorStatusRow(sensor) {
+    const lastCallTime = Date.now();
+    const timeAgo = getTimeAgo(lastCallTime);
+    const statusIcon = sensor.stale ? "🔴" : "🟢";
+    const refreshIcon = `<i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>`;
+
+    return {
+      sensor_info: `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
+        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Reason: ${sensor.relation}" style="margin-left: 10px;"></span>`,
+      source_type: sensor.source_type || "None",
+      staleness_since: `
+        <psan title="${sensor.staleness_since ? sensor.staleness_since : 'Never'}"> 
+          ${
+            sensor.staleness_since ?
+              getHumanFriendlyDeltaOrTimeStr(sensor.staleness_since) :
+              "Never"
+          }
+        </span>
+      `,
+      status: `${statusIcon}<br><span class="time-ago" data-timestamp="${lastCallTime}">
+          <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
+      url: `/sensors/${sensor.id}`
+    };
+  }
+
+  function JobRow(job) {
+    const jobStatusMessage = job.err ? `${job.status}: ${job.err}` : job.status;
+    const jobStatusIcon = job.status === "finished" ? "🟢" :
+                          job.status === "failed" ? "🔴" : "🟡";
+    return {
+      created_at_timestamp: job.enqueued_at,
+      created_at: `
+       <psan title="${job.enqueued_at? job.enqueued_at: 'Never'}"> 
+          ${
+            job.enqueued_at ?
+              getHumanFriendlyDeltaOrTimeStr(job.enqueued_at) :
+              "Never"
+          }
+        </span>
+      `,
+      queue: job.queue,
+      entity: job.entity,
+      status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
+      info: `<a href="#" class="btn btn-default btn-success" data-bs-target="#JobMetadataModal-${job.metadata_hash}" data-bs-toggle="modal">Info</a>
+        <div class="modal fade" id="JobMetadataModal-${job.metadata_hash}" tabindex="-1" role="dialog">
+          <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Info</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body"><pre>${job.metadata}</pre></div>
+          </div></div>
+        </div>`,
+      url: `/tasks/0/view/job/${job.job_id}`
+    };
+  }
+
+  let sensorTable;
+
+  $(document).ready(function () {
+    // SENSOR STATUS TABLE
+    sensorTable = $("#sensorStatusTable").DataTable({
+      searching: false,
+      paging: false,
+      info: false,
+      ordering: false,
+      columns: [
+        { data: "sensor_info", title: "Sensor" },
+        { data: "source_type", title: "Data source type" },
+        { data: "staleness_since", title: "Time of latest record" },
+        { data: "status", title: "Status", className: "text-right" },
+        { data: "url", title: "URL", className: "d-none" },
+      ],
+      ajax: function (data, callback) {
+        if (!sensors.length) {
+          callback({ data: [] });
+          return;
+        }
+        const allData = [];
+        let completed = 0;
+        sensors.forEach(sensor => {
+          $.ajax({
+            url: `/api/v3_0/sensors/${sensor.id}/status`,
+            method: "GET",
+            success: function (res) {
+              res.sensors_data.forEach(sensorData => {
+                allData.push(SensorStatusRow(sensorData));
+              });
+            },
+            complete: function () {
+              completed++;
+              if (completed === sensors.length) {
+                callback({ data: allData });
+              }
+            },
+            error: function () {
+              completed++;
+              if (completed === sensors.length) {
+                callback({ data: allData });
+              }
+            }
+          });
+        });
+      },
+      headerCallback: function (thead, data, start, end, display) {
+        // target the 3rd column header (index 2)
+        $(thead)
+        .find("th")
+        .eq(2)
+        .attr(
+            "title",
+            "This is the knowledge time of the most recent event recorded (potentially in the future, for forecasts and schedules)."
+        );
+    },
+    });
+
+    $(document).on("click", ".sensor_refresh", function () {
+      const sensorId = $(this).attr("id").split("_")[2];
+      const refreshBtn = $(this);
+      refreshBtn.addClass("fa-spin");
+      console.log("Refreshing sensor:", sensorId);
+
+      $.ajax({
+        url: `/api/v3_0/sensors/${sensorId}/status`,
+        method: "GET",
+        success: function (res) {
+          if (!res.sensors_data || !res.sensors_data.length) return;
+
+          const sensorData = res.sensors_data[0];
+          console.log("Refreshing sensor data:", sensorData);
+          const newRowData = SensorStatusRow(sensorData);
+
+          // find the row index (DataTables internal index)
+          const rowIndexes = sensorTable.rows().eq(0).filter(function (idx) {
+            const rowData = sensorTable.row(idx).data();
+            return rowData && rowData.url === `/sensors/${sensorId}`;
+          });
+
+          if (rowIndexes.length > 0) {
+            const idx = rowIndexes[0];
+
+            // Update only the cells we need (0..3)
+            sensorTable.cell(idx, 0).data(newRowData.sensor_info).invalidate(); // sensor_info
+            sensorTable.cell(idx, 1).data(newRowData.source_type).invalidate(); // source_type
+            sensorTable.cell(idx, 2).data(newRowData.staleness_since).invalidate(); // staleness_since
+            sensorTable.cell(idx, 3).data(newRowData.status).invalidate(); // status
+
+            // redraw once, without resetting paging/order
+            sensorTable.draw(false);
+
+            // optional visual highlight
+            $(sensorTable.row(idx).node()).addClass('table-success');
+            setTimeout(() => $(sensorTable.row(idx).node()).removeClass('table-success'), 800);
+          } else {
+            // if we can't find the row, fallback to a full table reload
+            sensorTable.ajax.reload(null, false);
+          }
+        },
+        error: function (xhr) {
+          console.error("Error refreshing sensor:", sensorId, xhr);
+        },
+        complete: function () {
+          refreshBtn.removeClass("fa-spin");
+        },
+      });
+    });
+
+    // JOBS TABLE
+    const jobsTable = $("#jobsTable").DataTable({
+      order: [[0, "desc"]],
+      columnDefs: [{ targets: 1, orderData: 0 }],
+      searching: false,
+      paging: false,
+      info: false,
+      columns: [
+        { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
+        { data: "created_at", title: "Created At", orderable: true},
+        { data: "queue", title: "Queue", orderable: true},
+        { data: "entity", title: "Entity", orderable: false},
+        { data: "status", title: "Status", className: "text-right", orderable: false},
+        { data: "info", title: "Info", className: "text-right", orderable: false},
+        { data: "url", title: "URL", className: "d-none", orderable: false},
+      ],
+      ajax: function (data, callback) {
+        $.ajax({
+          url: `/api/v3_0/assets/${assetId}/jobs`,
+          method: "GET",
+          success: function (res) {
+            if (res.redis_connection_err) {
+              $("#redis_connection_err").removeClass("d-none").text(res.redis_connection_err);
+            } else {
+              $("#redis_connection_err").addClass("d-none").text("");
+            }
+            const jobs = res.jobs.length ? res.jobs.map(JobRow) : [];
+            callback({ data: jobs });
+
+            const lastCallTime = Date.now();
+            $("#jobs_time_ago").html(`(${getTimeAgo(lastCallTime)})`);
+            $(".jobs-time-ago").data("timestamp", lastCallTime);
+          },
+          error: function (xhr) {
+            console.error("Error fetching jobs:", xhr);
+            callback({ data: [] });
+          },
+        });
+      },
+    });
+
+    $.fn.dataTable.ext.errMode = 'none';
+
+    function updateTimeAgoDisplays() {
+      $(".time-ago").each(function () {
+          const timestamp = parseInt($(this).data("timestamp"), 10);
+          if (timestamp) {
+            $(this).find(".time-text").text(`(${getTimeAgo(timestamp)})`);
+          }
+      });
+      $(".jobs-time-ago").each(function () {
+          const timestamp = parseInt($(this).data("timestamp"), 10);
+          if (timestamp) {
+          $(this).find("#jobs_time_ago").text(`(${getTimeAgo(timestamp)})`);
+          }
+      });
+    }
+
+    $("#refresh_jobs").click(() => jobsTable.ajax.reload());
+    setInterval(updateTimeAgoDisplays, 10000);
+  });
+</script>
+{% endblock %}

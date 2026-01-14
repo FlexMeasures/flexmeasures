@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 
 import click
 from flask import Flask, current_app, redirect
@@ -49,7 +50,7 @@ def init_sentry(app: Flask):
         debug=app.debug,
         release=f"flexmeasures@{get_distribution('flexmeasures').version}",
         send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
-        environment=app.env,
+        environment=app.config.get("FLEXMEASURES_ENV"),
         **app.config["FLEXMEASURES_SENTRY_CONFIG"],
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))
@@ -85,7 +86,7 @@ def set_secret_key(app, filename="secret_key"):
 
         You can add the SECRET_KEY setting to your conf file (this example works only on Unix):
 
-        echo "SECRET_KEY=\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\"" >> ~/.flexmeasures.cfg
+        echo "SECRET_KEY=\\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\\"" >> ~/.flexmeasures.cfg
 
         OR you can add an env var:
 
@@ -105,6 +106,89 @@ def set_secret_key(app, filename="secret_key"):
             % (os.path.dirname(filename), filename)
         )
 
+        sys.exit(2)
+
+
+def log_totp_secrets_error_and_exit(app, filename):
+    app.logger.error(
+        """
+        ERROR: The file %s exists but does not contain a valid dictionary.
+
+        The correct format is:
+
+        {"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+
+        """
+        % (filename)
+    )
+    sys.exit(2)
+
+
+def set_totp_secrets(app, filename="totp_secrets"):
+    """Set the SECURITY_TOTP_SECRETS or exit.
+
+    We first check if it is already in the config.
+
+    Then we look for it in environment var SECURITY_TOTP_SECRETS.
+
+    Finally, we look for `filename` in the app's instance directory.
+
+    If nothing is found, we print instructions
+    to create the secret and then exit.
+    """
+    totp_secrets = app.config.get("SECURITY_TOTP_SECRETS", None)
+    if totp_secrets is not None:
+        return
+    totp_secrets = os.environ.get("SECURITY_TOTP_SECRETS", None)
+    if totp_secrets is not None:
+        try:
+            # Try to parse the string from the environment variable into a dictionary
+            app.config["SECURITY_TOTP_SECRETS"] = json.loads(totp_secrets)
+            return
+        except json.JSONDecodeError:
+            app.logger.error(
+                "Error: The environment variable SECURITY_TOTP_SECRETS is not valid JSON."
+            )
+            sys.exit(2)
+
+    filename = os.path.join(app.instance_path, filename)
+    try:
+        security_totp_secrets = open(filename, "r").read()
+        security_totp_secrets = json.loads(security_totp_secrets)
+
+        # Now check if it's a dictionary
+        if isinstance(security_totp_secrets, dict):
+            app.config["SECURITY_TOTP_SECRETS"] = security_totp_secrets
+        else:
+            log_totp_secrets_error_and_exit(app, filename)
+    except json.JSONDecodeError:
+        log_totp_secrets_error_and_exit(app, filename)
+    except (IOError, UnicodeDecodeError):
+        app.logger.error(
+            """
+        Error:  No SECURITY_TOTP_SECRETS set (required for two-factor authentication).
+
+        You can add the SECURITY_TOTP_SECRETS setting to your conf file (this example works only on Unix):
+
+        echo "SECURITY_TOTP_SECRETS={\\"1\\": \\"`python3 -c 'from passlib import totp; print(totp.generate_secret())'`\\"}" >> ~/.flexmeasures.cfg
+
+        OR you can add an env var:
+
+        export SECURITY_TOTP_SECRETS={"1": "xxxxxxxxxxxxxxx"}
+        (on windows, use "set" instead of "export")
+
+        OR you can create a secret key file (this example works only on Unix):
+
+        mkdir -p %s
+        echo "{\\"1\\": \\"$(head -c 24 /dev/urandom | base64)\\"}" > %s
+
+        You can also use Python to create a good secret:
+
+        python -c 'from passlib import totp; print(f"{{\\"1\\": \\"{totp.generate_secret()}\\"}}")'
+
+        """
+            % (os.path.dirname(filename), filename)
+        )
         sys.exit(2)
 
 

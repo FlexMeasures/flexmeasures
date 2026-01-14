@@ -42,6 +42,55 @@ function defaultImage(action) {
 }
 
 
+function clickableTable(element, urlColumn) {
+    // This will keep actions like text selection or dragging functional
+    var table = $(element).DataTable();
+    var tbody = element.getElementsByTagName('tbody')[0];
+    var startX, startY;
+    var radiusLimit = 0;  // how much the mouse is allowed to move during clicking
+
+    $(tbody).on({
+        mousedown: function (event) {
+            startX = event.pageX;
+            startY = event.pageY;
+        },
+        mouseup: function (event) {
+            var endX = event.pageX;
+            var endY = event.pageY;
+
+            var deltaX = endX - startX;
+            var deltaY = endY - startY;
+
+            var euclidean = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            if (euclidean <= radiusLimit) {
+                var columnIndex = table.column(':contains(' + urlColumn + ')').index();
+                
+                var data = table.row(this).data();
+                if(Array.isArray(data)){
+                    var url = data[columnIndex];
+                } else{
+                    var url = data["url"];
+                }
+                handleClick(event, url);
+            }
+        }
+    }, 'tr');
+}
+
+
+function handleClick(event, url) {
+    // ignore clicks on <a href>, <button> or <input> elements
+    if (['a', 'button', 'input'].includes(event.target.tagName.toLowerCase())) {
+        return
+    } else if (event.ctrlKey) {
+        window.open(url, "_blank");
+    } else {
+        window.open(url, "_self");
+    }
+}
+
+
 function ready() {
 
     console.log("ready...");
@@ -60,7 +109,6 @@ function ready() {
             });
         }
     );
-
 
     // Table pagination
 
@@ -97,6 +145,11 @@ function ready() {
     // set default page lengths
     $('.paginate-5').dataTable().api().page.len(5).draw();
     $('.paginate-10').dataTable().api().page.len(10).draw();
+
+    // Tables with the nav-on-click class
+
+    navTables = document.getElementsByClassName('nav-on-click');
+    Array.prototype.forEach.call(navTables, function(t) {clickableTable(t, 'URL')});
 
 
     // Sliders
@@ -197,16 +250,6 @@ function ready() {
         top: $('#topnavbar').height(),
         scrollContainer: true
     });
-
-    $(document).on('change', '#user-list-options input[name="include_inactive"]', function () {
-        //Users list inactive
-        $(this).closest('form').submit();
-    })
-
-
-    // Security messages styling
-
-    $('.flashes').addClass('alert alert-info');
 
 
     // Check button behaviour
@@ -316,12 +359,28 @@ function submit_sensor_type() {
 /* Quantities incl. units
  * Usage:
  *     {
- *         'format': [<d3-format>, <sensor unit>],
+ *         'format': [<d3-format>, <sensor unit>, <optional preference to show currency symbol instead of currency code>],
  *         'formatType': 'quantityWithUnitFormat'
  *     }
+ * The use of currency symbols, such as the euro sign (€), should be reserved for use in graphics.
+ * See, for example, https://publications.europa.eu/code/en/en-370303.htm
+ * The rationale behind this is that they are often ambiguous.
+ * For example, both the Australian dollar (AUD) and the United States dollar (USD) map to the dollar sign ($).
  */
 vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
-    return d3.format(params[0])(datum) + " " + params[1];
+    const formatDef = {
+        "decimal": ".",
+        "thousands": " ",
+        "grouping": [3],
+    };
+    const locale = d3.formatLocale(formatDef);
+    //  The third element on param allows choosing to show the currency symbol (true) or the currency name (false)
+    if (params.length > 2 && params[2] === true){
+        return locale.format(params[0])(datum) + " " + convertCurrencyCodeToSymbol(params[1]);
+    }
+    else {
+        return locale.format(params[0])(datum) + " " + params[1];
+    }
 });
 
 /*
@@ -359,3 +418,312 @@ vega.expressionFunction('timezoneFormat', function(date, params) {
     const tzDate = new Date(0,0,0,0,Math.abs(tzOffsetNumber));
     return `${ tzOffsetNumber > 0 ? '-' : '+'}${("" + tzDate.getHours()).padStart(2, '0')}:${("" + tzDate.getMinutes()).padStart(2, '0')}` + ' (' + timezoneString + ')';
 });
+
+/*
+ * Convert any currency codes in the unit to currency symbols.
+ * This relies on the currencyToSymbolMap imported from currency-symbol-map/map.js
+ */
+const convertCurrencyCodeToSymbol = (unit) => {
+    return replaceMultiple(unit, currencySymbolMap);
+};
+
+/**
+ * Replaces multiple substrings in a given string based on a provided mapping object.
+ *
+ * @param {string} str - The input string in which replacements will be performed.
+ * @param {Object} mapObj - An object where keys are substrings to be replaced, and values are their corresponding replacements.
+ * @returns {string} - A new string with the specified substitutions applied.
+ *
+ * @example
+ * // Replace currency codes with symbols in the given string
+ * const inputString = "The price is 50 EUR/MWh, and 30 AUD/MWh.";
+ * const currencyMapping = { EUR: '€', AUD: '$' };
+ * const result = replace_multiple(inputString, currencyMapping);
+ * // The result will be "The price is 50 €/MWh, and 30 $/MWh."
+ */
+function replaceMultiple(str, mapObj){
+    // Create a regular expression pattern using the keys of the mapObj joined with "|" (OR) to match any of the substrings.
+    let regex = new RegExp(Object.keys(mapObj).join("|"),"g");
+    // Use the regular expression to replace matched substrings with their corresponding values from the mapObj.
+    // The "g" flag makes the replacement global (replaces all occurrences), and it is case-sensitive by default.
+    return str.replace(regex, matched => mapObj[matched]);
+}
+
+
+function getTimeAgo(timestamp) {
+    /**
+     * Converts a timestamp into a human-readable "time ago" format.
+     *
+     * @param {number} timestamp - The timestamp in milliseconds to convert.
+     * @returns {string} A string representing how much time has passed since the given timestamp,
+     *                   formatted as "X seconds ago", "X minutes ago", "X hours ago", or "X days ago".
+     */
+    const now = Date.now();
+    const diffInSeconds = Math.floor((now - timestamp) / 1000); // Difference in seconds
+    if (diffInSeconds < 60) {
+        return `${diffInSeconds} seconds ago`;
+    } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
+}
+
+// Renders a date in the local timezone, including day of the week.
+// e.g. "Fri, 22 May 2020"
+const dateFormatter = new Intl.DateTimeFormat(
+  [], {"year": "numeric", "month": "long", "day": "numeric"}
+)
+
+// Renders an HH:MM time in the local timezone, including timezone info.
+// e.g. "12:17 BST"
+const timeFormatter = new Intl.DateTimeFormat(
+  [], {"hour": "numeric", "minute": "numeric", "timeZoneName": "short"}
+)
+
+/** Given an ISO 8601 date string, render it as a more friendly date
+ *  in the user's timezone.
+ * 
+ *  Examples:
+ *  - "today @ 12:00 BST"
+ *  - "yesterday @ 11:00 CST"
+ *  - "Fri, 22 May 2020 @ 10:00 PST"
+ */
+function getHumanFriendlyDateString(iso8601_date_string) {
+  const date = new Date(Date.parse(iso8601_date_string));
+
+  // When are today and yesterday?
+  const today = new Date();
+  const yesterday = new Date().setDate(today.getDate() - 1);
+
+  // We have to compare the *formatted* dates rather than the actual dates --
+  // for example, if the UTC date and the localised date fall on either side
+  // of midnight.
+  if (dateFormatter.format(date) == dateFormatter.format(today)) {
+    return "today @ " + timeFormatter.format(date);
+  } else if (dateFormatter.format(date) == dateFormatter.format(yesterday)) {
+    return "yesterday @ " + timeFormatter.format(date);
+  } else {
+    return dateFormatter.format(date) + " @ " + timeFormatter.format(date);
+  }
+}
+
+/** Given an ISO 8601 date string, render a human-friendly description
+ *  of how long ago it was, if recent.
+ *
+ *  Examples:
+ *  - "just now"
+ *  - "10 seconds ago"
+ *  - "20 minutes ago"
+ * 
+ * If longer ago than 24 hours, let getHumanFriendlyDateString take over.
+ */
+function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string) {
+  const date = new Date(Date.parse(iso8601_date_string));
+  const now = new Date();
+
+  // The raw difference in milliseconds (negative if 'date' is in the future)
+  const deltaMilliseconds = now - date;
+
+  // Determine if the date is in the future or past (negative means future and positive means past)
+  const isFuture = deltaMilliseconds < 0;
+  let suffix = isFuture ? " from now" : " ago"; // Use " from now" for future, " ago" for past
+
+  // Use the absolute value for all time unit calculations
+  const absDeltaMilliseconds = Math.abs(deltaMilliseconds);
+
+  const deltaSeconds = Math.floor(absDeltaMilliseconds / 1000);
+  const deltaMinutes = Math.floor(deltaSeconds / 60);
+  const deltaHours = Math.floor(deltaMinutes / 60);
+  const deltaDays = Math.floor(deltaHours / 24);
+
+  // --- Logic for Seconds and Minutes ---
+
+  if (deltaSeconds < 5) {
+    return "just now";
+  } else if (deltaSeconds < 60) {
+    return deltaSeconds + " seconds" + suffix;
+  } else if (deltaMinutes === 1) {
+    return "1 minute" + suffix;
+  } else if (deltaMinutes < 60) {
+    return deltaMinutes + " minutes" + suffix;
+  }
+
+  // --- Logic for Hours ---
+  else if (deltaHours === 1) {
+    return "1 hour" + suffix;
+  } else if (deltaHours < 24) {
+    return deltaHours + " hours" + suffix;
+  }
+
+  // --- Logic for Days (24+ hours) ---
+
+  // 1. Handle Tomorrow/Yesterday
+  else if (deltaDays === 1) {
+    if (isFuture) {
+      return "tomorrow";
+    } else {
+      return "yesterday";
+    }
+  }
+
+  // 2. Handle Up to 7 Days (e.g., "in 3 days" or "3 days ago")
+  else if (deltaDays < 7) {
+    if (isFuture) {
+      return "in " + deltaDays + " days";
+    } else {
+      return deltaDays + " days ago";
+    }
+  }
+
+  // 3. Fallback: Too far in the past or future
+  else {
+    // If the difference is 7 days or more, return the full date string.
+    return getHumanFriendlyDateString(iso8601_date_string);
+  }
+}
+
+// Function to return a loading row for a table
+function getLoadingRow(id="loading-row") {
+    const loading_row = `
+        <tr id="${id}">
+            <td colspan="5" class="text-center">
+                <i class="fa fa-spinner fa-spin"></i> Loading...
+            </td>
+        </tr>
+    `;
+    return loading_row;
+}
+
+function unpackData(data) {
+    return Object.fromEntries(
+        Object.entries(data).map(([key, value]) => {
+            if (Array.isArray(value) && value.every(item => Array.isArray(item) && item.length === 2)) {
+                return [key, Object.fromEntries(value)];
+            }
+            console.error(`Invalid entry for key: ${key}`, value);
+            return [key, value];
+        })
+    );
+}
+
+function getLatestBeliefName(data) {
+    return Object.keys(data).reduce((latest, name) => {
+        const currentBeliefTime = new Date(data[name]["Last recorded"]);
+        const latestBeliefTime = latest ? new Date(data[latest]["Last recorded"]) : new Date(0);
+        return currentBeliefTime > latestBeliefTime ? name : latest;
+    }, null);
+}
+
+function updateStatsTable(stats, tableBody) {
+    tableBody.innerHTML = ''; // Clear the table body
+
+    Object.entries(stats).forEach(([key, val]) => {
+        const row = document.createElement('tr');
+        const keyCell = document.createElement('th');
+        var valueTitle = "";
+        const valueCell = document.createElement('td');
+
+        keyCell.textContent = key;
+        // Round value to 2 decimal points if it's a number
+        if (typeof val === 'number' & key != 'Number of values') {
+            valueCell.textContent = val.toFixed(4);
+        } else if (typeof val === 'string' & (key.includes("First") | key.includes("Last"))) {
+            valueCell.textContent = getHumanFriendlyDeltaOrTimeStr(val);
+            valueTitle = val;
+        } else {
+            valueCell.textContent = val;
+        }
+
+        if (valueTitle !== ""){
+            valueCell.setAttribute("title", valueTitle);
+        }
+        row.appendChild(keyCell);
+        row.appendChild(valueCell);
+        tableBody.appendChild(row);
+    });
+}
+
+function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
+    const spinner = document.getElementById('spinner-run-simulation');
+    const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
+    const tableBody = document.getElementById('statsTableBody');
+    const toggleStatsCheckbox = document.getElementById('toggleStatsCheckbox');
+    const dropdownMenu = document.getElementById('sourceKeyDropdownMenu');
+    const dropdownButton = document.getElementById('sourceKeyDropdown');
+    const noDataWarning = document.getElementById('noDataWarning');
+    const fetchError = document.getElementById('fetchError');
+    let queryParams = '?sort=false';
+    // Show the spinner
+    spinner.classList.remove('d-none');
+    if (toggleStatsCheckbox.checked) {
+        queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
+    }
+    
+    // Enable all the default behaviors on every API call.
+    dropdownMenu.innerHTML = '';
+    noDataWarning.classList.add('d-none');
+    fetchError.classList.add('d-none');
+    tableBody.innerHTML = '';
+    
+    fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)
+    .then(response => response.json())
+    .then(data => {
+        // Remove 'status' sourceKey
+        delete data['status'];
+        data = unpackData(data);
+
+        if (Object.keys(data).length > 0) {
+            // Show the header and dropdown container
+            dropdownContainer.classList.remove('d-none');
+            // Populate the dropdown menu with sourceKeys
+            Object.keys(data).forEach(sourceKey => {
+                const dropdownItem = document.createElement('li');
+                const dropdownLink = document.createElement('a');
+                dropdownLink.className = 'dropdown-item';
+                dropdownLink.href = '#';
+                dropdownLink.textContent = sourceKey;
+                dropdownLink.dataset.sourceKey = sourceKey;
+
+                dropdownLink.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const selectedSourceKey = event.target.dataset.sourceKey;
+                    dropdownButton.textContent = selectedSourceKey;
+                    updateStatsTable(data[selectedSourceKey], tableBody);
+                });
+
+                dropdownItem.appendChild(dropdownLink);
+                dropdownMenu.appendChild(dropdownItem);
+            });
+
+            // Update the table with the first sourceKey's data by default
+            const firstSourceKey = getLatestBeliefName(data);
+            dropdownButton.textContent = firstSourceKey;
+            updateStatsTable(data[firstSourceKey], tableBody);
+        } else {
+            // If the stats table is empty, make the properties table full width
+            noDataWarning.classList.remove('d-none');
+            dropdownContainer.classList.add('d-none');
+            tableBody.innerHTML = '';
+            if (toggleStatsCheckbox.checked) {
+                noDataWarning.innerHTML = 'There is no data for the selected date range.'
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        dropdownContainer.classList.add('d-none');
+        fetchError.textContent = 'There was a problem fetching statistics for this sensor\'s data: ' + error.message;
+        fetchError.classList.remove('d-none');
+    })
+    .finally(() => {
+        // Hide the spinner
+        spinner.classList.add('d-none');
+    });
+
+}

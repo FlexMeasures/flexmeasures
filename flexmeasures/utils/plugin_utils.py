@@ -31,11 +31,6 @@ def register_plugins(app: Flask):  # noqa: C901
     (last part of the path).
     """
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
-    if not plugins and "FLEXMEASURES_PLUGIN_PATHS" in app.config:
-        app.logger.warning(
-            "Plugins found via FLEXMEASURES_PLUGIN_PATHS. This setting will be sunset in v0.14. Please switch to FLEXMEASURES_PLUGINS."
-        )
-        plugins = app.config.get("FLEXMEASURES_PLUGIN_PATHS", [])
     if isinstance(plugins, str):
         plugins = [
             plugin.strip() for plugin in plugins.split(",") if len(plugin.strip()) > 0
@@ -107,20 +102,21 @@ def register_plugins(app: Flask):  # noqa: C901
             app.register_blueprint(plugin_blueprint)
 
         # Load reporters and schedulers
+        from flexmeasures.data.models.forecasting import Forecaster
         from flexmeasures.data.models.reporting import Reporter
         from flexmeasures.data.models.planning import Scheduler
 
+        plugin_forecasters = get_classes_module(module.__name__, Forecaster)
         plugin_reporters = get_classes_module(module.__name__, Reporter)
         plugin_schedulers = get_classes_module(module.__name__, Scheduler)
 
         # add DataGenerators
-        # for legacy, we still maintain app.reporters and app.schedulers
+        if plugin_forecasters:
+            app.data_generators["forecaster"].update(plugin_forecasters)
         if plugin_reporters:
             app.data_generators["reporter"].update(plugin_reporters)
-            app.reporters.update(plugin_reporters)
         if plugin_schedulers:
             app.data_generators["scheduler"].update(plugin_schedulers)
-            app.schedulers.update(plugin_schedulers)
 
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")

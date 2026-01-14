@@ -1,4 +1,6 @@
-from typing import List, Union, Tuple, Type
+from __future__ import annotations
+
+from typing import Type
 
 
 class MissingAttributeException(Exception):
@@ -11,7 +13,7 @@ class WrongTypeAttributeException(Exception):
 
 def check_required_attributes(
     sensor: "Sensor",  # noqa: F821
-    attributes: List[Union[str, Tuple[str, Union[Type, Tuple[Type, ...]]]]],
+    attributes: list[str | tuple[str, Type | tuple[Type, ...]]],
 ):
     """Raises if any attribute in the list of attributes is missing on the Sensor, or has the wrong type.
 
@@ -19,8 +21,8 @@ def check_required_attributes(
     :param attributes: List of either an attribute name or a tuple of an attribute name and its allowed type
                        (the allowed type may also be a tuple of several allowed types)
     """
-    missing_attributes: List[str] = []
-    wrong_type_attributes: List[Tuple[str, Type, Type]] = []
+    missing_attributes: list[str] = []
+    wrong_type_attributes: list[tuple[str, Type, Type]] = []
     for attribute_field in attributes:
         if isinstance(attribute_field, str):
             attribute_name = attribute_field
@@ -32,12 +34,11 @@ def check_required_attributes(
             raise ValueError("Unexpected declaration of attributes")
 
         # Check attribute exists
-        if not sensor.has_attribute(attribute_name):
+        if (attribute := sensor.get_attribute(attribute_name)) is None:
             missing_attributes.append(attribute_name)
 
         # Check attribute is of the expected type
         if expected_attribute_type is not None:
-            attribute = sensor.get_attribute(attribute_name)
             if not isinstance(attribute, expected_attribute_type):
                 wrong_type_attributes.append(
                     (attribute_name, type(attribute), expected_attribute_type)

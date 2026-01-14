@@ -1,7 +1,7 @@
 from datetime import timedelta, datetime
 
 import pytest
-from sqlalchemy.orm import Query
+from sqlalchemy import select, Select
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.forecasting import (
@@ -19,7 +19,7 @@ from flexmeasures.utils.time_utils import as_server_time
 
 
 def test_forecasting_three_hours_of_wind(
-    app, run_as_cli, setup_fresh_test_data, clean_redis
+    app, run_as_cli, setup_fresh_test_data, clean_redis, fresh_db
 ):
     # asset has only 1 power sensor
     wind_device_2: Sensor = setup_fresh_test_data["wind-asset-2"].sensors[0]
@@ -37,21 +37,21 @@ def test_forecasting_three_hours_of_wind(
 
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
-    forecasts = (
-        TimedBelief.query.filter(TimedBelief.sensor_id == wind_device_2.id)
+    forecasts = fresh_db.session.scalars(
+        select(TimedBelief)
+        .filter(TimedBelief.sensor_id == wind_device_2.id)
         .filter(TimedBelief.belief_horizon == horizon)
         .filter(
             (TimedBelief.event_start >= as_server_time(datetime(2015, 1, 1, 11)))
             & (TimedBelief.event_start < as_server_time(datetime(2015, 1, 1, 14)))
         )
-        .all()
-    )
+    ).all()
     assert len(forecasts) == 12
     check_aggregate(12, horizon, wind_device_2.id)
 
 
 def test_forecasting_two_hours_of_solar(
-    app, run_as_cli, setup_fresh_test_data, clean_redis
+    app, run_as_cli, setup_fresh_test_data, clean_redis, fresh_db
 ):
     # asset has only 1 power sensor
     solar_device_1: Sensor = setup_fresh_test_data["solar-asset-1"].sensors[0]
@@ -68,15 +68,15 @@ def test_forecasting_two_hours_of_solar(
     print("Job: %s" % job[0].id)
 
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
-    forecasts = (
-        TimedBelief.query.filter(TimedBelief.sensor_id == solar_device_1.id)
+    forecasts = fresh_db.session.scalars(
+        select(TimedBelief)
+        .filter(TimedBelief.sensor_id == solar_device_1.id)
         .filter(TimedBelief.belief_horizon == horizon)
         .filter(
             (TimedBelief.event_start >= as_server_time(datetime(2015, 1, 1, 13)))
             & (TimedBelief.event_start < as_server_time(datetime(2015, 1, 1, 15)))
         )
-        .all()
-    )
+    ).all()
     assert len(forecasts) == 8
     check_aggregate(8, horizon, solar_device_1.id)
 
@@ -95,6 +95,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     setup_fresh_test_data,
     model_to_start_with,
     model_version,
+    fresh_db,
 ):
     """
     Here we fail once - because we start with a model that needs too much training.
@@ -139,10 +140,11 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     )
 
     # this query is useful to check data:
-    def make_query(the_horizon_hours: int) -> Query:
+    def make_query(the_horizon_hours: int) -> Select:
         the_horizon = timedelta(hours=the_horizon_hours)
         return (
-            TimedBelief.query.filter(TimedBelief.sensor_id == solar_device_1.id)
+            select(TimedBelief)
+            .filter(TimedBelief.sensor_id == solar_device_1.id)
             .filter(TimedBelief.belief_horizon == the_horizon)
             .filter(
                 (
@@ -161,13 +163,15 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
         )
 
     # The successful (linear or naive) OLS leads to these.
-    forecasts = make_query(the_horizon_hours=horizon_hours).all()
+    forecasts = fresh_db.session.scalars(
+        make_query(the_horizon_hours=horizon_hours)
+    ).all()
 
     assert len(forecasts) == 8
     check_aggregate(8, horizon, solar_device_1.id)
 
     if model_to_start_with == "linear-OLS":
-        existing_data = make_query(the_horizon_hours=0).all()
+        existing_data = fresh_db.session.scalars(make_query(the_horizon_hours=0)).all()
 
         for ed, fd in zip(existing_data, forecasts):
             assert ed.event_value == fd.event_value

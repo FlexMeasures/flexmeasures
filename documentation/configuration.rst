@@ -13,7 +13,7 @@ Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 
 * in the user's home directory (e.g. ``~/.flexmeasures.cfg`` on Unix). In this case, note the dot at the beginning of the filename!
-* in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``.
+* in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``. Under :ref:`docker_configuration`, we explain how to load a config file into a FlexMeasures Docker container.
 
 
 Basic functionality
@@ -92,19 +92,13 @@ Default: ``[]``
 .. note:: This setting is also recognized as environment variable (since v0.14, which is also the version required to pass this setting as a string).
 
 
-FLEXMEASURES_DB_BACKUP_PATH
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Relative path to the folder where database backups are stored if that feature is being used.
-
-Default: ``"migrations/dumps"``
 
 FLEXMEASURES_PROFILE_REQUESTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If True, the processing time of requests are profiled.
 
-The overall time used by requests are logged to the console. In addiition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
+The overall time used by requests are logged to the console. In addition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
 
 The profiling results are stored in the ``profile_reports`` folder in the instance directory.
 
@@ -113,6 +107,24 @@ Note: Profile reports for API endpoints are overwritten on repetition of the sam
 Interesting for developers.
 
 Default: ``False``
+
+
+FLEXMEASURES_PROFILER_CONFIG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
+
+Interesting for developers.
+
+Default:
+
+.. code-block:: python
+
+   dict(
+       async_mode="disabled",
+       interval=0.01,  # 10 ms sampling interval, enables coarse timer
+       use_timing_thread=True,
+   )
 
 
 UI
@@ -139,6 +151,35 @@ A URL path to identify an image being used as logo in the upper left corner (rep
 The path can be a complete URL or a relative from the app root. 
 
 Default: ``""``
+
+
+FLEXMEASURES_SUPPORT_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can ask the FlexMeasures host for technical support.
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+FLEXMEASURES_SIGNUP_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can create an account (or ask the FlexMeasures host for one).
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+FLEXMEASURES_TOS_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can see the terms of service (TOS) under which FlexMeasures is being hosted.
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
 
 
 .. _extra-css-config:
@@ -290,6 +331,16 @@ The default DataSource of the resulting data from `DataGeneration` classes.
 Default: ``"FlexMeasures"``
 
 
+.. _bounding_box_config:
+
+FLEXMEASURES_DEFAULT_BOUNDING_BOX
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The default bounding box of maps if the user has no geolocated assets yet.
+
+Default: ``(54, 2), (50.732, 7.808)`` (`The Netherlands after the oceans drop 50 meters <https://what-if.xkcd.com/53/>`_)
+
+
 .. _planning_horizon_config:
 
 FLEXMEASURES_PLANNING_HORIZON
@@ -360,15 +411,15 @@ SQLALCHEMY_ENGINE_OPTIONS
 
 Configuration of the SQLAlchemy engine.
 
-Default: 
+Default:
 
 .. code-block:: python
 
-       {
-           "pool_recycle": 299,
-           "pool_pre_ping": True,
-           "connect_args": {"options": "-c timezone=utc"},
-       }
+   {
+       "pool_recycle": 299,
+       "pool_pre_ping": True,
+       "connect_args": {"options": "-c timezone=utc"},
+   }
 
 
 SQLALCHEMY_TEST_DATABASE_URI
@@ -384,7 +435,9 @@ You can use this setting to overwrite that URI and point the tests to an (empty)
 Security
 --------
 
-This is only a selection of the most important settings.
+Settings to ensure secure handling of credentials and data.
+
+For Flask-Security and Flask-Cors (setting names start with "SECURITY" or "CORS"), this is only a selection of the most important settings.
 See `the Flask-Security Docs <https://flask-security-too.readthedocs.io/en/stable/configuration.html>`_ as well as the `Flask-CORS docs <https://flask-cors.readthedocs.io/en/latest/configuration.html>`_ for all possibilities.
 
 SECRET_KEY (**)
@@ -400,6 +453,20 @@ You can also set this in a file (which some Flask tutorials advise).
 
 Default: ``None``
 
+
+.. _security_totp_secrets:
+
+SECURITY_TOTP_SECRETS
+^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary with secrets used to sign :abbr:`TOTP (time-based one-time password)` tokens.
+For example, ``{"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}``.
+
+Default: ``None``
+
+.. note:: Leave this setting set to ``None`` to get more instructions when you attempt to run FlexMeasures.
+          This setting is also recognized as environment variable.
+
 SECURITY_PASSWORD_SALT
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -412,6 +479,8 @@ SECURITY_TOKEN_AUTHENTICATION_HEADER
 
 Name of the header which carries the auth bearer token in API requests.
 
+.. warning:: If you change this, make sure your API clients know about this! For instance, `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_. expects the default.
+
 Default: ``Authorization``
 
 SECURITY_TOKEN_MAX_AGE
@@ -419,13 +488,15 @@ SECURITY_TOKEN_MAX_AGE
 
 Maximal age of security tokens in seconds.
 
+.. note:: Token expiration time can be user-specific, see `SECURITY_TOKEN_EXPIRE_TIMESTAMP <https://flask-security-too.readthedocs.io/en/stable/configuration.html#SECURITY_TOKEN_EXPIRE_TIMESTAMP>`_.
+
 Default: ``60 * 60 * 6``  (six hours)
 
 SECURITY_TRACKABLE
 ^^^^^^^^^^^^^^^^^^
 
 Whether to track user statistics. Turning this on requires certain user fields.
-We do not use this feature, but we do track number of logins.
+FlexMeasures does not use this feature, but does track when a user was last seen and their number of logins.
 
 Default: ``False``
 
@@ -452,6 +523,21 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 
 Default: ``True``
 
+
+FLEXMEASURES_FORCE_HTTPS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set to ``True`` if all requests should be forced to be HTTPS.
+
+Default: ``False``
+
+
+FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``True``, the ``<meta>`` tag with the ``Content-Security-Policy`` directive, specifically ``upgrade-insecure-requests``, is included in the HTML head. This directive instructs the browser to upgrade insecure requests from ``http`` to ``https``. One example of a use case for this is if you have a load balancer in front of FlexMeasures, which is secured with a certificate and only accepts https.
+
+Default: ``False``
 
 
 .. _mail-config:
@@ -526,7 +612,7 @@ Password of mail system user.
 Default: ``None``
 
 
-.. _monitoring
+.. _monitoring:
 
 Monitoring
 -----------
@@ -647,3 +733,21 @@ FLEXMEASURES_API_SUNSET_LINK
 Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
+
+.. _reporters-config:
+
+Reporters
+---------
+
+FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Type: list of strings or comma-separated string
+
+Defines the set of transformation methods in Pandas Reporters that should **skip signature validation**. These are typically “pseudo-methods” that are not native methods of Pandas or BeliefsDataFrame, but are still allowed in reporter transformations. Arguments for these methods are validated with custom rules rather than against Python method signatures.
+
+Extend this list if you want to permit additional pseudo-methods in reporter pipelines.
+
+.. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
+
+Default: ``["get_attribute"]``

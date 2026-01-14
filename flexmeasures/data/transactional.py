@@ -2,6 +2,7 @@
 These, and only these, functions should help you with treating your own code
 in the context of one database transaction. Which makes our lives easier.
 """
+
 from __future__ import annotations
 
 import sys
@@ -42,7 +43,7 @@ def as_transaction(db_function):
                 "[%s] Encountered Problem: %s" % (db_function.__name__, str(e))
             )
             the_db.session.rollback()
-            raise
+            raise  # re-raise the last exception that was caught
         finally:
             if close_session:
                 the_db.session.close()
@@ -84,7 +85,8 @@ def task_with_status_report(task_function, task_name: str | None = None):
     still needs to add to the session).
     If the task wants to commit partial results, and at the same time report that some things did not run well,
     it can raise a PartialTaskCompletionException and we recommend to use save-points (db.session.being_nested) to
-    do partial rollbacks (see https://docs.sqlalchemy.org/en/latest/orm/session_transaction.html#using-savepoint)."""
+    do partial rollbacks (see https://docs.sqlalchemy.org/en/latest/orm/session_transaction.html#using-savepoint).
+    """
 
     task_name_to_report = (
         task_name  # store this closure var somewhere else before we might assign to it

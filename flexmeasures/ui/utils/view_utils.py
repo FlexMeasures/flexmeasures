@@ -1,43 +1,78 @@
 """Utilities for views"""
+
 from __future__ import annotations
 
+from functools import wraps
 import json
 import os
 import subprocess
 
+from sqlalchemy import select
 from flask import render_template, request, session, current_app
 from flask_security.core import current_user
 
+from flexmeasures.data import db
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.auth.policy import user_has_admin_access
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.chart_defaults import chart_options
+from flexmeasures.ui.utils.color_defaults import get_color_settings
 
 
+def fall_back_to_flask_template(render_function):
+    """In case the render_function is raising an error, fall back to using flask.render_template."""
+
+    @wraps(render_function)
+    def wrapper(template_name, *args, **kwargs):
+        try:
+            return render_function(template_name, *args, **kwargs)
+        except Exception as e:
+            current_app.logger.warning(
+                f"""Rendering via Flask's render_template("{template_name}"). """
+                f"""Failed to render via {render_function.__name__}("{template_name}") due to {e}."""
+            )
+            return render_template(template_name, **kwargs)
+
+    return wrapper
+
+
+@fall_back_to_flask_template
 def render_flexmeasures_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
-    variables["flask_env"] = current_app.env
-    variables["documentation_exists"] = False
-    if os.path.exists(
-        "%s/static/documentation/html/index.html" % flexmeasures_ui.root_path
-    ):
-        variables["documentation_exists"] = True
+    variables["FLEXMEASURES_ALLOW_DATA_OVERWRITE"] = current_app.config.get(
+        "FLEXMEASURES_ALLOW_DATA_OVERWRITE"
+    )
+    variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
+        "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
+    )
+    variables["FLEXMEASURES_SUPPORT_PAGE"] = current_app.config.get(
+        "FLEXMEASURES_SUPPORT_PAGE"
+    )
+    variables["FLEXMEASURES_SIGNUP_PAGE"] = current_app.config.get(
+        "FLEXMEASURES_SIGNUP_PAGE"
+    )
+    variables["FLEXMEASURES_TOS_PAGE"] = current_app.config.get("FLEXMEASURES_TOS_PAGE")
+    variables["openapi_docs_exist"] = False
+    if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path):
+        variables["openapi_docs_exist"] = True
 
-    variables["event_starts_after"] = session.get("event_starts_after")
-    variables["event_ends_before"] = session.get("event_ends_before")
+    # Use event_starts_after and event_ends_before from session if not given
+    # and resolve url encoding issue for timezone offsets with plus sign
+    for key in ["event_starts_after", "event_ends_before"]:
+        value = variables.get(key) or session.get(key)
+        if isinstance(value, str):
+            value = value.replace(" ", "+")
+        variables[key] = value
+
     variables["chart_type"] = session.get("chart_type", "bar_chart")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
 
     variables["resolution"] = session.get("resolution", "")
-    variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(
-        session.get("resolution", "")
-    )
-    variables["horizon_human"] = time_utils.freq_label_to_human_readable_label(
-        session.get("forecast_horizon", "")
-    )
 
     variables["flexmeasures_version"] = flexmeasures_version
 
@@ -58,9 +93,10 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_has_admin_reader_rights"] = user_has_admin_access(
         current_user, "read"
     )
-    variables[
-        "user_is_anonymous"
-    ] = current_user.is_authenticated and current_user.has_role("anonymous")
+    variables["user_is_consultant"] = current_user.has_role("consultant")
+    variables["user_is_anonymous"] = (
+        current_user.is_authenticated and current_user.has_role("anonymous")
+    )
     variables["user_email"] = current_user.is_authenticated and current_user.email or ""
     variables["user_name"] = (
         current_user.is_authenticated and current_user.username or ""
@@ -76,22 +112,58 @@ def render_flexmeasures_template(html_filename: str, **variables):
         options["downloadFileName"] = f"asset-{asset.id}-{asset.name}"
     variables["chart_options"] = json.dumps(options)
 
-    variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+    account: Account | None = (
+        current_user.account if current_user.is_authenticated else None
+    )
+
+    # check if user/consultant has logo_url set
+    if account:
+        variables["menu_logo"] = (
+            account.logo_url
+            or (account.consultancy_account and account.consultancy_account.logo_url)
+            or current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+        )
+    else:
+        variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
+
+    if "asset" in variables:
+        current_page = variables.get("current_page")
+        variables["breadcrumb_info"] = get_breadcrumb_info(
+            asset, current_page=current_page
+        )
+    variables.update(get_color_settings(account))  # add color settings to variables
 
     return render_template(html_filename, **variables)
 
 
-def clear_session():
-    for skey in [
-        k
-        for k in session.keys()
-        if k not in ("_fresh", "_id", "_user_id", "csrf_token", "fs_cc", "fs_paa")
-    ]:
-        current_app.logger.info(
-            "Removing %s:%s from session ... " % (skey, session[skey])
-        )
-        del session[skey]
+def clear_session(keys_to_clear: list[str] = None):
+    """
+    Clear out session variables.
+
+    If keys_to_clear is provided, only clear out those specific session variables.
+    Otherwise, clear out all session variables except for some special ones
+    (e.g. Flask-Security's, CSRF token, and our own session variables).
+    """
+    if keys_to_clear:
+        for skey in keys_to_clear:
+            if skey not in session:
+                continue
+            current_app.logger.info(
+                "Removing %s:%s from session ... " % (skey, session[skey])
+            )
+            del session[skey]
+    else:
+        for skey in [
+            k
+            for k in session.keys()
+            if k not in ("_fresh", "_id", "_user_id", "csrf_token", "fs_cc", "fs_paa")
+        ]:
+            current_app.logger.info(
+                "Removing %s:%s from session ... " % (skey, session[skey])
+            )
+            del session[skey]
 
 
 def set_session_variables(*var_names: str):
@@ -149,6 +221,37 @@ def get_git_description() -> tuple[str, int, str]:
     return version, commits_since, sha
 
 
+ICON_MAPPING = {
+    # site structure
+    "evse": "icon-charging_station",
+    "charge point": "icon-charging_station",
+    "project": "icon-calculator",
+    "tariff": "icon-time",
+    "renewables": "icon-wind",
+    "site": "icon-empty-marker",
+    "scenario": "icon-binoculars",
+    # weather
+    "irradiance": "wi wi-horizon-alt",
+    "temperature": "wi wi-thermometer",
+    "wind direction": "wi wi-wind-direction",
+    "wind speed": "wi wi-strong-wind",
+}
+
+SVG_ICON_MAPPING = {
+    # site structure
+    "building": "https://api.iconify.design/mdi/home-city.svg",
+    "battery": "https://api.iconify.design/mdi/battery.svg",
+    "simulation": "https://api.iconify.design/mdi/home-city.svg",
+    "site": "https://api.iconify.design/mdi/map-marker-outline.svg",
+    "scenario": "https://api.iconify.design/mdi/binoculars.svg",
+    "pv": "https://api.iconify.design/wi/day-sunny.svg",
+    "solar": "https://api.iconify.design/wi/day-sunny.svg",
+    "chargepoint": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "ev": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "add_asset": "https://api.iconify.design/material-symbols/add-rounded.svg?color=white",  # Plus Icon for Add Asset
+}
+
+
 def asset_icon_name(asset_type_name: str) -> str:
     """Icon name for this asset type.
 
@@ -160,26 +263,22 @@ def asset_icon_name(asset_type_name: str) -> str:
     becomes (for a battery):
         <i class="icon-battery"></i>
     """
-    # power asset exceptions
-    if "evse" in asset_type_name.lower():
-        return "icon-charging_station"
-    # weather exceptions
-    if asset_type_name == "irradiance":
-        return "wi wi-horizon-alt"
-    elif asset_type_name == "temperature":
-        return "wi wi-thermometer"
-    elif asset_type_name == "wind direction":
-        return "wi wi-wind-direction"
-    elif asset_type_name == "wind speed":
-        return "wi wi-strong-wind"
-    # aggregation exceptions
-    elif asset_type_name == "renewables":
-        return "icon-wind"
-    return f"icon-{asset_type_name}"
+    if asset_type_name:
+        asset_type_name = asset_type_name.lower()
+    return ICON_MAPPING.get(asset_type_name, f"icon-{asset_type_name}")
+
+
+def svg_asset_icon_name(asset_type_name: str) -> str:
+
+    if asset_type_name:
+        asset_type_name = asset_type_name.split(".")[-1].lower()
+    return SVG_ICON_MAPPING.get(
+        asset_type_name, "https://api.iconify.design/fa-solid/question-circle.svg"
+    )
 
 
 def username(user_id) -> str:
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if user is None:
         current_app.logger.warning(f"Could not find user with id {user_id}")
         return ""
@@ -188,9 +287,18 @@ def username(user_id) -> str:
 
 
 def accountname(account_id) -> str:
-    account = Account.query.get(account_id)
+    account = db.session.get(Account, account_id)
     if account is None:
         current_app.logger.warning(f"Could not find account with id {account_id}")
         return ""
     else:
         return account.name
+
+
+def available_units() -> list[str]:
+    """
+    Return a list of all available units from sensors currently in the database.
+    """
+
+    units = db.session.execute(select(Sensor.unit).distinct()).all()
+    return [unit[0] for unit in units]

@@ -1,2 +1,2 @@
 [run]
-omit = */tests/*, */scripts/*, **/*.jinja, **/*.html, **/*.txt
+omit = */documentation/*, */tests/*, */scripts/*, **/*.jinja, **/*.html, **/*.txt, flexmeasures/data/migrations/versions/*

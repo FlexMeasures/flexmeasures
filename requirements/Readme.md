@@ -18,4 +18,6 @@ Here, we describe the requirements. We give the name of a requirement or even a 
 
 These files are not to be edited by hand. They are created by `pip-compile` (or `make freeze-deps`).
 
-Each requirement is pinned to a specific version in these files. The great benefit is reproducability across environemnts (local dev as well as staging or production).
+Each requirement is pinned to a specific version in these files. The great benefit is reproducibility across environments (local dev as well as staging or production).
+
+To update the .txt files for all supported Python versions, see `ci/update-packages.sh`.

@@ -32,3 +32,11 @@ div .contents li {
 div.admonition.info-icon > .admonition-title:before {
   content: "\f05a"; /* the fa-circle-info icon */
 }
+
+/* Fix white-space wrapping in tables.
+ * See https://github.com/readthedocs/sphinx_rtd_theme/issues/1505
+ * This is included via html_static_path and html_style in conf.py
+ */
+.wy-table-responsive table td {
+    white-space: normal;
+}

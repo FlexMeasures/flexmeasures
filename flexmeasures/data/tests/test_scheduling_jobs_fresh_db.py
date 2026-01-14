@@ -2,6 +2,7 @@ from datetime import timedelta, datetime
 import pytz
 
 import pandas as pd
+from sqlalchemy import select
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
@@ -31,11 +32,14 @@ def test_scheduling_a_charging_station(
     soc_targets = [dict(datetime=target_datetime.isoformat(), value=target_soc)]
 
     assert (
-        DataSource.query.filter_by(name="Seita", type="scheduler").one_or_none() is None
+        db.session.execute(
+            select(DataSource).filter_by(name="Seita", type="scheduler")
+        ).scalar_one_or_none()
+        is None
     )  # Make sure the scheduler data source isn't there
 
     job = create_scheduling_job(
-        sensor=charging_station,
+        asset_or_sensor=charging_station,
         start=start,
         end=end,
         belief_time=start,
@@ -52,18 +56,18 @@ def test_scheduling_a_charging_station(
 
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
-    scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduler"
-    ).one_or_none()
+    scheduler_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="scheduler")
+    ).scalar_one_or_none()
     assert (
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    power_values = (
-        TimedBelief.query.filter(TimedBelief.sensor_id == charging_station.id)
+    power_values = db.session.scalars(
+        select(TimedBelief)
+        .filter(TimedBelief.sensor_id == charging_station.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
-        .all()
-    )
+    ).all()
     consumption_schedule = pd.Series(
         [-v.event_value for v in power_values],
         index=pd.DatetimeIndex([v.event_start for v in power_values]),

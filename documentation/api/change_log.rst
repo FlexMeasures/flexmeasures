@@ -5,6 +5,190 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-29 | 2025-12-30
+""""""""""""""""""""
+
+Added two new forecasting API endpoints:
+
+* `POST /sensors/<id>/forecasts/trigger` — queue forecasting jobs for a sensor
+* `GET /sensors/<id>/forecasts/<uuid>` — retrieve job status and forecast results
+
+These endpoints enable programmatic triggering and retrieval of forecasts via the REST API.
+
+Also:
+
+- Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
+- Added ``fields`` field to the `/assets` (GET) and `/assets/public` endpoints, to transfer less data by default (will be fully active, i.e. also returning less fiels per default, in v0.32).
+
+v3.0-28 | 2025-10-14
+""""""""""""""""""""
+- Moved documentation to OpenAPI standard (incl. smaller improvements), each instance now provides a Swagger UI.
+
+v3.0-27 | 2025-09-16
+""""""""""""""""""""
+- Fix schema validation in `PATCH /assets/<id>`.
+
+v3.0-26 | 2025-09-10
+""""""""""""""""""""
+- Added endpoint `POST /users`.
+- Added endpoint `GET /assets/types`.
+- Added endpoints `GET /sensors/<id>/data` and `POST /sensors/<id>/data`.
+- Moved endpoints `GET /sensors/data` and `POST /sensors/data` into deprecation. Their URL does not align with the style of other endpoints, and they rely on entity addresses instead of IDs, which has been confusing users (a concept we are fading out).
+
+
+v3.0-25 | 2025-07-24
+""""""""""""""""""""
+- Removed /play blueprint with endpoint `PUT /restoreData`.
+
+
+v3.0-24 | 2025-06-10
+""""""""""""""""""""
+- New API endpoint `[POST] /assets/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ to schedule a site with multiple flexible devices.
+- Introduce new ``relax-constraints`` field in the ``flex-context`` to relax all eligible constraints with default breach prices.
+- Updated message for 404 Not Found on endpoints for managing assets: `/assets` (GET, POST) and `/assets/<id>` (GET, PATCH, DELETE).
+
+
+v3.0-23 | 2025-04-08
+""""""""""""""""""""
+
+- Support saving the scheduled :abbr:`SoC (state of charge)` by referencing an appropriate sensor in the ``flex-model`` field ``state-of-charge``.
+- Introduce new price fields in the ``flex-context`` in order to relax device-level power constraints in the ``device-model``:
+
+  - ``consumption-breach-price``: if set, the ``consumption-capacity`` is used as a soft constraint.
+  - ``production-breach-price``: if set, the ``production-capacity`` is used as a soft constraint.
+  - In both cases, the price is applied both to (the height of) the highest breach in the planning window (as a per-kW price) and to (the area of) each breach that occurs (as a per-kW price per hour).
+    That means both high breaches and long breaches are penalized.
+
+v3.0-22 | 2025-03-17
+""""""""""""""""""""
+
+- Introduce new price fields in the ``flex-context`` in order to relax SoC constraints in the ``device-model``:
+
+  - ``soc-minima-breach-price``: if set, the ``soc-minima`` are used as a soft constraint.
+  - ``soc-maxima-breach-price``: if set, the ``soc-maxima`` are used as a soft constraint.
+  - In both cases, the price is applied both to (the height of) the highest breach in the planning window (as a per-kWh price) and to (the area of) each breach that occurs (as a per-kWh price per hour).
+    That means both high breaches and long breaches are penalized.
+
+- Fixed two alternatives for expressing a variable quantity as a time series; specifically, those involving the ``duration`` field.
+
+v3.0-22 | 2024-12-27
+""""""""""""""""""""
+
+- Allow using numeric values for ``flex-model`` fields accepting dimensionless quantities.
+
+v3.0-21 | 2024-12-16
+""""""""""""""""""""
+
+- Introduce new fields for defining capacity contracts and peak contracts in the ``flex-context``, used for scheduling against multiple contractual commitments simultaneously:
+
+  - ``site-consumption-breach-price``: if set, the ``site-consumption-capacity`` is used as a soft constraint.
+    The price is applied both to (the height of) the highest breach in the planning window (as a per-kW price) and to (the area of) each breach that occurs (as a per-kW price per hour).
+    That means both high breaches and long breaches are penalized.
+  - ``site-production-breach-price``: if set, the ``site-production-capacity`` is used as a soft constraint.
+    The price is applied both to (the height of) the highest breach in the planning window (as a per-kW price) and to (the area of) each breach that occurs (as a per-kW price per hour).
+    That means both high breaches and long breaches are penalized.
+  - ``site-peak-consumption-price``: consumption peaks above the ``site-peak-consumption`` are penalized against this per-kW price.
+  - ``site-peak-production-price``: production peaks above the ``site-peak-production`` are penalized against this per-kW price.
+  - ``site-peak-consumption``: current peak consumption; costs from peaks below it are considered sunk costs.
+  - ``site-peak-production``: current peak production; costs from peaks below it are considered sunk costs.
+
+v3.0-20 | 2024-09-18
+""""""""""""""""""""
+
+-  Introduce (optional) pagination to the endpoint `/assets` (GET), also adding the `all_accessible` option to allow querying all accessible accounts in one go.
+
+
+v3.0-19 | 2024-08-13
+""""""""""""""""""""
+
+- Allow passing a fixed price in the ``flex-context`` using the new fields ``consumption-price`` and ``production-price``, which are meant to replace the ``consumption-price-sensor`` and ``production-price-sensor`` fields, respectively.
+- Allow posting a single instantaneous belief as a list of one element to `/sensors/data` (POST).
+- Allow setting a SoC unit directly in some fields (formerly ``Float`` fields, and now ``Quantity`` fields), while still falling back on the contents of the ``soc-unit`` field, for backwards compatibility:
+
+  - ``soc-at-start``
+  - ``soc-min``
+  - ``soc-max``
+
+- Allow setting a unit directly in fields that already supported passing a time series:
+
+  - ``soc-maxima``
+  - ``soc-minima``
+  - ``soc-targets``
+
+- Allow passing a time series in fields that formerly only accepted passing a fixed quantity or a sensor reference:
+
+  - ``power-capacity``
+  - ``consumption-capacity``
+  - ``production-capacity``
+  - ``charging-efficiency``
+  - ``discharging-efficiency``
+  - ``storage-efficiency``
+  - ``soc-gain``
+  - ``soc-usage``
+
+- Added API notation section on variable quantities.
+- Updated section on scheduling; specifically, most flex-context and flex-model fields are now variable quantity fields, so a footnote now explains the few fields that aren't (yet) a variable quantity field.
+- Removed section on singular vs plural keys, which is no longer valid for crucial endpoints.
+
+v3.0-19 | 2024-08-09
+""""""""""""""""""""
+
+- Allow setting a SoC unit directly in some fields (formerly ``Float`` fields, and now ``Quantity`` fields), while still falling back on the contents of the ``soc-unit`` field, for backwards compatibility:
+
+  - ``soc-at-start``
+  - ``soc-min``
+  - ``soc-max``
+
+- Allow setting a unit directly in fields that already supported passing a time series:
+
+  - ``soc-maxima``
+  - ``soc-minima``
+  - ``soc-targets``
+
+- Allow passing a time series in fields that formerly only accepted passing a fixed quantity or a sensor reference:
+
+  - ``power-capacity``
+  - ``consumption-capacity``
+  - ``production-capacity``
+  - ``charging-efficiency``
+  - ``discharging-efficiency``
+  - ``storage-efficiency``
+  - ``soc-gain``
+  - ``soc-usage``
+
+
+v3.0-18 | 2024-03-07
+""""""""""""""""""""
+
+- Add support for providing a sensor definition to the ``soc-minima``, ``soc-maxima`` and ``soc-targets`` flex-model fields for `/sensors/<id>/schedules/trigger` (POST).
+
+v3.0-17 | 2024-02-26
+""""""""""""""""""""
+
+- Add support for providing a sensor definition to the ``site-power-capacity``, ``site-consumption-capacity`` and ``site-production-capacity`` flex-context fields for `/sensors/<id>/schedules/trigger` (POST).
+
+v3.0-16 | 2024-02-26
+""""""""""""""""""""
+
+- Fix support for providing a sensor definition to the ``power-capacity`` flex-model field for `/sensors/<id>/schedules/trigger` (POST).
+
+v3.0-15 | 2024-01-11
+""""""""""""""""""""
+
+- Support setting SoC constraints in the flex model for a given time period rather than a single datetime, using the new ``start``, ``end`` and/or ``duration`` fields of ``soc-maxima``, ``soc-minima`` and ``soc-targets``.
+
+v3.0-14 | 2023-12-07
+""""""""""""""""""""
+
+- Fix API version listing (GET /api/v3_0) for hosts running on Python 3.8.
+
+v3.0-13 | 2023-10-31
+""""""""""""""""""""
+
+- Read access to accounts, assets and sensors is given to external consultants (users with the *consultant* role who belong to a different organisation account) in case a consultancy relationship has been set up.
+- The `/accounts/<id>` (GET) endpoint includes the account ID of its consultancy.
+- Introduced the ``site-consumption-capacity`` and ``site-production-capacity`` to the ``flex-context`` field for `/sensors/<id>/schedules/trigger` (POST).
+
 v3.0-12 | 2023-09-20
 """"""""""""""""""""
 
@@ -21,7 +205,12 @@ v3.0-11 | 2023-08-02
 v3.0-10 | 2023-06-12
 """"""""""""""""""""
 
-- Introduced the ``storage-efficiency`` field to the ``flex-model``field for `/sensors/<id>/schedules/trigger` (POST).
+- Introduced new ``flex-model`` fields for `/sensors/<id>/schedules/trigger` (POST):
+
+  - ``storage-efficiency``
+  - ``soc-minima``
+  - ``soc-maxima``
+
 - Introduced the ``database_redis`` optional field to the response of the endpoint `/health/ready` (GET).
 
 v3.0-9 | 2023-04-26
@@ -91,7 +280,6 @@ v3.0-1 | 2022-05-08
 """""""""""""""""""
 
 - Added REST endpoint for checking application health (readiness to accept requests): `/health/ready` (GET).
-
 
 v3.0-0 | 2022-03-25
 """""""""""""""""""

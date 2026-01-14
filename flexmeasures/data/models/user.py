@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import List, Optional, Union, TYPE_CHECKING
-from datetime import datetime
+
+from typing import TYPE_CHECKING
+from datetime import datetime, timezone
 
 from flask_security import UserMixin, RoleMixin
 import pandas as pd
+from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -16,7 +18,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
@@ -60,10 +62,24 @@ class Account(db.Model, AuthModelMixin):
         secondary="roles_accounts",
         backref=backref("accounts", lazy="dynamic"),
     )
+    primary_color = Column(String(7), default=None)
+    secondary_color = Column(String(7), default=None)
+    logo_url = Column(String(255), default=None)
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
         backref=db.backref("accounts", lazy="dynamic"),
+    )
+
+    # Setup self-referential relationship between consultancy account and consultancy client account
+    consultancy_account_id = Column(
+        Integer, db.ForeignKey("account.id"), default=None, nullable=True
+    )
+    consultancy_client_accounts = db.relationship(
+        "Account", back_populates="consultancy_account"
+    )
+    consultancy_account = db.relationship(
+        "Account", back_populates="consultancy_client_accounts", remote_side=[id]
     )
 
     def __repr__(self):
@@ -71,17 +87,40 @@ class Account(db.Model, AuthModelMixin):
 
     def __acl__(self):
         """
-        Only account admins can create things in the account (e.g. users or assets).
+        Only account admins and consultants can create things in the account (e.g. users or assets).
+        Consultants (i.e. users with the consultant role) can read and update things in the account,
+        but only if their organization is set as a consultancy for the given account.
         Within same account, everyone can read and update.
-        Creation and deletion of accounts are left to site admins in CLI.
+        Deletion of accounts is left to site admins, using the CLI.
         """
+
+        read_access = [f"account:{self.id}"]
+        if self.consultancy_account_id is not None:
+            read_access.append(
+                (f"account:{self.consultancy_account_id}", f"role:{CONSULTANT_ROLE}")
+            )
         return {
-            "create-children": (f"account:{self.id}", "role:account-admin"),
-            "read": f"account:{self.id}",
-            "update": f"account:{self.id}",
+            "create-children": [
+                (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
+            "read": read_access,
+            "update": [
+                f"account:{self.id}",
+                (
+                    f"account:{self.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
         }
 
-    def has_role(self, role: Union[str, AccountRole]) -> bool:
+    def get_path(self, separator: str = ">"):
+        return self.name
+
+    def has_role(self, role: str | AccountRole) -> bool:
         """Returns `True` if the account has the specified role.
 
         :param role: An account role name or `AccountRole` instance"""
@@ -92,15 +131,15 @@ class Account(db.Model, AuthModelMixin):
 
     def search_annotations(
         self,
-        annotation_starts_after: Optional[datetime] = None,  # deprecated
-        annotations_after: Optional[datetime] = None,
-        annotation_ends_before: Optional[datetime] = None,  # deprecated
-        annotations_before: Optional[datetime] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
+        annotation_starts_after: datetime | None = None,  # deprecated
+        annotations_after: datetime | None = None,
+        annotation_ends_before: datetime | None = None,  # deprecated
+        annotations_before: datetime | None = None,
+        source: (
+            DataSource | list[DataSource] | int | list[int] | str | list[str] | None
+        ) = None,
         as_frame: bool = False,
-    ) -> Union[List[Annotation], pd.DataFrame]:
+    ) -> list[Annotation] | pd.DataFrame:
         """Return annotations assigned to this account.
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
@@ -126,9 +165,13 @@ class Account(db.Model, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        query = Annotation.query.join(AccountAnnotationRelationship).filter(
-            AccountAnnotationRelationship.account_id == self.id,
-            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        query = (
+            select(Annotation)
+            .join(AccountAnnotationRelationship)
+            .filter(
+                AccountAnnotationRelationship.account_id == self.id,
+                AccountAnnotationRelationship.annotation_id == Annotation.id,
+            )
         )
         if annotations_after is not None:
             query = query.filter(
@@ -142,9 +185,35 @@ class Account(db.Model, AuthModelMixin):
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
             )
-        annotations = query.all()
+        annotations = db.session.scalars(query).all()
 
         return to_annotation_frame(annotations) if as_frame else annotations
+
+    @property
+    def number_of_assets(self):
+        from flexmeasures.data.models.generic_assets import GenericAsset
+
+        return db.session.execute(
+            select(func.count()).where(GenericAsset.account_id == self.id)
+        ).scalar_one_or_none()
+
+    @property
+    def number_of_users(self):
+        return db.session.execute(
+            select(func.count()).where(User.account_id == self.id)
+        ).scalar_one_or_none()
+
+    def get_all_client_accounts(self) -> list[Account]:
+        """Get all consultancy client accounts for this account, recursively."""
+        all_clients = []
+
+        def _get_clients(account: Account):
+            for client in account.consultancy_client_accounts:
+                all_clients.append(client)
+                _get_clients(client)
+
+        _get_clients(self)
+        return all_clients
 
 
 class RolesUsers(db.Model):
@@ -194,6 +263,9 @@ class User(db.Model, UserMixin, AuthModelMixin):
     # How often have they logged in?
     login_count = Column(Integer)
     active = Column(Boolean())
+
+    tf_totp_secret = db.Column(db.String(255), nullable=True)
+    tf_primary_method = db.Column(db.String(255), nullable=True, default="email")
     # Faster token checking
     fs_uniquifier = Column(String(64), unique=True, nullable=False)
     timezone = Column(String(255), default="Europe/Amsterdam")
@@ -211,15 +283,25 @@ class User(db.Model, UserMixin, AuthModelMixin):
 
     def __acl__(self):
         """
-        Within same account, everyone can read.
-        Only the user themselves or account-admins can edit their user record.
+        Within the same account, everyone can read. Consultants as well.
+        Only the user themselves, consultants or account-admins can edit their user record.
         Creation and deletion are left to site admins in CLI.
         """
         return {
-            "read": f"account:{self.account_id}",
+            "read": [
+                f"account:{self.account_id}",
+                (
+                    f"account:{self.account.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
+            ],
             "update": [
                 f"user:{self.id}",
-                (f"account:{self.account_id}", "role:account-admin"),
+                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+                (
+                    f"account:{self.account.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                ),
             ],
         }
 
@@ -249,7 +331,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
         """See comment in roles property why we overload."""
         self.flexmeasures_roles = new_roles
 
-    def has_role(self, role: Union[str, Role]) -> bool:
+    def has_role(self, role: str | Role) -> bool:
         """Returns `True` if the user identifies with the specified role.
             Overwritten from flask_security.core.UserMixin.
 
@@ -262,7 +344,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
 
 def remember_login(the_app, user):
     """We do not use the tracking feature of flask_security, but this basic meta data are quite handy to know"""
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = datetime.now(timezone.utc)
     if user.login_count is None:
         user.login_count = 0
     user.login_count = user.login_count + 1
@@ -271,7 +353,7 @@ def remember_login(the_app, user):
 def remember_last_seen(user):
     """Update the last_seen field"""
     if user is not None and user.is_authenticated:
-        user.last_seen_at = datetime.utcnow()
+        user.last_seen_at = datetime.now(timezone.utc)
         db.session.add(user)
         db.session.commit()
 

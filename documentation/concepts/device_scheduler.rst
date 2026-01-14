@@ -1,16 +1,16 @@
-.. _device_scheduler:
+.. _storage_device_scheduler:
 
-Device scheduler
-===========
+Storage device scheduler: Linear model
+=======================================
 
 Introduction
 --------------
-This generic device scheduler is able to handle an EMS with multiple devices, with various types of constraints on the EMS level and on the device level,
+This generic storage device scheduler is able to handle an EMS with multiple devices, with various types of constraints on the EMS level and on the device level,
 and with multiple market commitments on the EMS level.
 
 A typical example is a house with many devices. The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption, negative for production). In practice, this generic scheduler is used in the **StorageScheduler** to schedule a storage device.
     
-The solver minimises the costs of deviating from the commitments.
+The solver minimizes the costs of deviating from the commitments.
 
 
 
@@ -48,7 +48,8 @@ Symbol                              Variable in the Code                        
 :math:`P^{ems}_{min}(j)`              ems_derivative_min                                 Minimum flow of the EMS during time period :math:`j`.
 :math:`P^{ems}_{max}(j)`              ems_derivative_max                                 Maximum flow of the EMS during time period :math:`j`.
 :math:`Commitment(c,j)`               commitment_quantity                                Commitment c (at EMS level) over time step :math:`j`.
-:math:`M`                             M                                                  Large constant number, upper bound of :math:`Power_{up}(d,j)` and :math:`|Power_{down}(d,j)|`
+:math:`M`                             M                                                  Large constant number, upper bound of :math:`Power_{up}(d,j)` and :math:`|Power_{down}(d,j)|`.
+:math:`D(d,j)`                        stock_delta                                        Explicit energy gain or loss of device :math:`d` during time period :math:`j`.
 ================================ ================================================ ==============================================================================================================  
 
 
@@ -74,7 +75,7 @@ The cost function quantifies the total cost of upwards and downwards deviations 
 .. math:: 
     :name: cost_function
 
-    \min [\sum_{c,j} \Delta _{up}(c,j) \cdot Price_{up}(c,j) +  \Delta_{down}(c,j) \cdot Price_{down}(c,j)]
+    \min [\sum_{c,j} \Delta_{up}(c,j) \cdot Price_{up}(c,j) +  \Delta_{down}(c,j) \cdot Price_{down}(c,j)]
 
 
 State dynamics
@@ -86,8 +87,7 @@ change of :math:`Stock(d,j)`, taking into account conversion efficiencies but no
 .. math::
   :name: stock
 
-    \Delta Stock(d,j) = \frac{P_{down}(d,j)}{\eta_{down}(d,j) } + P_{up}(d,j)  \cdot \eta_{up}(d,j)
-
+    \Delta Stock(d,j) = \frac{P_{down}(d,j)}{\eta_{down}(d,j) } + P_{up}(d,j)  \cdot \eta_{up}(d,j) + D(d,j)
 
 
 .. math:: 
@@ -191,5 +191,5 @@ Power coupling constraints
 .. math:: 
     :name: ems_flow_commitment_equalities
 
-    \sum_d P^{ems}(d,j) = \sum_c Commitment(c,j) + \Delta {up}(c,j) + \Delta {down}(c,j)
+    \sum_d P^{ems}(d,j) = \sum_c Commitment(c,j) + \Delta_{up}(c,j) + \Delta_{down}(c,j)
 

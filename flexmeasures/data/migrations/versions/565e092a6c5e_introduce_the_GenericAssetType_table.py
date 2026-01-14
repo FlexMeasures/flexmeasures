@@ -5,6 +5,7 @@ Revises: 04f0e2d2924a
 Create Date: 2021-07-20 16:16:50.872449
 
 """
+
 import json
 
 from alembic import context, op
@@ -74,7 +75,7 @@ def upgrade_data():
     # Select all existing ids that need migrating, while keeping names intact
     asset_type_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_asset_types.c.name,
                 t_asset_types.c.display_name,
             ]
@@ -82,7 +83,7 @@ def upgrade_data():
     ).fetchall()
     market_type_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_market_types.c.name,
                 t_market_types.c.display_name,
             ]
@@ -90,7 +91,7 @@ def upgrade_data():
     ).fetchall()
     weather_sensor_type_results = connection.execute(
         sa.select(
-            [
+            *[
                 t_weather_sensor_types.c.name,
                 t_weather_sensor_types.c.display_name,
             ]

@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 from functools import wraps
-from typing import Callable, Union
+from numpy import pi
+from typing import Callable
 
 import altair as alt
 
 
 FONT_SIZE = 16
+STROKE_WIDTH = 2
 ANNOTATION_MARGIN = 16
 HEIGHT = 300
 WIDTH = "container"
@@ -152,7 +156,7 @@ LEGIBILITY_DEFAULTS = dict(
         ),
         axisY={"titleAngle": 0, "titleAlign": "left", "titleY": -15, "titleX": -40},
         title=dict(
-            fontSize=FONT_SIZE,
+            fontSize=FONT_SIZE * 1.25,
         ),
         legend=dict(
             titleFontSize=FONT_SIZE,
@@ -161,6 +165,11 @@ LEGIBILITY_DEFAULTS = dict(
             orient="bottom",
             columns=1,
             direction="vertical",
+            symbolSize=(
+                100 if STROKE_WIDTH <= 2 else 100 + 800 / 3 / pi * (STROKE_WIDTH - 2)
+            ),
+            symbolStrokeWidth=STROKE_WIDTH,
+            labelOffset=2 * STROKE_WIDTH,
         ),
     ),
 )
@@ -178,10 +187,10 @@ def apply_chart_defaults(fn):
         include_annotations = kwargs.pop("include_annotations", None)
         if isinstance(fn, Callable):
             # function that returns a chart specification
-            chart_specs: Union[dict, alt.TopLevelMixin] = fn(*args, **kwargs)
+            chart_specs: dict | alt.TopLevelMixin = fn(*args, **kwargs)
         else:
             # not a function, but a direct chart specification
-            chart_specs: Union[dict, alt.TopLevelMixin] = fn
+            chart_specs: dict | alt.TopLevelMixin = fn
         if isinstance(chart_specs, alt.TopLevelMixin):
             chart_specs = chart_specs.to_dict()
             chart_specs.pop("$schema")

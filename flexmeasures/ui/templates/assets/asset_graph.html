@@ -1,0 +1,850 @@
+<!--
+  ASSET GRAPH DASHBOARD & CUSTOMIZATION
+  =====================================
+
+  This template renders the graphs/sensors_to_show for an Asset.
+
+  Key Functionalities:
+  1. Base Structure: Sets up the container for the Vega chart, KPI cards, loading spinner, and replay controls.
+  2. Graph Customization: Contains the complete logic for the "Edit Graphs" modal, allowing users to 
+     configure `sensors_to_show` (add/remove/reorder sensors and grouping).
+  3. Charging Hub Visualization: specific support and UI notes for the "Charge Points" chart type.
+  4. URL Sharing: Logic to generate and copy the current URL (including the active date range) to the clipboard.
+-->
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+{% set active_subpage = "asset_graph" %}
+
+{% block title %} {{asset.name}} {% endblock %}
+
+
+
+{% block divs %}
+
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2 on-top-md">
+            <div class="header-action-button">
+                <div>
+                    <button class="btn btn-primary" type="button" data-bs-toggle="modal"
+                        data-bs-target="#sensorsToShowModal">
+                        Edit Graphs
+                    </button>
+                </div>
+            </div>
+            <div class="sidepanel-container ">
+                <div class="left-sidepanel-label">Select dates</div>
+                <div class="sidepanel left-sidepanel">
+                    <div id="datepicker"></div>
+                </div>
+            </div>
+            <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3" style="display: none">
+                <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Select chart
+                </button>
+                <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
+                    <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center" href="#" data-chart-type="chart_for_chargepoint_sessions">
+                        <span>Charge Points</span>
+                        <i class="bi bi-info-circle"
+                           style="margin-left: 8px;"
+                           tabindex="0"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="right"
+                           data-bs-html="true"
+                           title="<div style='max-width: 300px;'>
+                             <strong>This chart shows charge hub patterns.
+                             Especially useful for many chargers. <br>It only shows <em>when</em> charging happened, not <em>how much</em>.</strong>
+                             <hr style='border-top: 1px; margin: 0.75rem 0 0.5rem 0;'>
+                             <strong>
+                             This chart will also show two context graphs if your main dashboard includes them - their titles should be `Power flow by type` and `Prices`.
+                             </strong>
+                             <hr style='border-top: 1px; margin: 0.75rem 0 0.5rem 0;'>
+                             <strong>Dashed line: Arrival → Departure</strong>
+                             <small>Shows the time the vehicle was present at the location.</small>
+                             <strong>Thin line: Plug-in → Plug-out</strong>
+                             <small>Indicates when the EV was physically plugged in but not necessarily charging.</small>
+                             <strong>Bold line: Start → Stop Charging</strong>
+                             <small>Marks the actual charging period, when energy is being delivered to the EV.</small>
+                           </div>">
+                        </i>
+                      </a>
+                    </li>
+                </ul>
+            </div>
+   
+        </div>
+        <div class="col-md-8">
+            <div id="spinner" class="spinner">
+                <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+                <span class="sr-only">Loading...</span>
+            </div>
+            {% if has_kpis %}
+            <div class="row">
+                <div class="col-md-12">
+                    <div id="kpi-cards" class="row g-3">
+                        {% for kpi in asset_kpis %}
+                        <div class="col-md-3 d-flex">
+                            <div class="card flex-fill">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ kpi.title }}</h5>
+                                    <p class="card-text">Loading...</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            <div id="sensorchart" class="card" style="width: 100%;"></div>
+            <div class="row">
+                <div class="copy-url" title="Click to copy the URL to the current time range to clipboard.">
+                    <script>
+                        function toIsoString(date) {
+                            var tzo = -date.getTimezoneOffset(),
+                                dif = tzo >= 0 ? '+' : '-',
+                                pad = function (num) {
+                                    return (num < 10 ? '0' : '') + num;
+                                };
+
+                            return date.getFullYear() +
+                                '-' + pad(date.getMonth() + 1) +
+                                '-' + pad(date.getDate()) +
+                                'T' + pad(date.getHours()) +
+                                ':' + pad(date.getMinutes()) +
+                                ':' + pad(date.getSeconds()) +
+                                dif + pad(Math.floor(Math.abs(tzo) / 60)) +
+                                ':' + pad(Math.abs(tzo) % 60);
+                        }
+
+                        function copyUrl(event) {
+                            event.preventDefault();
+
+                            if (!window.getSelection) {
+                                alert('Please copy the URL from the location bar.');
+                                return;
+                            }
+                            const dummy = document.createElement('p');
+
+                            var startDate = encodeURIComponent(toIsoString(picker.getStartDate().toJSDate()));
+                            // add 1 day to end date as datepicker does not include the end date day
+                            var endDate = picker.getEndDate();
+                            endDate.setDate(endDate.getDate() + 1);
+                            endDate = encodeURIComponent(toIsoString(endDate.toJSDate()));
+                            var base_url = window.location.href.split("?")[0];
+                            dummy.textContent = `${base_url}?start_time=${startDate}&end_time=${endDate}`
+                            document.body.appendChild(dummy);
+
+                            const range = document.createRange();
+                            range.setStartBefore(dummy);
+                            range.setEndAfter(dummy);
+
+                            const selection = window.getSelection();
+                            // First clear, in case the user already selected some other text
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+
+                            document.execCommand('copy');
+                            document.body.removeChild(dummy);
+
+                            $("#message").show().delay(1000).fadeOut();
+                        }
+                    </script>
+                    <a href="#" onclick="copyUrl(event)" style="display: block; text-align: center;">
+                        <i class="fa fa-link"></i>
+                    </a>
+                    <div id="message" style="display: none; text-align: center;">The URL to the time range currently
+                        shown has been copied to your clipboard.</div>
+                </div>
+            </div>
+
+            
+
+        </div>
+        <div class="col-md-2 replay-column">
+            <div class="replay-container">
+                <div
+                     id="replay"
+                     data-bs-toggle="tooltip"
+                     data-bs-html="true"
+                     data-bs-custom-class="replay-tooltip"
+                     data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step."
+                     class="stopped">
+                </div>
+                <div id="replay-time"></div>
+            </div>
+        </div>
+
+        <div id="chartInfoNote" class="text-center text-muted fst-italic my-2" style="display: none;">
+          ℹ️ Click legend to filter | Hold <kbd>Ctrl</kbd> + drag to pan
+        </div>
+        <script>
+              document.addEventListener('DOMContentLoaded', function () {
+                const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.forEach(function (el) {
+                  new bootstrap.Tooltip(el);
+                });
+              });
+            document.addEventListener("DOMContentLoaded", function () {
+                const note = document.getElementById("chartInfoNote");
+                const chartTypeDropdown = document.getElementById("chartTypeDropdown");
+
+                // Initial check
+                if (chartTypeDropdown.innerText.includes("ChargePoints Chart")) {
+                    note.style.display = "block";
+                }
+
+                // Show note only if "ChargePoints Chart" is selected
+                document.querySelectorAll("[data-chart-type]").forEach((el) => {
+                    el.addEventListener("click", (e) => {
+                        const chartType = el.getAttribute("data-chart-type");
+                        if (chartType === "chart_for_chargepoint_sessions") {
+                            note.style.display = "block";
+                        } else {
+                            note.style.display = "none";
+                        }
+                    });
+                });
+            });
+        </script>
+    </div>
+    <!-- Modal -->
+    <div class="modal fade modal-xl" id="sensorsToShowModal" tabindex="-1" aria-labelledby="sensorsToShowModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title pe-2">Edit Dashboard Graphs</h5>
+
+                    <div class="dropdown">
+                        <span class="fa fa-info dropdown-toggle" 
+                            role="button" 
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false" 
+                            tabindex="0">
+                        </span>
+
+                        <div class="dropdown-menu p-3" style="width: 400px;">
+                            <div>
+                                <strong>Dashboard Graphs Help</strong>
+                                <p class="mb-2">
+                                    Here you can edit what data is shown in the Dashboard Graphs. Each graph can show
+                                    one or more sensors
+                                    (<em>it makes sense to show sensors in a graph that share the same unit</em>).
+                                </p>
+                                <p class="mb-2">
+                                    You can also set the title of each graph and re-order them. Select a graph
+                                    <span class="text-primary">(by clicking on its card)</span> to add sensors to it.
+                                </p>
+                                <p class="mb-0">
+                                    Sensors can be searched on the right. This will list sensors on the asset or its
+                                    child asset, as well as public assets.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col">
+
+                            <button class="btn btn-primary mb-3" onclick="addNewGraph()">
+                                Add Graph
+                            </button>
+
+                            <div id="graphList" class="row"></div>
+                        </div>
+
+                        <div class="col">
+                            <div class="row mb-3">
+                                <div class="col-8">
+                                    <input type="text" id="searchInput" class="form-control"
+                                        placeholder="Search sensors..." oninput="filterSensors()" />
+                                </div>
+
+                                <div class="col-4">
+                                    <select id="unitsSelect" class="form-select" onchange="filterSensors()">
+                                        <option selected>Units</option>
+                                        {% for unit in available_units %}
+                                        <option>{{ unit }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="container">
+                                <div id="spinnerElement" class="d-flex justify-content-center align-items-center mb-2"
+                                    style="height: 50vh; display: none !important;">
+                                    <div class="spinner-border text-primary" role="status"
+                                        style="width: 4rem; height: 4rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+
+                                <div id="apiSensorsList" class="row" style="display: none;"></div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+
+{% include 'includes/graphs.html' %}
+
+<!-- Graph editing support -->
+<script>
+    const senSearchResEle = document.getElementById("sensorsSearchResults")
+
+    const formModal = document.getElementById('sensorsToShowModal');
+    const apiSensorsListElement = document.getElementById("apiSensorsList");
+    const spinnerElement = document.getElementById('spinnerElement');
+    let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
+    sensorsToShowRawJSON = sensorsToShowRawJSON.replace(/'/g, '"');
+    let sensorsToShow = JSON.parse(sensorsToShowRawJSON);
+    let cachedFilteredSensors = []; // keeps track of the filtered sensors
+    let editingIndex; // keeps track of which graph we are currently editing
+    let savedGraphIndex; // keeps track of the graph that is currently selected
+    let selectedGraphTitle; // keeps track of the graph title that is currently selected
+    const apiBasePath = window.location.origin;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+
+    const saveChangesBtn = document.getElementById("saveChangesBtn");
+    saveChangesBtn.onclick = async function () {
+        await updateAssetSensorsToShow();
+    };
+
+    // Fetch Account Details
+    async function getAccount(accountId) {
+        const cacheKey = `account_${accountId}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            return JSON.parse(cachedData);
+        }
+
+        const apiUrl = apiBasePath + "/api/v3_0/accounts/" + accountId;
+        const response = await fetch(apiUrl);
+        const account = await response.json();
+
+        localStorage.setItem(cacheKey, JSON.stringify(account));
+
+        return account;
+    }
+
+    // Fetch Asset Details
+    async function getAsset(assetId) {
+        const cacheKey = `asset_${assetId}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            return JSON.parse(cachedData);
+        }
+
+        const apiUrl = apiBasePath + "/api/v3_0/assets/" + assetId;
+        const response = await fetch(apiUrl);
+        const asset = await response.json();
+
+        localStorage.setItem(cacheKey, JSON.stringify(asset));
+
+        return asset;
+    }
+
+    // Fetch Sensor Details
+    async function getSensor(id) {
+        const cacheKey = `sensor_${id}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            return JSON.parse(cachedData);
+        }
+
+        const apiUrl = apiBasePath + "/api/v3_0/sensors/" + id;
+        const response = await fetch(apiUrl);
+        const sensor = await response.json();
+
+        localStorage.setItem(cacheKey, JSON.stringify(sensor));
+
+        return sensor;
+    }
+
+    // highlight selected graph 
+    async function selectGraph(graphIndex) {
+        if (graphIndex !== undefined) {
+            savedGraphIndex = graphIndex;
+            selectedGraphTitle = sensorsToShow[graphIndex]?.title;
+            // check if graphIndex still exists(This is because this function is called when the removed button is clicked as well)
+            if (sensorsToShow[graphIndex]) {
+                renderApiSensors(cachedFilteredSensors, graphIndex);
+            } else {
+                renderApiSensors(cachedFilteredSensors);
+            }
+        } else {
+            savedGraphIndex = undefined;
+            selectedGraphTitle = undefined;
+            renderGraphCards();
+        }
+    }
+
+    // Function to render the graph cards
+    async function renderGraphCards() {
+        const graphList = document.getElementById("graphList");
+        graphList.innerHTML = "";
+        const newSensorsToShow = [];
+
+        if (sensorsToShow.length === 0) {
+            return;
+        }
+
+        for (const [index, item] of sensorsToShow.entries()) {
+            const col = document.createElement("div");
+            col.classList.add("col-12", "mb-1");
+
+            const sensorsUnits = [];
+            // the initializing of the newItem is to handle the case where the item is an array of ID's instead of an object
+            const newItem = {
+                title: item.title ?? "No Title",
+                sensors: item.sensors ?? (Array.isArray(item) ? item : [item]),
+            }
+            newSensorsToShow.push(newItem);
+
+            const sensorsContent = await Promise.all(
+                newItem.sensors.map(async (sensor, sensorIndex) => {
+                    const sensorData = await getSensor(sensor);
+                    const Asset = await getAsset(sensorData.generic_asset_id);
+                    const Account = await getAccount(Asset.account_id);
+                    sensorsUnits.push(sensorData.unit);
+
+                    return `
+                    <div class="p-1 mb-3 border-bottom border-secondary">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
+                                <b>Unit:</b> ${sensorData.unit},
+                                <b>Name:</b> ${sensorData.name},
+                                <div style="padding-top: 1px;"></div>
+                                <b>Asset:</b> ${Asset.name},
+                                <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                            </div>
+                            <i class="fa fa-times"
+                                onclick="removeSensorFromGraph(${index}, ${sensorIndex})"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top"
+                                title="Remove Sensor"
+                                style="cursor: pointer;"
+                            ></i>
+                        </div>
+
+                    </div>`;
+                }));
+
+            const uniqueUnits = [...new Set(sensorsUnits)];
+
+            col.innerHTML = `
+            <div class="card m-0 p-1">
+                <div class="card-body card-highlight ${newItem.title === selectedGraphTitle ? " border-on-click" : ""}" id="graph_${index}" onclick="selectGraph(${index})">
+                    <div class="d-flex align-items-center">
+                        <div>
+                            ${editingIndex === index
+                    ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${newItem.title}" onkeydown="handleEnterKeyEventForTitleEditing(event, ${index})" />`
+                    : `<h5 class="card-title me-2">${newItem.title}</h5>`
+                }
+                        </div>
+
+                        <div>
+                            ${editingIndex === index
+                    ? `<button class="btn btn-success btn-sm ms-2" id="saveTitleBtn" onclick="saveGraphTitle(${index})">Save</button>`
+                    : `<button class="btn btn-warning btn-sm ms-2" id="editTitleBtn" onclick="editGraphTitle(${index})">Edit</button>`
+                }
+                        </div>
+                    </div>
+                    <h5 class="card-title pt-2"><b> Sensors: </b></h5>
+                    <div>
+                        ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this graph. Add sensors by selecting them from the right</div>`}
+                        ${uniqueUnits.length > 1 ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
+                    </div>
+
+                    <button class="btn btn-danger btn-sm me-2" onclick="(function(e) { e.stopPropagation(); removeGraph(${index}); })(event)">Remove</button>
+                    <button class="btn btn-secondary btn-sm me-2" onclick="(function(e) { e.stopPropagation(); moveGraphUp(${index}); })(event)" ${index === 0 ? "disabled" : ""}>Move Up</button>
+                    <button class="btn btn-secondary btn-sm" onclick="(function(e) { e.stopPropagation(); moveGraphDown(${index}); })(event)" ${index === sensorsToShow.length - 1 ? "disabled" : ""}>Move Down</button>
+                </div>
+            </div>`;
+
+            graphList.appendChild(col);
+        }
+
+        sensorsToShow = newSensorsToShow;
+    }
+
+    async function filterSensors() {
+        const searchValue = document.getElementById("searchInput").value.toLowerCase();
+        const filterValue = document.getElementById("unitsSelect").value;
+        const highlightedCard = document.querySelector('.border-on-click');
+        spinnerElement.style.display = 'flex';
+        apiSensorsListElement.style.display = 'none';
+
+        // Due to the nature of async functions, the highlightedCard might not be available
+        // when the filterSensors function is called. So, we need to check if it exists
+        if (highlightedCard) {
+            const cardId = highlightedCard.id;
+            const index = cardId.split("_")[1];
+            savedGraphIndex = index;
+            selectedGraphTitle = sensorsToShow[index].title;
+        } else {
+            savedGraphIndex = undefined;
+            selectedGraphTitle = undefined;
+        }
+
+        // check if apiSensorsList has been rendered
+        if (apiSensorsListElement.innerHTML === "") {
+            document.getElementById('apiSensorsList').style.display = 'block';
+        }
+
+        const params = new URLSearchParams();
+
+        if (searchValue) {
+            params.append('filter', searchValue);
+        }
+
+        if (filterValue !== "Units") {
+            params.append('unit', filterValue);
+        }
+
+        const apiUrl = `${sensorsApiUrl}&${params.toString()} `;
+
+        try {
+            const response = await fetch(apiUrl);
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch sensors');
+            }
+
+            const responseData = await response.json();
+            const filteredSensors = responseData.data;
+
+            // Render the fetched sensors
+            if (savedGraphIndex !== null && savedGraphIndex !== undefined) {
+                renderApiSensors(filteredSensors, savedGraphIndex);
+            } else {
+                renderApiSensors(filteredSensors);
+            }
+
+            cachedFilteredSensors = filteredSensors;
+
+            spinnerElement.classList.add('hidden-important');
+            apiSensorsListElement.style.display = 'block';
+        } catch (error) {
+            showToast("Failed to filter sensors", "error");
+            console.error(error);
+        }
+    }
+
+    async function searchSensors() {
+        const searchValue = document.getElementById("flexContextSensorSearch").value.toLowerCase();
+        spinnerElement.style.display = 'flex';
+        senSearchResEle.style.display = 'none';
+
+        const params = new URLSearchParams();
+
+        if (searchValue) {
+            params.append('filter', searchValue);
+        }
+
+        const apiUrl = `${sensorsApiUrl}&${params.toString()} `;
+
+        try {
+            const response = await fetch(apiUrl);
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch sensors');
+            }
+
+            const responseData = await response.json();
+            const filteredSensors = responseData.data;
+
+            // Render the fetched sensors
+            renderSensorSearchResults(filteredSensors);
+
+            spinnerElement.classList.add('hidden-important');
+            senSearchResEle.style.display = 'block';
+        } catch (error) {
+            showToast("Failed to search sensors", "error");
+            console.error(error);
+        }
+    }
+
+
+    // ============== Graph Cards Management ============== //
+
+    async function removeGraph(index) {
+        sensorsToShow.splice(index, 1);
+        savedGraphIndex = undefined;
+        selectedGraphTitle = undefined;
+        editingIndex = undefined;
+        renderGraphCards();
+        renderApiSensors(cachedFilteredSensors);
+    }
+
+    async function swapItems(index1, index2) {
+        if (index1 >= 0 && index2 >= 0 && index1 < sensorsToShow.length && index2 < sensorsToShow.length) {
+            [sensorsToShow[index1], sensorsToShow[index2]] = [sensorsToShow[index2], sensorsToShow[index1]];
+            renderGraphCards()
+            renderApiSensors(cachedFilteredSensors, index2);
+        }
+    }
+
+    async function moveGraphUp(index) {
+        if (index > 0) {
+            await swapItems(index, index - 1);
+        }
+    }
+
+    async function moveGraphDown(index) {
+        if (index < sensorsToShow.length - 1) {
+            await swapItems(index, index + 1);
+        }
+    }
+
+    function editGraphTitle(index) {
+        editingIndex = index;
+    }
+
+    async function saveGraphTitle(index) {
+        const newTitle = document.getElementById(`editTitle_${index}`).value;
+        sensorsToShow[index].title = newTitle;
+        editingIndex = null;
+        selectedGraphTitle = newTitle;
+        renderGraphCards();
+    }
+
+    // ============== Graph Cards Management ============== //
+
+    // Render the available API sensors
+    function renderApiSensors(sensors, graphIndex) {
+        // graphIndex is undefined when the sensors are being added to the graph
+        // graphIndex is defined when the sensors are being added to the graph cards. In other words 
+        // when more sensors are being added to single graph
+
+        apiSensorsList.innerHTML = ""; // Clear the previous sensors
+        if (sensors.length === 0) {
+            apiSensorsList.innerHTML = "<h3>No sensors found</h3>";
+            return;
+        }
+        sensors.forEach(async (sensor) => {
+            const Asset = await getAsset(sensor.generic_asset_id);
+            const Account = await getAccount(Asset.account_id);
+
+            const col = document.createElement("div");
+            col.classList.add("col-12", "mb-1");
+
+            col.innerHTML = `
+            <div class="card m-0">
+                <div class="card-body p-0 sensor-card">
+                    <h5 class="card-title">${sensor.name}</h5>
+                    <p class="card-text">
+                        <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
+                        <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
+                        <b>Asset:</b> ${Asset.name},
+                        <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                    </p>
+                    ${graphIndex !== undefined && savedGraphIndex !== undefined && selectedGraphTitle !== undefined
+                    ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${selectedGraphTitle}' Graph</button>`
+                    : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add new Graph</button>`
+                }
+                </div>
+            </div>
+        `;
+
+            apiSensorsList.appendChild(col);
+        });
+    }
+
+    function renderSensorSearchResults(sensors) {
+        senSearchResEle.innerHTML = "";
+        if (sensors.length === 0) {
+            senSearchResEle.innerHTML = "<h4>No sensors found</h4>";
+            return;
+        }
+
+        sensors.forEach(async (sensor) => {
+            const Asset = await getAsset(sensor.generic_asset_id);
+            const Account = await getAccount(Asset.account_id);
+
+            const col = document.createElement("div");
+            col.classList.add("col-12", "mb-1");
+
+            col.innerHTML = `
+                <div class="card m-0">
+                    <div class="card-body p-0 sensor-card">
+                        <h5 class="card-title">${sensor.name}</h5>
+                        <p class="card-text">
+                            <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
+                            <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
+                            <b>Asset:</b> ${Asset.name},
+                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                        </p>
+                        <button class="btn btn-primary btn-sm" onclick="updateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
+                    </div>
+                </div>
+            `;
+
+            senSearchResEle.appendChild(col);
+        });
+    }
+
+    async function updateAssetSensorsToShow() {
+        const refreshSpinner = document.getElementById('spinner');
+        const sensorChartDiv = document.getElementById('sensorchart');
+
+        const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
+        const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
+        refreshSpinner.style.display = 'block';
+        sensorChartDiv.style.display = 'none';
+
+        const response = await fetch(apiURL, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: requestBody,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
+            showToast(`Failed to update the asset: ${errorMessage}`, "error");
+        } else {
+            document.dispatchEvent(new Event('sensorsToShowUpdated'));
+            showToast("Changes saved successfully", "success");
+            refreshSpinner.style.display = 'none';
+            sensorChartDiv.style.display = 'block';
+        }
+    }
+
+    // Add a sensor as a new graph card
+    function addSensorAsGraph(id) {
+        const newAsset = {
+            title: "No Title",
+            sensors: [id],
+        };
+        sensorsToShow.push(newAsset);
+        renderGraphCards();
+    }
+
+    // Add blank graph to the graph cards
+    function addNewGraph() {
+        const newAsset = {
+            title: "No Title " + (sensorsToShow.length + 1),
+            sensors: [],
+        };
+        selectedGraphTitle = newAsset.title;
+        sensorsToShow.push(newAsset);
+        selectGraph(sensorsToShow.length - 1)
+        renderGraphCards();
+    }
+
+    // Add Sensor to an existing graph card
+    function addSensorToExistingGraph(graphIndex, sensorId) {
+        sensorsToShow[graphIndex].sensors.push(sensorId);
+        renderGraphCards();
+    }
+
+    // Remove sensor from the graph sensor list
+    function removeSensorFromGraph(graphIndex, sensorIndex) {
+        sensorsToShow[graphIndex].sensors.splice(sensorIndex, 1);
+        renderGraphCards();
+        renderApiSensors(cachedFilteredSensors);
+    }
+
+    function handleEnterKeyEventForTitleEditing(event, graphIndex) {
+        if (event.key === "Enter") {
+            saveGraphTitle(graphIndex);
+            renderApiSensors(cachedFilteredSensors, graphIndex);
+        }
+    }
+    async function showAssetChartSelection(){
+        let asset = await getAsset({{ asset.id }})
+        for (let child of asset.child_assets){
+            if (child['generic_asset_type']['name'] == 'smartbuilding.chargepoint'){
+                return true;
+            };
+        };
+        return false;
+    }
+
+    // ============== Page Events ============== //
+    document.addEventListener('DOMContentLoaded', async () => {
+        const shouldShow = await showAssetChartSelection();
+        const chartTypeDropdown = document.getElementById('chart-type-picker');
+        if (shouldShow) {
+            console.log("Show chart selection!");
+            chartTypeDropdown.style.display = 'block';
+        }
+    });
+
+    formModal.addEventListener('shown.bs.modal', function () {
+        // Initial renders
+        renderGraphCards(); // Initial render of graph cards
+        filterSensors(); // Initial render of sensors
+    });
+
+    document.addEventListener("click", function (event) {
+        /**
+        The logic in this block is majorly to remove the border on click of the card and add it to the selected card
+        but as this event is added to the document, it will be triggered on any click event on the page
+        so the if statements are used to check if the click event is on the card or not
+        */
+        const card = event.target.closest(".card-highlight");
+        const sensorCard = event.target.closest(".sensor-card");
+        const searchInput = event.target.id === "searchInput";
+        const cardBody = event.target.closest(".card-body");
+        const editTitleBtn = event.target.id === "editTitleBtn";
+        const saveTitleBtn = event.target.id === "saveTitleBtn";
+        const unSetBtn = event.target.id === "unSetFlexField";
+
+        if (card) {
+            if (card.classList.contains("border-on-click")) {
+                if (editTitleBtn || saveTitleBtn) {
+                    renderGraphCards();
+                }
+                // Pass
+            } else {
+                renderGraphCards();
+            }
+        } else if (
+            cardBody !== null && cardBody !== undefined ||
+            sensorCard !== null && sensorCard !== undefined ||
+            searchInput !== null && searchInput !== undefined
+        ) {
+            // Pass
+        } else {
+            document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
+            renderApiSensors([], undefined);
+        }
+    });
+
+
+    // ============== Page Events ============== //
+</script>
+
+{% block paginate_tables_script %} {{ super() }} {% endblock %}
+{% endblock %}

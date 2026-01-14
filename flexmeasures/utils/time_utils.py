@@ -5,7 +5,7 @@ Utils for dealing with time
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import current_app
 from flask_security.core import current_user
@@ -18,7 +18,7 @@ from dateutil import tz
 
 def server_now() -> datetime:
     """The current time (timezone aware), converted to the timezone of the FlexMeasures platform."""
-    return get_timezone().fromutc(datetime.utcnow())
+    return datetime.now(get_timezone())
 
 
 def ensure_local_timezone(
@@ -91,13 +91,18 @@ def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -
     return local_dt.strftime(dt_format)
 
 
-def naturalized_datetime_str(dt: datetime | None, now: datetime | None = None) -> str:
+def naturalized_datetime_str(
+    dt: datetime | str | None, now: datetime | None = None
+) -> str:
     """
     Naturalise a datetime object (into a human-friendly string).
     The dt parameter (as well as the now parameter if you use it)
     can be either naive or tz-aware. We assume UTC in the naive case.
+    If dt parameter is a string it is expected to look like 'Sun, 28 Apr 2024 08:55:58 GMT'.
+    String format is supported for case when we make json from internal api response
+    e.g ui/crud/users auditlog router
 
-    We use the the humanize library to generate a human-friendly string.
+    We use the `humanize` library to generate a human-friendly string.
     If dt is not longer ago than 24 hours, we use humanize.naturaltime (e.g. "3 hours ago"),
     otherwise humanize.naturaldate (e.g. "one week ago")
 
@@ -106,8 +111,10 @@ def naturalized_datetime_str(dt: datetime | None, now: datetime | None = None) -
     """
     if dt is None:
         return "never"
+    if isinstance(dt, str):
+        dt = datetime.strptime(dt, "%a, %d %b %Y %H:%M:%S %Z")
     if now is None:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
     naive_utc_now = naive_utc_from(now)
 
     # Convert or localize to utc
@@ -133,7 +140,7 @@ def resolution_to_hour_factor(resolution: str | timedelta) -> float:
     """Return the factor with which a value needs to be multiplied in order to get the value per hour,
     e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step.
 
-    :param resolution: timedelta or pandas offset such as "15T" or "1H"
+    :param resolution: timedelta or pandas offset such as "15min" or "h"
     """
     if isinstance(resolution, timedelta):
         return resolution / timedelta(hours=1)
@@ -146,7 +153,7 @@ def decide_resolution(start: datetime | None, end: datetime | None) -> str:
     Useful for querying or plotting.
     """
     if start is None or end is None:
-        return "15T"  # default if we cannot tell period
+        return "15min"  # default if we cannot tell period
     period_length = end - start
     if period_length > timedelta(weeks=16):
         resolution = "168h"  # So upon switching from days to weeks, you get at least 16 data points
@@ -155,9 +162,9 @@ def decide_resolution(start: datetime | None, end: datetime | None) -> str:
     elif period_length > timedelta(hours=48):
         resolution = "1h"  # So upon switching from 15min to hours, you get at least 48 data points
     elif period_length > timedelta(hours=8):
-        resolution = "15T"
+        resolution = "15min"
     else:
-        resolution = "5T"  # we are (currently) not going lower than 5 minutes
+        resolution = "5min"  # we are (currently) not going lower than 5 minutes
     return resolution
 
 
@@ -250,18 +257,6 @@ def get_first_day_of_next_month() -> datetime:
     return (datetime.now().replace(day=1) + timedelta(days=32)).replace(day=1)
 
 
-def freq_label_to_human_readable_label(freq_label: str) -> str:
-    """Translate pandas frequency labels to human-readable labels."""
-    f2h_map = {
-        "5T": "5 minutes",
-        "15T": "15 minutes",
-        "1h": "1 hour",
-        "24h": "1 day",
-        "168h": "1 week",
-    }
-    return f2h_map.get(freq_label, freq_label)
-
-
 def forecast_horizons_for(resolution: str | timedelta) -> list[str] | list[timedelta]:
     """Return a list of horizons that are supported per resolution.
     Return values or of the same type as the input."""
@@ -270,9 +265,9 @@ def forecast_horizons_for(resolution: str | timedelta) -> list[str] | list[timed
     else:
         resolution_str = resolution
     horizons = []
-    if resolution_str in ("5T", "10T"):
+    if resolution_str in ("5T", "5min", "10T", "10min"):
         horizons = ["1h", "6h", "24h"]
-    elif resolution_str in ("15T", "1h", "H"):
+    elif resolution_str in ("15T", "15min", "1h", "H"):
         horizons = ["1h", "6h", "24h", "48h"]
     elif resolution_str in ("24h", "D"):
         horizons = ["24h", "48h"]
@@ -330,21 +325,25 @@ def duration_isoformat(duration: timedelta):
 
 def determine_minimum_resampling_resolution(
     event_resolutions: list[timedelta],
+    fallback_resolution: timedelta = timedelta(0),
 ) -> timedelta:
-    """Return minimum non-zero event resolution, or zero resolution if none of the event resolutions is non-zero."""
+    """Return minimum non-zero event resolution, or return the fallback_resolution if none of the event resolutions is non-zero.
+
+    :param fallback_resolution: Resolution to fall back on in case of no non-zero event resolutions, defaults to 0 hours.
+    """
     condition = list(
         event_resolution
         for event_resolution in event_resolutions
         if event_resolution > timedelta(0)
     )
-    return min(condition) if any(condition) else timedelta(0)
+    return min(condition) if any(condition) else fallback_resolution
 
 
 def to_http_time(dt: pd.Timestamp | datetime) -> str:
     """Formats datetime using the Internet Message Format fixdate.
 
     >>> to_http_time(pd.Timestamp("2022-12-13 14:06:23Z"))
-    Tue, 13 Dec 2022 14:06:23 GMT
+    'Tue, 13 Dec 2022 14:06:23 GMT'
 
     References
     ----------
@@ -398,9 +397,55 @@ def apply_offset_chain(
             if offset.strip().lower() == "db":  # db = day begin
                 _dt = _dt.floor("D")
             elif offset.strip().lower() == "hb":  # hb = hour begin
-                _dt = _dt.floor("H")
+                _dt = _dt.floor("h")
 
     # Return output in the same type as the input
     if isinstance(dt, datetime):
         return _dt.to_pydatetime()
     return _dt
+
+
+def to_utc_timestamp(value):
+    """
+    Convert a datetime object or string to a UTC timestamp (seconds since epoch).
+
+    The dt parameter can be either naive or tz-aware. We assume UTC in the naive case.
+    If dt parameter is a string, it is expected to look like 'Sun, 28 Apr 2024 08:55:58 GMT'.
+    String format is supported for cases when we process JSON from internal API responses,
+    e.g., ui/crud/users auditlog router.
+
+
+    Returns:
+    - Float: seconds since Unix epoch (1970-01-01 00:00:00 UTC)
+    - None: if input is None
+
+
+    Hint: This can be set as a jinja filter to display UTC timestamps in the app, e.g.:
+    app.jinja_env.filters['to_utc_timestamp'] = to_utc_timestamp
+
+    Example usage:
+    >>> to_utc_timestamp(datetime(2024, 4, 28, 8, 55, 58))
+    1714294558.0
+    >>> to_utc_timestamp("Sun, 28 Apr 2024 08:55:58 GMT")
+    1714294558.0
+    >>> to_utc_timestamp(None)
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        # Parse string datetime in the format 'Tue, 13 Dec 2022 14:06:23 GMT'
+        try:
+            value = datetime.strptime(value, "%a, %d %b %Y %H:%M:%S %Z")
+        except ValueError:
+            # Return None or raise an error if the string is in an unexpected format
+            return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            # If naive, assume UTC
+            value = pd.Timestamp(value).tz_localize("utc")
+        else:
+            # Convert to UTC if already timezone-aware
+            value = pd.Timestamp(value).tz_convert("utc")
+
+    # Return Unix timestamp (seconds since epoch)
+    return value.timestamp()

@@ -26,14 +26,14 @@ Notes:
 Install
 ^^^^^^^^^^^^^
 
-We believe FlexMeasures works with Postgres above version 9 and we ourselves have run it with versions up to 14.
+We believe FlexMeasures works with Postgres above version 9 and we ourselves have run it with versions up to 17.
 
 On Linux:
 
 .. code-block:: bash
 
    $ # On Ubuntu and Debian, you can install postgres like this:
-   $ sudo apt-get install postgresql-12  # replace 12 with the version available in your packages
+   $ sudo apt-get install postgresql-17  # replace 17 with the version available in your packages
    $ pip install psycopg2-binary
 
    $ # On Fedora, you can install postgres like this:
@@ -50,10 +50,23 @@ On Windows:
 * ``conda install psycopg2``
 
 
+On Macos:
+
+.. code-block:: bash
+
+   $ brew update
+   $ brew doctor
+   $ # Need to specify postgres version, in this example we use 17
+   $ brew install postgresql@17
+   $ brew link postgresql@17 --force
+   $ # Start postgres (you can change /usr/local/var/postgres to any directory you like)
+   $ pg_ctl -D /usr/local/var/postgres -l logfile start
+
+
 Using Docker Compose:
 
 
-Alternatively, you can use Docker Compose to run a postgres database. Use can use the following ``docker-compose.yml`` as a starting point:
+Alternatively, you can use Docker Compose to run a postgres database. You can use the following ``docker-compose.yml`` as a starting point:
 
 
 .. code-block:: yaml
@@ -84,7 +97,7 @@ Make sure postgres represents datetimes in UTC timezone
 
 (Otherwise, pandas can get confused with daylight saving time.)
 
-Luckily, many web hosters already have ``timezone= 'UTC'`` set correctly by default,
+Luckily, many web hosts already have ``timezone= 'UTC'`` set correctly by default,
 but local postgres installations often use ``timezone='localtime'``.
 
 In any case, check both your local installation and the server, like this:
@@ -96,9 +109,19 @@ Find the ``timezone`` setting and set it to 'UTC'.
 
 Then restart the postgres server.
 
-.. code-block:: bash
+.. tabs::
 
-    $ sudo service postgresql restart
+   .. tab:: Linux
+
+      .. code-block:: bash
+
+         $ sudo service postgresql restart
+
+   .. tab:: Macos
+
+      .. code-block:: bash
+
+         $ pg_ctl -D /usr/local/var/postgres -l logfile restart
 
 .. note:: If you are using Docker to run postgres, the ``timezone`` setting is already set to ``UTC`` by default.
 
@@ -120,14 +143,16 @@ Proceed to create a database as the postgres superuser (using your postgres user
    $ createuser --pwprompt -U postgres flexmeasures_test  # enter "flexmeasures_test" as password
    $ exit
 
+.. note:: In case you encounter the following "FAILS: sudo: unknown user postgres" you need to create "postgres" OS user with sudo rights first - better done via System preferences -> Users & Groups.
+
 
 Or, from within Postgres console:
 
 .. code-block:: sql
 
-   CREATE USER flexmeasures WITH UNENCRYPTED PASSWORD 'this-is-your-secret-choice';
+   CREATE USER flexmeasures WITH PASSWORD 'this-is-your-secret-choice';
    CREATE DATABASE flexmeasures WITH OWNER = flexmeasures;
-   CREATE USER flexmeasures_test WITH UNENCRYPTED PASSWORD 'flexmeasures_test';
+   CREATE USER flexmeasures_test WITH PASSWORD 'flexmeasures_test';
    CREATE DATABASE flexmeasures_test WITH OWNER = flexmeasures_test;
 
 
@@ -157,6 +182,8 @@ Add the following extensions while logged in as the postgres superuser:
    \connect flexmeasures
    CREATE EXTENSION cube;
    CREATE EXTENSION earthdistance;
+
+.. note:: Lines from above should be run seperately
 
 
 If you have it, connect to the ``flexmeasures_test`` database and repeat creating these extensions there. Then ``exit``.
@@ -226,22 +253,26 @@ First, you can get the database structure with:
 
 .. note:: If you develop code (and might want to make changes to the data model), you should also check out the maintenance section about database migrations.
 
-You can create users with the ``add user`` command. Check it out:
 
-.. code-block:: bash
-
-   $ flexmeasures add user --help
-
-
-You can create some pre-determined asset types and data sources with this command:
+You should create some pre-determined asset types, user/account roles and data sources with this command:
 
 .. code-block:: bash
 
    $ flexmeasures add initial-structure
 
-You can also create assets in the FlexMeasures UI.
 
-On the command line, you can add many things. Check what data you can add yourself:
+Another good first step is to create an account for yourself, plus a user to log in with:
+
+.. code-block:: bash
+
+   $ flexmeasures add account --help
+   $ flexmeasures add user --help
+
+Creating accounts and users for your clients would also happen this way (soon also in the UI). 
+
+You can also create assets in the CLI (``flexmeasures add asset``), but that is also possible in the FlexMeasures UI.
+
+Actually, you can add many things from the terminal. Check what data you can add yourself:
 
 .. code-block:: bash
 
@@ -280,6 +311,8 @@ You can visualise the data model like this:
 
 This will generate a picture based on the model code.
 You can also generate picture based on the actual database, see inside the Makefile. 
+
+.. note:: If you encounter "error: externally-managed-environment" when running `make test` and you do it in venv, try `pip cache purge` or use pipx.
 
 Maintenance
 ----------------

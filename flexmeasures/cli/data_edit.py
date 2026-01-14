@@ -11,16 +11,26 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
+from flexmeasures.data.models.user import Account
+from flexmeasures.data.schemas.account import AccountIdField
+from sqlalchemy import delete
 
-from flexmeasures import Sensor
+from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
 from flexmeasures.data.schemas.attributes import validate_special_attributes
-from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import (
+    MsgStyle,
+    DeprecatedOption,
+    DeprecatedOptionsCommand,
+    abort,
+)
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
 @click.group("edit")
@@ -28,22 +38,30 @@ def fm_edit_data():
     """FlexMeasures: Edit data."""
 
 
-@fm_edit_data.command("attribute")
+@fm_edit_data.command("attribute", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--asset",
     "--asset-id",
     "assets",
     required=False,
     multiple=True,
-    type=GenericAssetIdField(),
+    type=AssetIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
     help="Add/edit attribute to this asset. Follow up with the asset's ID.",
 )
 @click.option(
+    "--sensor",
     "--sensor-id",
     "sensors",
     required=False,
     multiple=True,
     type=SensorIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Add/edit attribute to this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
@@ -135,22 +153,32 @@ def edit_attribute(
 
     # Set attribute
     for asset in assets:
+        AssetAuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "asset", asset
+        )
         asset.attributes[attribute_key] = attribute_value
         db.session.add(asset)
     for sensor in sensors:
+        AssetAuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "sensor", sensor
+        )
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
     click.secho("Successfully edited/added attribute.", **MsgStyle.SUCCESS)
 
 
-@fm_edit_data.command("resample-data")
+@fm_edit_data.command("resample-data", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
+    "--sensor",
     "--sensor-id",
     "sensor_ids",
     multiple=True,
     required=True,
+    cls=DeprecatedOption,
+    deprecated=["--sensor-id"],
+    preferred="--sensor",
     help="Resample data for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
@@ -191,7 +219,7 @@ def resample_sensor_data(
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
     for sensor_id in sensor_ids:
-        sensor = Sensor.query.get(sensor_id)
+        sensor = db.session.get(Sensor, sensor_id)
         if sensor.event_resolution == event_resolution:
             click.echo(f"{sensor} already has the desired event resolution.")
             continue
@@ -213,22 +241,178 @@ def resample_sensor_data(
                 abort=True,
             )
 
+        AssetAuditLog.add_record(
+            sensor.generic_asset,
+            f"Resampled sensor data for sensor '{sensor.name}': {sensor.id} to {event_resolution} from {sensor.event_resolution}",
+        )
+
         # Update sensor
         sensor.event_resolution = event_resolution
         db.session.add(sensor)
 
         # Update sensor data
-        query = TimedBelief.query.filter(TimedBelief.sensor == sensor)
+        query = delete(TimedBelief).filter_by(sensor=sensor)
         if not pd.isnull(event_starts_after):
             query = query.filter(TimedBelief.event_start >= event_starts_after)
         if not pd.isnull(event_ends_before):
             query = query.filter(
                 TimedBelief.event_start + sensor.event_resolution <= event_ends_before
             )
-        query.delete()
+        db.session.execute(query)
         save_to_db(df_resampled, bulk_save_objects=True)
     db.session.commit()
     click.secho("Successfully resampled sensor data.", **MsgStyle.SUCCESS)
+
+
+@fm_edit_data.command("transfer-ownership")
+@with_appcontext
+@click.option(
+    "--asset",
+    "asset",
+    type=AssetIdField(),
+    required=True,
+    help="Change the ownership of this asset and its children. Follow up with the asset's ID.",
+)
+@click.option(
+    "--new-owner",
+    "new_owner",
+    type=AccountIdField(),
+    required=True,
+    help="New owner of the asset and its children.",
+)
+def transfer_ownership(asset: Asset, new_owner: Account):
+    """
+    Transfer the ownership of an asset and its children to an account.
+    """
+
+    def transfer_ownership_recursive(asset: Asset, account: Account):
+        AssetAuditLog.add_record(
+            asset,
+            (
+                f"Transferred ownership for asset '{asset.name}': {asset.id} from '{asset.owner.name}': {asset.owner.id} to '{account.name}': {account.id}"
+                if asset.owner is not None
+                else f"Assign ownership to public asset '{asset.name}': {asset.id} to '{account.name}': {account.id}"
+            ),
+        )
+
+        asset.owner = account
+        for child in asset.child_assets:
+            transfer_ownership_recursive(child, account)
+
+    transfer_ownership_recursive(asset, new_owner)
+    click.secho(
+        f"Success! Asset `{asset}` ownership was transferred to account `{new_owner}`.",
+        **MsgStyle.SUCCESS,
+    )
+
+    db.session.commit()
+
+
+@fm_edit_data.command("transfer-parenthood")
+@with_appcontext
+@click.option(
+    "--asset",
+    "asset",
+    type=AssetIdField(),
+    required=False,
+    help="Change/set the parent of this asset. Follow up with the asset's ID.",
+)
+@click.option(
+    "--new-parent",
+    "new_parent",
+    type=AssetIdField(),
+    required=False,
+    help="New parent of the asset. Follow up with the new parent's ID, or omit to orphan the asset.",
+)
+@click.option(
+    "--old-parent",
+    "old_parent",
+    type=AssetIdField(),
+    required=False,
+    help="Change the parent of all of this asset's children. Follow up with the old parent's ID.",
+)
+def transfer_parenthood(
+    new_parent: Asset, asset: Asset | None = None, old_parent: Asset | None = None
+):
+    """Transfer the parenthood of an asset, or of all children of a parent asset, to another asset.
+
+    Either `--asset` or `--old-parent` must be specified (but not both).
+
+    Examples:
+
+    - Move a top-level asset 1 under asset 2:
+
+          flexmeasures edit transfer-parenthood --asset 1 --new-parent 2
+
+    - Reassign asset 1 to asset 3:
+
+          flexmeasures edit transfer-parenthood --asset 1 --new-parent 3
+
+    - Reassign all children of asset 3 to asset 4:
+
+          flexmeasures edit transfer-parenthood --old-parent 3 --new-parent 4
+    """
+    validate_options_for_editing_parenthood(asset=asset, old_parent=old_parent)
+    if new_parent is None:
+        click.confirm(
+            "No new parent specified. This will orphan the asset(s). Continue?",
+            abort=True,
+        )
+    else:
+        confirm_ownership_change(
+            old_owner=(asset or old_parent).owner, new_owner=new_parent.owner
+        )
+
+    if old_parent is not None:
+        assets = old_parent.child_assets
+        if new_parent is None:
+            message = f"Orphan {len(assets)} children from asset {old_parent.id}?"
+        else:
+            message = f"Reassign {len(assets)} children from asset {old_parent.id} to asset {new_parent.id}?"
+        click.confirm(message, abort=True)
+    else:
+        assets = [asset]
+
+    changed = 0
+    for asset in assets:
+        if new_parent is not None and asset.parent_asset_id == new_parent.id:
+            click.secho(
+                f"Asset {asset.id} already has asset {new_parent.id} as its parent. Skipping.",
+                **MsgStyle.WARN,
+            )
+            continue
+        old_parent_name = (
+            asset.parent_asset.name if asset.parent_asset_id is not None else None
+        )
+        if new_parent is None:
+            audit_log_message = f"Orphaned asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to no parent"
+            success_message = (
+                f"Success! Asset '{asset.name}' (ID: {asset.id}) is now orphaned."
+            )
+        else:
+            audit_log_message = f"Parent changed for asset '{asset.name}' (ID: {asset.id}): from '{old_parent_name}' (ID: {asset.parent_asset_id}) to '{new_parent.name}' (ID: {new_parent.id})"
+            success_message = f"Success! Asset '{asset.name}' (ID: {asset.id}) is now a child of '{new_parent.name}' (ID: {new_parent.id})."
+        if new_parent is None:
+            asset.parent_asset_id = None
+        else:
+            asset.parent_asset_id = new_parent.id
+        AssetAuditLog.add_record(asset, audit_log_message)
+        click.secho(success_message, **MsgStyle.SUCCESS)
+        changed += 1
+    if changed == 0:
+        click.secho("No assets were updated.", **MsgStyle.WARN)
+    elif new_parent is None:
+        click.secho(
+            f"Successfully orphaned {pluralize('asset', changed, include_count=True)}.",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.secho(
+            f"Successfully transferred {pluralize('asset', changed, include_count=True)} to new parent '{new_parent.name}' (ID: {new_parent.id}).",
+            **MsgStyle.SUCCESS,
+        )
+
+    db.session.commit()
 
 
 app.cli.add_command(fm_edit_data)
@@ -289,3 +473,42 @@ def parse_attribute_value(  # noqa: C901
 def single_true(iterable) -> bool:
     i = iter(iterable)
     return any(i) and not any(i)
+
+
+def validate_options_for_editing_parenthood(
+    asset: Asset | None, old_parent: Asset | None
+) -> None:
+    if asset is None and old_parent is None:
+        abort("Use either the `--asset` or `--old-parent` option.")
+    if asset is not None and old_parent is not None:
+        abort("Use either the `--asset` or `--old-parent` option.")
+    if old_parent is not None:
+        assets = old_parent.child_assets
+        if not assets:
+            abort(f"Asset {old_parent.id} has no child assets.")
+
+
+def confirm_ownership_change(
+    old_owner: Account | None, new_owner: Account | None
+) -> None:
+    if old_owner is None and new_owner is not None:
+        # public → owned
+        click.confirm(
+            f"You are moving public asset(s) under an account-owned parent: "
+            f"{new_owner.name} (ID: {new_owner.id}). Continue?",
+            abort=True,
+        )
+    elif old_owner is not None and new_owner is None:
+        # owned → public
+        click.confirm(
+            f"You are moving asset(s) from account {old_owner.name} (ID: {old_owner.id}) "
+            "under a public parent (no owner). Continue?",
+            abort=True,
+        )
+    elif old_owner != new_owner:
+        # cross-account move
+        click.confirm(
+            f"You are moving asset(s) from account {old_owner.name} (ID: {old_owner.id}) "
+            f"under a parent in a different account: {new_owner.name} (ID: {new_owner.id}). Continue?",
+            abort=True,
+        )

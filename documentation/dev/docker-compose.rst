@@ -46,12 +46,13 @@ Check ``docker ps`` or ``docker-compose ps`` to see if your containers are runni
 .. code-block:: bash
 
     $ docker ps
-    CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS                             PORTS                    NAMES
-    beb9bf567303   flexmeasures_server   "bash -c 'flexmeasur…"   44 seconds ago   Up 38 seconds (health: starting)   0.0.0.0:5000->5000/tcp   flexmeasures-server-1
-    e36cd54a7fd5   flexmeasures_worker   "flexmeasures jobs r…"   44 seconds ago   Up 5 seconds                       5000/tcp                 flexmeasures-worker-1
-    c9985de27f68   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                 flexmeasures-test-db-1
-    03582d37230e   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                 flexmeasures-dev-db-1
-    792ec3d86e71   redis                 "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      0.0.0.0:6379->6379/tcp   flexmeasures-queue-db-1
+    CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS                             PORTS                                            NAMES
+    beb9bf567303   flexmeasures_server   "bash -c 'flexmeasur…"   44 seconds ago   Up 38 seconds (health: starting)   0.0.0.0:5000->5000/tcp                           flexmeasures-server-1
+    e36cd54a7fd5   flexmeasures_worker   "flexmeasures jobs r…"   44 seconds ago   Up 5 seconds                       5000/tcp                                         flexmeasures-worker-1
+    c9985de27f68   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                                         flexmeasures-test-db-1
+    03582d37230e   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                                         flexmeasures-dev-db-1
+    25024ada1590   mailhog/mailhog       "MailHog"                45 seconds ago   Up 40 seconds                      0.0.0.0:1025->1025/tcp, 0.0.0.0:8025->8025/tcp   flexmeasures-mailhog-1
+    792ec3d86e71   redis                 "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      0.0.0.0:6379->6379/tcp                           flexmeasures-queue-db-1
 
 
 The FlexMeasures server container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
@@ -72,13 +73,20 @@ Data
 -------
 
 The postgres database is a test database with toy data filled in when the flexmeasures container starts.
-You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config. 
+You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config.
+
+The database within the ``dev-db`` postgres container resides in ``/var/lib/postgresql/data``, which we map the local path ``./docker-compose-data/dev-db`` iso as developer you can have persistence for your data across re-building the compose stack.
+
+* A manual backup of the database can be made by copying this directory.
+* For a fresh start, you can delete this directory: ``rm -rf ./docker-compose-data/dev-db`` (``sudo`` might be required, if this directory was created by ``docker``). The database will be re-initialized when you restart the stack.
+
+.. warning:: We fixed the postgres version to 17. Postgres sometimes requires structural changes between version upgrades. Deleting your dev db and re-creating it is one option. Another is `this upgrade procedure <https://helgeklein.com/blog/upgrading-postgresql-in-docker-container/>`_ if you want to continue with your dev data.
 
 
 .. _docker-compose-tutorial:
 
 Seeing it work: Running the toy tutorial
---------------------------------------
+-----------------------------------------
 
 A good way to see if these containers work well together, and maybe to inspire how to use them for your own purposes, is the :ref:`tut_toy_schedule`.
 
@@ -96,9 +104,9 @@ Next, we put a scheduling job in the worker's queue. This only works because we 
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule for-storage --sensor-id 2 --consumption-price-sensor 1 \
+    $ flexmeasures add schedule --sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-        --roundtrip-efficiency 90% --as-job
+        --flex-model '{"soc-min": "50 kWh"}' --as-job
 
 We should now see in the output of ``docker logs flexmeasures-worker-1`` something like the following:
 
@@ -113,7 +121,7 @@ We'll not go into the server container this time, but simply send a command:
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    $ docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
+    $ docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
 
 The charging/discharging schedule should be there:
 
@@ -145,6 +153,26 @@ Like in the original toy tutorial, we can also check in the server container's `
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+|
+
+.. note::
+    Actually, we keep scripts for the first 5 tutorial steps. You can run them easily (just do it in order):
+    
+    .. code-block:: bash
+
+        $ ./documentation/tut/scripts/run-tutorial-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial2-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial3-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial4-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial5-in-docker.sh
+
+
+Email Testing
+----------------------------------
+
+To test email functionality, MailHog is included in the Docker Compose stack. You can view the emails sent by the application by navigating to http://localhost:8025/ in your browser.
+
+To verify this setup, try changing a user's password in the application. This action will trigger an email, which you can then view in `MailHog <http://localhost:8025/>`_.
 
 
 Scripting with the Docker stack

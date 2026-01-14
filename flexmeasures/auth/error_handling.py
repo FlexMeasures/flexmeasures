@@ -5,6 +5,7 @@ Beware: There is a historical confusion of naming between authentication and aut
         Names of Responses have to be kept as they were called in original W3 protocols.
         See explanation below.
 """
+
 from __future__ import annotations
 
 from typing import Callable
@@ -41,7 +42,7 @@ FORBIDDEN_MSG = "You cannot be authorized for this content or functionality."
 
 def unauthorized_handler_e(e):
     """Swallow error. Useful for classical Flask error handler registration."""
-    log_error(e, str(e))
+    log_error(e, str(e), verbose=False)
     return unauthorized_handler()
 
 
@@ -68,7 +69,7 @@ def unauthorized_handler(func: Callable | None = None, params: list | None = Non
 
 def unauthenticated_handler_e(e):
     """Swallow error. Useful for classical Flask error handler registration."""
-    log_error(e, str(e))
+    log_error(e, str(e), verbose=False)
     return unauthenticated_handler()
 
 

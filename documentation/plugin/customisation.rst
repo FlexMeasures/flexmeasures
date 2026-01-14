@@ -1,7 +1,7 @@
 .. _plugin_customization:
 
 
-Plugin Customizations
+Plugin Customization
 =======================
 
 
@@ -15,7 +15,7 @@ but in the background your custom scheduling algorithm is being used.
 
 Let's walk through an example!
 
-First, we need to write a a class (inhering from the Base Scheduler) with a `schedule` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
+First, we need to write a class (inhering from the Base Scheduler) with a ``schedule`` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
 The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a scheduling function:
 
 .. code-block:: python
@@ -52,7 +52,7 @@ The following minimal example gives you an idea of some meta information you can
 
 .. note:: It's possible to add arguments that describe the asset flexibility model and the flexibility (EMS) context in more detail.
           For example, for storage assets we support various state-of-charge parameters. For details on flexibility model and context,
-          see :ref:`describing_flexibility` and the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint.
+          see :ref:`describing_flexibility` and the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ endpoint.
         
 
 Finally, make your scheduler be the one that FlexMeasures will use for certain sensors:
@@ -78,7 +78,53 @@ get computed by your custom function! For later lookup, the data will be linked 
           You can also provide a full file path to the module, e.g. "/path/to/my_file.py".
 
 
-.. todo:: We're planning to use a similar approach to allow for custom forecasting algorithms, as well.
+Adding your own forecasting algorithm
+-------------------------------------
+
+FlexMeasures comes with an in-built generic forecasting algorithm that should fit many use cases. However, you can use your own algorithm, as well, made available through your plugin.
+
+Let's walk through an example, very similar to that for scheduling, but there are a few differences.
+
+First, we need to write a class (inhering from the Base Forecaster) with a ``_compute_forecasts`` function which accepts arguments just like the in-built forecaster (its code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/forecasting>`_).
+The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a forecasting function:
+
+.. code-block:: python
+
+    from marshmallow import Schema
+    from timely_beliefs import BeliefsDataFrame
+    from flexmeasures import Forecaster, Sensor
+
+    class DummyForecaster(Forecaster):
+
+    __author__ = "My Company"
+    __version__ = "1"
+
+    _config_schema = Schema(unknown="include")
+    _parameters_schema = Schema(unknown="include")
+
+    def _compute_forecast(self, **kwargs):
+        target_sensor: Sensor = kwargs["sensor"]
+        bdf = BeliefsDataFrame()
+        return [
+            {
+                "sensor": target_sensor,
+                "data": bdf,
+            },
+        ]
+
+To check that your forecaster is registered correctly:
+
+.. code-block:: python
+
+    flexmeasures show forecasters
+
+To use the forecaster through the CLI:
+
+.. code-block:: python
+
+    flexmeasures add forecasts --forecaster DummyForecaster
+
+.. note:: Currently, the forecaster is responsible for saving the data. Use ``flexmeasures.data.utils.save_to_db(bdf)``.
 
 
 Deploying your plugin via Docker
@@ -127,8 +173,8 @@ This will find `css/styles.css` if you add that folder and file to your Blueprin
 .. note:: This styling will only apply to the pages defined in your plugin (to pages based on your own base template). To apply a styling to all other pages which are served by FlexMeasures, consider using the config setting :ref:`extra-css-config`. 
 
 
-Adding config settings
-----------------------------
+Adding your own config settings
+--------------------------------
 
 FlexMeasures can automatically check for you if any custom config settings, which your plugin is using, are present.
 This can be very useful in maintaining installations of FlexMeasures with plugins.
@@ -172,9 +218,13 @@ Alternatively, use ``from my_plugin import __settings__`` in your plugin module,
         "level": "info",
     }
 
+
+Set config programmatically - Example of using a custom logo
+-------------------------------------------------------------
+
 Finally, you might want to override some FlexMeasures configuration settings from within your plugin.
 Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below).
-There is a `record_once` function on Blueprints which can help with this. An example:
+There is a ``record_once`` function on Blueprints which can help with this. An example:
 
 .. code-block:: python
 
@@ -208,8 +258,9 @@ Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the fa
 .. code-block:: python
 
     from flask import send_from_directory
+    from flexmeasures.ui import flexmeasures_ui
 
-    @our_client_bp.route("/favicon.ico")
+    @flexmeasures_ui.route("/favicon.ico")
     def favicon():
         return send_from_directory(
             our_client_bp.static_folder,
@@ -218,6 +269,31 @@ Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the fa
         )
 
 Here we assume your favicon is a PNG file. You can also use a classic `.ico` file, then your mime type probably works best as ``image/x-icon``.
+
+
+Customizing the breadcrumbs
+---------------------------------
+
+On asset and sensor pages, we show breadcrumbs on top (e.g. Account -> Asset -> ChildAsset -> Sensor).
+Say you want to adapt this, so that some asset has a unique breadcrumb path.
+
+Add an attribute to an asset or sensor named "breadcrumb_ancestry", e.g.:
+
+.. code-block:: python
+
+    my_asset.attributes["breadcrumb_ancestry"] = 
+        [
+            {"url": my_url, "name": "Top-level", "type": "Asset"},
+            {"url": another_url, "name": "2nd-level", "type": "Asset"}
+        ]
+
+Then the page will show these two breadcrumbs.
+
+.. note:: For child assets without their own custom attribute, their breadcrumbs will also have these breadcrumbs on the left, but they will add their own breadcrumbs as usual.
+
+
+In the same way, you can customize the siblings that are shown as drop-down for the current (right-most) breadcrumb.
+For this, the attribute is named "breadcrumb_siblings" and follows the same syntax. One use case might be to set it to empty (``[]``).
 
 
 Validating arguments in your CLI commands with marshmallow

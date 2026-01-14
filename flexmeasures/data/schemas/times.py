@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta
 
 from flask import current_app
-from marshmallow import fields, Schema
+from marshmallow import fields, Schema, validates_schema
 from marshmallow.exceptions import ValidationError
 import isodate
 from isodate.isoerror import ISO8601Error
@@ -93,6 +93,30 @@ class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):
         return fields.AwareDateTime._deserialize(self, value, attr, obj, **kwargs)
 
 
+class AwareDateTimeOrDateField(AwareDateTimeField):
+    """Like AwareDateTimeField, but accepts naive dates, which are localized to the FLEXMEASURES_TIMEZONE.
+
+    If inclusive=False (the default), converts dates to (midnight at) the start of the day.
+    Otherwise, if inclusive=True, converts dates to (midnight at) the end of the day.
+    """
+
+    def __init__(self, inclusive: bool = False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inclusive = inclusive
+
+    def _deserialize(self, value: str, attr, obj, **kwargs) -> datetime:
+        """Try deserializing a naive date (ISO 8601) before falling back to an aware datetime."""
+        try:
+            dt = datetime.strptime(value, "%Y-%m-%d")
+            timezone = current_app.config.get("FLEXMEASURES_TIMEZONE")
+            dt_aware = pd.Timestamp(dt).tz_localize(timezone)
+            if self.inclusive:
+                return dt_aware + pd.DateOffset(days=1)
+            return dt_aware
+        except ValueError:
+            return AwareDateTimeField._deserialize(self, value, attr, obj, **kwargs)
+
+
 class TimeIntervalSchema(Schema):
     start = AwareDateTimeField(required=True)
     duration = DurationField(required=True)
@@ -108,3 +132,19 @@ class TimeIntervalField(MarshmallowClickMixin, fields.Dict):
             raise ValidationError()
 
         return TimeIntervalSchema().load(v)
+
+
+class StartEndTimeSchema(Schema):
+    start_time = AwareDateTimeField(required=False)
+    end_time = AwareDateTimeField(required=False)
+
+    @validates_schema
+    def validate(self, data, **kwargs):
+        if not (data.get("start_time") or data.get("end_time")):
+            return
+        if not (data.get("start_time") and data.get("end_time")):
+            raise ValidationError(
+                "Both start_time and end_time must be provided together."
+            )
+        if data["start_time"] >= data["end_time"]:
+            raise ValidationError("start_time must be before end_time.")

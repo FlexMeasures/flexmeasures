@@ -28,7 +28,8 @@ def custom_model_params():
 
 def get_data_source(model_identifier: str = "linear-OLS model v2"):
     """This helper is a good way to check which model has been successfully used.
-    Only when the forecasting job is successful, will the created data source entry not be rolled back."""
+    Only when the forecasting job is successful, will the created data source entry not be rolled back.
+    """
     data_source_name = "Seita (%s)" % model_identifier
     return DataSource.query.filter_by(
         name=data_source_name, type="forecasting script"
@@ -172,7 +173,7 @@ def check_failures(
         )
 
         if len(failure_search_words) >= job_idx:
-            assert failure_search_words[job_idx] in job.exc_info
+            assert failure_search_words[job_idx] in job.latest_result().exc_string
 
         if model_identifiers:
             assert job.meta["model_identifier"] == model_identifiers[job_idx]

@@ -6,95 +6,63 @@ Notation
 This page helps you to construct messages to the FlexMeasures API. Please consult the endpoint documentation first. Here we dive into topics useful across endpoints.
 
 
-Singular vs plural keys
+.. _variable_quantities:
+
+Variable quantities
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Throughout this document, keys are written in singular if a single value is listed, and written in plural if multiple values are listed, for example:
+Many API fields deal with variable quantities, for example, :ref:`flex-model <flex_models_and_schedulers>` and :ref:`flex-context <flex_context>` fields.
+Unless stated otherwise, values of such fields can take one of the following forms:
 
-.. code-block:: json
+- A fixed quantity, to describe steady constraints such as a physical power capacity.
+  For example:
 
-    {
-        "keyToValue": "this is a single value",
-        "keyToValues": ["this is a value", "and this is a second value"]
-    }
+  .. code-block:: json
 
-The API, however, does not distinguish between singular and plural key notation.
+     {
+         "power-capacity": "15 kW"
+     }
 
+- A variable quantity defined at specific moments in time, to describe dynamic constraints/preferences such as target states of charge.
 
-Sensors and entity addresses
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  .. code-block:: json
 
-In many API endpoints, sensors are identified by their ID, e.g. ``/sensors/45``. However, all sensors can also be identified with an entity address following the EA1 addressing scheme prescribed by USEF[1],
-which is mostly taken from IETF RFC 3720 [2].
+     {
+         "soc-targets": [
+             {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
+             ...
+             {"datetime": "2024-02-05T13:00:00+01:00", "value": "2.2 kWh"}
+         ]
+     }
 
-This is the complete structure of an EA1 address:
+- A variable quantity defined for specific time ranges, to describe dynamic constraints/preferences such as usage forecasts.
 
-.. code-block:: json
+  .. code-block:: json
 
-    {
-        "sensor": "ea1.{date code}.{reversed domain name}:{locally unique string}"
-    }
+     {
+         "soc-usage": [
+             {"start": "2024-02-05T08:00:00+01:00", "duration": "PT2H", "value": "10.1 kW"},
+             ...
+             {"start": "2024-02-05T13:00:00+01:00", "end": "2024-02-05T13:15:00+01:00", "value": "10.3 kW"}
+         ]
+     }
 
-Here is a full example for an entity address of a sensor in FlexMeasures:
+  Note the two distinct ways of specifying a time period (``"end"`` in combination with ``"duration"`` also works).
 
-.. code-block:: json
+  .. note:: In case a field defines partially overlapping time periods, FlexMeasures automatically resolves this.
+            By default, time periods that are defined earlier in the list take precedence.
+            Fields that deviate from this policy will note so explicitly.
+            (For example, for fields dealing with capacities, the minimum is selected instead.)
 
-    {
-        "sensor": "ea1.2021-02.io.flexmeasures.company:fm1.73"
-    }
+- A reference to a sensor that records a variable quantity, which allows cross-referencing to dynamic contexts that are already recorded as sensor data in FlexMeasures. For instance, a site's contracted consumption capacity that changes over time.
 
-where FlexMeasures runs at `company.flexmeasures.io` (which the current domain owner started using in February 2021), and the locally unique string uses the `fm1` scheme (see below) to identify sensor ID 73.
+  .. code-block:: json
 
-Assets are listed at:
+     {
+         "site-consumption-capacity": {"sensor": 55}
+     }
 
-.. code-block:: html
-
-    https://company.flexmeasures.io/assets
-
-The full entity addresses of all of the asset's sensors can be obtained on the asset's page, e.g. for asset 81:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/assets/81
-
-
-Entity address structure
-""""""""""""""""""""""""""
-Some deeper explanations about an entity address:
-
-- "ea1" is a constant, indicating this is a type 1 USEF entity address
-- The date code "must be a date during which the naming authority owned the domain name used in this format, and should be the first month in which the domain name was owned by this naming authority at 00:01 GMT of the first day of the month.
-- The reversed domain name is taken from the naming authority (person or organization) creating this entity address
-- The locally unique string can be used for local purposes, and FlexMeasures uses it to identify the resource.
-  Fields in the locally unique string are separated by colons, see for other examples
-  IETF RFC 3721, page 6 [3]. While [2] says it's possible to use dashes, dots or colons as separators, we might use dashes and dots in
-  latitude/longitude coordinates of sensors, so we settle on colons.
-
-
-[1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf
-
-[2] https://tools.ietf.org/html/rfc3720
-
-[3] https://tools.ietf.org/html/rfc3721
-
-
-Types of sensor identification used in FlexMeasures
-""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-FlexMeasures expects the locally unique string string to contain information in a certain structure.
-We distinguish type ``fm0`` and type ``fm1`` FlexMeasures entity addresses.
-
-The ``fm1`` scheme is the latest version.
-It uses the fact that all FlexMeasures sensors have unique IDs.
-
-.. code-block::
-
-    ea1.2021-01.io.flexmeasures:fm1.42
-    ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
-
-The ``fm0`` scheme is the original scheme.
-It identified different types of sensors (such as grid connections, weather sensors and markets) in different ways.
-The ``fm0`` scheme has been sunset since API version 3.
+  The unit of the data is specified on the sensor.
 
 
 Timeseries
@@ -151,95 +119,6 @@ In all current versions of the FlexMeasures API, only equidistant timeseries dat
 - only the array notation should be used (first notation from above),
 - "start" should be a timestamp on the hour or a multiple of the sensor resolution thereafter (e.g. "16:10" works if the resolution is 5 minutes), and
 - "duration" should also be a multiple of the sensor resolution.
-
-
-.. _describing_flexibility:
-
-Describing flexibility
-^^^^^^^^^^^^^^^^^^^^^^^
-
-FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce electricity.
-We model a device as an asset with a power sensor, and compute schedules only for flexible devices, while taking into account inflexible devices.
-
-To compute a schedule, FlexMeasures first needs to assess the flexibility state of the system.
-This is described by the `flex model` (information about the state and possible actions of the flexible device) and the `flex-context`
-(information about the system as a whole, in order to assess the value of activating flexibility).
-
-This information goes beyond the usual time series recorded by an asset's sensors. It's being sent through the API when triggering schedule computation.
-Some parts of it can be persisted on the asset & sensor model as attributes (that's design work in progress). 
-
-We distinguish the information with two groups:
-
-Flex model
-""""""""""""
-
-The flexibility model describes to the scheduler what the flexible asset's state is,
-and what constraints or preferences should be taken into account.
-Which type of flexibility model is relevant to a scheduler usually relates to the type of device.
-
-Usually, not the whole flexibility model is needed.
-FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
-This means that API and CLI users don't have to send the whole flex model every time.
-
-Here are the three types of flexibility models you can expect to be built-in:
-
-1) For **storage devices** (e.g. batteries, and :abbr:`EV (electric vehicle)` batteries connected to charge points), the schedule deals with the state of charge (SOC).
-    
-   The possible flexibility parameters are:
-
-   - ``soc-at-start`` (defaults to 0)
-   - ``soc-unit`` (kWh or MWh)
-   - ``soc-min`` (defaults to 0)
-   - ``soc-max`` (defaults to max soc target)
-   - ``soc-minima`` (defaults to NaN values)
-   - ``soc-maxima`` (defaults to NaN values)
-   - ``soc-targets`` (defaults to NaN values)
-   - ``roundtrip-efficiency`` (defaults to 100%)
-   - ``storage-efficiency`` (defaults to 100%) [#]_
-   - ``prefer-charging-sooner`` (defaults to True, also signals a preference to discharge later)
-   - ``power-capacity`` (defaults to the Sensor attribute ``capacity_in_mw``)
-
-    .. [#] The storage efficiency (e.g. 95% or 0.95) to use for the schedule is applied over each time step equal to the sensor resolution. For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
-
-   For some examples, see the `[POST] /sensors/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
-
-2) For **processes**
-   
-    - ``power``: nominal power of the load.
-    - ``duration``: time that the load last.
-    - ``optimization_sense``: objective of the scheduler, to maximize or minimize.
-    - ``time_restrictions``: time periods in which the load cannot be schedule to.
-    - ``process_type``: INFLEXIBLE, BREAKABLE or SHIFTABLE.
-
-
-3) For **buffer devices** (e.g. thermal energy storage systems connected to heat pumps), use the same flexibility parameters described above for storage devices. Here are some tips to model a buffer with these parameters:
-
-   - Describe the thermal energy content in kWh or MWh.
-   - Set ``soc-minima`` to the accumulative usage forecast.
-   - Set ``roundtrip-efficiency`` to the square of the conversion efficiency. [#]_
-   - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
-
-    .. [#] Setting a roundtrip efficiency of higher than 1 is not supported. We plan to implement a separate field for :abbr:`COP (coefficient of performance)` values.
-
-In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
-That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
-
-.. note:: We also aim to model situations with more than one flexible asset, with different types of flexibility.
-     This is ongoing architecture design work, and therefore happens in development settings, until we are happy 
-     with the outcomes. Thoughts welcome :) 
-
-
-Flex context
-"""""""""""""
-
-With the flexibility context, we aim to describe the system in which the flexible assets operates:
-
-- ``inflexible-device-sensors`` ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
-- ``consumption-price-sensor`` ― the sensor which defines costs/revenues of consuming energy
-- ``production-price-sensor`` ― the sensor which defines cost/revenues of producing energy
-- ``site-power-capacity`` (defaults to the Asset attribute ``capacity_in_mw``)
-
-These should be independent on the asset type and consequently also do not depend on which scheduling algorithm is being used.
 
 
 .. _beliefs:
