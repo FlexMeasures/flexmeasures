@@ -69,12 +69,13 @@ jobs:
 #        if: ${{ matrix.py_version != '3.9' && matrix.py_version != '3.10' }}
 #        run: pytest flexmeasures/utils/unit_utils.py --doctest-modules -k "find_smallest_common_unit"
       - name: Run all tests AND record coverage
-        run: pytest -v \
-             --doctest-modules \
-             --doctest-ignore-import-errors \
-             --cov=flexmeasures \
-             --cov-branch \
-             --cov-report=lcov
+        run: |
+          pytest -v \
+          --doctest-modules \
+          --doctest-ignore-import-errors \
+          --cov=flexmeasures \
+          --cov-branch \
+          --cov-report=lcov
       - name: Coveralls
         uses: coverallsapp/github-action@v2
         with:
