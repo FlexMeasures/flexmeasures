@@ -135,7 +135,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
             continue
         if k in schema_map:
             # Validate the JSON field against the given schema
-            schema_map[k](unknown="include").load(v)
+            schema_map[k]().load(v)
 
         if k.lower() in {"sensors_to_show", "flex_context", "flex_model"}:
             audit_log_data.append(format_json_field_change(k, getattr(db_asset, k), v))
