@@ -317,7 +317,11 @@
                             </div>
                         </div>
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    
+                    <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
 
                 </div>
                 <div class="px-2 pt-3 pb-2">
@@ -444,6 +448,11 @@
             const flexModelModal = document.getElementById('flexModelModal');
             const flexSelect = document.getElementById('flexSelect');
 
+            const saveChangesBtn = document.getElementById("saveChangesBtn");
+            saveChangesBtn.onclick = async function () {
+                await updateFlexModel();
+            };
+            
             const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, reRenderForm);
             const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
             const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
