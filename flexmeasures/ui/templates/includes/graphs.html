@@ -254,10 +254,9 @@
     });
 
     {% if event_starts_after and event_ends_before %}
-    // Initialize picker to the date selection specified in the session
     $("#spinner").show();
     {% if active_subpage == "asset_graph" and has_kpis %}
-    getAssetKPIs();
+    getAssetKPIs(storeStartDate, storeEndDate);
     {% endif %}
     const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
         method: "GET",
@@ -653,7 +652,7 @@
             return Promise.resolve(previousResult.data);
         } else {
             {% if active_subpage == "asset_graph" and has_kpis %}
-            getAssetKPIs();
+            getAssetKPIs(startDate, endDate);
             {% endif %}
             return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
                 method: "GET",
@@ -666,14 +665,12 @@
     }
 
     {% if active_subpage == "asset_graph" and has_kpis %}
-    function getAssetKPIs() {
-        const pickerStartDate = picker.getStartDate().toJSDate();
-        const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
-        var endDate = picker.getEndDate();
-        endDate.setDate(endDate.getDate() + 1);
-        endDate = encodeURIComponent(toIsoStringWithOffset(endDate.toJSDate()));
+    function getAssetKPIs(startDate, endDate) {
+        const start = encodeURIComponent(toIsoStringWithOffset(startDate));
+        endDate.setDate(endDate.getDate() + 1);  // make the end date inclusive
+        const end = encodeURIComponent(toIsoStringWithOffset(endDate));
         const kpiCards = document.querySelector('#kpi-cards');
-        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + endDate, {
+        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + end, {
             method: 'GET',
             headers: {
                 "Content-Type": "application/json",

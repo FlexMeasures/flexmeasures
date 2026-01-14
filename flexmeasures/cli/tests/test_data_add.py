@@ -1,4 +1,3 @@
-import pytest
 from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import to_flags
@@ -14,10 +13,10 @@ from flexmeasures.cli.tests.utils import (
 )
 
 
-@pytest.mark.skip_github
-def test_add_annotation(app, db, setup_roles_users):
+def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_annotation
 
+    db = fresh_db
     cli_input = {
         "content": "Company founding day",
         "at": "2016-05-11T00:00+02:00",
@@ -50,10 +49,10 @@ def test_add_annotation(app, db, setup_roles_users):
     ).scalar_one_or_none()
 
 
-@pytest.mark.skip_github
-def test_add_holidays(app, db, setup_roles_users):
+def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_holidays
 
+    db = fresh_db
     cli_input = {
         "year": 2020,
         "country": "NL",
