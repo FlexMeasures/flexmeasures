@@ -61,7 +61,7 @@ jobs:
         if: github.event_name == 'pull_request'
       - name: Run all tests AND record coverage
         run: |
-          if [[ "${{ matrix.py_version }}" < "3.11" ]]; then
+          if [[ "${{ matrix.py_version != '3.9' && matrix.py_version != '3.10' }}" ]]; then
             PYTEST_K="not get_object_or_literal and not get_or_create_model and not find_smallest_common_unit"
           else
             PYTEST_K="not get_object_or_literal and not get_or_create_model"
