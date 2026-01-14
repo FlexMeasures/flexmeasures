@@ -287,6 +287,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         sensor_ids_to_show = self.sensors_to_show
         # Import the schema for validation
+        from flexmeasures.data.schemas.utils import extract_sensors_from_flex_config
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
         sensors_to_show_schema = SensorsToShowSchema()
@@ -332,6 +333,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                         sensors.append(plot["sensor"])
                     if "sensors" in plot:
                         sensors.extend(plot["sensors"])
+                    if "asset" in plot:
+                        extracted_sensors = extract_sensors_from_flex_config(plot)
+                        sensors.extend(extracted_sensors)
 
             accessible_sensors = [
                 accessible_sensor_map.get(sid)
