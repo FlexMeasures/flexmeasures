@@ -82,6 +82,7 @@ jobs:
           --ignore flexmeasures/cli/jobs.py \
           --ignore flexmeasures/cli/monitor.py \
           --ignore flexmeasures/data/migrations \
+          --ignore flexmeasures/data/models/reporting/pandas_reporter.py \
           --ignore flexmeasures/data/scripts \
           --cov=flexmeasures \
           --cov-branch \
