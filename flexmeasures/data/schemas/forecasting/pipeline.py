@@ -176,7 +176,7 @@ class ForecasterParametersSchema(Schema):
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
-        start_date = data["start_date"]
+        start_date = data.get("start_date")
         end_date = data["end_date"]
         predict_start = data.get("start_predict_date", None)
         train_period = data.get("train_period")
@@ -185,13 +185,13 @@ class ForecasterParametersSchema(Schema):
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
 
-        if start_date >= end_date:
+        if start_date is not None and start_date >= end_date:
             raise ValidationError(
                 "start-date must be before end-date", field_name="start_date"
             )
 
         if predict_start:
-            if predict_start < start_date:
+            if start_date is not None and predict_start < start_date:
                 raise ValidationError(
                     "start-predict-date cannot be before start-date",
                     field_name="start_predict_date",
@@ -251,15 +251,19 @@ class ForecasterParametersSchema(Schema):
             now if data.get("start_predict_date") is None else predict_start
         )
 
-        if data.get("start_predict_date") is None and data.get("train_period"):
+        if (
+            data.get("start_predict_date") is None
+            and data.get("train_period")
+            and data.get("start_date")
+        ):
 
             predict_start = data["start_date"] + data["train_period"]
             save_belief_time = None
 
-        if data.get("train_period") is None and data["start_date"] is None:
+        if data.get("train_period") is None and data.get("start_date") is None:
             train_period_in_hours = 30 * 24  # Set default train_period value to 30 days
 
-        elif data.get("train_period") is None and data["start_date"]:
+        elif data.get("train_period") is None and data.get("start_date"):
             train_period_in_hours = int(
                 (predict_start - data["start_date"]).total_seconds() / 3600
             )
@@ -287,7 +291,7 @@ class ForecasterParametersSchema(Schema):
             if retrain_frequency_in_hours < 1:
                 raise ValidationError("retrain-frequency must be at least 1 hour")
 
-        if data["start_date"] is None:
+        if data.get("start_date") is None:
             start_date = predict_start - timedelta(hours=train_period_in_hours)
         else:
             start_date = data["start_date"]
