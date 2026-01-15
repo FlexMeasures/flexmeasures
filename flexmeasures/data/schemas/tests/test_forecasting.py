@@ -17,10 +17,10 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
         # ),
         # Test defaults when only an end date is given
         (
-            {"end_date": "2023-03-27T00:00:00+02:00"},
+            {"end_date": "2025-03-27T00:00:00+02:00"},
             {
-                "end_date": pd.Timestamp("2023-03-27T00:00:00+02:00", tz="Asia/Seoul"),
-                "predict_start": pd.Timestamp.now(tz="Asia/Seoul").floor(
+                "end_date": pd.Timestamp("2025-03-27T00:00:00+02:00", tz="Asia/Seoul"),
+                "predict_start": pd.Timestamp("2025-01-15T12:23:58.387422+01").floor(
                     "1H"
                 ),  # 1st sensor in setup_dummy_sensors is hourly
                 "max_forecast_horizon": pd.Timedelta("PT48H"),
@@ -30,8 +30,17 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
     ],
 )
 def test_timing_parameters_of_forecaster_parameters_schema(
-    setup_dummy_sensors, timing_input, expected_timing_output
+    setup_dummy_sensors, monkeypatch, timing_input, expected_timing_output
 ):
+
+    from flexmeasures.data.schemas.forecasting import pipeline
+
+    monkeypatch.setattr(
+        pipeline,
+        "server_now",
+        lambda: pd.Timestamp("2025-01-15T12:23:58.387422+01"),
+    )
+
     data = ForecasterParametersSchema().load(
         {
             "sensor": 1,
