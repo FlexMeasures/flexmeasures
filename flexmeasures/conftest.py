@@ -1841,7 +1841,9 @@ def freeze_server_now():
     """
     patched_modules = set()
 
-    def _freeze(value: datetime):
+    def _freeze(value: datetime | pd.Timestamp):
+        if isinstance(value, pd.Timestamp):
+            value = value.to_pydatetime()
         # Patch currently loaded FlexMeasures modules
         for module in list(sys.modules.values()):  # copy to avoid RuntimeError
             try:
