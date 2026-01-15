@@ -54,25 +54,34 @@ export async function getSensor(id) {
   return sensor;
 }
 
-export function processResourceRawJSON(schema, rawJSON) {
+export function processResourceRawJSON(schema, rawJSON, allowExtra = false) {
+  /*
+    allowExtra - whether to allow extra fields in the rawJSON that are not in the schema. 
+    If false, those fields will be ignored.
+  */
   let processedJSON = rawJSON.replace(/'/g, '"');
-  // change None to null
-  processedJSON = processedJSON.replace(/None/g, "null");
-  // change True to true and False to false
-  processedJSON = processedJSON.replace("True", "true");
-  processedJSON = processedJSON.replace("False", "false");
+  // change None to null, True to true and False to false
+  processedJSON = processedJSON.replaceAll("None", "null");
+  processedJSON = processedJSON.replaceAll("True", "true");
+  processedJSON = processedJSON.replaceAll("False", "false");
   // update the assetFlexModel fields
   processedJSON = JSON.parse(processedJSON);
+  const extraFields = {};
 
   for (const [key, value] of Object.entries(processedJSON)) {
     if (key in schema) {
       schema[key] = processedJSON[key];
     } else {
-      schema[key] = null;
+      if (!allowExtra) {
+        schema[key] = null;
+      } else {
+        schema[key] = processedJSON[key];
+        extraFields[key] = processedJSON[key];
+      }
     }
   }
 
-  return processedJSON;
+  return [processedJSON, extraFields];
 }
 
 export function getFlexFieldTitle(fieldName) {

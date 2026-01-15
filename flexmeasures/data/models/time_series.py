@@ -148,6 +148,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         """
         We allow reading to whoever can read the asset.
         Editing as well as deletion is left to account admins.
+        Everyone in the account and its consultant can add beliefs.
         """
         return {
             "create-children": [
