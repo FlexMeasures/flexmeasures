@@ -30,16 +30,9 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
     ],
 )
 def test_timing_parameters_of_forecaster_parameters_schema(
-    setup_dummy_sensors, monkeypatch, timing_input, expected_timing_output
+    setup_dummy_sensors, freeze_server_now, timing_input, expected_timing_output
 ):
-
-    from flexmeasures.data.schemas.forecasting import pipeline
-
-    monkeypatch.setattr(
-        pipeline,
-        "server_now",
-        lambda: pd.Timestamp("2025-01-15T12:23:58.387422+01"),
-    )
+    freeze_server_now(pd.Timestamp("2025-01-15T12:23:58.387422+01"))
 
     data = ForecasterParametersSchema().load(
         {
