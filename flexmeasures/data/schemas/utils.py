@@ -1,5 +1,6 @@
 import click
 import marshmallow as ma
+from typing import List
 from click import get_current_context
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
@@ -83,3 +84,40 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         raise FMValidationError(
             f"Cannot convert value '{value}' to a valid quantity. {e}"
         )
+
+
+def extract_sensors_from_flex_config(plot: dict) -> List:
+    """
+    Extracts a consolidated list of sensors from an asset based on
+    flex-context or flex-model definitions provided in a plot dictionary.
+    """
+    all_sensors = []
+
+    from flexmeasures.data.schemas.generic_assets import (
+        GenericAssetIdField,
+    )  # Import here to avoid circular imports
+
+    asset = GenericAssetIdField().deserialize(plot.get("asset"))
+
+    fields_to_check = {
+        "flex-context": asset.flex_context,
+        "flex-model": asset.flex_model,
+    }
+
+    for plot_key, flex_config in fields_to_check.items():
+        if plot_key in plot:
+            field_key = plot[plot_key]
+            data = flex_config or {}
+            field_value = data.get(field_key)
+
+            if isinstance(field_value, dict):
+                # Add multiple sensors if they exist as a list
+                sensors = field_value.get("sensors", [])
+                all_sensors.extend(sensors)
+
+                # Add a single sensor if it exists
+                sensor = field_value.get("sensor")
+                if sensor:
+                    all_sensors.append(sensor)
+
+    return all_sensors
