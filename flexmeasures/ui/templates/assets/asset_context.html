@@ -151,8 +151,11 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
+                   <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
 
                 <div class="modal-body">
@@ -339,6 +342,11 @@
 
     const spinnerElement = document.getElementById('spinnerElement');
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
+
+    const saveChangesBtn = document.getElementById("saveChangesBtn");
+    saveChangesBtn.onclick = async function () {
+        await updateFlexContext();
+    };
 
     const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
     const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
@@ -626,7 +634,6 @@
                 localStorage.removeItem('activeCard');
             }
             setFlexContext(assetFlexContext);
-            updateFlexContext();
         };
         titleContainer.appendChild(title);
         titleContainer.appendChild(closeIcon);
@@ -766,9 +773,6 @@
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
         await setActiveCard(document.getElementById(`${flexId}-control`));
         await setFlexContext(assetFlexContext);
-
-        // Update FlexContext
-        await updateFlexContext();
     }
 
     function renderFlexSelectOptions() {
@@ -1011,7 +1015,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
             const setButton = document.createElement("button");
             setButton.className = "btn btn-secondary btn-sm me-2 mt-2";
             setButton.onclick = () => updateFlexContextFieldValue('fixedValue', null);
-            setButton.textContent = "Save Value";
+            setButton.textContent = "Update Value";
 
             fixedGroup.appendChild(fixedLabel);
             fixedGroup.appendChild(fixedInput);

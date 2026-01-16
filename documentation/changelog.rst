@@ -25,6 +25,7 @@ New features
 
 * Allow testing out the scheduling CLI without saving anything, using ``flexmeasures add schedule --dry-run`` [see `PR #1892 <https://www.github.com/FlexMeasures/flexmeasures/pull/1892>`_]
 * Allow unsupported ``flex-context`` or ``flex-model`` fields to be shown in the UI editors (they will be un-editable) [see `PR #1915 <https://www.github.com/FlexMeasures/flexmeasures/pull/1915>`_]
+* Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
 
 Infrastructure / Support
 ----------------------
