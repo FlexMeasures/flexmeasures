@@ -634,7 +634,6 @@
                 localStorage.removeItem('activeCard');
             }
             setFlexContext(assetFlexContext);
-            updateFlexContext();
         };
         titleContainer.appendChild(title);
         titleContainer.appendChild(closeIcon);
@@ -774,9 +773,6 @@
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
         await setActiveCard(document.getElementById(`${flexId}-control`));
         await setFlexContext(assetFlexContext);
-
-        // Update FlexContext
-        await updateFlexContext();
     }
 
     function renderFlexSelectOptions() {
@@ -1019,7 +1015,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
             const setButton = document.createElement("button");
             setButton.className = "btn btn-secondary btn-sm me-2 mt-2";
             setButton.onclick = () => updateFlexContextFieldValue('fixedValue', null);
-            setButton.textContent = "Save Value";
+            setButton.textContent = "Update Value";
 
             fixedGroup.appendChild(fixedLabel);
             fixedGroup.appendChild(fixedInput);

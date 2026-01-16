@@ -869,7 +869,6 @@
 
                     // Update the flex model
                     setFlexModel(flexModel);
-                    updateFlexModel();
                 }
 
 
@@ -955,12 +954,11 @@
 
                     const boolTabContentSaveBtn = document.createElement('button');
                     boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    boolTabContentSaveBtn.textContent = 'Save value';
+                    boolTabContentSaveBtn.textContent = 'Update Value';
                     boolTabContentSaveBtn.onclick = function () {
                         const checkbox = document.getElementById('flexBoolInput');
                         flexModel[name] = checkbox.checked;
                         setFlexModel(flexModel);
-                        updateFlexModel();
                     };
                     tabContent.innerHTML = `
                         <div class="flex-input-group mb-1 p-2">
@@ -1020,7 +1018,7 @@
 
                     const stringTabContentSaveBtn = document.createElement('button');
                     stringTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    stringTabContentSaveBtn.textContent = 'Save value';
+                    stringTabContentSaveBtn.textContent = 'Update Value';
                     stringTabContentSaveBtn.onclick = function () {
                         const input = document.getElementById('flexStringInput');
                         if (!input.value) {
@@ -1034,7 +1032,6 @@
                         }
 
                         setFlexModel(flexModel);
-                        updateFlexModel();
                     };
 
                     const flexInputGroup = document.createElement('div');

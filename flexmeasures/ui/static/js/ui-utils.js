@@ -227,7 +227,7 @@ export function renderSensorSearchResults(
     const cardBody = col.querySelector(".result-sensor-card");
     const addButton = document.createElement("button");
     addButton.className = "btn btn-primary btn-sm"; // Removed me-2 mt-2 as it might be added by a parent div
-    addButton.textContent = "Add Sensor";
+    addButton.textContent = "Use Sensor";
 
     addButton.onclick = () => {
       if (actionFunc) {
