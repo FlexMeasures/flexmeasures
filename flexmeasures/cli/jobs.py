@@ -65,6 +65,10 @@ def stats(window: int):
     """
     Show estimated live statistics of the queueing system.
 
+    Jobs are treated as customers in a multi-server queueing system.
+    Classical queueing results often assume M/M/m (exponential inter-arrival and service times, with m servers).
+    In this system, arrivals and services are closer to deterministic, so we model it as G/G/m (near D/D/m).
+
     \b
     Stats overall:
     -   ρ = average capacity requirement (consider scaling up the number of workers when close to or higher than 100%)
