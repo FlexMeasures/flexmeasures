@@ -62,7 +62,7 @@ def fm_jobs():
 )
 def stats(window: int):
     """
-    Show live statistics of the queueing system.
+    Show estimated live statistics of the queueing system.
 
     \b
     Stats overall:
