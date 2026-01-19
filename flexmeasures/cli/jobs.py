@@ -84,7 +84,7 @@ def stats(window: int):
         W = L / λ
 
     """
-    click.echo(f"Estimating arrival rates using a {window}-minute window...")
+    click.echo(f"Estimating arrival rates using a {window}-minute historical window from the recent jobs on all queues & registries...  Use --help to read more.")
 
     now = server_now()
     cutoff = now - timedelta(minutes=window)
