@@ -18,6 +18,7 @@ from flask.cli import with_appcontext
 from rq import Queue, Worker, SimpleWorker
 from rq.job import Job
 from rq.registry import (
+    BaseRegistry,
     CanceledJobRegistry,
     DeferredJobRegistry,
     FailedJobRegistry,
@@ -169,15 +170,7 @@ def _estimate_arrival_rate_all_registries(
 
     Only jobs with enqueued_at >= cutoff count toward recent arrivals.
     """
-    registries = [
-        queue,
-        queue.deferred_job_registry,
-        queue.scheduled_job_registry,
-        queue.started_job_registry,
-        queue.finished_job_registry,
-        queue.failed_job_registry,
-        queue.canceled_job_registry,
-    ]
+    registries = get_all_registries(queue)
 
     conn = queue.connection
     recent = 0
@@ -671,6 +664,19 @@ def parse_queue_list(queue_names_str: str) -> list[Queue]:
         else:
             raise ValueError(f"Unknown queue '{q_name}'.")
     return q_list
+
+
+def get_all_registries(queue: Queue) -> list[BaseRegistry]:
+    registries = [
+        queue,
+        queue.deferred_job_registry,
+        queue.scheduled_job_registry,
+        queue.started_job_registry,
+        queue.finished_job_registry,
+        queue.failed_job_registry,
+        queue.canceled_job_registry,
+    ]
+    return registries
 
 
 app.cli.add_command(fm_jobs)
