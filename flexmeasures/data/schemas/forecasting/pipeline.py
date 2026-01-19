@@ -77,7 +77,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     end_date = AwareDateTimeOrDateField(
-        required=True,
+        required=False,
         inclusive=True,
         metadata={
             "description": "End date for running the pipeline.",
@@ -177,7 +177,7 @@ class ForecasterParametersSchema(Schema):
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
         start_date = data.get("start_date")
-        end_date = data["end_date"]
+        end_date = data.get("end_date")
         predict_start = data.get("start_predict_date", None)
         train_period = data.get("train_period")
         retrain_frequency = data.get("retrain_frequency")
