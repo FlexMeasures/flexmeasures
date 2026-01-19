@@ -66,8 +66,11 @@ def stats(window: int):
     Show estimated live statistics of the queueing system.
 
     Jobs are treated as customers in a multi-server queueing system.
-    Classical queueing results often assume M/M/m (exponential inter-arrival and service times, with m servers).
-    In this system, arrivals and services are closer to deterministic, so we model it as G/G/m (near D/D/m).
+    This is a snapshot-based, Little’s-law estimate that ignores variability.
+    Future improvements may incorporate distributions and variability corrections for arrival and service rates.
+    For example:
+    - using Krämer/Langenbach-Belz) to better estimate waiting times.
+    - using Erlang-C to give a risk-averse overestimate of waiting times.
 
     \b
     Stats overall:
