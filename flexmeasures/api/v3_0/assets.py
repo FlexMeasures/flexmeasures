@@ -898,7 +898,6 @@ class AssetAPI(FlaskView):
             - Assets
         """
         sensors = flatten_unique(asset.validate_sensors_to_show())
-        print("==========================", sensors)
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
     @route("/<id>/auditlog")
