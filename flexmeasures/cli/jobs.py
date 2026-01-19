@@ -73,7 +73,7 @@ def stats(window: int):
     Stats overall:
     -   ρ = average capacity requirement (consider scaling up the number of workers when close to or higher than 100%)
     -   L = average number of jobs in the system (being serviced or in queue); i.e. workers required for zero waiting
-    -   k = total number of available workers (capacity to do work)
+    -   m = total number of available workers (capacity to do work)
 
     \b
     Stats per queue:
@@ -137,11 +137,11 @@ def stats(window: int):
 
     # Overall metrics (not per queue)
     # Total number of workers
-    k_total = len(Worker.all(connection=app.redis_connection))
+    m_total = len(Worker.all(connection=app.redis_connection))
     # Required workers
     L_total = sum(L_i)
     # Capacity requirements
-    rho_system = L_total / k_total if k_total > 0 else float("inf")
+    rho_system = L_total / m_total if m_total > 0 else float("inf")
 
     headers = [
         "Queue",
@@ -154,7 +154,7 @@ def stats(window: int):
     ]
 
     click.secho(
-        f"\nOverall: k={k_total}, L={L_total:.2f}, ρ={rho_system:.0%}\n",
+        f"\nOverall: m={m_total}, L={L_total:.2f}, ρ={rho_system:.0%}\n",
         **(
             MsgStyle.SUCCESS
             if rho_system < 0.68
