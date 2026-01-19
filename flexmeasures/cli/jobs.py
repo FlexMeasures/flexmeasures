@@ -68,7 +68,7 @@ def stats(window: int):
     \b
     Stats overall:
     -   ρ = average capacity requirement (consider scaling up the number of workers when close to or higher than 100%)
-    -   L = average number of required workers = average number of jobs being serviced or in queue
+    -   L = average number of jobs in the system (being serviced or in queue); i.e. workers required for zero waiting
     -   k = total number of available workers (capacity to do work)
 
     \b
