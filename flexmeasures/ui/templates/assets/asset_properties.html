@@ -152,7 +152,7 @@
 
                     <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
                         data-bs-target="#flexModelModal">
-                        Edit Flex Model
+                        Edit flex-model
                     </a>
                 </div>
                 <div class="row">
@@ -310,7 +310,7 @@
 
                                 <p>
                                     To add a field, choose it from the dropdown menu in the top right corner, then click
-                                    the "Add Field" button'. Set a value in the right panel, using the provided form to
+                                    the "Add field" button'. Set a value in the right panel, using the provided form to
                                     set the field's value.
                                 </p>
                                 </p>
@@ -353,8 +353,7 @@
                                             </select>
                                         </div>
                                         <div class="col-2 p-0">
-                                            <button id="addModelFieldbtn" class="btn btn-secondary btn-md">Add
-                                                Field</button>
+                                            <button id="addModelFieldbtn" class="btn btn-secondary btn-md">Add field</button>
                                         </div>
                                     </div>
 
@@ -655,8 +654,8 @@
                             </div>
 
                              <div class="pt-2 fw-bold"> 
-                                Possible Types: <span class="fw-normal"> ${schemaSpecs[modelKey]["types"]["ui"] || "No types available."} </span> <br/>
-                                Example Units: <span class="fw-normal"> ${schemaSpecs[modelKey]["example-units"].join(", ")} </span>
+                                Possible types: <span class="fw-normal"> ${schemaSpecs[modelKey]["types"]["ui"] || "No types available."} </span> <br/>
+                                Example units: <span class="fw-normal"> ${schemaSpecs[modelKey]["example-units"].join(", ")} </span>
                             </div>
                         </div>
                     </div>
@@ -805,7 +804,7 @@
                     fieldIconTitle = "True or False (a boolean)";
                 } else if (isNumber || isString) {
                     fieldIconClass = iconMap["string"];
-                    fieldIconTitle = "A Fixed Value";
+                    fieldIconTitle = "A fixed value";
                 } else if (isArray) {
                     fieldIconClass = iconMap["array"];
                     fieldIconTitle = "Multiple settings possible";
@@ -954,7 +953,7 @@
 
                     const boolTabContentSaveBtn = document.createElement('button');
                     boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    boolTabContentSaveBtn.textContent = 'Use Value';
+                    boolTabContentSaveBtn.textContent = 'Use value';
                     boolTabContentSaveBtn.onclick = function () {
                         const checkbox = document.getElementById('flexBoolInput');
                         flexModel[name] = checkbox.checked;
@@ -976,11 +975,11 @@
                     `;
                     tabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
                 } else if (dataType == Object) { // Object/Senosr Tab =================
-                    btn.textContent = 'A Sensor';
+                    btn.textContent = 'A sensor';
 
                     tabContent.innerHTML = `
                         <div class="flex-input-group mb-1 p-2">
-                            <label for="flexSensorInput" class="form-label">Select a Sensor for <b>${getFlexFieldTitle(name)} ${isArrayField ? '| Item ' + (selectedIndex() + 1) : ''}</b>
+                            <label for="flexSensorInput" class="form-label">Select a sensor for <b>${getFlexFieldTitle(name)} ${isArrayField ? '| Item ' + (selectedIndex() + 1) : ''}</b>
                                 <i class="fa fa-info-circle ps-2"
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="bottom"
@@ -991,7 +990,7 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" value="" id="flexCheckBox">
                                 <label class="form-check-label" for="flexCheckBox">
-                                    Include Public Assets
+                                    Include public assets
                                 </label>
                             </div>
                             
@@ -1014,11 +1013,11 @@
                         </div>
                     `;
                 } else if (dataType == String) { // String Tab =================
-                    btn.textContent = 'Fixed Value';
+                    btn.textContent = 'Fixed value';
 
                     const stringTabContentSaveBtn = document.createElement('button');
                     stringTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    stringTabContentSaveBtn.textContent = 'Use Value';
+                    stringTabContentSaveBtn.textContent = 'Use value';
                     stringTabContentSaveBtn.onclick = function () {
                         const input = document.getElementById('flexStringInput');
                         if (!input.value) {

@@ -86,13 +86,13 @@ export function processResourceRawJSON(schema, rawJSON, allowExtra = false) {
 
 export function getFlexFieldTitle(fieldName) {
   return fieldName
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+    // .split("-")
+    // .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    // .join(" ");
 }
 
 export function renderFlexFieldOptions(schema, options) {
-  // comapare the assetFlexContext with the template and get the fields that are not set
+  // compare the assetFlexContext with the template and get the fields that are not set
   const assetFlexModel = Object.assign({}, schema, options);
   flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
   for (const [key, value] of Object.entries(assetFlexModel)) {

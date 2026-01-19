@@ -145,7 +145,7 @@
                                     <br />
                                     <br />
                                     To add a field, choose it from the dropdown menu in the top right corner, then click
-                                    the "Add Field" button'.
+                                    the "Add field" button'.
                                     Set a value in the right panel, using the provided form to set the field's value.
                                 </p>
                             </div>
@@ -187,8 +187,7 @@
                                             </select>
                                         </div>
                                         <div class="col-2 p-0">
-                                            <button id="addFieldBtn" class="btn btn-secondary btn-md">Add
-                                                Field</button>
+                                            <button id="addFieldBtn" class="btn btn-secondary btn-md">Add field</button>
                                         </div>
                                     </div>
 
@@ -648,7 +647,7 @@
             fieldIconTitle = "True or False (a boolean)";
         } else if (isString) {
             fieldIconClass = iconMap["string"];
-            fieldIconTitle = "A Fixed Value";
+            fieldIconTitle = "A fixed value";
         } else {
             fieldIconClass = iconMap["default"];
             fieldIconTitle = "Unknown";
@@ -903,7 +902,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
             const checkLabel = document.createElement("label");
             checkLabel.className = "form-check-label";
             checkLabel.htmlFor = "flexCheckBox";
-            checkLabel.textContent = "Include Public Assets";
+            checkLabel.textContent = "Include public assets";
 
             formCheck.appendChild(checkbox);
             formCheck.appendChild(checkLabel);
@@ -1015,7 +1014,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
             const setButton = document.createElement("button");
             setButton.className = "btn btn-secondary btn-sm me-2 mt-2";
             setButton.onclick = () => updateFlexContextFieldValue('fixedValue', null);
-            setButton.textContent = "Use Value";
+            setButton.textContent = "Use value";
 
             fixedGroup.appendChild(fixedLabel);
             fixedGroup.appendChild(fixedInput);
@@ -1074,7 +1073,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
                         </div>
 
                         <div class="pt-3 fw-bold"> 
-                            Example Units: <span class="fw-normal"> ${exampleUnits.join(", ")} </span>
+                            Example units: <span class="fw-normal"> ${exampleUnits.join(", ")} </span>
                         </div>
                         
                     </div>
