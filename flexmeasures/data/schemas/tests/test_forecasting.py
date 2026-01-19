@@ -9,12 +9,12 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
     ["timing_input", "expected_timing_output"],
     [
         # Test defaults when no timing parameters are given
-        # (
-        #     {},
-        #     {
-        #         # todo: include every timing parameter in expected_timing_output
-        #     },
-        # ),
+        (
+            {},
+            {
+                # todo: include every timing parameter in expected_timing_output
+            },
+        ),
         # Test defaults when only an end date is given
         (
             {"end_date": "2025-03-27T00:00:00+02:00"},
