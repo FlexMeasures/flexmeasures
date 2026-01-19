@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import request
+from flask import request, current_app
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -30,6 +30,7 @@ from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
     AssetPaginationSchema,
+    PublicAssetAPISchema,
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -59,6 +60,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.utils.coding_utils import (
     flatten_unique,
 )
@@ -73,7 +75,8 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
-assets_schema = AssetSchema(many=True)
+# creating this once to avoid recreating it on every request
+default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
@@ -212,6 +215,7 @@ class AssetAPI(FlaskView):
         account: Account | None,
         root_asset: GenericAsset | None,
         max_depth: int | None,
+        fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
         page: int | None = None,
@@ -240,6 +244,8 @@ class AssetAPI(FlaskView):
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
+            Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
+            You can use the `fields` query parameter to specify a custom set of fields to include in the response.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -293,17 +299,16 @@ class AssetAPI(FlaskView):
         if account is not None:
             check_access(account, "read")
             account_ids = [account.id]
-            include_public_assets = False
         else:
             use_all_accounts = all_accessible or root_asset
-            include_public_assets = all_accessible or include_public or root_asset
+            include_public = all_accessible or include_public or root_asset
             account_ids = (
                 [a.id for a in get_accessible_accounts()]
                 if use_all_accounts
                 else [current_user.account.id]
             )
         filter_statement = GenericAsset.account_id.in_(account_ids)
-        if include_public_assets:
+        if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
@@ -317,8 +322,18 @@ class AssetAPI(FlaskView):
             query=query, root_asset=root_asset, max_depth=max_depth
         )
 
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
+
         if page is None:
-            response = asset_schema.dump(db.session.scalars(query).all(), many=True)
+            response = response_schema.dump(db.session.scalars(query).all(), many=True)
         else:
             if per_page is None:
                 per_page = 10
@@ -330,7 +345,7 @@ class AssetAPI(FlaskView):
                 select(func.count(GenericAsset.id)).filter(filter_statement)
             )
             response = {
-                "data": asset_schema.dump(select_pagination.items, many=True),
+                "data": response_schema.dump(select_pagination.items, many=True),
                 "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
@@ -473,8 +488,9 @@ class AssetAPI(FlaskView):
         return response, 200
 
     @route("/public", methods=["GET"])
+    @use_kwargs(PublicAssetAPISchema, location="query")
     @as_json
-    def public(self):
+    def public(self, fields_in_response: list[str] | None):
         """
         .. :quickref: Assets; Return all public assets.
         ---
@@ -483,6 +499,9 @@ class AssetAPI(FlaskView):
           description: This endpoint returns all public assets.
           security:
             - ApiKeyAuth: []
+          parameters:
+            - in: query
+              schema: PublicAssetAPISchema
           responses:
             200:
               description: PROCESSED
@@ -498,7 +517,16 @@ class AssetAPI(FlaskView):
         assets = db.session.scalars(
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
         ).all()
-        return assets_schema.dump(assets), 200
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
+        return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
     @permission_required_for_context(

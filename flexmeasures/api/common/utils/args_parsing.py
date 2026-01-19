@@ -97,6 +97,9 @@ def combined_sensor_data_upload(request: Request, schema):
     data.update(request.files)
     belief_time = request.form.get("belief-time-measured-instantly")
     data.update({"belief-time-measured-instantly": belief_time})
+    unit = request.form.get("unit")
+    if unit is not None:
+        data.update({"unit": unit})
     return MultiDictProxy(data, schema)
 
 
