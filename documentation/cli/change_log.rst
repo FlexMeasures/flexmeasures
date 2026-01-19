@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.31.0 | February XX, 2026
+=================================
+
+* Add ``flexmeasures jobs stats``, which shows queueing statistics to help evaluate the health of the queueing system.
+
 since v0.30.0 | December 02, 2025
 =================================
 
