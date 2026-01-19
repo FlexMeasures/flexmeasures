@@ -162,7 +162,7 @@ def _estimate_arrival_rate_all_registries(
     queue: Queue, cutoff: datetime, window: int
 ) -> float:
     """
-    Estimate arrival rate λ (jobs/sec) by looking at all jobs belonging to the queue
+    Estimate arrival rate λ (jobs/sec) by counting all jobs belonging to the queue
     across all registries (waiting/deferred/scheduled/started/finished/failed/canceled).
 
     Only jobs with enqueued_at >= cutoff count toward recent arrivals.
