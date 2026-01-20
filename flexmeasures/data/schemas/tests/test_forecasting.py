@@ -12,7 +12,25 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
         (
             {},
             {
-                # todo: include every timing parameter in expected_timing_output
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1H"),
+                # default training period 30 days. before predict_start
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1H")
+                - pd.Timedelta(days=30), 
+                # default prediction period 48 hours after predict_start
+                "end_date": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1H")
+                + pd.Timedelta(hours=48), #
+                # these are set by the schema defaults
+                "predict_period_in_hours": 48,
+                "max_forecast_horizon": pd.Timedelta(hours=48),
+                "train_period_in_hours": 720,
+                "max_training_period": pd.Timedelta(days=365),
+                "forecast_frequency": pd.Timedelta(hours=1),
             },
         ),
         # Test defaults when only an end date is given
