@@ -19,12 +19,12 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "start_date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1H")
-                - pd.Timedelta(days=30), 
+                - pd.Timedelta(days=30),
                 # default prediction period 48 hours after predict_start
                 "end_date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1H")
-                + pd.Timedelta(hours=48), #
+                + pd.Timedelta(hours=48),
                 # these are set by the schema defaults
                 "predict_period_in_hours": 48,
                 "max_forecast_horizon": pd.Timedelta(hours=48),
@@ -41,19 +41,19 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ).floor("1H"),
-
                 "start_date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ).floor("1H")
-                - pd.Timedelta(days=30),  # default training period 30 days before predict_start
-
+                - pd.Timedelta(
+                    days=30
+                ),  # default training period 30 days before predict_start
                 "end_date": pd.Timestamp(
                     "2025-01-20T12:00:00+01",
                     tz="Europe/Amsterdam",
                 ),
                 "train_period_in_hours": 720,  # from start_date to predict_start
-                "predict_period_in_hours": 120,   # from predict_start to end_date
+                "predict_period_in_hours": 120,  # from predict_start to end_date
                 # default values
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
@@ -67,8 +67,12 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "end_date": "2025-01-20T00:00:00+01:00",
             },
             {
-                "start_date": pd.Timestamp("2024-12-20T00:00:00+01", tz="Europe/Amsterdam"),
-                "end_date": pd.Timestamp("2025-01-20T00:00:00+01", tz="Europe/Amsterdam"),
+                "start_date": pd.Timestamp(
+                    "2024-12-20T00:00:00+01", tz="Europe/Amsterdam"
+                ),
+                "end_date": pd.Timestamp(
+                    "2025-01-20T00:00:00+01", tz="Europe/Amsterdam"
+                ),
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
@@ -88,16 +92,17 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "train_period": "P3D",
             },
             {
-                "end_date": pd.Timestamp("2025-01-20T12:00:00+01", tz="Europe/Amsterdam"),
-
+                "end_date": pd.Timestamp(
+                    "2025-01-20T12:00:00+01", tz="Europe/Amsterdam"
+                ),
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ).floor("1H"),
-
-                "start_date": pd.Timestamp("2025-01-15T12:00:00+01", tz="Europe/Amsterdam")
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
                 - pd.Timedelta(days=3),
-
                 "train_period_in_hours": 72,  # from start_date to predict_start
                 "predict_period_in_hours": 120,  # from predict_start to end_date
                 # default values
@@ -113,11 +118,17 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "train_period": "P3D",
             },
             {
-                "start_date": pd.Timestamp("2024-12-25T00:00:00+01", tz="Europe/Amsterdam"),
-                "predict_start": pd.Timestamp("2024-12-25T00:00:00+01", tz="Europe/Amsterdam") + pd.Timedelta(days=3),
-
-                "end_date": pd.Timestamp("2024-12-28T00:00:00+01", tz="Europe/Amsterdam") + pd.Timedelta(days=2),
-
+                "start_date": pd.Timestamp(
+                    "2024-12-25T00:00:00+01", tz="Europe/Amsterdam"
+                ),
+                "predict_start": pd.Timestamp(
+                    "2024-12-25T00:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(days=3),
+                "end_date": pd.Timestamp(
+                    "2024-12-28T00:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(days=2),
                 "train_period_in_hours": 72,
                 # default values
                 "predict_period_in_hours": 48,
@@ -133,19 +144,19 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "retrain_frequency": "P3D",
             },
             {
-                "start_date": pd.Timestamp("2024-12-25T00:00:00+01", tz="Europe/Amsterdam"),
-
+                "start_date": pd.Timestamp(
+                    "2024-12-25T00:00:00+01", tz="Europe/Amsterdam"
+                ),
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ).floor("1H"),
-
-                "end_date": pd.Timestamp("2025-01-15T12:00:00+01", tz="Europe/Amsterdam")
+                "end_date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
                 + pd.Timedelta(days=3),
-
                 "predict_period_in_hours": 72,
                 "train_period_in_hours": 516,  # from start_date to predict_start
-
                 # default values
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
@@ -160,9 +171,17 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "retrain_frequency": "P3D",
             },
             {
-                "start_date": pd.Timestamp("2024-12-01T00:00:00+01", tz="Europe/Amsterdam"),
-                "predict_start": pd.Timestamp("2024-12-01T00:00:00+01", tz="Europe/Amsterdam") + pd.Timedelta(days=20),
-                "end_date": pd.Timestamp("2024-12-01T00:00:00+01", tz="Europe/Amsterdam") + pd.Timedelta(days=23),
+                "start_date": pd.Timestamp(
+                    "2024-12-01T00:00:00+01", tz="Europe/Amsterdam"
+                ),
+                "predict_start": pd.Timestamp(
+                    "2024-12-01T00:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(days=20),
+                "end_date": pd.Timestamp(
+                    "2024-12-01T00:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(days=23),
                 "train_period_in_hours": 480,
                 "predict_period_in_hours": 72,
                 # default values
