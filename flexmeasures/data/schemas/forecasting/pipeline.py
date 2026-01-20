@@ -78,6 +78,7 @@ class ForecasterParametersSchema(Schema):
     )
     end_date = AwareDateTimeOrDateField(
         required=False,
+        allow_none=True,
         inclusive=True,
         metadata={
             "description": "End date for running the pipeline.",
