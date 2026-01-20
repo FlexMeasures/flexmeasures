@@ -196,7 +196,7 @@ class ForecasterParametersSchema(Schema):
                     "start-predict-date cannot be before start-date",
                     field_name="start_predict_date",
                 )
-            if predict_start >= end_date:
+            if end_date is not None and predict_start >= end_date:
                 raise ValidationError(
                     "start-predict-date must be before end-date",
                     field_name="start_predict_date",
