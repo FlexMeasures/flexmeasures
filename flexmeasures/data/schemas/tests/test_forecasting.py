@@ -42,6 +42,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             **timing_input,
         }
     )
-    print(data)
+
     for k, v in expected_timing_output.items():
         assert data[k] == v
