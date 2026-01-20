@@ -1046,7 +1046,7 @@ def add_holidays(
     "--to-date",
     "--end-date",
     "end_date",
-    required=True,
+    required=False,
     help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
 )
 @click.option(
