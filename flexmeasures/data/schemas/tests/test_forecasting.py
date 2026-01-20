@@ -52,9 +52,9 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-20T12:00:00+01",
                     tz="Europe/Amsterdam",
                 ),
-
-                "train_period_in_hours": 720,
+                "train_period_in_hours": 720,  # from start_date to predict_start
                 "predict_period_in_hours": 120,   # from predict_start to end_date
+                # default values
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
                 "forecast_frequency": pd.Timedelta(hours=1),
