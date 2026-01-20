@@ -69,7 +69,7 @@ def stats(window: int):
     This is a snapshot-based, Little’s-law estimate that ignores variability.
     Future improvements may incorporate distributions and variability corrections for arrival and service rates.
     For example:
-    - using Krämer/Langenbach-Belz) to better estimate waiting times.
+    - using Krämer/Langenbach-Belz to better estimate waiting times.
     - using Erlang-C to give a risk-averse overestimate of waiting times.
 
     \b
