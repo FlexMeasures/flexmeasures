@@ -106,6 +106,26 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "forecast_frequency": pd.Timedelta(hours=1),
             },
         ),
+        # Test when only start date is given with a training period
+        (
+            {
+                "start_date": "2024-12-25T00:00:00+01:00",
+                "train_period": "P3D",
+            },
+            {
+                "start_date": pd.Timestamp("2024-12-25T00:00:00+01", tz="Europe/Amsterdam"),
+                "predict_start": pd.Timestamp("2024-12-25T00:00:00+01", tz="Europe/Amsterdam") + pd.Timedelta(days=3),
+
+                "end_date": pd.Timestamp("2024-12-28T00:00:00+01", tz="Europe/Amsterdam") + pd.Timedelta(days=2),
+
+                "train_period_in_hours": 72,
+                # default values
+                "predict_period_in_hours": 48,
+                "max_forecast_horizon": pd.Timedelta(hours=48),
+                "max_training_period": pd.Timedelta(days=365),
+                "forecast_frequency": pd.Timedelta(hours=1),
+            },
+        ),
     ],
 )
 def test_timing_parameters_of_forecaster_parameters_schema(
