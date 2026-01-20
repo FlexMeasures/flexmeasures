@@ -11,6 +11,7 @@ v0.31.0 | February XX, 2026
 
 New features
 -------------
+* Improve CSV upload validation by inferring the intended base resolution even when data contains valid gaps, instead of requiring perfectly regular timestamps [see `PR #1918 <https://www.github.com/FlexMeasures/flexmeasures/pull/1918>`_]
 * New forecasting API endpoints `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ and `[GET] /sensors/(id)/forecasts/(uuid) <api/v3_0.html#get--api-v3_0-sensors-id-forecasts-uuid>`_ to forecast sensor data [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_ and `PR #1823 <https://www.github.com/FlexMeasures/flexmeasures/pull/1823>`_]
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
 * Step-by-step replay in the UI, using the **n** key to go to the **n**\ ext time step [see `PR #1898 <https://www.github.com/FlexMeasures/flexmeasures/pull/1898>`_]
