@@ -185,7 +185,7 @@ class ForecasterParametersSchema(Schema):
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
 
-        if start_date is not None and start_date >= end_date:
+        if start_date is not None and end_date is not None and start_date >= end_date:
             raise ValidationError(
                 "start-date must be before end-date", field_name="start_date"
             )
