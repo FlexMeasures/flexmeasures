@@ -86,13 +86,13 @@ export function processResourceRawJSON(schema, rawJSON, allowExtra = false) {
 
 export function getFlexFieldTitle(fieldName) {
   return fieldName
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+    // .split("-")
+    // .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    // .join(" ");
 }
 
 export function renderFlexFieldOptions(schema, options) {
-  // comapare the assetFlexContext with the template and get the fields that are not set
+  // compare the assetFlexContext with the template and get the fields that are not set
   const assetFlexModel = Object.assign({}, schema, options);
   flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
   for (const [key, value] of Object.entries(assetFlexModel)) {
@@ -227,7 +227,7 @@ export function renderSensorSearchResults(
     const cardBody = col.querySelector(".result-sensor-card");
     const addButton = document.createElement("button");
     addButton.className = "btn btn-primary btn-sm"; // Removed me-2 mt-2 as it might be added by a parent div
-    addButton.textContent = "Add Sensor";
+    addButton.textContent = "Use Sensor";
 
     addButton.onclick = () => {
       if (actionFunc) {
