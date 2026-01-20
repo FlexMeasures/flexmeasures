@@ -5,7 +5,7 @@ import os
 
 from datetime import timedelta
 
-from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
+from marshmallow import fields, Schema, validates_schema, pre_load, post_load, ValidationError
 
 from flexmeasures.data.schemas import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeOrDateField, DurationField
@@ -174,6 +174,10 @@ class ForecasterParametersSchema(Schema):
             "example": "P1Y",
         },
     )
+
+    @pre_load
+    def drop_none_values(self, data, **kwargs):
+        return {k: v for k, v in data.items() if v is not None}
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
