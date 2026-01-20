@@ -1171,7 +1171,7 @@ def add_holidays(
     ),
 )
 @with_appcontext
-def train_predict_pipeline(
+def add_forecast(
     forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
