@@ -14,16 +14,16 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
             {
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1H"),
+                ).floor("1h"),
                 # default training period 30 days. before predict_start
                 "start_date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1H")
+                ).floor("1h")
                 - pd.Timedelta(days=30),
                 # default prediction period 48 hours after predict_start
                 "end_date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1H")
+                ).floor("1h")
                 + pd.Timedelta(hours=48),
                 # these are set by the schema defaults
                 "predict_period_in_hours": 48,
@@ -40,11 +40,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
-                ).floor("1H"),
+                ).floor("1h"),
                 "start_date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
-                ).floor("1H")
+                ).floor("1h")
                 - pd.Timedelta(
                     days=30
                 ),  # default training period 30 days before predict_start
@@ -76,7 +76,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
-                ).floor("1H"),
+                ).floor("1h"),
                 "predict_period_in_hours": 108,  # hours from predict_start to end_date
                 "train_period_in_hours": 636,  # hours between start_date and predict_start
                 # default values
@@ -98,7 +98,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
-                ).floor("1H"),
+                ).floor("1h"),
                 "start_date": pd.Timestamp(
                     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
                 )
@@ -150,7 +150,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
-                ).floor("1H"),
+                ).floor("1h"),
                 "end_date": pd.Timestamp(
                     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
                 )
