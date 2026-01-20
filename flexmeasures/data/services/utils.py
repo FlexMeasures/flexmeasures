@@ -209,7 +209,7 @@ def job_cache(queue: str):
 
             # checking if force is an input argument of `func`
             force_new_job_creation = kwargs_for_hash.pop(
-                "force_new_job_creation", False
+                "force_new_job_creation", True
             )
 
             # creating a hash from args and kwargs_for_hash
