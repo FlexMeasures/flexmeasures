@@ -5,7 +5,14 @@ import os
 
 from datetime import timedelta
 
-from marshmallow import fields, Schema, validates_schema, pre_load, post_load, ValidationError
+from marshmallow import (
+    fields,
+    Schema,
+    validates_schema,
+    pre_load,
+    post_load,
+    ValidationError,
+)
 
 from flexmeasures.data.schemas import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeOrDateField, DurationField
