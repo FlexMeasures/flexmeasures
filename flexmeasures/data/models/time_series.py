@@ -13,6 +13,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy import inspect
+from sqlalchemy.dialects.postgresql import JSONB
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -52,7 +53,7 @@ from flexmeasures.utils.geo_utils import parse_lat_lng
 class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     """A sensor measures events."""
 
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     generic_asset_id = db.Column(
         db.Integer,
@@ -147,6 +148,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         """
         We allow reading to whoever can read the asset.
         Editing as well as deletion is left to account admins.
+        Everyone in the account and its consultant can add beliefs.
         """
         return {
             "create-children": [

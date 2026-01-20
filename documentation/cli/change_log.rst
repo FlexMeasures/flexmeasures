@@ -7,7 +7,15 @@ FlexMeasures CLI Changelog
 since v0.31.0 | February XX, 2026
 =================================
 
+* Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
+* Let ``flexmeasures add schedule`` create schedules with only information known prior to some time using the ``prior`` option.
+* New ``-dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
 * Add ``flexmeasures jobs stats``, which shows queueing statistics to help evaluate the health of the queueing system.
+
+since v0.30.3 | January 12, 2026
+=================================
+
+* Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
 
 since v0.30.0 | December 02, 2025
 =================================

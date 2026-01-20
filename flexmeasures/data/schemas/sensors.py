@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from difflib import get_close_matches
 import numbers
+import pytz
 from pytz.exceptions import UnknownTimeZoneError
 
 from flask import current_app
@@ -11,6 +13,7 @@ from marshmallow import (
     ValidationError,
     fields,
     post_load,
+    pre_load,
     validates,
     validates_schema,
 )
@@ -35,10 +38,14 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
     convert_to_quantity,
 )
+from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
     units_are_convertible,
+    convert_units,
+    is_currency_unit,
+    is_energy_unit,
 )
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
@@ -188,11 +195,26 @@ class SensorSchemaMixin(Schema):
             example="EUR/kWh",
         ),
     )
+
+    def timezone_validator(value: str):
+        """Validate timezone, suggesting the closest match if possible or the server default otherwise."""
+        if value not in pytz.all_timezones:
+            suggestion = get_close_matches(value, pytz.all_timezones, n=1, cutoff=0.6)
+            if suggestion:
+                raise ValidationError(
+                    f"Invalid timezone '{value}'. Did you mean '{suggestion[0]}'?"
+                )
+            raise ValidationError(
+                f"Invalid timezone '{value}'. Example: {get_timezone()}."
+            )
+
     timezone = ma.auto_field(
+        validate=timezone_validator,
         metadata=dict(
             description="The sensor's [<abbr title='Internet Assigned Numbers Authority'>IANA</abbr> timezone](https://en.wikipedia.org/wiki/Tz_database). When getting sensor data out of the platform, you'll notice that the timezone offsets of datetimes correspond to this timezone, and includes offset changes due to <abbr title='Daylight Saving Time'>DST</abbr> transitions.",
             example="Europe/Amsterdam",
-        )
+            enum=pytz.common_timezones,
+        ),
     )
     event_resolution = DurationField(
         required=True,
@@ -219,6 +241,14 @@ class SensorSchemaMixin(Schema):
     def validate_unit(self, unit: str, **kwargs):
         if not is_valid_unit(unit):
             raise ValidationError(f"Unit '{unit}' cannot be handled.")
+
+    @pre_load
+    def set_default_timezone(self, data, **kwargs):
+        """Set the default timezone to the server timezone only for a full load (POST, not PATCH)."""
+        partial = kwargs.get("partial", False)
+        if not partial and not data.get("timezone"):
+            data["timezone"] = str(get_timezone())
+        return data
 
 
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
@@ -553,6 +583,10 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+    unit = fields.String(
+        required=False,
+        data_key="unit",
+    )
 
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
@@ -600,6 +634,19 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         if errors:
             raise ValidationError(errors)
 
+    @validates_schema
+    def validate_unit(self, data, **kwargs):
+        """Validate unit compatibility with the sensor's unit."""
+        unit = data.get("unit")
+        sensor: Sensor = data.get("sensor")
+
+        if unit is not None:
+            if not units_are_convertible(unit, sensor.unit):
+                raise ValidationError(
+                    field="unit",
+                    message=f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'",
+                )
+
     @post_load
     def post_load(self, fields, **kwargs):
         """Process the deserialized and validated fields.
@@ -609,10 +656,11 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+
         errors = {}
         for i, file in enumerate(files):
             try:
-                df = tb.read_csv(
+                bdf = tb.read_csv(
                     file,
                     sensor,
                     source=current_user.data_source[0],
@@ -624,15 +672,52 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
-                    resample=(
-                        True if sensor.event_resolution != timedelta(0) else False
-                    ),
+                    resample=False,
                     timezone=sensor.timezone,
                 )
                 assert is_numeric_dtype(
-                    df["event_value"]
+                    bdf["event_value"]
                 ), "event values should be numeric"
-                dfs.append(df)
+
+                from_unit = fields.get("unit", sensor.unit)
+
+                # Start to infer the event resolution
+                if len(bdf) == 1:
+                    bdf.event_resolution = sensor.event_resolution
+                elif len(bdf) == 2:
+                    # Pandas cannot infer an event frequency, but we can (try)
+                    bdf.event_resolution = abs(
+                        bdf.event_starts[-1] - bdf.event_starts[0]
+                    )
+                else:
+                    bdf.event_resolution = bdf.event_frequency
+                if bdf.event_resolution is None:
+                    # Reraise the error if an event frequency could not be inferred
+                    pd.infer_freq(bdf.index.unique("event_start"))
+
+                bdf["event_value"] = convert_units(
+                    bdf["event_value"],
+                    from_unit,
+                    sensor.unit,
+                    # todo: remove the next line when https://github.com/SeitaBV/timely-beliefs/issues/220 is fixed
+                    event_resolution=bdf.event_resolution,
+                )
+
+                if sensor.event_resolution != timedelta(0):
+
+                    # Special cases for resampling known stock units
+                    # todo: allow users to override this behaviour
+                    known_stock_unit_validators = [is_currency_unit, is_energy_unit]
+                    if units_are_convertible(
+                        from_unit, sensor.unit, duration_known=False
+                    ) and any(
+                        is_stock_unit(from_unit)
+                        for is_stock_unit in known_stock_unit_validators
+                    ):
+                        bdf = bdf.resample_events(sensor.event_resolution, method="sum")
+                    else:
+                        bdf = bdf.resample_events(sensor.event_resolution)
+                dfs.append(bdf)
             except Exception as e:
                 error_message = (
                     f"Invalid content in file: {file.filename}. Failed with: {str(e)}"

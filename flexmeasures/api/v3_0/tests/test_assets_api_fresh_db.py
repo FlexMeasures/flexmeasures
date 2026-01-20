@@ -1,5 +1,5 @@
-from flask import url_for
 import pytest
+from flask import url_for
 from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import AccountContext

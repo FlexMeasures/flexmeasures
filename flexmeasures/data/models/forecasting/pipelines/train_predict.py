@@ -46,6 +46,13 @@ class TrainPredictPipeline(Forecaster):
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
 
+    def run_wrap_up(self, cycle_job_ids: list[str]):
+        """Log the status of all cycle jobs after completion."""
+        for index, job_id in enumerate(cycle_job_ids):
+            logging.info(
+                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}"
+            )
+
     def run_cycle(
         self,
         train_start: datetime,
@@ -86,7 +93,6 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Training cycle completed in {train_runtime:.2f} seconds."
         )
-
         # Make predictions
         predict_pipeline = PredictPipeline(
             future_regressors=self._parameters["future_regressors"],
@@ -211,20 +217,36 @@ class TrainPredictPipeline(Forecaster):
                 )
 
             if as_job:
-                for index, param in enumerate(cycles_job_params):
+                cycle_job_ids = []
+                for cycle_params in cycles_job_params:
+                    # job metadata for tracking
+                    job_metadata = {
+                        "data_source_info": {"id": self.data_source.id},
+                        "start_predict_date": self._parameters["predict_start"],
+                        "end_date": self._parameters["end_date"],
+                        "sensor_id": self._parameters["sensor_to_save"].id,
+                    }
                     job = Job.create(
                         self.run_cycle,
-                        kwargs={**param, **job_kwargs},
+                        # Some cycle job params override job kwargs
+                        kwargs={**job_kwargs, **cycle_params},
                         connection=current_app.queues[queue].connection,
                         ttl=int(
                             current_app.config.get(
                                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
                             ).total_seconds()
                         ),
+                        result_ttl=int(
+                            current_app.config.get(
+                                "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+                            ).total_seconds()
+                        ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
+                        meta=job_metadata,
+                        timeout=60 * 60,  # 1 hour
                     )
 
                     # Store the job ID for this cycle
-                    self.return_values.append({f"job-{index}": job.id})
+                    cycle_job_ids.append(job.id)
 
                     current_app.queues[queue].enqueue_job(job)
                     current_app.job_cache.add(
@@ -233,6 +255,29 @@ class TrainPredictPipeline(Forecaster):
                         queue=queue,
                         asset_or_sensor_type="sensor",
                     )
+
+                wrap_up_job = Job.create(
+                    self.run_wrap_up,
+                    kwargs={
+                        "cycle_job_ids": cycle_job_ids
+                    },  # cycles jobs IDs to wait for
+                    connection=current_app.queues[queue].connection,
+                    depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
+                    ttl=int(
+                        current_app.config.get(
+                            "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                        ).total_seconds()
+                    ),
+                    meta=job_metadata,
+                )
+                current_app.queues[queue].enqueue_job(wrap_up_job)
+
+                if len(cycle_job_ids) > 1:
+                    # Return the wrap-up job ID if multiple cycle jobs are queued
+                    return wrap_up_job.id
+                else:
+                    # Return the single cycle job ID if only one job is queued
+                    return cycle_job_ids[0]
 
             return self.return_values
         except Exception as e:
