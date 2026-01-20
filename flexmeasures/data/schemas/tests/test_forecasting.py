@@ -60,6 +60,27 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "forecast_frequency": pd.Timedelta(hours=1),
             },
         ),
+        # Test when both start and end dates are given
+        (
+            {
+                "start_date": "2024-12-20T00:00:00+01:00",
+                "end_date": "2025-01-20T00:00:00+01:00",
+            },
+            {
+                "start_date": pd.Timestamp("2024-12-20T00:00:00+01", tz="Europe/Amsterdam"),
+                "end_date": pd.Timestamp("2025-01-20T00:00:00+01", tz="Europe/Amsterdam"),
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01",
+                    tz="Europe/Amsterdam",
+                ).floor("1H"),
+                "predict_period_in_hours": 108,  # hours from predict_start to end_date
+                "train_period_in_hours": 636,  # hours between start_date and predict_start
+                # default values
+                "max_forecast_horizon": pd.Timedelta(hours=48),
+                "max_training_period": pd.Timedelta(days=365),
+                "forecast_frequency": pd.Timedelta(hours=1),
+            },
+        ),  
     ],
 )
 def test_timing_parameters_of_forecaster_parameters_schema(
