@@ -188,7 +188,7 @@ class Config(object):
     SECURITY_PASSWORD_CHECK_BREACHED = (
         "best-effort"  # will try to check https://api.pwnedpasswords.com
     )
-SECURITY_PASSWORD_BREACHED_COUNT = 3
+    SECURITY_PASSWORD_BREACHED_COUNT = 3
 
 #  names of settings which cannot be None
 #  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.
@@ -257,7 +257,7 @@ class TestingConfig(Config):
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
     SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
-    SECURITY_PASSWORD_CHECK_BREACHED = ""  # disable breached password checking
+    SECURITY_PASSWORD_CHECK_BREACHED = None # disable breached password checking
 
 
 class DocumentationConfig(Config):
