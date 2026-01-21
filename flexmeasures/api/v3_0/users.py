@@ -65,7 +65,7 @@ class UserAPIQuerySchema(PaginationSchema):
         required=False,
         validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
     )
-    account = AccountIdField(data_key="account_id", load_default=None)
+    account = AccountIdField(data_key="account_id", required=False)
     include_inactive = fields.Bool(load_default=False)
 
 

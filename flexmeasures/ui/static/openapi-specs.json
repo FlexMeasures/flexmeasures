@@ -2207,11 +2207,7 @@
             "in": "query",
             "name": "account_id",
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "default": null
+              "type": "integer"
             },
             "required": false
           },
@@ -3293,11 +3289,7 @@
             "name": "account_id",
             "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "default": null,
+              "type": "integer",
               "example": 67
             },
             "required": false
@@ -3307,11 +3299,7 @@
             "name": "root",
             "description": "Select all descendants of a given root asset (including the root itself). Leave out to include top-level assets.",
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "default": null,
+              "type": "integer",
               "example": 482
             },
             "required": false
@@ -3321,11 +3309,7 @@
             "name": "depth",
             "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "default": null,
+              "type": "integer",
               "minimum": 0,
               "example": 2
             },
@@ -3913,7 +3897,8 @@
     "/api/dev/sensor/{id}/chart_data": {},
     "/api/dev/asset/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
-    "/": {}
+    "/": {},
+    "/api/bace/data": {}
   },
   "openapi": "3.1.2",
   "components": {
@@ -4157,11 +4142,7 @@
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
           },
           "account_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "default": null
+            "type": "integer"
           },
           "include_inactive": {
             "type": "boolean",
@@ -4210,29 +4191,17 @@
             "example": "id|name|flex_model"
           },
           "account_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "default": null,
+            "type": "integer",
             "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             "example": 67
           },
           "root": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "default": null,
+            "type": "integer",
             "description": "Select all descendants of a given root asset (including the root itself). Leave out to include top-level assets.",
             "example": 482
           },
           "depth": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "default": null,
+            "type": "integer",
             "minimum": 0,
             "description": "Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
             "example": 2
