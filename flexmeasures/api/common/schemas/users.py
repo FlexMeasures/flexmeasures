@@ -24,7 +24,7 @@ class AccountIdField(fields.Integer):
             raise abort(404, f"Account {account_id} not found")
         return account
 
-    def _serialize(self, value: Account, attr, obj, **kwargs) -> int:
+    def _serialize(self, value: Account, attr, obj, **kwargs) -> int | None:
         return value.id if value else None
 
     @classmethod

@@ -495,6 +495,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             unit = str(ur.Quantity(serialized_variable_quantity[0]["value"]).units)
         elif isinstance(serialized_variable_quantity, dict):
             # use deserialized quantity to avoid another Sensor query; the serialized quantity only has the sensor ID
+            assert isinstance(deserialized_variable_quantity, Sensor)
             unit = deserialized_variable_quantity.unit
         else:
             raise NotImplementedError(
@@ -612,7 +613,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                 file_errors += [
                     f"Invalid content: {file}. Only CSV files are accepted."
                 ]
-            if file.filename == "":
+            if not file.filename:
                 file_errors += ["Filename is missing."]
             elif file.filename.split(".")[-1] not in (
                 "csv",
