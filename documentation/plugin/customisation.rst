@@ -69,8 +69,6 @@ Finally, make your scheduler be the one that FlexMeasures will use for certain s
 From now on, all schedules (see :ref:`tut_forecasting_scheduling`) which are requested for this sensor should
 get computed by your custom function! For later lookup, the data will be linked to a new data source with the name "My Opinion".
 
-.. note:: To describe the module, we used the class name here (actually a custom scheduler we use to test this).
-
 
 Adding your own forecasting algorithm
 -------------------------------------
