@@ -74,6 +74,6 @@ class AccountIdField(fields.Int, MarshmallowClickMixin):
         account.account_roles
         return account
 
-    def _serialize(self, account, attr, obj, **kwargs):
+    def _serialize(self, value: AccountModel, attr, obj, **kwargs):
         """Turn an Account into a source id."""
-        return account.id
+        return value.id

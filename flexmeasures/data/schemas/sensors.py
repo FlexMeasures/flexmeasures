@@ -334,9 +334,9 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
 
         return sensor
 
-    def _serialize(self, sensor: Sensor, attr, obj, **kwargs) -> int:
+    def _serialize(self, value: Sensor, attr, obj, **kwargs) -> int:
         """Turn a Sensor into a sensor id."""
-        return sensor.id
+        return value.id
 
 
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):

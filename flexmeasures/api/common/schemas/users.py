@@ -24,8 +24,8 @@ class AccountIdField(fields.Integer):
             raise abort(404, f"Account {account_id} not found")
         return account
 
-    def _serialize(self, account: Account, attr, obj, **kwargs) -> int:
-        return account.id if account else None
+    def _serialize(self, value: Account, attr, obj, **kwargs) -> int:
+        return value.id if value else None
 
     @classmethod
     def load_current(cls):
@@ -56,8 +56,8 @@ class UserIdField(fields.Integer):
             raise abort(404, f"User {user_id} not found")
         return user
 
-    def _serialize(self, user: User, attr, obj, **kwargs) -> int:
-        return user.id
+    def _serialize(self, value: User, attr, obj, **kwargs) -> int:
+        return value.id
 
 
 class AccountAPIQuerySchema(PaginationSchema):
