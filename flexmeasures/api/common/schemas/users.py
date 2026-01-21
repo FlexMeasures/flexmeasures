@@ -13,8 +13,8 @@ class AccountIdField(fields.Integer):
     Field that represents an account ID. It deserializes from the account id to an account instance.
     """
 
-    def _deserialize(self, account_id: str, attr, data, **kwargs) -> Account:
-        account_id = super()._deserialize(account_id, attr, data, **kwargs)
+    def _deserialize(self, value: str, attr, data, **kwargs) -> Account:
+        account_id = super()._deserialize(value, attr, data, **kwargs)
         account: Account = db.session.execute(
             select(Account).filter_by(id=int(account_id))
         ).scalar_one_or_none()
@@ -45,8 +45,8 @@ class UserIdField(fields.Integer):
         )
         super().__init__(*args, **kwargs)
 
-    def _deserialize(self, user_id: int, attr, data, **kwargs) -> User:
-        user_id = super()._deserialize(user_id, attr, data, **kwargs)
+    def _deserialize(self, value: int, attr, data, **kwargs) -> User:
+        user_id = super()._deserialize(value, attr, data, **kwargs)
         user: User = db.session.execute(
             select(User).filter_by(id=int(user_id))
         ).scalar_one_or_none()
