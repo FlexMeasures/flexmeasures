@@ -22,6 +22,7 @@ class SensorIdField(fields.Integer):
     """
 
     def _deserialize(self, sensor_id: int, attr, obj, **kwargs) -> Sensor:
+        sensor_id = super()._deserialize(sensor_id, attr, obj, **kwargs)
         sensor: Sensor = db.session.execute(
             select(Sensor).filter_by(id=int(sensor_id))
         ).scalar_one_or_none()

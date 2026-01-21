@@ -64,6 +64,7 @@ class AccountIdField(fields.Int, MarshmallowClickMixin):
     @with_appcontext
     def _deserialize(self, value, attr, obj, **kwargs) -> AccountModel:
         """Turn an account id into an Account."""
+        value = super()._deserialize(value, attr, obj, **kwargs)
         account = db.session.get(AccountModel, value)
         if account is None:
             raise FMValidationError(f"No account found with id {value}.")

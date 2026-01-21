@@ -302,6 +302,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
             raise FMValidationError(
                 f"Sensor ID has the wrong type. Got `{type(value).__name__}` but `int` was expected."
             )
+        value = super()._deserialize(value, attr, obj, **kwargs)
 
         sensor = db.session.get(Sensor, value)
 

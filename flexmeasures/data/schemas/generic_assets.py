@@ -311,6 +311,7 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
 
     def _deserialize(self, value: int | str, attr, obj, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
+        value = super()._deserialize(value, attr, obj, **kwargs)
         generic_asset: GenericAsset = db.session.execute(
             select(GenericAsset).filter_by(id=int(value))
         ).scalar_one_or_none()
