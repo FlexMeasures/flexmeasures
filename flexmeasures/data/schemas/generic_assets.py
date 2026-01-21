@@ -15,6 +15,7 @@ from sqlalchemy import select
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
@@ -23,17 +24,6 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
-
-
-class JSON(fields.Field):
-    def _deserialize(self, value, attr, data, **kwargs) -> dict:
-        try:
-            return json.loads(value)
-        except ValueError:
-            raise ValidationError("Not a valid JSON string.")
-
-    def _serialize(self, value, attr, obj, **kwargs) -> str:
-        return json.dumps(value)
 
 
 class SensorsToShowSchema(fields.Field):

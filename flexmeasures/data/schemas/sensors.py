@@ -24,7 +24,6 @@ import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
 from marshmallow.validate import Validator
 
-import json
 import re
 import isodate
 from marshmallow_oneofschema import OneOfSchema
@@ -48,19 +47,9 @@ from flexmeasures.utils.unit_utils import (
     is_currency_unit,
     is_energy_unit,
 )
+from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
-
-
-class JSON(fields.Field):
-    def _deserialize(self, value, attr, data, **kwargs) -> dict:
-        try:
-            return json.loads(value)
-        except ValueError:
-            raise ValidationError("Not a valid JSON string.")
-
-    def _serialize(self, value, attr, obj, **kwargs) -> str:
-        return json.dumps(value)
 
 
 class TimedEventSchema(Schema):
