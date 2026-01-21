@@ -27,8 +27,11 @@ def iter_marshmallow_field_subclasses():
                 yield obj, module
 
 
-def deserialize_calls_super(cls):
-    """Return True if _deserialize contains a call to super()._deserialize."""
+def deserialize_calls_super(cls, and_queries_db: bool = True) -> bool:
+    """Return True if _deserialize contains a call to super()._deserialize.
+
+    :param: and_queries_db: if True, also checks whether _deserialize queries the db.
+    """
     try:
         source = inspect.getsource(cls)
     except (OSError, TypeError):
@@ -36,19 +39,67 @@ def deserialize_calls_super(cls):
 
     tree = ast.parse(source)
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            func = node.func
-            if (
-                isinstance(func, ast.Attribute)
-                and func.attr == "_deserialize"
-                and isinstance(func.value, ast.Call)
-                and isinstance(func.value.func, ast.Name)
-                and func.value.func.id == "super"
-            ):
-                return True
+    calls_super = False
+    calls_db = False
 
-    return False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+
+        func = node.func
+
+        # Detect super()._deserialize(...)
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "_deserialize"
+            and isinstance(func.value, ast.Call)
+            and isinstance(func.value.func, ast.Name)
+            and func.value.func.id == "super"
+        ):
+            calls_super = True
+
+        # Detect db.session.get(...)
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "get"
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == "session"
+            and isinstance(func.value.value, ast.Name)
+            and func.value.value.id == "db"
+        ):
+            calls_db = True
+
+        # Detect db.session.execute(select(...))
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "execute"
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == "session"
+            and isinstance(func.value.value, ast.Name)
+            and func.value.value.id == "db"
+        ):
+            # Check if first argument is a select call
+            if node.args and isinstance(node.args[0], ast.Call):
+                arg_call = node.args[0]
+                if getattr(arg_call.func, "id", None) == "select":
+                    calls_db = True
+
+        # Optional: detect legacy db.session.query(...)
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "query"
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == "session"
+            and isinstance(func.value.value, ast.Name)
+            and func.value.value.id == "db"
+        ):
+            calls_db = True
+
+    # If we only care about DB-querying methods, return True if it doesn't query
+    if and_queries_db and not calls_db:
+        return True
+
+    return calls_super
 
 
 def test_all_custom_fields_call_super_deserialize():
