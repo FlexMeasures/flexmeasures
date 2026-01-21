@@ -4,6 +4,7 @@ import logging
 import os
 
 from datetime import timedelta
+from isodate.duration import Duration
 
 from marshmallow import (
     fields,
@@ -196,6 +197,7 @@ class ForecasterParametersSchema(Schema):
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
+        max_training_period = data.get("max_training_period")
 
         if start_date is not None and end_date is not None and start_date >= end_date:
             raise ValidationError(
@@ -237,6 +239,14 @@ class ForecasterParametersSchema(Schema):
                 raise ValidationError(
                     f"forecast-frequency must be a multiple of the sensor resolution ({sensor.event_resolution})"
                 )
+
+        if isinstance(max_training_period, Duration):
+            # DurationField only returns Duration when years/months are present
+            raise ValidationError(
+                "max-training-period must be specified using days or smaller units "
+                "(e.g. P365D, PT48H). Years and months are not supported.",
+                field_name="max_training_period",
+            )
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
