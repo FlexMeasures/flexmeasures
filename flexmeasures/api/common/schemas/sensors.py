@@ -21,8 +21,8 @@ class SensorIdField(fields.Integer):
     Field that represents a sensor ID. It de-serializes from the sensor id to a sensor instance.
     """
 
-    def _deserialize(self, sensor_id: int, attr, obj, **kwargs) -> Sensor:
-        sensor_id = super()._deserialize(sensor_id, attr, obj, **kwargs)
+    def _deserialize(self, sensor_id: int, attr, data, **kwargs) -> Sensor:
+        sensor_id = super()._deserialize(sensor_id, attr, data, **kwargs)
         sensor: Sensor = db.session.execute(
             select(Sensor).filter_by(id=int(sensor_id))
         ).scalar_one_or_none()
@@ -30,7 +30,7 @@ class SensorIdField(fields.Integer):
             raise abort(404, f"Sensor {sensor_id} not found")
         return sensor
 
-    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
+    def _serialize(self, sensor: Sensor, attr, obj, **kwargs) -> int:
         return sensor.id
 
 

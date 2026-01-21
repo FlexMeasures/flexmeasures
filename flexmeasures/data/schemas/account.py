@@ -62,9 +62,9 @@ class AccountIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to an Account and serializes back to an integer."""
 
     @with_appcontext
-    def _deserialize(self, value, attr, obj, **kwargs) -> AccountModel:
+    def _deserialize(self, value, attr, data, **kwargs) -> AccountModel:
         """Turn an account id into an Account."""
-        value = super()._deserialize(value, attr, obj, **kwargs)
+        value = super()._deserialize(value, attr, data, **kwargs)
         account = db.session.get(AccountModel, value)
         if account is None:
             raise FMValidationError(f"No account found with id {value}.")
@@ -72,6 +72,6 @@ class AccountIdField(fields.Int, MarshmallowClickMixin):
         account.account_roles
         return account
 
-    def _serialize(self, account, attr, data, **kwargs):
+    def _serialize(self, account, attr, obj, **kwargs):
         """Turn an Account into a source id."""
         return account.id

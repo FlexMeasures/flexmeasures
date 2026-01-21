@@ -295,14 +295,14 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
             self.to_unit = None
 
     @with_appcontext_if_needed()
-    def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
+    def _deserialize(self, value: int, attr, data, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
 
         if not isinstance(value, int) and not isinstance(value, str):
             raise FMValidationError(
                 f"Sensor ID has the wrong type. Got `{type(value).__name__}` but `int` was expected."
             )
-        value = super()._deserialize(value, attr, obj, **kwargs)
+        value = super()._deserialize(value, attr, data, **kwargs)
 
         sensor = db.session.get(Sensor, value)
 
@@ -333,7 +333,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
 
         return sensor
 
-    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
+    def _serialize(self, sensor: Sensor, attr, obj, **kwargs) -> int:
         """Turn a Sensor into a sensor id."""
         return sensor.id
 

@@ -13,8 +13,8 @@ class AccountIdField(fields.Integer):
     Field that represents an account ID. It deserializes from the account id to an account instance.
     """
 
-    def _deserialize(self, account_id: str, attr, obj, **kwargs) -> Account:
-        account_id = super()._deserialize(account_id, attr, obj, **kwargs)
+    def _deserialize(self, account_id: str, attr, data, **kwargs) -> Account:
+        account_id = super()._deserialize(account_id, attr, data, **kwargs)
         account: Account = db.session.execute(
             select(Account).filter_by(id=int(account_id))
         ).scalar_one_or_none()
@@ -22,7 +22,7 @@ class AccountIdField(fields.Integer):
             raise abort(404, f"Account {account_id} not found")
         return account
 
-    def _serialize(self, account: Account, attr, data, **kwargs) -> int:
+    def _serialize(self, account: Account, attr, obj, **kwargs) -> int:
         return account.id if account else None
 
     @classmethod
@@ -45,8 +45,8 @@ class UserIdField(fields.Integer):
         )
         super().__init__(*args, **kwargs)
 
-    def _deserialize(self, user_id: int, attr, obj, **kwargs) -> User:
-        user_id = super()._deserialize(user_id, attr, obj, **kwargs)
+    def _deserialize(self, user_id: int, attr, data, **kwargs) -> User:
+        user_id = super()._deserialize(user_id, attr, data, **kwargs)
         user: User = db.session.execute(
             select(User).filter_by(id=int(user_id))
         ).scalar_one_or_none()
@@ -54,7 +54,7 @@ class UserIdField(fields.Integer):
             raise abort(404, f"User {user_id} not found")
         return user
 
-    def _serialize(self, user: User, attr, data, **kwargs) -> int:
+    def _serialize(self, user: User, attr, obj, **kwargs) -> int:
         return user.id
 
 
