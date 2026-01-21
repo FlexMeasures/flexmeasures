@@ -46,6 +46,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
+* Fixed toast notification display on the sensor detail upload form [see `PR #1921 <https://www.github.com/FlexMeasures/flexmeasures/pull/1921>`_]
 
 
 v0.30.3 | January 12, 2026

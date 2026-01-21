@@ -71,9 +71,15 @@
 <i
             class="fa fa-info-circle ms-1"
             title="Formats accepted: csv and xlsx.
-The file should have columns for a timestamp (event_start) and a value (event_value).
-The timestamp should be in ISO 8601 format. If the timezone offset is not provided the sensor timezone will be used.
-The event_value should be a numeric value."
+
+For the data, note the following:
+- The file should have two columns ― one for a timestamp (event_start) and one for a value (event_value). You can use other column names.
+- The timestamp should be in ISO 8601 format. If the timezone offset is not provided the sensor timezone will be used.
+- The event_value should be a numeric value.
+- The resolution does not have to be the sensor resolution ― FlexMeasures will attempt to convert your data to the sensor resolution. Not all resolutions fit. What works best: Upsampling.
+- Data can have gaps, but FlexMeasures still needs to be able to guess the frequency.
+- Duplicates will be removed.
+- For the unit of the data (e.g. kW), see help text on the unit selection below."
             style="color: white; cursor: pointer;"
         >
         </i> <!-- This icon is intentionally indented like tis so the content aligns properly when view. -->
@@ -126,7 +132,7 @@ The event_value should be a numeric value."
                                             Unit
                                             <i
                                                 class="fa fa-info-circle ms-1" 
-                                                title="The selected unit is used to denote the unit of the data being uploaded. Note that a different unit can be selected here than the sensor's default unit. In that case, the data will be converted to the sensor's unit upon upload."
+                                                title="Select here the unit of the data being uploaded. If that is different from the sensor's unit, FlexMeasures will attempt to convert your data to the sensor's unit (e.g. kWh to kW). This support is not 100% complete, though (it's not easy to support). What works best: Converting to flow units (kW, C°, MW...)."
                                                 style="color: white; cursor: pointer;"
                                             >
                                             </i>
