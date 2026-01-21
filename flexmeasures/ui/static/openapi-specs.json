@@ -3897,8 +3897,7 @@
     "/api/dev/sensor/{id}/chart_data": {},
     "/api/dev/asset/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
-    "/": {},
-    "/api/bace/data": {}
+    "/": {}
   },
   "openapi": "3.1.2",
   "components": {
