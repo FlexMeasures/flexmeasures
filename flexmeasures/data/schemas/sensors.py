@@ -5,6 +5,7 @@ from difflib import get_close_matches
 import numbers
 import pytz
 from pytz.exceptions import UnknownTimeZoneError
+from typing import Any
 
 from flask import current_app
 from flask_security import current_user
@@ -23,7 +24,6 @@ import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
 from marshmallow.validate import Validator
 
-import json
 import re
 import isodate
 from marshmallow_oneofschema import OneOfSchema
@@ -47,19 +47,9 @@ from flexmeasures.utils.unit_utils import (
     is_currency_unit,
     is_energy_unit,
 )
+from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
-
-
-class JSON(fields.Field):
-    def _deserialize(self, value, attr, data, **kwargs) -> dict:
-        try:
-            return json.loads(value)
-        except ValueError:
-            raise ValidationError("Not a valid JSON string.")
-
-    def _serialize(self, value, attr, data, **kwargs) -> str:
-        return json.dumps(value)
 
 
 class TimedEventSchema(Schema):
@@ -295,18 +285,19 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
             self.to_unit = None
 
     @with_appcontext_if_needed()
-    def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
 
         if not isinstance(value, int) and not isinstance(value, str):
             raise FMValidationError(
                 f"Sensor ID has the wrong type. Got `{type(value).__name__}` but `int` was expected."
             )
+        sensor_id: int = super()._deserialize(value, attr, data, **kwargs)
 
-        sensor = db.session.get(Sensor, value)
+        sensor = db.session.get(Sensor, sensor_id)
 
         if sensor is None:
-            raise FMValidationError(f"No sensor found with ID {value}.")
+            raise FMValidationError(f"No sensor found with ID {sensor_id}.")
 
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
@@ -332,9 +323,9 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
 
         return sensor
 
-    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
+    def _serialize(self, value: Sensor, attr, obj, **kwargs) -> int:
         """Turn a Sensor into a sensor id."""
-        return sensor.id
+        return value.id
 
 
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
@@ -395,7 +386,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
     @with_appcontext_if_needed()
     def _deserialize(
-        self, value: dict[str, int] | list[dict] | str, attr, obj, **kwargs
+        self, value: dict[str, int] | list[dict] | str, attr, data, **kwargs
     ) -> Sensor | list[dict] | ur.Quantity:
 
         if isinstance(value, dict):
@@ -405,7 +396,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         elif isinstance(value, str):
             return self._deserialize_str(value)
         elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
-            return self._deserialize_numeric(value, attr, obj, **kwargs)
+            return self._deserialize_numeric(value, attr, data, **kwargs)
         else:
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
@@ -444,15 +435,15 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         return convert_to_quantity(value=value, to_unit=self.to_unit)
 
     def _deserialize_numeric(
-        self, value: numbers.Real, attr, obj, **kwargs
+        self, value: numbers.Real, attr, data, **kwargs
     ) -> ur.Quantity:
         """Try to deserialize a numeric value to a Quantity, using the default_src_unit."""
         return self._deserialize(
-            f"{value} {self.default_src_unit}", attr, obj, **kwargs
+            f"{value} {self.default_src_unit}", attr, data, **kwargs
         )
 
     def _serialize(
-        self, value: Sensor | pd.Series | ur.Quantity, attr, data, **kwargs
+        self, value: Sensor | pd.Series | ur.Quantity, attr, obj, **kwargs
     ) -> str | dict[str, int]:
         if isinstance(value, Sensor):
             return dict(sensor=value.id)
@@ -493,6 +484,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             unit = str(ur.Quantity(serialized_variable_quantity[0]["value"]).units)
         elif isinstance(serialized_variable_quantity, dict):
             # use deserialized quantity to avoid another Sensor query; the serialized quantity only has the sensor ID
+            assert isinstance(deserialized_variable_quantity, Sensor)
             unit = deserialized_variable_quantity.unit
         else:
             raise NotImplementedError(
@@ -610,7 +602,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                 file_errors += [
                     f"Invalid content: {file}. Only CSV files are accepted."
                 ]
-            if file.filename == "":
+            if not file.filename:
                 file_errors += ["Filename is missing."]
             elif file.filename.split(".")[-1] not in (
                 "csv",
