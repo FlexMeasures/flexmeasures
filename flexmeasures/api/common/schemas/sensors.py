@@ -65,7 +65,7 @@ class SensorEntityAddressField(fields.Str):
         self.fm_scheme = fm_scheme
         super().__init__(*args, **kwargs)
 
-    def _deserialize(self, value, attr, obj, **kwargs) -> Sensor:
+    def _deserialize(self, value, attr, data, **kwargs) -> Sensor:
         """De-serialize to a Sensor."""
         try:
             ea = parse_entity_address(value, self.entity_type, self.fm_scheme)
@@ -84,7 +84,7 @@ class SensorEntityAddressField(fields.Str):
         except EntityAddressException as eae:
             raise EntityAddressValidationError(str(eae))
 
-    def _serialize(self, value: Sensor, attr, data, **kwargs):
+    def _serialize(self, value: Sensor, attr, obj, **kwargs):
         """Serialize to an entity address."""
         if self.fm_scheme == "fm0":
             return value.entity_address_fm0

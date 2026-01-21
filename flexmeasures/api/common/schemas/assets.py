@@ -15,7 +15,7 @@ class PipedAssetFieldListField(fields.Str):
     Each one should represent a field in the AssetAPIQuerySchema.
     """
 
-    def _deserialize(self, values: str, attr, obj, **kwargs) -> list[str]:
+    def _deserialize(self, values: str, attr, data, **kwargs) -> list[str]:
         if not isinstance(values, str):
             raise validate.ValidationError(
                 "Invalid input type, should be a string, separable by '|'."

@@ -36,10 +36,10 @@ from flexmeasures.utils.unit_utils import (
 class SingleValueField(fields.Float):
     """Field that both de-serializes and serializes a single value to a list of floats (length 1)."""
 
-    def _deserialize(self, value, attr, obj, **kwargs) -> list[float]:
+    def _deserialize(self, value, attr, data, **kwargs) -> list[float]:
         return [self._validated(value)]
 
-    def _serialize(self, value, attr, data, **kwargs) -> list[float]:
+    def _serialize(self, value, attr, obj, **kwargs) -> list[float]:
         return [self._validated(value)]
 
 

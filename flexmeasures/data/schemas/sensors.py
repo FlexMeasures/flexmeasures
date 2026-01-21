@@ -59,7 +59,7 @@ class JSON(fields.Field):
         except ValueError:
             raise ValidationError("Not a valid JSON string.")
 
-    def _serialize(self, value, attr, data, **kwargs) -> str:
+    def _serialize(self, value, attr, obj, **kwargs) -> str:
         return json.dumps(value)
 
 
@@ -397,7 +397,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
     @with_appcontext_if_needed()
     def _deserialize(
-        self, value: dict[str, int] | list[dict] | str, attr, obj, **kwargs
+        self, value: dict[str, int] | list[dict] | str, attr, data, **kwargs
     ) -> Sensor | list[dict] | ur.Quantity:
 
         if isinstance(value, dict):
@@ -407,7 +407,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         elif isinstance(value, str):
             return self._deserialize_str(value)
         elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
-            return self._deserialize_numeric(value, attr, obj, **kwargs)
+            return self._deserialize_numeric(value, attr, data, **kwargs)
         else:
             raise FMValidationError(
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
@@ -446,15 +446,15 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         return convert_to_quantity(value=value, to_unit=self.to_unit)
 
     def _deserialize_numeric(
-        self, value: numbers.Real, attr, obj, **kwargs
+        self, value: numbers.Real, attr, data, **kwargs
     ) -> ur.Quantity:
         """Try to deserialize a numeric value to a Quantity, using the default_src_unit."""
         return self._deserialize(
-            f"{value} {self.default_src_unit}", attr, obj, **kwargs
+            f"{value} {self.default_src_unit}", attr, data, **kwargs
         )
 
     def _serialize(
-        self, value: Sensor | pd.Series | ur.Quantity, attr, data, **kwargs
+        self, value: Sensor | pd.Series | ur.Quantity, attr, obj, **kwargs
     ) -> str | dict[str, int]:
         if isinstance(value, Sensor):
             return dict(sensor=value.id)

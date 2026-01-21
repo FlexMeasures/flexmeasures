@@ -32,7 +32,7 @@ class JSON(fields.Field):
         except ValueError:
             raise ValidationError("Not a valid JSON string.")
 
-    def _serialize(self, value, attr, data, **kwargs) -> str:
+    def _serialize(self, value, attr, obj, **kwargs) -> str:
         return json.dumps(value)
 
 
