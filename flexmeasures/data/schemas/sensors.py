@@ -682,7 +682,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                         bdf.event_starts[-1] - bdf.event_starts[0]
                     )
                 else:
-                    bdf.event_resolution = bdf.event_frequency
+                    bdf.event_resolution = bdf.most_common_event_frequency
                 if bdf.event_resolution is None:
                     # Reraise the error if an event frequency could not be inferred
                     pd.infer_freq(bdf.index.unique("event_start"))
