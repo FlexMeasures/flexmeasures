@@ -83,7 +83,7 @@ class UserAPI(FlaskView):
     @as_json
     def index(
         self,
-        account: Account,
+        account: Account = None,
         include_inactive: bool = False,
         page: int | None = None,
         per_page: int | None = None,
