@@ -1,3 +1,5 @@
+from typing import Any
+
 from flask.cli import with_appcontext
 from flexmeasures.data import ma
 from marshmallow import fields, validates
@@ -62,12 +64,12 @@ class AccountIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to an Account and serializes back to an integer."""
 
     @with_appcontext
-    def _deserialize(self, value, attr, data, **kwargs) -> AccountModel:
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> AccountModel:
         """Turn an account id into an Account."""
-        value = super()._deserialize(value, attr, data, **kwargs)
-        account = db.session.get(AccountModel, value)
+        account_id: int = super()._deserialize(value, attr, data, **kwargs)
+        account = db.session.get(AccountModel, account_id)
         if account is None:
-            raise FMValidationError(f"No account found with id {value}.")
+            raise FMValidationError(f"No account found with id {account_id}.")
         # lazy loading now (account somehow is not in the session after this)
         account.account_roles
         return account

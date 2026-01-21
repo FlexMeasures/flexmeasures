@@ -1,3 +1,5 @@
+from typing import Any
+
 from flask import abort
 from marshmallow import Schema, fields, ValidationError
 from sqlalchemy import select
@@ -21,10 +23,10 @@ class SensorIdField(fields.Integer):
     Field that represents a sensor ID. It de-serializes from the sensor id to a sensor instance.
     """
 
-    def _deserialize(self, value: int, attr, data, **kwargs) -> Sensor:
-        sensor_id = super()._deserialize(value, attr, data, **kwargs)
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> Sensor:
+        sensor_id: int = super()._deserialize(value, attr, data, **kwargs)
         sensor: Sensor = db.session.execute(
-            select(Sensor).filter_by(id=int(sensor_id))
+            select(Sensor).filter_by(id=sensor_id)
         ).scalar_one_or_none()
         if sensor is None:
             raise abort(404, f"Sensor {sensor_id} not found")

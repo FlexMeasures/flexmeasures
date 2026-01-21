@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 import json
 from http import HTTPStatus
+from typing import Any
 
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
@@ -309,11 +310,11 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
         self.status_if_not_found = status_if_not_found
         super().__init__(*args, **kwargs)
 
-    def _deserialize(self, value: int | str, attr, data, **kwargs) -> GenericAsset:
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
-        value = super()._deserialize(value, attr, data, **kwargs)
+        generic_asset_id: int = super()._deserialize(value, attr, data, **kwargs)
         generic_asset: GenericAsset = db.session.execute(
-            select(GenericAsset).filter_by(id=int(value))
+            select(GenericAsset).filter_by(id=generic_asset_id)
         ).scalar_one_or_none()
         if generic_asset is None:
             message = f"No asset found with ID {value}."

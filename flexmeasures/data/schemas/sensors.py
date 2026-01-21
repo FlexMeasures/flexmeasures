@@ -5,6 +5,7 @@ from difflib import get_close_matches
 import numbers
 import pytz
 from pytz.exceptions import UnknownTimeZoneError
+from typing import Any
 
 from flask import current_app
 from flask_security import current_user
@@ -295,19 +296,19 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
             self.to_unit = None
 
     @with_appcontext_if_needed()
-    def _deserialize(self, value: int, attr, data, **kwargs) -> Sensor:
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
 
         if not isinstance(value, int) and not isinstance(value, str):
             raise FMValidationError(
                 f"Sensor ID has the wrong type. Got `{type(value).__name__}` but `int` was expected."
             )
-        value = super()._deserialize(value, attr, data, **kwargs)
+        sensor_id: int = super()._deserialize(value, attr, data, **kwargs)
 
-        sensor = db.session.get(Sensor, value)
+        sensor = db.session.get(Sensor, sensor_id)
 
         if sensor is None:
-            raise FMValidationError(f"No sensor found with ID {value}.")
+            raise FMValidationError(f"No sensor found with ID {sensor_id}.")
 
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
