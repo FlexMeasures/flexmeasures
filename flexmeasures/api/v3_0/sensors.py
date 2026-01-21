@@ -1522,21 +1522,7 @@ class SensorAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema:
-                  type: object
-                  properties:
-                    start_date:
-                      type: string
-                      format: date-time
-                      description: Start date of the historical data used for training.
-                    start_predict_date:
-                      type: string
-                      format: date-time
-                      description: Start date of the forecast period.
-                    end_date:
-                      type: string
-                      format: date-time
-                      description: End date of the forecast period.
+                schema: ForecasterParametersSchema
                 example:
                   start_date: "2026-01-01T00:00:00+01:00"
                   start_predict_date: "2026-01-15T00:00:00+01:00"

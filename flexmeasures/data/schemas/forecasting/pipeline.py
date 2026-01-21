@@ -5,7 +5,14 @@ import os
 
 from datetime import timedelta
 
-from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
+from marshmallow import (
+    fields,
+    Schema,
+    validates_schema,
+    pre_load,
+    post_load,
+    ValidationError,
+)
 
 from flexmeasures.data.schemas import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeOrDateField, DurationField
@@ -77,7 +84,8 @@ class ForecasterParametersSchema(Schema):
         },
     )
     end_date = AwareDateTimeOrDateField(
-        required=True,
+        required=False,
+        allow_none=True,
         inclusive=True,
         metadata={
             "description": "End date for running the pipeline.",
@@ -174,10 +182,14 @@ class ForecasterParametersSchema(Schema):
         },
     )
 
+    @pre_load
+    def drop_none_values(self, data, **kwargs):
+        return {k: v for k, v in data.items() if v is not None}
+
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
-        start_date = data["start_date"]
-        end_date = data["end_date"]
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
         predict_start = data.get("start_predict_date", None)
         train_period = data.get("train_period")
         retrain_frequency = data.get("retrain_frequency")
@@ -185,18 +197,18 @@ class ForecasterParametersSchema(Schema):
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
 
-        if start_date >= end_date:
+        if start_date is not None and end_date is not None and start_date >= end_date:
             raise ValidationError(
                 "start-date must be before end-date", field_name="start_date"
             )
 
         if predict_start:
-            if predict_start < start_date:
+            if start_date is not None and predict_start < start_date:
                 raise ValidationError(
                     "start-predict-date cannot be before start-date",
                     field_name="start_predict_date",
                 )
-            if predict_start >= end_date:
+            if end_date is not None and predict_start >= end_date:
                 raise ValidationError(
                     "start-predict-date must be before end-date",
                     field_name="start_predict_date",
@@ -251,15 +263,19 @@ class ForecasterParametersSchema(Schema):
             now if data.get("start_predict_date") is None else predict_start
         )
 
-        if data.get("start_predict_date") is None and data.get("train_period"):
+        if (
+            data.get("start_predict_date") is None
+            and data.get("train_period")
+            and data.get("start_date")
+        ):
 
             predict_start = data["start_date"] + data["train_period"]
             save_belief_time = None
 
-        if data.get("train_period") is None and data["start_date"] is None:
+        if data.get("train_period") is None and data.get("start_date") is None:
             train_period_in_hours = 30 * 24  # Set default train_period value to 30 days
 
-        elif data.get("train_period") is None and data["start_date"]:
+        elif data.get("train_period") is None and data.get("start_date"):
             train_period_in_hours = int(
                 (predict_start - data["start_date"]).total_seconds() / 3600
             )
@@ -278,16 +294,25 @@ class ForecasterParametersSchema(Schema):
                 f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
             )
 
-        if data.get("retrain_frequency") is None:
+        if data.get("retrain_frequency") is None and data.get("end_date") is not None:
             retrain_frequency_in_hours = int(
                 (data["end_date"] - predict_start).total_seconds() / 3600
+            )
+        elif data.get("retrain_frequency") is None and data.get("end_date") is None:
+            retrain_frequency_in_hours = data.get("max_forecast_horizon") // timedelta(
+                hours=1
             )
         else:
             retrain_frequency_in_hours = data["retrain_frequency"] // timedelta(hours=1)
             if retrain_frequency_in_hours < 1:
                 raise ValidationError("retrain-frequency must be at least 1 hour")
 
-        if data["start_date"] is None:
+        if data.get("end_date") is None:
+            data["end_date"] = predict_start + timedelta(
+                hours=retrain_frequency_in_hours
+            )
+
+        if data.get("start_date") is None:
             start_date = predict_start - timedelta(hours=train_period_in_hours)
         else:
             start_date = data["start_date"]

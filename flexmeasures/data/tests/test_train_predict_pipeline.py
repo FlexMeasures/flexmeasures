@@ -65,7 +65,8 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "future_regressors": ["irradiance-sensor"],
                 "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
+                # "start_date": "2025-01-01T00:00+02:00",  # without a start date, max_training_period takes over
+                "max_training_period": "P7D",
                 "start_predict_date": "2025-01-08T00:00+02:00",  # start_predict_date coincides with end of available data in sensor
                 "end_date": "2025-01-09T00:00+02:00",
                 "sensor_to_save": None,
