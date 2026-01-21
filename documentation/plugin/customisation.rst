@@ -69,8 +69,6 @@ Finally, make your scheduler be the one that FlexMeasures will use for certain s
 From now on, all schedules (see :ref:`tut_forecasting_scheduling`) which are requested for this sensor should
 get computed by your custom function! For later lookup, the data will be linked to a new data source with the name "My Opinion".
 
-.. note:: Instead of ``"DummyScheduler"`` you could write ``DummyScheduler.__name__`` to make it more robust against future renaming.
-
 
 Adding your own forecasting algorithm
 -------------------------------------
