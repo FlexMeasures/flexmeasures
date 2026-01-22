@@ -98,6 +98,7 @@ flask==3.1.2
     #   flask-migrate
     #   flask-principal
     #   flask-security-too
+    #   flask-sock
     #   flask-sqlalchemy
     #   flask-sslify
     #   flask-swagger-ui
@@ -126,6 +127,8 @@ flask-security-too[fsqla,mfa]==5.7.1
     # via
     #   -r requirements/app.in
     #   flask-security-too
+flask-sock==0.7.0
+    # via -r requirements/app.in
 flask-sqlalchemy==3.1.1
     # via
     #   -r requirements/app.in
@@ -147,6 +150,8 @@ fonttools==4.61.0
     # via matplotlib
 greenlet==3.2.4
     # via sqlalchemy
+h11==0.16.0
+    # via wsproto
 holidays==0.86
     # via u8darts
 humanize==4.14.0
@@ -410,6 +415,8 @@ sentry-sdk[flask]==2.46.0
     # via -r requirements/app.in
 shap==0.49.1
     # via u8darts
+simple-websocket==1.1.0
+    # via flask-sock
 six==1.17.0
     # via python-dateutil
 sktime==0.40.1
@@ -491,6 +498,8 @@ werkzeug==3.1.4
     #   flask-login
 workalendar==17.0.0
     # via -r requirements/app.in
+wsproto==1.2.0
+    # via simple-websocket
 wtforms==3.2.1
     # via
     #   flask-security-too
