@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Type
 from datetime import datetime, timedelta
-
+import logging
 from flask_security import current_user
 from werkzeug.exceptions import Forbidden
 import pandas as pd
@@ -13,7 +13,8 @@ from sqlalchemy.sql.expression import null
 from sqlalchemy import select, Select
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.generic_assets import GenericAsset
+
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.auth.policy import user_has_admin_access
@@ -222,9 +223,11 @@ def get_belief_timing_criteria(
     return criteria
 
 
+
 def simplify_index(
-    bdf: tb.BeliefsDataFrame, index_levels_to_columns: list[str] | None = None
-) -> pd.DataFrame:
+    bdf: tb.BeliefsDataFrame,
+    index_levels_to_columns: list[str] | None = None,
+   ) -> pd.DataFrame:
     """Drops indices other than event_start.
     Optionally, salvage index levels as new columns.
 
@@ -235,6 +238,13 @@ def simplify_index(
     * The index levels are dropped (by overwriting the multi-level index with just the “event_start” index level).
       Only for the columns named in index_levels_to_columns, the relevant information is kept around.
     """
+    if bdf.lineage.number_of_beliefs < len(bdf):
+        logging.debug("bdf with duplicates due to probabilistic beliefs:\n %s", bdf)
+    if bdf.lineage.number_of_events < bdf.lineage.number_of_beliefs and bdf.lineage.number_of_sources == 1:
+        logging.debug("bdf with duplicates due to multiple belief times/horizons per event:\n %s", bdf)
+    if bdf.lineage.number_of_events < bdf.lineage.number_of_beliefs and bdf.lineage.number_of_sources > 1:
+        logging.debug("bdf with duplicates maybe due to multiple sources per event:\n %s", bdf)
+
     if index_levels_to_columns is not None:
         for col in index_levels_to_columns:
             try:
@@ -247,6 +257,10 @@ def simplify_index(
                 else:
                     raise KeyError(f"Level {col} not found")
     bdf.index = bdf.index.get_level_values("event_start")
+    if bdf.index.duplicated().any():
+       logging.debug(f"bdf with duplicates: {bdf}")
+    #  raise ValueError("Duplicates found in index after processing.")
+
     return bdf
 
 
