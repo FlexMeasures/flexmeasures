@@ -281,6 +281,7 @@ class Commitment:
 
     name: str
     device: pd.Series = None
+    device_group: pd.Series = None
     index: pd.DatetimeIndex = field(repr=False, default=None)
     _type: str = field(repr=False, default="each")
     group: pd.Series = field(init=False)
@@ -340,6 +341,36 @@ class Commitment:
             "downwards deviation price"
         )
         self.group = self.group.rename("group")
+        self._init_device_group()
+
+    def _init_device_group(self):
+        # EMS-level commitment
+        if self.device is None:
+            self.device_group = pd.Series({"EMS": 0}, name="device_group")
+            return
+
+        # Extract device universe
+        if isinstance(self.device, pd.Series):
+            devices = self.device.unique()
+        else:
+            devices = [self.device]
+
+        devices = list(devices)
+
+        # Default: one group per device (backwards compatible)
+        if self.device_group is None:
+            self.device_group = pd.Series(
+                range(len(devices)), index=devices, name="device_group"
+            )
+        else:
+            # Validate custom grouping
+            missing = set(devices) - set(self.device_group.index)
+            if missing:
+                raise ValueError(
+                    f"device_group missing assignments for devices: {missing}"
+                )
+            self.device_group = self.device_group.loc[devices]
+            self.device_group.name = "device_group"
 
     def pretty_print(self):
         """
@@ -370,7 +401,7 @@ class Commitment:
 
     def to_frame(self) -> pd.DataFrame:
         """Contains all info apart from the name."""
-        return pd.concat(
+        df = pd.concat(
             [
                 self.device,
                 self.quantity,
@@ -381,6 +412,13 @@ class Commitment:
             ],
             axis=1,
         )
+        # map device → device_group
+        if self.device is not None:
+            df["device_group"] = self.device.map(self.device_group)
+        else:
+            df["device_group"] = 0
+
+        return df
 
 
 class FlowCommitment(Commitment):
