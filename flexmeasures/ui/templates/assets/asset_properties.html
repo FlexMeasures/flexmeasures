@@ -14,12 +14,7 @@
     <div class="row">
 
         <div class="col-md-2 on-top-md">
-            <div class="sidepanel-container d-none d-md-block">
-                <div class="left-sidepanel-label">Select dates</div>
-                <div class="sidepanel left-sidepanel">
-                    <div id="datepicker"></div>
-                </div>
-            </div>
+
             {% if user_can_update_asset %}
             <div class="sidepanel-container">
                 <div class="left-sidepanel-label">Edit asset</div>
@@ -157,7 +152,7 @@
 
                     <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
                         data-bs-target="#flexModelModal">
-                        Edit Flex Model
+                        Edit flex-model
                     </a>
                 </div>
                 <div class="row">
@@ -315,14 +310,18 @@
 
                                 <p>
                                     To add a field, choose it from the dropdown menu in the top right corner, then click
-                                    the "Add Field" button'. Set a value in the right panel, using the provided form to
+                                    the "Add field" button'. Set a value in the right panel, using the provided form to
                                     set the field's value.
                                 </p>
                                 </p>
                             </div>
                         </div>
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    
+                    <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
 
                 </div>
                 <div class="px-2 pt-3 pb-2">
@@ -354,8 +353,7 @@
                                             </select>
                                         </div>
                                         <div class="col-2 p-0">
-                                            <button id="addModelFieldbtn" class="btn btn-secondary btn-md">Add
-                                                Field</button>
+                                            <button id="addModelFieldbtn" class="btn btn-secondary btn-md">Add field</button>
                                         </div>
                                     </div>
 
@@ -380,8 +378,6 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
-
-    {% block leftsidepanel %} {{ super() }} {% endblock %}
 
 
     <!-- Initialise the map -->
@@ -440,8 +436,7 @@
             FlexModelFieldValidTypes[key] = validTypes;
         }
 
-        const assetFlexModelRawJSON = { ...assetFlexModelSchema };
-        processResourceRawJSON(assetFlexModelRawJSON, '{{ asset_flexmodel | safe }}');
+        const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON( {...assetFlexModelSchema }, '{{ asset_flexmodel | safe }}', true);
 
         document.addEventListener('DOMContentLoaded', async function () {
             const flexOptionsContainer = document.getElementById('flexOptionsContainer');
@@ -451,6 +446,11 @@
             const flexModelModal = document.getElementById('flexModelModal');
             const flexSelect = document.getElementById('flexSelect');
 
+            const saveChangesBtn = document.getElementById("saveChangesBtn");
+            saveChangesBtn.onclick = async function () {
+                await updateFlexModel();
+            };
+            
             const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, reRenderForm);
             const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
             const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
@@ -654,8 +654,8 @@
                             </div>
 
                              <div class="pt-2 fw-bold"> 
-                                Possible Types: <span class="fw-normal"> ${schemaSpecs[modelKey]["types"]["ui"] || "No types available."} </span> <br/>
-                                Example Units: <span class="fw-normal"> ${schemaSpecs[modelKey]["example-units"].join(", ")} </span>
+                                Possible types: <span class="fw-normal"> ${schemaSpecs[modelKey]["types"]["ui"] || "No types available."} </span> <br/>
+                                Example units: <span class="fw-normal"> ${schemaSpecs[modelKey]["example-units"].join(", ")} </span>
                             </div>
                         </div>
                     </div>
@@ -738,9 +738,19 @@
             }
 
             async function renderFlexModelFieldCard(name, value) {
+                const isExtraField = name in extraFields;
                 const card = document.createElement('div');
                 card.className = 'card m-1 mt-0';
                 card.id = `${name}-control`;
+
+                // set card element to disabled if its an extrafield
+                if (isExtraField) {
+                    card.setAttribute("data-disabled", "true");
+                    card.style.pointerEvents = "none";
+                    card.style.opacity = "0.5";
+                }
+
+
 
                 card.onclick = function () {
                     if (card.classList.contains('border-on-click')) {
@@ -794,7 +804,7 @@
                     fieldIconTitle = "True or False (a boolean)";
                 } else if (isNumber || isString) {
                     fieldIconClass = iconMap["string"];
-                    fieldIconTitle = "A Fixed Value";
+                    fieldIconTitle = "A fixed value";
                 } else if (isArray) {
                     fieldIconClass = iconMap["array"];
                     fieldIconTitle = "Multiple settings possible";
@@ -858,7 +868,6 @@
 
                     // Update the flex model
                     setFlexModel(flexModel);
-                    updateFlexModel();
                 }
 
 
@@ -944,12 +953,11 @@
 
                     const boolTabContentSaveBtn = document.createElement('button');
                     boolTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    boolTabContentSaveBtn.textContent = 'Save value';
+                    boolTabContentSaveBtn.textContent = 'Use value';
                     boolTabContentSaveBtn.onclick = function () {
                         const checkbox = document.getElementById('flexBoolInput');
                         flexModel[name] = checkbox.checked;
                         setFlexModel(flexModel);
-                        updateFlexModel();
                     };
                     tabContent.innerHTML = `
                         <div class="flex-input-group mb-1 p-2">
@@ -967,11 +975,11 @@
                     `;
                     tabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
                 } else if (dataType == Object) { // Object/Senosr Tab =================
-                    btn.textContent = 'A Sensor';
+                    btn.textContent = 'A sensor';
 
                     tabContent.innerHTML = `
                         <div class="flex-input-group mb-1 p-2">
-                            <label for="flexSensorInput" class="form-label">Select a Sensor for <b>${getFlexFieldTitle(name)} ${isArrayField ? '| Item ' + (selectedIndex() + 1) : ''}</b>
+                            <label for="flexSensorInput" class="form-label">Select a sensor for <b>${getFlexFieldTitle(name)} ${isArrayField ? '| Item ' + (selectedIndex() + 1) : ''}</b>
                                 <i class="fa fa-info-circle ps-2"
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="bottom"
@@ -982,7 +990,7 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" value="" id="flexCheckBox">
                                 <label class="form-check-label" for="flexCheckBox">
-                                    Include Public Assets
+                                    Include public assets
                                 </label>
                             </div>
                             
@@ -1005,11 +1013,11 @@
                         </div>
                     `;
                 } else if (dataType == String) { // String Tab =================
-                    btn.textContent = 'Fixed Value';
+                    btn.textContent = 'Fixed value';
 
                     const stringTabContentSaveBtn = document.createElement('button');
                     stringTabContentSaveBtn.className = 'btn btn-secondary btn-sm me-2 mt-2';
-                    stringTabContentSaveBtn.textContent = 'Save value';
+                    stringTabContentSaveBtn.textContent = 'Use value';
                     stringTabContentSaveBtn.onclick = function () {
                         const input = document.getElementById('flexStringInput');
                         if (!input.value) {
@@ -1023,7 +1031,6 @@
                         }
 
                         setFlexModel(flexModel);
-                        updateFlexModel();
                     };
 
                     const flexInputGroup = document.createElement('div');
@@ -1089,7 +1096,7 @@
                 if (fieldDataTypes[0] === Array) {
                     const currentCarouselindex = selectedIndex();
                     if (currentCarouselindex >= 0) {
-                        fieldDataTypes.forEach((type, _) => {
+                        [String, Object].forEach((type, _) => {
                             const flexModel = getFlexModel()
                             const value = flexModel[name];
                             const indexValue = value[currentCarouselindex];

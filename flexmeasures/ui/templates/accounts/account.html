@@ -264,6 +264,17 @@
             </button>
         {% endif %}
         </h3>
+        <div class="form-check form-check-inline">
+          <label class="form-check-label">
+            <input
+              id="includePublicAssetsCheckbox"
+              name="include_public_assets"
+              type="checkbox"
+            />
+            Include public assets
+          </label>
+        </div>
+
         <div class="table-responsive">
           <table
             class="table table-striped paginate nav-on-click"
@@ -401,10 +412,10 @@
  }
 
 $(document).ready(function () {
-  let includeInactive = false;
-  const tableTitle = $("#usersTableTitle");
+  let includeInactiveUsers = false;
+  const usersTableTitle = $("#usersTableTitle");
   // Initialize the DataTable
-  const table = $("#usersTable").dataTable({
+  const usersTable = $("#usersTable").dataTable({
       order: [
         [0, "asc"]
       ],
@@ -465,7 +476,7 @@ $(document).ready(function () {
         let orderDirection = data["order"][0]["dir"];
         let orderColumnName = data["columns"][orderColumnIndex]["data"];
 
-        let url = `${basePath}/api/v3_0/users?page=${data["start"] / data["length"] + 1}&per_page=${data["length"]}&include_inactive=${includeInactive}&account_id={{ account.id }}`;
+        let url = `${basePath}/api/v3_0/users?page=${data["start"] / data["length"] + 1}&per_page=${data["length"]}&include_inactive=${includeInactiveUsers}&account_id={{ account.id }}`;
 
         if (filter.length > 0) {
             url = `${url}&filter=${filter}`;
@@ -512,12 +523,12 @@ $(document).ready(function () {
 
   // Event listener for the checkbox to toggle includeInactive state
   $("#inactiveUsersCheckbox").change(function () {
-      includeInactive = this.checked;
-      table.api().ajax.reload();
-      if (includeInactive) {
-        tableTitle.text("All users");
+      includeInactiveUsers = this.checked;
+      usersTable.api().ajax.reload();
+      if (includeInactiveUsers) {
+        usersTableTitle.text("All users");
       } else {
-        tableTitle.text("All active users");
+        usersTableTitle.text("All active users");
       }
   });
 }); 
@@ -554,7 +565,9 @@ $(document).ready(function () {
   }
 
   $(document).ready(function () {
-    $("#assetTable").dataTable({
+    let includePublicAssets = false;
+    const assetsTableTitle = $("#assetsTableTitle");
+    const assetsTable = $("#assetTable").dataTable({
       order: [[1, "asc"]],
       serverSide: true,
       columns: [
@@ -575,9 +588,11 @@ $(document).ready(function () {
 
         let url = `${basePath}/api/v3_0/assets?page=${
           Math.floor(data["start"] / data["length"]) + 1
-        }&per_page=${data["length"]}&include_public=true&account_id=${
+        }&per_page=${data["length"]}&include_public=${includePublicAssets}&account_id=${
           {{ account.id }}
         }`;
+        
+        url += "&fields=id|name|generic_asset_type|owner|latitude|longitude|sensors";
 
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
@@ -617,15 +632,24 @@ $(document).ready(function () {
         });
       },
     });
+    
+    // Event listener for the checkbox to toggle includePublicAssets state
+    $("#includePublicAssetsCheckbox").change(function () {
+      includePublicAssets = this.checked;
+      assetsTable.api().ajax.reload();
+      if (includePublicAssets) {
+        assetsTableTitle.text("All assets (incl. public)");
+      } else {
+        assetsTableTitle.text("All assets");
+      }
+    });
+  
   });
 </script>
 
 <script defer>
-  let currentPage = 1;
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
-  const tableBody = document.getElementById("users-table-body");
-  const paginationControls = document.getElementById("pagination-controls");
 
   form.addEventListener("submit", function (event) {
     event.preventDefault(); // Prevent the default form submission

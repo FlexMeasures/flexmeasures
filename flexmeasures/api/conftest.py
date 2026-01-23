@@ -16,6 +16,8 @@ def requesting_user(request):
     Usage:
 
     >>> @pytest.mark.parametrize("requesting_user", ["test_prosumer_user_2@seita.nl", None], indirect=True)
+    ... def test_api_feature(requesting_user):
+    ...     pass
 
     Or in combination with other parameters:
 

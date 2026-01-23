@@ -15,7 +15,7 @@ but in the background your custom scheduling algorithm is being used.
 
 Let's walk through an example!
 
-First, we need to write a a class (inhering from the Base Scheduler) with a `schedule` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
+First, we need to write a class (inhering from the Base Scheduler) with a ``schedule`` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
 The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a scheduling function:
 
 .. code-block:: python
@@ -78,7 +78,53 @@ get computed by your custom function! For later lookup, the data will be linked 
           You can also provide a full file path to the module, e.g. "/path/to/my_file.py".
 
 
-.. todo:: We're planning to use a similar approach to allow for custom forecasting algorithms, as well.
+Adding your own forecasting algorithm
+-------------------------------------
+
+FlexMeasures comes with an in-built generic forecasting algorithm that should fit many use cases. However, you can use your own algorithm, as well, made available through your plugin.
+
+Let's walk through an example, very similar to that for scheduling, but there are a few differences.
+
+First, we need to write a class (inhering from the Base Forecaster) with a ``_compute_forecasts`` function which accepts arguments just like the in-built forecaster (its code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/forecasting>`_).
+The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a forecasting function:
+
+.. code-block:: python
+
+    from marshmallow import Schema
+    from timely_beliefs import BeliefsDataFrame
+    from flexmeasures import Forecaster, Sensor
+
+    class DummyForecaster(Forecaster):
+
+    __author__ = "My Company"
+    __version__ = "1"
+
+    _config_schema = Schema(unknown="include")
+    _parameters_schema = Schema(unknown="include")
+
+    def _compute_forecast(self, **kwargs):
+        target_sensor: Sensor = kwargs["sensor"]
+        bdf = BeliefsDataFrame()
+        return [
+            {
+                "sensor": target_sensor,
+                "data": bdf,
+            },
+        ]
+
+To check that your forecaster is registered correctly:
+
+.. code-block:: python
+
+    flexmeasures show forecasters
+
+To use the forecaster through the CLI:
+
+.. code-block:: python
+
+    flexmeasures add forecasts --forecaster DummyForecaster
+
+.. note:: Currently, the forecaster is responsible for saving the data. Use ``flexmeasures.data.utils.save_to_db(bdf)``.
 
 
 Deploying your plugin via Docker
@@ -178,7 +224,7 @@ Set config programmatically - Example of using a custom logo
 
 Finally, you might want to override some FlexMeasures configuration settings from within your plugin.
 Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below).
-There is a `record_once` function on Blueprints which can help with this. An example:
+There is a ``record_once`` function on Blueprints which can help with this. An example:
 
 .. code-block:: python
 

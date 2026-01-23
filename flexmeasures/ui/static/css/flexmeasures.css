@@ -1933,6 +1933,11 @@ div.heading-group {
 }
 
 
+/* Tooltip alignment */
+.replay-tooltip > .tooltip-inner {
+  text-align: left;
+}
+
 /* Show tooltip titles on touch screens */
 [title] {
 	border-bottom: 1px dashed rgba(0, 0, 0, 0.2);

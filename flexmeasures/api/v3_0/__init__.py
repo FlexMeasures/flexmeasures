@@ -84,20 +84,54 @@ def create_openapi_specs(app: Flask):
     Create OpenAPI specs for the API and save them to a JSON file in the static folder.
     This function should be called when generating docs (and needs extra dependencies).
     """
+    version = ".".join(
+        fm_version.split(".")[:3]
+    )  # only keep major, minor and patch parts
+    platform_name = app.config.get("FLEXMEASURES_PLATFORM_NAME", "FlexMeasures")
+    token_header_name = app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
+
+    api_intro = (
+        f"Welcome to the {platform_name} API."
+        "<br/>"
+        'This is a platform for smart energy scheduling (a "Cloud EMS"). '
+        "<br/><br/>"
+        "To use the API, you need to be authenticated."
+        "<br/>"
+        "If you are currently logged in to the platform, you can try out all endpoints on this page right away!"
+        "<br/>"
+        'You can alternatively add a token via the "Authorize" button on the right. You can find an API access token on <a href="/logged-in-user">your user page</a> - or ask the host.'
+    )
+    if app.config.get("FLEXMEASURES_SIGNUP_PAGE", None):
+        api_intro += f'<br/>No account yet? <a href="{app.config.get("FLEXMEASURES_SIGNUP_PAGE")}">Sign up here</a>.<br/>'
+    api_intro += (
+        "<br/>"
+        f"If you write code against these API endpoints, then include an `{token_header_name}` header in your requests with the API token. "
+        'If you use Python, check out the <a href="https://github.com/FlexMeasures/flexmeasures-client" target="_blank">Python client</a>.'
+    )
 
     spec = APISpec(
         title="FlexMeasures",
-        version=".".join(
-            fm_version.split(".")[:3]
-        ),  # only keep major, minor and patch parts
+        version=version,
+        info=dict(
+            description=api_intro,
+            contact={
+                "name": f"{platform_name} Support",
+                "url": app.config.get("FLEXMEASURES_SUPPORT_PAGE"),
+            },
+            termsOfService=app.config.get("FLEXMEASURES_TOS_PAGE"),
+        ),
         openapi_version=app.config["OPENAPI_VERSION"],
+        externalDocs=dict(
+            description=f"{platform_name} runs on the open source FlexMeasures technology. Read the docs here.",
+            url="https://flexmeasures.readthedocs.io",
+        ),
         plugins=[FlaskPlugin(), MarshmallowPlugin()],
     )
     api_key_scheme = {
         "type": "apiKey",
         "in": "header",
-        "name": "Authorization",
-    }  # TODO: should we stop making this a configurable parameter?
+        "name": token_header_name,
+    }  # TODO: should we stop making this a configurable parameter, as the client cannot read this setting? Or configure the client accordingly?
     spec.components.security_scheme("ApiKeyAuth", api_key_scheme)
 
     # Explicitly register OpenAPI-compatible schemas
