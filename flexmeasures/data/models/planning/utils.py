@@ -8,6 +8,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
+from tabulate import tabulate
 
 from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -559,3 +560,32 @@ def initialize_device_commitment(
     stock_commitment["device"] = device
     stock_commitment["class"] = StockCommitment
     return stock_commitment
+
+
+def print_commitments(flow_commitments):
+    """
+    Pretty-print a list of FlowCommitment objects as tabulated pandas DataFrames.
+
+    For each FlowCommitment, a DataFrame indexed by time is created containing
+    the commitment name, device values, group index, quantity, and any available
+    upward or downward deviation prices. Each commitment is printed separately
+    in a readable table format, making this function suitable for debugging,
+    logging, and interactive inspection.
+    """
+    for fc in flow_commitments:
+
+        df = pd.DataFrame(index=fc.device.index)
+
+        df["commitment"] = fc.name
+        df["device"] = fc.device
+        df["group"] = fc.group
+        df["quantity"] = fc.quantity
+
+        if hasattr(fc, "upwards_deviation_price"):
+            df["up_price"] = fc.upwards_deviation_price
+
+        if hasattr(fc, "downwards_deviation_price"):
+            df["down_price"] = fc.downwards_deviation_price
+
+        if not df.empty:
+            print(tabulate(df, headers=df.columns, tablefmt="fancy_grid"))
