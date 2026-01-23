@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from tabulate import tabulate
 from typing import Any, Dict, List, Type, Union
 
 import pandas as pd
@@ -339,6 +340,33 @@ class Commitment:
             "downwards deviation price"
         )
         self.group = self.group.rename("group")
+
+    def pretty_print(self):
+        """
+        Pretty-print a list of FlowCommitment objects as tabulated pandas DataFrames.
+
+        For each FlowCommitment, a DataFrame indexed by time is created containing
+        the commitment name, device values, group index, quantity, and any available
+        upward or downward deviation prices. Each commitment is printed separately
+        in a readable table format, making this function suitable for debugging,
+        logging, and interactive inspection.
+        """
+        df = self.to_frame()
+        df = pd.DataFrame(index=df.device.index)
+
+        df["commitment"] = self.name
+        df["device"] = self.device
+        df["group"] = self.group
+        df["quantity"] = self.quantity
+
+        if hasattr(self, "upwards_deviation_price"):
+            df["up_price"] = self.upwards_deviation_price
+
+        if hasattr(self, "downwards_deviation_price"):
+            df["down_price"] = self.downwards_deviation_price
+
+        if not df.empty:
+            print(tabulate(df, headers=df.columns, tablefmt="fancy_grid"))
 
     def to_frame(self) -> pd.DataFrame:
         """Contains all info apart from the name."""
