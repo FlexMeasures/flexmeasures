@@ -305,7 +305,28 @@
 
                                 <div class="tab-pane fade" id="asset-config" role="tabpanel"
                                     aria-labelledby="asset-config-tab">
-                                    Some content
+                                    <div class="vstack gap-3 my-3">
+                                        <div class="col">
+                                            <h6 class="card-title fw-bold pb-2">Assets</h6>
+                                            <select id="assetTree" class="form-select">
+                                            </select>
+                                        </div>
+
+                                        <div class="col">
+                                            <h6 class="card-title fw-bold pb-2">Config Type</h6>
+                                            <select id="configTypeSelect" class="form-select" disabled>
+                                                <option value="${null}" selected>Select Config Type</option>
+
+                                            </select>
+                                        </div>
+
+                                        <div class="col">
+                                            <h6 class="card-title fw-bold pb-2">Field</h6>
+                                            <select id="flexConfigField" class="form-select" disabled>
+                                                <option value="${null}" selected>Select Field</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -335,12 +356,18 @@
 
     import { renderAssetPlotCard, renderSensorCard, renderSensorsList, renderGraphHeader } from "{{ url_for('flexmeasures_ui.static', filename='js/components.js') }}?v={{ flexmeasures_version }}";
 
+    // This variable is used to prevent reRenderForm from running on initial load
+    let hasInitialized = false;
+    let hasInitialized2 = false;
+
     document.addEventListener('DOMContentLoaded', async function () {
 
         const senSearchResEle = document.getElementById("sensorsSearchResults")
         const formModal = document.getElementById('sensorsToShowModal');
         const apiSensorsListElement = document.getElementById("apiSensorsList");
         const spinnerElement = document.getElementById('spinnerElement');
+        const configTypeSelect = document.getElementById("configTypeSelect");
+        const flexConfigField = document.getElementById("flexConfigField");
 
         let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
         sensorsToShowRawJSON = sensorsToShowRawJSON.replace(/'/g, '"');
@@ -352,15 +379,34 @@
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+        const assetApiUrl = `${apiBasePath}/api/v3_0/assets?page=1&per_page=10&sort_by=id&sort_dir=asc`;
 
-        const [getSensorToShow, setSensorToShow] = createReactiveState(newFormat, renderGraphCards);
+        const [getSensorToShow, setSensorToShow] = createReactiveState(newFormat, reRenderForm);
+        const [editingIndex, setEditingIndex] = createReactiveState(null, reRenderFormV2);
         const [activeCard, setActiveCard] = createReactiveState(null, () => { });
-        const [editingIndex, setEditingIndex] = createReactiveState(null, renderGraphCards);
+        const [configAsset, setConfigAsset] = createReactiveState(null, () => { });
 
         const saveChangesBtn = document.getElementById("saveChangesBtn");
         saveChangesBtn.onclick = async function () {
             await updateAssetSensorsToShow();
         };
+
+        function reRenderForm() {
+            if (!hasInitialized) {
+                hasInitialized = true;
+            } else {
+                renderGraphCards();
+            }
+        }
+
+        function reRenderFormV2() {
+            if (!hasInitialized2) {
+                hasInitialized2 = true;
+            } else {
+                renderGraphCards();
+            }
+        }
+
 
         // This function is for backward compatibility with the previous format of sensors_to_show
         function sensorsToShowFormatter(graphs) {
@@ -394,6 +440,50 @@
             return newShape;
         }
 
+        async function renderRootAssets() {
+            const assetTreeSelect = document.getElementById("assetTree");
+            const response = await fetch(`${assetApiUrl}?all_accessible=true&per_page=1000`);
+            const resBody = await response.json();
+            console.log("Fetched assets for asset tree:", resBody);
+            const assets = resBody.data;
+
+            // Clear existing options
+            assetTreeSelect.innerHTML = `<option value="${null}" selected>Select Asset</option>`;
+
+            assets.forEach(asset => {
+                const option = document.createElement("option");
+                option.value = asset.id;
+            option.textContent = `ID: ${asset.id}, Name: ${asset.name}`;
+                assetTreeSelect.appendChild(option);
+                option.onclick = () => {
+                    setConfigAsset(asset);
+                    configTypeSelect.disabled = false;
+                    // check if asset has flex_context or flex_model set
+                    if (asset.flex_context != "{}") {
+                        flexConfigField.disabled = false;
+                        // add flex-context option
+                        const flexContextOption = document.createElement("option");
+                        flexContextOption.value = "flex-context";
+                        flexContextOption.textContent = "Flex Context";
+                        configTypeSelect.appendChild(flexContextOption);
+                    } else {
+                        flexConfigField.disabled = true;
+                    }
+
+                    if (asset.flex_model != "{}") {
+                        flexConfigField.disabled = false;
+                        // add flex-model option
+                        const flexModelOption = document.createElement("option");
+                        flexModelOption.value = "flex-model";
+                        flexModelOption.textContent = "Flex Model";
+                        configTypeSelect.appendChild(flexModelOption);
+                    } else {
+                        flexConfigField.disabled = true;
+                    }
+                };
+            });
+        }
+
         // highlight selected graph 
         async function selectGraph(graphIndex) {
             if (graphIndex !== undefined) {
@@ -408,7 +498,7 @@
             } else {
                 savedGraphIndex = undefined;
                 selectedGraphTitle = undefined;
-                renderGraphCards();
+                reRenderForm();
             }
         }
 
@@ -426,7 +516,7 @@
                     setActiveCard(null);
                 } else {
                     setActiveCard(card);
-                    renderGraphCards()
+                    reRenderForm()
                 }
             };
 
@@ -437,7 +527,7 @@
             const header = document.createElement("div");
             header.className = "d-flex align-items-center mb-2";
 
-            const isEditing = editingIndex() === index;
+            const isEditing = editingIndex() && editingIndex() === index;
 
             const headerElement = renderGraphHeader(
                 item.title,
@@ -556,83 +646,6 @@
                 graphList.appendChild(graphCard);
             }
 
-            // for (const [index, item] of sensorsToShow.entries()) {
-            //     const col = document.createElement("div");
-            //     col.classList.add("col-12", "mb-1");
-
-            //     const sensorsUnits = [];
-            //     // the initializing of the newItem is to handle the case where the item is an array of ID's instead of an object
-            //     const newItem = {
-            //         title: item.title ?? "No Title",
-            //         sensors: item.sensors ?? (Array.isArray(item) ? item : [item]),
-            //     }
-            //     newSensorsToShow.push(newItem);
-
-            //     const sensorsContent = await Promise.all(
-            //         newItem.sensors.map(async (sensor, sensorIndex) => {
-            //             const sensorData = await getSensor(sensor);
-            //             const Asset = await getAsset(sensorData.generic_asset_id);
-            //             const Account = await getAccount(Asset.account_id);
-            //             sensorsUnits.push(sensorData.unit);
-
-            //             return `
-            //             <div class="p-1 mb-3 border-bottom border-secondary">
-            //                 <div class="d-flex justify-content-between">
-            //                     <div>
-            //                         <b>ID:</b> <a href="${apiBasePath}/sensors/${sensorData.id}">${sensorData.id}</a>,
-            //                         <b>Unit:</b> ${sensorData.unit},
-            //                         <b>Name:</b> ${sensorData.name},
-            //                         <div style="padding-top: 1px;"></div>
-            //                         <b>Asset:</b> ${Asset.name},
-            //                         <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
-            //                     </div>
-            //                     <i class="fa fa-times"
-            //                         onclick="removeSensorFromGraph(${index}, ${sensorIndex})"
-            //                         data-bs-toggle="tooltip"
-            //                         data-bs-placement="top"
-            //                         title="Remove Sensor"
-            //                         style="cursor: pointer;"
-            //                     ></i>
-            //                 </div>
-
-            //             </div>`;
-            //         }));
-
-            //     const uniqueUnits = [...new Set(sensorsUnits)];
-
-            //     col.innerHTML = `
-            //     <div class="card m-0 p-1">
-            //         <div class="card-body card-highlight ${newItem.title === selectedGraphTitle ? " border-on-click" : ""}" id="graph_${index}" onclick="selectGraph(${index})">
-            //             <div class="d-flex align-items-center">
-            //                 <div>
-            //                     ${editingIndex === index
-            //             ? `<input type="text" class="form-control mb-2 me-2" id="editTitle_${index}" value="${newItem.title}" onkeydown="handleEnterKeyEventForTitleEditing(event, ${index})" />`
-            //             : `<h5 class="card-title me-2">${newItem.title}</h5>`
-            //         }
-            //                 </div>
-
-            //                 <div>
-            //                     ${editingIndex === index
-            //             ? `<button class="btn btn-success btn-sm ms-2" id="saveTitleBtn" onclick="saveGraphTitle(${index})">Save</button>`
-            //             : `<button class="btn btn-warning btn-sm ms-2" id="editTitleBtn" onclick="editGraphTitle(${index})">Edit</button>`
-            //         }
-            //                 </div>
-            //             </div>
-            //             <h5 class="card-title pt-2"><b> Sensors: </b></h5>
-            //             <div>
-            //                 ${sensorsContent.length > 0 ? sensorsContent.join("") : `<div class="alert alert-warning" role="alert"> No sensors added to this graph. Add sensors by selecting them from the right</div>`}
-            //                 ${uniqueUnits.length > 1 ? `<div class="alert alert-warning" role="alert">Note that you are showing sensors with different units</div>` : ""}
-            //             </div>
-
-            //             <button class="btn btn-danger btn-sm me-2" onclick="(function(e) { e.stopPropagation(); removeGraph(${index}); })(event)">Remove</button>
-            //             <button class="btn btn-secondary btn-sm me-2" onclick="(function(e) { e.stopPropagation(); moveGraphUp(${index}); })(event)" ${index === 0 ? "disabled" : ""}>Move Up</button>
-            //             <button class="btn btn-secondary btn-sm" onclick="(function(e) { e.stopPropagation(); moveGraphDown(${index}); })(event)" ${index === sensorsToShow.length - 1 ? "disabled" : ""}>Move Down</button>
-            //         </div>
-            //     </div>`;
-
-            //     graphList.appendChild(col);
-            // }
-
             sensorsToShow = newSensorsToShow;
         }
 
@@ -739,15 +752,15 @@
             sensorsToShow.splice(index, 1);
             savedGraphIndex = undefined;
             selectedGraphTitle = undefined;
-            editingIndex = undefined;
-            renderGraphCards();
+            setEditingIndex(null)
+            reRenderForm();
             renderApiSensors(cachedFilteredSensors);
         }
 
         async function swapItems(index1, index2) {
             if (index1 >= 0 && index2 >= 0 && index1 < sensorsToShow.length && index2 < sensorsToShow.length) {
                 [sensorsToShow[index1], sensorsToShow[index2]] = [sensorsToShow[index2], sensorsToShow[index1]];
-                renderGraphCards()
+                reRenderForm()
                 renderApiSensors(cachedFilteredSensors, index2);
             }
         }
@@ -768,10 +781,10 @@
 
         async function saveGraphTitle(index) {
             const newTitle = document.getElementById(`editTitle_${index}`).value;
-            sensorsToShow[index].title = newTitle;
-            editingIndex = null;
-            selectedGraphTitle = newTitle;
-            renderGraphCards();
+            const sensorsToShowOldState = getSensorToShow();
+            sensorsToShowOldState[index].title = newTitle;
+            setSensorToShow(sensorsToShowOldState);
+            setEditingIndex(null);
         }
 
         // ============== Graph Cards Management ============== //
@@ -854,7 +867,7 @@
             const sensorChartDiv = document.getElementById('sensorchart');
 
             const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-            const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(sensorsToShow) });
+            const requestBody = JSON.stringify({ sensors_to_show: JSON.stringify(getSensorToShow()) });
             refreshSpinner.style.display = 'block';
             sensorChartDiv.style.display = 'none';
 
@@ -942,8 +955,9 @@
 
         formModal.addEventListener('shown.bs.modal', function () {
             // Initial renders
-            renderGraphCards(); // Initial render of graph cards
+            reRenderForm(); // Initial render of graph cards
             filterSensors(); // Initial render of sensors
+            renderRootAssets(); // Initial render of root assets
         });
 
         document.addEventListener("click", function (event) {

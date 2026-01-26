@@ -484,8 +484,6 @@
             }
 
             function reRenderForm() {
-                // Skip on first init. This code prevents the access to teh variable 'getFlexmodel'
-                // on initial run of the script as its not available at that point
                 if (!hasInitialized) {
                     hasInitialized = true;
                 } else {
