@@ -86,7 +86,7 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         )
 
 
-def extract_sensors_from_flex_config(plot: dict) -> List:
+def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
     """
     Extracts a consolidated list of sensors from an asset based on
     flex-context or flex-model definitions provided in a plot dictionary.
