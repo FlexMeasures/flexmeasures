@@ -48,6 +48,7 @@ Bugfixes
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
 * Fixed toast notification display on the sensor detail upload form [see `PR #1921 <https://www.github.com/FlexMeasures/flexmeasures/pull/1921>`_]
 * Fix: return validation errors instead of database errors for API/CLI fields that map to database objects [see `PR #1923 <https://www.github.com/FlexMeasures/flexmeasures/pull/1923>`_]
+* Mutate job state when running ``flexmeasures jobs run-job <job ID>`` [see `PR #1929 <https://www.github.com/FlexMeasures/flexmeasures/pull/1929>`_]
 
 
 v0.30.3 | January 12, 2026
