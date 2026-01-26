@@ -174,7 +174,7 @@ class SensorsToShowSchema(fields.Field):
             plot, "flex-model", DBStorageFlexModelSchema().mapped_schema_keys.values()
         )
 
-    def _validate_string_field_in_collection(self, data, field_name, valid_collection):
+    def _validate_flex_config_field_is_valid_choice(self, plot_config, field_name, valid_collection):
         if field_name in data:
             value = data[field_name]
             if not isinstance(value, str):
