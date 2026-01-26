@@ -164,7 +164,7 @@ class SensorsToShowSchema(fields.Field):
 
         if "flex-context" not in plot and "flex-model" not in plot:
             raise ValidationError(
-                "When 'asset' is provided in a plot, 'flex-context' and 'flex-model' must also be provided."
+                "When 'asset' is provided in a plot, 'flex-context' or 'flex-model' must also be provided."
             )
 
         self._validate_string_field_in_collection(
