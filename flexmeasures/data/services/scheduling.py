@@ -204,7 +204,7 @@ def create_scheduling_job(
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
-    force_new_job_creation: bool = False,
+    force_new_job_creation: bool = True,
     scheduler_specs: dict | None = None,
     depends_on: Job | list[Job] | None = None,
     success_callback: Callable | None = None,
@@ -335,7 +335,7 @@ def create_sequential_scheduling_job(
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
-    force_new_job_creation: bool = False,
+    force_new_job_creation: bool = True,
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
     success_callback: Callable | None = None,
@@ -448,7 +448,7 @@ def create_simultaneous_scheduling_job(
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
-    force_new_job_creation: bool = False,
+    force_new_job_creation: bool = True,
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
     success_callback: Callable | None = None,
@@ -636,8 +636,8 @@ def make_schedule(  # noqa: C901
 
         sign = 1
 
-        if result["sensor"].measures_power and result["sensor"].get_attribute(
-            "consumption_is_positive", True
+        if result["sensor"].measures_power and not result["sensor"].get_attribute(
+            "consumption_is_positive", False
         ):
             sign = -1
 
