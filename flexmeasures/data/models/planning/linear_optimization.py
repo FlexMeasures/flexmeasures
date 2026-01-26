@@ -207,6 +207,22 @@ def device_scheduler(  # noqa C901
 
     commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
+    device_group_lookup = {}
+
+    for c, df in enumerate(commitments):
+        if "device_group" not in df.columns or "device" not in df.columns:
+            continue
+
+        device_group_lookup[c] = {}
+
+        # keep only relevant rows
+        rows = df[["device", "device_group"]].dropna().drop_duplicates()
+
+        for _, row in rows.iterrows():
+            g = row["device_group"]
+            d = row["device"]  # NOTE: must match model.d indexing
+            device_group_lookup[c].setdefault(g, set()).add(d)
+
     # Oversimplified check for a convex cost curve
     df = pd.concat(commitments)[
         ["upwards deviation price", "downwards deviation price"]
@@ -243,12 +259,20 @@ def device_scheduler(  # noqa C901
     )
     model.c = RangeSet(0, len(commitments) - 1, doc="Set of commitments")
 
-    # Add 2D indices for commitment datetimes (cj)
+    def commitment_device_groups_init(m):
+        return ((c, g) for c, groups in device_group_lookup.items() for g in groups)
+
+    model.cg = Set(dimen=2, initialize=commitment_device_groups_init)
 
     def commitments_init(m):
         return ((c, j) for c in m.c for j in commitments[c]["j"])
 
     model.cj = Set(dimen=2, initialize=commitments_init)
+
+    def commitment_time_device_groups_init(m):
+        return ((c, j, g) for (c, j) in m.cj for (_, g) in m.cg if _ == c)
+
+    model.cjg = Set(dimen=3, initialize=commitment_time_device_groups_init)
 
     # Add parameters
     def price_down_select(m, c):
@@ -361,6 +385,40 @@ def device_scheduler(  # noqa C901
 
     def device_stock_delta(m, d, j):
         return device_constraints[d]["stock delta"].iloc[j]
+
+    def grouped_commitment_equalities(m, c, j, g):
+        """
+        Enforce a commitment deviation constraint on the aggregate of devices in a group.
+
+        For commitment ``c`` at time index ``j``, this constraint couples the commitment
+        baseline (plus deviation variables) to the summed flow or stock of all devices
+        belonging to device group ``g``. StockCommitments aggregate device stocks, while
+        FlowCommitments aggregate device flows. Constraints are skipped if the commitment
+        is inactive at ``(c, j)`` or if the group contains no devices.
+        """
+        if m.commitment_quantity[c, j] == -infinity:
+            return Constraint.Skip
+
+        devices_in_group = device_group_lookup.get(c, {}).get(g, set())
+        if not devices_in_group:
+            return Constraint.Skip
+
+        center = (
+            m.commitment_quantity[c, j]
+            + m.commitment_downwards_deviation[c]
+            + m.commitment_upwards_deviation[c]
+        )
+
+        if commitments[c]["class"].apply(lambda cl: cl == StockCommitment).all():
+            center -= sum(_get_stock_change(m, d, j) for d in devices_in_group)
+        else:
+            center -= sum(m.ems_power[d, j] for d in devices_in_group)
+
+        return (
+            0 if "upwards deviation price" in commitments[c].columns else None,
+            center,
+            0 if "downwards deviation price" in commitments[c].columns else None,
+        )
 
     model.up_price = Param(model.c, initialize=price_up_select)
     model.down_price = Param(model.c, initialize=price_down_select)
@@ -565,6 +623,10 @@ def device_scheduler(  # noqa C901
             0,
         )
 
+    model.grouped_commitment_equalities = Constraint(
+        model.cjg, rule=grouped_commitment_equalities
+    )
+
     model.device_energy_bounds = Constraint(model.d, model.j, rule=device_bounds)
     model.device_power_bounds = Constraint(
         model.d, model.j, rule=device_derivative_bounds
@@ -592,9 +654,7 @@ def device_scheduler(  # noqa C901
     model.ems_power_commitment_equalities = Constraint(
         model.cj, rule=ems_flow_commitment_equalities
     )
-    model.device_energy_commitment_equalities = Constraint(
-        model.cj, model.d, rule=device_stock_commitment_equalities
-    )
+
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
     )
