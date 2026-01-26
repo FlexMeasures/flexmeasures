@@ -178,7 +178,7 @@ class SensorsToShowSchema(fields.Field):
         if field_name in data:
             value = data[field_name]
             if not isinstance(value, str):
-                raise ValidationError(f"'{field_name}' must be a string.")
+                raise ValidationError(f"The value for '{field_name}' must be a string.")
 
             if value not in valid_collection:
                 raise ValidationError(f"'{field_name}' value '{value}' is not valid.")
