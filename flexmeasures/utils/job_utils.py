@@ -7,7 +7,10 @@ from rq.job import Job
 
 
 def work_on_rq(
-    redis_queue: Queue, exc_handler=None, max_jobs=None, job: Job | str | None = None,
+    redis_queue: Queue,
+    exc_handler=None,
+    max_jobs=None,
+    job: Job | str | None = None,
 ):
 
     #  we only want this import distinction to matter when we actually are testing
