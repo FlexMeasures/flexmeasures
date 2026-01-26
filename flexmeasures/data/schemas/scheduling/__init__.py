@@ -289,6 +289,11 @@ class FlexContextSchema(Schema):
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
+    aggregate_power = VariableQuantityField(
+        to_unit="MW",
+        data_key="aggregate-power",
+        required=False,
+    )
 
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
