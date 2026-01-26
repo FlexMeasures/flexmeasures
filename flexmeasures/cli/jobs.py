@@ -67,7 +67,7 @@ def run_job(job_id: str):
     """
     connection = app.queues["scheduling"].connection
     job = Job.fetch(job_id, connection=connection)
-    work_on_rq(app.queues["scheduling"], job)
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_worker_exception, job=job)
     result = job.perform()
     click.echo(f"Job {job_id} finished with: {result}")
 
