@@ -1,11 +1,11 @@
 import click
 import marshmallow as ma
-from typing import List
 from click import get_current_context
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
 from flexmeasures.utils.unit_utils import to_preferred, ur
+from flexmeasures.data.models.time_series import Sensor
 
 
 class MarshmallowClickMixin(click.ParamType):
@@ -86,7 +86,7 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         )
 
 
-def extract_sensors_from_flex_config(plot: dict) -> List:
+def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
     """
     Extracts a consolidated list of sensors from an asset based on
     flex-context or flex-model definitions provided in a plot dictionary.
