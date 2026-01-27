@@ -69,14 +69,14 @@ def load_custom_scheduler(scheduler_specs: dict | str) -> type:
         assert "class" in scheduler_specs, "scheduler specs have no 'class'"
     elif isinstance(scheduler_specs, str):
         scheduler_class = current_app.data_generators["scheduler"].get(scheduler_specs)
+        if scheduler_class is None:
+            raise ValueError(
+                f"Scheduler {scheduler_specs} does not seem to be registered."
+            )
         scheduler_specs = {
             "class": scheduler_class.__name__,
             "module": scheduler_class.__module__,
         }
-        if scheduler_specs is None:
-            raise ValueError(
-                f"Scheduler {scheduler_specs} does not seem to be registered."
-            )
     else:
         raise TypeError(
             f"Scheduler specs is {type(scheduler_specs)}, should be a dict or str"
