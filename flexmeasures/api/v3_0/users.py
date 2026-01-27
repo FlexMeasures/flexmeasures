@@ -65,7 +65,7 @@ class UserAPIQuerySchema(PaginationSchema):
         required=False,
         validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
     )
-    account = AccountIdField(data_key="account_id", load_default=None)
+    account = AccountIdField(data_key="account_id", required=False)
     include_inactive = fields.Bool(load_default=False)
 
 
@@ -83,7 +83,7 @@ class UserAPI(FlaskView):
     @as_json
     def index(
         self,
-        account: Account,
+        account: Account = None,
         include_inactive: bool = False,
         page: int | None = None,
         per_page: int | None = None,
