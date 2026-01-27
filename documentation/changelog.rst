@@ -50,6 +50,7 @@ Bugfixes
 * Fixed toast notification display on the sensor detail upload form [see `PR #1921 <https://www.github.com/FlexMeasures/flexmeasures/pull/1921>`_]
 * Fix: return validation errors instead of database errors for API/CLI fields that map to database objects [see `PR #1923 <https://www.github.com/FlexMeasures/flexmeasures/pull/1923>`_]
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>`` [see `PR #1929 <https://www.github.com/FlexMeasures/flexmeasures/pull/1929>`_ and `PR #1930 <https://www.github.com/FlexMeasures/flexmeasures/pull/1930>`_]
+* Prevent inplace operation when using ``simplify_index`` [see `PR #1931 <https://www.github.com/FlexMeasures/flexmeasures/pull/1931>`_]
 
 
 v0.30.3 | January 12, 2026
