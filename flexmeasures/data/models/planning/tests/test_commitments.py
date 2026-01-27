@@ -86,7 +86,6 @@ def test_multi_feed_device_scheduler_shared_buffer():
 
     commitments = []
 
-    # todo: fix this commitment for the group[boiler, heat pump] to reach 100 kW together
     commitments.append(
         StockCommitment(
             name="buffer min",
@@ -94,7 +93,9 @@ def test_multi_feed_device_scheduler_shared_buffer():
             quantity=min_soc,
             upwards_deviation_price=0,
             downwards_deviation_price=-breach_price,
-            device=None,
+            # instead of device=None, I considered to create a series for the devices that we need for this
+            # specific commitment.
+            device=pd.Series([[0, 1]] * len(index), index=index),
             device_group=device_group,
         )
     )
