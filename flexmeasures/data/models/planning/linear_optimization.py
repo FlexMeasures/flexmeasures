@@ -213,15 +213,20 @@ def device_scheduler(  # noqa C901
         if "device_group" not in df.columns or "device" not in df.columns:
             continue
 
-        device_group_lookup[c] = {}
+        rows = df[["device", "device_group"]].dropna()
 
-        # keep only relevant rows
-        rows = df[["device", "device_group"]].dropna().drop_duplicates()
+        device_group_lookup[c] = {}
 
         for _, row in rows.iterrows():
             g = row["device_group"]
-            d = row["device"]  # NOTE: must match model.d indexing
-            device_group_lookup[c].setdefault(g, set()).add(d)
+            d = row["device"]
+
+            if isinstance(d, (list, tuple, set, np.ndarray)):
+                devices = set(d)
+            else:
+                devices = {d}
+
+            device_group_lookup[c].setdefault(g, set()).update(devices)
 
     # Oversimplified check for a convex cost curve
     df = pd.concat(commitments)[
