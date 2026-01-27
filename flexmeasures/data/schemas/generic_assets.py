@@ -122,7 +122,6 @@ class SensorsToShowSchema(fields.Field):
             plots = item["plots"]
             if not isinstance(plots, list):
                 raise ValidationError("'plots' must be a list or dictionary.")
-
             for plot in plots:
                 self._validate_single_plot(plot)
 
@@ -167,16 +166,18 @@ class SensorsToShowSchema(fields.Field):
                 "When 'asset' is provided in a plot, 'flex-context' or 'flex-model' must also be provided."
             )
 
-        self._validate_string_field_in_collection(
+        self._validate_flex_config_field_is_valid_choice(
             plot, "flex-context", DBFlexContextSchema.mapped_schema_keys.values()
         )
-        self._validate_string_field_in_collection(
+        self._validate_flex_config_field_is_valid_choice(
             plot, "flex-model", DBStorageFlexModelSchema().mapped_schema_keys.values()
         )
 
-    def _validate_flex_config_field_is_valid_choice(self, plot_config, field_name, valid_collection):
-        if field_name in data:
-            value = data[field_name]
+    def _validate_flex_config_field_is_valid_choice(
+        self, plot_config, field_name, valid_collection
+    ):
+        if field_name in plot_config:
+            value = plot_config[field_name]
             if not isinstance(value, str):
                 raise ValidationError(f"The value for '{field_name}' must be a string.")
 

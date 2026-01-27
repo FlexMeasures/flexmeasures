@@ -1,11 +1,11 @@
 import click
 import marshmallow as ma
-from typing import List
 from click import get_current_context
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
 from flexmeasures.utils.unit_utils import to_preferred, ur
+from flexmeasures.data.models.time_series import Sensor
 
 
 class MarshmallowClickMixin(click.ParamType):
