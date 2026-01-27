@@ -1405,7 +1405,18 @@ class StorageScheduler(MetaStorageScheduler):
                 for sensor in sensors
                 if sensor is not None
             ]
-            commitment_costs = [{"name": "commitment_costs", "data": {c.name: costs for c, costs in zip(commitments, model.commitment_costs.values())},},]
+            commitment_costs = [
+                {
+                    "name": "commitment_costs",
+                    "data": {
+                        c.name: costs
+                        for c, costs in zip(
+                            commitments, model.commitment_costs.values()
+                        )
+                    },
+                    "unit": self.flex_context["shared_currency_unit"],
+                },
+            ]
             soc_schedules = [
                 {
                     "name": "state_of_charge",
