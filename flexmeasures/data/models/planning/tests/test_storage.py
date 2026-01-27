@@ -195,7 +195,18 @@ def test_battery_relaxation(add_battery_assets, db):
             "site-production-breach-price": "1000 EUR/kW",
             "site-peak-consumption": "20 kW",
             "site-peak-production": "20 kW",
-            "site-peak-consumption-price": "260 EUR/MW",
+            "site-peak-consumption-price": [
+                {
+                    "start": start.isoformat(),
+                    "duration": "PT2H",
+                    "value": "260 EUR/MW",
+                },
+                {
+                    "start": (start + timedelta(hours=2)).isoformat(),
+                    "duration": "PT22H",
+                    "value": "235 EUR/MW",
+                },
+            ],
             # The following is a constant price, but this checks currency conversion in case a later price field is
             # set to a time series specs (i.e. a list of dicts, where each dict represents a time slot)
             "site-peak-production-price": series_to_ts_specs(
