@@ -326,10 +326,18 @@
                                                 <option value="${null}" selected>Select Field</option>
                                             </select>
                                         </div>
+
+                                        <div class="col">
+                                            <h6 class="card-title fw-bold pb-2">Field Details</h6>
+                                            <input type="text" id="flexConfigFieldDetail"
+                                                class="form-control fst-italic" disabled />
+                                        </div>
                                     </div>
+
+                                    <button type="button" id="addPlotBtn" class="btn btn-primary ms-auto">Add
+                                        plot</button>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
@@ -366,20 +374,21 @@
         const formModal = document.getElementById('sensorsToShowModal');
         const apiSensorsListElement = document.getElementById("apiSensorsList");
         const spinnerElement = document.getElementById('spinnerElement');
+        const assetTree = document.getElementById("assetTree");
         const configTypeSelect = document.getElementById("configTypeSelect");
         const flexConfigField = document.getElementById("flexConfigField");
+        const flexConfigFieldDetail = document.getElementById("flexConfigFieldDetail");
 
         let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
         sensorsToShowRawJSON = sensorsToShowRawJSON.replace(/'/g, '"');
         let sensorsToShow = JSON.parse(sensorsToShowRawJSON);
         const newFormat = sensorsToShowFormatter(sensorsToShow);
 
-
         let cachedFilteredSensors = []; // keeps track of the filtered sensors
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
-        const assetApiUrl = `${apiBasePath}/api/v3_0/assets?page=1&per_page=10&sort_by=id&sort_dir=asc`;
+
 
         const [getSensorToShow, setSensorToShow] = createReactiveState(newFormat, reRenderForm);
         const [editingIndex, setEditingIndex] = createReactiveState(null, reRenderFormV2);
@@ -387,8 +396,27 @@
         const [configAsset, setConfigAsset] = createReactiveState(null, () => { });
 
         const saveChangesBtn = document.getElementById("saveChangesBtn");
+        const addPlotBtn = document.getElementById("addPlotBtn");
         saveChangesBtn.onclick = async function () {
             await updateAssetSensorsToShow();
+        };
+        addPlotBtn.onclick = async function () {
+            if (activeCard()) {
+                const index = parseInt(activeCard().id.split("_")[1]);
+
+                const selectedFlexConfig = configTypeSelect.value;
+                const selectedConfigField = flexConfigField.value;
+                const payload = {
+                    "asset": configAsset().id,
+                    [selectedFlexConfig]: selectedConfigField,
+                }
+
+                const sensorsToShowOldState = getSensorToShow();
+                sensorsToShowOldState[index].plots.push(payload);
+                setSensorToShow(sensorsToShowOldState);
+            } else {
+                showToast("Please select a graph card to add the plot to.", "warning");
+            }
         };
 
         function reRenderForm() {
@@ -407,6 +435,67 @@
             }
         }
 
+        assetTree.onchange = async (e) => {
+            let hasOptions = false;
+
+            const selectedValue = e.target.value;
+            if (selectedValue !== "null") {
+                configTypeSelect.disabled = false;
+                const selectedAsset = await getAsset(selectedValue);
+
+
+
+                if (selectedAsset.flex_context !== "{}" && selectedAsset.flex_context !== '"{\"inflexible-device-sensors\": []}"') { // Some flex-context have this value set with an empty array
+                    const flexContextOption = document.createElement("option");
+                    flexContextOption.value = "flex-context";
+                    flexContextOption.textContent = "Flex Context";
+                    configTypeSelect.appendChild(flexContextOption);
+                    hasOptions = true;
+                }
+
+                if (selectedAsset.flex_model !== "{}") {
+                    const flexModelOption = document.createElement("option");
+                    flexModelOption.value = "flex-model";
+                    flexModelOption.textContent = "Flex Model";
+                    configTypeSelect.appendChild(flexModelOption);
+                    hasOptions = true;
+                }
+
+                if (hasOptions) {
+                    flexConfigField.disabled = false;
+                }
+                setConfigAsset(selectedAsset);
+            }
+        };
+
+        configTypeSelect.onchange = (e) => {
+            const selectedConfig = e.target.value;
+
+            if (selectedConfig === "flex-context" || selectedConfig === "flex-model") {
+                let flexConfig = selectedConfig === "flex-context" ? configAsset().flex_context : configAsset().flex_model;
+                const assetFlexModelSchema = {};
+                const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexModelSchema }, flexConfig, true);
+
+                for (const [key, value] of Object.entries(assetFlexModelRawJSON)) {
+                    const FlexFieldOption = document.createElement("option");
+                    FlexFieldOption.value = key;
+                    FlexFieldOption.textContent = getFlexFieldTitle(key);
+                    flexConfigField.appendChild(FlexFieldOption);
+                }
+            }
+        };
+
+        flexConfigField.onchange = (e) => {
+            const selectedField = e.target.value;
+            const selectedConfigValue = configTypeSelect.value;
+            let flexConfig = selectedConfigValue === "flex-context" ? configAsset().flex_context : configAsset().flex_model;
+
+            if (selectedField !== "null") {
+                const assetFlexConfigSchema = {};
+                const [assetFlexConfigRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexConfigSchema }, flexConfig, true);
+                flexConfigFieldDetail.value = JSON.stringify(assetFlexConfigRawJSON[selectedField], null, 2);
+            }
+        };
 
         // This function is for backward compatibility with the previous format of sensors_to_show
         function sensorsToShowFormatter(graphs) {
@@ -442,9 +531,8 @@
 
         async function renderRootAssets() {
             const assetTreeSelect = document.getElementById("assetTree");
-            const response = await fetch(`${assetApiUrl}?all_accessible=true&per_page=1000`);
+            const response = await fetch(`${apiBasePath}/api/v3_0/assets?page=1&per_page=10&sort_by=id&sort_dir=asc`);
             const resBody = await response.json();
-            console.log("Fetched assets for asset tree:", resBody);
             const assets = resBody.data;
 
             // Clear existing options
@@ -453,32 +541,40 @@
             assets.forEach(asset => {
                 const option = document.createElement("option");
                 option.value = asset.id;
-            option.textContent = `ID: ${asset.id}, Name: ${asset.name}`;
+                option.textContent = `ID: ${asset.id}, Name: ${asset.name}`;
                 assetTreeSelect.appendChild(option);
                 option.onclick = () => {
-                    setConfigAsset(asset);
-                    configTypeSelect.disabled = false;
-                    // check if asset has flex_context or flex_model set
-                    if (asset.flex_context != "{}") {
-                        flexConfigField.disabled = false;
-                        // add flex-context option
+
+                    // 1. Reset the Select State
+                    configTypeSelect.innerHTML = '<option value="null" selected>Select Config Type</option>';
+                    configTypeSelect.disabled = true;
+                    flexConfigField.disabled = true;
+
+                    let hasOptions = false;
+
+                    // 2. Check for Flex Context
+                    if (asset.flex_context !== "{}") {
                         const flexContextOption = document.createElement("option");
                         flexContextOption.value = "flex-context";
                         flexContextOption.textContent = "Flex Context";
                         configTypeSelect.appendChild(flexContextOption);
-                    } else {
-                        flexConfigField.disabled = true;
+                        hasOptions = true;
                     }
 
-                    if (asset.flex_model != "{}") {
-                        flexConfigField.disabled = false;
-                        // add flex-model option
+                    // 3. Check for Flex Model
+                    if (asset.flex_model !== "{}") {
                         const flexModelOption = document.createElement("option");
                         flexModelOption.value = "flex-model";
                         flexModelOption.textContent = "Flex Model";
                         configTypeSelect.appendChild(flexModelOption);
-                    } else {
-                        flexConfigField.disabled = true;
+                        hasOptions = true;
+                    }
+
+                    // 4. Enable if options were added
+                    if (hasOptions) {
+                        configTypeSelect.disabled = false;
+                        // Note: You usually want to enable flexConfigField 
+                        // ONLY after they actually pick a config type.
                     }
                 };
             });
@@ -749,12 +845,10 @@
         // ============== Graph Cards Management ============== //
 
         async function removeGraph(index) {
-            sensorsToShow.splice(index, 1);
-            savedGraphIndex = undefined;
-            selectedGraphTitle = undefined;
-            setEditingIndex(null)
+            const sensorsToShowOldState = getSensorToShow();
+            sensorsToShowOldState.splice(index, 1);
+            setSensorToShow(sensorsToShowOldState);
             reRenderForm();
-            renderApiSensors(cachedFilteredSensors);
         }
 
         async function swapItems(index1, index2) {
@@ -924,6 +1018,28 @@
             // sensorsToShow[graphIndex].sensors.splice(sensorIndex, 1);
             // renderGraphCards();
             // renderApiSensors(cachedFilteredSensors);
+            const oldSensorsToShow = getSensorToShow();
+            oldSensorsToShow[graphIndex].sensors.splice(sensorIndex, 1);
+            setSensorToShow(oldSensorsToShow);
+        }
+
+        function removePlotFromGraph(graphIndex, sensorIndex) {
+            const oldSensorsToShow = getSensorToShow();
+            oldSensorsToShow[graphIndex].plots.splice(sensorIndex, 1);
+            setSensorToShow(oldSensorsToShow);
+        }
+
+        function findPlotindexBySensorId(graphIndex, sensorId) {
+            const plots = sensorsToShow[graphIndex].plots;
+            for (let i = 0; i < plots.length; i++) {
+                const plot = plots[i];
+                if (plot.sensor === sensorId || (Array.isArray(plot.sensors) && plot.sensors.includes(sensorId))) {
+                    return {plotIndex: i, isSensors: false};
+                }else if (plot.sensors && plot.sensors.includes(sensorId)) {
+                    return {plotIndex: i, isSensors: true};
+                }
+            }
+            return {plotIndex: -1, isSensors: false}; // Return -1 if not found
         }
 
         function handleEnterKeyEventForTitleEditing(event, graphIndex) {
