@@ -325,6 +325,7 @@ class Commitment:
         self.downwards_deviation_price = self.downwards_deviation_price.fillna(0)
 
         if self._type == "any":
+            # any grouping can be made here, if timeslots differ in up/down prices or qty
             up = self.upwards_deviation_price
             down = self.downwards_deviation_price
             qty = self.quantity
