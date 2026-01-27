@@ -105,7 +105,7 @@ def create_bar_chart_or_histogram_specs(
                             "test": "datum.event_value === 0",
                             "value": "black"
                         },
-                        "value": null
+                        "value": None
                     },
                     "strokeWidth": {
                         "condition": {
