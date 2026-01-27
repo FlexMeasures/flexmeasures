@@ -320,6 +320,10 @@ class Commitment:
             if not isinstance(val, pd.Series):
                 setattr(self, series_attr, pd.Series(val, index=self.index))
 
+        # Fill NaN prices with zero prices
+        self.upwards_deviation_price = self.upwards_deviation_price.fillna(0)
+        self.downwards_deviation_price = self.downwards_deviation_price.fillna(0)
+
         if self._type == "any":
             up = self.upwards_deviation_price
             down = self.downwards_deviation_price
