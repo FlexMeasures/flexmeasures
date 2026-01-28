@@ -81,7 +81,7 @@ class SensorsToShowSchema(fields.Field):
 
     def _standardize_item(self, item) -> dict:
         """
-        Standardize different input formats to a consistent dictionary format.
+        Normalize various input formats (int, list, or dict) into a standard plot dictionary.
         """
         if isinstance(item, int):
             return {"title": None, "plots": [{"sensor": item}]}
@@ -99,12 +99,16 @@ class SensorsToShowSchema(fields.Field):
             )
 
     def _standardize_dict_item(self, item: dict) -> dict:
-        if "title" not in item:
-            raise ValidationError("Dictionary must contain a 'title' key.")
+        """
+        Transform a dictionary-based sensor configuration into a standardized 'plots' structure.
+        Ensures 'title' is a string and processes 'sensor', 'sensors', or direct 'plots' keys.
+        """
+        title = None
 
-        title = item["title"]
-        if not isinstance(title, str) and title is not None:
-            raise ValidationError("'title' value must be a string.")
+        if "title" in item:
+            title = item["title"]
+            if not isinstance(title, str) and title is not None:
+                title = None
 
         if "sensor" in item:
             sensor = item["sensor"]
@@ -132,6 +136,10 @@ class SensorsToShowSchema(fields.Field):
             )
 
     def _validate_single_plot(self, plot):
+        """
+        Perform structural validation on an individual plot dictionary.
+        Requires at least one of: 'sensor', 'sensors', or 'asset'.
+        """
         if not isinstance(plot, dict):
             raise ValidationError("Each plot in 'plots' must be a dictionary.")
 
@@ -154,6 +162,10 @@ class SensorsToShowSchema(fields.Field):
                 raise ValidationError("'sensors' value must be a list of integers.")
 
     def _validate_asset_in_plot(self, plot):
+        """
+        Validate plots that reference a GenericAsset.
+        Ensures flex-config schemas are respected when an asset is provided.
+        """
         from flexmeasures.data.schemas.scheduling import (
             DBFlexContextSchema,
         )
@@ -176,13 +188,33 @@ class SensorsToShowSchema(fields.Field):
     def _validate_flex_config_field_is_valid_choice(
         self, plot_config, field_name, valid_collection
     ):
+        """
+        Verify that the chosen flex-config field exists on the specific asset and matches
+        allowed schema keys.
+        """
         if field_name in plot_config:
             value = plot_config[field_name]
-            if not isinstance(value, str):
+            asset_id = plot_config.get("asset")
+            asset = GenericAssetIdField().deserialize(asset_id)
+
+            if asset is None:
+                raise ValidationError(f"Asset with ID {asset_id} does not exist.")
+
+            if value and not isinstance(value, str):
                 raise ValidationError(f"The value for '{field_name}' must be a string.")
 
             if value not in valid_collection:
                 raise ValidationError(f"'{field_name}' value '{value}' is not valid.")
+
+            attr_to_check = (
+                "flex_model" if field_name == "flex-model" else "flex_context"
+            )
+            asset_flex_config = getattr(asset, attr_to_check, {})
+
+            if value not in asset_flex_config:
+                raise ValidationError(
+                    f"The asset with ID '{asset_id}' does not have a '{value}' set in its '{attr_to_check}'."
+                )
 
     @classmethod
     def flatten(cls, nested_list) -> list[int]:
