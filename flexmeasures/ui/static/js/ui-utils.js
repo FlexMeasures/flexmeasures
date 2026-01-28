@@ -85,10 +85,10 @@ export function processResourceRawJSON(schema, rawJSON, allowExtra = false) {
 }
 
 export function getFlexFieldTitle(fieldName) {
-  return fieldName
-    // .split("-")
-    // .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    // .join(" ");
+  return fieldName;
+  // .split("-")
+  // .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+  // .join(" ");
 }
 
 export function renderFlexFieldOptions(schema, options) {
@@ -118,8 +118,8 @@ export async function renderSensor(sensorId) {
         <div class="d-flex justify-content-between">
             <div>
                 <b>Sensor:</b> <a href="${apiBasePath}/sensors/${
-    sensorData.id
-  }">${sensorData.id}</a>,
+                  sensorData.id
+                }">${sensorData.id}</a>,
                 <b>Unit:</b> ${
                   sensorData.unit === ""
                     ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
@@ -175,7 +175,7 @@ export function createReactiveState(initialValue, renderFunction) {
 export function renderSensorSearchResults(
   sensors,
   resultContainer,
-  actionFunc
+  actionFunc,
 ) {
   if (!resultContainer) {
     console.error("Result container is not defined.");
@@ -208,8 +208,8 @@ export function renderSensorSearchResults(
                         <h5 class="card-title">${sensor.name}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${
-      sensor.id
-    }">${sensor.id}</a>,
+                              sensor.id
+                            }">${sensor.id}</a>,
                             <b>Unit:</b> ${
                               sensor.unit === ""
                                 ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
@@ -294,4 +294,33 @@ export function setDefaultLegendPosition(checkbox) {
     .catch((error) => {
       console.error("Error during API call:", error);
     });
+}
+
+/**
+ * Swaps an item in an array with its neighbor based on direction.
+ * @param {Array} array - The source array.
+ * @param {number} index - The index of the item to move.
+ * @param {'up' | 'down'} direction - The direction to move.
+ * @returns {Array} A new array with the items swapped.
+ */
+export function moveArrayItem(array, index, direction) {
+  // Create a shallow copy to avoid mutating the original array
+  const newArray = [...array];
+
+  const isUp = direction === "up";
+  const targetIndex = isUp ? index - 1 : index + 1;
+
+  // Boundary Checks:
+  // Don't move 'up' if at the start, or 'down' if at the end.
+  if (targetIndex < 0 || targetIndex >= newArray.length) {
+    return newArray;
+  }
+
+  // Perform the swap using destructuring
+  [newArray[index], newArray[targetIndex]] = [
+    newArray[targetIndex],
+    newArray[index],
+  ];
+
+  return newArray;
 }
