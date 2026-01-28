@@ -103,7 +103,7 @@ def create_bar_chart_or_histogram_specs(
                     "stroke": {
                         "condition": {
                             "test": "datum.event_value === 0",
-                            "field": "color",
+                            "value": FIELD_DEFINITIONS["source_name"],
                         },
                         "value": None,
                     },
