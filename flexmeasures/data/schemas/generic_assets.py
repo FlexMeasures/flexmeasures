@@ -42,23 +42,24 @@ class SensorsToShowSchema(fields.Field):
 
     The `sensors_to_show` attribute defines which sensors should be displayed for a particular asset.
     It supports various input formats, which are standardized into a list of dictionaries, each containing
-    a `title` (optional) and a `sensors` list. The valid input formats include:
+    a `title` (optional) and a `plots` list, this list then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
 
-    - A single sensor ID (int): `42` -> `{"title": None, "sensors": [42]}`
-    - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "sensors": [42, 43]}`
-    - A dictionary with a title and sensor: `{"title": "Temperature", "sensor": 42}` -> `{"title": "Temperature", "sensors": [42]}`
-    - A dictionary with a title and sensors: `{"title": "Pressure", "sensors": [42, 43]}`
+    - A single sensor ID (int): `42` -> `{"title": None, "plots": [{"sensor": 42}]}`
+    - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "plots": [{"sensors": [42, 43]}]}`
+    - A dictionary with a title and sensor: `{"title": "Temperature", "sensor": 42}` -> `{"title": "Temperature", "plots": [{"sensor": 42}]}`
+    - A dictionary with a title and sensors: `{"title": "Pressure", "sensors": [42, 43]}` -> `{"title": "Pressure", "plots": [{"sensors": [42, 43]}]}`
 
     Validation ensures that:
     - The input is either a list, integer, or dictionary.
-    - If the input is a dictionary, it must contain either `sensor` (int) or `sensors` (list of ints).
+    - If the input is a dictionary, it must contain either `sensor` (int), `sensors` (list of ints) or `plots` (list of dicts).
     - All sensor IDs must be valid integers.
 
-    Example Input:
-    - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, 5]`
+    Example Inputs:
+    - `[{"title": "Test", "plots": [{"sensor": 1}, {"sensor": 2}]}, {"title": "Another Test", "plots": [{"sensors": [3, 4]}]}, 5]`
+    - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, 5]` (Older format but still compatible)
 
     Example Output (Standardized):
-    - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, {"title": None, "sensors": [5]}]`
+    - `[{"title": "Test", "plots": [{"sensors": [1, 2]}]}, {"title": None, "plots": [{"sensors": [3, 4]}]}, {"title": None, "plots": [{"sensor": 5}]}]`
     """
 
     def deserialize(self, value, **kwargs) -> list:
