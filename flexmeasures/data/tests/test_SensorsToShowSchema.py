@@ -67,7 +67,7 @@ def test_invalid_sensor_dict_without_sensors_key():
     input_value = [{"title": "Test", "something_else": 42}]
     with pytest.raises(
         ValidationError,
-        match="Dictionary must contain either 'sensor' or 'sensors' key.",
+        match="Dictionary must contain either 'sensor', 'sensors' or 'plots' key.",
     ):
         schema.deserialize(input_value)
 

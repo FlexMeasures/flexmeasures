@@ -234,7 +234,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         Steps:
         - The function deserializes the 'sensors_to_show' data from the database, ensuring that older formats are parsed correctly.
         - It checks if each sensor is accessible by the user and filters out any unauthorized sensors.
-        - The sensor structure is rebuilt according to the latest format, which allows for grouping sensors and adding optional titles.
+        - The sensor structure is rebuilt according to the latest format, which allows for grouping sensors and adding optional titles, all into a single 'plots' array.
 
         Details on format:
         - The 'sensors_to_show' attribute is defined as a list of sensor IDs or nested lists of sensor IDs (to indicate grouping).
@@ -247,8 +247,8 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         2. List with titles and sensor groupings:
             sensors_to_show = [
-                {"title": "Title 1", "sensor": 40},
-                {"title": "Title 2", "sensors": [41, 42]},
+                {"title": "Title 1", "plots": [{"sensor": 40}]},
+                {"title": "Title 2", "plots": [{"sensors": [41, 42]}]},
                 [43, 44], 45, 46
             ]
 

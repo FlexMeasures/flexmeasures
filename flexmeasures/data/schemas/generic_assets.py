@@ -132,7 +132,7 @@ class SensorsToShowSchema(fields.Field):
             return {"title": title, "plots": plots}
         else:
             raise ValidationError(
-                "Dictionary must contain either 'sensor' or 'sensors' key."
+                "Dictionary must contain either 'sensor', 'sensors' or 'plots' key."
             )
 
     def _validate_single_plot(self, plot):
@@ -223,7 +223,7 @@ class SensorsToShowSchema(fields.Field):
 
         This method processes the following formats, for each of the entries of the nested list:
         - A list of sensor IDs: `[1, 2, 3]`
-        - A list of dictionaries where each dictionary contains a `sensors` list or a `sensor` key:
+        - A list of dictionaries where each dictionary contains a `sensors` list, a `sensor` key or a `plots` key
         `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5,6]}]}]`
         - Mixed formats: `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}, 4, 5, 1]`
 
