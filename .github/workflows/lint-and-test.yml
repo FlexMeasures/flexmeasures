@@ -38,8 +38,9 @@ jobs:
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Upgrade pip
+        # Pin due to https://github.com/pypa/pip/issues/13636
         run: |
-          pip3 install --upgrade pip
+          pip3 install --upgrade "pip==25.2"
       - name: "Caching for dependencies (.txt) - restore existing or ensure new cache will be made"
         uses: actions/cache@v4
         id: cache
@@ -58,17 +59,33 @@ jobs:
       - name: Install FlexMeasures & latest dependencies for tests
         run: make install-for-test pinned=no
         if: github.event_name == 'pull_request'
-      - name: Run all doctests in the data/schemas subpackage
-        run: pytest flexmeasures/data/schemas --doctest-modules --ignore flexmeasures/data/schemas/tests
-      - name: Run all doctests in the ui/utils subpackage
-        run: pytest flexmeasures/ui --doctest-modules --ignore flexmeasures/ui/tests
-      - name: Run all doctests in the utils subpackage (except find_smallest_common_unit)
-        run: pytest flexmeasures/utils --doctest-modules --ignore flexmeasures/utils/tests -k "not find_smallest_common_unit"
-      - name: Run doctest for find_smallest_common_unit (only on 3.11+)
-        if: ${{ matrix.py_version != '3.9' && matrix.py_version != '3.10' }}
-        run: pytest flexmeasures/utils/unit_utils.py --doctest-modules -k "find_smallest_common_unit"
-      - name: Run all tests except those marked to be skipped by GitHub AND record coverage
-        run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch --cov-report=lcov
+      - name: Run all tests AND record coverage
+        # NB the --ignore and -k "not ..." statements are not used to ignore test modules,
+        # but only to ignore some modules with doctests that do not (yet) pass (e.g. requiring app contexts)
+        run: |
+          if [[ "${{ matrix.py_version }}" == "3.9" || "${{ matrix.py_version }}" == "3.10" ]]; then
+            PYTEST_K="not get_object_or_literal and not get_or_create_model and not find_smallest_common_unit"
+          else
+            PYTEST_K="not get_object_or_literal and not get_or_create_model"
+          fi
+          
+          pytest -v \
+          --doctest-modules \
+          --ignore documentation \
+          --ignore wsgi.py \
+          --ignore flexmeasures/cli/data_add.py \
+          --ignore flexmeasures/cli/data_delete.py \
+          --ignore flexmeasures/cli/data_edit.py \
+          --ignore flexmeasures/cli/data_show.py \
+          --ignore flexmeasures/cli/db_ops.py \
+          --ignore flexmeasures/cli/jobs.py \
+          --ignore flexmeasures/cli/monitor.py \
+          --ignore flexmeasures/data/migrations \
+          --ignore flexmeasures/data/scripts \
+          -k "$PYTEST_K" \
+          --cov=flexmeasures \
+          --cov-branch \
+          --cov-report=lcov
       - name: Coveralls
         uses: coverallsapp/github-action@v2
         with:
@@ -85,7 +102,7 @@ jobs:
       # Label used to access the service container
       postgres:
         # Docker Hub image
-        image: postgres:12.5 
+        image: postgres:17.4 
         env:
           POSTGRES_USER: flexmeasures_test
           POSTGRES_PASSWORD: flexmeasures_test

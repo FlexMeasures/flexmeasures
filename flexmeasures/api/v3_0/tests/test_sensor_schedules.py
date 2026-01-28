@@ -9,7 +9,7 @@ from flexmeasures.api.common.responses import unknown_schedule, unrecognized_eve
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.unit_utils import ur
@@ -276,7 +276,7 @@ def test_get_schedule_fallback(
         )  # Status code for redirect ("See other")
         assert (
             get_schedule_response.json["message"]
-            == "Scheduling job failed with InfeasibleProblemException: . StorageScheduler was used."
+            == "Scheduling job failed with InfeasibleProblemException: infeasible. StorageScheduler was used."
         )
         assert get_schedule_response.json["status"] == "UNKNOWN_SCHEDULE"
         assert get_schedule_response.json["result"] == "Rejected"

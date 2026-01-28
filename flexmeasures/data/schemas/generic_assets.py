@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 import json
 from http import HTTPStatus
+from typing import Any
 
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
@@ -14,6 +15,7 @@ from sqlalchemy import select
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
@@ -22,17 +24,6 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
-
-
-class JSON(fields.Field):
-    def _deserialize(self, value, attr, data, **kwargs) -> dict:
-        try:
-            return json.loads(value)
-        except ValueError:
-            raise ValidationError("Not a valid JSON string.")
-
-    def _serialize(self, value, attr, data, **kwargs) -> str:
-        return json.dumps(value)
 
 
 class SensorsToShowSchema(fields.Field):
@@ -199,6 +190,13 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     flex_context = JSON(required=False)
     flex_model = JSON(required=False)
     sensors_to_show_as_kpis = JSON(required=False)
+    external_id = fields.Str(
+        required=False,
+        metadata=dict(
+            description="ID for this asset in another system.",
+            example="c8a53865-4702-494d-b559-9eefce296038",
+        ),
+    )
 
     class Meta:
         model = GenericAsset
@@ -302,10 +300,11 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
         self.status_if_not_found = status_if_not_found
         super().__init__(*args, **kwargs)
 
-    def _deserialize(self, value: int | str, attr, obj, **kwargs) -> GenericAsset:
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
+        generic_asset_id: int = super()._deserialize(value, attr, data, **kwargs)
         generic_asset: GenericAsset = db.session.execute(
-            select(GenericAsset).filter_by(id=int(value))
+            select(GenericAsset).filter_by(id=generic_asset_id)
         ).scalar_one_or_none()
         if generic_asset is None:
             message = f"No asset found with ID {value}."
@@ -316,6 +315,6 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
 
         return generic_asset
 
-    def _serialize(self, asset: GenericAsset, attr, data, **kwargs) -> int:
+    def _serialize(self, value: GenericAsset, attr, obj, **kwargs) -> int:
         """Turn a GenericAsset into a generic asset id."""
-        return asset.id
+        return value.id

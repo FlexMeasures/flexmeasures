@@ -119,15 +119,18 @@
                 <div class="modal-header">
 
                     <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-context</h5>
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" rel="tooltip" aria-hidden="true" tabindex="0"
-                            data-bs-placement="right" data-bs-toggle="tooltip"></span>
+                    <div class="dropdown">
+                        <span class="fa fa-info dropdown-toggle" 
+                            role="button" 
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false" 
+                            tabindex="0">
+                        </span>
 
                         <div class="dropdown-menu p-3" style="width: 400px;">
                             <div>
                                 <strong>Help</strong>
-                                <p class="mb-2 pt-2">
+                                <p class="mb-2 pt-2"> 
                                     Here, you can edit the flexibility context for this asset. This describes
                                     information about the managed system as a
                                     whole, in order to assess the value of activating flexibility. You can read more <a
@@ -142,14 +145,17 @@
                                     <br />
                                     <br />
                                     To add a field, choose it from the dropdown menu in the top right corner, then click
-                                    the "Add Field" button'.
+                                    the "Add field" button'.
                                     Set a value in the right panel, using the provided form to set the field's value.
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                   <div class="d-flex ms-auto align-items-center gap-2">
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
 
                 <div class="modal-body">
@@ -181,8 +187,7 @@
                                             </select>
                                         </div>
                                         <div class="col-2 p-0">
-                                            <button id="addFieldBtn" class="btn btn-secondary btn-md">Add
-                                                Field</button>
+                                            <button id="addFieldBtn" class="btn btn-secondary btn-md">Add field</button>
                                         </div>
                                     </div>
 
@@ -206,65 +211,64 @@
 
 <script>
     function openSensorsModal() {
-        const sensors = {{ current_asset_sensors | safe
-    }};
-    document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
-    let tableHead = document.getElementById("modalTableHead");
-    let tableBody = document.getElementById("modalTableBody");
+        const sensors = {{ current_asset_sensors | safe }};
+        document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
+        let tableHead = document.getElementById("modalTableHead");
+        let tableBody = document.getElementById("modalTableBody");
 
-    // Clear previous content
-    tableHead.innerHTML = "";
-    tableBody.innerHTML = "";
+        // Clear previous content
+        tableHead.innerHTML = "";
+        tableBody.innerHTML = "";
 
-    if (sensors && sensors.length > 0) {
-        let keys = Object.keys(sensors[0]); // e.g., ['name', 'unit']
-        keys.pop("link"); // Remove the 'link' from the table
+        if (sensors && sensors.length > 0) {
+            let keys = Object.keys(sensors[0]); // e.g., ['name', 'unit']
+            keys.pop("link"); // Remove the 'link' from the table
 
-        // Create table header row
-        let headerRow = document.createElement("tr");
-        keys.forEach(key => {
-            let headerText = key.charAt(0).toUpperCase() + key.slice(1);
-            let th = document.createElement("th"); // Use <th> for header cells
-            th.innerText = headerText;
-            th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
-            headerRow.appendChild(th);
-        });
-        tableHead.appendChild(headerRow);
-
-        // Force destroy the floatThead instance
-        setTimeout(function () {
-            if ($.fn.floatThead) {
-                $('#modalTable').floatThead('destroy');
-            }
-        }, 200);
-
-        // Populate table with sensor data
-        sensors.forEach(sensor => {
-            let row = document.createElement("tr");
+            // Create table header row
+            let headerRow = document.createElement("tr");
             keys.forEach(key => {
-                let td = document.createElement("td");
-                if (key === "name") {
-                    // Create an anchor element
-                    let a = document.createElement("a");
-                    a.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
-                    // Set the href; you can modify this as needed, for example using sensor.link if available
-                    a.href = sensor.link;
-                    td.appendChild(a);
-                } else {
-                    td.innerText = sensor[key] !== undefined ? sensor[key] : "N/A";
-                }
-                row.appendChild(td);
+                let headerText = key.charAt(0).toUpperCase() + key.slice(1);
+                let th = document.createElement("th"); // Use <th> for header cells
+                th.innerHTML = headerText;
+                th.setAttribute("aria-label", headerText); // set aria-label so floatThead can pick it up
+                headerRow.appendChild(th);
             });
-            tableBody.appendChild(row);
-        });
-    } else {
-        tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
-    }
+            tableHead.appendChild(headerRow);
 
-    // Show Bootstrap modal
-    let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
-    modal.show();
+            // Force destroy the floatThead instance
+            setTimeout(function () {
+                if ($.fn.floatThead) {
+                    $('#modalTable').floatThead('destroy');
+                }
+            }, 200);
+
+            // Populate table with sensor data
+            sensors.forEach(sensor => {
+                let row = document.createElement("tr");
+                keys.forEach(key => {
+                    let td = document.createElement("td");
+                    if (key === "name") {
+                        // Create an anchor element
+                        let a = document.createElement("a");
+                        a.innerHTML = sensor[key] !== undefined ? sensor[key] : "N/A";
+                        // Set the href; you can modify this as needed, for example using sensor.link if available
+                        a.href = sensor.link;
+                        td.appendChild(a);
+                    } else {
+                        td.innerHTML = sensor[key] !== undefined ? sensor[key] : "N/A";
+                    }
+                    row.appendChild(td);
+                });
+                tableBody.appendChild(row);
+            });
+        } else {
+            tableBody.innerHTML = "<tr><td colspan='100%'>No sensor data available</td></tr>";
         }
+
+        // Show Bootstrap modal
+        let modal = new bootstrap.Modal(document.getElementById('sensorsModal'));
+        modal.show();
+    }
 </script>
 
 <style>
@@ -324,26 +328,30 @@
     const iconMap = {
         "sensor": "fa fa-microchip",
         "string": "fa fa-solid fa-lock fa-lg",
+        "boolean": "fa fa-solid fa-flag",
         "default": "fa fa-solid fa-question-circle",
     }
     
-    const schemaSpecsString = '{{ flex_context_schema | tojson | safe  }}';
-    const schemaSpecs = JSON.parse(schemaSpecsString); 
+    const schemaSpecs = {{ flex_context_schema | tojson | safe  }};
     const assetFlexContextSchema = {};
     for (const [key, value] of Object.entries(schemaSpecs)) {
         assetFlexContextSchema[key] = value["default"];
     }
-    const assetFlexContextRawJSON = { ...assetFlexContextSchema };
-    processResourceRawJSON(assetFlexContextRawJSON, "{{ asset.flex_context | safe }}");
+    const [assetFlexContextRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexContextSchema }, "{{ asset.flex_context | safe }}", true);
 
     const spinnerElement = document.getElementById('spinnerElement');
-    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}`;
+    const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
+
+    const saveChangesBtn = document.getElementById("saveChangesBtn");
+    saveChangesBtn.onclick = async function () {
+        await updateFlexContext();
+    };
 
     const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
     const [getFlexContext, setFlexContext] = createReactiveState(assetFlexContextRawJSON, reRenderForm);
 
     function reRenderForm() {
-        // Skip on first init. This code prevents the access to teh variable 'getFlexcontext'
+        // Skip on first init. This code prevents the access to the variable 'getFlexContext'
         // on initial run of the script as its not available at that point
         if (!hasInitialized) {
             hasInitialized = true;
@@ -388,13 +396,20 @@
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         let data = getFlexContext();
+        console.log("Updating flex context with data:", data);
 
         // Clean null values
         for (const [key, value] of Object.entries(data)) {
-            if (value === null) {
+
+            if (
+                value === null ||
+                value === "" ||
+                (Array.isArray(value) && value.length === 0)
+            ) {
                 delete data[key];
             }
         }
+
 
         const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
 
@@ -465,6 +480,7 @@
         const assetFlexContext = getFlexContext();
         getFlexContext()[fieldName] = null;
         setFlexContext(assetFlexContext);
+        console.log(`Removed field ${fieldName} from flex context`);
     }
 
     async function removeFlexContextSensorValue(fieldName, sensorId) {
@@ -509,6 +525,7 @@
         }
 
         const isString = typeof fieldValue === "string";
+        const isBool = typeof fieldValue === "boolean";
         const isArray = Array.isArray(fieldValue);
         const isKeyValueObject = typeof fieldValue === "object" &&
             fieldValue !== null &&
@@ -549,9 +566,17 @@
             return activeCard && activeCard === fieldName;
         };
 
+        const isExtraField = fieldName in extraFields;
+
         const card = document.createElement("div");
         card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
         card.id = `${fieldName}-control`;
+        // set card element to disabled if it's an extrafield
+        if (isExtraField) {
+            card.setAttribute("data-disabled", "true");
+            card.style.pointerEvents = "none";
+            card.style.opacity = "0.5";
+        }
 
 
         card.onclick = function () {
@@ -617,9 +642,12 @@
         if (isKeyValueObject || isArray) {
             fieldIconClass = iconMap["sensor"];
             fieldIconTitle = "A dynamic signal (via a sensor)";
+         } else if (isBool) {
+            fieldIconClass = iconMap["boolean"];
+            fieldIconTitle = "True or False (a boolean)";
         } else if (isString) {
             fieldIconClass = iconMap["string"];
-            fieldIconTitle = "A Fixed Value";
+            fieldIconTitle = "A fixed value";
         } else {
             fieldIconClass = iconMap["default"];
             fieldIconTitle = "Unknown";
@@ -650,7 +678,16 @@
             valueSpan.innerHTML = newFieldValue ? newFieldValue : "<i>Not Set</i>";
             valueContainer.appendChild(valueSpan);
             highlightCard.appendChild(valueContainer);
+        } else if (isBool) {
+            const valueContainer = document.createElement('div');
+            valueContainer.className = 'pb-2';
+            const valueSpan = document.createElement('span');
+            valueSpan.className = 'fw-light fs-4';
+            valueSpan.innerHTML = fieldValue ? `<i>${String(fieldValue).charAt(0).toUpperCase() + String(fieldValue).slice(1)} </i>` : "";
+            valueContainer.appendChild(valueSpan);
+            highlightCard.appendChild(valueContainer);
         }
+
 
         highlightCard.appendChild(identityIcon);
         return card;
@@ -735,9 +772,6 @@
         flexContextFormEle.innerHTML = flexContextFormEle.innerHTML.replace(document.getElementById(`${flexId}-control`).outerHTML, highlightedCard);
         await setActiveCard(document.getElementById(`${flexId}-control`));
         await setFlexContext(assetFlexContext);
-
-        // Update FlexContext
-        await updateFlexContext();
     }
 
     function renderFlexSelectOptions() {
@@ -848,10 +882,8 @@
             label.className = "form-label";
             label.innerHTML = `Look up Sensor for <b>${getFlexFieldTitle(contextKey)}</b> `;
             label.appendChild(createTooltipIcon(
-                `
-                    Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. 
-                    Make sure that the sensor data will be available consistently, though, so scheduling will work.
-                `
+                `Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. 
+Make sure that the sensor data will be available consistently, though, so scheduling will work.`
             ));
             group.appendChild(label);
 
@@ -870,7 +902,7 @@
             const checkLabel = document.createElement("label");
             checkLabel.className = "form-check-label";
             checkLabel.htmlFor = "flexCheckBox";
-            checkLabel.textContent = "Include Public Assets";
+            checkLabel.textContent = "Include public assets";
 
             formCheck.appendChild(checkbox);
             formCheck.appendChild(checkLabel);
@@ -982,7 +1014,7 @@
             const setButton = document.createElement("button");
             setButton.className = "btn btn-secondary btn-sm me-2 mt-2";
             setButton.onclick = () => updateFlexContextFieldValue('fixedValue', null);
-            setButton.textContent = "Set Value";
+            setButton.textContent = "Use value";
 
             fixedGroup.appendChild(fixedLabel);
             fixedGroup.appendChild(fixedInput);
@@ -1020,7 +1052,6 @@
     });
 
     flexContexFormModal.addEventListener('hidden.bs.modal', function () {
-        updateFlexContext();
         localStorage.removeItem('activeCard');
         flexOptionsContainer.innerHTML = "";
         handleFlexSelectChange(null);
@@ -1042,7 +1073,7 @@
                         </div>
 
                         <div class="pt-3 fw-bold"> 
-                            Example Units: <span class="fw-normal"> ${exampleUnits.join(", ")} </span>
+                            Example units: <span class="fw-normal"> ${exampleUnits.join(", ")} </span>
                         </div>
                         
                     </div>

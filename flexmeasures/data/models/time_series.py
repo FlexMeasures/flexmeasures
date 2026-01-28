@@ -13,6 +13,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy import inspect
+from sqlalchemy.dialects.postgresql import JSONB
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -52,7 +53,7 @@ from flexmeasures.utils.geo_utils import parse_lat_lng
 class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     """A sensor measures events."""
 
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     generic_asset_id = db.Column(
         db.Integer,
@@ -147,6 +148,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         """
         We allow reading to whoever can read the asset.
         Editing as well as deletion is left to account admins.
+        Everyone in the account and its consultant can add beliefs.
         """
         return {
             "create-children": [
@@ -244,6 +246,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         return self.get_attribute("is_producer", False) and not self.get_attribute(
             "is_consumer", True
         )
+
+    @property
+    def has_data_generator(self):
+        for source in self.data_sources:
+            if "data_generator" in source.attributes:
+                return True
+        return False
 
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute on the Sensor.
@@ -659,8 +668,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         start, end = get_timerange([self.id])
         return dict(start=start, end=end)
 
+    @property
+    def _ui_unit(self) -> str:
+        """Used to customize how the sensor unit is shown in the UI."""
+        if self.unit == "":
+            return '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
+        return self.unit
+
     def __repr__(self) -> str:
-        return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
+        return f"<Sensor {self.id}: {self.name}, unit: {self.unit if self.unit != '' else 'dimensionless'} res.: {self.event_resolution}>"
 
     def __str__(self) -> str:
         return self.name

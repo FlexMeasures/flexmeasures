@@ -178,7 +178,6 @@ class Scheduler:
         """Merge the flex-config from the db (from the asset and its ancestors) with the initialization flex-config.
 
         Note that self.flex_context overrides db_flex_context (from the asset and its ancestors).
-        # todo: also fetch db_flex_model once that exists
         """
         if self.asset is not None:
             asset = self.asset
@@ -193,11 +192,13 @@ class Scheduler:
         asset_ids = []
         flex_model = self.flex_model.copy()
         if not isinstance(self.flex_model, list):
+            # To enable the matching of the passed flex_model with db_flex_models, we need to find out the asset ID
             if "asset" not in flex_model:
                 if self.asset is not None:
                     flex_model["asset"] = asset.id
                 else:
                     flex_model["asset"] = self.sensor.generic_asset.id
+            # Listify the flex-model for the next code block, which actually does the merging with the db_flex_model
             flex_model = [flex_model]
 
         for flex_model_d in flex_model:
@@ -211,12 +212,15 @@ class Scheduler:
             amended_flex_model.append(flex_model_d)
             asset_ids.append(asset_id)
         amended_db_flex_model = [
-            v for k, v in db_flex_model.items() if k not in asset_ids
+            {**v, "asset": k} for k, v in db_flex_model.items() if k not in asset_ids
         ]
         combined_flex_model = amended_db_flex_model + amended_flex_model
-        if len(combined_flex_model) == 1:
+        # For the single-asset case, revert the flex-model listification
+        if len(combined_flex_model) == 1 and "sensor" not in combined_flex_model[0]:
+            # Single-asset case
             self.flex_model = combined_flex_model[0]
         else:
+            # Multi-asset case
             self.flex_model = combined_flex_model
 
     def deserialize_config(self):
@@ -316,11 +320,34 @@ class Commitment:
             if not isinstance(val, pd.Series):
                 setattr(self, series_attr, pd.Series(val, index=self.index))
 
+        # Fill NaN prices with zero prices
+        self.upwards_deviation_price = self.upwards_deviation_price.fillna(0)
+        self.downwards_deviation_price = self.downwards_deviation_price.fillna(0)
+
         if self._type == "any":
-            # add all time steps to the same group
-            self.group = pd.Series(0, index=self.index)
+            # any grouping can be made here, if timeslots differ in up/down prices or qty
+            up = self.upwards_deviation_price
+            down = self.downwards_deviation_price
+            qty = self.quantity
+
+            # If everything is constant, keep one group
+            if up.nunique() == 1 and down.nunique() == 1 and qty.nunique() == 1:
+                self.group = pd.Series(0, index=self.index)
+            else:
+                # Group boundaries when ANY of the three series changes
+                up_change = up != up.shift()
+                down_change = down != down.shift()
+                qty_change = qty != qty.shift()
+
+                boundary = up_change | down_change | qty_change
+
+                group_id = boundary.cumsum() - 1
+                group_id.iloc[0] = 0
+
+                self.group = pd.Series(group_id.to_numpy(), index=self.index)
+
         elif self._type == "each":
-            # add each time step to their own group
+            # Each time step forms its own group
             self.group = pd.Series(list(range(len(self.index))), index=self.index)
         else:
             raise ValueError('Commitment `_type` must be "any" or "each".')

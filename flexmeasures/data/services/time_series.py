@@ -63,14 +63,24 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     """
     if bdf.empty:
         return bdf
-
+    bdf = bdf.convert_index_from_belief_horizon_to_time()
     # Save the oldest ex-post beliefs explicitly, even if they do not deviate from the most recent ex-ante beliefs
     ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
     if not ex_ante_bdf.empty and not ex_post_bdf.empty:
         # We treat each part separately to avoid that ex-post knowledge would be lost
-        ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf)
-        ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf)
+        canonical_order = [
+            "event_start",
+            "belief_time",
+            "source",
+            "cumulative_probability",
+        ]
+        ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf).reorder_levels(
+            canonical_order
+        )
+        ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf).reorder_levels(
+            canonical_order
+        )
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
         return bdf
 

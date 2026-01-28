@@ -105,6 +105,9 @@ class Config(object):
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
+    FLEXMEASURES_SUPPORT_PAGE: str | None = None
+    FLEXMEASURES_SIGNUP_PAGE: str | None = None
+    FLEXMEASURES_TOS_PAGE: str | None = None
     FLEXMEASURES_ALLOW_DATA_OVERWRITE: bool = False
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
@@ -115,6 +118,11 @@ class Config(object):
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict[str, str] = {"flexmeasures.io": "2021-01"}
     FLEXMEASURES_PLUGINS: list[str] | str = []  # str will be checked for commas
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
+    FLEXMEASURES_PROFILER_CONFIG: dict = dict(
+        async_mode="disabled",
+        interval=0.01,  # 10 ms sampling interval, enables coarse timer
+        use_timing_thread=True,
+    )
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_MENU_LOGO_PATH: str = ""
     FLEXMEASURES_EXTRA_CSS_PATH: str = ""
@@ -138,6 +146,7 @@ class Config(object):
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
     FLEXMEASURES_DEFAULT_DATASOURCE: str = "FlexMeasures"
+    FLEXMEASURES_DEFAULT_BOUNDING_BOX: tuple[tuple, tuple] = (54, 2), (50.732, 7.808)
     FLEXMEASURES_JOB_CACHE_TTL: int = (
         3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     )
@@ -157,6 +166,7 @@ class Config(object):
         # todo: expand with other js versions used in FlexMeasures
     )
     FLEXMEASURES_JSON_COMPACT = False
+    OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
@@ -174,6 +184,11 @@ class Config(object):
     FLEXMEASURES_FORCE_HTTPS: bool = False
     # if True, the content could be accessed via HTTPS.
     FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY: bool = False
+
+    SECURITY_PASSWORD_CHECK_BREACHED = (
+        "best-effort"  # will try to check https://api.pwnedpasswords.com
+    )
+    SECURITY_PASSWORD_BREACHED_COUNT = 3
 
 
 #  names of settings which cannot be None
@@ -243,6 +258,7 @@ class TestingConfig(Config):
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
     SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
+    SECURITY_PASSWORD_CHECK_BREACHED = None  # disable breached password checking
 
 
 class DocumentationConfig(Config):

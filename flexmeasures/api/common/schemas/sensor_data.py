@@ -36,10 +36,10 @@ from flexmeasures.utils.unit_utils import (
 class SingleValueField(fields.Float):
     """Field that both de-serializes and serializes a single value to a list of floats (length 1)."""
 
-    def _deserialize(self, value, attr, obj, **kwargs) -> list[float]:
+    def _deserialize(self, value, attr, data, **kwargs) -> list[float]:
         return [self._validated(value)]
 
-    def _serialize(self, value, attr, data, **kwargs) -> list[float]:
+    def _serialize(self, value, attr, obj, **kwargs) -> list[float]:
         return [self._validated(value)]
 
 
@@ -71,17 +71,63 @@ def select_schema_to_ensure_list_of_floats(
         return SingleValueField()
 
 
-class SensorDataDescriptionSchema(ma.Schema):
+class SensorDataTimingDescriptionSchema(ma.Schema):
     """
-    Schema describing sensor data (specifically, the sensor and the timing of the data).
+    Schema describing sensor data (specifically, the timing of the data).
     """
 
-    sensor = SensorIdField(required=True)
-    start = AwareDateTimeField(required=True, format="iso")
-    duration = DurationField(required=True)
-    horizon = DurationField(required=False)
-    prior = AwareDateTimeField(required=False, format="iso")
-    unit = fields.Str(required=True)
+    start = AwareDateTimeField(
+        required=True,
+        format="iso",
+        metadata=dict(
+            description="Start time of the first event described in the time series data, in ISO 8601 datetime format.",
+            example="2026-01-15T10:00+01:00",
+        ),
+    )
+    duration = DurationField(
+        required=True,
+        metadata=dict(
+            description="Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
+            example="PT1H",
+        ),
+    )
+    horizon = DurationField(
+        required=False,
+        metadata=dict(
+            description="All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
+            example="PT2H",
+        ),
+    )
+    prior = AwareDateTimeField(
+        required=False,
+        format="iso",
+        metadata=dict(
+            description="All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            example="2026-01-14T20:00+01:00",
+        ),
+    )
+    unit = fields.Str(
+        required=True,
+        metadata=dict(
+            description="The unit of the sensor data, which must be convertible to the sensor unit.",
+            example="m³/h",
+        ),
+    )
+
+
+class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
+    """
+    Schema describing sensor data (specifically, adding the sensor to timing of the data
+    and adding validation).
+    """
+
+    sensor = SensorIdField(
+        required=True,
+        metadata=dict(
+            description="ID of the sensor on which the data is recorded.",
+            example=14,
+        ),
+    )
 
     @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
@@ -220,12 +266,18 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
-    This schema includes data, so it can be used for POST requests
-    or GET responses.
-
-    TODO: For the GET use case, look at api/common/validators.py::get_data_downsampling_allowed
-          (sets a resolution parameter which we can pass to the data collection function).
+    This schema includes data (values) and still describes it.
     """
+
+    values = PolyField(
+        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        many=False,
+        metadata=dict(
+            description="The event values.",
+            example=[2.2, 2.6, 2.6, 2.7],
+        ),
+    )
 
     # Optional field that can be used for extra validation
     type = fields.Str(
@@ -239,11 +291,9 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
                 "PostWeatherDataRequest",
             ]
         ),
-    )
-    values = PolyField(
-        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
-        many=False,
+        metadata=dict(
+            description="Obsolete message type from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/).",
+        ),
     )
 
     @validates_schema
@@ -285,7 +335,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @validates_schema
-    def check_multiple_instantenous_values(self, data, **kwargs):
+    def check_multiple_instantaneous_values(self, data, **kwargs):
         """Ensure that we are not getting multiple instantaneous values that overlap.
         That is, two values spanning the same moment (a zero duration).
         """

@@ -251,11 +251,6 @@ function ready() {
         scrollContainer: true
     });
 
-    $(document).on('change', '#user-list-options input[name="include_inactive"]', function () {
-        //Users list inactive
-        $(this).closest('form').submit();
-    })
-
 
     // Check button behaviour
 
@@ -532,24 +527,63 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string) {
   const date = new Date(Date.parse(iso8601_date_string));
   const now = new Date();
 
+  // The raw difference in milliseconds (negative if 'date' is in the future)
   const deltaMilliseconds = now - date;
-  const deltaSeconds = Math.floor(deltaMilliseconds / 1000);
+
+  // Determine if the date is in the future or past (negative means future and positive means past)
+  const isFuture = deltaMilliseconds < 0;
+  let suffix = isFuture ? " from now" : " ago"; // Use " from now" for future, " ago" for past
+
+  // Use the absolute value for all time unit calculations
+  const absDeltaMilliseconds = Math.abs(deltaMilliseconds);
+
+  const deltaSeconds = Math.floor(absDeltaMilliseconds / 1000);
   const deltaMinutes = Math.floor(deltaSeconds / 60);
   const deltaHours = Math.floor(deltaMinutes / 60);
+  const deltaDays = Math.floor(deltaHours / 24);
+
+  // --- Logic for Seconds and Minutes ---
 
   if (deltaSeconds < 5) {
     return "just now";
   } else if (deltaSeconds < 60) {
-    return deltaSeconds + " seconds ago";
-  } else if (deltaMinutes == 1) {
-    return "1 minute ago";
+    return deltaSeconds + " seconds" + suffix;
+  } else if (deltaMinutes === 1) {
+    return "1 minute" + suffix;
   } else if (deltaMinutes < 60) {
-    return deltaMinutes + " minutes ago";
-  } else if (deltaHours == 1) {
-    return "> 1 hour ago";
+    return deltaMinutes + " minutes" + suffix;
+  }
+
+  // --- Logic for Hours ---
+  else if (deltaHours === 1) {
+    return "1 hour" + suffix;
   } else if (deltaHours < 24) {
-    return "> " + deltaHours + " hours ago";
-  } else {
+    return deltaHours + " hours" + suffix;
+  }
+
+  // --- Logic for Days (24+ hours) ---
+
+  // 1. Handle Tomorrow/Yesterday
+  else if (deltaDays === 1) {
+    if (isFuture) {
+      return "tomorrow";
+    } else {
+      return "yesterday";
+    }
+  }
+
+  // 2. Handle Up to 7 Days (e.g., "in 3 days" or "3 days ago")
+  else if (deltaDays < 7) {
+    if (isFuture) {
+      return "in " + deltaDays + " days";
+    } else {
+      return deltaDays + " days ago";
+    }
+  }
+
+  // 3. Fallback: Too far in the past or future
+  else {
+    // If the difference is 7 days or more, return the full date string.
     return getHumanFriendlyDateString(iso8601_date_string);
   }
 }

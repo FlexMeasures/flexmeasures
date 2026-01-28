@@ -247,19 +247,19 @@ def reduce_entity_paths(asset_paths: list[list[str]]) -> list[list[str]]:
 
     Examples:
     >>> reduce_entity_paths([["Account1", "Asset1"], ["Account2", "Asset2"]])
-    [["Account1", "Asset1"], ["Account2", "Asset2"]]
+    [['Account1', 'Asset1'], ['Account2', 'Asset2']]
 
     >>> reduce_entity_paths([["Asset1"], ["Asset2"]])
-    [["Asset1"], ["Asset2"]]
+    [['Asset1'], ['Asset2']]
 
     >>> reduce_entity_paths([["Account1", "Asset1"], ["Account1", "Asset2"]])
-    [["Asset1"], ["Asset2"]]
+    [['Asset1'], ['Asset2']]
 
     >>> reduce_entity_paths([["Asset1", "Asset2"], ["Asset1"]])
-    [["Asset1"], ["Asset1", "Asset2"]]
+    [['Asset1', 'Asset2'], ['Asset1']]
 
     >>> reduce_entity_paths([["Account1", "Asset", "Asset1"], ["Account1", "Asset", "Asset2"]])
-    [["Asset1"], ["Asset2"]]
+    [['Asset1'], ['Asset2']]
     """
     reduced_entities = 0
 
@@ -419,3 +419,19 @@ class JSONOrFile(click.ParamType):
                 param,
                 ctx,
             )
+
+
+def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+    delta_seconds = resolution.total_seconds()
+    floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
+    return datetime.fromtimestamp(floored, tz=dt.tzinfo)
+
+
+def split_commas(ctx, param, value):
+    """Converge comma-separated lists of items with a list of unique items."""
+    if not value:
+        return []
+    result = []
+    for v in value:
+        result.extend(v.split(","))
+    return list(set([x.strip() for x in result if x.strip()]))

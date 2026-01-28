@@ -44,7 +44,7 @@ from flexmeasures.data.services.utils import (
 )
 
 
-def load_custom_scheduler(scheduler_specs: dict) -> type:
+def load_custom_scheduler(scheduler_specs: dict | str) -> type:
     """
     Read in custom scheduling spec.
     Attempt to load the Scheduler class to use.
@@ -59,12 +59,28 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
         "class": "NameOfSchedulerClass",
     }
 
+    or if the scheduler is already subclassing flexmeasures.Scheduler, simply:
+
+    "NameOfSchedulerClass"
+
     """
-    assert isinstance(
-        scheduler_specs, dict
-    ), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
-    assert "module" in scheduler_specs, "scheduler specs have no 'module'."
-    assert "class" in scheduler_specs, "scheduler specs have no 'class'"
+    if isinstance(scheduler_specs, dict):
+        assert "module" in scheduler_specs, "scheduler specs have no 'module'."
+        assert "class" in scheduler_specs, "scheduler specs have no 'class'"
+    elif isinstance(scheduler_specs, str):
+        scheduler_class = current_app.data_generators["scheduler"].get(scheduler_specs)
+        if scheduler_class is None:
+            raise ValueError(
+                f"Scheduler {scheduler_specs} does not seem to be registered."
+            )
+        scheduler_specs = {
+            "class": scheduler_class.__name__,
+            "module": scheduler_class.__module__,
+        }
+    else:
+        raise TypeError(
+            f"Scheduler specs is {type(scheduler_specs)}, should be a dict or str"
+        )
 
     scheduler_name = scheduler_specs["class"]
 
@@ -185,7 +201,6 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
 @job_cache("scheduling")
 def create_scheduling_job(
     asset_or_sensor: Asset | Sensor | None = None,
-    sensor: Sensor | None = None,
     job_id: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
@@ -223,12 +238,6 @@ def create_scheduling_job(
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We should put only serializable scheduler_kwargs into the job!
-
-    if sensor is not None:
-        current_app.logger.warning(
-            "The `sensor` keyword argument is deprecated. Please, consider using the argument `asset_or_sensor`."
-        )
-        asset_or_sensor = sensor
 
     if scheduler_specs:
         scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
@@ -510,7 +519,7 @@ def create_simultaneous_scheduling_job(
     return job
 
 
-def make_schedule(
+def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
@@ -521,6 +530,7 @@ def make_schedule(
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
     scheduler_specs: dict | None = None,
+    dry_run: bool = False,
     **scheduler_kwargs: dict,
 ) -> bool:
     """
@@ -532,7 +542,8 @@ def make_schedule(
 
     This is what this function does:
     - Find out which scheduler should be used & compute the schedule
-    - Turn scheduled values into beliefs and save them to db
+    - Turn scheduled values into beliefs
+    - Save the beliefs to the database, unless dry_run is False
     """
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
     db.engine.dispose()
@@ -641,10 +652,16 @@ def make_schedule(
             for dt, value in result["data"].items()
         ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
         bdf = tb.BeliefsDataFrame(ts_value_schedule)
-        save_to_db(bdf)
+        if not dry_run:
+            save_to_db(bdf)
+        else:
+            print(
+                f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
+            )
 
-    scheduler.persist_flex_model()
-    db.session.commit()
+    if not dry_run:
+        scheduler.persist_flex_model()
+        db.session.commit()
 
     return True
 
@@ -689,9 +706,9 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def get_data_source_for_job(job: Job) -> DataSource | None:
+def get_data_source_for_job(job: Job, type: str = "scheduler") -> DataSource | None:
     """
-    Try to find the data source linked by this scheduling job.
+    Try to find the data source linked by this scheduling or forecasting job.
 
     We expect that enough info on the source was placed in the meta dict, either:
     - the DataSource ID itself (i.e. the normal situation), or
@@ -703,16 +720,16 @@ def get_data_source_for_job(job: Job) -> DataSource | None:
         return db.session.get(DataSource, data_source_info["id"])
     if data_source_info is None:
         raise ValueError(
-            "Cannot look up scheduling data without knowing the full data_source_info (version)."
+            f"Cannot look up {type} data without knowing the full data_source_info (version)."
         )
-    scheduler_sources = db.session.scalars(
+    sources = db.session.scalars(
         select(DataSource)
         .filter_by(
-            type="scheduler",
+            type=type,
             **data_source_info,
         )
         .order_by(DataSource.version.desc())
     ).all()  # Might still be more than one, e.g. per user
-    if len(scheduler_sources) == 0:
+    if len(sources) == 0:
         return None
-    return scheduler_sources[0]
+    return sources[0]
