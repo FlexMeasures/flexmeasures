@@ -111,10 +111,6 @@ def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
             field_value = data.get(field_key)
 
             if isinstance(field_value, dict):
-                # Add multiple sensors if they exist as a list
-                sensors = field_value.get("sensors", [])
-                all_sensors.extend(sensors)
-
                 # Add a single sensor if it exists
                 sensor = field_value.get("sensor")
                 if sensor:
