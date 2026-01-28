@@ -23,9 +23,11 @@ def test_list_of_sensor_ids():
 
 def test_dict_with_title_and_single_sensor():
     schema = SensorsToShowSchema()
-    input_value = [{"title": "Temperature", "plots": [{"sensor": 42}]}]
+    input_value_one = [{"title": "Temperature", "sensor": 42}]
+    input_value_two = [{"title": "Temperature", "plots": [{"sensor": 42}]}]
     expected_output = [{"title": "Temperature", "plots": [{"sensor": 42}]}]
-    assert schema.deserialize(input_value) == expected_output
+    assert schema.deserialize(input_value_one) == expected_output
+    assert schema.deserialize(input_value_two) == expected_output
 
 
 def test_dict_with_title_and_multiple_sensors():
