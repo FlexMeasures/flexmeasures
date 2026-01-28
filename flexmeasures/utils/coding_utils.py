@@ -1,4 +1,5 @@
-""" Various coding utils (e.g. around function decoration) """
+r"""Various coding utils (e.g. around function decorati
+on)"""
 
 from __future__ import annotations
 
@@ -93,7 +94,16 @@ def flatten_unique(nested_list_of_objects: list) -> list:
         if isinstance(s, list):
             all_objects.extend(s)
         elif isinstance(s, dict):
-            all_objects.extend(s["sensors"])
+            if "sensors" in s:
+                all_objects.extend(s["sensors"])
+            elif "sensor" in s:
+                all_objects.append(s["sensor"])
+            elif "plots" in s:
+                for entry in s["plots"]:
+                    if "sensors" in entry:
+                        all_objects.extend(entry["sensors"])
+                    if "sensor" in entry:
+                        all_objects.append(entry["sensor"])
         else:
             all_objects.append(s)
     return list(dict.fromkeys(all_objects).keys())
