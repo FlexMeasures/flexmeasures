@@ -4103,6 +4103,9 @@
             "items": {
               "type": "integer"
             }
+          },
+          "aggregate-power": {
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           }
         },
         "additionalProperties": false
