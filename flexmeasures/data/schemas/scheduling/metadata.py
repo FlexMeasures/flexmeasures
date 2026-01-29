@@ -30,7 +30,7 @@ class MetaData:
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
     description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
 For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
-Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
+Their power generation (or demand) cannot be adjusted but still matters for finding the best schedule for other devices.
 Must be a list of integers.
 """,
     example=[3, 4],
