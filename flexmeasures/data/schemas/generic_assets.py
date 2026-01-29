@@ -240,6 +240,8 @@ class SensorsToShowSchema(fields.Field):
         for s in nested_list:
             if isinstance(s, list):
                 all_objects.extend(s)
+            elif isinstance(s, int):
+                all_objects.append(s)
             elif isinstance(s, dict):
                 if "plots" in s:
                     for plot in s["plots"]:
@@ -250,6 +252,10 @@ class SensorsToShowSchema(fields.Field):
                         if "asset" in plot:
                             sensors = extract_sensors_from_flex_config(plot)
                             all_objects.extend(sensors)
+                elif "sensors" in s:
+                    all_objects.extend(s["sensors"])
+                elif "sensor" in s:
+                    all_objects.append(s["sensor"])
 
         return list(dict.fromkeys(all_objects).keys())
 
