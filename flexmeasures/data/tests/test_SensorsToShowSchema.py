@@ -37,11 +37,12 @@ def test_dict_with_title_and_multiple_sensors():
     assert schema.deserialize(input_value) == expected_output
 
 
-def test_dict_with_asset_and_no_title_plot():
+def test_dict_with_asset_and_no_title_plot(setup_test_data):
+    asset_id = setup_test_data["wind-asset-1"].id
     schema = SensorsToShowSchema()
-    input_value = [{"plots": [{"asset": 4, "flex-model": "soc-min"}]}]
+    input_value = [{"plots": [{"asset": asset_id, "flex-model": "soc-min"}]}]
     expected_output = [
-        {"title": None, "plots": [{"asset": 4, "flex-model": "soc-min"}]}
+        {"title": None, "plots": [{"asset": asset_id, "flex-model": "soc-min"}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
