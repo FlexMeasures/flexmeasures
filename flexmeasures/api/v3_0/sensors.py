@@ -1005,6 +1005,7 @@ class SensorAPI(FlaskView):
         # For consumption schedules, positive values denote consumption. For the db, consumption is negative unless specified explicitly
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
+            # for not in-built schedulers, we are not sure if they would store time series in the db
             if scheduler_info["scheduler"] not in [
                 "StorageScheduler",
                 "ProcessScheduler",
