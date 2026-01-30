@@ -23,15 +23,27 @@ def test_list_of_sensor_ids():
 
 def test_dict_with_title_and_single_sensor():
     schema = SensorsToShowSchema()
-    input_value = [{"title": "Temperature", "plots": [{"sensor": 42}]}]
+    input_value_one = [{"title": "Temperature", "sensor": 42}]
+    input_value_two = [{"title": "Temperature", "plots": [{"sensor": 42}]}]
     expected_output = [{"title": "Temperature", "plots": [{"sensor": 42}]}]
-    assert schema.deserialize(input_value) == expected_output
+    assert schema.deserialize(input_value_one) == expected_output
+    assert schema.deserialize(input_value_two) == expected_output
 
 
 def test_dict_with_title_and_multiple_sensors():
     schema = SensorsToShowSchema()
     input_value = [{"title": "Pressure", "plots": [{"sensors": [42, 43]}]}]
     expected_output = [{"title": "Pressure", "plots": [{"sensors": [42, 43]}]}]
+    assert schema.deserialize(input_value) == expected_output
+
+
+def test_dict_with_asset_and_no_title_plot(setup_test_data):
+    asset_id = setup_test_data["wind-asset-1"].id
+    schema = SensorsToShowSchema()
+    input_value = [{"plots": [{"asset": asset_id, "flex-model": "soc-min"}]}]
+    expected_output = [
+        {"title": None, "plots": [{"asset": asset_id, "flex-model": "soc-min"}]}
+    ]
     assert schema.deserialize(input_value) == expected_output
 
 
@@ -58,7 +70,7 @@ def test_invalid_sensor_dict_without_sensors_key():
     input_value = [{"title": "Test", "something_else": 42}]
     with pytest.raises(
         ValidationError,
-        match="Dictionary must contain either 'sensor' or 'sensors' key.",
+        match="Dictionary must contain either 'sensor', 'sensors' or 'plots' key.",
     ):
         schema.deserialize(input_value)
 

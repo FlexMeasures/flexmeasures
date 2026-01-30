@@ -140,6 +140,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
             if k != "sensors_to_show":
                 schema_map[k]().load(v)
             else:
+                # we use `deserialize here because the `SensorsToShowSchema` is a "fields.Field" object rather than a "Schema" object
                 schema_map[k]().deserialize(v)
 
         if k.lower() in {"sensors_to_show", "flex_context", "flex_model"}:
