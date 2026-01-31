@@ -510,6 +510,7 @@ def add_initial_structure():
     help=f"Type of source (free, but FlexMeasures has support for {DEFAULT_DATASOURCE_TYPES}).",
 )
 def add_source(name: str, model: str, version: str, source_type: str):
+    """Add a data source."""
     source = get_or_create_source(
         source=name,
         model=model,
