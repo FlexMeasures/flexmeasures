@@ -252,6 +252,7 @@ DEFAULT_DATASOURCE_TYPES = [
     "forecaster",
     "reporter",
     "demo script",
+    "gateway",
 ]
 
 
