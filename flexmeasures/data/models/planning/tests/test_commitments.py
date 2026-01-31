@@ -177,3 +177,5 @@ def test_multi_feed_device_scheduler_shared_buffer():
     # If baselines were duplicated, cost would be ~2x for the shared buffer.
     expected_max_cost = len(index) * breach_price * 2
     assert planned_costs <= expected_max_cost
+    total_commodity_cost = sum(commodity_costs.values())
+    assert total_commodity_cost <= planned_costs
