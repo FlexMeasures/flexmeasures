@@ -1031,15 +1031,11 @@ class SensorAPI(FlaskView):
         # For consumption schedules, positive values denote consumption. For the db, consumption is negative unless specified explicitly
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
-            # for not in-built schedulers, we are not sure if they would store time series in the db
-            if scheduler_info["scheduler"] not in [
-                "StorageScheduler",
-                "ProcessScheduler",
-            ]:
-                return dict(scheduler_info=scheduler_info), 200
-            return unknown_schedule(
-                f"{message}, but the schedule was not found in the database. {scheduler_info_msg}"
-            )
+            # inform the user in case the scheduler did not store any time series in the db for the given sensor
+            return dict(
+                message=f"{message}, but not schedule was not found in the database. {scheduler_info_msg}",
+                scheduler_info=scheduler_info,
+            ), 200
 
         # Update the planning window
         resolution = sensor.event_resolution
