@@ -50,7 +50,7 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -507,7 +507,7 @@ def add_initial_structure():
     "source_type",
     required=True,
     type=str,
-    help="Type of source (for example, 'forecaster' or 'scheduler').",
+    help=f"Type of source (free, but FlexMeasures has support for {DEFAULT_DATASOURCE_TYPES}).",
 )
 def add_source(name: str, model: str, version: str, source_type: str):
     source = get_or_create_source(
