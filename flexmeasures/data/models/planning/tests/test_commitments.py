@@ -36,7 +36,6 @@ def test_multi_feed_device_scheduler_shared_buffer():
     )
     equals = pd.Series(np.nan, index=index)
     equals[-1] = 100
-    # ---- trivial device constraints (stocks unconstrained individually)
     device_constraints = []
     for d, device_name in enumerate(devices):
         # 0 and 1 : derivative min 0
@@ -57,7 +56,6 @@ def test_multi_feed_device_scheduler_shared_buffer():
         )
         device_constraints.append(df)
 
-    # ---- no EMS-level constraints
     ems_constraints = pd.DataFrame(
         {
             "derivative min": -40,
