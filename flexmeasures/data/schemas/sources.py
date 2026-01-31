@@ -1,12 +1,30 @@
-from marshmallow import fields
+from marshmallow import fields, validate
 
-from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data import ma, db
+from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
     FMValidationError,
     MarshmallowClickMixin,
 )
+
+
+class DataSourceSchema(ma.SQLAlchemySchema):
+    """
+    DataSource schema.
+    """
+
+    id = ma.auto_field()
+    name = fields.Str()
+    type = fields.Str(validate=validate.OneOf(choices=DEFAULT_DATASOURCE_TYPES))
+
+    class Meta:
+        model = DataSource
+
+
+class DataSourcesSchema(DataSourceSchema):
+    class Meta:
+        many = True
 
 
 class DataSourceIdField(fields.Int, MarshmallowClickMixin):

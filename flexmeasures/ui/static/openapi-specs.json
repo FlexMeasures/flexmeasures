@@ -3856,6 +3856,47 @@
         ]
       }
     },
+    "/api/v3_0/sources": {
+      "get": {
+        "summary": "Get list of available data sources",
+        "description": "Get list of data sources which are currently known.\nAny data ingested into FlexMeasures is associated with a data source.\nThis is important for traceability and accountability.\nAlso, data can be treated differently based on its source type, e.g. when looking up schedules.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DataSourcesSchema"
+                  }
+                },
+                "examples": {
+                  "single_data_source": {
+                    "summary": "One data source being returned in the response",
+                    "value": [
+                      {
+                        "id": 1,
+                        "name": "solar",
+                        "type": "forecaster"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/api/v3_0/health/ready": {
       "get": {
         "summary": "Get readiness status",
@@ -4373,6 +4414,29 @@
           "generic_asset_type_id",
           "name"
         ],
+        "additionalProperties": false
+      },
+      "DataSourcesSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "scheduler",
+              "forecaster",
+              "reporter",
+              "demo script",
+              "gateway"
+            ]
+          }
+        },
         "additionalProperties": false
       },
       "DefaultAssetViewJSONSchema": {

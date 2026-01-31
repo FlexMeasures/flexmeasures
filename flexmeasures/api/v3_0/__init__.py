@@ -19,6 +19,7 @@ from flexmeasures.api.v3_0.sensors import SensorAPI
 from flexmeasures.api.v3_0.accounts import AccountAPI
 from flexmeasures.api.v3_0.users import UserAPI
 from flexmeasures.api.v3_0.assets import AssetAPI, AssetTypesAPI
+from flexmeasures.api.v3_0.sources import DataSourcesAPI
 from flexmeasures.api.v3_0.health import HealthAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
@@ -29,6 +30,7 @@ from flexmeasures.api.v3_0.assets import (
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
+from flexmeasures.data.schemas.sources import DataSourcesSchema
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
@@ -44,6 +46,7 @@ def register_at(app: Flask):
     UserAPI.register(app, route_prefix=v3_0_api_prefix)
     AssetAPI.register(app, route_prefix=v3_0_api_prefix)
     AssetTypesAPI.register(app, route_prefix=v3_0_api_prefix)
+    DataSourcesAPI.register(app, route_prefix=v3_0_api_prefix)
     HealthAPI.register(app, route_prefix=v3_0_api_prefix)
     ServicesAPI.register(app)
     SensorEntityAddressAPI.register(app, route_prefix=v3_0_api_prefix)
@@ -140,6 +143,7 @@ def create_openapi_specs(app: Flask):
         ("UserAPIQuerySchema", UserAPIQuerySchema),
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),
+        ("DataSourcesSchema", DataSourcesSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountAPIQuerySchema", AccountAPIQuerySchema),
