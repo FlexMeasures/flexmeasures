@@ -21,6 +21,7 @@ repos:
     hooks:
       - id: generate-openapi-specs
         name: Generate OpenAPI specs
+        files: ^flexmeasures/api
         pass_filenames: false
         language: system
         entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; python flexmeasures/api/scripts/generate_open_api_specs.py)'
