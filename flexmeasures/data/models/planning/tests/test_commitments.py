@@ -151,15 +151,15 @@ def test_multi_feed_device_scheduler_shared_buffer():
     # i.e. NOT three (which would indicate per-device baselines)
     commitment_groups = set(commitments[0].device_group.values)
 
-    # commitment_costs = [
-    #     {
-    #         "name": "commitment_costs",
-    #         "data": {
-    #             c.name: costs
-    #             for c, costs in zip(commitments, model.commitment_costs.values())
-    #         },
-    #     },
-    # ]
+    commitment_costs = {
+        "name": "commitment_costs",
+        "data": {
+            c.name: costs
+            for c, costs in zip(commitments, model.commitment_costs.values())
+        },
+    }
+    assert commitment_costs["data"]["electricity"] == -11440.0
+    assert round(commitment_costs["data"]["gas"], 2) == 21333.33
 
     assert commitment_groups == {"shared thermal buffer"}
 
