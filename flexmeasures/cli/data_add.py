@@ -91,7 +91,7 @@ def fm_add_data():
     """FlexMeasures: Add data."""
 
 
-@fm_add_data.command("sources")
+@fm_add_data.command("sources-for-generators")
 @click.option(
     "--kind",
     default=["reporter"],
@@ -100,7 +100,7 @@ def fm_add_data():
     help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
 @with_appcontext
-def add_sources(kind: list[str]):
+def add_sources_for_generators(kind: list[str]):
     """Create data sources for the data generators found registered in the
     application and the plugins. Currently, this command only registers the
     sources for the Reporters.
