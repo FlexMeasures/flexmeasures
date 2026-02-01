@@ -94,11 +94,14 @@ def function_name(param1: str, param2: int) -> bool:
     """One-line summary (ends with period).
     
     Longer description explaining purpose and usage.
+    Notice parameter descriptions are:
+    - aligned
+    - separated from the preceding colon with at least 1 space
+    - starting at a multiple of 4 characters from the start of the line
     
-    :param param1: Description of param1
-    :param param2: Description of param2
-    :return: Description of return value
-    :raises ValueError: When param1 is empty
+    :param param1:      Description of param1
+    :param param123:    Description of param2
+    :return:            Description of return value
     
     Example:
         >>> function_name("test", 42)
@@ -142,8 +145,9 @@ Elements:
 Good comments explain *why*:
 
 ```python
-# Use UTC for storage to avoid DST ambiguity
-timestamp = timestamp.astimezone(pytz.utc)
+# These can speed up tests due to less hashing work (I saw ~165s -> ~100s)
+# (via https://github.com/mattupstate/flask-security/issues/731#issuecomment-362186021)
+SECURITY_HASHING_SCHEMES: list[str] = ["hex_md5"]
 ```
 
 Avoid redundant comments:
