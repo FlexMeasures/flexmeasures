@@ -31,6 +31,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "train_period_in_hours": 720,
                 "max_training_period": pd.Timedelta(days=365),
                 "forecast_frequency": pd.Timedelta(hours=1),
+                # server now
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01",
+                    tz="Europe/Amsterdam",
+                ),
             },
         ),
         # Test defaults when only an end date is given
@@ -58,6 +63,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
                 "forecast_frequency": pd.Timedelta(hours=1),
+                # server now
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01",
+                    tz="Europe/Amsterdam",
+                ),
             },
         ),
         # Test when both start and end dates are given
@@ -83,6 +93,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
                 "forecast_frequency": pd.Timedelta(hours=1),
+                # server now
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01",
+                    tz="Europe/Amsterdam",
+                ),
             },
         ),
         # Test when only end date is given with a training period
@@ -109,6 +124,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
                 "forecast_frequency": pd.Timedelta(hours=1),
+                # server now
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01",
+                    tz="Europe/Amsterdam",
+                ),
             },
         ),
         # Test when only start date is given with a training period
@@ -135,6 +155,8 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
                 "forecast_frequency": pd.Timedelta(hours=1),
+                # the belief time of the forecasts will be calculated from start_predict_date and max_forecast_horizon and forecast_frequency
+                "save_belief_time": None,
             },
         ),
         # Test when only start date is given with a retrain frequency (prediction period)
@@ -161,6 +183,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
                 "forecast_frequency": pd.Timedelta(hours=1),
+                # server now
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01",
+                    tz="Europe/Amsterdam",
+                ),
             },
         ),
         # Test when only start date is given with both training period and retrain frequency
@@ -188,6 +215,8 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
                 "forecast_frequency": pd.Timedelta(hours=1),
+                # the belief time of the forecasts will be calculated from start_predict_date and max_forecast_horizon and forecast_frequency
+                "save_belief_time": None,
             },
         ),
     ],
