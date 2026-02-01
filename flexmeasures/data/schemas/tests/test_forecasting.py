@@ -133,6 +133,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
             },
         ),
         # Test when only start date is given with a training period
+        # We expect the predict start to be computed with respect to the start date (training period after start date).
         (
             {
                 "start_date": "2024-12-25T00:00:00+01:00",
