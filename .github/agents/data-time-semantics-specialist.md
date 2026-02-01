@@ -30,7 +30,6 @@ Prevent subtle bugs in time handling, units, and data semantics across FlexMeasu
 ### Timezone Handling
 
 - [ ] **Timezone awareness**: All datetime objects should be timezone-aware
-- [ ] **Naive datetime assumptions**: Check if code assumes naive = UTC (FlexMeasures convention)
 - [ ] **Localization**: Verify `.tz_localize()` is used correctly for naive datetimes
 - [ ] **Conversion**: Check `.tz_convert()` is used for aware datetimes
 - [ ] **DST transitions**: Look for potential bugs during spring forward/fall back
@@ -72,20 +71,20 @@ Prevent subtle bugs in time handling, units, and data semantics across FlexMeasu
 
 ### FlexMeasures Time Handling Conventions
 
-**Default assumption**: Naive datetimes are UTC
+**Default assumption**: Naive datetimes have no place in FlexMeasures
 
 Configuration:
-- `FLEXMEASURES_TIMEZONE` - Platform-wide timezone (default: "Europe/Amsterdam")
+- `FLEXMEASURES_TIMEZONE` - Platform-wide timezone (default: "Asia/Seoul")
 - `current_user.timezone` - User-specific timezone
 - `sensor.timezone` - Sensor-specific timezone for measurements
 
 ### Pint Unit System
 
 Key unit types:
-- Power: kW, W, MW (instantaneous flow)
-- Energy: kWh, Wh, MWh (stock/accumulated)
-- Price: EUR/MWh, KRW/kWh (currency per energy)
-- Percentages: % (dimensionless or capacity-relative)
+- Power: kW, W, MW (average flows over the sensor resolution)
+- Energy: kWh, Wh, MWh (instantaneous stock, e.g. accumulated, or total stock deltas over the sensor resolution)
+- Price: EUR/MWh, KRW/kWh, EUR/MW (currency per energy, or per capacity)
+- Percentages: % (dimensionless, capacity-relative, or conversion efficiencies)
 
 Critical conversions require duration or capacity parameters.
 
@@ -135,7 +134,7 @@ Critical conversions require duration or capacity parameters.
 - New time handling patterns emerge
 - DST-related bugs discovered
 - Unit conversion edge cases found
-- Pandas version updates change time semantics
+- Pandas version updates change time semantics (e.g. https://github.com/pandas-dev/pandas/issues/35248)
 - New time zones or unit definitions added
 
 ### Learning from PRs
