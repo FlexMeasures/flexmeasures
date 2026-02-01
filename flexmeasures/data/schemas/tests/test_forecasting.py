@@ -101,6 +101,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
             },
         ),
         # Test when only end date is given with a training period
+        # We expect the start date to be computed with respect to now. (training period before now (floored)).
         (
             {
                 "end_date": "2025-01-20T12:00:00+01:00",
