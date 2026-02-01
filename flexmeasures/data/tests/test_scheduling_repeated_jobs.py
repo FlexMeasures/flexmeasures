@@ -12,7 +12,8 @@ from sqlalchemy import select
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
+from flexmeasures.data.tests.utils import exception_reporter
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.utils import hash_function_arguments, job_cache
 

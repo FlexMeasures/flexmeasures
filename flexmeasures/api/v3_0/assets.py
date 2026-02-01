@@ -212,12 +212,12 @@ class AssetAPI(FlaskView):
     @as_json
     def index(
         self,
-        account: Account | None,
-        root_asset: GenericAsset | None,
-        max_depth: int | None,
         fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
+        account: Account | None = None,
+        root_asset: GenericAsset | None = None,
+        max_depth: int | None = None,
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
