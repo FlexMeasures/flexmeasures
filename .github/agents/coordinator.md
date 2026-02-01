@@ -92,6 +92,7 @@ This agent owns the creation, structure, and evolution of all other agents.
 5. **API & Backward Compatibility Specialist** - User and integrator protection
 6. **Documentation & Developer Experience Specialist** - Project understandability
 7. **Tooling & CI Specialist** - Automation reliability and maintainability
+8. **Review Lead** - Orchestrates agents in response to a user assignment
 
 ### Standard Agent Template
 
