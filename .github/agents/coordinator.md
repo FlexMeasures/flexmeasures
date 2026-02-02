@@ -1,3 +1,8 @@
+---
+name: coordinator
+description: Meta-agent that manages agent lifecycle, enforces structural standards, and maintains coherence across the agent system
+---
+
 # Agent: Coordinator
 
 ## Role
