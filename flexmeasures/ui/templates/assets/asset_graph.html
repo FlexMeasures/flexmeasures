@@ -391,7 +391,7 @@
 
 
         const [getSensorToShow, setSensorToShow] = createReactiveState(newFormat, reRenderForm);
-        const [editingIndex, setEditingIndex] = createReactiveState(null, reRenderFormV2);
+        const [editingIndex, setEditingIndex] = createReactiveState(null, () => { });
         const [activeCard, setActiveCard] = createReactiveState(null, () => { });
         const [configAsset, setConfigAsset] = createReactiveState(null, () => { });
 
@@ -422,14 +422,6 @@
         function reRenderForm() {
             if (!hasInitialized) {
                 hasInitialized = true;
-            } else {
-                renderGraphCards();
-            }
-        }
-
-        function reRenderFormV2() {
-            if (!hasInitialized2) {
-                hasInitialized2 = true;
             } else {
                 renderGraphCards();
             }
@@ -608,23 +600,18 @@
             card.id = `graph_${index}`;
             card.className = `card m-0 p-1 card-highlight ${activeCard() && activeCard().id === card.id ? " border-on-click" : ""}`;
             card.onclick = () => {
-                if (activeCard() && activeCard().id === card.id) {
-                    setActiveCard(null);
-                } else {
-                    setActiveCard(card);
-                    reRenderForm()
-                }
+                setActiveCard(activeCard()?.id === card.id ? null : card);
+                setEditingIndex(editingIndex() === index ? null : index);
             };
 
             const cardBody = document.createElement("div");
             cardBody.className = "card-body";
-
-
             const header = document.createElement("div");
             header.className = "d-flex align-items-center mb-2";
 
-            const isEditing = editingIndex() && editingIndex() === index;
+            const isEditing = editingIndex() === index;
 
+            // 4. Header
             const headerElement = renderGraphHeader(
                 item.title,
                 index,
@@ -851,22 +838,20 @@
             reRenderForm();
         }
 
-        async function swapItems(index1, index2) {
-            if (index1 >= 0 && index2 >= 0 && index1 < sensorsToShow.length && index2 < sensorsToShow.length) {
-                [sensorsToShow[index1], sensorsToShow[index2]] = [sensorsToShow[index2], sensorsToShow[index1]];
-                reRenderForm()
-                renderApiSensors(cachedFilteredSensors, index2);
-            }
-        }
-
         async function moveGraphUp(index) {
             const newArray = moveArrayItem(getSensorToShow(), index, "up");
+            const card = document.getElementById(`graph_${index - 1}`);
+            setActiveCard(card);
             setSensorToShow(newArray);
+            setEditingIndex(index - 1);
         }
 
         async function moveGraphDown(index) {
             const newArray = moveArrayItem(getSensorToShow(), index, "down");
+            const card = document.getElementById(`graph_${index + 1}`);
+            setActiveCard(card);
             setSensorToShow(newArray);
+            setEditingIndex(index + 1);
         }
 
         function editGraphTitle(index) {
@@ -880,6 +865,9 @@
             setSensorToShow(sensorsToShowOldState);
             setEditingIndex(null);
         }
+
+        window.addNewGraph = addNewGraph;
+        window.addSensorAsGraph = addSensorAsGraph;
 
         // ============== Graph Cards Management ============== //
 
@@ -985,27 +973,27 @@
             }
         }
 
-        // Add a sensor as a new graph ca
+        // Add a sensor as a new graph card
         function addSensorAsGraph(id) {
-            const newAsset = {
-                title: "No Title",
-                plots: [{ sensor: id }],
-            };
+            if (!activeCard() || !editingIndex()) {
+                showToast("Please select a graph card to add the plot to.", "warning");
+                return;
+            }
+
             const oldSensorsToShow = getSensorToShow();
-            oldSensorsToShow.push(newAsset);
+            oldSensorsToShow[editingIndex()]["plots"].push({ sensor: id });
             setSensorToShow(oldSensorsToShow);
         }
 
         // Add blank graph to the graph cards
         function addNewGraph() {
             const newAsset = {
-                title: "No Title " + (sensorsToShow.length + 1),
-                sensors: [],
+                title: "No Title",
+                plots: []
             };
-            selectedGraphTitle = newAsset.title;
-            sensorsToShow.push(newAsset);
-            selectGraph(sensorsToShow.length - 1)
-            renderGraphCards();
+            const oldSensorsToShow = getSensorToShow();
+            oldSensorsToShow.push(newAsset);
+            setSensorToShow(oldSensorsToShow);
         }
 
         // Add Sensor to an existing graph card
@@ -1035,12 +1023,12 @@
             for (let i = 0; i < plots.length; i++) {
                 const plot = plots[i];
                 if (plot.sensor === sensorId || (Array.isArray(plot.sensors) && plot.sensors.includes(sensorId))) {
-                    return {plotIndex: i, isSensors: false};
-                }else if (plot.sensors && plot.sensors.includes(sensorId)) {
-                    return {plotIndex: i, isSensors: true};
+                    return { plotIndex: i, isSensors: false };
+                } else if (plot.sensors && plot.sensors.includes(sensorId)) {
+                    return { plotIndex: i, isSensors: true };
                 }
             }
-            return {plotIndex: -1, isSensors: false}; // Return -1 if not found
+            return { plotIndex: -1, isSensors: false }; // Return -1 if not found
         }
 
         function handleEnterKeyEventForTitleEditing(event, graphIndex) {
