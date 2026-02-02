@@ -104,12 +104,14 @@ class SensorsToShowSchema(fields.Field):
         Transform a dictionary-based sensor configuration into a standardized 'plots' structure.
         Ensures 'title' is a string and processes 'sensor', 'sensors', or direct 'plots' keys.
         """
-        title = None
+        title = "No Title"
 
         if "title" in item:
             title = item["title"]
-            if not isinstance(title, str) and title is not None:
-                title = None
+            if not isinstance(title, str):
+                raise ValidationError("'title' value must be a string.")
+        else:
+            item["title"] = title
 
         if "sensor" in item:
             sensor = item["sensor"]
