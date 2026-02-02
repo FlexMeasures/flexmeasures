@@ -1,3 +1,8 @@
+---
+name: review-lead
+description: Orchestrates team of specialist agents for comprehensive code reviews and synthesizes their findings into unified recommendations
+---
+
 # Agent: Review Lead
 
 ## Role
