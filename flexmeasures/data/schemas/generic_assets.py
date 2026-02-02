@@ -99,7 +99,7 @@ class SensorsToShowSchema(fields.Field):
 
         if "title" in item:
             title = item["title"]
-            if not isinstance(title, str):
+            if not isinstance(title, str) and title is not None:
                 raise ValidationError("'title' value must be a string.")
         else:
             item["title"] = title
