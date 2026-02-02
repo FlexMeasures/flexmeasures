@@ -1,5 +1,4 @@
-r"""Various coding utils (e.g. around function decorati
-on)"""
+r"""Various coding utils (e.g. around function decoration)"""
 
 from __future__ import annotations
 
@@ -81,10 +80,11 @@ def flatten_unique(nested_list_of_objects: list) -> list:
     - Lists of sensor IDs
     - Dictionaries with a `sensors` key
     - Nested lists (one level)
+    - Dictionaries with `plots` key containing lists of sensors or asset's flex-config reference
 
     Example:
         Input:
-        [1, [2, 20, 6], 10, [6, 2], {"title":None,"sensors": [10, 15]}, 15]
+        [1, [2, 20, 6], 10, [6, 2], {"title":None,"sensors": [10, 15]}, 15, {"plots": [{"sensor": 1}, {"sensors": [20, 6]}]}]
 
         Output:
         [1, 2, 20, 6, 10, 15]

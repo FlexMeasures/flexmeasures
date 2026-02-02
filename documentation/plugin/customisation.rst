@@ -61,21 +61,13 @@ Finally, make your scheduler be the one that FlexMeasures will use for certain s
 .. code-block:: python
 
     from flexmeasures import Sensor
-
-    scheduler_specs = {
-        "module": "flexmeasures.data.tests.dummy_scheduler",  # or a file path, see note below
-        "class": "DummyScheduler",
-    }
     
     my_sensor = Sensor.query.filter(Sensor.name == "My power sensor on a flexible asset").one_or_none()
-    my_sensor.attributes["custom-scheduler"] = scheduler_specs
+    my_sensor.attributes["custom-scheduler"] = "DummyScheduler"
 
 
 From now on, all schedules (see :ref:`tut_forecasting_scheduling`) which are requested for this sensor should
 get computed by your custom function! For later lookup, the data will be linked to a new data source with the name "My Opinion".
-
-.. note:: To describe the module, we used an importable module here (actually a custom scheduling function we use to test this).
-          You can also provide a full file path to the module, e.g. "/path/to/my_file.py".
 
 
 Adding your own forecasting algorithm

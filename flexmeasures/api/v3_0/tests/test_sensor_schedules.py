@@ -9,7 +9,7 @@ from flexmeasures.api.common.responses import unknown_schedule, unrecognized_eve
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.unit_utils import ur

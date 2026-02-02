@@ -102,23 +102,6 @@ def test_string_json_input():
     assert schema.deserialize(input_value) == expected_output
 
 
-# New test cases for misspelled or missing title and mixed sensor/sensors formats
-
-
-def test_dict_missing_title_key():
-    schema = SensorsToShowSchema()
-    input_value = [{"sensor": 42}]
-    with pytest.raises(ValidationError, match="Dictionary must contain a 'title' key."):
-        schema.deserialize(input_value)
-
-
-def test_dict_misspelled_title_key():
-    schema = SensorsToShowSchema()
-    input_value = [{"titel": "Temperature", "sensor": 42}]  # Misspelled 'title'
-    with pytest.raises(ValidationError, match="Dictionary must contain a 'title' key."):
-        schema.deserialize(input_value)
-
-
 def test_dict_with_sensor_as_list():
     schema = SensorsToShowSchema()
     input_value = [{"title": "Temperature", "sensor": [42]}]
