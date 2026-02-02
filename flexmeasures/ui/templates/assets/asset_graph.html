@@ -985,14 +985,15 @@
             }
         }
 
-        // Add a sensor as a new graph card
+        // Add a sensor as a new graph ca
         function addSensorAsGraph(id) {
             const newAsset = {
                 title: "No Title",
-                sensors: [id],
+                plots: [{ sensor: id }],
             };
-            sensorsToShow.push(newAsset);
-            renderGraphCards();
+            const oldSensorsToShow = getSensorToShow();
+            oldSensorsToShow.push(newAsset);
+            setSensorToShow(oldSensorsToShow);
         }
 
         // Add blank graph to the graph cards
