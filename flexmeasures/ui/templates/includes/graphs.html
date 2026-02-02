@@ -178,31 +178,34 @@
                     upload.classList.remove('d-none');
                 } else {
                     const data = await response.json();
-                    if (data.message.path_and_files === undefined) {
-                        showToast(data.message, "error");
-                    }
-                    else {
-                        for (const [key, value] of Object.entries(data.message.path_and_files)) {
-                            if (typeof value === 'string') {
-                                showToast(value, "error");
-                            } else if (Array.isArray(value)) {
-                                value.forEach(element => {
-                                    showToast(element, "error");
-                                });
-                            } else if (typeof value === 'object' && value !== null) {
-                                Object.values(value).forEach(element => {
-                                    if (Array.isArray(element)) {
-                                        element.forEach(item => showToast(item, "error"));
-                                    } else {
+                    const messageKeys = Object.keys(data.message);
+                    messageKeys.forEach(mKey => {
+                        if (data.message[mKey] === undefined) {
+                            showToast(data.message, "error");
+                        }
+                        else {
+                            for (const [key, value] of Object.entries(data.message[mKey])) {
+                                if (typeof value === 'string') {
+                                    showToast(value, "error");
+                                } else if (Array.isArray(value)) {
+                                    value.forEach(element => {
                                         showToast(element, "error");
-                                    }
-                                });
-                            } else {
-                                // fallback for unexpected types
-                                showToast(String(value), "error");
+                                    });
+                                } else if (typeof value === 'object' && value !== null) {
+                                    Object.values(value).forEach(element => {
+                                        if (Array.isArray(element)) {
+                                            element.forEach(item => showToast(item, "error"));
+                                        } else {
+                                            showToast(element, "error");
+                                        }
+                                    });
+                                } else {
+                                    // fallback for unexpected types
+                                    showToast(String(value), "error");
+                                }
                             }
                         }
-                    }
+                    });
                     uploadSpinner.classList.add('d-none');
                     upload.classList.remove('d-none');
                 }

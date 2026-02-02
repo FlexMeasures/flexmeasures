@@ -15,7 +15,7 @@ class PipedAssetFieldListField(fields.Str):
     Each one should represent a field in the AssetAPIQuerySchema.
     """
 
-    def _deserialize(self, values: str, attr, obj, **kwargs) -> list[str]:
+    def _deserialize(self, values: str, attr, data, **kwargs) -> list[str]:
         if not isinstance(values, str):
             raise validate.ValidationError(
                 "Invalid input type, should be a string, separable by '|'."
@@ -53,7 +53,7 @@ class AssetAPIQuerySchema(PaginationSchema):
     )
     account = AccountIdField(
         data_key="account_id",
-        load_default=None,
+        required=False,
         metadata=dict(
             description="Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             example=67,
@@ -61,7 +61,7 @@ class AssetAPIQuerySchema(PaginationSchema):
     )
     root_asset = AssetIdField(
         data_key="root",
-        load_default=None,
+        required=False,
         metadata=dict(
             description="Select all descendants of a given root asset (including the root itself). Leave out to include top-level assets.",
             example=482,
@@ -70,7 +70,7 @@ class AssetAPIQuerySchema(PaginationSchema):
     max_depth = fields.Int(
         data_key="depth",
         validate=validate.Range(min=0),
-        load_default=None,
+        required=False,
         metadata=dict(
             description="Maximum number of levels of descendant assets to include. Set to 0 to include root assets only. Leave out to include the whole tree.",
             example=2,
