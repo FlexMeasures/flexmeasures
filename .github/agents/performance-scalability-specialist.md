@@ -226,15 +226,18 @@ stock_changes = [
    - Cache expensive computation results
    - Set appropriate TTL values
 
-### When to Ask for Benchmarks
+### When to Create Benchmarks
 
-Request benchmarks when changes affect:
+Create benchmarks when changes affect:
 
 - Scheduler algorithm implementations
 - Database query patterns in hot paths
 - Bulk data operations (imports, exports)
 - API endpoints handling large datasets
 - Time-series data processing
+
+FlexMeasures provides built-in request profiling capabilities for performance analysis (see https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-profile-requests).
+
 
 ### Related Files
 

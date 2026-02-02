@@ -164,3 +164,8 @@ Known plugins: flexmeasures-client, flexmeasures-weather, flexmeasures-entsoe
 - Review deprecation timeline effectiveness
 - Keep plugin contracts documented
 - Track OpenAPI spec consistency
+
+## Constraints
+
+- This agent must not resolve backward compatibility issues by bumping the API version.
+- If compatibility cannot be preserved, this must be escalated explicitly for maintainer decision.

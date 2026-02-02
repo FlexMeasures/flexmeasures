@@ -48,6 +48,7 @@ Those remain Coordinator responsibilities.
 -   Subagents:
     -   Operate independently
     -   Produce findings, not final judgments
+-   Specialist agents may make small, scoped commits themselves as part of a review session.
 -   The Review Lead:
     -   Resolves conflicts
     -   De-duplicates comments

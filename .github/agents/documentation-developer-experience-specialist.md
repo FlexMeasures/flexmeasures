@@ -45,6 +45,7 @@ Keep FlexMeasures understandable and contributor-friendly by ensuring excellent 
 - [ ] **Links**: Internal links use relative paths, external links are valid
 - [ ] **Structure**: Follows existing documentation organization
 - [ ] **Readability**: Clear, concise, scannable
+- [ ] Verify that user-visible changes include an appropriate changelog entry, using the PR template as guidance for expected changelog content
 
 ### Error Messages
 
@@ -171,7 +172,7 @@ name = value
 
 - **API Specialist**: Ensure API changes are documented
 - **Architecture Specialist**: Document domain model concepts
-- **Test Specialist**: Test documentation examples
+- **Test Specialist**: Documentation examples may be executed as doctests in CI
 - **Tooling & CI Specialist**: Document CI/CD processes
 - **Coordinator**: Escalate documentation structure issues
 
