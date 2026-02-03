@@ -140,6 +140,86 @@ When pre-commit hooks fail:
 - Ensure all tests pass before asking for a review
 - Update these agent instructions with learnings from each assignment
 
+## Running Tests in FlexMeasures Dev Environment
+
+### Critical Requirement: Actually Run Tests
+
+**This agent MUST actually run tests, not just suggest them.**
+When reviewing or writing tests:
+1. **Set up the test environment** if not already done:
+   ```bash
+   # Install test dependencies
+   make install-for-test
+   ```
+2. **Run the tests you write or review**:
+   ```bash
+   # Run all tests
+   pytest
+   
+   # Run specific test file
+   pytest path/to/test_file.py
+   
+   # Run specific test function
+   pytest path/to/test_file.py::test_function_name
+   
+   # Run tests matching pattern
+   pytest -k "pattern"
+   ```
+3. **Verify test output** - check that:
+   - Tests actually execute (not skipped)
+   - Tests pass with expected behavior
+   - Test coverage includes the scenarios being tested
+   - No unexpected warnings or errors
+4. **Check pre-commit hooks** before committing:
+   ```bash
+   pre-commit run --all-files
+   ```
+
+### Testing Actual Bug Scenarios
+
+When fixing bugs:
+1. **Reproduce the bug first** - Run the exact scenario reported:
+   - Use the same CLI commands as in the bug report
+   - Use the same data/parameters mentioned
+   - Verify you can see the failure
+2. **Write a test that reproduces the bug** - Capture the failing case
+3. **Fix the bug** - Make the minimal change needed
+4. **Run the test again** - Verify it now passes
+5. **Run the original scenario** - Verify the fix works end-to-end
+
+### Using Make Targets
+
+FlexMeasures provides convenient make targets:
+
+```bash
+# Install dependencies and run all tests
+make test
+# Install for development (includes test deps)
+make install-for-dev
+# Update documentation (includes generating OpenAPI specs)
+make update-docs
+```
+
+### FlexMeasures CLI Testing
+
+To test CLI commands in the dev environment:
+
+```bash
+# Activate your virtual environment first
+# Then run flexmeasures commands
+# Example: test add duration command
+flexmeasures add duration --help
+flexmeasures add duration --start "2024-01-01T00:00:00+01:00" --duration PT2H
+# Check database state if needed
+flask db current
+```
+### Common Pitfalls
+- **Don't just suggest tests** - Actually run them and show output
+- **Don't assume tests pass** - Verify with actual execution
+- **Don't skip the bug reproduction step** - Always test the exact scenario reported
+- **Don't commit without running pre-commit** - Hooks catch many issues
+- **Don't forget to test in the actual environment** - Unit tests alone may miss integration issues
+
 ### Common Testing Patterns
 
 - **Parametrized tests**: Use `@pytest.mark.parametrize` for testing multiple scenarios
