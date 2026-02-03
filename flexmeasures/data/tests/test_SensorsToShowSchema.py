@@ -7,7 +7,7 @@ from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 def test_single_sensor_id():
     schema = SensorsToShowSchema()
     input_value = [42]
-    expected_output = [{"title": None, "plots": [{"sensor": 42}]}]
+    expected_output = [{"title": "No Title", "plots": [{"sensor": 42}]}]
     assert schema.deserialize(input_value) == expected_output
 
 
@@ -15,8 +15,8 @@ def test_list_of_sensor_ids():
     schema = SensorsToShowSchema()
     input_value = [42, 43]
     expected_output = [
-        {"title": None, "plots": [{"sensor": 42}]},
-        {"title": None, "plots": [{"sensor": 43}]},
+        {"title": "No Title", "plots": [{"sensor": 42}]},
+        {"title": "No Title", "plots": [{"sensor": 43}]},
     ]
     assert schema.deserialize(input_value) == expected_output
 
@@ -42,7 +42,7 @@ def test_dict_with_asset_and_no_title_plot(setup_test_data):
     schema = SensorsToShowSchema()
     input_value = [{"plots": [{"asset": asset_id, "flex-model": "soc-min"}]}]
     expected_output = [
-        {"title": None, "plots": [{"asset": asset_id, "flex-model": "soc-min"}]}
+        {"title": "No Title", "plots": [{"asset": asset_id, "flex-model": "soc-min"}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
@@ -79,13 +79,13 @@ def test_mixed_valid_inputs():
     schema = SensorsToShowSchema()
     input_value = [
         {"title": "Test", "sensors": [1, 2]},
-        {"title": None, "sensors": [3, 4]},
+        {"title": "No Title", "sensors": [3, 4]},
         5,
     ]
     expected_output = [
         {"title": "Test", "plots": [{"sensors": [1, 2]}]},
-        {"title": None, "plots": [{"sensors": [3, 4]}]},
-        {"title": None, "plots": [{"sensor": 5}]},
+        {"title": "No Title", "plots": [{"sensors": [3, 4]}]},
+        {"title": "No Title", "plots": [{"sensor": 5}]},
     ]
     assert schema.deserialize(input_value) == expected_output
 
