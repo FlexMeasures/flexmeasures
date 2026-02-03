@@ -301,11 +301,6 @@ class Commitment:
             if missing:
                 raise ValueError(f"commodity mapping missing for devices: {missing}")
 
-        if isinstance(self, FlowCommitment) and self.commodity is None:
-            raise ValueError(
-                "FlowCommitment requires `commodity` (str or pd.Series mapping device→commodity)"
-            )
-
         series_attributes = [
             attr
             for attr, _type in self.__annotations__.items()
