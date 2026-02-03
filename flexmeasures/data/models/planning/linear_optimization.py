@@ -593,25 +593,22 @@ def device_scheduler(  # noqa C901
         )
 
     def ems_flow_commitment_equalities(m, c, j):
-        """
-        Enforce an EMS-level flow commitment for a given commodity.
+        """Couple EMS flow commitments to device flows, optionally filtered by commodity."""
 
-        Couples the commitment baseline (plus deviation variables) to the sum of EMS
-        power over all devices belonging to the commitment’s commodity. Skips
-        non-flow commitments or commodities without associated devices.
-        """
         if commitments[c]["class"].iloc[0] != FlowCommitment:
             return Constraint.Skip
 
-        commodity = (
-            commitments[c]["commodity"].iloc[0]
-            if "commodity" in commitments[c].columns
-            else None
-        )
-        devices = commodity_devices.get(commodity, set())
-
-        if not devices:
-            return Constraint.Skip
+        # Legacy behavior: no commodity → sum over all devices
+        if "commodity" not in commitments[c].columns:
+            devices = m.d
+        else:
+            commodity = commitments[c]["commodity"].iloc[0]
+            if pd.isna(commodity):
+                devices = m.d
+            else:
+                devices = commodity_devices.get(commodity, set())
+                if not devices:
+                    return Constraint.Skip
 
         return (
             None,
