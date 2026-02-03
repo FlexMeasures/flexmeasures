@@ -178,7 +178,7 @@ def get_power_values(
         sensor,
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
-        resolution=resolution,
+        resolution=to_offset(resolution).freqstr,
         beliefs_before=beliefs_before,
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
