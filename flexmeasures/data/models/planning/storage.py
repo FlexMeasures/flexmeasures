@@ -105,11 +105,12 @@ class MetaStorageScheduler(Scheduler):
                 s.asset if s is not None else flex_model_d.get("asset")
                 for s, flex_model_d in zip(sensors, self.flex_model)
             ]
-            # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
-            resolution = determine_minimum_resampling_resolution(
-                [s.event_resolution for s in sensors if s is not None],
-                fallback_resolution=self.default_resolution,
-            )
+            if resolution is None:
+                # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
+                resolution = determine_minimum_resampling_resolution(
+                    [s.event_resolution for s in sensors if s is not None],
+                    fallback_resolution=self.default_resolution,
+                )
             asset = self.asset
         else:
             # For backwards compatibility with the single asset scheduler
@@ -898,6 +899,12 @@ class MetaStorageScheduler(Scheduler):
                 )
             elif storage_efficiency[d] is not None:
                 device_constraints[d]["efficiency"] = storage_efficiency[d]
+
+            # Convert efficiency from sensor resolution to scheduling resolution
+            if sensor_d.event_resolution != timedelta(0):
+                device_constraints[d]["efficiency"] **= (
+                    resolution / sensor_d.event_resolution
+                )
 
             # check that storage constraints are fulfilled
             if not skip_validation:
