@@ -235,19 +235,20 @@ def simplify_index(
     * The index levels are dropped (by overwriting the multi-level index with just the “event_start” index level).
       Only for the columns named in index_levels_to_columns, the relevant information is kept around.
     """
+    df = bdf.copy()
     if index_levels_to_columns is not None:
         for col in index_levels_to_columns:
             try:
-                bdf[col] = bdf.index.get_level_values(col)
+                df[col] = df.index.get_level_values(col)
             except KeyError:
-                if hasattr(bdf, col):
-                    bdf[col] = getattr(bdf, col)
-                elif hasattr(bdf, flexmeasures_inflection.pluralize(col)):
-                    bdf[col] = getattr(bdf, flexmeasures_inflection.pluralize(col))
+                if hasattr(df, col):
+                    df[col] = getattr(df, col)
+                elif hasattr(df, flexmeasures_inflection.pluralize(col)):
+                    df[col] = getattr(df, flexmeasures_inflection.pluralize(col))
                 else:
                     raise KeyError(f"Level {col} not found")
-    bdf.index = bdf.index.get_level_values("event_start")
-    return bdf
+    df.index = df.index.get_level_values("event_start")
+    return df
 
 
 def multiply_dataframe_with_deterministic_beliefs(

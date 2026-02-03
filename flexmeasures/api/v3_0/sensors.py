@@ -52,7 +52,6 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
     SensorIdField,
     SensorDataFileSchema,
-    SensorDataFileDescriptionSchema,
 )
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
@@ -381,7 +380,11 @@ class SensorAPI(FlaskView):
         pass_ctx_to_loader=True,
     )
     def upload_data(
-        self, data: list[tb.BeliefsDataFrame], filenames: list[str], **kwargs
+        self,
+        data: list[tb.BeliefsDataFrame],
+        filenames: list[str],
+        unit: str | None = None,
+        **kwargs,
     ):
         """
         .. :quickref: Data; Upload sensor data by file
@@ -473,6 +476,7 @@ class SensorAPI(FlaskView):
             - Sensors
         """
         sensor = data[0].sensor
+
         AssetAuditLog.add_record(
             sensor.generic_asset,
             f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}",
@@ -1027,6 +1031,12 @@ class SensorAPI(FlaskView):
         # For consumption schedules, positive values denote consumption. For the db, consumption is negative
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
+            # for not in-built schedulers, we are not sure if they would store time series in the db
+            if scheduler_info["scheduler"] not in [
+                "StorageScheduler",
+                "ProcessScheduler",
+            ]:
+                return dict(scheduler_info=scheduler_info), 200
             return unknown_schedule(
                 f"{message}, but the schedule was not found in the database. {scheduler_info_msg}"
             )

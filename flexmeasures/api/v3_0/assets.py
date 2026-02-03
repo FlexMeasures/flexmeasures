@@ -212,12 +212,12 @@ class AssetAPI(FlaskView):
     @as_json
     def index(
         self,
-        account: Account | None,
-        root_asset: GenericAsset | None,
-        max_depth: int | None,
         fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
+        account: Account | None = None,
+        root_asset: GenericAsset | None = None,
+        max_depth: int | None = None,
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
@@ -299,17 +299,16 @@ class AssetAPI(FlaskView):
         if account is not None:
             check_access(account, "read")
             account_ids = [account.id]
-            include_public_assets = False
         else:
             use_all_accounts = all_accessible or root_asset
-            include_public_assets = all_accessible or include_public or root_asset
+            include_public = all_accessible or include_public or root_asset
             account_ids = (
                 [a.id for a in get_accessible_accounts()]
                 if use_all_accounts
                 else [current_user.account.id]
             )
         filter_statement = GenericAsset.account_id.in_(account_ids)
-        if include_public_assets:
+        if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(

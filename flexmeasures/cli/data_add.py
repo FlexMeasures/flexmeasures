@@ -1315,6 +1315,13 @@ def train_predict_pipeline(
     help=AssetTriggerSchema._declared_fields["resolution"].metadata["description"],
 )
 @click.option(
+    "--prior",
+    "belief_time",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Schedule with only information known prior to this datetime. If not set, defaults to now. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
     "--soc-at-start",
     "soc_at_start",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
@@ -1348,17 +1355,25 @@ def train_predict_pipeline(
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
+@click.option(
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    help="Add this flag to avoid saving the results to the database.",
+)
 def add_schedule(  # noqa C901
     power_sensor: Sensor,
     asset: GenericAsset,
     start: datetime,
     duration: timedelta,
     resolution: timedelta,
+    belief_time: datetime,
     scheduler_class: str,
     soc_at_start: ur.Quantity,
     flex_context: str | None = None,
     flex_model: str | None = None,
     as_job: bool = False,
+    dry_run: bool = False,
 ):
     """Create a new schedule for an asset.
 
@@ -1417,7 +1432,7 @@ def add_schedule(  # noqa C901
     scheduling_kwargs = dict(
         start=start,
         end=start + duration,
-        belief_time=server_now(),
+        belief_time=belief_time or server_now(),
         flex_model=flex_model,
         flex_context=flex_context,
         scheduler_specs={
@@ -1443,9 +1458,10 @@ def add_schedule(  # noqa C901
     else:
         success = make_schedule(
             asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
+            dry_run=dry_run,
             **scheduling_kwargs,
         )
-        if success:
+        if success and not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 

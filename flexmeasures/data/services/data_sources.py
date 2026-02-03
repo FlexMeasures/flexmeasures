@@ -80,7 +80,7 @@ def get_data_generator(
     config: dict,
     save_config: bool,
     data_generator_type: Type,
-) -> DataGenerator:
+) -> DataGenerator | None:
     dg_type_name = data_generator_type.__name__
     if source is None:
         logging.info(
@@ -121,6 +121,7 @@ def get_data_generator(
             logging.error(
                 f"Error! DataSource `{source}` not storing a valid {dg_type_name}."
             )
+            return None
 
         data_generator._save_config = save_config
     return data_generator

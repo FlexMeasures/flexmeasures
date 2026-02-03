@@ -54,36 +54,45 @@ export async function getSensor(id) {
   return sensor;
 }
 
-export function processResourceRawJSON(schema, rawJSON) {
+export function processResourceRawJSON(schema, rawJSON, allowExtra = false) {
+  /*
+    allowExtra - whether to allow extra fields in the rawJSON that are not in the schema. 
+    If false, those fields will be ignored.
+  */
   let processedJSON = rawJSON.replace(/'/g, '"');
-  // change None to null
-  processedJSON = processedJSON.replace(/None/g, "null");
-  // change True to true and False to false
-  processedJSON = processedJSON.replace("True", "true");
-  processedJSON = processedJSON.replace("False", "false");
+  // change None to null, True to true and False to false
+  processedJSON = processedJSON.replaceAll("None", "null");
+  processedJSON = processedJSON.replaceAll("True", "true");
+  processedJSON = processedJSON.replaceAll("False", "false");
   // update the assetFlexModel fields
   processedJSON = JSON.parse(processedJSON);
+  const extraFields = {};
 
   for (const [key, value] of Object.entries(processedJSON)) {
     if (key in schema) {
       schema[key] = processedJSON[key];
     } else {
-      schema[key] = null;
+      if (!allowExtra) {
+        schema[key] = null;
+      } else {
+        schema[key] = processedJSON[key];
+        extraFields[key] = processedJSON[key];
+      }
     }
   }
 
-  return processedJSON;
+  return [processedJSON, extraFields];
 }
 
 export function getFlexFieldTitle(fieldName) {
   return fieldName
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+    // .split("-")
+    // .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    // .join(" ");
 }
 
 export function renderFlexFieldOptions(schema, options) {
-  // comapare the assetFlexContext with the template and get the fields that are not set
+  // compare the assetFlexContext with the template and get the fields that are not set
   const assetFlexModel = Object.assign({}, schema, options);
   flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
   for (const [key, value] of Object.entries(assetFlexModel)) {
@@ -218,7 +227,7 @@ export function renderSensorSearchResults(
     const cardBody = col.querySelector(".result-sensor-card");
     const addButton = document.createElement("button");
     addButton.className = "btn btn-primary btn-sm"; // Removed me-2 mt-2 as it might be added by a parent div
-    addButton.textContent = "Add Sensor";
+    addButton.textContent = "Use Sensor";
 
     addButton.onclick = () => {
       if (actionFunc) {

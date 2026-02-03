@@ -51,6 +51,7 @@
     let sessionEnd = null;
     let minRes;
     let toggle;
+    let stepTriggered = false;
 
     if ('{{ active_page }}' == 'assets') {
         chartType = 'chart_for_multiple_sensors';
@@ -96,6 +97,9 @@
 
 
     document.addEventListener('DOMContentLoaded', async function () {
+        // Initialize Bootstrap tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
 
         // Set up play/pause button for replay, incl. the complete replay logic
         toggle = document.querySelector('#replay');
@@ -174,31 +178,34 @@
                     upload.classList.remove('d-none');
                 } else {
                     const data = await response.json();
-                    if (data.message.path_and_files === undefined) {
-                        showToast(data.message, "error");
-                    }
-                    else {
-                        for (const [key, value] of Object.entries(data.message.path_and_files)) {
-                            if (typeof value === 'string') {
-                                showToast(value, "error");
-                            } else if (Array.isArray(value)) {
-                                value.forEach(element => {
-                                    showToast(element, "error");
-                                });
-                            } else if (typeof value === 'object' && value !== null) {
-                                Object.values(value).forEach(element => {
-                                    if (Array.isArray(element)) {
-                                        element.forEach(item => showToast(item, "error"));
-                                    } else {
+                    const messageKeys = Object.keys(data.message);
+                    messageKeys.forEach(mKey => {
+                        if (data.message[mKey] === undefined) {
+                            showToast(data.message, "error");
+                        }
+                        else {
+                            for (const [key, value] of Object.entries(data.message[mKey])) {
+                                if (typeof value === 'string') {
+                                    showToast(value, "error");
+                                } else if (Array.isArray(value)) {
+                                    value.forEach(element => {
                                         showToast(element, "error");
-                                    }
-                                });
-                            } else {
-                                // fallback for unexpected types
-                                showToast(String(value), "error");
+                                    });
+                                } else if (typeof value === 'object' && value !== null) {
+                                    Object.values(value).forEach(element => {
+                                        if (Array.isArray(element)) {
+                                            element.forEach(item => showToast(item, "error"));
+                                        } else {
+                                            showToast(element, "error");
+                                        }
+                                    });
+                                } else {
+                                    // fallback for unexpected types
+                                    showToast(String(value), "error");
+                                }
                             }
                         }
-                    }
+                    });
                     uploadSpinner.classList.add('d-none');
                     upload.classList.remove('d-none');
                 }
@@ -239,6 +246,8 @@
             toggleReplay();
         } else if (e.key === 's') {
             stopReplay();
+        } else if (e.key === 'n') {
+            stepReplay();
         }
     }, false);
 
@@ -248,10 +257,9 @@
     });
 
     {% if event_starts_after and event_ends_before %}
-    // Initialize picker to the date selection specified in the session
     $("#spinner").show();
     {% if active_subpage == "asset_graph" and has_kpis %}
-    getAssetKPIs();
+    getAssetKPIs(storeStartDate, storeEndDate);
     {% endif %}
     const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
         method: "GET",
@@ -495,6 +503,18 @@
         });
     }
 
+    function stepReplay() {
+        if (toggle.classList.contains('stopped')) {
+            startReplay();
+            pauseReplay();
+            stepTriggered = true;
+        } else if (toggle.classList.contains('paused')) {
+            stepTriggered = true;
+        } else if (toggle.classList.contains('playing')) {
+            pauseReplay();
+        }
+    }
+
     function toggleReplay() {
         if (toggle.classList.contains('stopped')) {
             startReplay();
@@ -536,6 +556,7 @@
     }
 
     function startReplay() {
+        stepTriggered = false;
         toggle.classList.remove('stopped');
         toggle.classList.add('playing');
         var beliefTime = new Date(storeStartDate);
@@ -583,7 +604,11 @@
             var replayedData = [];
             for (var beliefTime = new Date(storeStartDate); beliefTime <= storeEndDate; beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)) {
                 while (document.getElementById('replay').classList.contains('paused')) {
-                    await timer(1000);
+                    if (stepTriggered) {
+                        stepTriggered = false;
+                        break;
+                    }
+                    await timer(100);
                 }
                 if (document.getElementById('replay').classList.contains('stopped')) {
                     break;
@@ -600,7 +625,7 @@
                 // Update beliefs in the replayed data given the new data
                 replayedData = updateBeliefs(replayedData, newData);
 
-                /** When selecting a longer time periode (more than a week), the replay slows down a bit. This
+                /** When selecting a longer time period (more than a week), the replay slows down a bit. This
                  * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
                  * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
                  * graph. After trying different approaches, we fell back to the original approach of telling vega
@@ -630,7 +655,7 @@
             return Promise.resolve(previousResult.data);
         } else {
             {% if active_subpage == "asset_graph" and has_kpis %}
-            getAssetKPIs();
+            getAssetKPIs(startDate, endDate);
             {% endif %}
             return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
                 method: "GET",
@@ -643,14 +668,12 @@
     }
 
     {% if active_subpage == "asset_graph" and has_kpis %}
-    function getAssetKPIs() {
-        const pickerStartDate = picker.getStartDate().toJSDate();
-        const start = encodeURIComponent(toIsoStringWithOffset(pickerStartDate));
-        var endDate = picker.getEndDate();
-        endDate.setDate(endDate.getDate() + 1);
-        endDate = encodeURIComponent(toIsoStringWithOffset(endDate.toJSDate()));
+    function getAssetKPIs(startDate, endDate) {
+        const start = encodeURIComponent(toIsoStringWithOffset(startDate));
+        endDate.setDate(endDate.getDate() + 1);  // make the end date inclusive
+        const end = encodeURIComponent(toIsoStringWithOffset(endDate));
         const kpiCards = document.querySelector('#kpi-cards');
-        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + endDate, {
+        return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + end, {
             method: 'GET',
             headers: {
                 "Content-Type": "application/json",

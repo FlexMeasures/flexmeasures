@@ -11,7 +11,7 @@ from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.utils import get_power_values
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
     handle_scheduling_exception,
     get_data_source_for_job,
