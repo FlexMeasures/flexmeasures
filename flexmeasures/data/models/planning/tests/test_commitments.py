@@ -118,6 +118,7 @@ def test_multi_feed_device_scheduler_shared_buffer():
                 downwards_deviation_price=prices[device_commodity[d]],
                 device=pd.Series(d, index=index),
                 device_group=device_commodity,
+                commodity=device_commodity[d],
             )
         )
 
@@ -130,6 +131,7 @@ def test_multi_feed_device_scheduler_shared_buffer():
                 downwards_deviation_price=sloped_prices,
                 device=pd.Series(d, index=index),
                 device_group=device_commodity,
+                commodity=device_commodity[d],
             )
         )
 
