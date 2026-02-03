@@ -30,6 +30,7 @@ class ForecasterParametersSchema(Schema):
 
     sensor = SensorIdField(
         required=True,
+        data_key="sensor",
         metadata={
             "description": "ID of the sensor to forecast.",
             "example": 2092,
@@ -37,6 +38,7 @@ class ForecasterParametersSchema(Schema):
     )
     future_regressors = fields.List(
         SensorIdField(),
+        data_key="future_regressors",
         required=False,
         metadata={
             "description": "Sensor IDs to be treated only as future regressors.",
@@ -45,6 +47,7 @@ class ForecasterParametersSchema(Schema):
     )
     past_regressors = fields.List(
         SensorIdField(),
+        data_key="past-regressors",
         required=False,
         metadata={
             "description": "Sensor IDs to be treated only as past regressors.",
@@ -53,6 +56,7 @@ class ForecasterParametersSchema(Schema):
     )
     regressors = fields.List(
         SensorIdField(),
+        data_key="regressors",
         required=False,
         metadata={
             "description": "Sensor IDs used as both past and future regressors.",
@@ -60,6 +64,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     model_save_dir = fields.Str(
+        data_key="model-save-dir",
         required=False,
         allow_none=True,
         load_default="flexmeasures/data/models/forecasting/artifacts/models",
@@ -69,6 +74,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     output_path = fields.Str(
+        data_key="output-path",
         required=False,
         allow_none=True,
         metadata={
@@ -77,6 +83,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     start_date = AwareDateTimeOrDateField(
+        data_key="start-date",
         required=False,
         allow_none=True,
         metadata={
@@ -85,6 +92,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     end_date = AwareDateTimeOrDateField(
+        data_key="end-date",
         required=False,
         allow_none=True,
         inclusive=True,
@@ -94,6 +102,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     train_period = DurationField(
+        data_key="train-period",
         required=False,
         allow_none=True,
         metadata={
@@ -102,6 +111,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     start_predict_date = AwareDateTimeOrDateField(
+        data_key="start-predict-date",
         required=False,
         allow_none=True,
         metadata={
@@ -110,6 +120,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     retrain_frequency = DurationField(
+        data_key='retrain-frequency',
         required=False,
         allow_none=True,
         metadata={
@@ -118,6 +129,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     max_forecast_horizon = DurationField(
+        data_key="max-forecast-horizon",
         required=False,
         allow_none=True,
         load_default=timedelta(hours=48),
@@ -127,6 +139,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     forecast_frequency = DurationField(
+        data_key="forecast-frequency",
         required=False,
         allow_none=True,
         load_default=timedelta(hours=1),
@@ -136,6 +149,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     probabilistic = fields.Bool(
+        data_key="probabilistic",
         required=False,
         load_default=False,
         metadata={
@@ -144,6 +158,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     sensor_to_save = SensorIdField(
+        data_key="sensor-to-save",
         required=False,
         allow_none=True,
         metadata={
@@ -152,6 +167,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     ensure_positive = fields.Bool(
+        data_key="ensure-positive",
         required=False,
         allow_none=True,
         metadata={
@@ -160,6 +176,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     missing_threshold = fields.Float(
+        data_key="missing-threshold",
         required=False,
         load_default=1.0,
         metadata={
@@ -168,6 +185,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     as_job = fields.Bool(
+        data_key="as-job",
         load_default=False,
         metadata={
             "description": "If True, compute forecasts asynchronously using RQ jobs. Defaults to False.",
@@ -175,6 +193,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     max_training_period = DurationField(
+        data_key="max-training-period",
         required=False,
         allow_none=True,
         metadata={
