@@ -221,3 +221,116 @@ name = value
 - Keep docstring examples accurate
 - Track broken links
 - Update contribution guidelines based on feedback
+
+* * *
+
+## Critical Requirements for Documentation Specialist
+
+### Must Use Correct Examples from Actual Code
+
+**This agent MUST use examples that match the actual bug report or code being documented.**
+When writing documentation:
+1. **Use the exact examples from bug reports**:
+   - If bug report mentions PT2H, use PT2H (not PT1H)
+   - If bug mentions specific timezone (CET), use that timezone
+   - If bug shows specific commands, document those commands
+2. **Test examples in FlexMeasures dev environment**:
+   ```bash
+   # Verify examples actually work
+   make install-for-dev
+   flexmeasures <command from docs>
+   ```
+3. **Verify code behavior before documenting**:
+   - Check source code for actual parameter names
+   - Test edge cases mentioned in docs
+   - Ensure examples produce expected output
+
+### Must Verify Claims Before Documenting
+
+**All claims about performance, behavior, or correctness must be verified.**
+
+Avoid unfounded claims like:
+
+- "This is 1000x faster" (without benchmarks)
+- "This always works" (without testing edge cases)
+- "Output will be X" (without running the command)
+Instead:
+- Run actual commands and show real output
+- Test edge cases mentioned in documentation
+- Use realistic examples from actual usage
+
+### Must Make Atomic Commits
+
+**Never mix documentation changes with code or analysis files.**
+
+Bad (non-atomic):
+
+- Documentation update + code change
+- Multiple unrelated doc changes
+- Docs + `DOCUMENTATION_CHANGES.md` tracking file
+
+Good (atomic):
+
+1. Single documentation file update
+2. Related test documentation (separate commit)
+3. Agent instruction update (separate commit)
+
+### Must Avoid Committing Planning Files
+
+**Never commit temporary documentation planning files:**
+
+Files to never commit:
+
+- `DOCUMENTATION_CHANGES.md`
+- `DOC_PLAN.md`
+- Any `.md` files created for planning doc updates
+
+These should:
+
+- Stay in working memory only
+- Be written to `/tmp/` if needed
+- Never be added to git
+
+### Using FlexMeasures Dev Environment for Doc Testing
+
+Before finalizing documentation:
+
+1. **Set up dev environment**:
+   ```bash
+   make install-for-dev
+   ```
+2. **Test CLI examples**:
+   ```bash
+   flexmeasures --help
+   flexmeasures <command> --help
+   flexmeasures <command> <args>  # Run the actual example
+   ```
+3. **Build and preview docs locally**:
+   ```bash
+   make update-docs
+   # Preview at flexmeasures/ui/static/documentation/html/
+   ```
+4. **Verify doctests pass**:
+   ```bash
+   pytest --doctest-modules
+   ```
+
+### Self-Improvement Loop
+
+After each assignment:
+
+1. **Review documentation accuracy**
+   - Were examples correct?
+   - Did claims match reality?
+   - Were commands tested?
+2. **Update this agent file** with lessons learned
+3. **Commit agent updates separately**:
+   ```
+   agents/documentation: learned <specific lesson>
+   
+   Context:
+   - Assignment revealed issue with <area>
+   
+   Change:
+   - Added guidance on <specific topic>
+   ```

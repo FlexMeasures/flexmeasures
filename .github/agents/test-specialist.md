@@ -213,7 +213,9 @@ flexmeasures add duration --start "2024-01-01T00:00:00+01:00" --duration PT2H
 # Check database state if needed
 flask db current
 ```
+
 ### Common Pitfalls
+
 - **Don't just suggest tests** - Actually run them and show output
 - **Don't assume tests pass** - Verify with actual execution
 - **Don't skip the bug reproduction step** - Always test the exact scenario reported
@@ -233,6 +235,7 @@ flask db current
 When updating tests or this agent file:
 
 ### Small, Atomic Commits
+
 - **One test file per commit** when adding new tests
 - **Separate test changes from production code** - Never mix in the same commit
 - **Separate agent instruction updates** - Commit this file separately from test changes
@@ -248,7 +251,9 @@ Change:
 - What test was added
 - Why this test matters
 ```
+
 Example:
+
 ```
 tests/utils: add timezone handling test for duration parsing
 Context:
@@ -258,15 +263,18 @@ Change:
 - Added parametrized test covering CET, EST, and UTC timezones
 - Verifies duration parsing respects timezone during DST transitions
 ```
+
 ### Avoiding Temporary Files
 
 **Never commit temporary analysis files** such as:
+
 - `ARCHITECTURE_ANALYSIS.md`
 - `TASK_SUMMARY.md`
 - `TEST_PLAN.md`
 - Any `.md` files created for planning/analysis
 
 These should either:
+
 - Stay in working memory only
 - Be written to `/tmp/` if needed for reference
 - Be added to `.gitignore` if they're recurring
@@ -274,6 +282,7 @@ These should either:
 ### Self-Improvement Loop
 
 After each assignment:
+
 1. **Review what went wrong** - What tests were missed? What didn't work?
 2. **Update this agent file** - Add learned patterns to relevant sections
 3. **Commit the agent update separately** - Use commit format:

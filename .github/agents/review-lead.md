@@ -149,6 +149,7 @@ Depending on assignment, the Review Lead may:
 
 **The Review Lead MUST actually run tests, not just claim they passed.**
 When conducting a review:
+
 1. **Set up the test environment**:
    ```bash
    make install-for-test
@@ -177,6 +178,7 @@ When conducting a review:
 
 **If the original assignment mentions the coordinator, the Review Lead MUST run it.**
 When the user explicitly assigns the coordinator:
+
 1. **Don't skip it** - The coordinator task is not optional
 2. **Run it as a subagent** - Use the task tool with agent_type "coordinator"
 3. **Act on its findings** - The coordinator may identify needed agent updates
@@ -185,11 +187,15 @@ When the user explicitly assigns the coordinator:
 ### Must Make Atomic Commits
 
 **Never mix different types of changes in a single commit.**
+
 Bad (non-atomic):
+
 - Code change + documentation file + agent instructions
 - Multiple unrelated code changes
 - Production code + test code
+
 Good (atomic):
+
 - Single code change with focused purpose
 - Documentation update separate from code
 - Agent instructions updated separately
@@ -218,13 +224,17 @@ Change:
 ### Must Avoid Temporary Files
 
 **Never commit temporary analysis files.**
+
 Files to avoid:
+
 - `ARCHITECTURE_ANALYSIS.md`
 - `TASK_SUMMARY.md`  
 - `TEST_PLAN.md`
 - `DOCUMENTATION_CHANGES.md`
 - Any planning/analysis `.md` files
+
 These should either:
+
 - Stay in working memory only
 - Be written to `/tmp/` if needed
 - Be cleaned up before final commits
@@ -254,7 +264,9 @@ These should either:
 ### Must Update Own Instructions After Sessions
 
 **The Review Lead MUST update its own instructions based on what was learned.**
+
 After completing an assignment:
+
 1. **Reflect on what worked and what didn't**:
    - Were the right agents selected?
    - Was synthesis effective?
@@ -279,16 +291,19 @@ After completing an assignment:
 ### Learning from Failures
 
 Track and document when the Review Lead:
+
 - Skipped required steps (e.g., coordinator, tests)
 - Made non-atomic commits
 - Committed temporary files
 - Made unfounded claims (e.g., "tests pass" without running them)
 - Used wrong examples or data
+
 Update this file to prevent repeating the same mistakes.
 
 ### Continuous Improvement
 
 The Review Lead should:
+
 - Evolve its agent selection strategy
 - Refine its synthesis approach
 - Improve commit discipline
