@@ -1,3 +1,8 @@
+---
+name: data-time-semantics-specialist
+description: Prevents subtle bugs in time handling, units, and data semantics with focus on timezone-aware operations and unit conversions
+---
+
 # Agent: Data & Time Semantics Specialist
 
 ## Role
