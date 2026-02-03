@@ -97,12 +97,12 @@ class SensorsToShowSchema(fields.Field):
         """
 
         # Get the value, default to "No Title" if the key doesn't exist
-        title = item.get("title", "No Title")
+        title = item.get("title", None)
 
         if title is not None and not isinstance(title, str):
             raise ValidationError("'title' value must be a string.")
 
-        item["title"] = title
+        item["title"] = title or "No Title"
 
         if "sensor" in item:
             sensor = item["sensor"]
