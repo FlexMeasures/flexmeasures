@@ -135,6 +135,20 @@ def device_scheduler(  # noqa C901
             df["group"] = group
             commitments.append(df)
 
+    # commodity → set(device indices)
+    commodity_devices = {}
+
+    for df in commitments:
+        if "commodity" not in df.columns or "device" not in df.columns:
+            continue
+
+        for _, row in df[["commodity", "device"]].dropna().iterrows():
+            devices = row["device"]
+            if not isinstance(devices, (list, tuple, set)):
+                devices = [devices]
+
+            commodity_devices.setdefault(row["commodity"], set()).update(devices)
+
     # Check if commitments have the same time window and resolution as the constraints
     for commitment in commitments:
         start_c = commitment.index.to_pydatetime()[0]
@@ -579,45 +593,33 @@ def device_scheduler(  # noqa C901
         )
 
     def ems_flow_commitment_equalities(m, c, j):
-        """Couple EMS flows (sum over devices) to each commitment.
-
-        - Creates an inequality for one-sided commitments.
-        - Creates an equality for two-sided commitments and for groups of size 1.
         """
-        if (
-            "device" in commitments[c].columns
-            and not pd.isnull(commitments[c]["device"]).all()
-        ) or m.commitment_quantity[c, j] == -infinity:
-            # Commitment c does not concern EMS
+        Enforce an EMS-level flow commitment for a given commodity.
+
+        Couples the commitment baseline (plus deviation variables) to the sum of EMS
+        power over all devices belonging to the commitment’s commodity. Skips
+        non-flow commitments or commodities without associated devices.
+        """
+        if commitments[c]["class"].iloc[0] != FlowCommitment:
             return Constraint.Skip
-        if (
-            "class" in commitments[c].columns
-            and not (
-                commitments[c]["class"].apply(lambda cl: cl == FlowCommitment)
-            ).all()
-        ):
-            raise NotImplementedError(
-                "StockCommitment on an EMS level has not been implemented. Please file a GitHub ticket explaining your use case."
-            )
+
+        commodity = (
+            commitments[c]["commodity"].iloc[0]
+            if "commodity" in commitments[c].columns
+            else None
+        )
+        devices = commodity_devices.get(commodity, set())
+
+        if not devices:
+            return Constraint.Skip
+
         return (
-            (
-                0
-                if len(commitments[c]) == 1
-                or "upwards deviation price" in commitments[c].columns
-                else None
-            ),
-            # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            None,
             m.commitment_quantity[c, j]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
-            - sum(m.ems_power[:, j]),
-            (
-                0
-                if len(commitments[c]) == 1
-                or "downwards deviation price" in commitments[c].columns
-                else None
-            ),
-            # 0 if "downwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            - sum(m.ems_power[d, j] for d in devices),
+            None,
         )
 
     def device_derivative_equalities(m, d, j):
@@ -718,6 +720,22 @@ def device_scheduler(  # noqa C901
         )
 
     model.commitment_costs = commitment_costs
+    commodity_costs = {}
+    for c in model.c:
+        commodity = None
+        if "commodity" in commitments[c].columns:
+            commodity = commitments[c]["commodity"].iloc[0]
+        if commodity is None or (isinstance(commodity, float) and np.isnan(commodity)):
+            continue
+
+        cost = value(
+            model.commitment_downwards_deviation[c] * model.down_price[c]
+            + model.commitment_upwards_deviation[c] * model.up_price[c]
+        )
+        commodity_costs[commodity] = commodity_costs.get(commodity, 0) + cost
+
+    model.commodity_costs = commodity_costs
+
     # model.pprint()
     # model.display()
     # print(results.solver.termination_condition)
