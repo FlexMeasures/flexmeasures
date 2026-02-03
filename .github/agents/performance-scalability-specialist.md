@@ -1,3 +1,8 @@
+---
+name: performance-scalability-specialist
+description: Identifies performance bottlenecks, inefficient algorithms, and scalability issues to keep FlexMeasures fast under load
+---
+
 # Agent: Performance & Scalability Specialist
 
 ## Role
