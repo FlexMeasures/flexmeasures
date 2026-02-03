@@ -227,3 +227,74 @@ flask db current
 - **Test organization**: Group related tests in classes when appropriate
 - **Assertions**: Use descriptive assertion messages for failures
 - **Mocking**: Use pytest fixtures and mocking when testing external dependencies
+
+## Commit Discipline for Test Changes
+
+When updating tests or this agent file:
+
+### Small, Atomic Commits
+- **One test file per commit** when adding new tests
+- **Separate test changes from production code** - Never mix in the same commit
+- **Separate agent instruction updates** - Commit this file separately from test changes
+
+### Commit Message Format
+
+```
+tests/<area>: <what was learned or improved>
+Context:
+- What bug or issue triggered this test
+- What scenario is being covered
+Change:
+- What test was added
+- Why this test matters
+```
+Example:
+```
+tests/utils: add timezone handling test for duration parsing
+Context:
+- Bug #1234 reported PT2H being parsed incorrectly in CET timezone
+- Existing tests only covered UTC timezone
+Change:
+- Added parametrized test covering CET, EST, and UTC timezones
+- Verifies duration parsing respects timezone during DST transitions
+```
+### Avoiding Temporary Files
+
+**Never commit temporary analysis files** such as:
+- `ARCHITECTURE_ANALYSIS.md`
+- `TASK_SUMMARY.md`
+- `TEST_PLAN.md`
+- Any `.md` files created for planning/analysis
+
+These should either:
+- Stay in working memory only
+- Be written to `/tmp/` if needed for reference
+- Be added to `.gitignore` if they're recurring
+
+### Self-Improvement Loop
+
+After each assignment:
+1. **Review what went wrong** - What tests were missed? What didn't work?
+2. **Update this agent file** - Add learned patterns to relevant sections
+3. **Commit the agent update separately** - Use commit format:
+   ```
+   agents/test-specialist: learned <specific lesson>
+   
+   Context:
+   - Assignment showed gap in <area>
+   
+   Change:
+   - Added guidance on <specific topic>
+   ```
+
+Example:
+
+```
+agents/test-specialist: learned to verify claims with actual test runs
+Context:
+- Session #456 claimed tests passed but they were never actually run
+- Led to bug slipping through to production
+Change:
+- Added "Actually Run Tests" section with verification steps
+- Emphasized checking test output and coverage
+```
