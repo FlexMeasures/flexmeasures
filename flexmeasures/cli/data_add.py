@@ -1923,19 +1923,23 @@ def add_toy_account(kind: str, name: str):
         db.session.flush()
         battery = discharging_sensor.generic_asset
         battery.sensors_to_show = [
-            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
             {
                 "title": "Power flows",
-                "sensors": [production_sensor.id, discharging_sensor.id],
+                "plots": [
+                    {"sensors": [production_sensor.id, discharging_sensor.id]},
+                ],
             },
         ]
 
         # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
         building_asset.sensors_to_show = [
-            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
             {
                 "title": "Power flows",
-                "sensors": [production_sensor.id, discharging_sensor.id],
+                "plots": [
+                    {"sensors": [production_sensor.id, discharging_sensor.id]},
+                ],
             },
         ]
 
@@ -1975,10 +1979,10 @@ def add_toy_account(kind: str, name: str):
 
         process = shiftable_power.generic_asset
         process.sensors_to_show = [
-            {"title": "Prices", "sensor": day_ahead_sensor.id},
-            {"title": "Inflexible", "sensor": inflexible_power.id},
-            {"title": "Breakable", "sensor": breakable_power.id},
-            {"title": "Shiftable", "sensor": shiftable_power.id},
+            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
+            {"title": "Inflexible", "plots": [{"sensor": inflexible_power.id}]},
+            {"title": "Breakable", "plots": [{"sensor": breakable_power.id}]},
+            {"title": "Shiftable", "plots": [{"sensor": shiftable_power.id}]},
         ]
 
         db.session.commit()
