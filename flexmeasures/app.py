@@ -20,6 +20,7 @@ from redis import Redis
 from rq import Queue
 
 from flexmeasures.data.services.job_cache import JobCache
+from flexmeasures.ws import sock
 
 
 def create(  # noqa C901
@@ -56,6 +57,7 @@ def create(  # noqa C901
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
     # Create app
     app = Flask("flexmeasures")
+    sock.init_app(app)
 
     if env is not None:  # overwrite
         app.config["FLEXMEASURES_ENV"] = env
