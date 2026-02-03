@@ -63,7 +63,7 @@ The CI pipeline (`.github/workflows/lint-and-test.yml`) runs tests on:
 
 The workflow includes:
 1. Pre-commit checks (code quality)
-2. Test execution with coverage reporting
+2. Test execution with coverage reporting (incl. doctests)
 3. Coveralls integration for coverage tracking
 
 ### Code Style
