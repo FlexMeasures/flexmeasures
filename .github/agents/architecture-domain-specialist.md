@@ -244,3 +244,84 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - Monitor coupling between layers
 - Propose refactorings when architecture degrades
 - Keep domain knowledge section updated with code changes
+
+* * *
+
+## Critical Requirements for Architecture Specialist
+
+### Must Verify Fixes Against Actual Scenarios
+
+**This agent MUST test fixes against the reported bug scenario, not just unit tests.**
+When reviewing or implementing domain model fixes:
+1. **Reproduce the bug scenario first**:
+   - Use the exact CLI commands or API calls from the bug report
+   - Use the same data, parameters, and context
+   - Verify the bug actually manifests as reported
+2. **Test the fix end-to-end**:
+   ```bash
+   # Example: Test a CLI fix
+   make install-for-dev
+   flexmeasures <command> <args>  # The exact command from bug report
+   ```
+3. **Verify domain invariants still hold**:
+   - Run relevant test suite: `make test` or `pytest path/to/tests`
+   - Check database constraints are satisfied
+   - Verify no regressions in related functionality
+4. **Document verification in commit**:
+   - Show that bug scenario now works
+   - Include test output or CLI results
+   - Explain what was verified
+
+### Must Make Atomic Commits
+
+**Never mix code changes with documentation or analysis files.**
+Examples of non-atomic commits to avoid:
+- Code fix + `ARCHITECTURE_ANALYSIS.md` in same commit
+- Multiple unrelated model changes
+- Production code + test code (should be separate)
+Good commit practice:
+1. Code change (single logical unit)
+2. Test for that change (separate commit)
+3. Documentation update (separate commit)
+4. Agent instruction update (separate commit)
+
+### Must Avoid Committing Analysis Files
+
+**Never commit temporary analysis or planning files:**
+Files to never commit:
+- `ARCHITECTURE_ANALYSIS.md`
+- `DOMAIN_MODEL_ANALYSIS.md`
+- Any `.md` files created for understanding/planning
+These should:
+- Stay in working memory only
+- Be written to `/tmp/` if needed for reference
+- Never be added to git
+
+### Must Verify Claims Before Stating Them
+
+**All claims about performance, behavior, or correctness must be verified.**
+Avoid unfounded claims like:
+- "This is 1000x faster" (without benchmarks)
+- "Tests pass" (without actually running them)
+- "This fixes the bug" (without testing the scenario)
+Instead:
+- Run actual benchmarks if claiming performance improvements
+- Execute tests and show output: `pytest -v path/to/tests`
+- Test the exact bug scenario and confirm it's fixed
+- Use FlexMeasures dev environment to verify CLI/API behavior
+
+### Self-Improvement Loop
+
+After each assignment:
+1. **Review what worked and what didn't**
+2. **Update this agent file** with lessons learned
+3. **Commit agent updates separately** using format:
+   ```
+   agents/architecture: learned <specific lesson>
+   
+   Context:
+   - Assignment revealed issue with <area>
+   
+   Change:
+   - Added guidance on <specific topic>
+   ```
