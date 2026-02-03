@@ -1327,11 +1327,13 @@ class StorageScheduler(MetaStorageScheduler):
             raise InfeasibleProblemException(tc)
 
         # Obtain the storage schedule from all device schedules within the EMS
-        storage_schedule = {
-            sensor: ems_schedule[d]
-            for d, sensor in enumerate(sensors)
-            if sensor is not None
-        }
+        storage_schedule = dict()
+        # Accumulate schedules when multiple devices share the same sensor.
+        for d, sensor in enumerate(sensors):
+            if sensor is not None and sensor not in storage_schedule:
+                storage_schedule[sensor] = ems_schedule[d]
+            elif sensor is not None and sensor in storage_schedule:
+                storage_schedule[sensor] += ems_schedule[d]
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
