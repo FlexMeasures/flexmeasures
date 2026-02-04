@@ -187,7 +187,7 @@ def test_train_predict_pipeline(  # noqa: C901
 
         forecasts = sensor.search_beliefs(source_types=["forecaster"])
         dg_params = pipeline._parameters  # parameters stored in the data generator
-        n_cycles = (dg_params["end_date"] - dg_params["predict_start"]) / (    #get cycles from here
+        n_cycles = (dg_params["end_date"] - dg_params["predict_start"]) / (
             dg_params["forecast_frequency"]
         )
         # 1 hour of forecasts is saved over 4 15-minute resolution events
