@@ -5076,7 +5076,7 @@
               "type": "integer"
             }
           },
-          "past_regressors": {
+          "past-regressors": {
             "type": "array",
             "description": "Sensor IDs to be treated only as past regressors.",
             "example": [
@@ -5098,7 +5098,7 @@
               "type": "integer"
             }
           },
-          "model_save_dir": {
+          "model-save-dir": {
             "type": [
               "string",
               "null"
@@ -5107,7 +5107,7 @@
             "description": "Directory to save the trained model.",
             "example": "flexmeasures/data/models/forecasting/artifacts/models"
           },
-          "output_path": {
+          "output-path": {
             "type": [
               "string",
               "null"
@@ -5115,7 +5115,7 @@
             "description": "Directory to save prediction outputs. Defaults to None (no outputs saved).",
             "example": "flexmeasures/data/models/forecasting/artifacts/forecasts"
           },
-          "start_date": {
+          "start-date": {
             "type": [
               "string",
               "null"
@@ -5124,7 +5124,7 @@
             "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
             "example": "2025-01-01T00:00:00+01:00"
           },
-          "end_date": {
+          "end-date": {
             "type": [
               "string",
               "null"
@@ -5133,7 +5133,7 @@
             "description": "End date for running the pipeline.",
             "example": "2025-10-15T00:00:00+01:00"
           },
-          "train_period": {
+          "train-period": {
             "type": [
               "string",
               "null"
@@ -5141,7 +5141,7 @@
             "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
             "example": "P7D"
           },
-          "start_predict_date": {
+          "start-predict-date": {
             "type": [
               "string",
               "null"
@@ -5150,7 +5150,7 @@
             "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
             "example": "2025-01-08T00:00:00+01:00"
           },
-          "retrain_frequency": {
+          "retrain-frequency": {
             "type": [
               "string",
               "null"
@@ -5158,7 +5158,7 @@
             "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
             "example": "PT24H"
           },
-          "max_forecast_horizon": {
+          "max-forecast-horizon": {
             "type": [
               "string",
               "null"
@@ -5167,7 +5167,7 @@
             "description": "Maximum forecast horizon. Defaults to 48 hours if not set.",
             "example": "PT48H"
           },
-          "forecast_frequency": {
+          "forecast-frequency": {
             "type": [
               "string",
               "null"
@@ -5182,7 +5182,7 @@
             "description": "Enable probabilistic predictions if True. Defaults to false.",
             "example": false
           },
-          "sensor_to_save": {
+          "sensor-to-save": {
             "type": [
               "integer",
               "null"
@@ -5190,7 +5190,7 @@
             "description": "Sensor ID where forecasts will be saved; defaults to target sensor.",
             "example": 2092
           },
-          "ensure_positive": {
+          "ensure-positive": {
             "type": [
               "boolean",
               "null"
@@ -5198,19 +5198,19 @@
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": true
           },
-          "missing_threshold": {
+          "missing-threshold": {
             "type": "number",
             "default": 1.0,
             "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
             "example": 0.1
           },
-          "as_job": {
+          "as-job": {
             "type": "boolean",
             "default": false,
             "description": "If True, compute forecasts asynchronously using RQ jobs. Defaults to False.",
             "example": true
           },
-          "max_training_period": {
+          "max-training-period": {
             "type": [
               "string",
               "null"
