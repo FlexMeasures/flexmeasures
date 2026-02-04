@@ -19,7 +19,10 @@
 
 <script>
     function AuditLog(event_datetime, event, acting_user_name) {
-        this.event_datetime = event_datetime;
+        const naturalDateTime = new Date(event_datetime);
+        const naturalDate = naturalDateTime.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+
+        this.event_datetime = `<span title="${naturalDateTime}">${naturalDate}</span>`;
         this.event = event;
         this.acting_user_name = acting_user_name;
     }
