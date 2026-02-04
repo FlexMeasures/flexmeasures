@@ -238,5 +238,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
     )
 
     for k, v in expected_timing_output.items():
+        # Convert kebab-case key to snake_case to match data dictionary keys returned by schema
         kebab_key = kebab_to_snake(k)
         assert data[kebab_key] == v
