@@ -4105,7 +4105,7 @@
             }
           },
           "aggregate-power": {
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+            "$ref": "#/components/schemas/SensorReference"
           }
         },
         "additionalProperties": false
@@ -5349,7 +5349,7 @@
             "example": {
               "sensor": 12
             },
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+            "$ref": "#/components/schemas/SensorReference"
           },
           "charging-efficiency": {
             "description": "One-way conversion efficiency from electricity to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",

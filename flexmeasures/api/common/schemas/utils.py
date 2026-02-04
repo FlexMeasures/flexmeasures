@@ -5,6 +5,7 @@ from marshmallow import Schema, fields
 
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.sensors import (
+    SensorReferenceSchema,
     VariableQuantityField,
     VariableQuantityOpenAPISchema,
 )
@@ -34,11 +35,22 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
             if "description" in metadata:
                 metadata["description"] = rst_to_openapi(metadata["description"])
 
-            field_copy = fields.Nested(
-                VariableQuantityOpenAPISchema,
-                metadata=metadata,
-                data_key=field.data_key,
-            )
+            sensor_only = False
+            for validator in schema_cls._hooks["validates"]:
+                if validator[-1]["field_name"] == name and "is_sensor" in validator[0]:
+                    sensor_only = True
+            if sensor_only:
+                field_copy = fields.Nested(
+                    SensorReferenceSchema,
+                    metadata=metadata,
+                    data_key=field.data_key,
+                )
+            else:
+                field_copy = fields.Nested(
+                    VariableQuantityOpenAPISchema,
+                    metadata=metadata,
+                    data_key=field.data_key,
+                )
         else:
             # For other fields, just copy with sanitized metadata
             field_copy = copy(field)
