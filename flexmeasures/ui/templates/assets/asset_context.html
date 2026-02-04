@@ -382,7 +382,7 @@
 
         setTimeout(() => {
             const card = document.getElementById(`${fieldName}-control`);
-            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price" || fieldName === "aggregate-power");
             card.classList.add('border-on-click'); // Add border to the clicked card
             flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isOnlySensorField));
             handleFlexSelectChange(fieldName);
@@ -599,7 +599,7 @@
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
             card.classList.add("border-on-click"); // Add border to the clicked card
             handleFlexSelectChange(fieldName);
-            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price" || fieldName === "aggregate-power");
             flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isOnlySensorField)));
             setActiveCard(card);
             // Store active card in local storage
@@ -711,7 +711,7 @@
         if (storedActiveCard && activeCard()) {
             const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
             if (assetFlexContext[storedActiveCard]) {
-                const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price");
+                const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price" || flexId === "aggregate-power");
                 setTimeout(() => {
                     flexOptionsContainer.innerHTML = "";
                     flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isOnlySensorField));

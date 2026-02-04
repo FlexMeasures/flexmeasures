@@ -70,7 +70,6 @@ from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
@@ -212,12 +211,12 @@ class AssetAPI(FlaskView):
     @as_json
     def index(
         self,
-        account: Account | None,
-        root_asset: GenericAsset | None,
-        max_depth: int | None,
         fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
+        account: Account | None = None,
+        root_asset: GenericAsset | None = None,
+        max_depth: int | None = None,
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
@@ -1004,7 +1003,7 @@ class AssetAPI(FlaskView):
         audit_logs_response: list = [
             {
                 "event": audit_log.event,
-                "event_datetime": naturalized_datetime_str(audit_log.event_datetime),
+                "event_datetime": audit_log.event_datetime.isoformat(),
                 "active_user_name": audit_log.active_user_name,
                 "active_user_id": audit_log.active_user_id,
             }
@@ -1236,6 +1235,7 @@ class AssetAPI(FlaskView):
         asset: GenericAsset,
         start_of_schedule: datetime,
         duration: timedelta,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
@@ -1272,6 +1272,9 @@ class AssetAPI(FlaskView):
             If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
             Finally, the schedule length is limited by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
             Targets that exceed the max planning horizon are not accepted.
+
+            The 'resolution' field governs how often setpoints are allowed to change.
+            Note that the resulting schedule is still saved in the resolution of each individual sensor.
 
             The appropriate algorithm is chosen by FlexMeasures (based on asset type).
             It's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).
@@ -1402,6 +1405,7 @@ class AssetAPI(FlaskView):
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,  # server time if no prior time was sent
+            resolution=resolution,
             flex_model=flex_model,
             flex_context=flex_context,
         )

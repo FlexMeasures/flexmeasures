@@ -1,12 +1,11 @@
+from typing import Any
+
 from flask.cli import with_appcontext
 from flexmeasures.data import ma
 from marshmallow import fields, validates
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import (
-    Account as AccountModel,
-    AccountRole as AccountRoleModel,
-)
+from flexmeasures.data.models.user import Account, AccountRole
 from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 
@@ -15,7 +14,7 @@ class AccountRoleSchema(ma.SQLAlchemySchema):
     """AccountRole schema, with validations."""
 
     class Meta:
-        model = AccountRoleModel
+        model = AccountRole
 
     id = ma.auto_field(dump_only=True)
     name = ma.auto_field()
@@ -26,7 +25,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     """Account schema, with validations."""
 
     class Meta:
-        model = AccountModel
+        model = Account
 
     id = ma.auto_field(dump_only=True)
     name = ma.auto_field(required=True)
@@ -62,15 +61,16 @@ class AccountIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to an Account and serializes back to an integer."""
 
     @with_appcontext
-    def _deserialize(self, value, attr, obj, **kwargs) -> AccountModel:
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> Account:
         """Turn an account id into an Account."""
-        account = db.session.get(AccountModel, value)
+        account_id: int = super()._deserialize(value, attr, data, **kwargs)
+        account = db.session.get(Account, account_id)
         if account is None:
-            raise FMValidationError(f"No account found with id {value}.")
+            raise FMValidationError(f"No account found with id {account_id}.")
         # lazy loading now (account somehow is not in the session after this)
         account.account_roles
         return account
 
-    def _serialize(self, account, attr, data, **kwargs):
+    def _serialize(self, value: Account, attr, obj, **kwargs):
         """Turn an Account into a source id."""
-        return account.id
+        return value.id

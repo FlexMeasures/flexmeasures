@@ -8,6 +8,7 @@ import os
 import random
 import string
 import sys
+from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Type
 
@@ -17,6 +18,7 @@ from flask.cli import with_appcontext
 from rq import Queue, Worker, SimpleWorker
 from rq.job import Job
 from rq.registry import (
+    BaseRegistry,
     CanceledJobRegistry,
     DeferredJobRegistry,
     FailedJobRegistry,
@@ -31,8 +33,10 @@ import pandas as pd
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.utils.time_utils import server_now
 
 
 REGISTRY_MAP = dict(
@@ -48,6 +52,217 @@ REGISTRY_MAP = dict(
 @click.group("jobs")
 def fm_jobs():
     """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("stats")
+@with_appcontext
+@click.option(
+    "--window",
+    default=60,
+    show_default=True,
+    help="Look-back window (minutes) to estimate per-queue arrival rates.",
+)
+def stats(window: int):
+    """
+    Show estimated live statistics of the queueing system.
+
+    Jobs are treated as customers in a multi-server queueing system.
+    This is a snapshot-based, Little’s-law estimate that ignores variability.
+    Future improvements may incorporate distributions and variability corrections for arrival and service rates.
+    For example:
+    - using Krämer/Langenbach-Belz to better estimate waiting times.
+    - using Erlang-C to give a risk-averse overestimate of waiting times.
+
+    \b
+    Stats overall:
+    -   ρ = average capacity requirement (consider scaling up the number of workers when close to or higher than 100%)
+    -   L = average number of jobs in the system (being serviced or in queue); i.e. workers required for zero waiting
+    -   m = total number of available workers (capacity to do work)
+
+    \b
+    Stats per queue:
+    -   W = average time until job is finished
+    -   Ws = average time spent being serviced
+    -   Wq = average time spent waiting in queue
+    -   Ls = average number of jobs being worked on at any given time
+    -   Lq = current queue length
+    -   λ = arrival rate (estimated from enqueue timestamps over the most recent window)
+
+    Uses Little's-law to compute the average waiting times for each queue:
+
+        W = L / λ
+
+    """
+    click.echo(
+        f"Estimating arrival rates using a {window}-minute historical window from the recent jobs on all queues & registries...  Use --help to read more."
+    )
+
+    now = server_now()
+    cutoff = now - timedelta(minutes=window)
+
+    # FlexMeasures makes all queues available under app.queues
+    L_i = []
+    rows = []
+    for queue_name, rq_queue in app.queues.items():
+
+        # Lq = current queue length
+        Lq = rq_queue.count
+
+        # λ = jobs per second
+        lambda_rate = _estimate_arrival_rate_all_registries(rq_queue, cutoff, window)
+
+        if lambda_rate <= 0:
+            click.echo(f"{queue_name}: no recent arrivals → cannot estimate timings.")
+            rows.append([queue_name, "—", "—", "—", "—", "—", "—"])
+            continue
+
+        # Waiting time in queue
+        Wq = Lq / lambda_rate
+        # Time spent being serviced
+        Ws = _estimate_service_time(rq_queue, cutoff)
+        # Total time spent in system (waiting and being serviced)
+        W = Wq + Ws if Ws > 0 else Wq
+
+        # Ls = average jobs being worked on at any given time
+        Ls = lambda_rate * Ws
+        L_i.append(Lq + Ls)
+
+        rows.append(
+            [
+                queue_name,
+                f"{lambda_rate:.4f}",
+                Lq,
+                f"{Ls:.2f}",
+                f"{Wq:.2f}",
+                f"{Ws:.2f}",
+                f"{W:.2f}",
+            ]
+        )
+
+    # Overall metrics (not per queue)
+    # Total number of workers
+    m_total = len(Worker.all(connection=app.redis_connection))
+    # Required workers
+    L_total = sum(L_i)
+    # Capacity requirements
+    rho_system = L_total / m_total if m_total > 0 else float("inf")
+
+    headers = [
+        "Queue",
+        "λ (/s)\narrivals",
+        "Lq\nqueue",
+        "Ls\nservice",
+        "Wq (s)\nwaiting",
+        "Ws (s)\nservicing",
+        "W (s)\ntotal",
+    ]
+
+    click.secho(
+        f"\nOverall: m={m_total}, L={L_total:.2f}, ρ={rho_system:.0%}\n",
+        **(
+            MsgStyle.SUCCESS
+            if rho_system < 0.68
+            else MsgStyle.WARN if rho_system < 0.95 else MsgStyle.ERROR
+        ),
+    )
+    click.echo(tabulate(rows, headers=headers, tablefmt="simple"))
+    click.echo("\n")
+
+
+def _estimate_arrival_rate_all_registries(
+    queue: Queue, cutoff: datetime, window: int
+) -> float:
+    """
+    Estimate arrival rate λ (jobs/sec) by counting all jobs belonging to the queue
+    across all registries (waiting/deferred/scheduled/started/finished/failed/canceled).
+
+    Only jobs with enqueued_at >= cutoff count toward recent arrivals.
+    """
+    registries = get_all_registries(queue)
+
+    conn = queue.connection
+    recent = 0
+
+    for reg in registries:
+        try:
+            job_ids = reg.get_job_ids()
+        except Exception:
+            # some registries (rarely) may not implement get_job_ids cleanly
+            continue
+
+        # Scan newest → oldest
+        for job_id in reversed(job_ids):
+            raw = conn.hgetall(f"rq:job:{job_id}")
+            if not raw:
+                continue
+
+            enq = raw.get(b"enqueued_at")
+            if not enq:
+                continue
+
+            try:
+                ts = datetime.fromisoformat(enq.decode("utf-8"))
+            except Exception:
+                continue
+
+            if ts >= cutoff:
+                recent += 1
+            else:
+                # Jobs only get older; stop early for this registry
+                break
+
+    return recent / float(window * 60)
+
+
+def _estimate_service_time(
+    queue: Queue, cutoff: datetime, max_jobs: int = 200
+) -> float:
+    """
+    Estimate average service time (seconds) using recently finished jobs.
+
+    Uses finished_job_registry and processes newest → oldest.
+    """
+    reg = queue.finished_job_registry
+    conn = queue.connection
+
+    durations = []
+
+    try:
+        job_ids = reg.get_job_ids()
+    except Exception:
+        return 0.0
+
+    for job_id in reversed(job_ids):
+        raw = conn.hgetall(f"rq:job:{job_id}")
+        if not raw:
+            continue
+
+        started = raw.get(b"started_at")
+        ended = raw.get(b"ended_at")
+
+        if not started or not ended:
+            continue
+
+        try:
+            started_ts = datetime.fromisoformat(started.decode("utf-8"))
+            ended_ts = datetime.fromisoformat(ended.decode("utf-8"))
+        except Exception:
+            continue
+
+        if ended_ts < cutoff:
+            break
+
+        duration = (ended_ts - started_ts).total_seconds()
+        if duration >= 0:
+            durations.append(duration)
+
+        if len(durations) >= max_jobs:
+            break
+
+    if not durations:
+        return 0.0
+
+    return sum(durations) / len(durations)
 
 
 @fm_jobs.command("run-job")
@@ -66,7 +281,8 @@ def run_job(job_id: str):
     """
     connection = app.queues["scheduling"].connection
     job = Job.fetch(job_id, connection=connection)
-    result = job.func(**job.kwargs)
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_worker_exception, job=job)
+    result = job.perform()
     click.echo(f"Job {job_id} finished with: {result}")
 
 
@@ -457,6 +673,19 @@ def parse_queue_list(queue_names_str: str) -> list[Queue]:
         else:
             raise ValueError(f"Unknown queue '{q_name}'.")
     return q_list
+
+
+def get_all_registries(queue: Queue) -> list[BaseRegistry]:
+    registries = [
+        queue,
+        queue.deferred_job_registry,
+        queue.scheduled_job_registry,
+        queue.started_job_registry,
+        queue.finished_job_registry,
+        queue.failed_job_registry,
+        queue.canceled_job_registry,
+    ]
+    return registries
 
 
 app.cli.add_command(fm_jobs)

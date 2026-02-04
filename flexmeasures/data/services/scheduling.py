@@ -44,7 +44,7 @@ from flexmeasures.data.services.utils import (
 )
 
 
-def load_custom_scheduler(scheduler_specs: dict) -> type:
+def load_custom_scheduler(scheduler_specs: dict | str) -> type:
     """
     Read in custom scheduling spec.
     Attempt to load the Scheduler class to use.
@@ -59,12 +59,28 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
         "class": "NameOfSchedulerClass",
     }
 
+    or if the scheduler is already subclassing flexmeasures.Scheduler, simply:
+
+    "NameOfSchedulerClass"
+
     """
-    assert isinstance(
-        scheduler_specs, dict
-    ), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
-    assert "module" in scheduler_specs, "scheduler specs have no 'module'."
-    assert "class" in scheduler_specs, "scheduler specs have no 'class'"
+    if isinstance(scheduler_specs, dict):
+        assert "module" in scheduler_specs, "scheduler specs have no 'module'."
+        assert "class" in scheduler_specs, "scheduler specs have no 'class'"
+    elif isinstance(scheduler_specs, str):
+        scheduler_class = current_app.data_generators["scheduler"].get(scheduler_specs)
+        if scheduler_class is None:
+            raise ValueError(
+                f"Scheduler {scheduler_specs} does not seem to be registered."
+            )
+        scheduler_specs = {
+            "class": scheduler_class.__name__,
+            "module": scheduler_class.__module__,
+        }
+    else:
+        raise TypeError(
+            f"Scheduler specs is {type(scheduler_specs)}, should be a dict or str"
+        )
 
     scheduler_name = scheduler_specs["class"]
 
@@ -374,7 +390,8 @@ def create_sequential_scheduling_job(
         current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"].extend(
             previous_sensors
         )
-        current_scheduler_kwargs["resolution"] = sensor.event_resolution
+        if "resolution" not in current_scheduler_kwargs:
+            current_scheduler_kwargs["resolution"] = sensor.event_resolution
         current_scheduler_kwargs["asset_or_sensor"] = sensor
 
         job = create_scheduling_job(
@@ -636,6 +653,15 @@ def make_schedule(  # noqa: C901
             for dt, value in result["data"].items()
         ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
         bdf = tb.BeliefsDataFrame(ts_value_schedule)
+
+        # Set the correct event resolution
+        if resolution is not None and bdf.event_resolution != timedelta(0):
+            bdf.event_resolution = resolution
+
+            # Resample from the scheduling resolution to the sensor resolution
+            # todo: move this into save_to_db
+            bdf = bdf.resample_events(bdf.sensor.event_resolution)
+
         if not dry_run:
             save_to_db(bdf)
         else:
