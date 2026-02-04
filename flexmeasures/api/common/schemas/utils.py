@@ -40,17 +40,14 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
                 if validator[-1]["field_name"] == name and "is_sensor" in validator[0]:
                     sensor_only = True
             if sensor_only:
-                field_copy = fields.Nested(
-                    SensorReferenceSchema,
-                    metadata=metadata,
-                    data_key=field.data_key,
-                )
+                oapi_schema = SensorReferenceSchema
             else:
-                field_copy = fields.Nested(
-                    VariableQuantityOpenAPISchema,
-                    metadata=metadata,
-                    data_key=field.data_key,
-                )
+                oapi_schema = VariableQuantityOpenAPISchema
+            field_copy = fields.Nested(
+                oapi_schema,
+                metadata=metadata,
+                data_key=field.data_key,
+            )
         else:
             # For other fields, just copy with sanitized metadata
             field_copy = copy(field)
