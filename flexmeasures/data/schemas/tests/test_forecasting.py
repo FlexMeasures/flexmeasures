@@ -3,7 +3,7 @@ import pytest
 import pandas as pd
 
 from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema
-
+from flexmeasures.data.schemas.utils import kebab_to_snake
 
 @pytest.mark.parametrize(
     ["timing_input", "expected_timing_output"],
@@ -238,4 +238,5 @@ def test_timing_parameters_of_forecaster_parameters_schema(
     )
 
     for k, v in expected_timing_output.items():
-        assert data[k] == v
+        kebab_key = kebab_to_snake(k)
+        assert data[kebab_key] == v
