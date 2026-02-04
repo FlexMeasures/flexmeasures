@@ -1572,7 +1572,7 @@ class SensorAPI(FlaskView):
         parameters["sensor"] = params["sensor_to_save"].id
 
         # Ensure the forecast is run as a job on a forecasting queue
-        parameters["as_job"] = True
+        parameters["as-job"] = True
 
         # Set forecaster model
         model = parameters.pop("model", "TrainPredictPipeline")
