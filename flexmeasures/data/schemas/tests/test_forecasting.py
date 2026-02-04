@@ -5,6 +5,7 @@ import pandas as pd
 from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
+
 @pytest.mark.parametrize(
     ["timing_input", "expected_timing_output"],
     [
