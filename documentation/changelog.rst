@@ -39,6 +39,7 @@ Infrastructure / Support
 * Support setting a ``custom-scheduler`` by name [see `PR #1924 <https://www.github.com/FlexMeasures/flexmeasures/pull/1924>`_]
 * Allow plugin schedulers to skip saving any sensor data, while still making their results retrievable [see `PR #1933 <https://www.github.com/FlexMeasures/flexmeasures/pull/1933>`_]
 * Migrated JSON fields to JSONB, so they can be used to look up sensors, attributes, sources [see `PR #1867 <https://www.github.com/FlexMeasures/flexmeasures/pull/1867>`_]
+* Use ``flexmeasures jobs stats`` to show statistics of the job queueing system [see `PR #1838 <https://www.github.com/FlexMeasures/flexmeasures/pull/1838>`_]
 * Less verbose error logs given common HTTP requests such as those leading to 404 (Not Found) responses [see `PR #1883 <https://www.github.com/FlexMeasures/flexmeasures/pull/1883>`_]
 * Refactor base.html template from 1500 to ~300 lines [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
 * 2FA UX: Hide rescue form by default & improve main message [see `PR #1875 <https://www.github.com/FlexMeasures/flexmeasures/pull/1875>`_]
