@@ -435,3 +435,28 @@ def split_commas(ctx, param, value):
     for v in value:
         result.extend(v.split(","))
     return list(set([x.strip() for x in result if x.strip()]))
+
+
+def add_cli_options_from_schema(schema):
+    """ Decorator to add CLI options based on a Marshmallow schema's fields."""
+    def decorator(command):
+        for field_name, field in reversed(schema.fields.items()):
+            cli = field.metadata.get("cli")
+            if not cli:
+                continue
+
+            option = cli["option"]
+            kwargs = {
+                "help": field.metadata.get("description"),
+                "required": field.required,
+                "default": field.load_default,
+            }
+
+            if cli.get("is_flag"):
+                kwargs["is_flag"] = True
+
+            command = click.option(option, **kwargs)(command)
+
+        return command
+
+    return decorator
