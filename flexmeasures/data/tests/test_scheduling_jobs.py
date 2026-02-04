@@ -14,7 +14,8 @@ from flexmeasures.data.models.planning.exceptions import InfeasibleProblemExcept
 from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
+from flexmeasures.data.tests.utils import exception_reporter
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     load_custom_scheduler,

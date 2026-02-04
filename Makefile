@@ -18,7 +18,7 @@ test:
 
 gen_code_docs := False # by default code documentation is not generated
 
-# Note: this makes docs for the FkexMeasures project, free from custom settings and plugins
+# Note: this makes docs for the FlexMeasures project, free from custom settings and plugins
 update-docs:
 	@echo "Creating docs environment ..."
 	make install-docs-dependencies

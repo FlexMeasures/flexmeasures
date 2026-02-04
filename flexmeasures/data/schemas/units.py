@@ -58,7 +58,7 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
         self,
         value,
         attr,
-        obj,
+        data,
         return_magnitude: bool | None = None,
         **kwargs,
     ) -> ur.Quantity:
@@ -71,18 +71,18 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
             q = self._deserialize(
                 f"{value} {self.default_src_unit}",
                 attr,
-                obj,
+                data,
                 **kwargs,
                 return_magnitude=False,
             )
         else:
             q = self._deserialize(
-                f"{value}", attr, obj, **kwargs, return_magnitude=False
+                f"{value}", attr, data, **kwargs, return_magnitude=False
             )
         if return_magnitude:
             return q.magnitude
         return q
 
-    def _serialize(self, value, attr, data, **kwargs):
+    def _serialize(self, value, attr, obj, **kwargs):
         """Turn a Quantity into a string in scientific format."""
         return "{:~P}".format(value.to(ur.Quantity(self.to_unit)))

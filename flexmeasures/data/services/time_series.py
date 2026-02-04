@@ -63,7 +63,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     """
     if bdf.empty:
         return bdf
-
+    bdf = bdf.convert_index_from_belief_horizon_to_time()
     # Save the oldest ex-post beliefs explicitly, even if they do not deviate from the most recent ex-ante beliefs
     ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]

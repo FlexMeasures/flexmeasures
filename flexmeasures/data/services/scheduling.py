@@ -44,7 +44,7 @@ from flexmeasures.data.services.utils import (
 )
 
 
-def load_custom_scheduler(scheduler_specs: dict) -> type:
+def load_custom_scheduler(scheduler_specs: dict | str) -> type:
     """
     Read in custom scheduling spec.
     Attempt to load the Scheduler class to use.
@@ -59,12 +59,28 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
         "class": "NameOfSchedulerClass",
     }
 
+    or if the scheduler is already subclassing flexmeasures.Scheduler, simply:
+
+    "NameOfSchedulerClass"
+
     """
-    assert isinstance(
-        scheduler_specs, dict
-    ), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
-    assert "module" in scheduler_specs, "scheduler specs have no 'module'."
-    assert "class" in scheduler_specs, "scheduler specs have no 'class'"
+    if isinstance(scheduler_specs, dict):
+        assert "module" in scheduler_specs, "scheduler specs have no 'module'."
+        assert "class" in scheduler_specs, "scheduler specs have no 'class'"
+    elif isinstance(scheduler_specs, str):
+        scheduler_class = current_app.data_generators["scheduler"].get(scheduler_specs)
+        if scheduler_class is None:
+            raise ValueError(
+                f"Scheduler {scheduler_specs} does not seem to be registered."
+            )
+        scheduler_specs = {
+            "class": scheduler_class.__name__,
+            "module": scheduler_class.__module__,
+        }
+    else:
+        raise TypeError(
+            f"Scheduler specs is {type(scheduler_specs)}, should be a dict or str"
+        )
 
     scheduler_name = scheduler_specs["class"]
 

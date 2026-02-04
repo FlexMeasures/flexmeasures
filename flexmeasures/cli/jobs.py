@@ -33,6 +33,7 @@ import pandas as pd
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
@@ -280,7 +281,8 @@ def run_job(job_id: str):
     """
     connection = app.queues["scheduling"].connection
     job = Job.fetch(job_id, connection=connection)
-    result = job.func(**job.kwargs)
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_worker_exception, job=job)
+    result = job.perform()
     click.echo(f"Job {job_id} finished with: {result}")
 
 
