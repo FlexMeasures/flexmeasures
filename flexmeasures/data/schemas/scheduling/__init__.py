@@ -5,6 +5,7 @@ from marshmallow import (
     Schema,
     fields,
     validate,
+    validates,
     validates_schema,
     ValidationError,
     pre_load,
@@ -314,6 +315,13 @@ class FlexContextSchema(Schema):
                 + self.declared_fields[field].to_unit.split("/")[-1]
             )
         return data
+
+    @validates("aggregate_power")
+    def validate_aggregate_power_is_sensor(
+        self, aggregate_power: Sensor | list[dict] | ur.Quantity, **kwargs
+    ):
+        if not isinstance(aggregate_power, Sensor):
+            raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):
