@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Dict, Any
+from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema
 import isodate
 import json
 import yaml
@@ -32,6 +33,7 @@ from flexmeasures.cli.utils import (
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    add_cli_options_from_schema,
 )
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -999,137 +1001,137 @@ def add_holidays(
 
 
 @fm_add_data.command("forecasts")
-@click.option(
-    "--sensor",
-    required=True,
-    help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
-)
-@click.option(
-    "--regressors",
-    "--regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated as a regressor. "
-    "Use this if both realizations and forecasts recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--future-regressors",
-    "--future-regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated only as a future regressor. "
-    "Use this if only forecasts recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--past-regressors",
-    "--past-regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated only as a past regressor. "
-    "Use this if only realizations recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--train-start",
-    "--start-date",
-    "start_date",
-    required=False,
-    help=(
-        "Timestamp marking when training data begins. "
-        "Format: YYYY-MM-DDTHH:MM:SS±HH:MM. "
-        "If not provided, it defaults to a period equal to the training duration "
-        "ending at --from-date."
-    ),
-)
-@click.option(
-    "--to-date",
-    "--end-date",
-    "end_date",
-    required=False,
-    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
-)
-@click.option(
-    "--train-period",
-    required=False,
-    help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
-    "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
-    "If not set, derives a training period from --start-predict-date instead. "
-    "If that is also not set, defaults to 2 days.",
-)
-@click.option(
-    "--retrain-frequency",
-    "--remodel-frequency",  # the term as used in the old forecasting tooling
-    "--predict-period",  # only used during development afaik
-    required=False,
-    help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
-    "If not set, the model is not retrained.",
-)
-@click.option(
-    "--from-date",
-    "start_predict_date",
-    default=None,
-    required=False,
-    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
-    "If not set, defaults to now.",
-)
-@click.option(
-    "--max-forecast-horizon",
-    required=False,
-    help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H'). "
-    "Defaults to 48 hours.",
-)
-@click.option(
-    "--forecast-frequency",
-    help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
-    "Defaults to 1 hour.",
-)
-@click.option(
-    "--model-save-dir",
-    help="Directory to save the trained model.",
-)
-@click.option(
-    "--output-path",
-    help="Directory to save prediction outputs.",
-)
-@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions.")
-@click.option(
-    "--sensor-to-save",
-    default=None,
-    help="Sensor ID to save forecasts into a specific sensor. By default, forecasts are saved to the target sensor.",
-)
-@click.option(
-    "--as-job",
-    is_flag=True,
-    help="Whether to queue a forecasting job instead of computing directly. "
-    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
-)
-@click.option(
-    "--max-training-period",
-    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). Defaults to 1 year.",
-)
-@click.option(
-    "--resolution",
-    help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
-)
-@click.option(
-    "--horizon",
-    help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
-)
-@click.option(
-    "--ensure-positive",
-    is_flag=True,
-    help="Whether to ensure positive forecasts, by clipping out negative values.",
-)
-@click.option(
+# @click.option(
+#     "--sensor",
+#     required=True,
+#     help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
+# )
+# @click.option(
+#     "--regressors",
+#     "--regressor",
+#     multiple=True,
+#     callback=split_commas,
+#     help="Sensor ID to be treated as a regressor. "
+#     "Use this if both realizations and forecasts recorded on this sensor matter as a regressor. "
+#     "This argument can be given multiple times, but can also be set to a comma-separated list.",
+# )
+# @click.option(
+#     "--future-regressors",
+#     "--future-regressor",
+#     multiple=True,
+#     callback=split_commas,
+#     help="Sensor ID to be treated only as a future regressor. "
+#     "Use this if only forecasts recorded on this sensor matter as a regressor. "
+#     "This argument can be given multiple times, but can also be set to a comma-separated list.",
+# )
+# @click.option(
+#     "--past-regressors",
+#     "--past-regressor",
+#     multiple=True,
+#     callback=split_commas,
+#     help="Sensor ID to be treated only as a past regressor. "
+#     "Use this if only realizations recorded on this sensor matter as a regressor. "
+#     "This argument can be given multiple times, but can also be set to a comma-separated list.",
+# )
+# @click.option(
+#     "--train-start",
+#     "--start-date",
+#     "start_date",
+#     required=False,
+#     help=(
+#         "Timestamp marking when training data begins. "
+#         "Format: YYYY-MM-DDTHH:MM:SS±HH:MM. "
+#         "If not provided, it defaults to a period equal to the training duration "
+#         "ending at --from-date."
+#     ),
+# )
+# @click.option(
+#     "--to-date",
+#     "--end-date",
+#     "end_date",
+#     required=False,
+#     help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
+# )
+# @click.option(
+#     "--train-period",
+#     required=False,
+#     help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
+#     "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
+#     "If not set, derives a training period from --start-predict-date instead. "
+#     "If that is also not set, defaults to 2 days.",
+# )
+# @click.option(
+#     "--retrain-frequency",
+#     "--remodel-frequency",  # the term as used in the old forecasting tooling
+#     "--predict-period",  # only used during development afaik
+#     required=False,
+#     help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
+#     "If not set, the model is not retrained.",
+# )
+# @click.option(
+#     "--from-date",
+#     "start_predict_date",
+#     default=None,
+#     required=False,
+#     help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
+#     "If not set, defaults to now.",
+# )
+# @click.option(
+#     "--max-forecast-horizon",
+#     required=False,
+#     help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H'). "
+#     "Defaults to 48 hours.",
+# )
+# @click.option(
+#     "--forecast-frequency",
+#     help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
+#     "Defaults to 1 hour.",
+# )
+# @click.option(
+#     "--model-save-dir",
+#     help="Directory to save the trained model.",
+# )
+# @click.option(
+#     "--output-path",
+#     help="Directory to save prediction outputs.",
+# )
+# @click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions.")
+# @click.option(
+#     "--sensor-to-save",
+#     default=None,
+#     help="Sensor ID to save forecasts into a specific sensor. By default, forecasts are saved to the target sensor.",
+# )
+# @click.option(
+#     "--as-job",
+#     is_flag=True,
+#     help="Whether to queue a forecasting job instead of computing directly. "
+#     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
+# )
+# @click.option(
+#     "--max-training-period",
+#     help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). Defaults to 1 year.",
+# )
+# @click.option(
+#     "--resolution",
+#     help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
+# )
+# @click.option(
+#     "--horizon",
+#     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
+# )
+# @click.option(
+#     "--ensure-positive",
+#     is_flag=True,
+#     help="Whether to ensure positive forecasts, by clipping out negative values.",
+# )
+@click.option( # stays
     "--config",
     "config_file",
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the configuration of the forecaster.",
 )
-@click.option(
+@click.option( # stays 
     "--forecaster",
     "forecaster_class",
     default="TrainPredictPipeline",
@@ -1138,39 +1140,40 @@ def add_holidays(
     " Use the command `flexmeasures show forecasters` to list all the available forecasters.",
 )
 @click.option(
-    "--source",
+    "--source", #stays
     "source",
     required=False,
     type=DataSourceIdField(),
     help="DataSource ID of the `Forecaster`.",
 )
-@click.option(
+@click.option( # stays
     "--parameters",
     "parameters_file",
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step).",
 )
-@click.option(
+@click.option( # stays
     "--edit-config",
     "edit_config",
     is_flag=True,
     help="Add this flag to edit the configuration of the Forecaster in your default text editor (e.g. nano).",
 )
-@click.option(
+@click.option( # stays
     "--edit-parameters",
     "edit_parameters",
     is_flag=True,
     help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
 )
-@click.option(
-    "--missing-threshold",
-    default=1.0,
-    help=(
-        "Maximum fraction of missing data allowed before raising an error. "
-        "Missing data under this threshold will be filled using forward filling or linear interpolation."
-    ),
-)
+# @click.option(
+#     "--missing-threshold",
+#     default=1.0,
+#     help=(
+#         "Maximum fraction of missing data allowed before raising an error. "
+#         "Missing data under this threshold will be filled using forward filling or linear interpolation."
+#     ),
+# )
+@add_cli_options_from_schema(ForecasterParametersSchema())
 @with_appcontext
 def add_forecast(
     forecaster_class: str,
