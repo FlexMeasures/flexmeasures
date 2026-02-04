@@ -17,6 +17,7 @@ These endpoints enable programmatic triggering and retrieval of forecasts via th
 
 Also:
 
+- Support saving the aggregate power schedule by referencing a power sensor in the ``flex-context`` field ``aggregate-power``.
 - Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
 - Added ``fields`` field to the `/assets` (GET) and `/assets/public` endpoints, to transfer less data by default (will be fully active, i.e. also returning less fields per default, in v0.32).
 - Return validation errors instead of database errors for fields that map to database objects.
