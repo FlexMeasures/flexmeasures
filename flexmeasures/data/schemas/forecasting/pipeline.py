@@ -29,8 +29,8 @@ class TrainPredictPipelineConfigSchema(Schema):
 class ForecasterParametersSchema(Schema):
 
     sensor = SensorIdField(
-        required=True,
         data_key="sensor",
+        required=True,
         metadata={
             "description": "ID of the sensor to forecast.",
             "example": 2092,
