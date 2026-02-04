@@ -38,7 +38,7 @@ class ForecasterParametersSchema(Schema):
     )
     future_regressors = fields.List(
         SensorIdField(),
-        data_key="future_regressors",
+        data_key="future-regressors",
         required=False,
         metadata={
             "description": "Sensor IDs to be treated only as future regressors.",
