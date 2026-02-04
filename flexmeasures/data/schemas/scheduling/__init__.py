@@ -20,7 +20,11 @@ from flexmeasures.data.schemas.sensors import (
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.utils.doc_utils import rst_to_openapi
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    PlanningDurationField,
+)
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.utils.flexmeasures_inflection import p
 from flexmeasures.utils.unit_utils import (
@@ -929,6 +933,14 @@ class AssetTriggerSchema(Schema):
             description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
             example="PT24H",
         ),
+    )
+    resolution = DurationField(
+        metadata=dict(
+            description="The resolution of the requested schedule in ISO 8601 duration format. "
+            "This governs how often setpoints are allowed to change. "
+            "Note that the resulting schedule is still saved in the resolution of each individual sensor.",
+            example="PT2H",
+        )
     )
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
