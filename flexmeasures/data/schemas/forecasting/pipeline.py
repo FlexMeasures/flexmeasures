@@ -120,7 +120,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     retrain_frequency = DurationField(
-        data_key='retrain-frequency',
+        data_key="retrain-frequency",
         required=False,
         allow_none=True,
         metadata={
