@@ -69,6 +69,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
+from flexmeasures.data.schemas.utils import snake_to_kebab
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
@@ -1236,10 +1237,11 @@ def add_forecast(
     if edit_parameters:
         parameters = launch_editor("/tmp/parameters.yml")
 
-    # Move remaining kwargs to parameters
+    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
     for k, v in kwargs.items():
-        if k not in parameters:
-            parameters[k] = v
+        kebab_key = snake_to_kebab(k)
+        if kebab_key not in parameters:
+            parameters[kebab_key] = v
 
     forecaster = get_data_generator(
         source=source,
