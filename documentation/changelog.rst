@@ -46,8 +46,8 @@ Infrastructure / Support
 * Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 * Improve reported test coverage by including doctests and bringing back CLI tests to GitHub Actions [see `PR #1914 <https://www.github.com/FlexMeasures/flexmeasures/pull/1914>`_ and `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_, respectively]
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
-* Improve UX relatting to rpresentation of datatimes in the table [see `PR #0000 <https://www.github.com/FlexMeasures/flexmeasures/pull/0000>`_]
-  
+* Improve UX relatting to rpresentation of datatimes in the table [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
+
 Bugfixes
 -----------
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
