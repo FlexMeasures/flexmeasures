@@ -5065,7 +5065,7 @@
             "description": "ID of the sensor to forecast.",
             "example": 2092
           },
-          "future_regressors": {
+          "future-regressors": {
             "type": "array",
             "description": "Sensor IDs to be treated only as future regressors.",
             "example": [
