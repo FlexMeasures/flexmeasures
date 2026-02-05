@@ -105,11 +105,12 @@ class MetaStorageScheduler(Scheduler):
                 s.asset if s is not None else flex_model_d.get("asset")
                 for s, flex_model_d in zip(sensors, self.flex_model)
             ]
-            # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
-            resolution = determine_minimum_resampling_resolution(
-                [s.event_resolution for s in sensors if s is not None],
-                fallback_resolution=self.default_resolution,
-            )
+            if resolution is None:
+                # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
+                resolution = determine_minimum_resampling_resolution(
+                    [s.event_resolution for s in sensors if s is not None],
+                    fallback_resolution=self.default_resolution,
+                )
             asset = self.asset
         else:
             # For backwards compatibility with the single asset scheduler
@@ -899,6 +900,12 @@ class MetaStorageScheduler(Scheduler):
             elif storage_efficiency[d] is not None:
                 device_constraints[d]["efficiency"] = storage_efficiency[d]
 
+            # Convert efficiency from sensor resolution to scheduling resolution
+            if sensor_d.event_resolution != timedelta(0):
+                device_constraints[d]["efficiency"] **= (
+                    resolution / sensor_d.event_resolution
+                )
+
             # check that storage constraints are fulfilled
             if not skip_validation:
                 constraint_violations = validate_storage_constraints(
@@ -1327,12 +1334,15 @@ class StorageScheduler(MetaStorageScheduler):
             raise InfeasibleProblemException(tc)
 
         # Obtain the storage schedule from all device schedules within the EMS
-        storage_schedule = {
-            sensor: ems_schedule[d]
-            for d, sensor in enumerate(sensors)
-            if sensor is not None
-        }
-        # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor
+        storage_schedule = dict()
+        # Accumulate schedules when multiple devices share the same sensor.
+        for d, sensor in enumerate(sensors):
+            if sensor is not None and sensor not in storage_schedule:
+                storage_schedule[sensor] = ems_schedule[d]
+            elif sensor is not None and sensor in storage_schedule:
+                storage_schedule[sensor] += ems_schedule[d]
+
+        # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor. Fill with the sum of schedules made here.
         aggregate_power_sensor = self.flex_context.get("aggregate_power", None)
         if isinstance(aggregate_power_sensor, Sensor):
             storage_schedule[aggregate_power_sensor] = pd.concat(
@@ -1411,7 +1421,18 @@ class StorageScheduler(MetaStorageScheduler):
                 for sensor in storage_schedule.keys()
                 if sensor is not None
             ]
-            commitment_costs = [{"name": "commitment_costs", "data": {c.name: costs for c, costs in zip(commitments, model.commitment_costs.values())},},]
+            commitment_costs = [
+                {
+                    "name": "commitment_costs",
+                    "data": {
+                        c.name: costs
+                        for c, costs in zip(
+                            commitments, model.commitment_costs.values()
+                        )
+                    },
+                    "unit": self.flex_context["shared_currency_unit"],
+                },
+            ]
             soc_schedules = [
                 {
                     "name": "state_of_charge",
