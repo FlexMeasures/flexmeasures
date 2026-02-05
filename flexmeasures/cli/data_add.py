@@ -1020,14 +1020,14 @@ def add_holidays(
 #     "--horizon",
 #     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
 # )
-@click.option( # stays
+@click.option(
     "--config",
     "config_file",
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the configuration of the forecaster.",
 )
-@click.option( # stays 
+@click.option(
     "--forecaster",
     "forecaster_class",
     default="TrainPredictPipeline",
@@ -1036,26 +1036,26 @@ def add_holidays(
     " Use the command `flexmeasures show forecasters` to list all the available forecasters.",
 )
 @click.option(
-    "--source", #stays
+    "--source",
     "source",
     required=False,
     type=DataSourceIdField(),
     help="DataSource ID of the `Forecaster`.",
 )
-@click.option( # stays
+@click.option(
     "--parameters",
     "parameters_file",
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step).",
 )
-@click.option( # stays
+@click.option(
     "--edit-config",
     "edit_config",
     is_flag=True,
     help="Add this flag to edit the configuration of the Forecaster in your default text editor (e.g. nano).",
 )
-@click.option( # stays
+@click.option(
     "--edit-parameters",
     "edit_parameters",
     is_flag=True,
