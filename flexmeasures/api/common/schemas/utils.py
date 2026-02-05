@@ -19,6 +19,11 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
     - Replaces custom fields (like VariableQuantityField) with String
     """
 
+    sensor_only_validators = []
+    for validator in schema_cls._hooks["validates"]:
+        if "is_sensor" in validator[0]:
+            sensor_only_validators.append(validator[-1])
+
     new_fields = {}
     for name, field in schema_cls._declared_fields.items():
 
@@ -36,19 +41,11 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
                 metadata["description"] = rst_to_openapi(metadata["description"])
 
             sensor_only = False
-            for validator in schema_cls._hooks["validates"]:
-                if (
-                    "field_name" in validator[-1]
-                    and validator[-1]["field_name"] == name
-                    and "is_sensor" in validator[0]
-                ):
+            for validator in sensor_only_validators:
+                if "field_name" in validator and validator["field_name"] == name:
                     # Marshmallow 4 uses "field_name" in its "validates" hooks
                     sensor_only = True
-                elif (
-                    "field_names" in validator[-1]
-                    and name in validator[-1]["field_names"]
-                    and "is_sensor" in validator[0]
-                ):
+                elif "field_names" in validator and name in validator["field_names"]:
                     # Marshmallow 4 uses "field_names" in its "validates" hooks
                     sensor_only = True
             if sensor_only:
