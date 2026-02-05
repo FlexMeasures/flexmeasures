@@ -142,7 +142,6 @@ class ForecasterParametersSchema(Schema):
         data_key="forecast-frequency",
         required=False,
         allow_none=True,
-        load_default=timedelta(hours=1),
         metadata={
             "description": "How often to recompute forecasts. Defaults to 1 hour.",
             "example": "PT1H",
