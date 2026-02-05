@@ -133,7 +133,6 @@ class ForecasterParametersSchema(Schema):
             "cli": {
                 "option": "--end-date",
                 "aliases": ["--to-date"],
-
             },
         },
     )
