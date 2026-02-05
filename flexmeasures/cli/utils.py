@@ -446,7 +446,10 @@ def add_cli_options_from_schema(schema):
             if not cli:
                 continue
 
-            option = cli["option"]
+            option_names = cli["option"]
+            option_aliases = cli.get("aliases", [])
+            options = [option_names] + option_aliases
+
             kwargs = {
                 "help": field.metadata.get("description"),
                 "required": field.required,
@@ -456,7 +459,7 @@ def add_cli_options_from_schema(schema):
             if cli.get("is_flag"):
                 kwargs["is_flag"] = True
 
-            command = click.option(option, **kwargs)(command)
+            command = click.option(*options, **kwargs)(command)
 
         return command
 
