@@ -1002,22 +1002,6 @@ def add_holidays(
 
 @fm_add_data.command("forecasts")
 # @click.option(
-#     "--train-period",
-#     required=False,
-#     help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
-#     "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
-#     "If not set, derives a training period from --start-predict-date instead. "
-#     "If that is also not set, defaults to 2 days.",
-# )
-# @click.option(
-#     "--retrain-frequency",
-#     "--remodel-frequency",  # the term as used in the old forecasting tooling
-#     "--predict-period",  # only used during development afaik
-#     required=False,
-#     help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
-#     "If not set, the model is not retrained.",
-# )
-# @click.option(
 #     "--forecast-frequency",
 #     help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
 #     "Defaults to 1 hour.",

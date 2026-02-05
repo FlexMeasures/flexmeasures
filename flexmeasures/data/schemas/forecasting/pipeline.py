@@ -146,7 +146,7 @@ class ForecasterParametersSchema(Schema):
             "example": "P7D",
             "cli": {
                 "option": "--train-period",
-            }
+            },
         },
     )
     start_predict_date = AwareDateTimeOrDateField(
@@ -171,7 +171,7 @@ class ForecasterParametersSchema(Schema):
             "example": "PT24H",
             "cli": {
                 "option": "--retrain-frequency",
-            }
+            },
         },
     )
     max_forecast_horizon = DurationField(
