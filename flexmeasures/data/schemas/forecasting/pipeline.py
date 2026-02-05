@@ -118,7 +118,8 @@ class ForecasterParametersSchema(Schema):
             "example": "2025-01-01T00:00:00+01:00",
             "cli": {
                 "option": "--start-date",
-            }
+                "aliases": ["--train-start"],
+            },
         },
     )
     end_date = AwareDateTimeOrDateField(
@@ -131,7 +132,9 @@ class ForecasterParametersSchema(Schema):
             "example": "2025-10-15T00:00:00+01:00",
             "cli": {
                 "option": "--end-date",
-            }
+                "aliases": ["--to-date"],
+
+            },
         },
     )
     train_period = DurationField(
@@ -155,7 +158,8 @@ class ForecasterParametersSchema(Schema):
             "example": "2025-01-08T00:00:00+01:00",
             "cli": {
                 "option": "--start-predict-date",
-            }
+                "aliases": ["--from-date"],
+            },
         },
     )
     retrain_frequency = DurationField(

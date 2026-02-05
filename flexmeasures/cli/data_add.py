@@ -1002,25 +1002,6 @@ def add_holidays(
 
 @fm_add_data.command("forecasts")
 # @click.option(
-#     "--train-start",
-#     "--start-date",
-#     "start_date",
-#     required=False,
-#     help=(
-#         "Timestamp marking when training data begins. "
-#         "Format: YYYY-MM-DDTHH:MM:SS±HH:MM. "
-#         "If not provided, it defaults to a period equal to the training duration "
-#         "ending at --from-date."
-#     ),
-# )
-# @click.option(
-#     "--to-date",
-#     "--end-date",
-#     "end_date",
-#     required=False,
-#     help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
-# )
-# @click.option(
 #     "--train-period",
 #     required=False,
 #     help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
@@ -1035,14 +1016,6 @@ def add_holidays(
 #     required=False,
 #     help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
 #     "If not set, the model is not retrained.",
-# )
-# @click.option(
-#     "--from-date",
-#     "start_predict_date",
-#     default=None,
-#     required=False,
-#     help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
-#     "If not set, defaults to now.",
 # )
 # @click.option(
 #     "--forecast-frequency",
