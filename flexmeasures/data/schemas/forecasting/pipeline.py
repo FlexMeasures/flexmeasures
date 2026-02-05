@@ -44,11 +44,14 @@ class ForecasterParametersSchema(Schema):
         data_key="future-regressors",
         required=False,
         metadata={
-            "description": "Sensor IDs to be treated only as future regressors.",
+            "description": (
+                "Sensor IDs to be treated only as future regressors."
+                "Use this if only forecasts recorded on this sensor matter as a regressor."
+            ),
             "example": [2093, 2094],
             "cli": {
                 "option": "--future-regressors",
-            }
+            },
         },
     )
     past_regressors = fields.List(
@@ -56,11 +59,14 @@ class ForecasterParametersSchema(Schema):
         data_key="past-regressors",
         required=False,
         metadata={
-            "description": "Sensor IDs to be treated only as past regressors.",
+            "description": (
+                "Sensor IDs to be treated only as past regressors"
+                "Use this if only realizations recorded on this sensor matter as a regressor."
+            ),
             "example": [2095],
             "cli": {
                 "option": "--past-regressors",
-            }
+            },
         },
     )
     regressors = fields.List(
@@ -68,11 +74,14 @@ class ForecasterParametersSchema(Schema):
         data_key="regressors",
         required=False,
         metadata={
-            "description": "Sensor IDs used as both past and future regressors.",
+            "description": (
+                "Sensor IDs used as both past and future regressors."
+                "Use this if both realizations and forecasts recorded on this sensor "
+            ),
             "example": [2093, 2094, 2095],
             "cli": {
                 "option": "--regressors",
-            }
+            },
         },
     )
     model_save_dir = fields.Str(

@@ -1002,33 +1002,6 @@ def add_holidays(
 
 @fm_add_data.command("forecasts")
 # @click.option(
-#     "--regressors",
-#     "--regressor",
-#     multiple=True,
-#     callback=split_commas,
-#     help="Sensor ID to be treated as a regressor. "
-#     "Use this if both realizations and forecasts recorded on this sensor matter as a regressor. "
-#     "This argument can be given multiple times, but can also be set to a comma-separated list.",
-# )
-# @click.option(
-#     "--future-regressors",
-#     "--future-regressor",
-#     multiple=True,
-#     callback=split_commas,
-#     help="Sensor ID to be treated only as a future regressor. "
-#     "Use this if only forecasts recorded on this sensor matter as a regressor. "
-#     "This argument can be given multiple times, but can also be set to a comma-separated list.",
-# )
-# @click.option(
-#     "--past-regressors",
-#     "--past-regressor",
-#     multiple=True,
-#     callback=split_commas,
-#     help="Sensor ID to be treated only as a past regressor. "
-#     "Use this if only realizations recorded on this sensor matter as a regressor. "
-#     "This argument can be given multiple times, but can also be set to a comma-separated list.",
-# )
-# @click.option(
 #     "--train-start",
 #     "--start-date",
 #     "start_date",
