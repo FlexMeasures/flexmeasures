@@ -255,7 +255,7 @@ class ForecasterParametersSchema(Schema):
             "example": "P1Y",
             "cli": {
                 "option": "--max-training-period",
-            }
+            },
         },
     )
 
