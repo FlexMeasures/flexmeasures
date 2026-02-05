@@ -85,7 +85,7 @@ class ForecasterParametersSchema(Schema):
             "example": "flexmeasures/data/models/forecasting/artifacts/models",
             "cli": {
                 "option": "--model-save-dir",
-            }
+            },
         },
     )
     output_path = fields.Str(
@@ -97,7 +97,7 @@ class ForecasterParametersSchema(Schema):
             "example": "flexmeasures/data/models/forecasting/artifacts/forecasts",
             "cli": {
                 "option": "--output-path",
-            }
+            },
         },
     )
     start_date = AwareDateTimeOrDateField(
@@ -196,7 +196,7 @@ class ForecasterParametersSchema(Schema):
             "example": False,
             "cli": {
                 "option": "--probabilistic",
-            }
+            },
         },
     )
     sensor_to_save = SensorIdField(
@@ -208,7 +208,7 @@ class ForecasterParametersSchema(Schema):
             "example": 2092,
             "cli": {
                 "option": "--sensor-to-save",
-            }
+            },
         },
     )
     ensure_positive = fields.Bool(
@@ -220,7 +220,7 @@ class ForecasterParametersSchema(Schema):
             "example": True,
             "cli": {
                 "option": "--ensure-positive",
-            }
+            },
         },
     )
     missing_threshold = fields.Float(

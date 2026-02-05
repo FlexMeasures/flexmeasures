@@ -1083,20 +1083,6 @@ def add_holidays(
 #     "Defaults to 1 hour.",
 # )
 # @click.option(
-#     "--model-save-dir",
-#     help="Directory to save the trained model.",
-# )
-# @click.option(
-#     "--output-path",
-#     help="Directory to save prediction outputs.",
-# )
-# @click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions.")
-# @click.option(
-#     "--sensor-to-save",
-#     default=None,
-#     help="Sensor ID to save forecasts into a specific sensor. By default, forecasts are saved to the target sensor.",
-# )
-# @click.option(
 #     "--as-job",
 #     is_flag=True,
 #     help="Whether to queue a forecasting job instead of computing directly. "
@@ -1109,11 +1095,6 @@ def add_holidays(
 # @click.option(
 #     "--horizon",
 #     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
-# )
-# @click.option(
-#     "--ensure-positive",
-#     is_flag=True,
-#     help="Whether to ensure positive forecasts, by clipping out negative values.",
 # )
 @click.option( # stays
     "--config",
