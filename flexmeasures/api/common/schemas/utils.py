@@ -37,7 +37,19 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
 
             sensor_only = False
             for validator in schema_cls._hooks["validates"]:
-                if validator[-1]["field_name"] == name and "is_sensor" in validator[0]:
+                if (
+                    "field_name" in validator[-1]
+                    and validator[-1]["field_name"] == name
+                    and "is_sensor" in validator[0]
+                ):
+                    # Marshmallow 4 uses "field_name" in its "validates" hooks
+                    sensor_only = True
+                elif (
+                    "field_names" in validator[-1]
+                    and name in validator[-1]["field_names"]
+                    and "is_sensor" in validator[0]
+                ):
+                    # Marshmallow 4 uses "field_names" in its "validates" hooks
                     sensor_only = True
             if sensor_only:
                 oapi_schema = SensorReferenceSchema
