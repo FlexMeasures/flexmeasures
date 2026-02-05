@@ -36,7 +36,7 @@ class ForecasterParametersSchema(Schema):
             "example": 2092,
             "cli": {
                 "option": "--sensor",
-            }
+            },
         },
     )
     future_regressors = fields.List(

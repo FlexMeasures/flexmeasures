@@ -1002,11 +1002,6 @@ def add_holidays(
 
 @fm_add_data.command("forecasts")
 # @click.option(
-#     "--sensor",
-#     required=True,
-#     help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
-# )
-# @click.option(
 #     "--regressors",
 #     "--regressor",
 #     multiple=True,
