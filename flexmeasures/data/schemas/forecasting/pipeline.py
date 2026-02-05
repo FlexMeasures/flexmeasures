@@ -167,11 +167,11 @@ class ForecasterParametersSchema(Schema):
         allow_none=True,
         load_default=timedelta(hours=48),
         metadata={
-            "description": "Maximum forecast horizon. Defaults to 48 hours if not set.",
+            "description": "Maximum forecast horizon. Defaults to 'PT48H' if not set.",
             "example": "PT48H",
             "cli": {
                 "option": "--max-forecast-horizon",
-            }
+            },
         },
     )
     forecast_frequency = DurationField(

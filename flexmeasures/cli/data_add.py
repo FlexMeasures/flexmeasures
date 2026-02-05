@@ -1072,12 +1072,6 @@ def add_holidays(
 #     "If not set, defaults to now.",
 # )
 # @click.option(
-#     "--max-forecast-horizon",
-#     required=False,
-#     help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H'). "
-#     "Defaults to 48 hours.",
-# )
-# @click.option(
 #     "--forecast-frequency",
 #     help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
 #     "Defaults to 1 hour.",
