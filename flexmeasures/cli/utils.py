@@ -438,7 +438,8 @@ def split_commas(ctx, param, value):
 
 
 def add_cli_options_from_schema(schema):
-    """ Decorator to add CLI options based on a Marshmallow schema's fields."""
+    """Decorator to add CLI options based on a Marshmallow schema's fields."""
+
     def decorator(command):
         for field_name, field in reversed(schema.fields.items()):
             cli = field.metadata.get("cli")
