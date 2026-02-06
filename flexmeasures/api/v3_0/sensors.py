@@ -1508,7 +1508,7 @@ class SensorAPI(FlaskView):
             Trigger a forecasting job for a sensor.
 
             This endpoint starts a forecasting job asynchronously and returns a job UUID.
-            The job will run in the background and generate forecasts values for the specified period.
+            The job will run in the background and generate forecasts for the specified period.
 
             Once triggered, the job status and results can be retrieved using the
             ``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.
