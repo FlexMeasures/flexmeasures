@@ -246,14 +246,15 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
             },
         ),
         # Test when only end date is given with a prediction period: we expect the train start and predict start to both be computed with respect to the end date.
+        # we expect 2 cycles from the retrain frequency and predict period given the end date
         (
             {
-                "end_date": "2025-01-20T12:00:00+01:00",
+                "end_date": "2025-01-21T12:00:00+01:00",
                 "retrain_frequency": "P3D",
             },
             {
                 "end_date": pd.Timestamp(
-                    "2025-01-20T12:00:00+01", tz="Europe/Amsterdam"
+                    "2025-01-21T12:00:00+01", tz="Europe/Amsterdam"
                 ),
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
@@ -277,7 +278,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
-                "n_cycles": 1,
+                "n_cycles": 2,  # we expect 2 cycles from the retrain frequency and predict period given the end date
             },
         ),
     ],
