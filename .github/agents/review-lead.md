@@ -145,6 +145,97 @@ Depending on assignment, the Review Lead may:
 
 ## Critical Requirements for Review Lead
 
+### Must Run Pre-commit Hooks With Every Commit
+
+**The Review Lead MUST run pre-commit hooks before every commit.**
+
+Before committing any code changes:
+
+1. **Install pre-commit** (if not already installed):
+   ```bash
+   pip install pre-commit
+   ```
+
+2. **Run hooks on all files**:
+   ```bash
+   pre-commit run --all-files
+   ```
+
+3. **Fix any issues** reported by the hooks:
+   - Flake8 violations (linting)
+   - Black formatting issues (automatically fixed)
+   - Mypy type checking errors
+   - Any custom hooks
+
+4. **Re-run hooks** after fixing issues to confirm they pass
+
+5. **Then commit** - Only commit after all hooks pass
+
+**Why this matters:**
+- Prevents formatting/linting issues in PR
+- Catches type errors early
+- Maintains code quality standards
+- Avoids extra "fix formatting" commits
+
+### Must Always Run Coordinator
+
+**The Review Lead MUST always run the coordinator agent before closing a session.**
+
+The coordinator should be run:
+- **Always**, not just when mentioned in the assignment
+- After completing the primary work
+- Before updating own instructions
+- Before final commit and session closure
+
+How to run the coordinator:
+
+```python
+task(
+    agent_type="coordinator",
+    description="Review PR changes",
+    prompt="Review the current PR for: [describe changes]
+    Provide recommendations for agent instruction updates and process improvements."
+)
+```
+
+The coordinator will:
+- Review structural and governance concerns
+- Identify agent instruction update needs
+- Spot process gaps
+- Recommend improvements
+
+**After coordinator runs:**
+- Act on its findings
+- Update agent instructions as recommended
+- Make atomic commits for each agent update
+
+### Must Add Changelog Entry
+
+**Every PR MUST include a changelog entry.**
+
+Before closing a session:
+
+1. **Find the changelog** - Located at `documentation/changelog.rst`
+
+2. **Add entry in appropriate section**:
+   - New features → "New features"
+   - Infrastructure changes → "Infrastructure / Support"  
+   - Bug fixes → "Bugfixes"
+
+3. **Follow the format**:
+   ```rst
+   * Brief description of change [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+   ```
+
+4. **Replace XXXX** with actual PR number (if known) or leave as XXXX for maintainers to update
+
+5. **Be concise** - One line describing user-visible impact
+
+**Why this matters:**
+- Users need to know what changed
+- Release notes are generated from changelog
+- Maintains project transparency
+
 ### Must Actually Execute Tests
 
 **The Review Lead MUST actually run tests, not just claim they passed.**
@@ -169,20 +260,6 @@ When conducting a review:
    - Reproduce the exact scenario from the bug report
    - Run the CLI commands or API calls mentioned
    - Verify the fix works end-to-end
-5. **Run pre-commit hooks**:
-   ```bash
-   pre-commit run --all-files
-   ```
-
-### Must Run Coordinator When Required
-
-**If the original assignment mentions the coordinator, the Review Lead MUST run it.**
-When the user explicitly assigns the coordinator:
-
-1. **Don't skip it** - The coordinator task is not optional
-2. **Run it as a subagent** - Use the task tool with agent_type "coordinator"
-3. **Act on its findings** - The coordinator may identify needed agent updates
-4. **Report completion** - Confirm the coordinator ran and what it found
 
 ### Must Make Atomic Commits
 
@@ -303,22 +380,26 @@ Review Lead:
 
 ## Self-Improvement Requirements
 
-### Must Update Own Instructions After Sessions
+### Must Update Own Instructions Before Closing Session
 
-**The Review Lead MUST update its own instructions based on what was learned.**
+**The Review Lead MUST update its own instructions based on what was learned BEFORE closing the session.**
 
-After completing an assignment:
+Before completing an assignment and closing the session:
 
 1. **Reflect on what worked and what didn't**:
    - Were the right agents selected?
    - Was synthesis effective?
    - Were there gaps in the review?
+   - What patterns emerged?
+   - What mistakes were made?
+
 2. **Update this agent file** with improvements:
    - Add new patterns discovered
    - Document pitfalls encountered
    - Refine the review process
    - Update checklists with lessons learned
-3. **Commit the agent update separately**:
+
+3. **Commit the agent update separately** (atomic commit):
    ```
    agents/review-lead: learned <specific lesson>
    
@@ -329,6 +410,11 @@ After completing an assignment:
    - Added guidance on <topic>
    - Updated process to include <step>
    ```
+
+**Timing is critical:**
+- Update instructions BEFORE closing the session
+- Not AFTER the session is complete
+- This ensures the learning is captured while context is fresh
 
 ### Learning from Failures
 
