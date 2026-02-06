@@ -183,9 +183,8 @@ class ForecasterParametersSchema(Schema):
         data_key="max-forecast-horizon",
         required=False,
         allow_none=True,
-        load_default=timedelta(hours=48),
         metadata={
-            "description": "Maximum forecast horizon. Defaults to 'PT48H' if not set.",
+            "description": "Maximum forecast horizon. Defaults to retrain_frequency if set and 'PT48H' otherwise.",
             "example": "PT48H",
             "cli": {
                 "option": "--max-forecast-horizon",
@@ -403,10 +402,20 @@ class ForecasterParametersSchema(Schema):
             retrain_frequency_in_hours = int(
                 (data["end_date"] - predict_start).total_seconds() / 3600
             )
-        elif data.get("retrain_frequency") is None and data.get("end_date") is None:
+        elif (
+            data.get("retrain_frequency") is None
+            and data.get("end_date") is None
+            and data.get("max_forecast_horizon") is not None
+        ):
             retrain_frequency_in_hours = data.get("max_forecast_horizon") // timedelta(
                 hours=1
             )
+        elif (
+            data.get("retrain_frequency") is None
+            and data.get("end_date") is None
+            and data.get("max_forecast_horizon") is None
+        ):
+            retrain_frequency_in_hours = 48  # Set default retrain_frequency to 48 hours
         else:
             retrain_frequency_in_hours = data["retrain_frequency"] // timedelta(hours=1)
             if retrain_frequency_in_hours < 1:
@@ -469,4 +478,8 @@ class ForecasterParametersSchema(Schema):
             missing_threshold=data.get("missing_threshold"),
             as_job=data.get("as_job"),
             save_belief_time=save_belief_time,
+            n_cycles=int(
+                (data["end_date"] - predict_start)
+                // timedelta(hours=retrain_frequency_in_hours)
+            ),
         )
