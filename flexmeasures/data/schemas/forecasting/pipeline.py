@@ -374,4 +374,5 @@ class ForecasterParametersSchema(Schema):
             missing_threshold=data.get("missing_threshold"),
             as_job=data.get("as_job"),
             save_belief_time=save_belief_time,
+            n_cycles=int((data["end_date"] - predict_start) // timedelta(hours=retrain_frequency_in_hours)),
         )
