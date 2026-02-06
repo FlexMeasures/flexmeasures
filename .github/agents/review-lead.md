@@ -227,7 +227,7 @@ Before closing a session:
    * Brief description of change [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
    ```
 
-4. **Replace XXXX** with actual PR number (if known) or leave as XXXX for maintainers to update
+4. **Replace XXXX** with actual PR number. If the PR number is not known, alert the maintainer with a suggestion on how the PR number can be made available to the agent context.
 
 5. **Be concise** - One line describing user-visible impact
 
