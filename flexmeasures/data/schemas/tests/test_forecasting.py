@@ -36,6 +36,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
+                "n_cycles": 1,
             },
         ),
         # Test defaults when only an end date is given
@@ -68,6 +69,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
+                "n_cycles": 1,
             },
         ),
         # Test when both start and end dates are given
@@ -98,6 +100,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
+                "n_cycles": 1,
             },
         ),
         # Test when only end date is given with a training period
@@ -130,6 +133,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
+                "n_cycles": 1,
             },
         ),
         # Test when only start date is given with a training period
@@ -159,6 +163,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "max_training_period": pd.Timedelta(days=365),
                 # the belief time of the forecasts will be calculated from start_predict_date and max_forecast_horizon and forecast_frequency
                 "save_belief_time": None,
+                "n_cycles": 1,
             },
         ),
         # Test when only start date is given with a retrain frequency (prediction period)
@@ -190,6 +195,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
+                "n_cycles": 1,
             },
         ),
         # Test when only start date is given with both training period and retrain frequency
@@ -249,6 +255,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
+                "n_cycles": 1,
             },
         ),
     ],
