@@ -253,6 +253,7 @@ DEFAULT_DATASOURCE_TYPES = [
     "reporter",
     "demo script",
     "gateway",
+    "market",
 ]
 
 
