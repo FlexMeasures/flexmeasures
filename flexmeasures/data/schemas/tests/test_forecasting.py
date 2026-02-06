@@ -221,6 +221,36 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 "save_belief_time": None,
             },
         ),
+        # Test when only end date is given with a prediction period: we expect the train start and predict start to both be computed with respect to the end date.
+        (
+            {
+                "end_date": "2025-01-20T12:00:00+01:00",
+                "retrain_frequency": "P3D",
+            },
+            {
+                "end_date": pd.Timestamp(
+                    "2025-01-20T12:00:00+01", tz="Europe/Amsterdam"
+                ),
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                ),
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
+                - pd.Timedelta(days=30),
+                "predict_period_in_hours": 48,
+                "train_period_in_hours": 720,
+                "max_forecast_horizon": pd.Timedelta(days=3), # duration between predict_start and end_date (retrain frequency)
+                "forecast_frequency": pd.Timedelta(days=3), # duration between predict_start and end_date (retrain frequency)
+                # default values
+                "max_training_period": pd.Timedelta(days=365),
+                # server now
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01",
+                    tz="Europe/Amsterdam",
+                ),
+            },
+        ),
     ],
 )
 def test_timing_parameters_of_forecaster_parameters_schema(
