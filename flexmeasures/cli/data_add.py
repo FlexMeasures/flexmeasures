@@ -61,6 +61,7 @@ from flexmeasures.data.schemas import (
     SensorIdField,
     AssetIdField,
 )
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.io import Output
@@ -1308,6 +1309,13 @@ def train_predict_pipeline(
     help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(),
+    required=False,
+    help=AssetTriggerSchema._declared_fields["resolution"].metadata["description"],
+)
+@click.option(
     "--prior",
     "belief_time",
     type=AwareDateTimeField(),
@@ -1359,6 +1367,7 @@ def add_schedule(  # noqa C901
     asset: GenericAsset,
     start: datetime,
     duration: timedelta,
+    resolution: timedelta,
     belief_time: datetime,
     scheduler_class: str,
     soc_at_start: ur.Quantity,
@@ -1432,7 +1441,9 @@ def add_schedule(  # noqa C901
             "class": scheduler_class,
         },
     )
-    if power_sensor:
+    if resolution:
+        scheduling_kwargs["resolution"] = resolution
+    elif power_sensor:
         scheduling_kwargs["resolution"] = power_sensor.event_resolution
     # otherwise, the scheduler will infer the resolution from the asset's device sensors
 

@@ -11,7 +11,7 @@
     <div class="row">
         <div class="asset auditlog card">
             <h3>History of actions for asset <a href="/assets/{{ asset.id }}">{{ asset.name }}</a></h3>
-            <table id="assetAuditLog" class="table table-striped paginate nav-on-click" title="View data">
+            <table id="assetAuditLog" class="table table-striped paginate">
             </table>
         </div>
     </div>
@@ -19,7 +19,10 @@
 
 <script>
     function AuditLog(event_datetime, event, acting_user_name) {
-        this.event_datetime = event_datetime;
+        const naturalDateTime = new Date(event_datetime);
+        const naturalDate = naturalDateTime.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+
+        this.event_datetime = `<span title="${naturalDateTime}">${naturalDate}</span>`;
         this.event = event;
         this.acting_user_name = acting_user_name;
     }

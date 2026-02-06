@@ -13,6 +13,7 @@ since v0.31.0 | February XX, 2026
 * Return validation errors instead of database errors for fields that map to database objects.
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>``, including updating metadata and moving between registries
 * Rename ``flexmeasures add sources`` to ``flexmeasures add sources-for-generators`` to better reflect its purpose.
+* Add ``flexmeasures jobs stats``, which shows queueing statistics to help evaluate the health of the queueing system.
 
 since v0.30.3 | January 12, 2026
 =================================
