@@ -21,7 +21,7 @@ dictdiffer==0.9.0
     #   -r requirements/dev.in
 distlib==0.4.0
     # via virtualenv
-filelock==3.20.0
+filelock==3.20.3
     # via
     #   -c requirements/3.10/app.txt
     #   virtualenv
@@ -94,8 +94,10 @@ typing-extensions==4.15.0
     #   mypy
     #   setuptools-scm
     #   virtualenv
-virtualenv==20.35.4
-    # via pre-commit
+virtualenv==20.36.1
+    # via
+    #   -r requirements/dev.in
+    #   pre-commit
 watchdog==6.0.0
     # via -r requirements/dev.in
 

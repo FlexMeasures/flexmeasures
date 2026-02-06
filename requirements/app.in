@@ -69,14 +69,26 @@ uniplot>=0.12.1
 Flask-SQLAlchemy>=2.5.2
 # flask should be after all the flask plugins, because setup might find they ARE flask
 flask>=1.0 
-werkzeug
-vl-convert-python
-Pillow>=10.0.1  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
-# https://github.com/FlexMeasures/flexmeasures/security/dependabot/508
-urllib3>=2.6.0
 # Concise asset audit log entries
 dictdiffer>=0.9.0
 
 # Forecaster: TrainPredictPipeline
 lightgbm
 u8darts>=0.29.0
+
+# Limits due to security alerts
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/549
+werkzeug>=3.1.5
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/521
+filelock>=3.20.3
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/536
+urllib3>=2.6.3
+vl-convert-python
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
+Pillow>=10.0.1
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/483
+fonttools>=4.60.2
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/531
+cbor2>=5.8.0
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/527
+marshmallow>=3.26.2

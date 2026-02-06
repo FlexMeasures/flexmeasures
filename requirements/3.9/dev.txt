@@ -99,8 +99,10 @@ typing-extensions==4.15.0
     #   mypy
     #   setuptools-scm
     #   virtualenv
-virtualenv==20.35.4
-    # via pre-commit
+virtualenv==20.36.1
+    # via
+    #   -r requirements/dev.in
+    #   pre-commit
 watchdog==6.0.0
     # via -r requirements/dev.in
 zipp==3.23.0
