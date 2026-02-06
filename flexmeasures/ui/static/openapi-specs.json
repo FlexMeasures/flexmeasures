@@ -4171,8 +4171,7 @@
               "string",
               "null"
             ],
-            "default": "P2D",
-            "description": "Maximum forecast horizon. Defaults to 'PT48H' if not set.",
+            "description": "Maximum forecast horizon. Defaults to retrain_frequency if set and 'PT48H' otherwise.",
             "example": "PT48H"
           },
           "forecast-frequency": {
