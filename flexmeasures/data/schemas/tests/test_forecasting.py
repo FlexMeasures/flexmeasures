@@ -27,11 +27,11 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 ).floor("1h")
                 + pd.Timedelta(hours=48),
                 # these are set by the schema defaults
-                "predict_period_in_hours": 48,
-                "max_forecast_horizon": pd.Timedelta(days=2),
-                "train_period_in_hours": 720,
-                "max_training_period": pd.Timedelta(days=365),
-                "forecast_frequency": pd.Timedelta(days=2),
+                "predict-period-in-hours": 48,
+                "max-forecast-horizon": pd.Timedelta(days=2),
+                "train-period-in-hours": 720,
+                "max-training-period": pd.Timedelta(days=365),
+                "forecast-frequency": pd.Timedelta(days=2),
                 # server now
                 "save-belief-time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
