@@ -306,7 +306,7 @@ class ForecasterParametersSchema(Schema):
             retrain_frequency_in_hours = int(
                 (data["end_date"] - predict_start).total_seconds() / 3600
             )
-        elif data.get("retrain_frequency") is None and data.get("end_date") is None:
+        elif data.get("retrain_frequency") is None and data.get("end_date") is None and data.get("max_forecast_horizon") is not None:
             retrain_frequency_in_hours = data.get("max_forecast_horizon") // timedelta(
                 hours=1
             )
