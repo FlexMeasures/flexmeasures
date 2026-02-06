@@ -327,4 +327,29 @@ The Coordinator has identified these recurring issues:
 6. **Unfounded claims** - "1000x faster" without benchmarks
 7. **Wrong examples** - Used PT1H instead of PT2H (the actual bug case)
 8. **Tasks not completed** - Review-lead didn't run coordinator despite assignment
+
+### Additional Pattern Discovered (2026-02-06)
+
+**Pattern**: Review Lead as Coordinator proxy failure
+
+**Observation**: When users ask for "agent instruction updates" or "governance review":
+- Review Lead should invoke Coordinator as subagent
+- Instead, Review Lead may try to do Coordinator work itself
+- This misses structural issues and prevents proper governance
+
+**Root cause**: Role confusion between Review Lead (task orchestrator) and Coordinator (meta-agent)
+
+**Solution implemented**: 
+- Updated Review Lead instructions with "Must Actually Run Coordinator When Requested"
+- Clarified that Review Lead ≠ Coordinator
+- Added explicit trigger patterns (e.g., "agent instructions", "governance")
+
+**Why it matters**: 
+- Agent self-improvement depends on Coordinator oversight
+- Review Lead can't replace Coordinator's structural expertise
+- Users expect governance work when they ask about agent instructions
+
+**Verification**: Check future sessions where users mention "agent instructions" - 
+Review Lead should now invoke Coordinator as subagent.
+
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
