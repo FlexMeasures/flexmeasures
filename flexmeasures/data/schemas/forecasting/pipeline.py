@@ -121,7 +121,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Maximum forecast horizon. Defaults to 48 hours if not set.",
+            "description": "Maximum forecast horizon. Defaults to retrain_frequency if set and 48 hours otherwise.",
             "example": "PT48H",
         },
     )
