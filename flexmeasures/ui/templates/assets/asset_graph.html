@@ -258,52 +258,22 @@
                         <div class="col">
                             <ul class="nav nav-tabs" id="myTab" role="tablist">
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link active" id="search-tab" data-bs-toggle="tab"
-                                        data-bs-target="#search" type="button" role="tab" aria-controls="search"
-                                        aria-selected="true">Sensor Search</button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="asset-config-tab" data-bs-toggle="tab"
+                                    <button class="nav-link active" id="asset-config-tab" data-bs-toggle="tab"
                                         data-bs-target="#asset-config" type="button" role="tab"
                                         aria-controls="asset-config" aria-selected="false">Asset Config</button>
                                 </li>
+
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link " id="search-tab" data-bs-toggle="tab"
+                                        data-bs-target="#search" type="button" role="tab" aria-controls="search"
+                                        aria-selected="true">Sensor
+                                        Search</button>
+                                </li>
+
                             </ul>
 
                             <div class="tab-content" id="myTabContent">
-                                <div class="tab-pane fade show active" id="search" role="tabpanel"
-                                    aria-labelledby="search-tab">
-
-                                    <div class="row my-3">
-                                        <div class="col-8">
-                                            <input type="text" id="searchInput" class="form-control"
-                                                placeholder="Search sensors..." oninput="filterSensors()" />
-                                        </div>
-
-                                        <div class="col-4">
-                                            <select id="unitsSelect" class="form-select" onchange="filterSensors()">
-                                                <option selected>Units</option>
-                                                {% for unit in available_units %}
-                                                <option>{{ unit }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div class="container">
-                                        <div id="spinnerElement"
-                                            class="d-flex justify-content-center align-items-center mb-2"
-                                            style="height: 50vh; display: none !important;">
-                                            <div class="spinner-border text-primary" role="status"
-                                                style="width: 4rem; height: 4rem;">
-                                                <span class="visually-hidden">Loading...</span>
-                                            </div>
-                                        </div>
-
-                                        <div id="apiSensorsList" class="row" style="display: none;"></div>
-                                    </div>
-                                </div>
-
-                                <div class="tab-pane fade" id="asset-config" role="tabpanel"
+                                <div class="tab-pane fade show active" id="asset-config" role="tabpanel"
                                     aria-labelledby="asset-config-tab">
                                     <div class="vstack gap-3 my-3">
                                         <div class="col">
@@ -337,6 +307,40 @@
                                     <button type="button" id="addPlotBtn" class="btn btn-primary ms-auto">Add
                                         plot</button>
                                 </div>
+
+                                <div class="tab-pane fade " id="search" role="tabpanel" aria-labelledby="search-tab">
+
+                                    <div class="row my-3">
+                                        <div class="col-8">
+                                            <input type="text" id="searchInput" class="form-control"
+                                                placeholder="Search sensors..." oninput="filterSensors()" />
+                                        </div>
+
+                                        <div class="col-4">
+                                            <select id="unitsSelect" class="form-select" onchange="filterSensors()">
+                                                <option selected>Units</option>
+                                                {% for unit in available_units %}
+                                                <option>{{ unit }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="container">
+                                        <div id="spinnerElement"
+                                            class="d-flex justify-content-center align-items-center mb-2"
+                                            style="height: 50vh; display: none !important;">
+                                            <div class="spinner-border text-primary" role="status"
+                                                style="width: 4rem; height: 4rem;">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </div>
+
+                                        <div id="apiSensorsList" class="row" style="display: none;"></div>
+                                    </div>
+                                </div>
+
+
                             </div>
                         </div>
                     </div>
