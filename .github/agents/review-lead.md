@@ -239,6 +239,48 @@ These should either:
 - Be written to `/tmp/` if needed
 - Be cleaned up before final commits
 
+### Must Actually Run Coordinator When Requested
+
+**The Coordinator is a subagent that the Review Lead can invoke.**
+
+When the user assignment mentions:
+- "Agent instructions"
+- "Agent instruction updates"  
+- "Governance concerns"
+- "Structural concerns"
+- "Coordinator" explicitly
+
+**The Review Lead MUST:**
+1. Recognize this as a Coordinator responsibility
+2. Invoke the Coordinator as a subagent
+3. Wait for Coordinator findings
+4. Act on Coordinator recommendations
+5. Report what the Coordinator found
+
+**Why this matters:**
+- The Review Lead orchestrates agents for a task
+- The Coordinator is the meta-agent for agent lifecycle and governance
+- When users ask about agent instructions, they're asking for Coordinator work
+- Review Lead ≠ Coordinator (different roles, different expertise)
+
+**Example workflow:**
+```
+User: "Review this PR and check if agent instructions need updates"
+
+Review Lead:
+1. Recognize "agent instructions" → Coordinator territory
+2. Run relevant specialist agents for code review
+3. Run Coordinator agent for governance review
+4. Synthesize findings from all agents
+5. Report combined recommendations
+```
+
+**Failure mode to avoid:**
+- User asks about agent instructions
+- Review Lead tries to do Coordinator work itself
+- Misses structural issues only Coordinator would catch
+- Agent system doesn't improve
+
 * * *
 
 ## Relationship to existing agents
@@ -297,6 +339,15 @@ Track and document when the Review Lead:
 - Committed temporary files
 - Made unfounded claims (e.g., "tests pass" without running them)
 - Used wrong examples or data
+
+**Specific lesson learned (2026-02-06)**:
+- **Session**: API test isolation PR review
+- **Failure**: User explicitly asked about "agent instruction updates" 
+- **What went wrong**: Review Lead did not invoke Coordinator subagent
+- **Impact**: Missed governance review, agents didn't self-update
+- **Root cause**: Review Lead tried to do Coordinator work instead of delegating
+- **Fix**: Added "Must Actually Run Coordinator When Requested" section above
+- **Prevention**: Always check if user assignment mentions agent instructions/governance
 
 Update this file to prevent repeating the same mistakes.
 
