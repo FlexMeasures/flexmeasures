@@ -4,6 +4,7 @@ from typing import Type, cast
 from marshmallow import Schema, fields
 
 from flexmeasures.utils.doc_utils import rst_to_openapi
+from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     VariableQuantityOpenAPISchema,
@@ -20,6 +21,10 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
 
     new_fields = {}
     for name, field in schema_cls._declared_fields.items():
+
+        if schema_cls == ForecasterParametersSchema:
+            if field.metadata["cli"].get("cli-exclusive", False):
+                continue
 
         # Copy metadata, but sanitize description for OpenAPI
         metadata = dict(getattr(field, "metadata", {}))

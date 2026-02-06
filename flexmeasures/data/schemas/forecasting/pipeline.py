@@ -27,6 +27,9 @@ class TrainPredictPipelineConfigSchema(Schema):
 
 
 class ForecasterParametersSchema(Schema):
+    """
+    NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
+    """
 
     sensor = SensorIdField(
         data_key="sensor",
@@ -93,6 +96,7 @@ class ForecasterParametersSchema(Schema):
             "description": "Directory to save the trained model.",
             "example": "flexmeasures/data/models/forecasting/artifacts/models",
             "cli": {
+                "cli-exclusive": True,
                 "option": "--model-save-dir",
             },
         },
@@ -105,6 +109,7 @@ class ForecasterParametersSchema(Schema):
             "description": "Directory to save prediction outputs. Defaults to None (no outputs saved).",
             "example": "flexmeasures/data/models/forecasting/artifacts/forecasts",
             "cli": {
+                "cli-exclusive": True,
                 "option": "--output-path",
             },
         },
@@ -169,6 +174,7 @@ class ForecasterParametersSchema(Schema):
             "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
             "example": "PT24H",
             "cli": {
+                "cli-exclusive": True,
                 "option": "--retrain-frequency",
             },
         },
@@ -206,6 +212,7 @@ class ForecasterParametersSchema(Schema):
             "description": "Enable probabilistic predictions if True. Defaults to false.",
             "example": False,
             "cli": {
+                "cli-exclusive": True,
                 "option": "--probabilistic",
             },
         },
@@ -253,6 +260,7 @@ class ForecasterParametersSchema(Schema):
             "description": "If True, compute forecasts asynchronously using RQ jobs. Defaults to False.",
             "example": True,
             "cli": {
+                "cli-exclusive": True,
                 "option": "--as-job",
             },
         },

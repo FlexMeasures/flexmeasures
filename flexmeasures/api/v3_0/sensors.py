@@ -26,6 +26,7 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     fallback_schedule_redirect,
 )
+from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
 )
@@ -74,6 +75,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
+
+# Create ForecasterParametersSchema OpenAPI compatible schema
+forecaster_parameters_schema_openAPI = make_openapi_compatible(
+    ForecasterParametersSchema
+)
 
 
 class SensorKwargsSchema(Schema):
@@ -1493,7 +1499,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
     @use_args(
-        ForecasterParametersSchema(),
+        forecaster_parameters_schema_openAPI,
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
@@ -1527,7 +1533,7 @@ class SensorAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema: ForecasterParametersSchema
+                schema: forecaster_parameters_schema_openAPI
                 example:
                   start-date: "2026-01-01T00:00:00+01:00"
                   start-predict-date: "2026-01-15T00:00:00+01:00"
