@@ -5163,8 +5163,7 @@
               "string",
               "null"
             ],
-            "default": "P2D",
-            "description": "Maximum forecast horizon. Defaults to 48 hours if not set.",
+            "description": "Maximum forecast horizon. Defaults to retrain_frequency if set and 48 hours otherwise.",
             "example": "PT48H"
           },
           "forecast_frequency": {
@@ -5172,7 +5171,6 @@
               "string",
               "null"
             ],
-            "default": "PT1H",
             "description": "How often to recompute forecasts. Defaults to 1 hour.",
             "example": "PT1H"
           },
