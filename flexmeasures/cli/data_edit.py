@@ -183,10 +183,10 @@ def edit_attribute(
 )
 @click.option(
     "--event-resolution",
-    "event_resolution_in_minutes",
-    type=int,
+    "event_resolution",
+    type=str,
     required=True,
-    help="New event resolution as an integer number of minutes.",
+    help="New event resolution as a duration in ISO 8601 format, or as an integer number of minutes.",
 )
 @click.option(
     "--from",
@@ -209,13 +209,15 @@ def edit_attribute(
 )
 def resample_sensor_data(
     sensor_ids: list[int],
-    event_resolution_in_minutes: int,
+    event_resolution: str,
     start_str: str | None = None,
     end_str: str | None = None,
     skip_integrity_check: bool = False,
 ):
     """Assign a new event resolution to an existing sensor and resample its data accordingly."""
-    event_resolution = timedelta(minutes=event_resolution_in_minutes)
+    if event_resolution.isdigit():
+        event_resolution = timedelta(minutes=int(event_resolution))
+
     event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
     event_ends_before = pd.Timestamp(end_str)
     for sensor_id in sensor_ids:
