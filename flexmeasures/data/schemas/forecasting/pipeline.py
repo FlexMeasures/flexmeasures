@@ -46,7 +46,7 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": (
                 "Sensor IDs to be treated only as future regressors."
-                "Use this if only forecasts recorded on this sensor matter as a regressor."
+                " Use this if only forecasts recorded on this sensor matter as a regressor."
             ),
             "example": [2093, 2094],
             "cli": {
@@ -60,8 +60,8 @@ class ForecasterParametersSchema(Schema):
         required=False,
         metadata={
             "description": (
-                "Sensor IDs to be treated only as past regressors"
-                "Use this if only realizations recorded on this sensor matter as a regressor."
+                "Sensor IDs to be treated only as past regressors."
+                " Use this if only realizations recorded on this sensor matter as a regressor."
             ),
             "example": [2095],
             "cli": {
@@ -76,7 +76,7 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": (
                 "Sensor IDs used as both past and future regressors."
-                "Use this if both realizations and forecasts recorded on this sensor "
+                " Use this if both realizations and forecasts recorded on this sensor "
             ),
             "example": [2093, 2094, 2095],
             "cli": {
@@ -195,7 +195,7 @@ class ForecasterParametersSchema(Schema):
             "example": "PT1H",
             "cli": {
                 "option": "--forecast-frequency",
-            }
+            },
         },
     )
     probabilistic = fields.Bool(
@@ -243,7 +243,7 @@ class ForecasterParametersSchema(Schema):
             "example": 0.1,
             "cli": {
                 "option": "--missing-threshold",
-            }
+            },
         },
     )
     as_job = fields.Bool(
@@ -254,7 +254,7 @@ class ForecasterParametersSchema(Schema):
             "example": True,
             "cli": {
                 "option": "--as-job",
-            }
+            },
         },
     )
     max_training_period = DurationField(
