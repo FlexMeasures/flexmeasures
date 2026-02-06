@@ -32,6 +32,40 @@ Tests are organized into modules based on whether they modify database data:
 
 This separation improves test performance while maintaining isolation where needed. See `flexmeasures/conftest.py` for the fixture definitions.
 
+### API Test Isolation
+
+FlexMeasures API tests use a centralized workaround for Flask-Security authentication in Flask >2.2.
+
+**The Problem (Issue #1298)**:
+- Flask-Security's `_check_token` successfully retrieves users but fails to persist them with flask_login during testing
+- This causes API tests to fail with 401 errors when run in isolation
+- Only affects test environment (production auth works correctly)
+
+**The Solution (Centralized in `flexmeasures/api/conftest.py`)**:
+
+1. **Global patch fixture**: `patch_check_token` (autouse=True)
+   - Automatically patches `flask_security.decorators._check_token` for all API tests
+   - Uses `patched_check_token` from `flexmeasures/api/tests/utils.py`
+   
+2. **Patched function**: `flexmeasures/api/tests/utils.py::patched_check_token`
+   - Adds explicit `login_user()` call to persist authentication
+   - Sends identity_changed signal for Flask-Principal
+   
+3. **Session marker**: `requesting_user` fixture sets `fs_authn_via="session"`
+   - Tells Flask-Security to use session-based authentication
+   - Required for `_check_session` to work properly in tests
+
+**When writing API tests**:
+- ✅ Use `requesting_user` fixture for session-based auth (most common)
+- ✅ Use auth token directly for token-based auth tests
+- ❌ Don't manually patch `_check_token` - it's handled globally
+- ✅ Tests should run in isolation without 401 errors
+
+**References**:
+- Issue: https://github.com/FlexMeasures/flexmeasures/issues/1298
+- Flask-Security issue: https://github.com/Flask-Middleware/flask-security/issues/834
+- Original PR: https://github.com/FlexMeasures/flexmeasures/pull/838#discussion_r1321692937
+
 ### Installation and Setup
 
 Tests require PostgreSQL with specific credentials:
@@ -51,8 +85,6 @@ Setup instructions:
 - **Direct pytest**: `pytest` (after installing test dependencies)
 - **Test a specific file**: `pytest path/to/test_file.py`
 - **Test a specific function**: `pytest path/to/test_file.py::test_function_name`
-
-**Important**: See https://github.com/FlexMeasures/flexmeasures/issues/1298 for a workaround when testing API tests in isolation. If you encounter UNAUTHORIZED errors when running a single API test in isolation, prepend `test_auth_token` to your test name and run with `pytest -k test_auth_token`. This ensures the auth token setup runs before your test.
 
 ### GitHub Actions Workflow
 
