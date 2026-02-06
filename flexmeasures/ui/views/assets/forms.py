@@ -37,6 +37,11 @@ class AssetForm(FlaskForm):
         places=None,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
+    parent_asset_id = IntegerField(
+        "Parent Asset Id",
+        validators=[optional()],
+        render_kw={"placeholder": "--Enter parent asset id--"},
+    )
     attributes = StringField(
         "Other attributes (JSON)",
         default="{}",

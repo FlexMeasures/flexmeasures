@@ -399,9 +399,14 @@ class AssetCrudUI(FlaskView):
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
 
+        account_assets = (
+            db.session.query(GenericAsset).filter_by(account_id=asset.account_id).all()
+        )
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
+            account_assets=account_assets,
             site_asset=site_asset,
             flex_model_schema=UI_FLEX_MODEL_SCHEMA,
             asset_flexmodel=json.dumps(asset.flex_model),

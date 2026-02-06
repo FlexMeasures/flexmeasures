@@ -57,6 +57,20 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
+                                    {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
+                                    <div class="col-md-6">
+                                            <select name="parent_asset" id="parent-asset-id" class="form-control">
+                                            <option value="" {% if asset.parent_asset_id is none %} selected {% endif
+                                                %}>No Parent</option>
+                                            {% for account_asset in account_assets %}
+                                            <option value="{{ account_asset.id }}" {% if asset.parent_asset_id == account_asset.id %} selected {% endif %}>
+                                                {{ account_asset.name }} (ID: {{ account_asset.id }})</option>
+                                            {% endfor %}
+                                        </select>
+
+                                    </div>
+                                </div>
+                                <div class="form-group">
                                     <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
                                     <div class="col-md-6">
                                         <input class="form-control" id="asset-type-id" name="asset-type" type="text"
@@ -103,7 +117,7 @@
                                         {% endfor %}
                                     </div>
                                 </div>
-                                
+
                                 <div class="form-group">
                                     <label class="control-label">Location</label>
                                     <small>(Click map to edit latitude and longitude in form)</small>
@@ -120,12 +134,13 @@
                 </div>
             </div>
             {% endif %}
-      
+
             <div class="header-action-button">
                 {% if user_can_delete_asset %}
                 <div>
                     <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">Delete this
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
+                            type="submit">Delete this
                             asset
                         </button>
                     </form>
@@ -279,11 +294,8 @@
                 <div class="modal-header">
                     <h5 class="modal-title pe-2">Edit {{ asset.name }}'s flex-model</h5>
                     <div class="dropdown">
-                        <span class="fa fa-info dropdown-toggle" 
-                            role="button" 
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false" 
-                            tabindex="0">
+                        <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false" tabindex="0">
                         </span>
 
                         <div class="dropdown-menu p-3" style="width: 400px;">
@@ -317,7 +329,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="d-flex ms-auto align-items-center gap-2">
                         <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -353,7 +365,8 @@
                                             </select>
                                         </div>
                                         <div class="col-2 p-0">
-                                            <button id="addModelFieldbtn" class="btn btn-secondary btn-md">Add field</button>
+                                            <button id="addModelFieldbtn" class="btn btn-secondary btn-md">Add
+                                                field</button>
                                         </div>
                                     </div>
 
@@ -412,7 +425,7 @@
 
         // This variable is used to prevent reRenderForm from running on initial load
         let hasInitialized = false;
-                
+
         const schemaSpecs = {{ flex_model_schema | tojson | safe  }};
         const assetFlexModelSchema = {};
         const FlexModelFieldValidTypes = {};
@@ -436,7 +449,7 @@
             FlexModelFieldValidTypes[key] = validTypes;
         }
 
-        const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON( {...assetFlexModelSchema }, '{{ asset_flexmodel | safe }}', true);
+        const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexModelSchema }, '{{ asset_flexmodel | safe }}', true);
 
         document.addEventListener('DOMContentLoaded', async function () {
             const flexOptionsContainer = document.getElementById('flexOptionsContainer');
@@ -450,7 +463,7 @@
             saveChangesBtn.onclick = async function () {
                 await updateFlexModel();
             };
-            
+
             const [getFlexModel, setFlexModel] = createReactiveState(assetFlexModelRawJSON, reRenderForm);
             const [activeCard, setActiveCard] = createReactiveState(null, () => { senSearchResEle.style.display = 'none'; });
             const [selectedIndex, setSelectedIndex] = createReactiveState(null, renderFlexInputOptions);
@@ -611,7 +624,7 @@
 
                 // Clean null values
                 for (const [key, value] of Object.entries(data)) {
-                   if (
+                    if (
                         value === null ||
                         value === "" ||
                         value === "Not Set" ||
@@ -1051,7 +1064,7 @@
                     input.className = 'form-control';
                     input.id = 'flexStringInput';
                     input.placeholder = 'Enter a value';
-                    input.value = `${(typeof value === 'string' && value !== "Not Set")? value : ''}`;
+                    input.value = `${(typeof value === 'string' && value !== "Not Set") ? value : ''}`;
                     input.onkeydown = function (event) {
                         if (event.key === 'Enter') {
                             event.preventDefault();
@@ -1164,7 +1177,7 @@
                 renderFlexModelForm(); // Initial render of flex model form
                 renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
             });
-            
+
             flexSelect.addEventListener('change', (event) => {
                 const selectedKey = event.target.value;
                 renderSelectInfoCards(selectedKey);
@@ -1221,21 +1234,21 @@
         }
 
         $(document).ready(function () {
-        let unit = "";
-        // Initialize the DataTable
-        const table = $("#sensorsTable").dataTable({
-            order: [[0, "asc"]],
-            pageLength: 5,
-            lengthMenu: [5, 10, 25, 50, 75, 100],
-            serverSide: true,
-            // make the table row vertically aligned with header
-            columns: [
-                { data: "id", title: "ID", orderable: true },
-                { data: "name", title: "Name", orderable: true },
-                { data: "unit", title: "Unit", orderable: false },
-                { data: "resolution", title: "Resolution", orderable: true },
-                { data: "url", title: "URL", className: "d-none" },
-            ],
+            let unit = "";
+            // Initialize the DataTable
+            const table = $("#sensorsTable").dataTable({
+                order: [[0, "asc"]],
+                pageLength: 5,
+                lengthMenu: [5, 10, 25, 50, 75, 100],
+                serverSide: true,
+                // make the table row vertically aligned with header
+                columns: [
+                    { data: "id", title: "ID", orderable: true },
+                    { data: "name", title: "Name", orderable: true },
+                    { data: "unit", title: "Unit", orderable: false },
+                    { data: "resolution", title: "Resolution", orderable: true },
+                    { data: "url", title: "URL", className: "d-none" },
+                ],
 
                 ajax: function (data, callback, settings) {
                     const basePath = window.location.origin;
@@ -1261,22 +1274,22 @@
 
 
 
-                $.ajax({
-                    type: "get",
-                    url: url,
-                    success: function (response, text) {
-                        let clean_response = [];
-                        response["data"].forEach((element) =>
-                            clean_response.push(
-                                new Sensor(
-                                    element["id"],
-                                    element["name"],
-                                    element["unit"],
-                                    element["event_resolution"],
-                                    element["active"]
+                    $.ajax({
+                        type: "get",
+                        url: url,
+                        success: function (response, text) {
+                            let clean_response = [];
+                            response["data"].forEach((element) =>
+                                clean_response.push(
+                                    new Sensor(
+                                        element["id"],
+                                        element["name"],
+                                        element["unit"],
+                                        element["event_resolution"],
+                                        element["active"]
+                                    )
                                 )
-                            )
-                        );
+                            );
 
                             callback({
                                 data: clean_response,
