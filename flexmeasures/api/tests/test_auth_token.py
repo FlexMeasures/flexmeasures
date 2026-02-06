@@ -9,7 +9,7 @@ def test_auth_token(app, client, setup_api_test_data):
     """Use an auth token to query an endpoint.
     (we test other endpoints using the api/conftest/requesting_user fixture,
      so they're already logged in via session)
-    
+
     Note: The patched_check_token is now applied globally via the patch_check_token
     fixture in api/conftest.py, so no need to monkeypatch here.
     """

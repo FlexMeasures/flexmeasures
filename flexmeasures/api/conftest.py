@@ -10,11 +10,11 @@ from flexmeasures.api.tests.utils import UserContext, patched_check_token
 def patch_check_token(monkeypatch):
     """
     Patch Flask-Security's _check_token for all API tests.
-    
+
     This is needed because Flask-Security's _check_token in Flask >2.2
     doesn't properly persist the user with flask_login during testing.
     Without this patch, API tests that use token authentication fail with 401.
-    
+
     See: https://github.com/FlexMeasures/flexmeasures/issues/1298
     """
     monkeypatch.setattr(fs_decorators, "_check_token", patched_check_token)
@@ -47,7 +47,7 @@ def requesting_user(request):
 
     """
     from flask_security.decorators import set_request_attr
-    
+
     email = request.param
     if email is not None:
         with UserContext(email) as user:
