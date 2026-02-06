@@ -76,7 +76,7 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": (
                 "Sensor IDs used as both past and future regressors."
-                " Use this if both realizations and forecasts recorded on this sensor "
+                " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
             ),
             "example": [2093, 2094, 2095],
             "cli": {

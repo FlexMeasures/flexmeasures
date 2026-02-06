@@ -5088,7 +5088,7 @@
           },
           "regressors": {
             "type": "array",
-            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor ",
+            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
             "example": [
               2093,
               2094,
