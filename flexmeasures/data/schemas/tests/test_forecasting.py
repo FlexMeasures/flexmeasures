@@ -238,7 +238,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
                 )
                 - pd.Timedelta(days=30),
-                "predict_period_in_hours": 48,
+                "predict_period_in_hours": 72,
                 "train_period_in_hours": 720,
                 "max_forecast_horizon": pd.Timedelta(days=3), # duration between predict_start and end_date (retrain frequency)
                 "forecast_frequency": pd.Timedelta(days=3), # duration between predict_start and end_date (retrain frequency)
