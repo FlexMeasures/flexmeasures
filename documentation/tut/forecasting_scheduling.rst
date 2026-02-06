@@ -176,6 +176,21 @@ If FlexMeasures receives this message, a scheduling job will be made and put int
 
 .. note:: Even without a target state of charge, FlexMeasures will create a scheduling job. The flexible device can then be used with more freedom to reach the system objective (e.g. buy power when it is cheap, store it, and sell back when it's expensive).
 
+.. note:: The API endpoint also accepts a ``resolution`` field to control the scheduling resolution. See :ref:`scheduling_resolution` for details on when and how to use custom resolutions. Example:
+
+    .. code-block:: json
+        :emphasize-lines: 3
+
+        {
+            "start": "2015-06-02T10:00:00+00:00",
+            "resolution": "PT1H",
+            "flex-model": {
+                "sensor": 15,
+                "soc-at-start": "12.1 kWh"
+            }
+        }
+
+
 
 A second way to add scheduling jobs is via the CLI, so this is available for people who host FlexMeasures themselves:
 
@@ -188,6 +203,56 @@ A second way to add scheduling jobs is via the CLI, so this is available for peo
 Here, the ``--as-job`` parameter makes the difference for queueing ― without it, the schedule is computed right away.
 
 Run ``flexmeasures add schedule --help`` for more information.
+
+
+.. _scheduling_resolution:
+
+Scheduling resolution
+~~~~~~~~~~~~~~~~~~~~~
+
+The ``--resolution`` parameter (available in both the CLI and API) controls how often the scheduler is allowed to change power setpoints in the resulting schedule. This can be useful for several scenarios:
+
+**When to use a custom resolution:**
+
+- **Reduce computational complexity**: Scheduling at a coarser resolution (e.g., hourly instead of every 15 minutes) can significantly speed up computation for long planning horizons.
+- **Match control system limitations**: Some devices or control systems can only adjust their setpoints at specific intervals (e.g., every hour), so a coarser scheduling resolution better matches operational reality.
+- **Trade off precision for speed**: When exact timing is less critical, a coarser resolution provides faster scheduling.
+
+**How it works:**
+
+When you specify a resolution, FlexMeasures computes the schedule at that granularity, but saves the results at the sensor's native ``event_resolution``. For example, if you schedule a battery with a 15-minute sensor resolution using ``--resolution PT1H``, the scheduler optimizes hourly decisions, but the resulting schedule is stored as four 15-minute values per hour (each having the same value for that hour).
+
+**Example:**
+
+.. code-block:: bash
+
+    $ flexmeasures add schedule --sensor 2 \
+        --start ${TOMORROW}T07:00+01:00 --duration PT12H \
+        --soc-at-start 50% \
+        --resolution PT2H \
+        --flex-model '{"soc-min": "50 kWh"}'
+
+This schedules the battery (sensor 2) with setpoints that can change every 2 hours, rather than every 15 minutes.
+
+**Important limitations:**
+
+.. warning::
+    The scheduling resolution must be a **multiple** of the sensor's ``event_resolution``. For example, if a sensor has a 15-minute resolution, valid scheduling resolutions include PT15M, PT30M, PT1H, PT2H, etc. Using PT20M would fail because it's not a multiple of PT15M.
+
+.. warning::
+    All data sources used in scheduling (like price sensors or inflexible device sensors) must have data available at resolutions that are **compatible** with your chosen scheduling resolution. Specifically:
+    
+    - If you schedule at PT2H resolution but price data is only available at PT1H resolution, the scheduler can aggregate the hourly prices to 2-hour blocks.
+    - However, if price data is only available at PT3H resolution, scheduling at PT2H will fail because PT3H cannot be neatly aggregated to PT2H intervals.
+    
+    In practice, this means data sources should have resolutions that are **equal to or finer than** the scheduling resolution, or at least be **exact divisors** of the scheduling resolution.
+
+**Default behavior:**
+
+If you don't specify ``--resolution``:
+
+- For **sensor scheduling** (``--sensor``): Uses the sensor's ``event_resolution``
+- For **asset scheduling** (``--asset``): Infers the resolution from the asset's device sensors (typically using the finest resolution among them)
 
 
 .. _getting_prognoses:

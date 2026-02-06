@@ -224,3 +224,107 @@ The Coordinator should:
 - Propose new agents when FlexMeasures evolves
 - Refine the agent creation process based on outcomes
 - Keep the agent roster lean and focused (avoid proliferation)
+
+
+* * *
+
+## Critical Patterns All Agents Must Follow
+
+The Coordinator enforces these universal requirements across all agents:
+
+### 1. Self-Improvement Requirement
+
+**Every agent MUST update its own instructions after completing an assignment.**
+Pattern:
+
+1. Agent completes work (review, fix, documentation)
+2. Agent reflects on what was learned
+3. Agent updates its own instruction file with lessons
+4. Agent commits instruction updates separately
+
+This is not optional. Agents that don't self-improve will:
+
+- Repeat the same mistakes
+- Miss opportunities to encode knowledge
+- Fail to evolve with the project
+
+### 2. Atomic Commit Discipline
+
+**Never mix different types of changes in a single commit.**
+
+Examples of what to separate:
+
+- Code changes from tests
+- Code changes from documentation
+- Documentation from agent instructions
+- Multiple unrelated changes
+
+Each commit should tell one clear story about one logical change.
+
+### 3. No Temporary Analysis Files
+
+**Never commit temporary planning or analysis files.**
+Forbidden files that slip into commits:
+- `ARCHITECTURE_ANALYSIS.md`
+- `TASK_SUMMARY.md`
+- `TEST_PLAN.md`
+- `DOCUMENTATION_CHANGES.md`
+- Any `.md` files created for understanding/planning
+
+These should stay in working memory or `/tmp/`, never in git.
+
+### 4. Verify Claims Before Stating
+
+**All claims must be backed by actual verification.**
+
+Forbidden unfounded claims:
+
+- "This is 1000x faster" (without benchmarks)
+- "Tests pass" (without running them)
+- "This fixes the bug" (without testing the scenario)
+- "API is backward compatible" (without testing old clients)
+
+Required verification:
+
+- Run actual benchmarks for performance claims
+- Execute tests and show output
+- Test exact bug scenarios end-to-end
+- Use FlexMeasures dev environment to verify behavior
+
+### 5. Use FlexMeasures Dev Environment
+
+**Agents must make successful use of working FlexMeasures dev environment.**
+Key capabilities:
+
+- Set up environment: `make install-for-dev` or `make install-for-test`
+- Run tests: `pytest` or `make test`
+- Test CLI: `flexmeasures <command> <args>`
+- Run pre-commit: `pre-commit run --all-files`
+- Build docs: `make update-docs`
+- Profile performance: `export FLEXMEASURES_PROFILE_REQUESTS=true`
+
+Agents should not just suggest actions—they should execute them.
+
+### 6. Commit Message Format
+
+Standard format for all agent commits:
+```
+<area or agent>: <concise lesson or improvement>
+Context:
+- What triggered the change
+Change:
+- What was adjusted and why
+```
+
+### Common Failures from Recent Session
+
+The Coordinator has identified these recurring issues:
+1. **Agents didn't update their own instructions** - Every agent failed this
+2. **Agents didn't actually run tests** - Claimed "tests pass" without execution
+3. **Agents made non-atomic commits** - Mixed code, docs, and analysis files
+4. **Agents committed temporary .md files** - Should have stayed ephemeral
+5. **Agents didn't verify fixes** - Didn't test against actual bug scenarios
+6. **Unfounded claims** - "1000x faster" without benchmarks
+7. **Wrong examples** - Used PT1H instead of PT2H (the actual bug case)
+8. **Tasks not completed** - Review-lead didn't run coordinator despite assignment
+These patterns must not repeat. Agent instructions have been updated to prevent recurrence.

@@ -174,3 +174,43 @@ Known plugins: flexmeasures-client, flexmeasures-weather, flexmeasures-entsoe
 
 - This agent must not resolve backward compatibility issues by bumping the API version.
 - If compatibility cannot be preserved, this must be escalated explicitly for maintainer decision.
+
+* * *
+
+## Commit Discipline and Self-Improvement
+
+### Must Make Atomic Commits
+
+When making API changes:
+
+- **Separate API changes from tests** - One logical unit per commit
+- **Separate documentation updates** - API docs in separate commit
+- **Separate schema changes** - Don't mix multiple schema updates
+- **Never commit analysis files** - No `API_ANALYSIS.md` or similar
+- **Update agent instructions separately** - Own file, own commit
+
+### Must Verify Backward Compatibility Claims
+
+When reviewing API changes:
+
+- **Actually test with old clients** - Don't assume compatibility
+- **Run integration tests** - Verify existing client code still works
+- **Check OpenAPI specs** - Ensure specs match implementation
+- **Test migration paths** - If breaking, verify migration works
+
+### Self-Improvement Loop
+
+After each assignment:
+
+1. **Review compatibility issues found** - What was missed? What broke?
+2. **Update this agent file** - Add new patterns or checks
+3. **Commit separately** with format:
+   ```
+   agents/api-compatibility: learned <specific lesson>
+   
+   Context:
+   - Assignment revealed gap in <area>
+   
+   Change:
+   - Added guidance on <topic>
+   ```

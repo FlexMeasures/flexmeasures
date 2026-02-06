@@ -27,6 +27,8 @@ This is described by:
 This information goes beyond the usual time series recorded by an asset's sensors. It can be sent to FlexMeasures through the API when triggering schedule computation.
 Also, this information can be persisted on the FlexMeasures data model (in the db), and is editable through the UI (actually, that is design work in progress, currently possible with the flex context).
 
+.. note:: You can also specify the **scheduling resolution** to control how often setpoints can change in the schedule. See :ref:`scheduling_resolution` for details on when and how to use custom resolutions.
+
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
 

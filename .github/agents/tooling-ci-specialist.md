@@ -238,3 +238,75 @@ pytest -k test_auth_token  # Ensure auth setup runs
 - Track Python ecosystem tooling evolution
 - Improve caching strategies
 - Ensure agent workflows remain efficient
+
+* * *
+
+## Commit Discipline and Self-Improvement
+
+### Must Make Atomic Commits
+
+When making CI/tooling changes:
+
+- **Separate workflow changes** - One workflow per commit
+- **Separate pre-commit hook changes** - Individual hooks get own commits
+- **Separate configuration changes** - Linter config separate from code
+- **Never commit analysis files** - No `CI_ANALYSIS.md` or similar
+- **Update agent instructions separately** - Own file, own commit
+
+### Must Verify CI Changes Actually Work
+
+When modifying CI infrastructure:
+
+- **Run pre-commit hooks locally** - Don't assume they work
+  ```bash
+  pre-commit run --all-files
+  ```
+- **Test workflow changes** - Push to branch and verify CI passes
+  
+- **Check caching works** - Verify cache keys match and restore properly
+- **Test across matrix** - Ensure all Python versions work
+
+### Using FlexMeasures Dev Environment for CI Testing
+
+Before committing CI changes:
+
+1. **Test pre-commit hooks locally**:
+   ```bash
+   pip install pre-commit
+   pre-commit install
+   pre-commit run --all-files
+   ```
+2. **Test make targets**:
+   ```bash
+   make install-for-test
+   make test
+   make update-docs
+   ```
+3. **Verify pytest configuration**:
+   ```bash
+   pytest --collect-only  # Check test discovery
+   pytest -v              # Run with verbose output
+   ```
+4. **Check linter configs**:
+   ```bash
+   flake8 flexmeasures/
+   black --check flexmeasures/
+   mypy flexmeasures/
+   ```
+
+### Self-Improvement Loop
+
+After each assignment:
+
+1. **Review CI failures** - What went wrong? What could be improved?
+2. **Update this agent file** - Add new patterns or tooling guidance
+3. **Commit separately** with format:
+   ```
+   agents/tooling-ci: learned <specific lesson>
+   
+   Context:
+   - Assignment revealed issue with <CI component>
+   
+   Change:
+   - Added guidance on <tooling topic>
+   ```

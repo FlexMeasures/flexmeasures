@@ -48,5 +48,23 @@ docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 2 \
   --flex-context '{"inflexible-device-sensors": [3]}' \
   --flex-model '{"soc-min": "50 kWh"}'
 
-echo "[TUTORIAL-RUNNER] showing schedule ..."
-docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+#echo "[TUTORIAL-RUNNER] showing schedule ..."
+#docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+#
+#echo ""
+#echo "[TUTORIAL-RUNNER] DEMONSTRATING CUSTOM SCHEDULING RESOLUTION ..."
+#echo "[TUTORIAL-RUNNER] The previous schedule used the sensor's native 15-minute resolution (PT15M)."
+#echo "[TUTORIAL-RUNNER] Now we'll create a schedule with hourly resolution (PT1H) for faster computation."
+#echo "[TUTORIAL-RUNNER] This is useful when exact timing is less critical or for long planning horizons."
+#echo ""
+#
+#echo "[TUTORIAL-RUNNER] creating hourly-resolution schedule ..."
+#docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 2 \
+#  --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
+#  --resolution PT1H \
+#  --flex-context '{"inflexible-device-sensors": [3]}' \
+#  --flex-model '{"soc-min": "50 kWh"}'
+#
+#echo "[TUTORIAL-RUNNER] showing hourly-resolution schedule ..."
+#echo "[TUTORIAL-RUNNER] Notice the schedule still has 15-minute data points, but values only change each hour."
+#docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
