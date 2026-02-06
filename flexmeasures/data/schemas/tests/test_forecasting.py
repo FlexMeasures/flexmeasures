@@ -27,10 +27,10 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 + pd.Timedelta(hours=48),
                 # these are set by the schema defaults
                 "predict_period_in_hours": 48,
-                "max_forecast_horizon": pd.Timedelta(hours=48),
+                "max_forecast_horizon": pd.Timedelta(days=2),
                 "train_period_in_hours": 720,
                 "max_training_period": pd.Timedelta(days=365),
-                "forecast_frequency": pd.Timedelta(hours=1),
+                "forecast_frequency": pd.Timedelta(days=2),
                 # server now
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
