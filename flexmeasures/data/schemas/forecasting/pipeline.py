@@ -310,6 +310,8 @@ class ForecasterParametersSchema(Schema):
             retrain_frequency_in_hours = data.get("max_forecast_horizon") // timedelta(
                 hours=1
             )
+        elif data.get("retrain_frequency") is None and data.get("end_date") is None and data.get("max_forecast_horizon") is None:
+            retrain_frequency_in_hours = 48  # Set default retrain_frequency to 48 hours
         else:
             retrain_frequency_in_hours = data["retrain_frequency"] // timedelta(hours=1)
             if retrain_frequency_in_hours < 1:
