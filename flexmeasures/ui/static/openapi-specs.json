@@ -5067,7 +5067,7 @@
           },
           "future-regressors": {
             "type": "array",
-            "description": "Sensor IDs to be treated only as future regressors.",
+            "description": "Sensor IDs to be treated only as future regressors.Use this if only forecasts recorded on this sensor matter as a regressor.",
             "example": [
               2093,
               2094
@@ -5078,7 +5078,7 @@
           },
           "past-regressors": {
             "type": "array",
-            "description": "Sensor IDs to be treated only as past regressors.",
+            "description": "Sensor IDs to be treated only as past regressorsUse this if only realizations recorded on this sensor matter as a regressor.",
             "example": [
               2095
             ],
@@ -5088,7 +5088,7 @@
           },
           "regressors": {
             "type": "array",
-            "description": "Sensor IDs used as both past and future regressors.",
+            "description": "Sensor IDs used as both past and future regressors.Use this if both realizations and forecasts recorded on this sensor ",
             "example": [
               2093,
               2094,
@@ -5164,7 +5164,7 @@
               "null"
             ],
             "default": "P2D",
-            "description": "Maximum forecast horizon. Defaults to 48 hours if not set.",
+            "description": "Maximum forecast horizon. Defaults to 'PT48H' if not set.",
             "example": "PT48H"
           },
           "forecast-frequency": {
@@ -5172,7 +5172,6 @@
               "string",
               "null"
             ],
-            "default": "PT1H",
             "description": "How often to recompute forecasts. Defaults to 1 hour.",
             "example": "PT1H"
           },
