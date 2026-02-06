@@ -70,7 +70,6 @@ from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
@@ -1004,7 +1003,7 @@ class AssetAPI(FlaskView):
         audit_logs_response: list = [
             {
                 "event": audit_log.event,
-                "event_datetime": naturalized_datetime_str(audit_log.event_datetime),
+                "event_datetime": audit_log.event_datetime.isoformat(),
                 "active_user_name": audit_log.active_user_name,
                 "active_user_id": audit_log.active_user_id,
             }
