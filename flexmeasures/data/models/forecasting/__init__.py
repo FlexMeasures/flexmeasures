@@ -135,7 +135,7 @@ class Forecaster(DataGenerator):
             "output_path",
             "sensor_to_save",
             "as_job",
-            "n_cycles"
+            "n_cycles",
         ]
 
         for field in fields_to_remove:

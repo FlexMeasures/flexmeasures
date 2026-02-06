@@ -60,8 +60,12 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 ),
                 "train_period_in_hours": 720,  # from start_date to predict_start
                 "predict_period_in_hours": 120,  # from predict_start to end_date
-                "forecast_frequency": pd.Timedelta(days=5), # duration between predict_start and end_date
-                "max_forecast_horizon": pd.Timedelta(days=5), # duration between predict_start and end_date
+                "forecast_frequency": pd.Timedelta(
+                    days=5
+                ),  # duration between predict_start and end_date
+                "max_forecast_horizon": pd.Timedelta(
+                    days=5
+                ),  # duration between predict_start and end_date
                 # default values
                 "max_training_period": pd.Timedelta(days=365),
                 # server now
@@ -91,8 +95,10 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 ).floor("1h"),
                 "predict_period_in_hours": 108,  # hours from predict_start to end_date
                 "train_period_in_hours": 636,  # hours between start_date and predict_start
-                "max_forecast_horizon": pd.Timedelta(days=4) + pd.Timedelta(hours=12), # duration between predict_start and end_date
-                "forecast_frequency": pd.Timedelta(days=4) + pd.Timedelta(hours=12), # duration between predict_start and end_date
+                "max_forecast_horizon": pd.Timedelta(days=4)
+                + pd.Timedelta(hours=12),  # duration between predict_start and end_date
+                "forecast_frequency": pd.Timedelta(days=4)
+                + pd.Timedelta(hours=12),  # duration between predict_start and end_date
                 # default values
                 "max_training_period": pd.Timedelta(days=365),
                 # server now
@@ -124,8 +130,12 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 - pd.Timedelta(days=3),
                 "train_period_in_hours": 72,  # from start_date to predict_start
                 "predict_period_in_hours": 120,  # from predict_start to end_date
-                "max_forecast_horizon": pd.Timedelta(days=5), # duration between predict_start and end_date
-                "forecast_frequency": pd.Timedelta(days=5), # duration between predict_start and end_date
+                "max_forecast_horizon": pd.Timedelta(
+                    days=5
+                ),  # duration between predict_start and end_date
+                "forecast_frequency": pd.Timedelta(
+                    days=5
+                ),  # duration between predict_start and end_date
                 # default values
                 "max_training_period": pd.Timedelta(days=365),
                 # server now
@@ -156,8 +166,12 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 )
                 + pd.Timedelta(days=2),
                 "train_period_in_hours": 72,
-                "max_forecast_horizon": pd.Timedelta(days=2), # duration between predict_start and end_date
-                "forecast_frequency": pd.Timedelta(days=2), # duration between predict_start and end_date
+                "max_forecast_horizon": pd.Timedelta(
+                    days=2
+                ),  # duration between predict_start and end_date
+                "forecast_frequency": pd.Timedelta(
+                    days=2
+                ),  # duration between predict_start and end_date
                 # default values
                 "predict_period_in_hours": 48,
                 "max_training_period": pd.Timedelta(days=365),
@@ -186,8 +200,12 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 + pd.Timedelta(days=3),
                 "predict_period_in_hours": 72,
                 "train_period_in_hours": 516,  # from start_date to predict_start
-                "max_forecast_horizon": pd.Timedelta(days=3),  # duration between predict_start and end_date
-                "forecast_frequency": pd.Timedelta(days=3),  # duration between predict_start and end_date                
+                "max_forecast_horizon": pd.Timedelta(
+                    days=3
+                ),  # duration between predict_start and end_date
+                "forecast_frequency": pd.Timedelta(
+                    days=3
+                ),  # duration between predict_start and end_date
                 # default values
                 "max_training_period": pd.Timedelta(days=365),
                 # server now
@@ -219,7 +237,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 + pd.Timedelta(days=23),
                 "train_period_in_hours": 480,
                 "predict_period_in_hours": 72,
-                "max_forecast_horizon": pd.Timedelta(days=3),  # predict period duration 
+                "max_forecast_horizon": pd.Timedelta(days=3),  # predict period duration
                 "forecast_frequency": pd.Timedelta(days=3),  # predict period duration
                 # default values
                 "max_training_period": pd.Timedelta(days=365),
@@ -246,8 +264,12 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
                 - pd.Timedelta(days=30),
                 "predict_period_in_hours": 72,
                 "train_period_in_hours": 720,
-                "max_forecast_horizon": pd.Timedelta(days=3), # duration between predict_start and end_date (retrain frequency)
-                "forecast_frequency": pd.Timedelta(days=3), # duration between predict_start and end_date (retrain frequency)
+                "max_forecast_horizon": pd.Timedelta(
+                    days=3
+                ),  # duration between predict_start and end_date (retrain frequency)
+                "forecast_frequency": pd.Timedelta(
+                    days=3
+                ),  # duration between predict_start and end_date (retrain frequency)
                 # default values
                 "max_training_period": pd.Timedelta(days=365),
                 # server now
