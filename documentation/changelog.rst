@@ -50,7 +50,7 @@ Infrastructure / Support
 * Improve reported test coverage by including doctests and bringing back CLI tests to GitHub Actions [see `PR #1914 <https://www.github.com/FlexMeasures/flexmeasures/pull/1914>`_ and `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_, respectively]
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
 * Allow seeing complete datetimes in the audit log [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
-* Add standardized GitHub Copilot agent environment setup file for consistent development environment across agent sessions [see `PR #1962 <https://www.github.com/FlexMeasures/flexmeasures/pull/1962>`_]
+* Add standardized GitHub Copilot agent environment setup file for consistent development environment across agent sessions [see `PR #1962 <https://www.github.com/FlexMeasures/flexmeasures/pull/1962>`_ and `PR #1963 <https://www.github.com/FlexMeasures/flexmeasures/pull/1963>`_]
 
 Bugfixes
 -----------
