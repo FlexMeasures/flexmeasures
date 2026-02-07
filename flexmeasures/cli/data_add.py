@@ -70,6 +70,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
+from flexmeasures.data.schemas.utils import snake_to_kebab
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
@@ -1047,7 +1048,7 @@ def add_holidays(
     "--to-date",
     "--end-date",
     "end_date",
-    required=True,
+    required=False,
     help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
 )
 @click.option(
@@ -1172,7 +1173,7 @@ def add_holidays(
     ),
 )
 @with_appcontext
-def train_predict_pipeline(
+def add_forecast(
     forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
@@ -1187,11 +1188,11 @@ def train_predict_pipeline(
     \b
     Example
       flexmeasures add forecasts --sensor 2092 --regressors 2093
-        --start-date 2025-01-01T00:00:00+01:00 --to-date 2025-10-15T00:00:00+01:00
+        --to-date 2025-10-15T00:00:00+01:00
 
     \b
     Workflow
-      - Training window: defaults from --start-date until the CLI execution time.
+      - Training window: defaults to a 30-day period in advance of the CLI execution time.
       - Prediction window: defaults from CLI execution time until --to-date.
       - max-forecast-horizon: defaults to the length of the prediction window.
       - Forecasts are computed immediately; use --as-job to enqueue them.
@@ -1237,10 +1238,11 @@ def train_predict_pipeline(
     if edit_parameters:
         parameters = launch_editor("/tmp/parameters.yml")
 
-    # Move remaining kwargs to parameters
+    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
     for k, v in kwargs.items():
-        if k not in parameters:
-            parameters[k] = v
+        kebab_key = snake_to_kebab(k)
+        if kebab_key not in parameters:
+            parameters[kebab_key] = v
 
     forecaster = get_data_generator(
         source=source,

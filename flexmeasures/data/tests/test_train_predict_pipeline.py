@@ -23,16 +23,16 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             },
             {
                 "sensor": "solar-sensor",
-                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
-                "end_date": "2025-01-03T00:00+02:00",
-                "train_period": "P2D",
-                "sensor_to_save": None,
-                "start_predict_date": "2025-01-02T00:00+02:00",
-                "retrain_frequency": "P0D",  # 0 days is expected to fail
-                "max_forecast_horizon": "PT1H",
-                "forecast_frequency": "PT1H",
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start-date": "2025-01-01T00:00+02:00",
+                "end-date": "2025-01-03T00:00+02:00",
+                "train-period": "P2D",
+                "sensor-to-save": None,
+                "start-predict-date": "2025-01-02T00:00+02:00",
+                "retrain-frequency": "P0D",  # 0 days is expected to fail
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT1H",
                 "probabilistic": False,
             },
             (ValidationError, "retrain-frequency must be greater than 0"),
@@ -43,16 +43,16 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             },
             {
                 "sensor": "solar-sensor",
-                "future_regressors": ["irradiance-sensor"],
-                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
-                "start_predict_date": "2025-01-08T00:00+02:00",  # start_predict_date coincides with end of available data in sensor
-                "end_date": "2025-01-09T00:00+02:00",
-                "sensor_to_save": None,
-                "max_forecast_horizon": "PT1H",
+                "future-regressors": ["irradiance-sensor"],
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start-date": "2025-01-01T00:00+02:00",
+                "start-predict-date": "2025-01-08T00:00+02:00",  # start-predict-date coincides with end of available data in sensor
+                "end-date": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
                 "probabilistic": False,
-                "as_job": True,
+                "as-job": True,
             },
             None,
         ),
@@ -62,14 +62,15 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             },
             {
                 "sensor": "solar-sensor",
-                "future_regressors": ["irradiance-sensor"],
-                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
-                "start_predict_date": "2025-01-08T00:00+02:00",  # start_predict_date coincides with end of available data in sensor
-                "end_date": "2025-01-09T00:00+02:00",
-                "sensor_to_save": None,
-                "max_forecast_horizon": "PT1H",
+                "future-regressors": ["irradiance-sensor"],
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                # "start-date": "2025-01-01T00:00+02:00",  # without a start date, max-training-period takes over
+                "max-training-period": "P7D",
+                "start-predict-date": "2025-01-08T00:00+02:00",  # start-predict-date coincides with end of available data in sensor
+                "end-date": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
                 "probabilistic": False,
             },
             None,
@@ -80,15 +81,15 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             },
             {  # Test: duplicate sensor names in past and future regressors
                 "sensor": "solar-sensor",
-                "past_regressors": ["irradiance-sensor"],
-                "future_regressors": ["irradiance-sensor"],
-                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
-                "start_predict_date": "2025-01-04T00:00+02:00",
-                "end_date": "2025-01-09T00:00+02:00",
-                "sensor_to_save": None,
-                "max_forecast_horizon": "PT1H",
+                "past-regressors": ["irradiance-sensor"],
+                "future-regressors": ["irradiance-sensor"],
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start-date": "2025-01-01T00:00+02:00",
+                "start-predict-date": "2025-01-04T00:00+02:00",
+                "end-date": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
                 "probabilistic": False,
             },
             None,
@@ -99,17 +100,17 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             },
             {
                 "sensor": "solar-sensor",
-                "future_regressors": ["irradiance-sensor"],
-                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
-                "end_date": "2025-01-03T00:00+02:00",
-                "train_period": "P2D",
-                "sensor_to_save": None,
-                "start_predict_date": "2025-01-02T00:00+02:00",
-                "retrain_frequency": "P1D",
-                "max_forecast_horizon": "PT1H",
-                "forecast_frequency": "PT1H",
+                "future-regressors": ["irradiance-sensor"],
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start-date": "2025-01-01T00:00+02:00",
+                "end-date": "2025-01-03T00:00+02:00",
+                "train-period": "P2D",
+                "sensor-to-save": None,
+                "start-predict-date": "2025-01-02T00:00+02:00",
+                "retrain-frequency": "P1D",
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT1H",
                 "probabilistic": False,
             },
             None,
@@ -118,15 +119,15 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         #     {},
         #     {
         #         "sensor": "solar-sensor",
-        #         "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-        #         "output_path": None,
-        #         "start_date": "2025-07-01T00:00+02:00",
-        #         "end_date": "2025-07-12T00:00+02:00",
-        #         "sensor_to_save": 1,
-        #         "start_predict_date": "2025-07-11T17:26+02:00",
-        #         "retrain_frequency": "PT24H",
-        #         "max_forecast_horizon": 24,
-        #         "forecast_frequency": 1,
+        #         "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        #         "output-path": None,
+        #         "start-date": "2025-07-01T00:00+02:00",
+        #         "end-date": "2025-07-12T00:00+02:00",
+        #         "sensor-to-save": 1,
+        #         "start-predict-date": "2025-07-11T17:26+02:00",
+        #         "retrain-frequency": "PT24H",
+        #         "max-forecast-horizon": 24,
+        #         "forecast-frequency": 1,
         #         "probabilistic": False,
         #     },
         #     (ValidationError, "Try increasing the --end-date."),
@@ -145,22 +146,22 @@ def test_train_predict_pipeline(  # noqa: C901
 
     past_regressors = [
         setup_fresh_test_forecast_data[regressor_name]
-        for regressor_name in params.get("past_regressors", [])
+        for regressor_name in params.get("past-regressors", [])
     ]
     future_regressors = [
         setup_fresh_test_forecast_data[regressor_name]
-        for regressor_name in params.get("future_regressors", [])
+        for regressor_name in params.get("future-regressors", [])
     ]
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
         for regressor_name in params.get("regressors", [])
     ]
 
-    if params.get("past_regressors"):
-        params["past_regressors"] = [regressor.id for regressor in past_regressors]
+    if params.get("past-regressors"):
+        params["past-regressors"] = [regressor.id for regressor in past_regressors]
 
-    if params.get("future_regressors"):
-        params["future_regressors"] = [regressor.id for regressor in future_regressors]
+    if params.get("future-regressors"):
+        params["future-regressors"] = [regressor.id for regressor in future_regressors]
 
     if params.get("regressors"):
         params["regressors"] = [regressor.id for regressor in regressors]
@@ -179,7 +180,7 @@ def test_train_predict_pipeline(  # noqa: C901
             if config.get(attr):
                 assert hasattr(pipeline, attr)
 
-        if params.get("as_job"):
+        if params.get("as-job"):
             work_on_rq(
                 app.queues["forecasting"], exc_handler=handle_forecasting_exception
             )
@@ -253,23 +254,23 @@ def test_train_predict_pipeline(  # noqa: C901
         # Check DataGenerator parameters stored under DataSource attributes
         data_generator_params = source.attributes["data_generator"]["parameters"]
         assert (
-            "missing_threshold" in data_generator_params
+            "missing-threshold" in data_generator_params
         ), "data generator parameters should mention missing_threshold"
         for regressor in past_regressors:
             assert (
-                regressor.id in data_generator_params["past_regressors"]
+                regressor.id in data_generator_params["past-regressors"]
             ), f"data generator parameters should mention past regressor {regressor.name}"
 
         for regressor in future_regressors:
             assert (
-                regressor.id in data_generator_params["future_regressors"]
+                regressor.id in data_generator_params["future-regressors"]
             ), f"data generator parameters should mention future regressor {regressor.name}"
         for regressor in regressors:
             assert (
-                regressor.id in data_generator_params["past_regressors"]
+                regressor.id in data_generator_params["past-regressors"]
             ), f"data generator parameters should mention regressor {regressor.name} as a past regressor"
             assert (
-                regressor.id in data_generator_params["future_regressors"]
+                regressor.id in data_generator_params["future-regressors"]
             ), f"data generator parameters should mention regressor {regressor.name} as a future regressor"
         assert (
             "regressors" not in data_generator_params
@@ -286,16 +287,16 @@ def test_train_predict_pipeline(  # noqa: C901
             },
             {
                 "sensor": "solar-sensor",
-                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
-                "end_date": "2025-01-30T00:00+02:00",
-                "sensor_to_save": None,
-                "start_predict_date": "2025-01-25T00:00+02:00",
-                "retrain_frequency": "P1D",
-                "max_forecast_horizon": "PT1H",
-                "forecast_frequency": "PT1H",
-                "missing_threshold": "0.0",
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start-date": "2025-01-01T00:00+02:00",
+                "end-date": "2025-01-30T00:00+02:00",
+                "sensor-to-save": None,
+                "start-predict-date": "2025-01-25T00:00+02:00",
+                "retrain-frequency": "P1D",
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT1H",
+                "missing-threshold": "0.0",
                 "probabilistic": False,
             },
         ),
@@ -306,17 +307,17 @@ def test_train_predict_pipeline(  # noqa: C901
             },
             {
                 "sensor": "solar-sensor",
-                "future_regressors": ["irradiance-sensor"],
-                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
-                "end_date": "2025-01-30T00:00+02:00",
-                "missing_threshold": "0.0",
-                "sensor_to_save": None,
-                "start_predict_date": "2025-01-25T00:00+02:00",
-                "retrain_frequency": "P1D",
-                "max_forecast_horizon": "PT1H",
-                "forecast_frequency": "PT1H",
+                "future-regressors": ["irradiance-sensor"],
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start-date": "2025-01-01T00:00+02:00",
+                "end-date": "2025-01-30T00:00+02:00",
+                "missing-threshold": "0.0",
+                "sensor-to-save": None,
+                "start-predict-date": "2025-01-25T00:00+02:00",
+                "retrain-frequency": "P1D",
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT1H",
                 "probabilistic": False,
             },
         ),
@@ -346,11 +347,11 @@ def test_missing_data_logs_warning(
         setup_fresh_test_forecast_data_with_missing_data[reg]
         for reg in params.get("regressors", [])
     ]
-    params["missing_threshold"] = float(params.get("missing_threshold"))
-    if params.get("past_regressors"):
-        params["past_regressors"] = [r.id for r in past_regressors]
-    if params.get("future_regressors"):
-        params["future_regressors"] = [r.id for r in future_regressors]
+    params["missing-threshold"] = float(params.get("missing-threshold"))
+    if params.get("past-regressors"):
+        params["past-regressors"] = [r.id for r in past_regressors]
+    if params.get("future-regressors"):
+        params["future-regressors"] = [r.id for r in future_regressors]
     if params.get("regressors"):
         params["regressors"] = [r.id for r in regressors]
 
@@ -364,7 +365,7 @@ def test_missing_data_logs_warning(
         ), "Expected CustomException for missing data threshold"
 
 
-# Test that max_training_period caps train_period and logs a warning
+# Test that max_training-period caps train-period and logs a warning
 @pytest.mark.parametrize(
     ["config", "params"],
     [
@@ -374,16 +375,16 @@ def test_missing_data_logs_warning(
             },
             {
                 "sensor": "solar-sensor",
-                "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output_path": None,
-                "start_date": "2025-01-01T00:00+02:00",
-                "end_date": "2025-01-30T00:00+02:00",
-                "max_training_period": "P10D",  # cap at 10 days
-                "sensor_to_save": None,
-                "start_predict_date": "2025-01-25T00:00+02:00",
-                "retrain_frequency": "P1D",
-                "max_forecast_horizon": "PT1H",
-                "forecast_frequency": "PT1H",
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start-date": "2025-01-01T00:00+02:00",
+                "end-date": "2025-01-30T00:00+02:00",
+                "max-training-period": "P10D",  # cap at 10 days
+                "sensor-to-save": None,
+                "start-predict-date": "2025-01-25T00:00+02:00",
+                "retrain-frequency": "P1D",
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT1H",
                 "probabilistic": False,
             },
         ),
@@ -396,8 +397,8 @@ def test_train_period_capped_logs_warning(
     caplog,
 ):
     """
-    Verify that a warning is logged when train_period exceeds max_training_period,
-    and that train_period is capped accordingly.
+    Verify that a warning is logged when train-period exceeds max-training-period,
+    and that train-period is capped accordingly.
     """
     sensor = setup_fresh_test_forecast_data[params["sensor"]]
     params["sensor"] = sensor.id

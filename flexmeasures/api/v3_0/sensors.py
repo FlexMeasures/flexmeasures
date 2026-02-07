@@ -1554,25 +1554,11 @@ class SensorAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema:
-                  type: object
-                  properties:
-                    start_date:
-                      type: string
-                      format: date-time
-                      description: Start date of the historical data used for training.
-                    start_predict_date:
-                      type: string
-                      format: date-time
-                      description: Start date of the forecast period.
-                    end_date:
-                      type: string
-                      format: date-time
-                      description: End date of the forecast period.
+                schema: ForecasterParametersSchema
                 example:
-                  start_date: "2026-01-01T00:00:00+01:00"
-                  start_predict_date: "2026-01-15T00:00:00+01:00"
-                  end_date: "2026-01-17T00:00:00+01:00"
+                  start-date: "2026-01-01T00:00:00+01:00"
+                  start-predict-date: "2026-01-15T00:00:00+01:00"
+                  end-date: "2026-01-17T00:00:00+01:00"
           responses:
             200:
               description: PROCESSED
@@ -1612,7 +1598,7 @@ class SensorAPI(FlaskView):
         parameters["sensor"] = params["sensor_to_save"].id
 
         # Ensure the forecast is run as a job on a forecasting queue
-        parameters["as_job"] = True
+        parameters["as-job"] = True
 
         # Set forecaster model
         model = parameters.pop("model", "TrainPredictPipeline")

@@ -4,8 +4,16 @@ import logging
 import os
 
 from datetime import timedelta
+from isodate.duration import Duration
 
-from marshmallow import fields, Schema, validates_schema, post_load, ValidationError
+from marshmallow import (
+    fields,
+    Schema,
+    validates_schema,
+    pre_load,
+    post_load,
+    ValidationError,
+)
 
 from flexmeasures.data.schemas import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeOrDateField, DurationField
@@ -21,6 +29,7 @@ class TrainPredictPipelineConfigSchema(Schema):
 class ForecasterParametersSchema(Schema):
 
     sensor = SensorIdField(
+        data_key="sensor",
         required=True,
         metadata={
             "description": "ID of the sensor to forecast.",
@@ -29,6 +38,7 @@ class ForecasterParametersSchema(Schema):
     )
     future_regressors = fields.List(
         SensorIdField(),
+        data_key="future-regressors",
         required=False,
         metadata={
             "description": "Sensor IDs to be treated only as future regressors.",
@@ -37,6 +47,7 @@ class ForecasterParametersSchema(Schema):
     )
     past_regressors = fields.List(
         SensorIdField(),
+        data_key="past-regressors",
         required=False,
         metadata={
             "description": "Sensor IDs to be treated only as past regressors.",
@@ -45,6 +56,7 @@ class ForecasterParametersSchema(Schema):
     )
     regressors = fields.List(
         SensorIdField(),
+        data_key="regressors",
         required=False,
         metadata={
             "description": "Sensor IDs used as both past and future regressors.",
@@ -52,6 +64,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     model_save_dir = fields.Str(
+        data_key="model-save-dir",
         required=False,
         allow_none=True,
         load_default="flexmeasures/data/models/forecasting/artifacts/models",
@@ -61,6 +74,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     output_path = fields.Str(
+        data_key="output-path",
         required=False,
         allow_none=True,
         metadata={
@@ -69,6 +83,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     start_date = AwareDateTimeOrDateField(
+        data_key="start-date",
         required=False,
         allow_none=True,
         metadata={
@@ -77,7 +92,9 @@ class ForecasterParametersSchema(Schema):
         },
     )
     end_date = AwareDateTimeOrDateField(
-        required=True,
+        data_key="end-date",
+        required=False,
+        allow_none=True,
         inclusive=True,
         metadata={
             "description": "End date for running the pipeline.",
@@ -85,6 +102,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     train_period = DurationField(
+        data_key="train-period",
         required=False,
         allow_none=True,
         metadata={
@@ -93,6 +111,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     start_predict_date = AwareDateTimeOrDateField(
+        data_key="start-predict-date",
         required=False,
         allow_none=True,
         metadata={
@@ -101,6 +120,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     retrain_frequency = DurationField(
+        data_key="retrain-frequency",
         required=False,
         allow_none=True,
         metadata={
@@ -109,24 +129,25 @@ class ForecasterParametersSchema(Schema):
         },
     )
     max_forecast_horizon = DurationField(
+        data_key="max-forecast-horizon",
         required=False,
         allow_none=True,
-        load_default=timedelta(hours=48),
         metadata={
-            "description": "Maximum forecast horizon. Defaults to 48 hours if not set.",
+            "description": "Maximum forecast horizon. Defaults to retrain_frequency if set and 48 hours otherwise.",
             "example": "PT48H",
         },
     )
     forecast_frequency = DurationField(
+        data_key="forecast-frequency",
         required=False,
         allow_none=True,
-        load_default=timedelta(hours=1),
         metadata={
             "description": "How often to recompute forecasts. Defaults to 1 hour.",
             "example": "PT1H",
         },
     )
     probabilistic = fields.Bool(
+        data_key="probabilistic",
         required=False,
         load_default=False,
         metadata={
@@ -135,6 +156,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     sensor_to_save = SensorIdField(
+        data_key="sensor-to-save",
         required=False,
         allow_none=True,
         metadata={
@@ -143,6 +165,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     ensure_positive = fields.Bool(
+        data_key="ensure-positive",
         required=False,
         allow_none=True,
         metadata={
@@ -151,6 +174,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     missing_threshold = fields.Float(
+        data_key="missing-threshold",
         required=False,
         load_default=1.0,
         metadata={
@@ -159,6 +183,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     as_job = fields.Bool(
+        data_key="as-job",
         load_default=False,
         metadata={
             "description": "If True, compute forecasts asynchronously using RQ jobs. Defaults to False.",
@@ -166,6 +191,7 @@ class ForecasterParametersSchema(Schema):
         },
     )
     max_training_period = DurationField(
+        data_key="max-training-period",
         required=False,
         allow_none=True,
         metadata={
@@ -174,29 +200,34 @@ class ForecasterParametersSchema(Schema):
         },
     )
 
+    @pre_load
+    def drop_none_values(self, data, **kwargs):
+        return {k: v for k, v in data.items() if v is not None}
+
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):
-        start_date = data["start_date"]
-        end_date = data["end_date"]
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
         predict_start = data.get("start_predict_date", None)
         train_period = data.get("train_period")
         retrain_frequency = data.get("retrain_frequency")
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
+        max_training_period = data.get("max_training_period")
 
-        if start_date >= end_date:
+        if start_date is not None and end_date is not None and start_date >= end_date:
             raise ValidationError(
                 "start-date must be before end-date", field_name="start_date"
             )
 
         if predict_start:
-            if predict_start < start_date:
+            if start_date is not None and predict_start < start_date:
                 raise ValidationError(
                     "start-predict-date cannot be before start-date",
                     field_name="start_predict_date",
                 )
-            if predict_start >= end_date:
+            if end_date is not None and predict_start >= end_date:
                 raise ValidationError(
                     "start-predict-date must be before end-date",
                     field_name="start_predict_date",
@@ -226,6 +257,14 @@ class ForecasterParametersSchema(Schema):
                     f"forecast-frequency must be a multiple of the sensor resolution ({sensor.event_resolution})"
                 )
 
+        if isinstance(max_training_period, Duration):
+            # DurationField only returns Duration when years/months are present
+            raise ValidationError(
+                "max-training-period must be specified using days or smaller units "
+                "(e.g. P365D, PT48H). Years and months are not supported.",
+                field_name="max_training_period",
+            )
+
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
 
@@ -251,15 +290,19 @@ class ForecasterParametersSchema(Schema):
             now if data.get("start_predict_date") is None else predict_start
         )
 
-        if data.get("start_predict_date") is None and data.get("train_period"):
+        if (
+            data.get("start_predict_date") is None
+            and data.get("train_period")
+            and data.get("start_date")
+        ):
 
             predict_start = data["start_date"] + data["train_period"]
             save_belief_time = None
 
-        if data.get("train_period") is None and data["start_date"] is None:
+        if data.get("train_period") is None and data.get("start_date") is None:
             train_period_in_hours = 30 * 24  # Set default train_period value to 30 days
 
-        elif data.get("train_period") is None and data["start_date"]:
+        elif data.get("train_period") is None and data.get("start_date"):
             train_period_in_hours = int(
                 (predict_start - data["start_date"]).total_seconds() / 3600
             )
@@ -278,16 +321,35 @@ class ForecasterParametersSchema(Schema):
                 f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
             )
 
-        if data.get("retrain_frequency") is None:
+        if data.get("retrain_frequency") is None and data.get("end_date") is not None:
             retrain_frequency_in_hours = int(
                 (data["end_date"] - predict_start).total_seconds() / 3600
             )
+        elif (
+            data.get("retrain_frequency") is None
+            and data.get("end_date") is None
+            and data.get("max_forecast_horizon") is not None
+        ):
+            retrain_frequency_in_hours = data.get("max_forecast_horizon") // timedelta(
+                hours=1
+            )
+        elif (
+            data.get("retrain_frequency") is None
+            and data.get("end_date") is None
+            and data.get("max_forecast_horizon") is None
+        ):
+            retrain_frequency_in_hours = 48  # Set default retrain_frequency to 48 hours
         else:
             retrain_frequency_in_hours = data["retrain_frequency"] // timedelta(hours=1)
             if retrain_frequency_in_hours < 1:
                 raise ValidationError("retrain-frequency must be at least 1 hour")
 
-        if data["start_date"] is None:
+        if data.get("end_date") is None:
+            data["end_date"] = predict_start + timedelta(
+                hours=retrain_frequency_in_hours
+            )
+
+        if data.get("start_date") is None:
             start_date = predict_start - timedelta(hours=train_period_in_hours)
         else:
             start_date = data["start_date"]
@@ -339,4 +401,8 @@ class ForecasterParametersSchema(Schema):
             missing_threshold=data.get("missing_threshold"),
             as_job=data.get("as_job"),
             save_belief_time=save_belief_time,
+            n_cycles=int(
+                (data["end_date"] - predict_start)
+                // timedelta(hours=retrain_frequency_in_hours)
+            ),
         )
