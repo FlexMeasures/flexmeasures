@@ -15,6 +15,7 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 
 - GitHub Actions workflows (`.github/workflows/`)
 - Pre-commit configuration (`.pre-commit-config.yaml`)
+- Agent environment setup (`.github/workflows/copilot-setup-steps.yml`)
 - Linter configurations (flake8, black, mypy)
 - Build and deployment scripts
 - CI matrix strategy (Python versions, services)
@@ -73,6 +74,45 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 - [ ] **OS matrix**: Ubuntu latest (add others if needed)
 - [ ] **Fail-fast**: Usually false for comprehensive testing
 - [ ] **Coverage**: One Python version runs coverage
+
+### Agent Environment Setup
+
+File: **`.github/workflows/copilot-setup-steps.yml`**
+
+This file defines standardized environment setup for GitHub Copilot agents. When reviewing or updating:
+
+- [ ] **System dependencies**: Are all required packages installed?
+  - PostgreSQL client libraries (`libpq-dev`)
+  - Redis server
+  - Other system tools
+  
+- [ ] **Python environment**: 
+  - Is Python version appropriate? (Default: 3.11)
+  - Are dependencies installed correctly? (`pip-sync`, `pip install -e .`)
+  - Is pip-tools version pinned?
+  
+- [ ] **Database setup**:
+  - Is PostgreSQL service started?
+  - Are test user and database created correctly?
+  - Are permissions granted? (`CREATEDB` privilege)
+  - Are extensions loaded? (`ci/load-psql-extensions.sql`)
+  
+- [ ] **Environment variables**:
+  - `FLEXMEASURES_ENV=testing`
+  - `SQLALCHEMY_DATABASE_URI` (PostgreSQL connection string)
+  - `FLEXMEASURES_REDIS_URL` (Redis connection string)
+  
+- [ ] **Documentation**:
+  - Are usage notes clear and accurate?
+  - Are common issues and solutions documented?
+  - Are testing commands documented?
+
+**IMPORTANT**: When this file is updated, verify it actually works:
+
+1. Follow the setup steps in a clean environment
+2. Run tests to confirm environment is functional
+3. Document any issues or unclear steps
+4. Update the file based on learnings
 
 ## Domain Knowledge
 

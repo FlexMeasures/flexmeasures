@@ -13,6 +13,7 @@ You are a testing specialist focused on improving code quality through comprehen
 
 Always include clear test descriptions and use appropriate testing patterns for the language and framework.
 
+
 ## Testing Patterns for flexmeasures
 
 FlexMeasures uses pytest with two main fixture patterns for database management:
@@ -172,6 +173,22 @@ When pre-commit hooks fail:
 - Ensure all tests pass before asking for a review
 - Update these agent instructions with learnings from each assignment
 
+## Environment Setup
+
+**IMPORTANT**: Before running tests, ensure your environment is properly configured.
+Follow the standardized setup instructions in:
+
+- **`.github/workflows/copilot-setup-steps.yml`** (owned by Tooling & CI Specialist)
+
+This file contains all necessary steps for:
+
+- System dependencies (PostgreSQL, Redis)
+- Python dependencies
+- Database setup
+- Environment variables
+
+If setup steps fail or are unclear, escalate to the Tooling & CI Specialist.
+
 ## Running Tests in FlexMeasures Dev Environment
 
 ### Critical Requirement: Actually Run Tests
@@ -261,6 +278,44 @@ flask db current
 - **Test organization**: Group related tests in classes when appropriate
 - **Assertions**: Use descriptive assertion messages for failures
 - **Mocking**: Use pytest fixtures and mocking when testing external dependencies
+
+## Test-Driven Bug Fixing (CRITICAL PATTERN)
+
+When fixing failing tests, ALWAYS follow this test-driven approach:
+
+### Step 1: Reproduce the Failure FIRST
+
+- **Run the actual test** to see it fail (don't just read code)
+- **Capture the exact error message** and failure output
+- **Understand the failure mode**: What was expected vs. what happened?
+
+### Step 2: Debug to Understand Root Cause
+
+- **Use debugger tools**, not just code inspection:
+  - `pytest --pdb` to drop into debugger on failure
+  - Add `import pdb; pdb.set_trace()` at strategic points
+  - Use print statements to trace execution flow
+- **Trace the actual execution path** through the code
+- **Look for MULTIPLE bugs**, not just the obvious one
+  - Example: Session learned that a test failure involved BOTH an API bug AND a test bug
+
+### Step 3: Apply Fix(es)
+
+- Fix all identified bugs (API, test, or both)
+- Make atomic commits (separate production code from test code changes)
+- Document WHY the bug existed and HOW the fix works
+
+### Step 4: Verify the Fix
+
+- **Re-run the specific test** to confirm it now passes
+- **Check for regressions**: Run related tests or entire test suite
+- **Don't claim "tests pass" without actually running them**
+
+### Step 5: Update Agent Instructions
+
+- Document the lesson learned in this file
+- What pattern or pitfall should be remembered?
+- What verification step was missing?
 
 ## Commit Discipline for Test Changes
 
