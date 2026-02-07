@@ -476,7 +476,7 @@ threadpoolctl==3.6.0
     # via
     #   scikit-learn
     #   statsforecast
-timely-beliefs[forecast]==3.5.0
+timely-beliefs[forecast]==3.5.1
     # via -r requirements/app.in
 timetomodel==0.7.3
     # via -r requirements/app.in
