@@ -13,6 +13,7 @@ You are a testing specialist focused on improving code quality through comprehen
 
 Always include clear test descriptions and use appropriate testing patterns for the language and framework.
 
+
 ## Testing Patterns for flexmeasures
 
 FlexMeasures uses pytest with two main fixture patterns for database management:
@@ -171,6 +172,22 @@ When pre-commit hooks fail:
 - Ensure all hooks pass before pushing changes
 - Ensure all tests pass before asking for a review
 - Update these agent instructions with learnings from each assignment
+
+## Environment Setup
+
+**IMPORTANT**: Before running tests, ensure your environment is properly configured.
+Follow the standardized setup instructions in:
+
+- **`.github/workflows/copilot-setup-steps.yml`** (owned by Tooling & CI Specialist)
+
+This file contains all necessary steps for:
+
+- System dependencies (PostgreSQL, Redis)
+- Python dependencies
+- Database setup
+- Environment variables
+
+If setup steps fail or are unclear, escalate to the Tooling & CI Specialist.
 
 ## Running Tests in FlexMeasures Dev Environment
 
