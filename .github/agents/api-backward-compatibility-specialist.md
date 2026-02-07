@@ -68,6 +68,39 @@ Protect FlexMeasures users and integrators by ensuring API changes are backwards
 - [ ] **Auth mechanisms**: Ensure auth changes have migration paths
 - [ ] **Webhook contracts**: Validate webhook payload stability
 
+### API Change Necessity
+
+- [ ] **Minimal changes**: Verify API changes are actually needed, not just test fixes
+- [ ] **Symmetric fixes**: Check if same fix applied to API and test
+- [ ] **Independent verification**: Request test-only fix to be tried first
+- [ ] **Side effects**: Evaluate impact on other API consumers
+- [ ] **Test isolation**: Ensure test failures aren't due to test bugs alone
+- [ ] **Revert-and-re-test**: Recommend verifying each fix independently
+
+#### Pattern: Unnecessary API Fixes
+
+When API endpoints and tests both change:
+
+**Ask**: "Is the API fix actually needed, or just the test fix?"
+
+**Verify**: Request Test Specialist to:
+1. Apply only test fix
+2. Run tests
+3. If tests pass → API fix unnecessary
+4. If tests fail → Document why API fix needed
+
+**Example**:
+- Test fails with wrong data
+- Developer fixes both API and test
+- Tests pass
+- But: Only test fix was needed, API was correct
+
+**Prevention**:
+- Always try test-only fixes first
+- Verify API changes with integration tests
+- Check if API change affects other consumers
+- Minimize API surface area changes
+
 ## Domain Knowledge
 
 ### FlexMeasures API Versioning
