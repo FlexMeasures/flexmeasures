@@ -1,0 +1,118 @@
+# GitHub Copilot Agent Environment Setup
+# This file defines the standardized environment setup for GitHub Copilot agents
+# working on the FlexMeasures repository.
+#
+# Reference: https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment
+
+name: FlexMeasures Development Environment Setup
+
+# Define the steps that Copilot agents should execute to set up the development environment
+setup-steps:
+  - name: Install system dependencies
+    run: |
+      # Update package list
+      sudo apt-get update
+      
+      # Install PostgreSQL client libraries (required for psycopg2)
+      sudo apt-get install -y libpq-dev
+      
+      # Install Redis (used for job queuing)
+      sudo apt-get install -y redis-server
+      
+      # Start Redis service
+      sudo service redis-server start
+
+  - name: Set Python version
+    run: |
+      # FlexMeasures supports Python 3.9-3.12
+      # Use Python 3.11 as the default for agent development
+      python --version || python3 --version
+
+  - name: Install pip-tools
+    run: |
+      # Install pip-tools for dependency management
+      pip3 install -q "pip-tools>=7.2"
+
+  - name: Install Python dependencies for testing
+    run: |
+      # Get Python version (major.minor)
+      PYV=$(python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
+      
+      # Install pinned test and app dependencies
+      pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
+      
+      # Install FlexMeasures in editable mode
+      pip install -e .
+
+  - name: Install pre-commit hooks
+    run: |
+      # Install pre-commit for code quality checks
+      pip install pre-commit
+      
+      # Install the pre-commit hooks
+      pre-commit install
+
+  - name: Setup PostgreSQL for testing
+    run: |
+      # Install PostgreSQL if not already available
+      sudo apt-get install -y postgresql postgresql-contrib
+      
+      # Start PostgreSQL service
+      sudo service postgresql start
+      
+      # Drop existing database and user if they exist (for clean setup)
+      sudo -u postgres psql -c "DROP DATABASE IF EXISTS flexmeasures_test;"
+      sudo -u postgres psql -c "DROP USER IF EXISTS flexmeasures_test;"
+      
+      # Create test database and user with correct permissions
+      sudo -u postgres psql -c "CREATE USER flexmeasures_test WITH PASSWORD 'flexmeasures_test';"
+      sudo -u postgres psql -c "CREATE DATABASE flexmeasures_test OWNER flexmeasures_test;"
+      sudo -u postgres psql -c "ALTER USER flexmeasures_test CREATEDB;"
+      
+      # Load PostgreSQL extensions (timescaledb, etc.)
+      sudo -u postgres psql -U flexmeasures_test -d flexmeasures_test -f ci/load-psql-extensions.sql || echo "Extensions loaded or not available"
+
+  - name: Set environment variables
+    run: |
+      # Set FlexMeasures environment to testing
+      echo "FLEXMEASURES_ENV=testing" >> $GITHUB_ENV
+      
+      # Set database URL for tests (using PostgreSQL)
+      echo "SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@localhost/flexmeasures_test" >> $GITHUB_ENV
+      
+      # Set Redis URL for job queuing
+      echo "FLEXMEASURES_REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+
+# Notes for agents:
+# 
+# 1. After running these setup steps, you can run tests with:
+#    - pytest                                    # Run all tests
+#    - pytest path/to/test_file.py              # Run specific test file
+#    - pytest -k test_name                       # Run specific test by name
+#    - pytest -x                                 # Stop on first failure
+#    - pytest -v                                 # Verbose output
+#
+# 2. To run pre-commit hooks manually:
+#    - pre-commit run --all-files               # Run all hooks on all files
+#    - pre-commit run flake8                    # Run specific hook
+#
+# 3. Database management:
+#    - flask db upgrade                         # Run database migrations
+#    - flask db current                         # Show current migration version
+#
+# 4. The Makefile provides shortcuts:
+#    - make install-for-test                    # Install test dependencies
+#    - make test                                # Run all tests
+#    - make generate-openapi                    # Generate OpenAPI specs
+#
+# 5. Key testing fixtures (defined in conftest.py):
+#    - db: Database session fixture
+#    - app: Flask app fixture
+#    - fresh_db: Fresh database for isolated tests
+#    - setup_roles_users: User and role fixtures
+#
+# 6. Common issues and solutions:
+#    - If PostgreSQL connection fails: Check service is running with `sudo service postgresql status`
+#    - If Redis connection fails: Check service is running with `sudo service redis-server status`
+#    - If tests fail with import errors: Ensure FlexMeasures is installed with `pip install -e .`
+#    - If pre-commit hooks fail: Run `pre-commit run --all-files` to see specific issues
