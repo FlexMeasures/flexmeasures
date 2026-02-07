@@ -6,6 +6,9 @@
 
 name: FlexMeasures Development Environment Setup
 
+on:
+  workflow_dispatch:
+
 jobs:
   setup:
     runs-on: ubuntu-latest
