@@ -279,6 +279,44 @@ flask db current
 - **Assertions**: Use descriptive assertion messages for failures
 - **Mocking**: Use pytest fixtures and mocking when testing external dependencies
 
+## Test-Driven Bug Fixing (CRITICAL PATTERN)
+
+When fixing failing tests, ALWAYS follow this test-driven approach:
+
+### Step 1: Reproduce the Failure FIRST
+
+- **Run the actual test** to see it fail (don't just read code)
+- **Capture the exact error message** and failure output
+- **Understand the failure mode**: What was expected vs. what happened?
+
+### Step 2: Debug to Understand Root Cause
+
+- **Use debugger tools**, not just code inspection:
+  - `pytest --pdb` to drop into debugger on failure
+  - Add `import pdb; pdb.set_trace()` at strategic points
+  - Use print statements to trace execution flow
+- **Trace the actual execution path** through the code
+- **Look for MULTIPLE bugs**, not just the obvious one
+  - Example: Session learned that a test failure involved BOTH an API bug AND a test bug
+
+### Step 3: Apply Fix(es)
+
+- Fix all identified bugs (API, test, or both)
+- Make atomic commits (separate production code from test code changes)
+- Document WHY the bug existed and HOW the fix works
+
+### Step 4: Verify the Fix
+
+- **Re-run the specific test** to confirm it now passes
+- **Check for regressions**: Run related tests or entire test suite
+- **Don't claim "tests pass" without actually running them**
+
+### Step 5: Update Agent Instructions
+
+- Document the lesson learned in this file
+- What pattern or pitfall should be remembered?
+- What verification step was missing?
+
 ## Commit Discipline for Test Changes
 
 When updating tests or this agent file:
