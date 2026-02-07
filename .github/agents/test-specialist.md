@@ -317,6 +317,110 @@ When fixing failing tests, ALWAYS follow this test-driven approach:
 - What pattern or pitfall should be remembered?
 - What verification step was missing?
 
+## Revert and Re-test Pattern (CRITICAL)
+
+When you make multiple fixes to resolve a single test failure, you MUST verify each fix independently.
+
+### The Problem: Symmetric Fixes
+
+**Symmetric fix pattern** (DANGEROUS):
+- Test fails
+- Fix production code
+- Fix test code
+- Test passes
+- Conclude: Both fixes needed ❌
+
+**Why this is wrong**:
+- Adding the same fix to both sides makes them *consistent* with each other
+- But doesn't prove the production code fix was needed
+- Only proves: "These two changes are compatible"
+
+### The Solution: Revert and Re-test
+
+When you make multiple fixes (e.g., API + test):
+
+**Step 1**: Apply all fixes, verify test passes
+
+**Step 2**: Revert one fix (e.g., production code)
+```bash
+git diff HEAD -- path/to/production_file.py > /tmp/prod_fix.patch
+git checkout HEAD -- path/to/production_file.py
+```
+
+**Step 3**: Re-run test
+```bash
+pytest path/to/test_file.py::test_function_name
+```
+
+**Step 4**: Interpret results
+- ✅ Test still passes → Production fix was unnecessary
+- ❌ Test fails → Production fix was needed
+
+**Step 5**: If production fix unnecessary, keep it reverted
+
+**Step 6**: Re-apply only necessary fixes
+
+### Example from Session
+
+**Initial state**: Test fails with 'P%P' instead of 'PT2H'
+
+**Fixes applied**:
+1. Test: Changed sensor from battery to charging_station
+2. Test: Added `+ sensor.event_resolution` to `event_ends_before`
+3. API: Added `+ sensor.event_resolution` to `event_ends_before`
+
+**Test passed → Concluded all three needed**
+
+**Should have done**:
+1. Apply all three fixes, test passes ✓
+2. Revert API fix, re-run test
+3. If test still passes → API fix was unnecessary
+4. Keep only necessary fixes (1 and 2)
+
+### When to Apply This Pattern
+
+Apply revert-and-re-test when:
+- [ ] Multiple fixes made to resolve single failure
+- [ ] Same/similar fix applied to multiple locations
+- [ ] Production code AND test code both changed
+- [ ] API endpoint AND test both modified
+- [ ] Uncertain which fix actually resolved the issue
+
+### Red Flags for Symmetric Fixes
+
+Watch for these danger signs:
+- "I fixed the API and the test the same way"
+- "Both needed the same adjustment"
+- "Tests pass now" (without independent verification)
+- Commits mixing API + test changes
+
+### Verification Checklist
+
+Before concluding a fix is needed:
+- [ ] Run test with ONLY this fix applied
+- [ ] Run test with this fix REVERTED
+- [ ] Verify fix is minimal (no unnecessary changes)
+- [ ] Check if "symmetric" fixes are both needed
+- [ ] Document why each fix was necessary
+
+### Integration with Test-Driven Fixing
+
+This pattern extends the test-driven approach:
+1. Reproduce failure (test-driven)
+2. Understand root cause (test-driven)
+3. Apply fixes (test-driven)
+4. **Verify each fix independently (revert-and-re-test)** ← NEW
+5. Keep only necessary fixes
+6. Update agent instructions
+
+### Commit Discipline
+
+After reverting unnecessary fixes:
+- Make separate commits for each necessary fix
+- Document why each fix was needed
+- Don't commit reverted (unnecessary) fixes
+- Update this agent file with lessons learned
+
 ## Commit Discipline for Test Changes
 
 When updating tests or this agent file:
