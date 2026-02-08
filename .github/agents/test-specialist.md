@@ -279,6 +279,82 @@ flask db current
 - **Assertions**: Use descriptive assertion messages for failures
 - **Mocking**: Use pytest fixtures and mocking when testing external dependencies
 
+## Understanding Test Design Intent (CRITICAL)
+
+**Before changing a test, understand WHY it's designed that way.**
+
+### Case Study: test_trigger_and_fetch_forecasts
+
+This test uses two different sensors:
+- `sensor_0`: Used to **trigger** forecast jobs via API
+- `sensor_1`: Where **directly computed** forecasts are saved
+
+This is **intentional design**, not a bug. The test validates that:
+1. API-triggered forecasts (via sensor_0)
+2. Direct computation forecasts (saved to sensor_1)
+
+Both should result in data attributed to the **same data source** (after parameter cleaning).
+
+### Red Flags - Don't Just "Fix" Tests
+
+❌ **Wrong Approach**: "These sensors are different, let me make them the same"
+✅ **Right Approach**: "Why are they different? What is this test validating?"
+
+**Steps before changing a test:**
+1. **Read the test docstring** - What behavior is being tested?
+2. **Understand the test setup** - Why is data structured this way?
+3. **Check git history** - Why was the test written this way?
+4. **Ask**: Is this revealing a real bug in production code?
+
+### Parameter Format Consistency
+
+FlexMeasures uses **Marshmallow schemas** that convert between Python and API representations.
+
+**Key Pattern**: `data_key` in Marshmallow schemas
+```python
+# In ForecasterParametersSchema:
+as_job = fields.Bool(
+    data_key="as-job",  # ← API uses kebab-case
+    load_default=False
+)
+```
+
+**Result**: After schema deserialization, parameter keys are in **kebab-case**:
+- Python attribute: `as_job`
+- Dictionary key: `"as-job"`
+
+### Checking Parameter Format Consistency
+
+When working with parameters that need cleaning/filtering:
+
+1. **Find the Marshmallow schema** - Look for `data_key` definitions
+2. **Check actual keys** - Grep for usage in production code
+3. **Match the format** - Use the same format in cleaning/filtering code
+
+**Example Bug Pattern**:
+```python
+# Schema defines: data_key="as-job"
+# Parameters dict has: {"as-job": True}
+# But cleaning code tries: parameters.pop("as_job")  # ❌ Won't work!
+# Should be: parameters.pop("as-job")  # ✅ Correct
+```
+
+### When Tests Reveal Real Bugs
+
+A failing test might reveal:
+1. **Test bug** - Test expectations are wrong
+2. **Production bug** - Code doesn't work as intended
+3. **Both** - Test expectations correct, but masked by test bug
+
+**Session learned (2026-02-08)**:
+- `test_trigger_and_fetch_forecasts` was **correctly designed**
+- Failure revealed **real production bug** in `_clean_parameters`
+- Bug: Parameter keys changed from snake_case to kebab-case (PR #1953)
+- But cleaning code still used snake_case, so parameters weren't cleaned
+- Fix: Update `_clean_parameters` to use kebab-case keys
+
+**Key Lesson**: When a test fails, investigate production code FIRST before changing the test.
+
 ## Test-Driven Bug Fixing (CRITICAL PATTERN)
 
 When fixing failing tests, ALWAYS follow this test-driven approach:
