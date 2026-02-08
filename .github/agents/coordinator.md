@@ -171,6 +171,101 @@ The Coordinator has researched the FlexMeasures codebase and identified:
 - **CI/CD**: GitHub Actions with Python 3.9-3.12 matrix, PostgreSQL 17.4
 - **Code quality**: flake8, black, mypy via pre-commit hooks
 
+#### Schema Migration Patterns
+
+**Context**: FlexMeasures uses Marshmallow schemas with `data_key` attributes to map Python attribute names to dictionary keys. When schemas change format (e.g., kebab-case migration), all code paths handling those dictionaries must be updated.
+
+**Pattern: Marshmallow data_key Format Changes**
+
+Example from PR #1953 (kebab-case migration):
+```python
+# Marshmallow schema definition
+class ForecasterParametersSchema(Schema):
+    as_job = fields.Boolean(data_key="as-job")  # Python: as_job, Dict: "as-job"
+    sensor_to_save = SensorIdField(data_key="sensor-to-save")
+```
+
+When schemas output dictionaries:
+```python
+parameters = {
+    "as-job": True,           # kebab-case (from data_key)
+    "sensor-to-save": 2,      # kebab-case (from data_key)
+    # NOT "as_job" or "sensor_to_save"
+}
+```
+
+**Code Paths Affected by Schema Format Changes**:
+
+1. **Parameter Cleaning**: Code that removes fields from parameter dictionaries
+   - Example: `Forecaster._clean_parameters` (line 111)
+   - Bug pattern: Tries to remove `"as_job"` but dict has `"as-job"`
+
+2. **Parameter Access**: Code that reads from parameter dictionaries
+   - Use: `params.get("as-job")` not `params.get("as_job")`
+   - Check all `.get()`, `[]`, `.pop()` calls
+
+3. **Data Source Creation**: Parameters stored in DataSource.attributes
+   - Must match schema output format
+   - Affects data source comparison/deduplication
+
+4. **Job Metadata**: Parameters stored in RQ job.meta
+   - Must match schema output format
+   - Affects job retrieval and comparison
+
+5. **API Documentation**: OpenAPI specs and examples
+   - Must reflect actual key format
+   - Update generated specs after schema changes
+
+**Detection Methods**:
+
+1. **Grep for snake_case keys**:
+   ```bash
+   grep -r '"as_job"' flexmeasures/
+   grep -r "'sensor_to_save'" flexmeasures/
+   ```
+
+2. **Check schema definitions**:
+   - Find all `data_key=` declarations
+   - List actual dictionary keys used
+
+3. **Test data sources**:
+   - Query: `DataSource.query.all()`
+   - Inspect: `.attributes['data_generator']['parameters']`
+   - Compare keys across different creation paths
+
+**Agent Responsibilities**:
+
+| Agent | Responsibility | When to Check |
+|-------|----------------|---------------|
+| **Test Specialist** | Detect format mismatches in test failures | Test compares data sources |
+| **API Specialist** | Verify API documentation matches format | Schema changes |
+| **Architecture Specialist** | Enforce schema-as-source-of-truth invariant | Any dict parameter usage |
+| **Review Lead** | Coordinate format verification across agents | Schema PRs |
+| **Coordinator** | Track pattern, update template checklist | Schema migration PRs |
+
+**Checklist for Schema Format Migrations**:
+
+When reviewing PRs that change Marshmallow schemas:
+- [ ] Identify all `data_key` changes (old → new format)
+- [ ] Find all code paths accessing those parameters
+- [ ] Verify parameter cleaning uses new format
+- [ ] Check data source attribute format
+- [ ] Verify job metadata uses new format
+- [ ] Update OpenAPI specs if needed
+- [ ] Run tests that compare data sources
+- [ ] Grep for old format keys in codebase
+
+**Session 2026-02-08 Case Study**:
+
+- **PR #1953**: Migrated parameters to kebab-case
+- **Bug**: `_clean_parameters` still used snake_case keys
+- **Result**: Parameters like `"as-job"` not removed from data sources
+- **Impact**: API and direct computation created different data sources
+- **Test**: `test_trigger_and_fetch_forecasts` correctly detected this
+- **Fix**: Updated `_clean_parameters` to use kebab-case keys
+
+**Key Insight**: Tests comparing data sources are integration tests validating consistency across code paths. When they fail, investigate production code for format mismatches before changing tests.
+
 ## Interaction Rules
 
 ### Coordination with Other Agents
