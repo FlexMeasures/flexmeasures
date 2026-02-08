@@ -378,6 +378,192 @@ Recommendation: Apply the "revert and re-test" pattern:
 <area>: <concise lesson or improvement>
 Context:
 - What triggered this change
+
+### Must Understand Test Design Intent Before Changing Tests
+
+**The Review Lead MUST investigate test design intent before approving changes to test code.**
+
+#### The Anti-Pattern
+
+A common mistake:
+1. Test fails
+2. Assume test is buggy
+3. Change test to make it pass
+4. Miss the real production bug
+
+**Example from Session 2026-02-08**:
+- Test used two different sensors (`sensor_0` and `sensor_1`)  
+- Test failed comparing forecasts between them
+- Initial reaction: "Test design is wrong, should use same sensor"
+- **Reality**: Test design was intentional - checking that both approaches create same data source
+- Real bug: Production code wasn't cleaning parameters properly
+
+#### Why Tests Are Often Correct
+
+Developers write tests with specific intent:
+- To verify API contracts
+- To check integration between components
+- To validate domain invariants
+- To detect regressions
+
+When tests fail, it's often because:
+- ✅ Production code violates the contract (real bug)
+- ❌ NOT because test design is wrong
+
+#### Review Lead Responsibilities
+
+Before approving test changes:
+
+**1. Investigate Test Design Intent**
+
+Ask these questions:
+- [ ] Why does this test exist?
+- [ ] What is it actually testing?
+- [ ] Is the test design intentional or accidental?
+- [ ] Does test documentation explain the design?
+- [ ] Are there comments explaining unusual patterns?
+
+**2. Look for Design Signals**
+
+Signals that test design is intentional:
+- ✅ Multiple similar entities (sensors, users, accounts)
+- ✅ Explicit variable names (e.g., `sensor_to_trigger` vs `sensor_for_validation`)
+- ✅ Comments explaining the approach
+- ✅ Test doing integration/comparison between approaches
+- ✅ Test checking for consistency/equivalence
+
+**3. Check Production Code First**
+
+Before changing a test:
+- [ ] Read the production code being tested
+- [ ] Understand what behavior test expects
+- [ ] Check if production code matches expectation
+- [ ] Look for recent changes affecting this code path
+- [ ] Check related PRs for context (e.g., schema migrations)
+
+**4. Coordinate with Test Specialist**
+
+Delegate investigation:
+```python
+task(
+    agent_type="test-specialist",
+    prompt="""
+    Before changing this test, investigate:
+    1. Why does test use multiple [entities]?
+    2. What is test design intent?
+    3. Is this integration test checking consistency?
+    4. Should we fix production code instead?
+    """
+)
+```
+
+**5. Question Test Changes**
+
+Red flags when reviewing test changes:
+- 🚩 Test changed without understanding why it failed
+- 🚩 "Fixed test to match new behavior" (did you break contract?)
+- 🚩 Removing assertions or checks
+- 🚩 Making test less strict
+- 🚩 No explanation of why test design was wrong
+
+#### Case Study: test_trigger_and_fetch_forecasts
+
+**Session 2026-02-08 Learning**:
+
+**Initial (Wrong) Analysis**:
+- Test uses two sensors: `sensor_0` and `sensor_1`
+- Test fails when comparing them
+- Conclusion: "Test should use same sensor"
+- Fix: Changed test to use only `sensor_0`
+
+**Correct Analysis** (after user feedback):
+- Test design is intentional:
+  - `sensor_0`: Trigger forecasts via API
+  - `sensor_1`: Directly compute forecasts  
+- Test validates both approaches create same data source
+- Test failure revealed real bug: `_clean_parameters` not working
+- Production bug: Parameters using kebab-case, cleanup using snake_case
+
+**Lesson**: Test was correct, production code was broken.
+
+#### Decision Tree
+
+```
+Test fails
+  ├─> Investigate production code
+  │   ├─> Found bug? → Fix production code ✅
+  │   └─> No bug? → Continue investigation
+  │
+  ├─> Understand test design intent
+  │   ├─> Intentional design? → Keep test, find real issue ✅
+  │   └─> Unclear? → Ask user/maintainer
+  │
+  └─> Only if confirmed test is wrong:
+      └─> Change test with clear rationale
+```
+
+#### Coordination Pattern
+
+**Delegate to Test Specialist**:
+```python
+task(
+    agent_type="test-specialist",
+    description="Investigate test design intent",
+    prompt=f"""
+    Test {test_name} is failing.
+    
+    Before proposing changes:
+    1. Understand why test exists
+    2. Check if design is intentional
+    3. Investigate production code for bugs
+    4. Look for recent schema/API changes
+    
+    Only propose test changes if you can prove test design is wrong.
+    """
+)
+```
+
+**Review Test Specialist's findings**:
+- Did they investigate production code?
+- Do they understand test intent?
+- Is their fix minimal?
+- Does fix preserve test's original purpose?
+
+#### Synthesis Guidance
+
+When synthesizing test-related findings:
+- Emphasize production bugs over test bugs
+- Call out when test design is intentional
+- Request investigation before test changes
+- Ask for rationale when tests are modified
+- Question whether test changes preserve intent
+
+#### Example Review Comment
+
+```
+I see this PR changes the test to use only `sensor_0` instead of both 
+`sensor_0` and `sensor_1`. Before approving:
+
+Questions:
+1. Why did the test use two sensors originally?
+2. Is this an integration test checking consistency?
+3. Have we investigated the production code for bugs?
+4. Could this be a parameter format mismatch?
+
+Recommendation:
+- Investigate production code first (especially recent schema changes)
+- Only change test if you can prove test design is wrong
+- If changing test, document why original design was incorrect
+
+@test-specialist: Please investigate test design intent before proposing changes.
+```
+
+### Commit Message Format
+
+```
+<area>: <concise lesson or improvement>
+Context:
+- What triggered this change
 Change:
 - What was adjusted and why
 ```
@@ -538,6 +724,18 @@ Track and document when the Review Lead:
 - **Fix**: Added "Must Question Symmetric Fixes" section and coordinated with Test Specialist
 - **Prevention**: When multiple fixes applied, revert production fixes and re-test to verify necessity
 - **Key insight**: "Adding same fix to both sides makes them consistent, but doesn't prove both needed"
+
+**Specific lesson learned (2026-02-08)**:
+- **Session**: Parameter format consistency investigation
+- **Failure**: Previous session wrongly changed test instead of fixing production code
+- **What went wrong**: Didn't understand test design intent; assumed test was buggy when it failed
+- **Impact**: Missed real production bug (parameter cleaning not working due to format mismatch)
+- **Root cause**: Didn't investigate why test used two sensors; assumed design was wrong
+- **Reality**: Test intentionally checked that API and direct computation create same data source
+- **Real bug**: `_clean_parameters` used snake_case keys but parameters were kebab-case (from Marshmallow)
+- **Fix**: Added "Must Understand Test Design Intent Before Changing Tests" section
+- **Prevention**: Investigate production code first; understand test design intent; look for schema migrations
+- **Key insight**: "Failing tests often reveal production bugs, not test bugs"
 
 Update this file to prevent repeating the same mistakes.
 
