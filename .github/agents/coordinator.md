@@ -448,31 +448,3 @@ The Coordinator has identified these recurring issues:
 Review Lead should now invoke Coordinator as subagent.
 
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
-
-### Additional Pattern Discovered (2026-02-06, Session 2)
-
-**Pattern**: Symmetric fixes without independent verification
-
-**Observation**: When fixing test failures involving both API and test changes:
-- Developer makes same fix to API and test
-- Test passes
-- Concludes both fixes needed
-- But didn't verify if API fix was actually necessary
-
-**Root cause**: Didn't apply "revert and re-test" pattern to verify each fix independently
-
-**Solution implemented**:
-- Updated Test Specialist with "Revert and Re-test Pattern (CRITICAL)"
-- Updated Review Lead with "Must Question Symmetric Fixes"
-- Updated API Specialist with "API Change Necessity" checks
-
-**Why it matters**:
-- Symmetric fixes may introduce unnecessary API changes
-- Side effects on other API consumers
-- Test bugs confused with production bugs
-- Minimal changesets require independent verification
-
-**Verification**: Check future sessions where API and test both change -
-Test Specialist should now apply revert-and-re-test pattern.
-
-These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
