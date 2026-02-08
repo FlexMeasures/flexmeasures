@@ -621,16 +621,6 @@ Track and document when the Review Lead:
 - **Fix**: Added "Must Actually Run Coordinator When Requested" section above
 - **Prevention**: Always check if user assignment mentions agent instructions/governance
 
-**Specific lesson learned (2026-02-07)**:
-- **Session**: Re-evaluation of API fix necessity
-- **Failure**: Made unnecessary API fix without independent verification
-- **What went wrong**: Applied same fix to both API and test, saw test pass, concluded both needed
-- **Impact**: Unnecessary API change that could have side effects
-- **Root cause**: Didn't revert API fix to verify it was independently necessary
-- **Fix**: Added "Must Question Symmetric Fixes" section and coordinated with Test Specialist
-- **Prevention**: When multiple fixes applied, revert production fixes and re-test to verify necessity
-- **Key insight**: "Adding same fix to both sides makes them consistent, but doesn't prove both needed"
-
 **Specific lesson learned (2026-02-08)**:
 - **Session**: Parameter format consistency investigation
 - **Failure**: Previous session wrongly changed test instead of fixing production code
