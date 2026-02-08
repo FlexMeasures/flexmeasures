@@ -306,3 +306,80 @@ FlexMeasures provides built-in request profiling capabilities for performance an
 - Keep database query patterns updated
 - Track pandas version updates and new features
 - Document new optimization techniques as discovered
+
+* * *
+
+## Commit Discipline and Self-Improvement
+
+### Must Make Atomic Commits
+
+When making performance changes:
+
+- **Separate performance fix from tests** - One optimization per commit
+- **Separate benchmarks** - Performance tests in separate commit
+- **Never commit analysis files** - No `PERFORMANCE_ANALYSIS.md` or similar
+- **Update agent instructions separately** - Own file, own commit
+
+### Must Verify Performance Claims with Benchmarks
+
+When claiming performance improvements:
+
+- **Run actual benchmarks** - Don't guess or estimate
+- **Show before/after metrics** - Quantify the improvement
+- **Test with realistic data** - Use production-scale datasets
+- **Profile the code** - Use cProfile or similar to identify bottlenecks
+- **Document methodology** - Explain how benchmarks were run
+
+Avoid unfounded claims:
+
+- "This is 1000x faster" → Run benchmark and show actual speedup
+- "Much more efficient" → Quantify with measurements
+- "No more N+1" → Show query count before/after
+
+### Using FlexMeasures Dev Environment for Performance Testing
+
+Before claiming performance improvements:
+
+1. **Set up dev environment with realistic data**:
+   ```bash
+   make install-for-dev
+   # Seed database with production-like data volume
+   ```
+2. **Profile existing code**:
+   ```bash
+   # Use Flask request profiling
+   export FLEXMEASURES_PROFILE_REQUESTS=true
+   # Or use cProfile
+   python -m cProfile -o profile.stats <script.py>
+   ```
+3. **Run benchmarks**:
+   ```bash
+   # Time API endpoints
+   time curl http://localhost:5000/api/v3_0/...
+   
+   # Or use pytest-benchmark for Python code
+   pytest --benchmark-only
+   ```
+4. **Compare query counts**:
+   ```bash
+   # Enable SQL logging
+   export SQLALCHEMY_ECHO=true
+   # Run scenario and count queries
+   ```
+
+### Self-Improvement Loop
+
+After each assignment:
+
+1. **Review performance predictions vs reality** - Were estimates accurate?
+2. **Update this agent file** - Add new anti-patterns or optimization techniques
+3. **Commit separately** with format:
+   ```
+   agents/performance: learned <specific lesson>
+   
+   Context:
+   - Assignment revealed performance issue with <area>
+   
+   Change:
+   - Added guidance on <optimization technique>
+   ```
