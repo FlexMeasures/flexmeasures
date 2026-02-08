@@ -51,6 +51,75 @@ Protect FlexMeasures users and integrators by ensuring API changes are backwards
 - [ ] **Validation**: Stricter validation is breaking, looser is safe
 - [ ] **Marshmallow schemas**: Check schema version compatibility
 
+#### Parameter Format Consistency
+
+When Marshmallow schemas use `data_key` attributes, the actual dictionary keys differ from Python attribute names. All code accessing these dictionaries must use the correct format.
+
+**Checklist for Parameter Format Verification**:
+
+- [ ] **Schema format**: Check what format `data_key` uses (kebab-case, camelCase, snake_case)
+- [ ] **Parameter access**: Verify code uses dict keys matching `data_key`, not Python attributes
+- [ ] **Parameter cleaning**: Check removal/filtering code uses correct keys
+- [ ] **Data source storage**: Verify parameters stored with correct format
+- [ ] **Job metadata**: Check RQ job.meta uses correct format
+
+**Pattern: Schema Format Migrations**
+
+When schemas migrate formats (e.g., snake_case → kebab-case):
+
+```python
+# Schema definition (PR #1953 example)
+class ForecasterParametersSchema(Schema):
+    as_job = fields.Boolean(data_key="as-job")  # Output: "as-job", NOT "as_job"
+    sensor_to_save = SensorIdField(data_key="sensor-to-save")
+```
+
+**Code must use dictionary format** (from `data_key`):
+```python
+# ✅ Correct
+parameters.pop("as-job", None)
+value = params.get("sensor-to-save")
+
+# ❌ Wrong (uses Python attribute name)
+parameters.pop("as_job", None)
+value = params.get("sensor_to_save")
+```
+
+**Verification Steps**:
+
+1. **Find schema**: Locate Marshmallow schema definition
+   ```bash
+   grep -r "data_key=" flexmeasures/data/schemas/
+   ```
+
+2. **Check dict keys**: Verify actual dictionary output format
+   ```python
+   schema = ForecasterParametersSchema()
+   params = schema.dump(data)
+   print(params.keys())  # Shows actual keys used
+   ```
+
+3. **Audit code paths**: Find all code accessing these parameters
+   ```bash
+   grep -r 'params.get\|params\[' flexmeasures/
+   ```
+
+4. **Verify consistency**: Ensure all access uses same format
+
+**Session 2026-02-08 Case Study**:
+
+- **Schema**: Used `data_key="as-job"` (kebab-case)
+- **Dictionary**: Had key `"as-job"`
+- **Bug**: `_clean_parameters` tried to remove `"as_job"` (snake_case)
+- **Result**: Parameter not removed, data sources differ
+- **Fix**: Update cleaning code to use `"as-job"`
+
+**Cross-Agent Coordination**:
+
+- **Test Specialist**: Detects format mismatches in test failures
+- **Architecture Specialist**: Enforces "schema as source of truth" invariant
+- **API Specialist**: Verifies API documentation matches format
+
 ### CLI Command Changes
 
 - [ ] **Argument changes**: Adding required args breaks scripts
