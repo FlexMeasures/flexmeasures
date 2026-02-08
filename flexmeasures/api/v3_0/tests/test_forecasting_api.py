@@ -9,6 +9,7 @@ from rq.job import Job
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -71,6 +72,14 @@ def test_trigger_and_fetch_forecasts(
         exc_handler=handle_forecasting_exception,
     )
 
+    # This sensor is where the directly computed forecasts will be saved
+    sensor_1 = setup_fresh_test_forecast_data["solar-sensor-1"]
+    payload["sensor"] = sensor_1.id
+
+    # Run pipeline manually to compute expected forecasts
+    pipeline = TrainPredictPipeline()
+    pipeline.compute(parameters=payload)
+
     # Fetch forecasts for each job
     for job_id in job_ids:
 
@@ -98,11 +107,9 @@ def test_trigger_and_fetch_forecasts(
         data_source = get_data_source_for_job(job, type="forecasting")
 
         # Load only the latest belief per event_start
-        # Note: Query from sensor_0 (the sensor used to trigger the forecasting job)
-        # because that's where the forecasts are actually stored by the API
-        forecasts_df = sensor_0.search_beliefs(
+        forecasts_df = sensor_1.search_beliefs(
             event_starts_after=job.meta.get("start_predict_date"),
-            event_ends_before=job.meta.get("end_date"),
+            event_ends_before=job.meta.get("end_date") + sensor_1.event_resolution,
             source=data_source,
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
@@ -114,7 +121,7 @@ def test_trigger_and_fetch_forecasts(
         expected_start = forecasts_df["event_start"].min()
         expected_last_start = forecasts_df["event_start"].max()
         expected_duration = (
-            expected_last_start + sensor_0.event_resolution - expected_start
+            expected_last_start + sensor_1.event_resolution - expected_start
         )
 
         assert data["duration"] == isodate.duration_isoformat(expected_duration)
