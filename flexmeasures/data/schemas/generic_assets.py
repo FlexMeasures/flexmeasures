@@ -209,7 +209,11 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         Here, we can only check if we have all information (a full form),
         which usually is at creation time.
         """
-        if "name" in data and "parent_asset_id" in data:
+        if (
+            "name" in data
+            and "parent_asset_id" in data
+            and data["parent_asset_id"] is not None
+        ):
             asset = db.session.scalars(
                 select(GenericAsset)
                 .filter_by(

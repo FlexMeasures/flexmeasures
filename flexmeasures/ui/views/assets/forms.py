@@ -40,7 +40,6 @@ class AssetForm(FlaskForm):
     parent_asset_id = IntegerField(
         "Parent Asset Id",
         validators=[optional()],
-        render_kw={"placeholder": "--Enter parent asset id--"},
     )
     attributes = StringField(
         "Other attributes (JSON)",
@@ -127,7 +126,6 @@ class NewAssetForm(AssetForm):
         "Asset type", coerce=int, validators=[DataRequired()]
     )
     account_id = SelectField("Account", coerce=int, validators=[optional()])
-    parent_asset_id = IntegerField("Parent Asset Id", validators=[optional()])
 
     def set_account(self) -> tuple[Account | None, str | None]:
         """Set an account for the to-be-created asset.
