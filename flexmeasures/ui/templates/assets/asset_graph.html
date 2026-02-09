@@ -366,7 +366,7 @@
         apiBasePath, processResourceRawJSON, convertHtmlToElement, moveArrayItem
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
-    import { renderAssetPlotCard, renderSensorCard, renderSensorsList, renderGraphHeader } from "{{ url_for('flexmeasures_ui.static', filename='js/components.js') }}?v={{ flexmeasures_version }}";
+    import { renderAssetPlotCard, renderSensorCard, renderSensorsList } from "{{ url_for('flexmeasures_ui.static', filename='js/components.js') }}?v={{ flexmeasures_version }}";
 
     // This variable is used to prevent reRenderForm from running on initial load
     let hasInitialized = false;
@@ -595,6 +595,70 @@
             }
         }
 
+        /**
+        * Renders the header for a graph card.
+        * @param {string} title - The current title of the graph.
+        * @param {number} index - The index of the graph in the list.
+        */
+        function renderGraphHeader(title, index) {
+            const header = document.createElement("div");
+            header.className = "d-flex align-items-center mb-2";
+
+            if (editingIndex() === index) {
+                // 1. Title Input
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "form-control me-2";
+                input.id = `editTitle_${index}`;
+                input.value = title;
+
+                // Save on Enter key
+                input.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        saveGraphTitle(index);
+                    }
+                });
+
+                // 2. Save Button
+                const saveBtn = document.createElement("button");
+                saveBtn.className = "btn btn-success btn-sm";
+                saveBtn.textContent = "Save";
+                saveBtn.onclick = (e) => {
+                    e.stopPropagation(); // Prevent card selection
+                    saveGraphTitle(index);
+                };
+
+                header.appendChild(input);
+                header.appendChild(saveBtn);
+
+                // Auto-focus the input
+                setTimeout(() => input.focus(), 0);
+            } else {
+                // 1. Display Title
+                const h5 = document.createElement("h5");
+                h5.className = "card-title me-2 mb-0";
+                h5.textContent = title;
+
+                // 2. Edit Button
+                const editBtn = document.createElement("button");
+                editBtn.className = "btn btn-warning btn-sm";
+                editBtn.textContent = "Edit";
+                editBtn.onclick = (e) => {
+                    e.stopPropagation(); // Prevent card selection
+                    console.log("Edit button clicked for graph index:", index);
+                    setEditingIndex(index);
+                    reRenderForm();
+                };
+
+                header.appendChild(h5);
+                header.appendChild(editBtn);
+            }
+
+            return header;
+        }
+
+
         async function renderGraphCard(item, index, sensorsToShowLength) {
             // 2. Outer Column
             const col = document.createElement("div");
@@ -620,9 +684,6 @@
             const headerElement = renderGraphHeader(
                 item.title,
                 index,
-                isEditing,
-                saveGraphTitle,
-                setEditingIndex
             );
 
             cardBody.appendChild(headerElement);
@@ -867,9 +928,15 @@
         async function saveGraphTitle(index) {
             const newTitle = document.getElementById(`editTitle_${index}`).value;
             const sensorsToShowOldState = getSensorToShow();
-            sensorsToShowOldState[index].title = newTitle;
-            setSensorToShow(sensorsToShowOldState);
+            // sensorsToShowOldState[index].title = newTitle;
+            const newSensorsToShow = sensorsToShowOldState.map((item, i) =>
+                i === index ? { ...item, title: newTitle } : item
+            );
+            setActiveCard(null);
+            setConfigAsset(null);
             setEditingIndex(null);
+            setSensorToShow(newSensorsToShow);
+
         }
 
         window.addNewGraph = addNewGraph;
