@@ -1,14 +1,23 @@
 import { getAsset, getAccount, getSensor, apiBasePath } from "./ui-utils.js";
 
-const addInfo = (label, value, infoDiv, Resource, isLink = false) => {
+/**
+ * Helper function to add key-value information to a container.
+ *
+ * @param {string} label - The label text (e.g., "ID").
+ * @param {string|number} value - The value to display.
+ * @param {HTMLElement} infoDiv - The container element to append to.
+ * @param {Object} resource - The generic resource object (Asset or Sensor).
+ * @param {boolean} [isLink=false] - If true, renders the value as a hyperlink to the resource page.
+ */
+const addInfo = (label, value, infoDiv, resource, isLink = false) => {
   const b = document.createElement("b");
   b.textContent = `${label}: `;
   infoDiv.appendChild(b);
-  const isSensor = Resource.hasOwnProperty("unit");
+  const isSensor = resource.hasOwnProperty("unit");
 
   if (isLink) {
     const a = document.createElement("a");
-    a.href = `${apiBasePath}/${isSensor ? "sensors" : "assets"}/${Resource.id}`;
+    a.href = `${apiBasePath}/${isSensor ? "sensors" : "assets"}/${resource.id}`;
     a.textContent = value;
     infoDiv.appendChild(a);
   } else {

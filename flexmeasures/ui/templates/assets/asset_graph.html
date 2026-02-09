@@ -437,9 +437,10 @@
             const selectedValue = e.target.value;
             if (selectedValue !== "null") {
                 configTypeSelect.disabled = false;
+                configTypeSelect.innerHTML = '<option value="null" selected>Select Config Type</option>';
+                flexConfigField.innerHTML = '<option value="null" selected>Select Field</option>';
+                flexConfigFieldDetail.value = "";
                 const selectedAsset = await getAsset(selectedValue);
-
-
 
                 if (selectedAsset.flex_context !== "{}" && selectedAsset.flex_context !== '"{\"inflexible-device-sensors\": []}"') { // Some flex-context have this value set with an empty array
                     const flexContextOption = document.createElement("option");
