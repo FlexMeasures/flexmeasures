@@ -399,8 +399,12 @@ class AssetCrudUI(FlaskView):
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
 
+        # order by ID in asc
         account_assets = (
-            db.session.query(GenericAsset).filter_by(account_id=asset.account_id).all()
+            db.session.query(GenericAsset)
+            .filter_by(account_id=asset.account_id)
+            .order_by(GenericAsset.id.asc())
+            .all()
         )
 
         return render_flexmeasures_template(
