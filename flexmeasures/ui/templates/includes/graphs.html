@@ -434,7 +434,7 @@
     checkDSTTransitions(startDate, endDate)
     Promise.all([
         fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
-        /**
+        {% if active_page == "sensors" %}
         // Fetch annotations
         fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
             method: "GET",
@@ -442,7 +442,7 @@
             signal: signal,
         })
         .then(function(response) { return response.json(); }),
-        */
+        {% endif %}
 
         // Embed chart
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
@@ -456,16 +456,16 @@
         };
         checkSourceMasking(previousResult.data);
         playBackDataLoadedForKnownDateRange = false;
-        /**
+        {% if active_page == "sensors" %}
         vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
-        */
+        {% endif %}
     }).catch(console.error);
         });
     return picker
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
-        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType);
+        const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=true&include_asset_annotations=true&chart_type=' + chartType);
         await vegaEmbed('#' + elementId, url, {{ chart_options | safe }})
       .then(function (result) {
 
