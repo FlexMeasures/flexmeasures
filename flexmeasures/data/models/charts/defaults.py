@@ -117,6 +117,7 @@ SHADE_LAYER = {
 TEXT_LAYER = {
     "mark": {
         "type": "text",
+        "clip": False,
         "y": HEIGHT,
         "dy": FONT_SIZE + ANNOTATION_MARGIN,
         "baseline": "top",
