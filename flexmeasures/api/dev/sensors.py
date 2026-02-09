@@ -140,9 +140,10 @@ class SensorAPI(FlaskView):
         """
         event_starts_after = kwargs.get("event_starts_after", None)
         event_ends_before = kwargs.get("event_ends_before", None)
-        df = sensor.generic_asset.search_annotations(
+        df = sensor.search_annotations(
             annotations_after=event_starts_after,
             annotations_before=event_ends_before,
+            include_asset_annotations=True,
             as_frame=True,
         )
 
