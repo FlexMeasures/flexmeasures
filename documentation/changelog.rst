@@ -50,6 +50,7 @@ Infrastructure / Support
 * Improve reported test coverage by including doctests and bringing back CLI tests to GitHub Actions [see `PR #1914 <https://www.github.com/FlexMeasures/flexmeasures/pull/1914>`_ and `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_, respectively]
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
 * Allow seeing complete datetimes in the audit log [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
+* Add standardized GitHub Copilot agent environment setup file for consistent development environment across agent sessions [see `PR #1962 <https://www.github.com/FlexMeasures/flexmeasures/pull/1962>`_, `PR #1963 <https://www.github.com/FlexMeasures/flexmeasures/pull/1963>`_ and `PR #1964 <https://www.github.com/FlexMeasures/flexmeasures/pull/1964>`_]
 
 Bugfixes
 -----------
@@ -60,6 +61,7 @@ Bugfixes
 * Have the ``StorageScheduler`` correctly combine multiple sessions targeting the same sensor [see `PR #1948 <https://www.github.com/FlexMeasures/flexmeasures/pull/1948>`_]
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>`` [see `PR #1929 <https://www.github.com/FlexMeasures/flexmeasures/pull/1929>`_ and `PR #1930 <https://www.github.com/FlexMeasures/flexmeasures/pull/1930>`_]
 * Prevent inplace operation when using ``simplify_index`` [see `PR #1931 <https://www.github.com/FlexMeasures/flexmeasures/pull/1931>`_]
+* Fix API tests failing with 401 UNAUTHORIZED when run in isolation by properly setting Flask-Security's ``fs_authn_via`` attribute in the ``requesting_user`` fixture [see `PR #1960 <https://www.github.com/FlexMeasures/flexmeasures/pull/1960>`_]
 
 
 v0.30.3 | January 12, 2026
