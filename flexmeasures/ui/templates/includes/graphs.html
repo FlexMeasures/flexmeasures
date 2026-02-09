@@ -150,6 +150,9 @@
                 // Reload daterange
                 embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult.data)).resize().run();
+                if (chartType === "bar_chart") {
+                    vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(previousResult.annotations)).resize().run();
+                }
             });
         }
 
@@ -454,11 +457,14 @@
             end: endDate,
             data: result[0]
         };
+        {% if active_page == "sensors" %}
+            previousResult["annotations"] = result[1]
+        {% endif %}
         checkSourceMasking(previousResult.data);
         playBackDataLoadedForKnownDateRange = false;
-        {% if active_page == "sensors" %}
-        vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
-        {% endif %}
+        if (chartType === "bar_chart") {
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+        }
     }).catch(console.error);
         });
     return picker
@@ -499,6 +505,9 @@
                     return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
                 })
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousData)).resize().run();
+                if (chartType === "bar_chart") {
+                    vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(previousResult.annotations)).resize().run();
+                }
             }
         });
     }
