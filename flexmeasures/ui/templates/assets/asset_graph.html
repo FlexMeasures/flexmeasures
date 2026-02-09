@@ -838,9 +838,10 @@
 
         async function removeGraph(index) {
             const sensorsToShowOldState = getSensorToShow();
-            sensorsToShowOldState.splice(index, 1);
-            setSensorToShow(sensorsToShowOldState);
-            reRenderForm();
+            const newSensorsToShow = sensorsToShowOldState.filter((_, i) => i !== index);
+            setActiveCard(null);
+            setConfigAsset(null);
+            setSensorToShow(newSensorsToShow);
         }
 
         async function moveGraphUp(index) {
