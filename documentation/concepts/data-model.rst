@@ -136,7 +136,7 @@ Annotations are particularly useful for:
 
 Annotations can be created via:
 
-- The :ref:`developer API <dev>` (see POST endpoints for accounts, assets, and sensors)
+- The :ref:`API <v3_0>` (see POST endpoints for accounts, assets, and sensors)
 - The CLI command ``flexmeasures add annotation``
 - The CLI command ``flexmeasures add holidays`` for automatic holiday import
 
