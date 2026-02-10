@@ -268,7 +268,7 @@ Examples
 
 .. code-block:: python
 
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     import requests
     
     def create_annotation(entity_type, entity_id, content, start, end,
