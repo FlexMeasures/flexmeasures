@@ -4,6 +4,7 @@ from marshmallow import Schema, fields, validates_schema, ValidationError
 from marshmallow.validate import OneOf
 
 from flexmeasures.data.schemas.times import AwareDateTimeField
+from flexmeasures.data.schemas.sources import DataSourceIdField
 
 
 class AnnotationSchema(Schema):
@@ -25,3 +26,18 @@ class AnnotationSchema(Schema):
         if "start" in data and "end" in data:
             if data["end"] <= data["start"]:
                 raise ValidationError("end must be after start")
+
+
+class AnnotationResponseSchema(Schema):
+    """Schema for annotation API responses."""
+    
+    id = fields.Int(dump_only=True)
+    content = fields.Str()
+    start = AwareDateTimeField(format="iso")
+    end = AwareDateTimeField(format="iso")
+    type = fields.Str()
+    belief_time = AwareDateTimeField(format="iso")
+    source_id = fields.Int(dump_only=True)
+    
+    class Meta:
+        ordered = True

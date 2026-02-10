@@ -1,11 +1,12 @@
 """
 API endpoints for annotations (under development).
 """
+from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import current_user
 from webargs.flaskparser import use_kwargs, use_args
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import NotFound, InternalServerError
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -15,11 +16,12 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
-from flexmeasures.data.schemas.annotations import AnnotationSchema
+from flexmeasures.data.schemas.annotations import AnnotationSchema, AnnotationResponseSchema
 from flexmeasures.data.services.data_sources import get_or_create_source
 
 
 annotation_schema = AnnotationSchema()
+annotation_response_schema = AnnotationResponseSchema()
 
 
 class AnnotationAPI(FlaskView):
@@ -39,6 +41,8 @@ class AnnotationAPI(FlaskView):
         """POST to /annotation/accounts/<id>
         
         Add an annotation to an account.
+        
+        **⚠️ WARNING: This endpoint is experimental and may change without notice.**
         
         **Required fields**
         
@@ -64,6 +68,8 @@ class AnnotationAPI(FlaskView):
         
         Add an annotation to an asset.
         
+        **⚠️ WARNING: This endpoint is experimental and may change without notice.**
+        
         **Required fields**
         
         - "content": Text content of the annotation (max 1024 characters)
@@ -88,6 +94,8 @@ class AnnotationAPI(FlaskView):
         
         Add an annotation to a sensor.
         
+        **⚠️ WARNING: This endpoint is experimental and may change without notice.**
+        
         **Required fields**
         
         - "content": Text content of the annotation (max 1024 characters)
@@ -110,39 +118,47 @@ class AnnotationAPI(FlaskView):
         asset: GenericAsset | None = None,
         sensor: Sensor | None = None,
     ):
-        """Create an annotation and link it to the specified entity."""
-        # Get or create data source for current user
-        source = get_or_create_source(current_user)
+        """Create an annotation and link it to the specified entity.
         
-        # Create annotation object
-        annotation = Annotation(
-            content=annotation_data["content"],
-            start=annotation_data["start"],
-            end=annotation_data["end"],
-            type=annotation_data.get("type", "label"),
-            belief_time=annotation_data.get("belief_time"),
-            source=source,
-        )
-        
-        # Use get_or_create to handle duplicates gracefully
-        annotation = get_or_create_annotation(annotation)
-        
-        # Determine if this is a new annotation
-        is_new = annotation.id is None
-        
-        # Link annotation to entity
-        if account is not None:
-            if annotation not in account.annotations:
-                account.annotations.append(annotation)
-        elif asset is not None:
-            if annotation not in asset.annotations:
-                asset.annotations.append(annotation)
-        elif sensor is not None:
-            if annotation not in sensor.annotations:
-                sensor.annotations.append(annotation)
-        
-        db.session.commit()
-        
-        # Return appropriate status code
-        status_code = 201 if is_new else 200
-        return annotation_schema.dump(annotation), status_code
+        Returns:
+            - 201 Created for new annotations
+            - 200 OK for existing annotations (idempotent behavior)
+        """
+        try:
+            # Get or create data source for current user
+            source = get_or_create_source(current_user)
+            
+            # Create annotation object
+            annotation = Annotation(
+                content=annotation_data["content"],
+                start=annotation_data["start"],
+                end=annotation_data["end"],
+                type=annotation_data.get("type", "label"),
+                belief_time=annotation_data.get("belief_time"),
+                source=source,
+            )
+            
+            # Use get_or_create to handle duplicates gracefully
+            annotation, is_new = get_or_create_annotation(annotation)
+            
+            # Link annotation to entity
+            if account is not None:
+                if annotation not in account.annotations:
+                    account.annotations.append(annotation)
+            elif asset is not None:
+                if annotation not in asset.annotations:
+                    asset.annotations.append(annotation)
+            elif sensor is not None:
+                if annotation not in sensor.annotations:
+                    sensor.annotations.append(annotation)
+            
+            db.session.commit()
+            
+            # Return appropriate status code
+            status_code = 201 if is_new else 200
+            return annotation_response_schema.dump(annotation), status_code
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error creating annotation: {e}")
+            raise InternalServerError("An unexpected error occurred while creating the annotation")
