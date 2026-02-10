@@ -79,10 +79,6 @@ The annotation API provides three POST endpoints (``/api/v3_0/annotations/``):
 - ``POST /api/v3_0/annotations/assets/<id>`` - Annotate an asset
 - ``POST /api/v3_0/annotations/sensors/<id>`` - Annotate a sensor
 
-.. warning::
-    These endpoints are experimental and part of the Developer API. They may change in future releases.
-    See :ref:`dev` for the current API specification.
-
 
 **Authentication**
 
@@ -168,7 +164,7 @@ Examples
 
 .. code-block:: bash
 
-    curl -X POST "https://company.flexmeasures.io/api/dev/annotation/assets/5" \
+    curl -X POST "https://company.flexmeasures.io/api/v3_0/annotations/assets/5" \
       -H "Authorization: Bearer YOUR_TOKEN_HERE" \
       -H "Content-Type: application/json" \
       -d '{
@@ -199,7 +195,7 @@ Examples
 
 .. code-block:: bash
 
-    curl -X POST "https://company.flexmeasures.io/api/dev/annotation/sensors/42" \
+    curl -X POST "https://company.flexmeasures.io/api/v3_0/annotations/sensors/42" \
       -H "Authorization: Bearer YOUR_TOKEN_HERE" \
       -H "Content-Type: application/json" \
       -d '{
@@ -246,7 +242,7 @@ Examples
     }
     
     response = requests.post(
-        f"{FLEXMEASURES_URL}/api/dev/annotation/accounts/3",
+        f"{FLEXMEASURES_URL}/api/v3_0/annotations/accounts/3",
         headers={
             "Authorization": f"Bearer {ACCESS_TOKEN}",
             "Content-Type": "application/json"
@@ -296,7 +292,7 @@ Examples
         if isinstance(belief_time, datetime):
             belief_time = belief_time.isoformat()
         
-        url = f"{base_url}/api/dev/annotation/{entity_type}/{entity_id}"
+        url = f"{base_url}/api/v3_0/annotations/{entity_type}/{entity_id}"
         
         payload = {
             "content": content,
@@ -425,7 +421,7 @@ This allows you to:
 - Add broader context from asset and account annotations  
 - Customize which annotation layers are visible
 
-See :ref:`dev` for complete API documentation.
+See :ref:`dev` for complete API documentation for sensor charts.
 
 
 Best Practices
