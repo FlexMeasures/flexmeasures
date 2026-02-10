@@ -87,7 +87,7 @@ All annotation endpoints require authentication. Include your access token in th
 .. code-block:: json
 
     {
-        "Authorization": "Bearer <your-access-token>"
+        "Authorization": "<your-access-token>"
     }
 
 See :ref:`api_auth` for details on obtaining an access token.
@@ -165,7 +165,7 @@ Examples
 .. code-block:: bash
 
     curl -X POST "https://company.flexmeasures.io/api/v3_0/annotations/assets/5" \
-      -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+      -H "Authorization: YOUR_TOKEN_HERE" \
       -H "Content-Type: application/json" \
       -d '{
         "content": "Christmas Day - reduced operations",
@@ -196,7 +196,7 @@ Examples
 .. code-block:: bash
 
     curl -X POST "https://company.flexmeasures.io/api/v3_0/annotations/sensors/42" \
-      -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+      -H "Authorization: YOUR_TOKEN_HERE" \
       -H "Content-Type: application/json" \
       -d '{
         "content": "Temperature sensor malfunction - readings unreliable",
@@ -244,7 +244,7 @@ Examples
     response = requests.post(
         f"{FLEXMEASURES_URL}/api/v3_0/annotations/accounts/3",
         headers={
-            "Authorization": f"Bearer {ACCESS_TOKEN}",
+            "Authorization": ACCESS_TOKEN,
             "Content-Type": "application/json"
         },
         json=annotation_data
@@ -305,7 +305,7 @@ Examples
             payload["belief_time"] = belief_time
         
         headers = {
-            "Authorization": f"Bearer {token}",
+            "Authorization": token,
             "Content-Type": "application/json"
         }
         
