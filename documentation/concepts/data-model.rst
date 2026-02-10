@@ -145,8 +145,7 @@ Annotations can be created via:
 Annotations appear in:
 
 - Individual sensor charts in the FlexMeasures UI
-- Asset views showing all related annotations
-- API responses when querying sensor data with annotation flags
+- API responses when querying chart data with annotation flags
 
 
 Accounts & Users
