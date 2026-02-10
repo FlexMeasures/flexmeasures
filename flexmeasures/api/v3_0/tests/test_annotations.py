@@ -2,9 +2,9 @@
 Tests for the annotation API endpoints (under development).
 
 These tests validate the three POST endpoints for creating annotations:
-- POST /api/dev/annotation/accounts/<id>
-- POST /api/dev/annotation/assets/<id>
-- POST /api/dev/annotation/sensors/<id>
+- POST /api/v3_0/annotations/accounts/<id>
+- POST /api/v3_0/annotations/assets/<id>
+- POST /api/v3_0/annotations/sensors/<id>
 """
 
 from __future__ import annotations
@@ -508,10 +508,10 @@ def test_post_annotation_idempotency(client, setup_api_test_data):
     assert annotation_count_before == annotation_count_after
 
 
-def test_post_annotation_with_belief_time(client, setup_api_test_data):
-    """Test that belief_time can be optionally specified.
+def test_post_annotation_with_prior(client, setup_api_test_data):
+    """Test that prior can be optionally specified.
 
-    When belief_time is provided, it should be stored and returned.
+    When prior is provided, it should be stored and returned.
     When omitted, the API should use the current time (tested implicitly).
     """
     from flexmeasures.api.tests.utils import get_auth_token
@@ -522,13 +522,13 @@ def test_post_annotation_with_belief_time(client, setup_api_test_data):
         select(Account).filter_by(name="Test Prosumer Account")
     ).scalar_one()
 
-    belief_time = "2024-12-01T12:00:00+01:00"
+    prior = "2024-12-01T12:00:00+01:00"
 
     annotation_data = {
         "content": "Annotation with belief time",
         "start": "2024-12-01T00:00:00+01:00",
         "end": "2024-12-01T01:00:00+01:00",
-        "belief_time": belief_time,
+        "prior": prior,
     }
 
     response = client.post(
@@ -538,12 +538,12 @@ def test_post_annotation_with_belief_time(client, setup_api_test_data):
     )
 
     assert response.status_code == 201
-    assert "belief_time" in response.json
+    assert "prior" in response.json
     # Compare times after parsing to handle timezone conversions
     import dateutil.parser
 
-    expected_time = dateutil.parser.isoparse(belief_time)
-    actual_time = dateutil.parser.isoparse(response.json["belief_time"])
+    expected_time = dateutil.parser.isoparse(prior)
+    actual_time = dateutil.parser.isoparse(response.json["prior"])
     assert expected_time == actual_time
 
 
@@ -664,7 +664,7 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
     - start (ISO 8601 datetime)
     - end (ISO 8601 datetime)
     - type (string)
-    - belief_time (ISO 8601 datetime)
+    - prior (ISO 8601 datetime)
     - source_id (integer)
     """
     from flexmeasures.api.tests.utils import get_auth_token
@@ -696,7 +696,7 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
     assert "start" in response.json
     assert "end" in response.json
     assert "type" in response.json
-    assert "belief_time" in response.json
+    assert "prior" in response.json
     assert "source_id" in response.json
 
     # Verify field types and values
@@ -708,6 +708,6 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
     # Verify datetime fields are in ISO format
     assert "T" in response.json["start"]
     assert "T" in response.json["end"]
-    # belief_time may be None if not explicitly set
-    if response.json["belief_time"] is not None:
-        assert "T" in response.json["belief_time"]
+    # prior may be None if not explicitly set
+    if response.json["prior"] is not None:
+        assert "T" in response.json["prior"]

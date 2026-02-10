@@ -33,6 +33,7 @@ class AnnotationSchema(Schema):
         metadata={"description": "Type of annotation."},
     )
     belief_time = AwareDateTimeField(
+        data_key="prior",
         required=False,
         allow_none=True,
         format="iso",
@@ -57,7 +58,7 @@ class AnnotationResponseSchema(Schema):
     start = AwareDateTimeField(format="iso")
     end = AwareDateTimeField(format="iso")
     type = fields.Str()
-    belief_time = AwareDateTimeField(format="iso")
+    belief_time = AwareDateTimeField(data_key="prior", format="iso")
     source_id = fields.Int(dump_only=True)
 
     class Meta:

@@ -112,7 +112,7 @@ All annotation endpoints accept the same request body format:
         "start": "2024-12-15T09:00:00+01:00",
         "end": "2024-12-15T11:00:00+01:00",
         "type": "label",
-        "belief_time": "2024-12-15T08:45:00+01:00"
+        "prior": "2024-12-15T08:45:00+01:00"
     }
 
 **Required fields:**
@@ -124,7 +124,7 @@ All annotation endpoints accept the same request body format:
 **Optional fields:**
 
 - ``type`` (string): One of ``"alert"``, ``"holiday"``, ``"label"``, ``"feedback"``, ``"warning"``, ``"error"``. Defaults to ``"label"``.
-- ``belief_time`` (ISO 8601 datetime): When the annotation was created or became known. Defaults to current time if omitted.
+- ``prior`` (ISO 8601 datetime): When the annotation was created or became known. Defaults to current time if omitted.
 
 **Response Format**
 
@@ -138,7 +138,7 @@ Successful requests return the created annotation:
         "start": "2024-12-15T09:00:00+01:00",
         "end": "2024-12-15T11:00:00+01:00",
         "type": "label",
-        "belief_time": "2024-12-15T08:45:00+01:00",
+        "prior": "2024-12-15T08:45:00+01:00",
         "source_id": 42
     }
 
@@ -184,7 +184,7 @@ Examples
         "start": "2024-12-25T00:00:00+01:00",
         "end": "2024-12-26T00:00:00+01:00",
         "type": "holiday",
-        "belief_time": "2024-12-15T10:30:00+01:00",
+        "prior": "2024-12-15T10:30:00+01:00",
         "source_id": 12
     }
 
@@ -215,7 +215,7 @@ Examples
         "start": "2024-12-10T14:30:00+01:00",
         "end": "2024-12-10T16:45:00+01:00",
         "type": "error",
-        "belief_time": "2024-12-15T10:35:00+01:00",
+        "prior": "2024-12-15T10:35:00+01:00",
         "source_id": 12
     }
 
@@ -268,7 +268,7 @@ Examples
     import requests
     
     def create_annotation(entity_type, entity_id, content, start, end,
-                         annotation_type="label", belief_time=None,
+                         annotation_type="label", prior=None,
                          base_url="https://company.flexmeasures.io",
                          token=None):
         """Create an annotation via the FlexMeasures API.
@@ -279,7 +279,7 @@ Examples
         :param start:           Start datetime (ISO 8601 string or datetime object)
         :param end:             End datetime (ISO 8601 string or datetime object)
         :param annotation_type: Type of annotation (default: "label")
-        :param belief_time:     Optional belief time (ISO 8601 string or datetime object)
+        :param prior:           Optional recording time (ISO 8601 string or datetime object)
         :param base_url:        FlexMeasures instance URL
         :param token:           API access token
         :return:                Response JSON and status code tuple
@@ -289,8 +289,8 @@ Examples
             start = start.isoformat()
         if isinstance(end, datetime):
             end = end.isoformat()
-        if isinstance(belief_time, datetime):
-            belief_time = belief_time.isoformat()
+        if isinstance(prior, datetime):
+            prior = prior.isoformat()
         
         url = f"{base_url}/api/v3_0/annotations/{entity_type}/{entity_id}"
         
@@ -301,8 +301,8 @@ Examples
             "type": annotation_type
         }
         
-        if belief_time:
-            payload["belief_time"] = belief_time
+        if prior:
+            payload["prior"] = prior
         
         headers = {
             "Authorization": token,
@@ -337,7 +337,7 @@ the API will:
 1. On first request: Create the annotation and return ``201 Created``
 2. On subsequent identical requests: Return the existing annotation with ``200 OK``
 
-This idempotency is based on a database uniqueness constraint on ``(content, start, belief_time, source_id, type)``.
+This idempotency is based on a database uniqueness constraint on ``(content, start, prior, source_id, type)``.
 
 **Why is this useful?**
 
