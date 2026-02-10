@@ -43,7 +43,7 @@ class AnnotationAPI(FlaskView):
     @permission_required_for_context("create-children", ctx_arg_name="account")
     def post_account_annotation(self, annotation_data: dict, id: int, account: Account):
         """
-        .. :quickref: Annotation; Add an annotation to an account.
+        .. :quickref: Annotations; Add an annotation to an account.
         ---
         post:
           summary: Creates a new account annotation.
@@ -70,7 +70,7 @@ class AnnotationAPI(FlaskView):
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
-            - Annotation
+            - Annotations
         """
         return self._create_annotation(annotation_data, account=account)
 
@@ -81,7 +81,7 @@ class AnnotationAPI(FlaskView):
     def post_asset_annotation(
         self, annotation_data: dict, id: int, asset: GenericAsset
     ):
-        """.. :quickref: Annotation; Add an annotation to an asset.
+        """.. :quickref: Annotations; Add an annotation to an asset.
         ---
         post:
           summary: Creates a new asset annotation.
@@ -108,7 +108,7 @@ class AnnotationAPI(FlaskView):
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
-            - Annotation
+            - Annotations
         """
         return self._create_annotation(annotation_data, asset=asset)
 
@@ -117,7 +117,7 @@ class AnnotationAPI(FlaskView):
     @use_args(annotation_schema)
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def post_sensor_annotation(self, annotation_data: dict, id: int, sensor: Sensor):
-        """.. :quickref: Annotation; Add an annotation to a sensor.
+        """.. :quickref: Annotations; Add an annotation to a sensor.
         ---
         post:
           summary: Creates a new sensor annotation.
@@ -144,7 +144,7 @@ class AnnotationAPI(FlaskView):
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
-            - Annotation
+            - Annotations
         """
         return self._create_annotation(annotation_data, sensor=sensor)
 
