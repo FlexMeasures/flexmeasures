@@ -1,7 +1,11 @@
 import pandas as pd
 import numpy as np
 
-from flexmeasures.data.models.planning import Commitment, StockCommitment, FlowCommitment
+from flexmeasures.data.models.planning import (
+    Commitment,
+    StockCommitment,
+    FlowCommitment,
+)
 from flexmeasures.data.models.planning.utils import (
     initialize_index,
     add_tiny_price_slope,
