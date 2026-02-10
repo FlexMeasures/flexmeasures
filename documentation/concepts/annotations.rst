@@ -16,7 +16,7 @@ Each annotation includes:
 - **Content**: Descriptive text (up to 1024 characters)
 - **Time range**: Start and end times defining when the annotation applies
 - **Type**: Category of the annotation (label, holiday, alert, warning, error, or feedback)
-- **Belief time**: Timestamp when the annotation was created or became known
+- **Prior**: Timestamp when the annotation was recorded
 - **Source**: The data source that created the annotation (typically a user or automated system)
 
 
@@ -124,7 +124,7 @@ All annotation endpoints accept the same request body format:
 **Optional fields:**
 
 - ``type`` (string): One of ``"alert"``, ``"holiday"``, ``"label"``, ``"feedback"``, ``"warning"``, ``"error"``. Defaults to ``"label"``.
-- ``prior`` (ISO 8601 datetime): When the annotation was created or became known. Defaults to current time if omitted.
+- ``prior`` (ISO 8601 datetime): When the annotation was recorded. Defaults to current time if omitted.
 
 **Response Format**
 
@@ -331,7 +331,7 @@ Examples
 Idempotency
 -----------
 
-The annotation API is idempotent. If you POST the same annotation data twice (same content, start time, belief time, source, and type), 
+The annotation API is idempotent. If you POST the same annotation data twice (same content, start time, recording time, source, and type),
 the API will:
 
 1. On first request: Create the annotation and return ``201 Created``
