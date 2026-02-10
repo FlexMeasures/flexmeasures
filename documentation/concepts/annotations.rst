@@ -95,7 +95,7 @@ See :ref:`api_auth` for details on obtaining an access token.
 
 **Permissions**
 
-You need ``update`` permission on the target entity (account, asset, or sensor) to create annotations.
+You need ``create-children`` permission on the target entity (account, asset, or sensor) to create annotations.
 The permission system ensures users can only annotate resources they have access to.
 
 See :ref:`authorization` for more details on FlexMeasures authorization.
