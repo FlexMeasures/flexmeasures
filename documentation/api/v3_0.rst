@@ -10,7 +10,7 @@ A quick overview of the available endpoints. For more details, click their names
 
 .. The qrefs make links very similar to the openapi plugin, but we have to run a sed command after the fact to make them exactly alike (see Makefile)
 .. qrefflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api, flexmeasures.api.v3_0.annotations, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.accounts, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
+    :modules: flexmeasures.api, flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.accounts, flexmeasures.api.v3_0.users, flexmeasures.api.v3_0.health, flexmeasures.api.v3_0.public
     :order: path
     :include-empty-docstring:
 

@@ -2395,7 +2395,7 @@
         ]
       }
     },
-    "/api/v3_0/annotations/accounts/{id}": {
+    "/api/v3_0/accounts/{id}/annotations": {
       "post": {
         "summary": "Creates a new account annotation.",
         "description": "This endpoint creates a new annotation on an account.\n",
@@ -2450,7 +2450,7 @@
         ]
       }
     },
-    "/api/v3_0/annotations/assets/{id}": {
+    "/api/v3_0/assets/{id}/annotations": {
       "post": {
         "summary": "Creates a new asset annotation.",
         "description": "This endpoint creates a new annotation on an asset.\n",
@@ -2505,7 +2505,7 @@
         ]
       }
     },
-    "/api/v3_0/annotations/sensors/{id}": {
+    "/api/v3_0/sensors/{id}/annotations": {
       "post": {
         "summary": "Creates a new sensor annotation.",
         "description": "This endpoint creates a new annotation on a sensor.\n",

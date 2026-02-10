@@ -73,11 +73,11 @@ FlexMeasures supports six annotation types:
 Creating Annotations via API
 -----------------------------
 
-The annotation API provides three POST endpoints (``/api/v3_0/annotations/``):
+The annotation API provides three POST endpoints:
 
-- ``POST /api/v3_0/annotations/accounts/<id>`` - Annotate an account
-- ``POST /api/v3_0/annotations/assets/<id>`` - Annotate an asset
-- ``POST /api/v3_0/annotations/sensors/<id>`` - Annotate a sensor
+- ``POST /api/v3_0/accounts/<id>/annotations`` - Annotate an account
+- ``POST /api/v3_0/assets/<id>/annotations`` - Annotate an asset
+- ``POST /api/v3_0/sensors/<id>/annotations`` - Annotate a sensor
 
 
 **Authentication**
@@ -164,7 +164,7 @@ Examples
 
 .. code-block:: bash
 
-    curl -X POST "https://company.flexmeasures.io/api/v3_0/annotations/assets/5" \
+    curl -X POST "https://company.flexmeasures.io/api/v3_0/assets/5/annotations" \
       -H "Authorization: YOUR_TOKEN_HERE" \
       -H "Content-Type: application/json" \
       -d '{
@@ -195,7 +195,7 @@ Examples
 
 .. code-block:: bash
 
-    curl -X POST "https://company.flexmeasures.io/api/v3_0/annotations/sensors/42" \
+    curl -X POST "https://company.flexmeasures.io/api/v3_0/sensors/42/annotations" \
       -H "Authorization: YOUR_TOKEN_HERE" \
       -H "Content-Type: application/json" \
       -d '{
@@ -242,7 +242,7 @@ Examples
     }
     
     response = requests.post(
-        f"{FLEXMEASURES_URL}/api/v3_0/annotations/accounts/3",
+        f"{FLEXMEASURES_URL}/api/v3_0/accounts/3/annotations",
         headers={
             "Authorization": ACCESS_TOKEN,
             "Content-Type": "application/json"
@@ -292,7 +292,7 @@ Examples
         if isinstance(prior, datetime):
             prior = prior.isoformat()
         
-        url = f"{base_url}/api/v3_0/annotations/{entity_type}/{entity_id}"
+        url = f"{base_url}/api/v3_0/{entity_type}/{entity_id}/annotations"
         
         payload = {
             "content": content,
