@@ -188,6 +188,7 @@ class ForecasterParametersSchema(Schema):
             "example": "PT48H",
             "cli": {
                 "option": "--max-forecast-horizon",
+                "extra_help": "For example, if you have multiple viewpoints (by having set a `retrain-frequency`), then it is equal to the retrain-frequency by default."
             },
         },
     )
