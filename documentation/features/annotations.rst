@@ -73,11 +73,11 @@ FlexMeasures supports six annotation types:
 Creating Annotations via API
 -----------------------------
 
-The annotation API provides three POST endpoints under development (``/api/dev/annotation/``):
+The annotation API provides three POST endpoints (``/api/v3_0/annotations/``):
 
-- ``POST /api/dev/annotation/accounts/<id>`` - Annotate an account
-- ``POST /api/dev/annotation/assets/<id>`` - Annotate an asset  
-- ``POST /api/dev/annotation/sensors/<id>`` - Annotate a sensor
+- ``POST /api/v3_0/annotations/accounts/<id>`` - Annotate an account
+- ``POST /api/v3_0/annotations/assets/<id>`` - Annotate an asset
+- ``POST /api/v3_0/annotations/sensors/<id>`` - Annotate a sensor
 
 .. warning::
     These endpoints are experimental and part of the Developer API. They may change in future releases.
@@ -488,7 +488,7 @@ Potential future enhancements:
 See Also
 --------
 
-- :ref:`dev` - Complete Developer API documentation including current annotation endpoints
+- :ref:`v3_0` - Complete API documentation including annotation endpoints
 - :ref:`datamodel` - Overview of the FlexMeasures data model including annotations
 - :ref:`cli` - Command-line interface documentation
 - :ref:`auth` - Authentication and authorization details
