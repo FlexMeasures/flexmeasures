@@ -752,6 +752,84 @@ Track and document when the Review Lead:
 
 Update this file to prevent repeating the same mistakes.
 
+## Session Close Checklist (MANDATORY)
+
+**Before closing ANY session, the Review Lead MUST verify ALL items in this checklist.**
+
+This is non-negotiable. Skipping items without explicit justification and user approval is a governance failure.
+
+### Pre-Commit Verification
+
+- [ ] **Pre-commit hooks installed**: `pip install pre-commit` executed
+- [ ] **All hooks pass**: `pre-commit run --all-files` completed successfully
+- [ ] **Zero failures**: No linting errors (flake8), formatting issues (black), or type errors (mypy)
+- [ ] **Changes committed**: If hooks modified files, changes included in commit
+
+**Evidence required**: Show pre-commit output or confirm "all hooks passed"
+
+### Test Verification
+
+- [ ] **Full test suite executed**: `make test` or `pytest` run (NOT just feature-specific tests)
+- [ ] **ALL tests pass**: 100% pass rate (not 99%, not "mostly passing")
+- [ ] **Test output captured**: Number of tests, execution time, any warnings
+- [ ] **Failures investigated**: Any failures analyzed and resolved or documented
+- [ ] **Regression verified**: No new test failures introduced
+
+**Evidence required**: Show test count (e.g., "2,847 tests passed") and execution summary
+
+**FORBIDDEN:**
+- ❌ "Annotation API tests pass" (only tested one module)
+- ❌ "Tests pass locally" (didn't actually run them)
+- ❌ "Quick smoke test" (cherry-picked test files)
+
+**REQUIRED:**
+- ✅ "All 2,847 tests passed (100%)"
+- ✅ Full test suite execution confirmed by Test Specialist
+
+### Documentation Verification
+
+- [ ] **Changelog entry added**: Entry in `documentation/changelog.rst`
+- [ ] **Appropriate section**: New features / Infrastructure / Bugfixes
+- [ ] **PR title clear**: References issue number and describes user-facing value
+- [ ] **PR description complete**: Explains changes and testing approach
+- [ ] **Code comments present**: Complex logic has explanatory comments
+
+**Evidence required**: Point to changelog entry and PR title
+
+### Agent Coordination
+
+- [ ] **Participating agents identified**: List all agents that contributed
+- [ ] **Each agent prompted**: Every participating agent prompted to update instructions
+- [ ] **Updates verified**: Each agent update is substantive (not trivial)
+- [ ] **Updates committed**: Agent instruction updates committed separately
+- [ ] **Coordinator run**: If governance review requested, Coordinator was invoked
+
+**Evidence required**: List agents and their instruction update commits
+
+### Commit Quality
+
+- [ ] **Commits are atomic**: Each commit has single clear purpose
+- [ ] **No mixed changes**: Code, tests, docs, agent instructions in separate commits
+- [ ] **No temporary files**: Analysis/planning files not committed (use /tmp)
+- [ ] **Messages follow format**: Standard commit message structure used
+- [ ] **Agent updates separate**: Instruction updates not mixed with code changes
+
+**Evidence required**: Review commit history for atomicity
+
+### Enforcement
+
+**The Review Lead MUST NOT close a session until ALL checklist items are verified.**
+
+If you cannot complete an item:
+1. Document why in session notes
+2. Get explicit user approval to skip
+3. Create follow-up task for completion
+
+If you close without completing checklist:
+- This is a governance failure
+- Coordinator will document it
+- Review Lead instructions will be updated to prevent recurrence
+
 ### Continuous Improvement
 
 The Review Lead should:
