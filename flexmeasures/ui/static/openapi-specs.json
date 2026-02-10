@@ -2395,6 +2395,9 @@
         ]
       }
     },
+    "/api/v3_0/annotation/accounts/{id}": {},
+    "/api/v3_0/annotation/assets/{id}": {},
+    "/api/v3_0/annotation/sensors/{id}": {},
     "/api/v3_0/assets/{id}/sensors": {
       "get": {
         "summary": "Return all sensors under an asset.",
@@ -3896,9 +3899,6 @@
     "/api/dev/sensor/{id}/chart_annotations": {},
     "/api/dev/sensor/{id}/chart_data": {},
     "/api/dev/asset/{id}": {},
-    "/api/dev/annotation/accounts/{id}": {},
-    "/api/dev/annotation/assets/{id}": {},
-    "/api/dev/annotation/sensors/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
     "/": {}
   },

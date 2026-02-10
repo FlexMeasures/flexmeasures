@@ -1,5 +1,5 @@
 """
-API endpoints for annotations (under development).
+API endpoints for annotations.
 """
 
 from flask import current_app
@@ -30,8 +30,7 @@ annotation_response_schema = AnnotationResponseSchema()
 
 class AnnotationAPI(FlaskView):
     """
-    This view exposes annotation creation through API endpoints under development.
-    These endpoints are not yet part of our official API.
+    This view exposes annotation creation through API endpoints.
     """
 
     route_base = "/annotation"
@@ -45,8 +44,6 @@ class AnnotationAPI(FlaskView):
     def post_account_annotation(self, annotation_data: dict, id: int, account: Account):
         """
         .. :quickref: Annotation; Add an annotation to an account.
-
-        **⚠️ WARNING: This endpoint is experimental and may change without notice.**
 
         **Required fields**
 
@@ -72,8 +69,6 @@ class AnnotationAPI(FlaskView):
     ):
         """.. :quickref: Annotation; Add an annotation to an asset.
 
-        **⚠️ WARNING: This endpoint is experimental and may change without notice.**
-
         **Required fields**
 
         - "content": Text content of the annotation (max 1024 characters)
@@ -95,8 +90,6 @@ class AnnotationAPI(FlaskView):
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def post_sensor_annotation(self, annotation_data: dict, id: int, sensor: Sensor):
         """.. :quickref: Annotation; Add an annotation to a sensor.
-
-        **⚠️ WARNING: This endpoint is experimental and may change without notice.**
 
         **Required fields**
 
