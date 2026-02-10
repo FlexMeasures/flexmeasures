@@ -493,6 +493,8 @@ These patterns must not repeat. Agent instructions have been updated to prevent 
 
 **Future sessions**: Monitor whether self-improvement enforcement works. If pattern recurs 3+ times, escalate to architectural solution (e.g., automated checks, mandatory prompts).
 
+**Session 2026-02-10 (Annotation API Tests)**: Pattern recurred despite Review Lead update. Test Specialist fixed 32 annotation API tests (100% passing), made excellent technical commits, but did NOT update instructions with learned lessons (permission semantics, fixture selection, error code expectations). Review Lead enforcement unclear—may not have been involved in session. **Status**: Pattern persists. Approaching threshold for architectural solution.
+
 ### Enforcement Mechanism Added
 
 **New requirement for Review Lead**: Before marking task complete, verify:
