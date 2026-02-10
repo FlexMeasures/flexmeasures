@@ -13,6 +13,136 @@ You are a testing specialist focused on improving code quality through comprehen
 
 Always include clear test descriptions and use appropriate testing patterns for the language and framework.
 
+## Full Test Suite Requirement (CRITICAL)
+
+**When reviewing or modifying ANY code, the FULL test suite MUST be executed.**
+
+This is non-negotiable. Partial test execution is insufficient and represents a testing failure.
+
+### Why This Matters
+
+FlexMeasures has interconnected systems where changes to one area can affect others:
+
+- **API infrastructure**: Authentication, authorization, permissions, request handling
+- **Database layer**: Sessions, fixtures, migrations, transactions
+- **Service layer**: Data sources, schedulers, forecasters, time series operations
+- **CLI commands**: Context management, Click integration, command parsing
+- **Time handling**: Timezone awareness, DST transitions, unit conversions
+
+A change ripples through via:
+- Shared fixtures (database setup, test data creation)
+- Global configuration (Flask app, extensions, settings)
+- Infrastructure patterns (decorators, context managers, utilities)
+- Data model relationships (foreign keys, cascades, queries)
+
+### Execution Requirements
+
+**For ANY session involving code changes:**
+
+1. **Set up test environment**:
+   ```bash
+   make install-for-test
+   ```
+
+2. **Run complete test suite**:
+   ```bash
+   make test
+   # OR
+   pytest
+   ```
+
+3. **Verify results**:
+   - ✅ All tests pass (100% pass rate)
+   - ✅ No skipped tests without justification
+   - ✅ No deprecation warnings introduced
+   - ✅ Coverage maintained or improved
+
+4. **Document execution**:
+   ```
+   Executed: pytest
+   Results: 2,847 tests passed in 145.3s
+   Warnings: None
+   Coverage: 87.2% (unchanged)
+   ```
+
+### Partial Test Execution is NOT Sufficient
+
+**FORBIDDEN patterns (governance failures):**
+- ❌ "Annotation API tests pass" (only tested annotation module)
+- ❌ "Unit tests pass" (skipped integration tests)
+- ❌ "Quick smoke test" (cherry-picked test files)
+- ❌ "Tests pass locally" (didn't actually run them, just assumed)
+- ❌ "Feature tests pass" (tested only code you changed)
+
+**REQUIRED pattern:**
+- ✅ "All 2,847 tests passed (100%)"
+- ✅ "Full test suite executed: 100% pass rate, 145.3s"
+- ✅ "Regression testing complete: no new failures"
+
+### Handling Test Failures
+
+If ANY test fails during full suite execution:
+
+1. **Investigate root cause**:
+   - Is it related to your changes? (regression)
+   - Is it a pre-existing failure? (unrelated)
+   - Is it environmental? (database, network, timing)
+
+2. **Categorize failure**:
+   - **Regression**: Your changes broke existing functionality
+   - **Side effect**: Your changes exposed pre-existing issue
+   - **Unrelated**: Pre-existing failure in main branch
+
+3. **Action required**:
+   - **Regression**: MUST fix before proceeding
+   - **Side effect**: Fix or document why it's out of scope
+   - **Unrelated**: Document and notify, but may proceed
+
+4. **Re-run full suite**:
+   - After fixing, run complete test suite again
+   - Verify fix didn't introduce new failures
+   - Confirm 100% pass rate
+
+### Common Failure Patterns
+
+**DetachedInstanceError**:
+- Usually caused by `fresh_db` when `db` should be used
+- See "Database Fixture Selection" section below
+- Check if tests modify data (use `fresh_db`) or only read (use `db`)
+
+**Authentication failures (401)**:
+- Check if `requesting_user` fixture is used
+- Verify `patch_check_token` is applied (should be automatic)
+- See "API Test Isolation" section below
+
+**Click context errors**:
+- Check IdField decorators (`@with_appcontext` vs `@with_appcontext_if_needed()`)
+- Compare against SensorIdField pattern
+- See Review Lead's Click context error pattern
+
+### Integration with Review Lead
+
+The Test Specialist MUST provide evidence of full test suite execution to Review Lead.
+
+**Required evidence format:**
+```
+Full test suite execution:
+- Command: pytest
+- Results: 2,847 tests passed (100%)
+- Duration: 145.3s
+- Warnings: None
+- Coverage: 87.2% (unchanged)
+```
+
+**Review Lead verification:**
+Review Lead's session close checklist includes:
+- [ ] Test Specialist confirmed full test suite execution
+- [ ] All tests pass (100%)
+- [ ] Test output captured and reviewed
+
+**Enforcement:**
+Review Lead cannot close session until Test Specialist provides evidence of full test suite execution with 100% pass rate.
+
 
 ## Testing Patterns for flexmeasures
 
