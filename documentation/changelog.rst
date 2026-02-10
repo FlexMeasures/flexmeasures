@@ -12,6 +12,7 @@ v0.31.0 | February XX, 2026
 New features
 -------------
 * Improve CSV upload validation by inferring the intended base resolution even when data contains valid gaps, instead of requiring perfectly regular timestamps [see `PR #1918 <https://www.github.com/FlexMeasures/flexmeasures/pull/1918>`_]
+* New API endpoints to create annotations for accounts, assets, and sensors: `[POST] /api/dev/annotation/accounts/(id)`, `[POST] /api/dev/annotation/assets/(id)`, and `[POST] /api/dev/annotation/sensors/(id)` [see issue `#470 <https://github.com/FlexMeasures/flexmeasures/issues/470>`_]
 * New forecasting API endpoints `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ and `[GET] /sensors/(id)/forecasts/(uuid) <api/v3_0.html#get--api-v3_0-sensors-id-forecasts-uuid>`_ to forecast sensor data [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_ and `PR #1823 <https://www.github.com/FlexMeasures/flexmeasures/pull/1823>`_]
 * Support setting a resolution when triggering a schedule via the API or CLI [see `PR #1857 <https://www.github.com/FlexMeasures/flexmeasures/pull/1857>`_]
 * Support variable peak pricing and changes in commitment baselines [see `PR #1835 <https://www.github.com/FlexMeasures/flexmeasures/pull/1835>`_]
