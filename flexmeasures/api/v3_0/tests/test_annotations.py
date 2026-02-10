@@ -2,9 +2,9 @@
 Tests for the annotation API endpoints (under development).
 
 These tests validate the three POST endpoints for creating annotations:
-- POST /api/v3_0/annotations/accounts/<id>
-- POST /api/v3_0/annotations/assets/<id>
-- POST /api/v3_0/annotations/sensors/<id>
+- POST /api/v3_0/accounts/<id>/annotations
+- POST /api/v3_0/assets/<id>/annotations
+- POST /api/v3_0/sensors/<id>/annotations
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ def test_post_account_annotation_permissions(
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=prosumer_account.id),
+        url_for("AccountAPI:post_annotation", id=prosumer_account.id),
         json=annotation_data,
     )
 
@@ -123,7 +123,7 @@ def test_post_asset_annotation_permissions(
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_asset_annotation", id=asset.id),
+        url_for("AssetAPI:post_annotation", id=asset.id),
         json=annotation_data,
     )
 
@@ -190,7 +190,7 @@ def test_post_sensor_annotation_permissions(
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_sensor_annotation", id=sensor.id),
+        url_for("SensorAPI:post_annotation", id=sensor.id),
         json=annotation_data,
     )
 
@@ -239,7 +239,7 @@ def test_post_annotation_valid_types(client, setup_api_test_data, annotation_typ
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -269,7 +269,7 @@ def test_post_annotation_invalid_type(client, setup_api_test_data):
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -308,7 +308,7 @@ def test_post_annotation_missing_required_fields(
     del annotation_data[missing_field]
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -339,7 +339,7 @@ def test_post_annotation_content_too_long(client, setup_api_test_data):
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -367,7 +367,7 @@ def test_post_annotation_end_before_start(client, setup_api_test_data):
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -395,7 +395,7 @@ def test_post_annotation_end_equal_to_start(client, setup_api_test_data):
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -426,7 +426,7 @@ def test_post_annotation_not_found(client, setup_api_test_data):
 
     # Test with non-existent account
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=99999),
+        url_for("AccountAPI:post_annotation", id=99999),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -434,7 +434,7 @@ def test_post_annotation_not_found(client, setup_api_test_data):
 
     # Test with non-existent asset
     response = client.post(
-        url_for("AnnotationAPI:post_asset_annotation", id=99999),
+        url_for("AssetAPI:post_annotation", id=99999),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -442,7 +442,7 @@ def test_post_annotation_not_found(client, setup_api_test_data):
 
     # Test with non-existent sensor
     response = client.post(
-        url_for("AnnotationAPI:post_sensor_annotation", id=99999),
+        url_for("SensorAPI:post_annotation", id=99999),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -473,7 +473,7 @@ def test_post_annotation_idempotency(client, setup_api_test_data):
 
     # First POST - should create new annotation
     response1 = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -488,7 +488,7 @@ def test_post_annotation_idempotency(client, setup_api_test_data):
 
     # Second POST - should return existing annotation
     response2 = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -532,7 +532,7 @@ def test_post_annotation_with_prior(client, setup_api_test_data):
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -568,7 +568,7 @@ def test_post_annotation_default_type(client, setup_api_test_data):
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
@@ -602,7 +602,7 @@ def test_post_annotation_all_three_endpoints(client, setup_api_test_data):
 
     # Test account annotation
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=supplier_account.id),
+        url_for("AccountAPI:post_annotation", id=supplier_account.id),
         json={
             "content": "Account-level annotation",
             "start": "2025-01-01T00:00:00+01:00",
@@ -615,7 +615,7 @@ def test_post_annotation_all_three_endpoints(client, setup_api_test_data):
 
     # Test asset annotation
     response = client.post(
-        url_for("AnnotationAPI:post_asset_annotation", id=asset.id),
+        url_for("AssetAPI:post_annotation", id=asset.id),
         json={
             "content": "Asset-level annotation",
             "start": "2025-01-02T00:00:00+01:00",
@@ -628,7 +628,7 @@ def test_post_annotation_all_three_endpoints(client, setup_api_test_data):
 
     # Test sensor annotation
     response = client.post(
-        url_for("AnnotationAPI:post_sensor_annotation", id=sensor.id),
+        url_for("SensorAPI:post_annotation", id=sensor.id),
         json={
             "content": "Sensor-level annotation",
             "start": "2025-01-03T00:00:00+01:00",
@@ -683,7 +683,7 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
     }
 
     response = client.post(
-        url_for("AnnotationAPI:post_account_annotation", id=account.id),
+        url_for("AccountAPI:post_annotation", id=account.id),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
