@@ -33,7 +33,7 @@ class AnnotationAPI(FlaskView):
     This view exposes annotation creation through API endpoints.
     """
 
-    route_base = "/annotation"
+    route_base = "/annotations"
     trailing_slash = False
     decorators = [auth_required()]
 

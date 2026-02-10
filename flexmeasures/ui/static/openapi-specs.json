@@ -2395,7 +2395,7 @@
         ]
       }
     },
-    "/api/v3_0/annotation/accounts/{id}": {
+    "/api/v3_0/annotations/accounts/{id}": {
       "post": {
         "summary": "Creates a new account annotation.",
         "description": "This endpoint creates a new annotation on an account.\n",
@@ -2434,12 +2434,96 @@
           }
         },
         "tags": [
-          "Annotation"
+          "Annotations"
         ]
       }
     },
-    "/api/v3_0/annotation/assets/{id}": {},
-    "/api/v3_0/annotation/sensors/{id}": {},
+    "/api/v3_0/annotations/assets/{id}": {
+      "post": {
+        "summary": "Creates a new asset annotation.",
+        "description": "This endpoint creates a new annotation on an asset.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ALREADY PROCESSED"
+          },
+          "201": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Annotations"
+        ]
+      }
+    },
+    "/api/v3_0/annotations/sensors/{id}": {
+      "post": {
+        "summary": "Creates a new sensor annotation.",
+        "description": "This endpoint creates a new annotation on a sensor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ALREADY PROCESSED"
+          },
+          "201": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Annotations"
+        ]
+      }
+    },
     "/api/v3_0/assets/{id}/sensors": {
       "get": {
         "summary": "Return all sensors under an asset.",
@@ -4460,7 +4544,7 @@
               "null"
             ],
             "format": "date-time",
-            "description": "Time when annotation was created, in ISO 8601 format (default: now)."
+            "description": "Time when the annotation was recorded, in ISO 8601 format (default: now)."
           }
         },
         "required": [
