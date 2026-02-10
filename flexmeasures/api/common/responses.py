@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple, Union, Sequence
+from typing import Sequence
 import inflect
 from functools import wraps
 
@@ -9,8 +9,7 @@ p = inflect.engine()
 
 
 # Type annotation for responses: (message, status_code) or (message, status_code, header)
-# todo: Use | instead of Union and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-ResponseTuple = Union[Tuple[dict, int], Tuple[dict, int, dict]]
+ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
 
 
 def is_response_tuple(value) -> bool:
