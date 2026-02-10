@@ -35,6 +35,10 @@ Must be a list of integers.
 """,
     example=[3, 4],
 )
+AGGREGATE_POWER = MetaData(
+    description="""Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.""",
+    example={"sensor": 9},
+)
 COMMITMENTS = MetaData(
     description="Prior commitments. Support for this field in the UI is still under further development, but you can study the code to learn more.",
     example=[],
