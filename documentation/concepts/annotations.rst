@@ -463,4 +463,4 @@ See Also
 - :ref:`v3_0` - Complete API documentation including annotation endpoints
 - :ref:`datamodel` - Overview of the FlexMeasures data model including annotations
 - :ref:`cli` - Command-line interface documentation
-- :ref:`auth` - Authentication and authorization details
+- :ref:`authorization` - Authentication and authorization details
