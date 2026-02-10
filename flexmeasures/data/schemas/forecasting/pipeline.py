@@ -196,7 +196,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "How often to recompute forecasts. Defaults to 1 hour.",
+            "description": "How often to recompute forecasts. Defaults retrain-frequency.",
             "example": "PT1H",
             "cli": {
                 "option": "--forecast-frequency",
