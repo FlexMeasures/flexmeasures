@@ -249,6 +249,7 @@ class ForecasterParametersSchema(Schema):
             "example": 0.1,
             "cli": {
                 "option": "--missing-threshold",
+                "extra_help": "Missing data under this threshold will be filled using forward filling or linear interpolation."
             },
         },
     )
