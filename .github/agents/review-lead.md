@@ -750,6 +750,23 @@ Track and document when the Review Lead:
 - **Enforcement worked**: Prompted test specialist again when initial work didn't include instruction updates; specialist then completed self-improvement
 - **Key insight**: "When IdFields fail with Click context errors, check decorator pattern against SensorIdField"
 
+**Specific lesson learned (2026-02-10 final review)**:
+- **Session**: Addressing user review feedback on governance failures
+- **Failures identified**: Pre-commit not run, tests not run, coordinator not invoked, PR title not focused
+- **Root cause**: Session closed prematurely without following mandatory checklist
+- **Impact**: CI linting failures, 8 test failures beyond feature scope, governance violations
+- **Actions taken**:
+  1. Ran coordinator - updated 4 agent instruction files with enforcement mechanisms
+  2. Fixed linting - removed unused imports, ran pre-commit hooks
+  3. Fixed test failures - resolved DetachedInstanceError from improper session handling
+  4. Updated PR title and description to focus on issue #470
+- **Key insights**:
+  - "Feature tests passing" ≠ "All tests passing" - must run full suite
+  - Pre-commit hooks are mandatory, not optional - must verify before every commit
+  - Coordinator must be run before closing session - not implicit, must be explicit
+  - Session close checklist is blocking - cannot skip steps
+- **Prevention**: New Session Close Checklist (below) makes all requirements explicit and blocking
+
 Update this file to prevent repeating the same mistakes.
 
 ## Session Close Checklist (MANDATORY)
