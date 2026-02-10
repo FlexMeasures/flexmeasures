@@ -52,6 +52,14 @@ class AnnotationAPI(FlaskView):
 
           security:
             - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the account to register the annotation on.
+              required: true
+              schema:
+                type: integer
+                format: int32
           requestBody:
             content:
               application/json:
@@ -90,6 +98,14 @@ class AnnotationAPI(FlaskView):
 
           security:
             - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the asset to register the annotation on.
+              required: true
+              schema:
+                type: integer
+                format: int32
           requestBody:
             content:
               application/json:
@@ -126,6 +142,14 @@ class AnnotationAPI(FlaskView):
 
           security:
             - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the sensor to register the annotation on.
+              required: true
+              schema:
+                type: integer
+                format: int32
           requestBody:
             content:
               application/json:

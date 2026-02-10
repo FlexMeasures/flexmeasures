@@ -2404,6 +2404,18 @@
             "ApiKeyAuth": []
           }
         ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the account to register the annotation on.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2415,7 +2427,7 @@
         },
         "responses": {
           "200": {
-            "description": "ALREADY PROCESSED"
+            "description": "OK"
           },
           "201": {
             "description": "PROCESSED"
@@ -2447,6 +2459,18 @@
             "ApiKeyAuth": []
           }
         ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the asset to register the annotation on.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2458,7 +2482,7 @@
         },
         "responses": {
           "200": {
-            "description": "ALREADY PROCESSED"
+            "description": "OK"
           },
           "201": {
             "description": "PROCESSED"
@@ -2490,6 +2514,18 @@
             "ApiKeyAuth": []
           }
         ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the sensor to register the annotation on.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2501,7 +2537,7 @@
         },
         "responses": {
           "200": {
-            "description": "ALREADY PROCESSED"
+            "description": "OK"
           },
           "201": {
             "description": "PROCESSED"
@@ -4026,7 +4062,47 @@
     "/api/dev/sensor/{id}/chart_data": {},
     "/api/dev/asset/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
-    "/": {}
+    "/": {},
+    "/api/bace/data": {
+      "get": {
+        "summary": "Webhook for Evalan/BACE data",
+        "description": "Endpoint to receive data from Evalan/BACE gateways.\n\nInput is parsed by a schema for validation.\nWill ignore values for devices/sensors it has not mapped.\n\nTODOs:\n  - We seem to save to UTC time, not the local timezone of the asset - is this correct?\n  - check if the user/account is configured to have a BACE device (not sure yet how, either user gets a special role \"bace-device\" and/or the account gets one)\n  - can we add this endpoint / its blueprint to the OpenAPI spec?\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BACEMeasurement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Seita EMS"
+        ]
+      }
+    }
   },
   "openapi": "3.1.2",
   "components": {
@@ -4538,7 +4614,7 @@
             ],
             "description": "Type of annotation."
           },
-           "prior": {
+          "prior": {
             "type": [
               "string",
               "null"
@@ -5625,6 +5701,89 @@
           "start"
         ],
         "additionalProperties": false
+      },
+      "BACERelations": {
+        "type": "object",
+        "properties": {
+          "id_container": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id_group": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_device": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id_container_data_latest": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id_group",
+          "source_device"
+        ],
+        "additionalProperties": true
+      },
+      "BACEMeasurement": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "number",
+            "format": "float",
+            "example": "1676451277514.654",
+            "min": "0"
+          },
+          "timestamp_seconds": {
+            "type": "number"
+          },
+          "timestamp_changed": {
+            "type": "number",
+            "format": "float",
+            "example": "1676451277514.654",
+            "min": "0"
+          },
+          "datatype": {
+            "type": "integer"
+          },
+          "value": {
+            "type": "number"
+          },
+          "relations": {
+            "$ref": "#/components/schemas/BACERelations"
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "relations",
+          "timestamp",
+          "value"
+        ],
+        "additionalProperties": true
       }
     },
     "securitySchemes": {
