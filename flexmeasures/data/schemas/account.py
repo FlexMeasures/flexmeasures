@@ -6,7 +6,11 @@ from marshmallow import fields, validates
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole
-from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin, with_appcontext_if_needed
+from flexmeasures.data.schemas.utils import (
+    FMValidationError,
+    MarshmallowClickMixin,
+    with_appcontext_if_needed,
+)
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 
 

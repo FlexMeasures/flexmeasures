@@ -211,9 +211,7 @@ def test_post_sensor_annotation_permissions(
     "annotation_type",
     ["alert", "holiday", "label", "feedback", "warning", "error"],
 )
-def test_post_annotation_valid_types(
-    client, setup_api_test_data, annotation_type
-):
+def test_post_annotation_valid_types(client, setup_api_test_data, annotation_type):
     """Test that all valid annotation types are accepted.
 
     Validates the six allowed annotation types:
@@ -412,7 +410,7 @@ def test_post_annotation_not_found(client, setup_api_test_data):
     - Non-existent account ID returns 422
     - Non-existent asset ID returns 422
     - Non-existent sensor ID returns 422
-    
+
     Note: The ID field validators return 422 (Unprocessable Entity) for invalid IDs,
     not 404 (Not Found), because they validate request data before reaching the endpoint.
     """
@@ -544,6 +542,7 @@ def test_post_annotation_with_belief_time(client, setup_api_test_data):
     # Compare times after parsing to handle timezone conversions
     from datetime import datetime
     import dateutil.parser
+
     expected_time = dateutil.parser.isoparse(belief_time)
     actual_time = dateutil.parser.isoparse(response.json["belief_time"])
     assert expected_time == actual_time
