@@ -404,15 +404,19 @@ def test_post_annotation_end_equal_to_start(client, setup_api_test_data):
 
 
 def test_post_annotation_not_found(client, setup_api_test_data):
-    """Test that posting to non-existent entity returns 422 Unprocessable Entity.
+    """Test error responses when posting to non-existent entity.
 
     Validates that:
-    - Non-existent account ID returns 422
-    - Non-existent asset ID returns 422
-    - Non-existent sensor ID returns 422
+    - Non-existent account ID returns 404 (uses api.common.schemas.users.AccountIdField)
+    - Non-existent asset ID returns 422 (uses GenericAssetIdField with FMValidationError)
+    - Non-existent sensor ID returns 422 (uses data.schemas.sensors.SensorIdField with FMValidationError)
 
-    Note: The ID field validators return 422 (Unprocessable Entity) for invalid IDs,
-    not 404 (Not Found), because they validate request data before reaching the endpoint.
+    Note: There's currently an inconsistency in error handling:
+    - AccountAPI uses AccountIdField from api.common.schemas.users which raises abort(404)
+    - AssetAPI and SensorAPI use fields that raise FMValidationError (returns 422)
+
+    This reflects different validation field implementations across the codebase.
+    Consider making these consistent in a future refactoring.
     """
     from flexmeasures.api.tests.utils import get_auth_token
 
@@ -424,15 +428,15 @@ def test_post_annotation_not_found(client, setup_api_test_data):
         "end": "2024-10-01T01:00:00+01:00",
     }
 
-    # Test with non-existent account
+    # Test with non-existent account (returns 404)
     response = client.post(
         url_for("AccountAPI:post_annotation", id=99999),
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
-    assert response.status_code == 422
+    assert response.status_code == 404
 
-    # Test with non-existent asset
+    # Test with non-existent asset (returns 422)
     response = client.post(
         url_for("AssetAPI:post_annotation", id=99999),
         json=annotation_data,
@@ -440,7 +444,7 @@ def test_post_annotation_not_found(client, setup_api_test_data):
     )
     assert response.status_code == 422
 
-    # Test with non-existent sensor
+    # Test with non-existent sensor (returns 422)
     response = client.post(
         url_for("SensorAPI:post_annotation", id=99999),
         json=annotation_data,
