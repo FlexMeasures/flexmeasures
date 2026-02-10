@@ -292,6 +292,80 @@ Agents should escalate to the Coordinator when:
 - Encourage agent autonomy and expertise
 - Provide actionable feedback via review comments
 
+### Review Lead Delegation Pattern Monitoring
+
+**The Coordinator MUST verify Review Lead delegation patterns during governance reviews.**
+
+**Context:** Review Lead has a recurring failure mode of working solo instead of delegating to specialists (observed in session 2026-02-08).
+
+**What to check:**
+
+When reviewing a session where Review Lead was involved:
+
+- [ ] **Delegation occurred**: Did Review Lead invoke appropriate specialists?
+- [ ] **No solo execution**: Did Review Lead make code/API/docs changes itself?
+- [ ] **Git commit author check**: Are there Review Lead commits with production code?
+- [ ] **Request interpretation**: Did Review Lead parse user intent correctly?
+- [ ] **Regression indicators**: Any signs of "too simple to delegate" thinking?
+
+**Red flags (immediate governance concern):**
+
+- 🚩 Review Lead commits containing code changes (should be specialist commits)
+- 🚩 Review Lead commits containing test changes (should be Test Specialist)
+- 🚩 Review Lead commits containing doc changes (should be Documentation Specialist)
+- 🚩 User says "You are regressing" or "You must handle requests as a team"
+- 🚩 Session closed without specialist involvement on implementation tasks
+- 🚩 Review Lead justifies solo work with "too simple to delegate"
+
+**Verification commands:**
+
+```bash
+# Check who made commits
+git log --oneline --all --since="1 day ago" --format="%h %an %s"
+
+# Check Review Lead commit types
+git log --author="Review Lead" --oneline -10
+
+# Look for code changes by Review Lead (should be empty or synthesis only)
+git log --author="Review Lead" --stat -5
+```
+
+**When delegation failure detected:**
+
+1. **Document in session review** - What was the failure?
+2. **Check Review Lead instructions** - Were they followed?
+3. **Identify gap** - What prevented proper delegation?
+4. **Recommend fix** - How to prevent recurrence?
+5. **Update Review Lead instructions** - Add enforcement mechanism
+6. **Verify fix works** - Test with hypothetical scenario
+
+**Escalation pattern:**
+
+If Review Lead repeatedly violates delegation requirements:
+- This is a systemic issue requiring Coordinator intervention
+- Review Lead instructions need stronger enforcement
+- Consider adding mandatory checkpoints before work execution
+- May need explicit blockers to prevent solo execution
+
+**Common patterns to track:**
+
+| Pattern | Indicator | Action |
+|---------|-----------|--------|
+| Solo execution | Review Lead makes code commits | Flag as regression |
+| "Too simple" trap | Review Lead justifies not delegating | Update instructions with example |
+| Request misinterpretation | Review Lead confirms instead of implements | Strengthen request parsing guidance |
+| Delegation omission | Specialists not invoked on implementation | Verify Session Close Checklist followed |
+
+**Success indicators:**
+
+- ✅ Review Lead invoked appropriate specialists
+- ✅ Specialists made the actual changes
+- ✅ Review Lead synthesized findings
+- ✅ Team-based execution pattern maintained
+- ✅ Session Close Checklist verified delegation
+
+**This monitoring ensures Review Lead maintains its orchestration role and doesn't regress to solo execution.**
+
 ## Self-Improvement Notes
 
 ### When to Update Coordinator Instructions
