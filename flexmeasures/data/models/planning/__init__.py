@@ -304,7 +304,9 @@ class Commitment:
         series_attributes = [
             attr
             for attr, _type in self.__annotations__.items()
-            if _type == "pd.Series" and hasattr(self, attr)
+            if _type == "pd.Series"
+            and hasattr(self, attr)
+            and attr not in ("device_group", "commodity")
         ]
         for series_attr in series_attributes:
             val = getattr(self, series_attr)
@@ -374,6 +376,10 @@ class Commitment:
                 range(len(devices)), index=devices, name="device_group"
             )
         else:
+            if not isinstance(self.device_group, pd.Series):
+                self.device_group = pd.Series(
+                    self.device_group, index=devices, name="device_group"
+                )
             # Validate custom grouping
             missing = set(devices) - set(self.device_group.index)
             if missing:
