@@ -33,6 +33,7 @@ from flexmeasures.utils import geo_utils
 from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
+from timely_beliefs.tests.test_belief_query import beliefs_recorded_at_unique_knowledge_time
 
 
 class GenericAssetType(db.Model):
@@ -353,6 +354,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             current_app.logger.warning(
                 f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
             )
+        breakpoint()
         return sensors_to_show
 
     @property

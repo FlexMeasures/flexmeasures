@@ -834,6 +834,7 @@ class AssetAPI(FlaskView):
         """
         # Store selected time range as session variables, for a consistent UX across UI page loads
         set_session_variables("event_starts_after", "event_ends_before")
+        print(asset.chart(**kwargs))
         return json.dumps(asset.chart(**kwargs))
 
     @route(
@@ -898,7 +899,23 @@ class AssetAPI(FlaskView):
             - Assets
         """
         sensors = flatten_unique(asset.validate_sensors_to_show())
-        return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+        bdf_json = asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+
+        bdf_dict = json.loads(bdf_json)
+        data = bdf_dict["data"]
+        breakpoint()
+        extra_data_point = data[-1]
+        extra_data_point["val"] = 3000
+        extra_data_point["sid"] = 50000
+
+        new_data_point = {'ts': 1747086300000, 'sid': 50000, 'val': 300, 'sf': 1.0, 'src': 45, 'bh': -3539369}
+        bdf_dict["sensors"][50000] = {'asset_id': 132, 'asset_description': 'foo', 'name': 'my flex-config fieldijoijoij', 'description': 'my flex-config fieldijoijoij', 'unit': 'EUR/MWh'}
+        data.append(new_data_point)
+        data.append(extra_data_point)
+        bdf_dict["data"] = data
+        bdf_json = json.dumps(bdf_dict)
+
+        return bdf_json
 
     @route("/<id>/auditlog")
     @use_kwargs(

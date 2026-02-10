@@ -23,8 +23,9 @@ import { countDSTTransitions } from "./daterange-utils.js";
 export function decompressChartData(responseData) {
   // Check if it's the new compressed reference-based format, if so: decompress
   if (responseData.data && responseData.sensors && responseData.sources) {
+    console.log(responseData);
     return responseData.data.map((belief) => {
-      const sensor = responseData.sensors[belief.sid] || {};
+      const sensor = responseData.sensors[parseInt(belief.sid)] || {};
       const source = responseData.sources[belief.src] || {};
 
       // Special case: for sensors with seconds unit, convert to datetime here
@@ -42,12 +43,12 @@ export function decompressChartData(responseData) {
 
         // Reconstruct full sensor and source objects
         sensor: {
-          id: belief.sid,
+          id: parseInt(belief.sid),
           name: sensor.name || "",
           sensor_unit: sensor.unit || "",
           unit: sensor.unit || "",
           description: sensor.description || "",
-          asset_id: sensor.asset_id,
+          asset_id: sensor.asset_id || "",
           asset_description: sensor.asset_description || "",
         },
         source: {

@@ -274,6 +274,7 @@
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
     ]).then(function (result) { return result[0] }).catch(console.error);
     $("#spinner").hide();
+    console.log(fetchedInitialData);
     vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
     var sessionStart = new Date('{{ event_starts_after }}');
     var sessionEnd = new Date('{{ event_ends_before }}');
@@ -466,6 +467,7 @@
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
+        console.log
         const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=false&include_asset_annotations=false&chart_type=' + chartType);
         await vegaEmbed('#' + elementId, url, {{ chart_options | safe }})
       .then(function (result) {
