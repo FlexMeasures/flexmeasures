@@ -736,6 +736,20 @@ Track and document when the Review Lead:
 - **Key insight**: "Review Lead owns follow-through on coordinator recommendations"
 - **Test execution learning**: Test specialist couldn't run tests because PostgreSQL setup was skipped; must follow copilot-setup-steps.yml workflow
 
+**Specific lesson learned (2026-02-10 test fixes)**:
+- **Session**: Fixing 32 failing annotation API tests
+- **Success**: Fixed Click context error and all tests now passing (100%)
+- **Root cause**: `AccountIdField` used `@with_appcontext` instead of `@with_appcontext_if_needed()`
+- **Impact**: All API requests using AccountIdField failed with "There is no active click context" error
+- **Pattern discovered**: 
+  - `@with_appcontext` = CLI-only (requires Click context)
+  - `@with_appcontext_if_needed()` = Universal (works in CLI and web contexts)
+  - Check what other IdFields use: SensorIdField uses `@with_appcontext_if_needed()`, GenericAssetIdField uses nothing
+- **Fix applied**: Changed AccountIdField decorator to match SensorIdField pattern
+- **Delegation success**: Test specialist fixed remaining 14 test failures after Click context fix
+- **Enforcement worked**: Prompted test specialist again when initial work didn't include instruction updates; specialist then completed self-improvement
+- **Key insight**: "When IdFields fail with Click context errors, check decorator pattern against SensorIdField"
+
 Update this file to prevent repeating the same mistakes.
 
 ### Continuous Improvement
