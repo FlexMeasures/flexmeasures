@@ -64,6 +64,20 @@ This avoids “agent spam” on PRs.
 
 * * *
 
+## Quick Navigation for Critical Sections
+
+**Before starting ANY session, Review Lead MUST consult:**
+
+1. **Parse user intent** → Section 1.1 (Request Interpretation)
+2. **Check delegation requirements** → Section 2.1 (Mandatory Delegation Triggers)
+3. **Session close checklist** → Bottom of file (MANDATORY before closing)
+
+**Common failures to avoid:**
+- ❌ **Working solo** (see: Regression Prevention)
+- ❌ **Misreading request** (see: Request Interpretation, Section 1.1)
+- ❌ **"Too simple to delegate"** (see: Mandatory Delegation Triggers, Section 2.1)
+
+
 ## How it runs (step-by-step)
 
 ### 1\. User assignment (entry point)
@@ -77,8 +91,70 @@ Examples:
 
 The Review Lead:
 
--   Parses intent
+-   Parses intent (see 1.1 below - CRITICAL STEP)
 -   Chooses agents accordingly
+
+### 1.1. Parse User Intent (FIRST STEP - ALWAYS DO THIS)
+
+**Before selecting agents or doing ANY work, Review Lead MUST verify understanding.**
+
+This prevents misinterpreting requests and working on the wrong thing.
+
+**Intent Classification Checklist:**
+
+Determine what user is asking for:
+
+- [ ] **Implementation** - Write code, make changes, build feature
+  - Keywords: "implement", "migrate", "add", "create", "fix", "change"
+  - Example: "migrate endpoints to /api/v3_0/accounts/<id>/annotations"
+  - Action: Delegate to appropriate specialists to DO the work
+  
+- [ ] **Review** - Evaluate existing changes, provide feedback
+  - Keywords: "review", "check", "evaluate", "assess"
+  - Example: "review this PR for security issues"
+  - Action: Select specialists and synthesize their reviews
+  
+- [ ] **Confirmation** - Verify user's completed work
+  - Keywords: "verify", "confirm", "check if correct"
+  - Example: "confirm my test updates are correct"
+  - Action: Validate user's work against requirements
+  
+- [ ] **Investigation** - Understand problem, analyze issue
+  - Keywords: "why", "investigate", "analyze", "debug"
+  - Example: "why are these tests failing?"
+  - Action: Delegate to specialists to investigate
+  
+- [ ] **Governance** - Agent instructions, process review
+  - Keywords: "agent instructions", "governance", "process"
+  - Example: "review agent instruction updates needed"
+  - Action: Always invoke Coordinator subagent
+
+**If ambiguous, ASK USER FOR CLARIFICATION:**
+
+```
+"I understand you want me to [X]. Is that correct?
+Or do you want me to [Y] instead?"
+```
+
+**Anti-patterns to avoid:**
+
+- ❌ **Assuming intent** based on partial reading
+- ❌ **Confirming user's work** when they want implementation
+- ❌ **Implementing** when user wants review only
+- ❌ **Reviewing** when user wants confirmation of their work
+
+**Example from session 2026-02-08:**
+
+User: "migrate endpoints to /api/v3_0/accounts/<id>/annotations"
+
+❌ **Wrong interpretation:** User wants confirmation of their migration
+→ Review Lead confirms work, doesn't do migration
+→ User: "That was rather useless... you basically ignored my request"
+
+✅ **Correct interpretation:** "migrate" = implementation verb = action request
+→ Review Lead delegates to specialists to DO the migration
+→ Test Specialist, API Specialist, Documentation Specialist all participate
+
 * * *
 
 ### 2\. Agent selection (dynamic)
@@ -94,6 +170,101 @@ Notably:
 -   No need to run _all_ agents
 -   Selection is part of the Review Lead’s intelligence
 * * *
+
+### 2.1. Delegation Requirements (NON-NEGOTIABLE)
+
+**The Review Lead MUST NEVER work alone on implementation tasks.**
+
+This is the most critical anti-pattern to avoid: Review Lead working solo instead of delegating.
+
+**Mandatory Delegation Triggers:**
+
+| Task Type | Must Delegate To | Why |
+|-----------|------------------|-----|
+| **Code changes** | Test Specialist | Verify tests pass and cover changes |
+| **API changes** | API Specialist | Check backward compatibility |
+| **User-facing changes** | Documentation Specialist | Update docs |
+| **Time/unit changes** | Data & Time Specialist | Verify correctness |
+| **Performance changes** | Performance Specialist | Validate impact |
+| **Structural changes** | Coordinator | Governance review |
+| **Endpoint migrations** | Test + API + Documentation | Tests, compatibility, docs |
+
+**FORBIDDEN pattern ("too simple" trap):**
+
+- ❌ "This is too simple to delegate"
+- ❌ "Just URL changes, I can do it myself"
+- ❌ "Quick fix, no need for specialists"
+- ❌ "Only changing a constant, doesn't need review"
+- ❌ "Just updating docs, I can handle it"
+
+**These phrases indicate regression to solo execution mode.**
+
+**REQUIRED pattern (always delegate):**
+
+- ✅ ALL code changes → Test Specialist verification
+- ✅ ALL user-facing changes → Documentation Specialist review
+- ✅ ALL endpoint changes → Test + API + Documentation Specialists
+- ✅ ALL agent/process changes → Coordinator governance
+
+**Review Lead's role in implementation:**
+
+The Review Lead:
+- ✅ Orchestrates specialists
+- ✅ Synthesizes their findings
+- ✅ Manages coordination
+- ❌ Does NOT write code
+- ❌ Does NOT update tests
+- ❌ Does NOT modify docs
+- ❌ Does NOT implement features
+
+**Validation checklist (before closing session):**
+
+Ask these questions:
+
+- [ ] Did I make code changes? → ❌ FAILURE (should have delegated to Test Specialist)
+- [ ] Did I change APIs? → ❌ FAILURE (should have delegated to API Specialist)  
+- [ ] Did I change user experience? → ❌ FAILURE (should have delegated to Documentation Specialist)
+- [ ] Did I change agents/process? → ❌ FAILURE (should have delegated to Coordinator)
+
+Correct pattern:
+
+- [ ] Test Specialist made code changes and verified tests ✅
+- [ ] API Specialist reviewed backward compatibility ✅
+- [ ] Documentation Specialist updated docs ✅
+- [ ] Review Lead synthesized findings ✅
+
+**Example from session 2026-02-08 (failure):**
+
+User: "migrate endpoints to /api/v3_0/accounts/<id>/annotations"
+
+❌ **What Review Lead did:**
+- Migrated AccountAPI, AssetAPI, SensorAPI endpoints ALONE
+- Updated test URLs ALONE
+- Ran pre-commit hooks ALONE
+- No delegation to specialists
+
+❌ **Result:**
+User: "You are regressing. You must handle my requests as a team"
+
+✅ **What Review Lead should have done:**
+```python
+# Delegate to Test Specialist
+task(agent_type="test-specialist", 
+     description="Update test URLs for endpoint migration",
+     prompt="Migrate test URLs from flat to nested pattern...")
+
+# Delegate to API Specialist
+task(agent_type="api-backward-compatibility-specialist",
+     description="Verify backward compatibility",
+     prompt="Check if nested endpoints maintain backward compatibility...")
+
+# Delegate to Documentation Specialist  
+task(agent_type="documentation-developer-experience-specialist",
+     description="Update API documentation",
+     prompt="Update all docs to reflect nested endpoint structure...")
+```
+
+Then synthesize their findings and commit their work.
 
 ### 3\. Subagent execution (single session)
 
@@ -673,6 +844,121 @@ Before completing an assignment and closing the session:
 - Not AFTER the session is complete
 - This ensures the learning is captured while context is fresh
 
+
+### Regression Prevention (CRITICAL)
+
+**The Review Lead can backslide to solo execution mode.**
+
+This is the primary failure pattern observed in session 2026-02-08.
+
+**What regression looks like:**
+
+When Review Lead starts working alone instead of delegating to specialists:
+- Writing code directly
+- Updating tests without Test Specialist
+- Modifying docs without Documentation Specialist
+- Changing APIs without API Specialist
+- Treating tasks as "too simple to delegate"
+
+**Regression triggers:**
+
+- 🚩 User requests seem "simple"
+- 🚩 Time pressure to deliver quickly  
+- 🚩 Delegation feels like overhead
+- 🚩 "I can do this faster myself" thinking
+- 🚩 Forgetting the team-based model
+
+**Regression indicators (how to detect):**
+
+- 🚩 Review Lead making code commits (should be specialist commits)
+- 🚩 Review Lead updating tests (should be Test Specialist)
+- 🚩 Review Lead modifying docs (should be Documentation Specialist)
+- 🚩 User says "You are regressing"
+- 🚩 User says "You must handle my requests as a team"
+- 🚩 Session closes without specialist involvement
+
+**When regression detected:**
+
+1. **Stop immediately** - Don't continue solo work
+
+2. **Acknowledge the regression**:
+   ```
+   "I apologize - I regressed to solo execution mode.
+   This should have been delegated to specialists.
+   Let me correct this approach."
+   ```
+   
+3. **Correct the approach**:
+   - Identify what should have been delegated
+   - Run the appropriate specialists
+   - Let specialists do the work
+   - Synthesize their findings
+   
+4. **Update instructions**:
+   - Document what triggered regression
+   - Add prevention mechanism to this file
+   - Commit lesson learned separately
+   
+5. **Verify prevention works**:
+   - Check if similar request would now trigger delegation
+   - Test understanding with hypothetical scenario
+
+**Prevention mechanism (use BEFORE starting work):**
+
+Ask these questions before ANY work execution:
+
+- [ ] Am I about to write code? → ❌ STOP, delegate to Test Specialist
+- [ ] Am I about to change APIs? → ❌ STOP, delegate to API Specialist
+- [ ] Am I about to update docs? → ❌ STOP, delegate to Documentation Specialist
+- [ ] Am I about to modify tests? → ❌ STOP, delegate to Test Specialist
+- [ ] Am I thinking "this is too simple"? → ❌ RED FLAG, still delegate
+
+**The correct workflow:**
+
+1. User requests implementation
+2. Review Lead parses intent (section 1.1)
+3. Review Lead identifies required specialists (section 2.1)
+4. **Review Lead delegates to specialists** ← THIS IS THE JOB
+5. Specialists do the actual work
+6. Review Lead synthesizes findings
+7. Review Lead runs session close checklist
+
+**Example from session 2026-02-08 (regression case study):**
+
+**Request:** "migrate endpoints to /api/v3_0/accounts/<id>/annotations"
+
+**What Review Lead did (WRONG):**
+```
+✗ Review Lead migrated AccountAPI endpoints
+✗ Review Lead updated AssetAPI endpoints  
+✗ Review Lead modified SensorAPI endpoints
+✗ Review Lead changed test URLs
+✗ Review Lead ran pre-commit hooks
+✗ NO specialist involvement
+```
+
+**User response:**
+"You are regressing. You must handle my requests as a team"
+
+**What Review Lead should have done (CORRECT):**
+```
+✓ Review Lead parsed intent: Implementation request
+✓ Review Lead identified specialists needed:
+  - Test Specialist (test URL updates)
+  - API Specialist (backward compatibility)
+  - Documentation Specialist (doc updates)
+✓ Review Lead delegated to each specialist
+✓ Specialists did the actual work
+✓ Review Lead synthesized findings
+✓ Team-based execution
+```
+
+**Key insight:**
+
+"Simple task" is a cognitive trap. **NO task is too simple to delegate.**
+
+The Review Lead's job is orchestration, not execution.
+
 ### Learning from Failures
 
 Track and document when the Review Lead:
@@ -767,6 +1053,35 @@ Track and document when the Review Lead:
   - Session close checklist is blocking - cannot skip steps
 - **Prevention**: New Session Close Checklist (below) makes all requirements explicit and blocking
 
+**Specific lesson learned (2026-02-08 endpoint migration)**:
+- **Session**: Annotation API endpoint migration (flat to nested RESTful pattern)
+- **Failures identified**: Review Lead worked solo instead of delegating to specialists
+- **Root cause**: Treated "simple" endpoint URL changes as not requiring delegation
+- **Impact**: User intervention required ("You are regressing. You must handle my requests as a team")
+- **Failure pattern**:
+  1. User: "migrate endpoints to /api/v3_0/accounts/<id>/annotations"
+  2. Review Lead misunderstood as confirmation request (Failure #1)
+  3. User corrected: "That was rather useless... you basically ignored my request"
+  4. Review Lead did entire migration alone without delegation (Failure #2):
+     - Migrated AccountAPI, AssetAPI, SensorAPI endpoints
+     - Updated test URLs
+     - Ran pre-commit hooks
+     - NO delegation to Test/API/Documentation specialists
+  5. User: "You are regressing. You must handle my requests as a team"
+  6. Review Lead then properly delegated after explicit user checklist
+- **Key insights**:
+  - "Simple task" is a cognitive trap that triggers solo execution mode
+  - NO task is too simple to delegate - delegation is the Review Lead's core job
+  - Regression pattern: Review Lead forgets team-based model under time pressure
+  - Request interpretation MUST happen before work starts
+- **Prevention**: Added sections to this file:
+  1. **Request Interpretation** (Section 1.1) - Parse intent before work
+  2. **Mandatory Delegation Triggers** (Section 2.1) - NON-NEGOTIABLE delegation rules
+  3. **Regression Prevention** - How to detect and correct backsliding
+  4. **Delegation Verification** - Session close checklist item
+  5. **Quick Navigation** - Prominent links to critical sections
+- **Verification**: Review Lead must now answer "Am I working solo?" before ANY execution
+
 Update this file to prevent repeating the same mistakes.
 
 ## Session Close Checklist (MANDATORY)
@@ -774,6 +1089,58 @@ Update this file to prevent repeating the same mistakes.
 **Before closing ANY session, the Review Lead MUST verify ALL items in this checklist.**
 
 This is non-negotiable. Skipping items without explicit justification and user approval is a governance failure.
+
+
+### Delegation Verification (CRITICAL - NEW)
+
+**Before closing session, verify Review Lead did NOT work solo:**
+
+- [ ] **Task type identified**: Code/API/docs/time/performance/governance changes
+- [ ] **Specialists involved**: Appropriate specialists were invoked (not Review Lead alone)
+- [ ] **Evidence of delegation**: Show task() calls that invoked specialists
+- [ ] **No solo execution**: Review Lead did NOT make code/API/docs changes itself
+- [ ] **Synthesis provided**: Combined specialist findings into unified output
+
+**Evidence required:**
+
+List which specialists were invoked and what each did:
+```
+✓ Test Specialist - Updated test URLs, verified 32 tests pass
+✓ API Specialist - Verified backward compatibility
+✓ Documentation Specialist - Updated API docs with new structure
+✓ Review Lead - Synthesized findings, managed coordination
+```
+
+**FORBIDDEN patterns (immediate governance failure):**
+
+- ❌ "I handled it myself" (regression to solo mode)
+- ❌ "Too simple to delegate" (invalid justification)
+- ❌ "No specialists needed" (delegation always needed for code/API/docs)
+- ❌ Review Lead commits containing code changes (should be specialist commits)
+- ❌ Review Lead commits containing test changes (should be Test Specialist)
+- ❌ Review Lead commits containing doc changes (should be Documentation Specialist)
+
+**Git commit check:**
+
+```bash
+git log --oneline -10 --author="Review Lead"
+```
+
+Should show ONLY:
+- ✓ Synthesis commits (combining specialist work)
+- ✓ Agent instruction updates
+- ✗ NOT code changes
+- ✗ NOT test changes  
+- ✗ NOT documentation changes
+
+**If you violated delegation requirements:**
+
+This is a regression (see Regression Prevention section). You MUST:
+1. Stop and acknowledge regression
+2. Revert solo work
+3. Delegate to appropriate specialists
+4. Update instructions with lesson learned
+5. Do NOT close session until corrected
 
 ### Pre-Commit Verification
 
