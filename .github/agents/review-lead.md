@@ -633,6 +633,22 @@ Track and document when the Review Lead:
 - **Prevention**: Investigate production code first; understand test design intent; look for schema migrations
 - **Key insight**: "Failing tests often reveal production bugs, not test bugs"
 
+**Specific lesson learned (2026-02-10)**:
+- **Session**: Annotation API implementation (issue #470)
+- **Success**: Excellent technical implementation with comprehensive tests and documentation
+- **Learnings**:
+  1. **Agent orchestration worked well**: Successfully coordinated 5 specialist agents
+  2. **Schema separation is critical**: API specialist caught missing response schema (id, source_id fields)
+  3. **Return tuple pattern**: Changed `get_or_create_annotation()` to return `(annotation, bool)` for reliable idempotency
+  4. **Code review value**: Caught lambda validation (should use Marshmallow validators), print statements in tests, broad exception handling
+  5. **Temporary files must be avoided**: Accidentally committed then removed 575-line review doc - should use /tmp from start
+- **Process improvements**:
+  - API specialist review caught issues before tests were written
+  - Documentation specialist created comprehensive feature guide (494 lines)
+  - All agents followed atomic commit pattern
+- **What worked**: Clear delegation, agent specialization, systematic review process
+- **What to improve**: Need to actually run tests with database, not just syntax checks
+
 Update this file to prevent repeating the same mistakes.
 
 ### Continuous Improvement
