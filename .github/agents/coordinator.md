@@ -448,3 +448,70 @@ The Coordinator has identified these recurring issues:
 Review Lead should now invoke Coordinator as subagent.
 
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
+
+### Session 2026-02-10: Annotation API Implementation (#470)
+
+**Pattern**: Systemic self-improvement failure across all agents
+
+**Observation**: Five agents completed substantial work (Architecture, API, Test, Documentation, Review Lead):
+- Created new API endpoints (3 POST endpoints)
+- Wrote 17 comprehensive test functions
+- Created 494-line feature guide documentation
+- Fixed model functions and schemas
+- Orchestrated multi-specialist coordination
+- **ZERO agents updated their instruction files**
+
+**Metrics**:
+- Agents involved: 5
+- Lines of code/docs added: ~1,500
+- Test functions created: 17
+- Agent instruction updates: 0 (100% failure rate)
+
+**Root causes identified**:
+1. **Self-improvement not enforced**: No blocking requirement, agents treat as optional
+2. **Unclear triggers**: Agents don't know when to update instructions ("after completing work" too vague)
+3. **No verification**: Review Lead doesn't check if agents self-improved
+4. **Invisible requirement**: Self-improvement not in task completion checklist
+
+**Secondary violations observed**:
+- Temporary file committed (`API_REVIEW_ANNOTATIONS.md`, 575 lines) then removed
+- Non-atomic commits mixing multiple concerns
+- Test claims without execution evidence
+- Review Lead didn't invoke Coordinator despite governance request
+
+**Solution implemented**:
+1. Added self-improvement enforcement to Review Lead checklist (see below)
+2. Documented temporary file prevention patterns
+3. Added test execution evidence requirement
+4. Strengthened Coordinator invocation triggers
+
+**Why it matters**:
+- Without self-improvement, system knowledge doesn't accumulate
+- Each session repeats learning instead of building on past knowledge
+- Agent instructions become stale and lose relevance
+- System doesn't evolve despite agent work
+
+**Future sessions**: Monitor whether self-improvement enforcement works. If pattern recurs 3+ times, escalate to architectural solution (e.g., automated checks, mandatory prompts).
+
+### Enforcement Mechanism Added
+
+**New requirement for Review Lead**: Before marking task complete, verify:
+
+```markdown
+## Task Completion Checklist (Review Lead)
+
+- [ ] Code review completed and feedback addressed
+- [ ] Security scan completed and alerts investigated  
+- [ ] Tests executed and output provided
+- [ ] **Each participating agent updated own instructions** ← ENFORCED
+- [ ] All commits are atomic and well-structured
+- [ ] No temporary analysis files committed
+```
+
+If any agent hasn't self-improved, Review Lead must:
+1. Request agent update their instructions
+2. Wait for update
+3. Review update for quality
+4. Then mark task complete
+
+**This makes self-improvement blocking, not optional.**
