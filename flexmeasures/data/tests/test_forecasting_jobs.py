@@ -9,7 +9,7 @@ from rq.job import Job
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
     handle_forecasting_exception,
