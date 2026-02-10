@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from marshmallow import Schema, fields, validates_schema, ValidationError
-from marshmallow.validate import OneOf
+from marshmallow.validate import OneOf, Length
 
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -10,7 +10,7 @@ from flexmeasures.data.schemas.sources import DataSourceIdField
 class AnnotationSchema(Schema):
     """Schema for annotation POST requests."""
     
-    content = fields.Str(required=True, validate=lambda s: len(s) <= 1024)
+    content = fields.Str(required=True, validate=Length(max=1024))
     start = AwareDateTimeField(required=True, format="iso")
     end = AwareDateTimeField(required=True, format="iso")
     type = fields.Str(

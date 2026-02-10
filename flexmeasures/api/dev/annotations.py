@@ -7,6 +7,7 @@ from flask_json import as_json
 from flask_security import current_user
 from webargs.flaskparser import use_kwargs, use_args
 from werkzeug.exceptions import NotFound, InternalServerError
+from sqlalchemy.exc import SQLAlchemyError
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -158,7 +159,11 @@ class AnnotationAPI(FlaskView):
             status_code = 201 if is_new else 200
             return annotation_response_schema.dump(annotation), status_code
             
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            current_app.logger.error(f"Database error while creating annotation: {e}")
+            raise InternalServerError("A database error occurred while creating the annotation")
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error creating annotation: {e}")
+            current_app.logger.error(f"Unexpected error creating annotation: {e}")
             raise InternalServerError("An unexpected error occurred while creating the annotation")

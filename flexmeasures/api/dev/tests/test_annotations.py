@@ -63,7 +63,6 @@ def test_post_account_annotation_permissions(
         json=annotation_data,
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == expected_status_code
 
     if expected_status_code == 201:
@@ -128,7 +127,6 @@ def test_post_asset_annotation_permissions(
         json=annotation_data,
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == expected_status_code
 
     if expected_status_code == 201:
@@ -196,7 +194,6 @@ def test_post_sensor_annotation_permissions(
         json=annotation_data,
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == expected_status_code
 
     if expected_status_code == 201:
@@ -249,7 +246,6 @@ def test_post_annotation_valid_types(
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 201
     assert response.json["type"] == annotation_type
 
@@ -280,7 +276,6 @@ def test_post_annotation_invalid_type(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 422
 
 
@@ -320,7 +315,6 @@ def test_post_annotation_missing_required_fields(
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 422
 
 
@@ -352,7 +346,6 @@ def test_post_annotation_content_too_long(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 422
 
 
@@ -381,7 +374,6 @@ def test_post_annotation_end_before_start(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 422
 
 
@@ -410,7 +402,6 @@ def test_post_annotation_end_equal_to_start(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 422
 
 
@@ -438,7 +429,6 @@ def test_post_annotation_not_found(client, setup_api_fresh_test_data):
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
-    print(f"Account 404 test: {response.status_code} - {response.data}")
     assert response.status_code == 404
 
     # Test with non-existent asset
@@ -447,7 +437,6 @@ def test_post_annotation_not_found(client, setup_api_fresh_test_data):
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
-    print(f"Asset 404 test: {response.status_code} - {response.data}")
     assert response.status_code == 404
 
     # Test with non-existent sensor
@@ -456,7 +445,6 @@ def test_post_annotation_not_found(client, setup_api_fresh_test_data):
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
-    print(f"Sensor 404 test: {response.status_code} - {response.data}")
     assert response.status_code == 404
 
 
@@ -489,7 +477,6 @@ def test_post_annotation_idempotency(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"First POST: {response1.status_code} - {response1.data}")
     assert response1.status_code == 201
     annotation_id_1 = response1.json["id"]
 
@@ -505,7 +492,6 @@ def test_post_annotation_idempotency(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"Second POST: {response2.status_code} - {response2.data}")
     assert response2.status_code == 200
     annotation_id_2 = response2.json["id"]
 
@@ -550,7 +536,6 @@ def test_post_annotation_with_belief_time(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 201
     assert "belief_time" in response.json
     # Compare just the datetime part (ignore timezone representation differences)
@@ -583,7 +568,6 @@ def test_post_annotation_default_type(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 201
     assert response.json["type"] == "label"
 
@@ -621,7 +605,6 @@ def test_post_annotation_all_three_endpoints(client, setup_api_fresh_test_data):
         },
         headers={"Authorization": auth_token},
     )
-    print(f"Account annotation: {response.status_code} - {response.data}")
     assert response.status_code == 201
     account_annotation_id = response.json["id"]
 
@@ -635,7 +618,6 @@ def test_post_annotation_all_three_endpoints(client, setup_api_fresh_test_data):
         },
         headers={"Authorization": auth_token},
     )
-    print(f"Asset annotation: {response.status_code} - {response.data}")
     assert response.status_code == 201
     asset_annotation_id = response.json["id"]
 
@@ -649,7 +631,6 @@ def test_post_annotation_all_three_endpoints(client, setup_api_fresh_test_data):
         },
         headers={"Authorization": auth_token},
     )
-    print(f"Sensor annotation: {response.status_code} - {response.data}")
     assert response.status_code == 201
     sensor_annotation_id = response.json["id"]
 
@@ -702,7 +683,6 @@ def test_post_annotation_response_schema(client, setup_api_fresh_test_data):
         headers={"Authorization": auth_token},
     )
 
-    print(f"Server responded with: {response.status_code} - {response.data}")
     assert response.status_code == 201
 
     # Check all expected fields are present
