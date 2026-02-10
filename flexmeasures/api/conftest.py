@@ -53,13 +53,13 @@ def requesting_user(request):
         from flexmeasures.data.services.users import find_user_by_email
         from pytest import UsageError
         from flask import current_app
-        
+
         user = find_user_by_email(email)
         if user is None:
             raise UsageError(
                 f"no user with email {email} found - test is possibly missing a fixture that sets up this user",
             )
-        
+
         login_user(user)
         # Set fs_authn_via to "session" to indicate session-based authentication
         # This is needed for Flask-Security's _check_session to work properly
