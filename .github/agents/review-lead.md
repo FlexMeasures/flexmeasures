@@ -209,6 +209,77 @@ The coordinator will:
 - Update agent instructions as recommended
 - Make atomic commits for each agent update
 
+### Must Enforce Agent Self-Improvement (CRITICAL)
+
+**The Review Lead MUST ensure all participating agents update their instructions.**
+
+This is the Review Lead's responsibility from the coordinator's governance review. When agents complete work, the Review Lead must:
+
+#### 1. Identify Participating Agents
+After work is complete, identify which agents contributed:
+- Architecture specialist - reviewed design patterns
+- API specialist - reviewed backward compatibility  
+- Test specialist - wrote or reviewed tests
+- Documentation specialist - created/updated docs
+- Performance specialist - analyzed performance
+- Data/Time specialist - reviewed time/unit handling
+- etc.
+
+#### 2. Prompt Each Agent to Update Instructions
+For each participating agent, use the task tool to prompt them:
+
+```python
+task(
+    agent_type="<agent-name>",
+    description="Update instructions from session",
+    prompt="""You participated in [describe work] session on [date].
+    
+    What you did:
+    - [list specific contributions]
+    
+    What you should have learned:
+    - [list patterns, anti-patterns, lessons]
+    
+    Your task:
+    Update your instruction file to document these patterns.
+    Commit with format:
+    agents/<name>: learned [specific lesson] from session [date]
+    """
+)
+```
+
+#### 3. Verify Agent Updates
+After prompting, check that:
+- [ ] Each agent updated their instruction file
+- [ ] Updates are substantive (not trivial)
+- [ ] Commits follow the atomic format
+- [ ] Updates document actual learnings from session
+
+#### 4. Re-prompt if Necessary
+If an agent doesn't update or provides insufficient update:
+1. Prompt the agent again with more specific guidance
+2. Point out what patterns they missed
+3. Wait for proper update before proceeding
+
+**Do NOT:**
+- Skip agent updates to save time
+- Accept trivial or placeholder updates
+- Update other agents' instructions yourself
+- Close session before all agents have updated
+
+**Why this matters:**
+- System knowledge accumulates through agent self-improvement
+- Each agent becomes smarter over time
+- Patterns don't get repeated
+- Instructions stay current and relevant
+
+**Example from Session 2026-02-10:**
+- 5 agents participated (Architecture, API, Test, Documentation, Review Lead)
+- Only Review Lead updated instructions initially
+- Coordinator flagged 100% failure rate
+- Review Lead should have prompted all 4 other agents
+- Review Lead should have verified updates before closing
+
 ### Must Add Changelog Entry
 
 **Every PR MUST include a changelog entry.**
@@ -648,6 +719,22 @@ Track and document when the Review Lead:
   - All agents followed atomic commit pattern
 - **What worked**: Clear delegation, agent specialization, systematic review process
 - **What to improve**: Need to actually run tests with database, not just syntax checks
+
+**Specific lesson learned (2026-02-10 follow-up)**:
+- **Session**: Implementing coordinator's governance review recommendations
+- **Failure**: Review Lead updated own instructions but didn't ensure other agents did the same
+- **What went wrong**: Didn't take ownership of follow-through on coordinator recommendations
+- **Impact**: 4 out of 5 participating agents didn't update their instructions (80% failure rate)
+- **Root cause**: No enforcement mechanism; assumed agents would self-update without prompting
+- **Fix**: Added "Must Enforce Agent Self-Improvement" section above
+- **Prevention**: 
+  1. Identify all participating agents after work completes
+  2. Prompt each agent individually to update instructions
+  3. Verify updates are substantive and committed
+  4. Re-prompt if necessary
+  5. Don't close session until all agents have updated
+- **Key insight**: "Review Lead owns follow-through on coordinator recommendations"
+- **Test execution learning**: Test specialist couldn't run tests because PostgreSQL setup was skipped; must follow copilot-setup-steps.yml workflow
 
 Update this file to prevent repeating the same mistakes.
 
