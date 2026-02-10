@@ -97,6 +97,57 @@ Each belief links to a sensor and a data source. Here are two examples:
 - A thermal demand sensor containing forecasts (data source of type "forecast", e.g. heating usage forecast sent to FlexMeasures or made by FlexMeasures) and measurements (sent into FlexMeasures, data source type "user").
 
 
+Annotations
+-----------
+
+Annotations allow you to attach metadata and contextual information to accounts, assets, or sensors over specific time periods.
+They are useful for marking important events, holidays, alerts, or any other information that helps understand your data.
+
+Each annotation has:
+
+- **Content**: Text describing the annotation (max 1024 characters)
+- **Time range**: A start and end time for when the annotation applies
+- **Type**: The category of annotation (see types below)
+- **Belief time**: When the annotation was created or became known
+- **Source**: Who or what created the annotation (e.g., a user or automated system)
+
+**Annotation Types**
+
+FlexMeasures supports several annotation types:
+
+- **label**: General-purpose annotations, useful for marking specific periods with custom notes
+- **holiday**: Public or organizational holidays that may affect energy usage patterns
+- **alert**: Active warnings that require attention
+- **warning**: Informational warnings about potential issues
+- **error**: Markers for periods with data quality issues or system errors
+- **feedback**: User feedback or notes about system behavior
+
+**Use Cases**
+
+Annotations are particularly useful for:
+
+- Marking holidays that affect energy consumption patterns (used by forecasting algorithms)
+- Documenting known data quality issues or sensor outages
+- Recording maintenance windows or system changes
+- Adding context to unusual patterns in your data
+- Tracking alerts and their resolution status
+
+**Creating Annotations**
+
+Annotations can be created via:
+
+- The :ref:`developer API <dev>` (see POST endpoints for accounts, assets, and sensors)
+- The CLI command ``flexmeasures add annotation``
+- The CLI command ``flexmeasures add holidays`` for automatic holiday import
+
+**Viewing Annotations**
+
+Annotations appear in:
+
+- Individual sensor charts in the FlexMeasures UI
+- Asset views showing all related annotations
+- API responses when querying sensor data with annotation flags
+
 
 Accounts & Users
 ----------------

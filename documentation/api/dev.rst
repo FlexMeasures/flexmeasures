@@ -9,7 +9,7 @@ Summary
 -------
 
 .. qrefflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api.dev.assets, flexmeasures.api.dev.sensors
+    :modules: flexmeasures.api.dev.assets, flexmeasures.api.dev.sensors, flexmeasures.api.dev.annotations
     :order: path
     :include-empty-docstring:
 
@@ -17,6 +17,6 @@ API Details
 -----------
 
 .. autoflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api.dev.assets, flexmeasures.api.dev.sensors
+    :modules: flexmeasures.api.dev.assets, flexmeasures.api.dev.sensors, flexmeasures.api.dev.annotations
     :order: path
     :include-empty-docstring:
