@@ -33,6 +33,78 @@ Tests are organized into modules based on whether they modify database data:
 
 This separation improves test performance while maintaining isolation where needed. See `flexmeasures/conftest.py` for the fixture definitions.
 
+#### Database Fixture Selection - Avoiding Detached Instance Errors
+
+**Pattern Discovered**: Using `fresh_db` (function-scoped) when tests don't modify data can cause `DetachedInstanceError`.
+
+**The Problem**
+
+**Symptom**:
+```
+sqlalchemy.orm.exc.DetachedInstanceError: Instance <GenericAsset at 0x7f8b3c4d5e10> is not bound to a Session
+```
+
+**Common cause**: Test module uses `fresh_db` fixture but tests only read data without modifications.
+
+**Why This Happens**
+
+- `fresh_db` creates a new database session for each test function
+- Objects loaded in one test become detached when that session closes
+- If test setup or fixtures reference those objects, SQLAlchemy can't lazy-load relationships
+
+**The Solution**
+
+Use module-scoped `db` fixture for read-only tests:
+
+```python
+# test_annotations.py - Tests only read existing data
+def test_get_annotation(client, setup_api_test_data, db):  # Use 'db' not 'fresh_db'
+    """Get annotation by ID"""
+    response = client.get("/api/dev/annotation/assets/1/annotations/1")
+    assert response.status_code == 200
+```
+
+Reserve `fresh_db` for tests that modify data:
+
+```python
+# test_annotations_freshdb.py - Tests create/update/delete
+def test_create_annotation(client, setup_api_fresh_test_data, fresh_db):
+    """Create new annotation (modifies database)"""
+    response = client.post(
+        "/api/dev/annotation/assets/1",
+        json={"content": "New annotation"}
+    )
+    assert response.status_code == 201
+    
+    # Verify it was created
+    annotation = Annotation.query.filter_by(content="New annotation").first()
+    assert annotation is not None
+```
+
+**Performance Impact**
+
+Module-scoped `db` fixture:
+- ✅ **Faster**: Database created once per test module
+- ✅ **Shared data**: All tests use same database state
+- ⚠️ **Limitation**: Tests must not modify data (read-only)
+
+Function-scoped `fresh_db` fixture:
+- ✅ **Isolation**: Each test gets fresh database
+- ✅ **Modifications OK**: Tests can create/update/delete freely
+- ⚠️ **Slower**: Database created/destroyed per test function
+
+**Decision Tree**
+
+```
+Does this test modify database data?
+├─ Yes → Use 'fresh_db' fixture
+│         Create separate module (e.g., test_foo_freshdb.py)
+└─ No  → Use 'db' fixture
+          Keep in main test module (e.g., test_foo.py)
+```
+
+**Related FlexMeasures patterns**: Test organization, performance optimization, test isolation
+
 ### API Test Isolation
 
 FlexMeasures API tests use a centralized workaround for Flask-Security authentication in Flask >2.2.
@@ -66,6 +138,135 @@ FlexMeasures API tests use a centralized workaround for Flask-Security authentic
 - Issue: https://github.com/FlexMeasures/flexmeasures/issues/1298
 - Flask-Security issue: https://github.com/Flask-Middleware/flask-security/issues/834
 - Original PR: https://github.com/FlexMeasures/flexmeasures/pull/838#discussion_r1321692937
+
+### Permission Semantics for Annotation Creation
+
+**Pattern Discovered**: Creating annotations on entities requires `'create-children'` permission, NOT `'update'`.
+
+#### Why This Matters
+
+Annotations are child entities of their parent (Account, Asset, or Sensor). Creating a child does not modify the parent entity, so `'update'` permission is semantically incorrect.
+
+**Incorrect**:
+```python
+@permission_required_for_context("update", ctx_arg_name="asset")
+def post_asset_annotation(self, annotation_data: dict, id: int, asset: GenericAsset):
+    """Creates annotation on asset"""
+```
+
+**Correct**:
+```python
+@permission_required_for_context("create-children", ctx_arg_name="asset")
+def post_asset_annotation(self, annotation_data: dict, id: int, asset: GenericAsset):
+    """Creates annotation on asset"""
+```
+
+#### Test Pattern
+
+When testing annotation creation endpoints:
+
+```python
+def test_annotation_requires_create_children_permission(client, setup_api_test_data):
+    """Verify annotation creation requires 'create-children' not 'update' permission"""
+    # User with only 'read' permission on asset
+    response = client.post(
+        "/api/dev/annotation/assets/1",
+        json={"content": "test annotation"},
+        headers=get_auth_token(user_without_create_children)
+    )
+    assert response.status_code == 403  # Forbidden
+    
+    # User with 'create-children' permission on asset
+    response = client.post(
+        "/api/dev/annotation/assets/1", 
+        json={"content": "test annotation"},
+        headers=get_auth_token(user_with_create_children)
+    )
+    assert response.status_code == 201  # Created
+```
+
+**Applies to**:
+- Account annotations (`POST /annotation/accounts/<id>`)
+- Asset annotations (`POST /annotation/assets/<id>`)
+- Sensor annotations (`POST /annotation/sensors/<id>`)
+
+**Related FlexMeasures concepts**: Permission model, entity hierarchy, RBAC
+
+### FlexMeasures API Error Code Expectations
+
+**Pattern Discovered**: Field validation errors return `422 Unprocessable Entity`, not `404 Not Found`.
+
+#### The Distinction
+
+| Error Code | Meaning | When FlexMeasures Uses It |
+|------------|---------|---------------------------|
+| **404 Not Found** | Resource doesn't exist at URL | Unknown endpoint, route not defined |
+| **422 Unprocessable Entity** | Request body invalid | Field validation failed, schema error |
+
+#### Marshmallow IdField Validation
+
+When using IdFields (`AccountIdField`, `AssetIdField`, `SensorIdField`) with non-existent IDs:
+
+**Incorrect expectation**:
+```python
+def test_annotation_invalid_asset_id(client):
+    response = client.post(
+        "/api/dev/annotation/assets/99999",  # Asset doesn't exist
+        json={"content": "test"}
+    )
+    assert response.status_code == 404  # ❌ Wrong! This is field validation
+```
+
+**Correct expectation**:
+```python
+def test_annotation_invalid_asset_id(client):
+    response = client.post(
+        "/api/dev/annotation/assets/99999",  # Asset doesn't exist
+        json={"content": "test"}
+    )
+    assert response.status_code == 422  # ✅ Correct! Field validation failure
+    assert "does not exist" in response.json["message"]
+```
+
+#### Why 422 Not 404?
+
+The route `/api/dev/annotation/assets/<id>` exists (not a 404). The request is processed, but the `AssetIdField` deserializer fails validation when it can't find asset 99999. This is a **field validation error**, hence 422.
+
+#### Test Pattern
+
+```python
+@pytest.mark.parametrize("entity_type,invalid_id", [
+    ("accounts", 99999),
+    ("assets", 99999),
+    ("sensors", 99999),
+])
+def test_annotation_post_invalid_entity_id(client, entity_type, invalid_id):
+    """Field validation returns 422 for non-existent entity IDs"""
+    response = client.post(
+        f"/api/dev/annotation/{entity_type}/{invalid_id}",
+        json={"content": "test annotation"}
+    )
+    assert response.status_code == 422  # Field validation error
+    assert "does not exist" in response.json["message"].lower()
+```
+
+#### When You Get 404 vs 422
+
+```python
+# 404: Route doesn't exist
+response = client.get("/api/dev/nonexistent-endpoint")
+assert response.status_code == 404
+
+# 422: Field validation fails (route exists, data invalid)
+response = client.post("/api/dev/annotation/assets/99999", json={"content": "test"})
+assert response.status_code == 422
+
+# 201: Everything valid
+response = client.post("/api/dev/annotation/assets/1", json={"content": "test"})
+assert response.status_code == 201  # Created
+```
+
+**Related FlexMeasures patterns**: Marshmallow schema validation, webargs error handling, REST API conventions
 
 ### Installation and Setup
 
