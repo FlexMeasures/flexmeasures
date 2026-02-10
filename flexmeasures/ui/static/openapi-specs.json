@@ -5388,6 +5388,15 @@
               }
             ],
             "items": {}
+          },
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "enum": [
+              "electricity",
+              "gas"
+            ],
+            "description": "Commodity label for this device/asset."
           }
         },
         "additionalProperties": false
