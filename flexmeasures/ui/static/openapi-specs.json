@@ -4538,7 +4538,7 @@
             ],
             "description": "Type of annotation."
           },
-          "belief_time": {
+           "prior": {
             "type": [
               "string",
               "null"
