@@ -1542,9 +1542,7 @@ class AssetAPI(FlaskView):
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
     @permission_required_for_context("create-children", ctx_arg_name="asset")
-    def post_annotation(
-        self, annotation_data: dict, id: int, asset: GenericAsset
-    ):
+    def post_annotation(self, annotation_data: dict, id: int, asset: GenericAsset):
         """.. :quickref: Annotations; Add an annotation to an asset.
         ---
         post:
