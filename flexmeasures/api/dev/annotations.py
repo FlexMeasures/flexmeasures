@@ -43,9 +43,8 @@ class AnnotationAPI(FlaskView):
     @use_args(annotation_schema)
     @permission_required_for_context("create-children", ctx_arg_name="account")
     def post_account_annotation(self, annotation_data: dict, id: int, account: Account):
-        """POST to /annotation/accounts/<id>
-
-        Add an annotation to an account.
+        """
+        .. :quickref: Annotation; Add an annotation to an account.
 
         **⚠️ WARNING: This endpoint is experimental and may change without notice.**
 
@@ -71,9 +70,7 @@ class AnnotationAPI(FlaskView):
     def post_asset_annotation(
         self, annotation_data: dict, id: int, asset: GenericAsset
     ):
-        """POST to /annotation/assets/<id>
-
-        Add an annotation to an asset.
+        """.. :quickref: Annotation; Add an annotation to an asset.
 
         **⚠️ WARNING: This endpoint is experimental and may change without notice.**
 
@@ -97,9 +94,7 @@ class AnnotationAPI(FlaskView):
     @use_args(annotation_schema)
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def post_sensor_annotation(self, annotation_data: dict, id: int, sensor: Sensor):
-        """POST to /annotation/sensors/<id>
-
-        Add an annotation to a sensor.
+        """.. :quickref: Annotation; Add an annotation to a sensor.
 
         **⚠️ WARNING: This endpoint is experimental and may change without notice.**
 

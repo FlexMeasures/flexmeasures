@@ -3896,6 +3896,9 @@
     "/api/dev/sensor/{id}/chart_annotations": {},
     "/api/dev/sensor/{id}/chart_data": {},
     "/api/dev/asset/{id}": {},
+    "/api/dev/annotation/accounts/{id}": {},
+    "/api/dev/annotation/assets/{id}": {},
+    "/api/dev/annotation/sensors/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
     "/": {}
   },
