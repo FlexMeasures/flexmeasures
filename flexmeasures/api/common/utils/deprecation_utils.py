@@ -166,19 +166,8 @@ def deprecate_blueprint(
     sunset = _format_sunset(sunset_date)
 
     def _after_request_handler(response: Response) -> Response:
-        # Use a safe representation of current_user that doesn't trigger lazy loads
-        # to avoid DetachedInstanceError when the user is not in the session
-        try:
-            user_repr = (
-                f"User(id={current_user.id})"
-                if not current_user.is_anonymous
-                else "AnonymousUser"
-            )
-        except Exception:
-            user_repr = "Unknown User"
-
         current_app.logger.warning(
-            f"Deprecated endpoint {request.endpoint} called by {user_repr}"
+            f"Deprecated endpoint {request.endpoint} called by {current_user}"
         )
 
         # Override sunset date if host used corresponding config setting
