@@ -165,7 +165,6 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     features/scheduling
     features/forecasting
     features/reporting
-    features/annotations
 
 .. toctree::
     :caption: Tutorials
@@ -191,6 +190,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     concepts/data-model
     concepts/security_auth
     concepts/device_scheduler
+    concepts/annotations
 
 
 .. toctree::
