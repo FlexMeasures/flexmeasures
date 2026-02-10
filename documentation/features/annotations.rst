@@ -461,30 +461,6 @@ Best Practices
 - Use API for automated annotation creation from monitoring systems
 
 
-Limitations and Roadmap
-------------------------
-
-**Current Limitations:**
-
-- No bulk creation endpoint (must create annotations individually)
-- No UPDATE or DELETE endpoints yet (annotations are immutable once created)
-- No direct annotation query endpoint (must query via entity endpoints)
-- Limited search/filter capabilities
-
-**Planned Improvements:**
-
-See the `FlexMeasures GitHub issues <https://github.com/FlexMeasures/flexmeasures/issues/470>`_ for ongoing annotation feature development.
-
-Potential future enhancements:
-
-- Bulk annotation creation and management
-- Annotation editing and deletion via API
-- Rich query interface for annotations
-- Annotation templates for common scenarios
-- Enhanced UI for annotation management
-- Annotation export and reporting
-
-
 See Also
 --------
 
