@@ -168,7 +168,7 @@ The Coordinator has researched the FlexMeasures codebase and identified:
 - **Key invariants**: Acyclic asset trees, non-null flex_context, timezone-aware datetimes
 - **Architectural layers**: API (v3_0), CLI, Data Services, Models
 - **Common pitfalls**: N+1 queries, DST bugs, unit mismatches, serialization issues
-- **CI/CD**: GitHub Actions with Python 3.9-3.12 matrix, PostgreSQL 17.4
+- **CI/CD**: GitHub Actions with Python 3.10-3.12 matrix, PostgreSQL 17.4
 - **Code quality**: flake8, black, mypy via pre-commit hooks
 
 #### Schema Migration Patterns

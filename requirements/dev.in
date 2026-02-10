@@ -13,3 +13,7 @@ pyinstrument
 build
 packaging>=24.2
 dictdiffer>=0.9.0
+
+# Limits due to security alerts
+# https://github.com/FlexMeasures/flexmeasures/security/dependabot/554
+virtualenv>=20.36.1
