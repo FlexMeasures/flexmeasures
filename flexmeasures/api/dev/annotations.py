@@ -4,7 +4,7 @@ API endpoints for annotations (under development).
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import current_user
+from flask_security import current_user, auth_required
 from webargs.flaskparser import use_kwargs, use_args
 from werkzeug.exceptions import NotFound, InternalServerError
 from sqlalchemy.exc import SQLAlchemyError
@@ -33,11 +33,12 @@ class AnnotationAPI(FlaskView):
 
     route_base = "/annotation"
     trailing_slash = False
+    decorators = [auth_required()]
 
     @route("/accounts/<id>", methods=["POST"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("update", ctx_arg_name="account")
+    @permission_required_for_context("create-children", ctx_arg_name="account")
     def post_account_annotation(self, annotation_data: dict, id: int, account: Account):
         """POST to /annotation/accounts/<id>
         
@@ -63,7 +64,7 @@ class AnnotationAPI(FlaskView):
     @route("/assets/<id>", methods=["POST"])
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("update", ctx_arg_name="asset")
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
     def post_asset_annotation(self, annotation_data: dict, id: int, asset: GenericAsset):
         """POST to /annotation/assets/<id>
         
@@ -89,7 +90,7 @@ class AnnotationAPI(FlaskView):
     @route("/sensors/<id>", methods=["POST"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("update", ctx_arg_name="sensor")
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def post_sensor_annotation(self, annotation_data: dict, id: int, sensor: Sensor):
         """POST to /annotation/sensors/<id>
         
