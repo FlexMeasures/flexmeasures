@@ -188,7 +188,7 @@ class ForecasterParametersSchema(Schema):
             "example": "PT48H",
             "cli": {
                 "option": "--max-forecast-horizon",
-                "extra_help": "For example, if you have multiple viewpoints (by having set a `retrain-frequency`), then it is equal to the retrain-frequency by default."
+                "extra_help": "For example, if you have multiple viewpoints (by having set a `retrain-frequency`), then it is equal to the retrain-frequency by default.",
             },
         },
     )
@@ -250,7 +250,7 @@ class ForecasterParametersSchema(Schema):
             "example": 0.1,
             "cli": {
                 "option": "--missing-threshold",
-                "extra_help": "Missing data under this threshold will be filled using forward filling or linear interpolation."
+                "extra_help": "Missing data under this threshold will be filled using forward filling or linear interpolation.",
             },
         },
     )
