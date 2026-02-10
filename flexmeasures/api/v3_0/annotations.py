@@ -58,7 +58,7 @@ class AnnotationAPI(FlaskView):
                 schema: AnnotationSchema
           responses:
             200:
-              description: ALREADY PROCESSED
+              description: OK
             201:
               description: PROCESSED
             400:
@@ -96,7 +96,7 @@ class AnnotationAPI(FlaskView):
                 schema: AnnotationSchema
           responses:
             200:
-              description: ALREADY PROCESSED
+              description: OK
             201:
               description: PROCESSED
             400:
@@ -132,7 +132,7 @@ class AnnotationAPI(FlaskView):
                 schema: AnnotationSchema
           responses:
             200:
-              description: ALREADY PROCESSED
+              description: OK
             201:
               description: PROCESSED
             400:
