@@ -69,7 +69,7 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 
 ### CI Matrix
 
-- [ ] **Python versions**: Test on supported versions (3.9-3.12)
+- [ ] **Python versions**: Test on supported versions (3.10-3.12)
 - [ ] **Service versions**: PostgreSQL version matches production
 - [ ] **OS matrix**: Ubuntu latest (add others if needed)
 - [ ] **Fail-fast**: Usually false for comprehensive testing
@@ -121,7 +121,7 @@ This file defines standardized environment setup for GitHub Copilot agents. When
 **GitHub Actions workflows** (`.github/workflows/`):
 
 1. **lint-and-test.yml**
-   - Python versions: 3.9, 3.10, 3.11, 3.12
+   - Python versions: 3.10, 3.11, 3.12
    - PostgreSQL: 17.4 service container
    - Coverage: Python 3.11 only
    - Caching: pip dependencies
