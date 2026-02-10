@@ -1003,17 +1003,6 @@ def add_holidays(
 
 @fm_add_data.command("forecasts")
 # @click.option(
-#     "--forecast-frequency",
-#     help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
-#     "Defaults to 1 hour.",
-# )
-# @click.option(
-#     "--as-job",
-#     is_flag=True,
-#     help="Whether to queue a forecasting job instead of computing directly. "
-#     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
-# )
-# @click.option(
 #     "--resolution",
 #     help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
 # )
@@ -1062,14 +1051,6 @@ def add_holidays(
     is_flag=True,
     help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
 )
-# @click.option(
-#     "--missing-threshold",
-#     default=1.0,
-#     help=(
-#         "Maximum fraction of missing data allowed before raising an error. "
-#         "Missing data under this threshold will be filled using forward filling or linear interpolation."
-#     ),
-# )
 @add_cli_options_from_schema(ForecasterParametersSchema())
 @with_appcontext
 def add_forecast(
