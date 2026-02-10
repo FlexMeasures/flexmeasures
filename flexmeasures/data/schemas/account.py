@@ -1,6 +1,5 @@
 from typing import Any
 
-from flask.cli import with_appcontext
 from flexmeasures.data import ma
 from marshmallow import fields, validates
 

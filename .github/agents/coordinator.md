@@ -447,6 +447,67 @@ The Coordinator has identified these recurring issues:
 **Verification**: Check future sessions where users mention "agent instructions" - 
 Review Lead should now invoke Coordinator as subagent.
 
+### Governance Failure Pattern (2026-02-10)
+
+**Pattern**: Session closed without mandatory verification steps
+
+**Observation**: Annotation API PR session closed with multiple governance failures:
+1. ❌ Coordinator not run (despite governance being implicit in agent work)
+2. ❌ Pre-commit hooks not run (linting failures in committed code)
+3. ❌ Only partial tests executed (annotation API tests, not full suite)
+4. ❌ Test failures in other areas (DetachedInstanceError, auth_token, ping)
+5. ❌ PR title not focused on original issue (#470)
+
+**Metrics**:
+- Governance steps required: 5
+- Governance steps completed: 0 (100% failure rate)
+- Test coverage: Partial (annotation API only)
+- Pre-commit status: Not run
+
+**Root causes identified**:
+1. **No session close checklist**: Requirements scattered across documents, not consolidated
+2. **Pre-commit responsibility unclear**: No explicit owner, treated as implicit
+3. **"Feature tests pass" considered sufficient**: Interconnected systems not validated
+4. **Coordinator invocation not mandatory**: Treated as optional when should be default
+
+**Impact**:
+- CI will fail on linting (wasted resources)
+- Tests failing beyond annotation API scope (side effects not validated)
+- Maintainers forced to fix issues (poor developer experience)
+- Governance process shown to be optional (dangerous precedent)
+
+**Solution implemented**:
+1. ✅ Added mandatory "Session Close Checklist" to Review Lead (commit 3ad8908)
+2. ✅ Added "Full Test Suite Requirement" to Test Specialist (commit 8d67f3c)
+3. ✅ Added "Pre-commit Hook Enforcement" to Tooling & CI Specialist (commit dfe67e8)
+4. ✅ Added "Session Close Verification" pattern to Coordinator (this commit)
+
+**Structural changes**:
+- Review Lead now has comprehensive checklist before closing any session
+- Test Specialist must execute full suite, not just feature-specific tests
+- Tooling & CI Specialist must verify pre-commit execution
+- Coordinator enforces Review Lead checklist completion
+
+**New Coordinator pattern (Pattern #7)**:
+When invoked for governance review, Coordinator must verify:
+- [ ] Review Lead followed session close checklist
+- [ ] No checklist items were skipped without justification
+- [ ] Evidence provided for each checklist item
+
+**Enforcement escalation**:
+If Review Lead repeatedly closes sessions without completing checklist:
+1. First occurrence: Document and update instructions (this session)
+2. Second occurrence: Require explicit justification for skips
+3. Third occurrence: Escalate to architectural solution (automated checks)
+
+**Why it matters**:
+- Sessions ending with "good enough" creates technical debt
+- Governance drift happens when verification is optional
+- Infrastructure failures ripple across codebase
+- Agent system credibility depends on consistent quality
+
+**Status**: Structural improvements implemented. Monitor next 5 PRs for compliance.
+
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
 
 ### Session 2026-02-10: Annotation API Implementation (#470)

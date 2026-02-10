@@ -4,10 +4,9 @@ API endpoints for annotations (under development).
 
 from flask import current_app
 from flask_classful import FlaskView, route
-from flask_json import as_json
 from flask_security import current_user, auth_required
 from webargs.flaskparser import use_kwargs, use_args
-from werkzeug.exceptions import NotFound, InternalServerError
+from werkzeug.exceptions import InternalServerError
 from sqlalchemy.exc import SQLAlchemyError
 
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -132,35 +131,49 @@ class AnnotationAPI(FlaskView):
             - 201 Created for new annotations
             - 200 OK for existing annotations (idempotent behavior)
         """
-        # Get or create data source for current user
-        source = get_or_create_source(current_user)
+        try:
+            # Get or create data source for current user
+            source = get_or_create_source(current_user)
 
-        # Create annotation object
-        annotation = Annotation(
-            content=annotation_data["content"],
-            start=annotation_data["start"],
-            end=annotation_data["end"],
-            type=annotation_data.get("type", "label"),
-            belief_time=annotation_data.get("belief_time"),
-            source=source,
-        )
+            # Create annotation object
+            annotation = Annotation(
+                content=annotation_data["content"],
+                start=annotation_data["start"],
+                end=annotation_data["end"],
+                type=annotation_data.get("type", "label"),
+                belief_time=annotation_data.get("belief_time"),
+                source=source,
+            )
 
-        # Use get_or_create to handle duplicates gracefully
-        annotation, is_new = get_or_create_annotation(annotation)
+            # Use get_or_create to handle duplicates gracefully
+            annotation, is_new = get_or_create_annotation(annotation)
 
-        # Link annotation to entity
-        if account is not None:
-            if annotation not in account.annotations:
-                account.annotations.append(annotation)
-        elif asset is not None:
-            if annotation not in asset.annotations:
-                asset.annotations.append(annotation)
-        elif sensor is not None:
-            if annotation not in sensor.annotations:
-                sensor.annotations.append(annotation)
+            # Link annotation to entity
+            if account is not None:
+                if annotation not in account.annotations:
+                    account.annotations.append(annotation)
+            elif asset is not None:
+                if annotation not in asset.annotations:
+                    asset.annotations.append(annotation)
+            elif sensor is not None:
+                if annotation not in sensor.annotations:
+                    sensor.annotations.append(annotation)
 
-        db.session.commit()
+            db.session.commit()
 
-        # Return appropriate status code
-        status_code = 201 if is_new else 200
-        return annotation_response_schema.dump(annotation), status_code
+            # Return appropriate status code
+            status_code = 201 if is_new else 200
+            return annotation_response_schema.dump(annotation), status_code
+
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            current_app.logger.error(f"Database error while creating annotation: {e}")
+            raise InternalServerError(
+                "A database error occurred while creating the annotation"
+            )
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Unexpected error creating annotation: {e}")
+            raise InternalServerError(
+                "An unexpected error occurred while creating the annotation"
+            )

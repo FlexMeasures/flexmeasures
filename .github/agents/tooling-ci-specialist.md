@@ -75,6 +75,115 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 - [ ] **Fail-fast**: Usually false for comprehensive testing
 - [ ] **Coverage**: One Python version runs coverage
 
+### Pre-commit Hook Execution (CRITICAL)
+
+**Every commit MUST pass pre-commit hooks BEFORE being committed.**
+
+This is mandatory. Committing code that fails pre-commit hooks is a process failure.
+
+#### Why This Matters
+
+Pre-commit hooks enforce code quality standards:
+- **Flake8**: Catches linting errors (unused imports, complexity, style violations)
+- **Black**: Ensures consistent code formatting
+- **Mypy**: Validates type annotations
+
+Code that bypasses pre-commit:
+- Fails in CI (wastes resources)
+- Forces maintainers to fix formatting
+- Creates noisy review feedback
+- Delays PR merge
+
+#### Execution Requirements
+
+**Before ANY commit:**
+
+1. **Install pre-commit**:
+   ```bash
+   pip install pre-commit
+   pre-commit install  # Install git hooks (optional but recommended)
+   ```
+
+2. **Run all hooks**:
+   ```bash
+   pre-commit run --all-files
+   ```
+
+3. **Verify zero failures**:
+   - ✅ All hooks pass
+   - ✅ No files modified by hooks (or modifications committed)
+   - ✅ No errors from flake8, black, or mypy
+
+4. **Document execution**:
+   ```
+   Pre-commit verification:
+   - Command: pre-commit run --all-files
+   - Result: All hooks passed
+   - Modified files: None (or included in commit)
+   ```
+
+#### Responsibility Assignment
+
+**Who runs pre-commit:**
+- **During code changes**: Agent making changes runs pre-commit before committing
+- **Before PR close**: Review Lead verifies pre-commit execution
+- **In PR review**: Tooling & CI Specialist validates config matches CI
+
+**Enforcement:**
+- Review Lead's session close checklist includes pre-commit verification
+- Review Lead cannot close session without pre-commit evidence
+- If pre-commit fails, agent must fix all issues before proceeding
+
+#### Common Failures and Fixes
+
+**Flake8 failures:**
+```bash
+# Common issues:
+# - E501: Line too long (black should handle this)
+# - F401: Unused import (remove import)
+# - C901: Function too complex (refactor)
+# - W503: Line break before binary operator (ignore, conflicts with black)
+
+# Quick check:
+flake8 path/to/file.py
+```
+
+**Black failures:**
+```bash
+# Auto-fix formatting:
+black path/to/file.py
+
+# Or format entire codebase:
+black .
+```
+
+**Mypy failures:**
+```bash
+# Type annotation required
+# Manual fix needed:
+# - Add type hints to function signatures
+# - Fix type mismatches
+# - Add # type: ignore comments with justification
+
+# Run mypy:
+ci/run_mypy.sh
+```
+
+#### Integration with Review Lead
+
+**Review Lead checklist items:**
+- [ ] Pre-commit hooks installed
+- [ ] All hooks pass: `pre-commit run --all-files`
+- [ ] Zero failures from flake8, black, mypy
+- [ ] If hooks modified files, changes committed
+
+**Evidence required:**
+- Show pre-commit output confirming all hooks passed
+- Or confirm: "Pre-commit verified: all hooks passed"
+
+**Enforcement:**
+Review Lead MUST verify pre-commit execution before closing session.
+
 ### Agent Environment Setup
 
 File: **`.github/workflows/copilot-setup-steps.yml`**

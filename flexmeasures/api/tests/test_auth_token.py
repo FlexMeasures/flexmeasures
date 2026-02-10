@@ -23,5 +23,7 @@ def test_auth_token(app, client, setup_api_test_data):
     )
     print(response)
     assert response.status_code == 200
-    logout_user()  # undo the login made by our patch during token auth
+    # Ensure logout happens in a request context to properly clear session state
+    with app.test_request_context():
+        logout_user()  # undo the login made by our patch during token auth
     assert response.json == []  # admin has no assets themselves

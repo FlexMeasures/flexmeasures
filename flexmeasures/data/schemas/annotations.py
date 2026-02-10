@@ -4,7 +4,6 @@ from marshmallow import Schema, fields, validates_schema, ValidationError
 from marshmallow.validate import OneOf, Length
 
 from flexmeasures.data.schemas.times import AwareDateTimeField
-from flexmeasures.data.schemas.sources import DataSourceIdField
 
 
 class AnnotationSchema(Schema):

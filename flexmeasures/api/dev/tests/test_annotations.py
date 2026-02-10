@@ -540,7 +540,6 @@ def test_post_annotation_with_belief_time(client, setup_api_test_data):
     assert response.status_code == 201
     assert "belief_time" in response.json
     # Compare times after parsing to handle timezone conversions
-    from datetime import datetime
     import dateutil.parser
 
     expected_time = dateutil.parser.isoparse(belief_time)
