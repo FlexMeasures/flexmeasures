@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from flask import current_app
 from flask_classful import FlaskView, route
 from flexmeasures.data import db
 from webargs.flaskparser import use_kwargs, use_args
@@ -7,16 +8,23 @@ from flask_security import current_user, auth_required
 from flask_json import as_json
 from sqlalchemy import or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
-
+from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.exceptions import InternalServerError
 
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.data.schemas.annotations import (
+    AnnotationSchema,
+    AnnotationResponseSchema,
+)
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.users import AccountAPIQuerySchema
 
@@ -31,6 +39,8 @@ Editing (PATCH) is also not yet implemented, but might be next, e.g. for the nam
 account_schema = AccountSchema()
 accounts_schema = AccountSchema(many=True)
 partial_account_schema = AccountSchema(partial=True)
+annotation_schema = AnnotationSchema()
+annotation_response_schema = AnnotationResponseSchema()
 
 
 class AccountAPI(FlaskView):
@@ -425,3 +435,86 @@ class AccountAPI(FlaskView):
             for log in audit_logs
         ]
         return audit_logs, 200
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="account")
+    def post_annotation(self, annotation_data: dict, id: int, account: Account):
+        """
+        .. :quickref: Annotations; Add an annotation to an account.
+        ---
+        post:
+          summary: Creates a new account annotation.
+          description: |
+            This endpoint creates a new annotation on an account.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the account to register the annotation on.
+              required: true
+              schema:
+                type: integer
+                format: int32
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Annotations
+        """
+        try:
+            # Get or create data source for current user
+            source = get_or_create_source(current_user)
+
+            # Create annotation object
+            annotation = Annotation(
+                content=annotation_data["content"],
+                start=annotation_data["start"],
+                end=annotation_data["end"],
+                type=annotation_data.get("type", "label"),
+                belief_time=annotation_data.get("belief_time"),
+                source=source,
+            )
+
+            # Use get_or_create to handle duplicates gracefully
+            annotation, is_new = get_or_create_annotation(annotation)
+
+            # Link annotation to account
+            if annotation not in account.annotations:
+                account.annotations.append(annotation)
+
+            db.session.commit()
+
+            # Return appropriate status code
+            status_code = 201 if is_new else 200
+            return annotation_response_schema.dump(annotation), status_code
+
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            current_app.logger.error(f"Database error while creating annotation: {e}")
+            raise InternalServerError(
+                "A database error occurred while creating the annotation"
+            )
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Unexpected error creating annotation: {e}")
+            raise InternalServerError(
+                "An unexpected error occurred while creating the annotation"
+            )

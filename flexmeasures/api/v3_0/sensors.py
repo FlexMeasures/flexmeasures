@@ -7,7 +7,7 @@ from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
 )
 
-from werkzeug.exceptions import Unauthorized
+from werkzeug.exceptions import Unauthorized, InternalServerError
 from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
@@ -18,6 +18,7 @@ from rq.job import Job, JobStatus, NoSuchJobError
 import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
+from sqlalchemy.exc import SQLAlchemyError
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -43,11 +44,17 @@ from flexmeasures.api.common.utils.api_utils import (
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.schemas.annotations import (
+    AnnotationSchema,
+    AnnotationResponseSchema,
+)
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
     SensorIdField,
@@ -78,6 +85,8 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
+annotation_schema = AnnotationSchema()
+annotation_response_schema = AnnotationResponseSchema()
 
 
 class SensorKwargsSchema(Schema):
@@ -1815,3 +1824,85 @@ class SensorAPI(FlaskView):
 
         d, s = request_processed()
         return dict(**response), s
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    def post_annotation(self, annotation_data: dict, id: int, sensor: Sensor):
+        """.. :quickref: Annotations; Add an annotation to a sensor.
+        ---
+        post:
+          summary: Creates a new sensor annotation.
+          description: |
+            This endpoint creates a new annotation on a sensor.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the sensor to register the annotation on.
+              required: true
+              schema:
+                type: integer
+                format: int32
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Annotations
+        """
+        try:
+            # Get or create data source for current user
+            source = get_or_create_source(current_user)
+
+            # Create annotation object
+            annotation = Annotation(
+                content=annotation_data["content"],
+                start=annotation_data["start"],
+                end=annotation_data["end"],
+                type=annotation_data.get("type", "label"),
+                belief_time=annotation_data.get("belief_time"),
+                source=source,
+            )
+
+            # Use get_or_create to handle duplicates gracefully
+            annotation, is_new = get_or_create_annotation(annotation)
+
+            # Link annotation to sensor
+            if annotation not in sensor.annotations:
+                sensor.annotations.append(annotation)
+
+            db.session.commit()
+
+            # Return appropriate status code
+            status_code = 201 if is_new else 200
+            return annotation_response_schema.dump(annotation), status_code
+
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            current_app.logger.error(f"Database error while creating annotation: {e}")
+            raise InternalServerError(
+                "A database error occurred while creating the annotation"
+            )
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Unexpected error creating annotation: {e}")
+            raise InternalServerError(
+                "An unexpected error occurred while creating the annotation"
+            )

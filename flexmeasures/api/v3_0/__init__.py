@@ -32,7 +32,6 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as Asset
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
-from flexmeasures.api.v3_0.annotations import AnnotationAPI
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
 
 
@@ -44,7 +43,6 @@ def register_at(app: Flask):
     SensorAPI.register(app, route_prefix=v3_0_api_prefix)
     AccountAPI.register(app, route_prefix=v3_0_api_prefix)
     UserAPI.register(app, route_prefix=v3_0_api_prefix)
-    AnnotationAPI.register(app, route_prefix=v3_0_api_prefix)
     AssetAPI.register(app, route_prefix=v3_0_api_prefix)
     AssetTypesAPI.register(app, route_prefix=v3_0_api_prefix)
     HealthAPI.register(app, route_prefix=v3_0_api_prefix)
