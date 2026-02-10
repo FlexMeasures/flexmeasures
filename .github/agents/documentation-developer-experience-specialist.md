@@ -86,6 +86,40 @@ Keep FlexMeasures understandable and contributor-friendly by ensuring excellent 
 - [ ] **Completeness**: Cover What, Why, Types, Usage, Auth, Errors, Best Practices, Limitations
 - [ ] **Testing**: Verify examples run and produce expected output
 
+### Endpoint Migration Documentation
+
+When API endpoints are migrated or restructured:
+
+- [ ] **Update all endpoint URLs** in documentation
+- [ ] **Update curl examples** with new endpoint structure
+- [ ] **Update Python examples** with new URL patterns  
+- [ ] **Add migration note** explaining old → new pattern
+- [ ] **Update API overview** with new structure
+- [ ] **Verify internal links** work in generated docs
+- [ ] **Document backward compatibility** approach if endpoints support both patterns
+
+**Pattern for nested resource endpoints:**
+
+When migrating from flat to nested RESTful structure:
+
+```rst
+.. http:get:: /api/v3_0/accounts/(int:account_id)/annotations
+
+   Get annotations for a specific account.
+   
+   **URL structure**: This endpoint follows RESTful nesting under account resources.
+   
+   **Replaces (deprecated):** ``/api/v3_0/annotations?account_id=<id>``
+```
+
+**Checklist for endpoint migration docs:**
+
+- [ ] All examples updated to new URL structure
+- [ ] Both curl and Python code examples reflect new pattern
+- [ ] Migration guide explains what changed and why
+- [ ] Deprecated endpoints marked clearly
+- [ ] Timeline for deprecation (if applicable)
+
 ## Domain Knowledge
 
 ### FlexMeasures Documentation Structure
