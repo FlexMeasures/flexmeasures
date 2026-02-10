@@ -9,15 +9,37 @@ from flexmeasures.data.schemas.times import AwareDateTimeField
 class AnnotationSchema(Schema):
     """Schema for annotation POST requests."""
 
-    content = fields.Str(required=True, validate=Length(max=1024))
-    start = AwareDateTimeField(required=True, format="iso")
-    end = AwareDateTimeField(required=True, format="iso")
+    content = fields.Str(
+        required=True,
+        validate=Length(max=1024),
+        metadata={
+            "description": "Text content of the annotation (max 1024 characters)."
+        },
+    )
+    start = AwareDateTimeField(
+        required=True,
+        format="iso",
+        metadata={"description": "Start time in ISO 8601 format."},
+    )
+    end = AwareDateTimeField(
+        required=True,
+        format="iso",
+        metadata={"description": "End time in ISO 8601 format."},
+    )
     type = fields.Str(
         required=False,
         load_default="label",
         validate=OneOf(["alert", "holiday", "label", "feedback", "warning", "error"]),
+        metadata={"description": "Type of annotation."},
     )
-    belief_time = AwareDateTimeField(required=False, allow_none=True, format="iso")
+    belief_time = AwareDateTimeField(
+        required=False,
+        allow_none=True,
+        format="iso",
+        metadata={
+            "description": "Time when the annotation was recorded, in ISO 8601 format (default: now)."
+        },
+    )
 
     @validates_schema
     def validate_time_range(self, data, **kwargs):

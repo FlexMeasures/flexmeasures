@@ -44,19 +44,33 @@ class AnnotationAPI(FlaskView):
     def post_account_annotation(self, annotation_data: dict, id: int, account: Account):
         """
         .. :quickref: Annotation; Add an annotation to an account.
+        ---
+        post:
+          summary: Creates a new account annotation.
+          description: |
+            This endpoint creates a new annotation on an account.
 
-        **Required fields**
-
-        - "content": Text content of the annotation (max 1024 characters)
-        - "start": Start time in ISO 8601 format
-        - "end": End time in ISO 8601 format
-
-        **Optional fields**
-
-        - "type": One of "alert", "holiday", "label", "feedback", "warning", "error" (default: "label")
-        - "belief_time": Time when annotation was created, in ISO 8601 format (default: now)
-
-        Returns the created annotation with HTTP 201, or existing annotation with HTTP 200.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: ALREADY PROCESSED
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Annotation
         """
         return self._create_annotation(annotation_data, account=account)
 
@@ -68,19 +82,33 @@ class AnnotationAPI(FlaskView):
         self, annotation_data: dict, id: int, asset: GenericAsset
     ):
         """.. :quickref: Annotation; Add an annotation to an asset.
+        ---
+        post:
+          summary: Creates a new asset annotation.
+          description: |
+            This endpoint creates a new annotation on an asset.
 
-        **Required fields**
-
-        - "content": Text content of the annotation (max 1024 characters)
-        - "start": Start time in ISO 8601 format
-        - "end": End time in ISO 8601 format
-
-        **Optional fields**
-
-        - "type": One of "alert", "holiday", "label", "feedback", "warning", "error" (default: "label")
-        - "belief_time": Time when annotation was created, in ISO 8601 format (default: now)
-
-        Returns the created annotation with HTTP 201, or existing annotation with HTTP 200.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: ALREADY PROCESSED
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Annotation
         """
         return self._create_annotation(annotation_data, asset=asset)
 
@@ -90,19 +118,33 @@ class AnnotationAPI(FlaskView):
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def post_sensor_annotation(self, annotation_data: dict, id: int, sensor: Sensor):
         """.. :quickref: Annotation; Add an annotation to a sensor.
+        ---
+        post:
+          summary: Creates a new sensor annotation.
+          description: |
+            This endpoint creates a new annotation on a sensor.
 
-        **Required fields**
-
-        - "content": Text content of the annotation (max 1024 characters)
-        - "start": Start time in ISO 8601 format
-        - "end": End time in ISO 8601 format
-
-        **Optional fields**
-
-        - "type": One of "alert", "holiday", "label", "feedback", "warning", "error" (default: "label")
-        - "belief_time": Time when annotation was created, in ISO 8601 format (default: now)
-
-        Returns the created annotation with HTTP 201, or existing annotation with HTTP 200.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: ALREADY PROCESSED
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Annotation
         """
         return self._create_annotation(annotation_data, sensor=sensor)
 

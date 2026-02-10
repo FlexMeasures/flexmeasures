@@ -27,6 +27,7 @@ from flexmeasures.api.v3_0.assets import (
     AssetAPIQuerySchema,
     DefaultAssetViewJSONSchema,
 )
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
 from flexmeasures.data.schemas.account import AccountSchema
@@ -142,6 +143,7 @@ def create_openapi_specs(app: Flask):
         ("UserAPIQuerySchema", UserAPIQuerySchema),
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),
+        ("AnnotationSchema", AnnotationSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountAPIQuerySchema", AccountAPIQuerySchema),

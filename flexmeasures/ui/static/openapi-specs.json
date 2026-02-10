@@ -2395,7 +2395,49 @@
         ]
       }
     },
-    "/api/v3_0/annotation/accounts/{id}": {},
+    "/api/v3_0/annotation/accounts/{id}": {
+      "post": {
+        "summary": "Creates a new account annotation.",
+        "description": "This endpoint creates a new annotation on an account.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ALREADY PROCESSED"
+          },
+          "201": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Annotation"
+        ]
+      }
+    },
     "/api/v3_0/annotation/assets/{id}": {},
     "/api/v3_0/annotation/sensors/{id}": {},
     "/api/v3_0/assets/{id}/sensors": {
@@ -4378,6 +4420,53 @@
         "required": [
           "generic_asset_type_id",
           "name"
+        ],
+        "additionalProperties": false
+      },
+      "AnnotationSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Text content of the annotation (max 1024 characters)."
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start time in ISO 8601 format."
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End time in ISO 8601 format."
+          },
+          "type": {
+            "type": "string",
+            "default": "label",
+            "enum": [
+              "alert",
+              "holiday",
+              "label",
+              "feedback",
+              "warning",
+              "error"
+            ],
+            "description": "Type of annotation."
+          },
+          "belief_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Time when annotation was created, in ISO 8601 format (default: now)."
+          }
+        },
+        "required": [
+          "content",
+          "end",
+          "start"
         ],
         "additionalProperties": false
       },
