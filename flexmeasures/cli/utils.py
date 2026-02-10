@@ -450,8 +450,19 @@ def add_cli_options_from_schema(schema):
             option_aliases = cli.get("aliases", [])
             options = [option_names] + option_aliases
 
+            # build help text from field description and example, and optionally extra help provided in the cli metadata
+            help_text = field.metadata.get("description", "")
+
+            extra_help = cli.get("extra_help")
+            if extra_help:
+                help_text += f"\n{extra_help}"
+
+            example = field.metadata.get("example")
+            if example is not None:
+                help_text += f"\nExample: {example}"
+
             kwargs = {
-                "help": field.metadata.get("description"),
+                "help": help_text,
                 "required": field.required,
                 "default": field.load_default,
             }
