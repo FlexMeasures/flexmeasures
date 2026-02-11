@@ -869,7 +869,7 @@ def add_annotation(
     )
     if end <= start:
         click.secho("End date must be after start date.", **MsgStyle.ERROR)
-        return
+        raise click.Abort()
     accounts = (
         db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
