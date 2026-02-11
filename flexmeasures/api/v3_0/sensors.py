@@ -1835,7 +1835,7 @@ class SensorAPI(FlaskView):
         post:
           summary: Creates a new sensor annotation.
           description: |
-            This endpoint creates a new annotation on a sensor.
+            This endpoint creates a new :ref:`annotation <annotations>` on a sensor.
 
           security:
             - ApiKeyAuth: []

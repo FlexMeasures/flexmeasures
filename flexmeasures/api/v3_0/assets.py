@@ -1548,7 +1548,7 @@ class AssetAPI(FlaskView):
         post:
           summary: Creates a new asset annotation.
           description: |
-            This endpoint creates a new annotation on an asset.
+            This endpoint creates a new :ref:`annotation <annotations>` on an asset.
 
           security:
             - ApiKeyAuth: []

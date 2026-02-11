@@ -447,7 +447,7 @@ class AccountAPI(FlaskView):
         post:
           summary: Creates a new account annotation.
           description: |
-            This endpoint creates a new annotation on an account.
+            This endpoint creates a new :ref:`annotation <annotations>` on an account.
 
           security:
             - ApiKeyAuth: []
