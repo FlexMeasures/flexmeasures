@@ -4549,6 +4549,18 @@
       "AnnotationSchema": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "The annotation's ID, which is automatically assigned.",
+            "example": 19
+          },
+          "source_id": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "The annotation's data source ID, which usually corresponds to a user (it is not the user ID, though).",
+            "example": 19
+          },
           "content": {
             "type": "string",
             "maxLength": 1024,

@@ -46,10 +46,7 @@ from flexmeasures.data.queries.generic_assets import (
     query_assets_by_search_terms,
 )
 from flexmeasures.data.schemas import AwareDateTimeField
-from flexmeasures.data.schemas.annotations import (
-    AnnotationSchema,
-    AnnotationResponseSchema,
-)
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
@@ -83,7 +80,6 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 annotation_schema = AnnotationSchema()
-annotation_response_schema = AnnotationResponseSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -1606,7 +1602,7 @@ class AssetAPI(FlaskView):
 
             # Return appropriate status code
             status_code = 201 if is_new else 200
-            return annotation_response_schema.dump(annotation), status_code
+            return annotation_schema.dump(annotation), status_code
 
         except SQLAlchemyError as e:
             db.session.rollback()

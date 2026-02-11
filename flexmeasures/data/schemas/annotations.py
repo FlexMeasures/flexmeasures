@@ -9,6 +9,21 @@ from flexmeasures.data.schemas.times import AwareDateTimeField
 class AnnotationSchema(Schema):
     """Schema for annotation POST requests."""
 
+    id = fields.Int(
+        dump_only=True,
+        metadata=dict(
+            description="The annotation's ID, which is automatically assigned.",
+            example=19,
+        ),
+    )
+    source_id = fields.Int(
+        dump_only=True,
+        metadata=dict(
+            description="The annotation's data source ID, which usually corresponds to a user (it is not the user ID, though).",
+            example=19,
+        ),
+    )
+
     content = fields.Str(
         required=True,
         validate=Length(max=1024),
@@ -48,18 +63,3 @@ class AnnotationSchema(Schema):
         if "start" in data and "end" in data:
             if data["end"] <= data["start"]:
                 raise ValidationError("end must be after start")
-
-
-class AnnotationResponseSchema(Schema):
-    """Schema for annotation API responses."""
-
-    id = fields.Int(dump_only=True)
-    content = fields.Str()
-    start = AwareDateTimeField(format="iso")
-    end = AwareDateTimeField(format="iso")
-    type = fields.Str()
-    belief_time = AwareDateTimeField(data_key="prior", format="iso")
-    source_id = fields.Int(dump_only=True)
-
-    class Meta:
-        ordered = True

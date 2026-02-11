@@ -50,10 +50,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
-from flexmeasures.data.schemas.annotations import (
-    AnnotationSchema,
-    AnnotationResponseSchema,
-)
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
@@ -86,7 +83,6 @@ sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
-annotation_response_schema = AnnotationResponseSchema()
 
 
 class SensorKwargsSchema(Schema):
@@ -1893,7 +1889,7 @@ class SensorAPI(FlaskView):
 
             # Return appropriate status code
             status_code = 201 if is_new else 200
-            return annotation_response_schema.dump(annotation), status_code
+            return annotation_schema.dump(annotation), status_code
 
         except SQLAlchemyError as e:
             db.session.rollback()

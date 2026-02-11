@@ -21,10 +21,7 @@ from flexmeasures.data.services.accounts import get_accounts, get_audit_log_reco
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
-from flexmeasures.data.schemas.annotations import (
-    AnnotationSchema,
-    AnnotationResponseSchema,
-)
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.users import AccountAPIQuerySchema
 
@@ -40,7 +37,6 @@ account_schema = AccountSchema()
 accounts_schema = AccountSchema(many=True)
 partial_account_schema = AccountSchema(partial=True)
 annotation_schema = AnnotationSchema()
-annotation_response_schema = AnnotationResponseSchema()
 
 
 class AccountAPI(FlaskView):
@@ -505,7 +501,7 @@ class AccountAPI(FlaskView):
 
             # Return appropriate status code
             status_code = 201 if is_new else 200
-            return annotation_response_schema.dump(annotation), status_code
+            return annotation_schema.dump(annotation), status_code
 
         except SQLAlchemyError as e:
             db.session.rollback()
