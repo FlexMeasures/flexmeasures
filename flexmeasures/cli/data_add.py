@@ -884,6 +884,12 @@ def add_annotation(
             type="label",
         )
     )
+    if not accounts and not assets and not sensors:
+        click.secho(
+            "No accounts, assets or sensors specified to add the annotation to. Please specify at least one.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
     for account in accounts:
         account.annotations.append(annotation)
     for asset in assets:
