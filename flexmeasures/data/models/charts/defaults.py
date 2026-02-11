@@ -90,7 +90,6 @@ REPLAY_RULER = {
 SHADE_LAYER = {
     "mark": {
         "type": "bar",
-        "opacity": 0.3,
         "size": HEIGHT,
     },
     "encoding": {
@@ -118,6 +117,21 @@ SHADE_LAYER = {
                 },
             ],
             "value": "var(--gray)"  # default color
+        },
+        "opacity": {
+            "condition": [
+                {
+                    "param": "select",
+                    "empty": False,
+                    "value": 0.8,
+                },
+                {
+                    "param": "highlight",
+                    "empty": False,
+                    "value": 0.7,
+                },
+            ],
+            "value": 0.3,
         },
     },
     "params": [
