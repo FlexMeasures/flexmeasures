@@ -63,7 +63,9 @@ def test_post_account_annotation_permissions(
         json=annotation_data,
     )
 
-    assert response.status_code == expected_status_code
+    assert (
+        response.status_code == expected_status_code
+    ), f"Expected {expected_status_code}, but got {response.status_code} with {response.json}"
 
     if expected_status_code == 201:
         # Verify response contains expected fields
@@ -127,7 +129,9 @@ def test_post_asset_annotation_permissions(
         json=annotation_data,
     )
 
-    assert response.status_code == expected_status_code
+    assert (
+        response.status_code == expected_status_code
+    ), f"Expected {expected_status_code}, but got {response.status_code} with {response.json}"
 
     if expected_status_code == 201:
         # Verify response format
@@ -194,7 +198,9 @@ def test_post_sensor_annotation_permissions(
         json=annotation_data,
     )
 
-    assert response.status_code == expected_status_code
+    assert (
+        response.status_code == expected_status_code
+    ), f"Expected {expected_status_code}, but got {response.status_code} with {response.json}"
 
     if expected_status_code == 201:
         # Verify response format
@@ -244,7 +250,9 @@ def test_post_annotation_valid_types(client, setup_api_test_data, annotation_typ
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 201
+    assert (
+        response.status_code == 201
+    ), f"Expected 201, but got {response.status_code} with {response.json}"
     assert response.json["type"] == annotation_type
 
 
@@ -274,7 +282,9 @@ def test_post_annotation_invalid_type(client, setup_api_test_data):
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 422
+    assert (
+        response.status_code == 422
+    ), f"Expected 422, but got {response.status_code} with {response.json}"
 
 
 @pytest.mark.parametrize(
@@ -313,7 +323,9 @@ def test_post_annotation_missing_required_fields(
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 422
+    assert (
+        response.status_code == 422
+    ), f"Expected 422, but got {response.status_code} with {response.json}"
 
 
 def test_post_annotation_content_too_long(client, setup_api_test_data):
@@ -344,7 +356,9 @@ def test_post_annotation_content_too_long(client, setup_api_test_data):
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 422
+    assert (
+        response.status_code == 422
+    ), f"Expected 422, but got {response.status_code} with {response.json}"
 
 
 def test_post_annotation_end_before_start(client, setup_api_test_data):
@@ -372,7 +386,9 @@ def test_post_annotation_end_before_start(client, setup_api_test_data):
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 422
+    assert (
+        response.status_code == 422
+    ), f"Expected 422, but got {response.status_code} with {response.json}"
 
 
 def test_post_annotation_end_equal_to_start(client, setup_api_test_data):
@@ -400,7 +416,9 @@ def test_post_annotation_end_equal_to_start(client, setup_api_test_data):
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 422
+    assert (
+        response.status_code == 422
+    ), f"Expected 422, but got {response.status_code} with {response.json}"
 
 
 def test_post_annotation_not_found(client, setup_api_test_data):
@@ -442,7 +460,9 @@ def test_post_annotation_not_found(client, setup_api_test_data):
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
-    assert response.status_code == 422
+    assert (
+        response.status_code == 422
+    ), f"Expected 422, but got {response.status_code} with {response.json}"
 
     # Test with non-existent sensor (returns 422)
     response = client.post(
@@ -450,7 +470,9 @@ def test_post_annotation_not_found(client, setup_api_test_data):
         json=annotation_data,
         headers={"Authorization": auth_token},
     )
-    assert response.status_code == 422
+    assert (
+        response.status_code == 422
+    ), f"Expected 422, but got {response.status_code} with {response.json}"
 
 
 def test_post_annotation_idempotency(client, setup_api_test_data):
@@ -541,7 +563,9 @@ def test_post_annotation_with_prior(client, setup_api_test_data):
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 201
+    assert (
+        response.status_code == 201
+    ), f"Expected 201, but got {response.status_code} with {response.json}"
     assert "prior" in response.json
     # Compare times after parsing to handle timezone conversions
     import dateutil.parser
@@ -577,7 +601,9 @@ def test_post_annotation_default_type(client, setup_api_test_data):
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 201
+    assert (
+        response.status_code == 201
+    ), f"Expected 201, but got {response.status_code} with {response.json}"
     assert response.json["type"] == "label"
 
 
@@ -614,7 +640,9 @@ def test_post_annotation_all_three_endpoints(client, setup_api_test_data):
         },
         headers={"Authorization": auth_token},
     )
-    assert response.status_code == 201
+    assert (
+        response.status_code == 201
+    ), f"Expected 201, but got {response.status_code} with {response.json}"
     account_annotation_id = response.json["id"]
 
     # Test asset annotation
@@ -627,7 +655,9 @@ def test_post_annotation_all_three_endpoints(client, setup_api_test_data):
         },
         headers={"Authorization": auth_token},
     )
-    assert response.status_code == 201
+    assert (
+        response.status_code == 201
+    ), f"Expected 201, but got {response.status_code} with {response.json}"
     asset_annotation_id = response.json["id"]
 
     # Test sensor annotation
@@ -640,7 +670,9 @@ def test_post_annotation_all_three_endpoints(client, setup_api_test_data):
         },
         headers={"Authorization": auth_token},
     )
-    assert response.status_code == 201
+    assert (
+        response.status_code == 201
+    ), f"Expected 201, but got {response.status_code} with {response.json}"
     sensor_annotation_id = response.json["id"]
 
     # Verify all annotations are distinct
@@ -692,7 +724,9 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
         headers={"Authorization": auth_token},
     )
 
-    assert response.status_code == 201
+    assert (
+        response.status_code == 201
+    ), f"Expected 201, but got {response.status_code} with {response.json}"
 
     # Check all expected fields are present
     assert "id" in response.json
