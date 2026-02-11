@@ -28,18 +28,29 @@ class AnnotationSchema(Schema):
         required=True,
         validate=Length(max=1024),
         metadata={
-            "description": "Text content of the annotation (max 1024 characters)."
+            "description": "Text content of the annotation (max 1024 characters).",
+            "examples": [
+                "Server maintenance",
+                "Installation upgrade",
+                "Operation Main Strike",
+            ],
         },
     )
     start = AwareDateTimeField(
         required=True,
         format="iso",
-        metadata={"description": "Start time in ISO 8601 format."},
+        metadata={
+            "description": "Start time in ISO 8601 format.",
+            "example": "2026-02-11T17:52:03+01:00",
+        },
     )
     end = AwareDateTimeField(
         required=True,
         format="iso",
-        metadata={"description": "End time in ISO 8601 format."},
+        metadata={
+            "description": "End time in ISO 8601 format.",
+            "example": "2026-02-11T19:00:00+01:00",
+        },
     )
     type = fields.Str(
         required=False,
@@ -53,7 +64,8 @@ class AnnotationSchema(Schema):
         allow_none=True,
         format="iso",
         metadata={
-            "description": "Time when the annotation was recorded, in ISO 8601 format (default: now)."
+            "description": "Time when the annotation was recorded, in ISO 8601 format (default: now).",
+            "example": "2026-02-01T17:43:56+01:00",
         },
     )
 

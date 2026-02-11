@@ -4564,17 +4564,24 @@
           "content": {
             "type": "string",
             "maxLength": 1024,
-            "description": "Text content of the annotation (max 1024 characters)."
+            "description": "Text content of the annotation (max 1024 characters).",
+            "examples": [
+              "Server maintenance",
+              "Installation upgrade",
+              "Operation Main Strike"
+            ]
           },
           "start": {
             "type": "string",
             "format": "date-time",
-            "description": "Start time in ISO 8601 format."
+            "description": "Start time in ISO 8601 format.",
+            "example": "2026-02-11T17:52:03+01:00"
           },
           "end": {
             "type": "string",
             "format": "date-time",
-            "description": "End time in ISO 8601 format."
+            "description": "End time in ISO 8601 format.",
+            "example": "2026-02-11T19:00:00+01:00"
           },
           "type": {
             "type": "string",
@@ -4595,7 +4602,8 @@
               "null"
             ],
             "format": "date-time",
-            "description": "Time when the annotation was recorded, in ISO 8601 format (default: now)."
+            "description": "Time when the annotation was recorded, in ISO 8601 format (default: now).",
+            "example": "2026-02-01T17:43:56+01:00"
           }
         },
         "required": [
