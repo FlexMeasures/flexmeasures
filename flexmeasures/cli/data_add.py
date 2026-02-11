@@ -1002,14 +1002,14 @@ def add_holidays(
 
 
 @fm_add_data.command("forecasts")
-# @click.option(
-#     "--resolution",
-#     help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
-# )
-# @click.option(
-#     "--horizon",
-#     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
-# )
+@click.option(
+    "--resolution",
+    help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
+)
+@click.option(
+    "--horizon",
+    help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
+)
 @click.option(
     "--config",
     "config_file",
