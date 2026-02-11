@@ -1211,6 +1211,7 @@
           }
         },
         "tags": [
+          "Sensors",
           "Annotations"
         ]
       }
@@ -1974,6 +1975,7 @@
           }
         },
         "tags": [
+          "Accounts",
           "Annotations"
         ]
       }
@@ -3654,6 +3656,7 @@
           }
         },
         "tags": [
+          "Assets",
           "Annotations"
         ]
       }

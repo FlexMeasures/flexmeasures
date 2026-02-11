@@ -1543,7 +1543,7 @@ class AssetAPI(FlaskView):
     @use_args(annotation_schema)
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     def post_annotation(self, annotation_data: dict, id: int, asset: GenericAsset):
-        """.. :quickref: Annotations; Add an annotation to an asset.
+        """.. :quickref: Assets; Add an annotation to an asset.
         ---
         post:
           summary: Creates a new asset annotation.
@@ -1578,6 +1578,7 @@ class AssetAPI(FlaskView):
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
+            - Assets
             - Annotations
         """
         try:

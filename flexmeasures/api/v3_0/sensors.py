@@ -1830,7 +1830,7 @@ class SensorAPI(FlaskView):
     @use_args(annotation_schema)
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
     def post_annotation(self, annotation_data: dict, id: int, sensor: Sensor):
-        """.. :quickref: Annotations; Add an annotation to a sensor.
+        """.. :quickref: Sensors; Add an annotation to a sensor.
         ---
         post:
           summary: Creates a new sensor annotation.
@@ -1865,6 +1865,7 @@ class SensorAPI(FlaskView):
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
+            - Sensors
             - Annotations
         """
         try:

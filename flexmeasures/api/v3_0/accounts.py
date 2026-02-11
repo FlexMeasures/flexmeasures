@@ -442,7 +442,7 @@ class AccountAPI(FlaskView):
     @permission_required_for_context("create-children", ctx_arg_name="account")
     def post_annotation(self, annotation_data: dict, id: int, account: Account):
         """
-        .. :quickref: Annotations; Add an annotation to an account.
+        .. :quickref: Accounts; Add an annotation to an account.
         ---
         post:
           summary: Creates a new account annotation.
@@ -477,6 +477,7 @@ class AccountAPI(FlaskView):
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
+            - Accounts
             - Annotations
         """
         try:
