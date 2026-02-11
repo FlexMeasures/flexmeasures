@@ -4,6 +4,7 @@ FlexMeasures API v3
 
 from pathlib import Path
 from typing import Any, Type
+import inspect
 
 from flask import Flask
 import json
@@ -33,6 +34,7 @@ from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
+from flexmeasures.utils.doc_utils import rst_to_openapi
 
 
 def register_at(app: Flask):
@@ -161,6 +163,13 @@ def create_openapi_specs(app: Flask):
                 continue
 
             view_function = app.view_functions[endpoint_name]
+
+            # Make sure rst docstring suits OpenAPI
+            target = view_function
+            if inspect.ismethod(view_function):
+                target = view_function.__func__
+            if target.__doc__:
+                target.__doc__ = rst_to_openapi(target.__doc__)
 
             # Document all API endpoints under /api or root /
             if rule.rule.startswith("/api/") or rule.rule == "/":

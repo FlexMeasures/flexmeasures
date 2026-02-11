@@ -11,6 +11,7 @@ def rst_to_openapi(text: str) -> str:
     - Converts ``inline code`` to <code>
     - Converts **bold** to <strong>
     - Converts *italic* to <em>
+    - Converts :ref:`strings <with cross-references>` to just strings
     """
 
     # Remove footnote references
@@ -55,5 +56,17 @@ def rst_to_openapi(text: str) -> str:
 
     # Handle italics
     text = re.sub(r"\*(.*?)\*", r"<em>\1</em>", text)
+
+    # Handle cross-references
+    def ref_repl(match):
+        content = match.group(1)
+        # Case: "text <label>"
+        if "<" in content and content.endswith(">"):
+            visible, _label = content.rsplit("<", 1)
+            return visible.strip()
+        # Case: "label"
+        return content.strip()
+
+    text = re.sub(r":ref:`([^`]+)`", ref_repl, text)
 
     return text
