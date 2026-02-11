@@ -90,7 +90,6 @@ REPLAY_RULER = {
 SHADE_LAYER = {
     "mark": {
         "type": "bar",
-        "color": "#bbbbbb",
         "opacity": 0.3,
         "size": HEIGHT,
     },
@@ -105,6 +104,21 @@ SHADE_LAYER = {
             type="temporal",
             title=None,
         ),
+        "color": {
+            "condition": [
+                {
+                    "param": "select",
+                    "empty": False,
+                    "value": "var(--secondary-color)"  # highlight color on select
+                },
+                {
+                    "param": "highlight",
+                    "empty": False,
+                    "value": "var(--secondary-hover-color)"  # highlight color on hover
+                },
+            ],
+            "value": "var(--gray)"  # default color
+        },
     },
     "params": [
         {
