@@ -1,3 +1,12 @@
+/**
+ * UI Components
+ * =============
+ *
+ * This file contains reusable UI components for the FlexMeasures frontend.
+ * Moving forward, new UI elements and sub-components (graphs, cards, lists)
+ * should be defined here to promote reusability and cleaner template files.
+ */
+
 import { getAsset, getAccount, getSensor, apiBasePath } from "./ui-utils.js";
 
 /**
@@ -25,6 +34,18 @@ const addInfo = (label, value, infoDiv, resource, isLink = false) => {
   }
 };
 
+/**
+ * Renders a card representing an Asset Plot configuration.
+ *
+ * Creates a visual element displaying the Asset ID, Name, and its associated
+ * Flex Context or Flex Model configuration. Includes a remove button.
+ *
+ * @param {Object} assetPlot - The configuration object for the asset plot.
+ *                             Expected structure: { asset: <id>, "flex-context"?: <string>, "flex-model"?: <string> }
+ * @param {number} graphIndex - The index of the parent graph in the sensors_to_show array.
+ * @param {number} plotIndex - The index of this specific plot within the graph's plots array.
+ * @returns {Promise<HTMLElement>} The constructed HTML element representing the card.
+ */
 export async function renderAssetPlotCard(assetPlot, graphIndex, plotIndex) {
   const Asset = await getAsset(assetPlot.asset);
   let IsFlexContext = false;
@@ -68,7 +89,7 @@ export async function renderAssetPlotCard(assetPlot, graphIndex, plotIndex) {
   // Attach the actual function here
   closeIcon.addEventListener("click", (e) => {
     e.stopPropagation(); // Prevent card selection click
-    // removeAssetPlotFromGraph(graphIndex, plotIndex);
+    // removeAssetPlotFromGraph(graphIndex, plotIndex); // Note: Function reference needs to be available in scope
   });
 
   flexDiv.appendChild(infoDiv);
@@ -78,6 +99,17 @@ export async function renderAssetPlotCard(assetPlot, graphIndex, plotIndex) {
   return container;
 }
 
+/**
+ * Renders a card representing a single Sensor.
+ *
+ * Creates a visual element displaying Sensor ID, Unit, Name, Asset Name,
+ * and Account Name. Used within the list of sensors for a graph.
+ *
+ * @param {number} sensorId - The ID of the sensor to display.
+ * @param {number} graphIndex - The index of the parent graph in the sensors_to_show array.
+ * @param {number} sensorIndex - The index of this sensor within the graph's sensor list.
+ * @returns {Promise<{element: HTMLElement, unit: string}>} An object containing the card element and the sensor's unit.
+ */
 export async function renderSensorCard(sensorId, graphIndex, sensorIndex) {
   const Sensor = await getSensor(sensorId);
   const Asset = await getAsset(Sensor.generic_asset_id);
@@ -125,6 +157,16 @@ export async function renderSensorCard(sensorId, graphIndex, sensorIndex) {
   return { element: container, unit: Sensor.unit };
 }
 
+/**
+ * Renders a list of sensors for a specific graph card.
+ *
+ * Iterates through a list of sensor IDs, creates cards for them, and
+ * aggregates their units to help detect unit mismatches.
+ *
+ * @param {number[]} sensorIds - Array of sensor IDs to render.
+ * @param {number} graphIndex - The index of the parent graph being rendered.
+ * @returns {Promise<{element: HTMLElement, uniqueUnits: string[]}>} An object containing the container element with all sensors and a list of unique units found.
+ */
 export async function renderSensorsList(sensorIds, graphIndex) {
   const listContainer = document.createElement("div");
   const units = [];
@@ -144,5 +186,5 @@ export async function renderSensorsList(sensorIds, graphIndex) {
     units.push(res.unit);
   });
 
-  return { element: listContainer, uniqueUnits: [...new Set(units)] };
-}
+  return { element: listContainer, uniqueUnits: [...new Set(units)] }
+};

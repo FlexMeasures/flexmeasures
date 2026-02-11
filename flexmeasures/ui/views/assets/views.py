@@ -352,6 +352,7 @@ class AssetCrudUI(FlaskView):
             asset=asset,
             has_kpis=has_kpis,
             asset_kpis=asset_kpis,
+            available_units=available_units(),
             current_page="Graphs",
         )
 
