@@ -108,15 +108,15 @@ SHADE_LAYER = {
                 {
                     "param": "select",
                     "empty": False,
-                    "value": "var(--secondary-color)"  # highlight color on select
+                    "value": "var(--secondary-color)",  # highlight color on select
                 },
                 {
                     "param": "highlight",
                     "empty": False,
-                    "value": "var(--secondary-hover-color)"  # highlight color on hover
+                    "value": "var(--secondary-hover-color)",  # highlight color on hover
                 },
             ],
-            "value": "var(--gray)"  # default color
+            "value": "var(--gray)",  # default color
         },
         "opacity": {
             "condition": [
