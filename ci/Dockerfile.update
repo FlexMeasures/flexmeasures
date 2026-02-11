@@ -1,16 +1,17 @@
 ARG PYTHON_VERSION
 
-FROM python:${PYTHON_VERSION}-slim-bookworm as update
+FROM python:${PYTHON_VERSION}-slim-bookworm AS update
 
 # Install dependencies
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the source code
+# Pip 26 not supported yet, see https://github.com/jazzband/pip-tools/issues/2319
+RUN pip install --upgrade pip==25.0.1
 
+# Copy the source code
 COPY . /app
 WORKDIR /app
 
