@@ -476,42 +476,28 @@ class AccountAPI(FlaskView):
             - Accounts
             - Annotations
         """
-        try:
-            # Get or create data source for current user
-            source = get_or_create_source(current_user)
+        # Get or create data source for current user
+        source = get_or_create_source(current_user)
 
-            # Create annotation object
-            annotation = Annotation(
-                content=annotation_data["content"],
-                start=annotation_data["start"],
-                end=annotation_data["end"],
-                type=annotation_data.get("type", "label"),
-                belief_time=annotation_data.get("belief_time"),
-                source=source,
-            )
+        # Create annotation object
+        annotation = Annotation(
+            content=annotation_data["content"],
+            start=annotation_data["start"],
+            end=annotation_data["end"],
+            type=annotation_data.get("type", "label"),
+            belief_time=annotation_data.get("belief_time"),
+            source=source,
+        )
 
-            # Use get_or_create to handle duplicates gracefully
-            annotation, is_new = get_or_create_annotation(annotation)
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
 
-            # Link annotation to account
-            if annotation not in account.annotations:
-                account.annotations.append(annotation)
+        # Link annotation to account
+        if annotation not in account.annotations:
+            account.annotations.append(annotation)
 
-            db.session.commit()
+        db.session.commit()
 
-            # Return appropriate status code
-            status_code = 201 if is_new else 200
-            return annotation_schema.dump(annotation), status_code
-
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            current_app.logger.error(f"Database error while creating annotation: {e}")
-            raise InternalServerError(
-                "A database error occurred while creating the annotation"
-            )
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Unexpected error creating annotation: {e}")
-            raise InternalServerError(
-                "An unexpected error occurred while creating the annotation"
-            )
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code
