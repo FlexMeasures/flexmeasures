@@ -292,6 +292,7 @@ class AssetCrudUI(FlaskView):
                 session["msg"] = f"Cannot edit asset: {asset_form.errors}"
                 return redirect(url_for("AssetCrudUI:properties", id=id))
             try:
+                patch_asset_schema.context = {"asset_id": asset.id}
                 loaded_asset_data = patch_asset_schema.load(asset_form.to_json())
                 patch_asset(asset, loaded_asset_data)
                 db.session.commit()

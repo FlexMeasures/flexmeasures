@@ -209,21 +209,22 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         Here, we can only check if we have all information (a full form),
         which usually is at creation time.
         """
-        if (
-            "name" in data
-            and "parent_asset_id" in data
-            and data["parent_asset_id"] is not None
-        ):
-            asset = db.session.scalars(
-                select(GenericAsset)
-                .filter_by(
-                    name=data["name"],
-                    parent_asset_id=data.get("parent_asset_id"),
-                )
-                .limit(1)
-            ).first()
+        if "name" in data:
+            parent_id = data.get("parent_asset_id")
 
-            if asset:
+            query = select(GenericAsset).filter_by(
+                name=data["name"],
+                parent_asset_id=parent_id,
+            )
+
+            current_editing_id = self.context.get("asset_id")
+
+            if current_editing_id is not None:
+                query = query.filter(GenericAsset.id != current_editing_id)
+
+            existing_asset = db.session.scalars(query).first()
+
+            if existing_asset:
                 err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
                 raise ValidationError(err_msg, "name")
 
