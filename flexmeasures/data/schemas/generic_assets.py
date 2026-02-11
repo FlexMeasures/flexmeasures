@@ -210,24 +210,23 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         which usually is at creation time.
         """
         if "name" in data:
-            parent_id = data.get("parent_asset_id")
+            parent_id = data["parent_asset_id"]
 
-            if parent_id is not None:
-                query = select(GenericAsset).filter_by(
-                    name=data["name"],
-                    parent_asset_id=parent_id,
-                )
+            query = select(GenericAsset).filter_by(
+                name=data["name"],
+                parent_asset_id=parent_id,
+            )
 
-                current_editing_id = self.context.get("asset_id")
+            current_editing_id = getattr(self, "context", {}).get("asset_id")
 
-                if current_editing_id is not None:
-                    query = query.filter(GenericAsset.id != current_editing_id)
+            if current_editing_id is not None:
+                query = query.filter(GenericAsset.id != current_editing_id)
 
-                existing_asset = db.session.scalars(query).first()
+            existing_asset = db.session.scalars(query).first()
 
-                if existing_asset:
-                    err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
-                    raise ValidationError(err_msg, "name")
+            if existing_asset:
+                err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
+                raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int, **kwargs):
