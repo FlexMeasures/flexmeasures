@@ -7,7 +7,7 @@ from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
 )
 
-from werkzeug.exceptions import Unauthorized, InternalServerError
+from werkzeug.exceptions import Unauthorized
 from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
@@ -18,7 +18,6 @@ from rq.job import Job, JobStatus, NoSuchJobError
 import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
-from sqlalchemy.exc import SQLAlchemyError
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -51,7 +50,6 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.annotations import AnnotationSchema
-from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
     SensorIdField,

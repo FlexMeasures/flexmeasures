@@ -10,8 +10,6 @@ from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
-from sqlalchemy.exc import SQLAlchemyError
-from werkzeug.exceptions import InternalServerError
 
 from marshmallow import fields, ValidationError, Schema, validate
 
@@ -52,7 +50,6 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
 )
-from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
 from flexmeasures.data.services.scheduling import (

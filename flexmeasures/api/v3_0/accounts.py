@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from flask import current_app
 from flask_classful import FlaskView, route
 from flexmeasures.data import db
 from webargs.flaskparser import use_kwargs, use_args
@@ -8,8 +7,6 @@ from flask_security import current_user, auth_required
 from flask_json import as_json
 from sqlalchemy import or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
-from sqlalchemy.exc import SQLAlchemyError
-from werkzeug.exceptions import InternalServerError
 
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -18,7 +15,6 @@ from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
-from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.annotations import AnnotationSchema
