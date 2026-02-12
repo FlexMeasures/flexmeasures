@@ -436,7 +436,7 @@ class AccountAPI(FlaskView):
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
     @permission_required_for_context("create-children", ctx_arg_name="account")
-    def post_annotation(self, annotation_data: dict, id: int, account: Account):
+    def post_annotation(self, annotation: Annotation, id: int, account: Account):
         """
         .. :quickref: Accounts; Add an annotation to an account.
         ---
@@ -476,18 +476,6 @@ class AccountAPI(FlaskView):
             - Accounts
             - Annotations
         """
-        # Get or create data source for current user
-        source = get_or_create_source(current_user)
-
-        # Create annotation object
-        annotation = Annotation(
-            content=annotation_data["content"],
-            start=annotation_data["start"],
-            end=annotation_data["end"],
-            type=annotation_data.get("type", "label"),
-            belief_time=annotation_data.get("belief_time"),
-            source=source,
-        )
 
         # Use get_or_create to handle duplicates gracefully
         annotation, is_new = get_or_create_annotation(annotation)

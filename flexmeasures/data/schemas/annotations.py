@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from marshmallow import Schema, fields, validates_schema, ValidationError
+from flask_security import current_user
+from marshmallow import Schema, fields, post_load, validates_schema, ValidationError
 from marshmallow.validate import OneOf, Length
 
+from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.schemas.times import AwareDateTimeField
+from flexmeasures.data.services.data_sources import get_or_create_source
 
 
 class AnnotationSchema(Schema):
@@ -75,3 +78,17 @@ class AnnotationSchema(Schema):
         if "start" in data and "end" in data:
             if data["end"] <= data["start"]:
                 raise ValidationError("end must be after start")
+
+    @post_load
+    def to_annotation(self, data: dict, *args, **kwargs) -> Annotation:
+        """Load annotation data into a user-sourced annotation object."""
+        source = get_or_create_source(current_user)
+        annotation = Annotation(
+            content=data["content"],
+            start=data["start"],
+            end=data["end"],
+            type=data.get("type", "label"),
+            belief_time=data.get("belief_time"),
+            source=source,
+        )
+        return annotation

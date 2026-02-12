@@ -1825,7 +1825,7 @@ class SensorAPI(FlaskView):
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
-    def post_annotation(self, annotation_data: dict, id: int, sensor: Sensor):
+    def post_annotation(self, annotation: Annotation, id: int, sensor: Sensor):
         """.. :quickref: Sensors; Add an annotation to a sensor.
         ---
         post:
@@ -1864,18 +1864,6 @@ class SensorAPI(FlaskView):
             - Sensors
             - Annotations
         """
-        # Get or create data source for current user
-        source = get_or_create_source(current_user)
-
-        # Create annotation object
-        annotation = Annotation(
-            content=annotation_data["content"],
-            start=annotation_data["start"],
-            end=annotation_data["end"],
-            type=annotation_data.get("type", "label"),
-            belief_time=annotation_data.get("belief_time"),
-            source=source,
-        )
 
         # Use get_or_create to handle duplicates gracefully
         annotation, is_new = get_or_create_annotation(annotation)
