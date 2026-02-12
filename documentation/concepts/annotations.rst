@@ -7,7 +7,7 @@ Annotations allow you to attach contextual information to accounts, assets, or s
 They help document important events, holidays, alerts, maintenance windows, or any other information that adds context to your time series data.
 
 
-What are Annotations?
+What are annotations?
 ---------------------
 
 An annotation is a piece of metadata associated with a specific entity (account, asset, or sensor) during a defined time period.
@@ -20,7 +20,7 @@ Each annotation includes:
 - **Source**: The data source that created the annotation (typically a user or automated system)
 
 
-Use Cases
+Use cases
 ---------
 
 Annotations are particularly useful for:
@@ -46,7 +46,7 @@ Annotations are particularly useful for:
     These annotations appear in all related sensor charts for that asset.
 
 
-Annotation Types
+Annotation types
 ----------------
 
 FlexMeasures supports six annotation types:
@@ -70,7 +70,7 @@ FlexMeasures supports six annotation types:
     User feedback or observations about system behavior or data.
 
 
-Creating Annotations via API
+Creating annotations via API
 -----------------------------
 
 The annotation API provides three POST endpoints:
@@ -349,7 +349,7 @@ This idempotency is based on a database uniqueness constraint on ``(content, sta
 The ``end`` field is not part of the uniqueness constraint.
 
 
-Creating Annotations via CLI
+Creating annotations via CLI
 -----------------------------
 
 FlexMeasures provides CLI commands for creating annotations:
@@ -394,7 +394,7 @@ FlexMeasures can automatically import public holidays using the `workalendar <ht
 See ``flexmeasures add holidays --help`` for available countries and options.
 
 
-Viewing Annotations
+Viewing annotations
 -------------------
 
 **In the FlexMeasures UI:**
@@ -423,7 +423,7 @@ This allows you to:
 See :ref:`dev` for complete API documentation for sensor charts.
 
 
-See Also
+See also
 --------
 
 - :ref:`v3_0` - Complete API documentation including annotation endpoints
