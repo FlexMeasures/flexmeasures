@@ -139,10 +139,10 @@ Successful requests return the created annotation:
         "end": "2024-12-15T11:00:00+01:00",
         "type": "label",
         "prior": "2024-12-15T08:45:00+01:00",
-        "source_id": 42
+        "source": 42
     }
 
-The ``source_id`` identifies the data source that created the annotation (typically corresponds to the authenticated user).
+The ``source`` identifies the data source that created the annotation (typically corresponds to the authenticated user).
 
 
 **Status Codes**
@@ -185,7 +185,7 @@ Examples
         "end": "2024-12-26T00:00:00+01:00",
         "type": "holiday",
         "prior": "2024-12-15T10:30:00+01:00",
-        "source_id": 12
+        "source": 12
     }
 
 **Status:** ``201 Created``
@@ -216,7 +216,7 @@ Examples
         "end": "2024-12-10T16:45:00+01:00",
         "type": "error",
         "prior": "2024-12-15T10:35:00+01:00",
-        "source_id": 12
+        "source": 12
     }
 
 **Status:** ``201 Created``
@@ -337,7 +337,7 @@ the API will:
 1. On first request: Create the annotation and return ``201 Created``
 2. On subsequent identical requests: Return the existing annotation with ``200 OK``
 
-This idempotency is based on a database uniqueness constraint on ``(content, start, prior, source_id, type)``.
+This idempotency is based on a database uniqueness constraint on ``(content, start, prior, source, type)``.
 
 **Why is this useful?**
 

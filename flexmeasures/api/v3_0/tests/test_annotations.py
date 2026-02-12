@@ -72,7 +72,7 @@ def test_post_account_annotation_permissions(
         assert "id" in response.json
         assert response.json["content"] == "Test annotation"
         assert response.json["type"] == "label"
-        assert "source_id" in response.json
+        assert "source" in response.json
 
         # Verify annotation is linked to account
         annotation = client.application.db.session.get(Annotation, response.json["id"])
@@ -701,7 +701,7 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
     - end (ISO 8601 datetime)
     - type (string)
     - prior (ISO 8601 datetime)
-    - source_id (integer)
+    - source (integer)
     """
     from flexmeasures.api.tests.utils import get_auth_token
 
@@ -735,13 +735,13 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
     assert "end" in response.json
     assert "type" in response.json
     assert "prior" in response.json
-    assert "source_id" in response.json
+    assert "source" in response.json
 
     # Verify field types and values
     assert isinstance(response.json["id"], int)
     assert response.json["content"] == "Complete response test"
     assert response.json["type"] == "warning"
-    assert isinstance(response.json["source_id"], int)
+    assert isinstance(response.json["source"], int)
 
     # Verify datetime fields are in ISO format
     assert "T" in response.json["start"]

@@ -20,6 +20,7 @@ class AnnotationSchema(Schema):
         ),
     )
     source_id = fields.Int(
+        data_key="source",
         dump_only=True,
         metadata=dict(
             description="The annotation's data source ID, which usually corresponds to a user (it is not the user ID, though).",
