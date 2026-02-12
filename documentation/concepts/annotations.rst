@@ -401,11 +401,10 @@ Viewing Annotations
 
 Annotations appear automatically in:
 
-- **Sensor charts**: Individual sensor data views show all annotations linked to that sensor, its asset, and its account
-- **Asset views**: Display annotations associated with the asset and its parent account
-- **Dashboard views**: Where relevant, annotations provide context to visualized data
+- **Sensor charts**: Individual sensor data views show all annotations linked to that sensor and its asset
+- **Not yet in asset charts**: these might show all annotations linked to that asset, its parent assets, and its account
 
-Annotations are displayed as vertical bands or markers on time series charts, color-coded by type.
+Annotations are displayed as vertical bands, with their text contents displayed on hover (select to keep it visible).
 
 **Via API queries:**
 
