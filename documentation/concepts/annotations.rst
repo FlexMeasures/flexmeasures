@@ -423,39 +423,6 @@ This allows you to:
 See :ref:`dev` for complete API documentation for sensor charts.
 
 
-Best Practices
---------------
-
-**Content Guidelines**
-
-- Be concise but descriptive (you have 1024 characters)
-- Include relevant context: who, what, why
-- For errors, describe the impact and resolution status
-- Use consistent formatting for similar annotation types
-
-**Time Range Selection**
-
-- Use precise start/end times for known events
-- For ongoing issues, set end time to expected resolution or current time
-- Consider timezone implications for multi-region deployments
-
-**Type Selection**
-
-- Use ``holiday`` for events that forecasting algorithms should consider
-- Use ``error`` for data quality issues that affect analysis
-- Use ``label`` for general documentation
-- Use ``alert`` for active issues requiring attention
-- Reserve ``warning`` for degraded but functioning conditions
-
-**Organizational Practices**
-
-- Establish annotation conventions within your team
-- Document your annotation strategy in internal wikis
-- Regularly review and update annotations as situations evolve
-- Use CLI for bulk imports (e.g., yearly holidays)
-- Use API for automated annotation creation from monitoring systems
-
-
 See Also
 --------
 
