@@ -17,9 +17,9 @@ v3.0-29 | 2026-02-10
 
 - Added three new API endpoints to create annotations for accounts, assets, and sensors:
 
-  * `POST /annotations/accounts/(id) <api/v3_0.html#post--api-v3_0-annotations-accounts-id>`_
-  * `POST /annotations/assets/(id) <api/v3_0.html#post--api-v3_0-annotations-assets-id>`_
-  * `POST /annotations/sensors/(id) <api/v3_0.html#post--api-v3_0-annotations-sensors-id>`_
+  * `POST /accounts/(id)/annotations <api/v3_0.html#post--api-v3_0-accounts-id-annotations>`_
+  * `POST /assets/(id)/annotations <api/v3_0.html#post--api-v3_0-assets-id-annotations>`_
+  * `POST /sensors/(id)/annotations <api/v3_0.html#post--api-v3_0-sensors-id-annotations>`_
 
 - Support saving the aggregate power schedule by referencing a power sensor in the ``flex-context`` (new field ``aggregate-power``).
 - Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
