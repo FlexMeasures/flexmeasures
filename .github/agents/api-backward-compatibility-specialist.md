@@ -69,29 +69,78 @@ Input schemas validate request data; output schemas control response data. These
 **Session 2026-02-10 Case Study** (Annotation API):
 
 **Problem**: Initial annotation API used single schema for input and output:
+
 ```python
 class AnnotationSchema(Schema):
-    source_id = fields.Integer(required=True)
     content = fields.String(required=True)
+    start = AwareDateTimeField(required=True, format="iso")
     # Missing: id field in output
 ```
 
 **Issue**: Clients couldn't retrieve the `id` of created annotations, breaking idempotency checks.
 
-**Fix**: Separate input and output schemas:
+**Wrong Fix**: Separate input and output schemas:
+
 ```python
 class AnnotationSchema(Schema):
     """Input schema - validates request data"""
-    source_id = fields.Integer(required=True)
     content = fields.String(required=True)
+    start = AwareDateTimeField(required=True, format="iso")
 
 class AnnotationResponseSchema(Schema):
     """Output schema - includes all data clients need"""
     id = fields.Integer(required=True)
-    source_id = fields.Integer(required=True)
     content = fields.String(required=True)
-    source = fields.Nested(DataSourceIdField)  # For client convenience
+    start = AwareDateTimeField(required=True, format="iso")
 ```
+
+**Right Fix**:
+
+```python
+class AnnotationResponseSchema(Schema):
+    """One schema - validates request data and includes all data clients need.
+    
+    Please note:
+    - the use of `dump_only`
+    - metadata description and example(s) must always be included.
+    - we prefer single-word data keys over snake_case or kebab-case data keys.
+    """
+    id = fields.Int(
+        dump_only=True,
+        metadata=dict(
+            description="The annotation's ID, which is automatically assigned.",
+            example=19,
+        ),
+    )
+    content = fields.Str(
+        required=True,
+        validate=Length(max=1024),
+        metadata={
+            "description": "Text content of the annotation (max 1024 characters).",
+            "examples": [
+                "Server maintenance",
+                "Installation upgrade",
+                "Operation Main Strike",
+            ],
+        },
+    )
+    start = AwareDateTimeField(
+        required=True,
+        format="iso",
+        metadata={
+            "description": "Start time in ISO 8601 format.",
+            "example": "2026-02-11T17:52:03+01:00",
+        },
+    )
+    source_id = fields.Int(
+        data_key="source",
+        dump_only=True,
+        metadata=dict(
+            description="The annotation's data source ID, which usually corresponds to a user (it is not the user ID, though).",
+            example=21,
+        ),
+    )
+ ```
 
 **Why This Matters**:
 - Clients need `id` to detect if they've already created this annotation
