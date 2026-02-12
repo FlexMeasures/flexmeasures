@@ -36,6 +36,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
+* End support for Python3.9 [see `PR #1965 <https://www.github.com/FlexMeasures/flexmeasures/pull/1965>`_]
 * Improve general description on SwaggerDocs page and add three settings for hosts: FLEXMEASURES_SUPPORT_PAGE, FLEXMEASURES_SIGNUP_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_ and `PR #1889 <https://www.github.com/FlexMeasures/flexmeasures/pull/1889>`_]
 * Allow plugins to register forecasters [see `PR #1863 <https://www.github.com/FlexMeasures/flexmeasures/pull/1863>`_]
 * Support setting a ``custom-scheduler`` by name [see `PR #1924 <https://www.github.com/FlexMeasures/flexmeasures/pull/1924>`_]
@@ -51,6 +52,9 @@ Infrastructure / Support
 * Add DEFAULT_DATASOURCE_TYPES and use it in CLI and status page [see `PR #1938 <https://www.github.com/FlexMeasures/flexmeasures/pull/1938>`_]
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
 * Allow seeing complete datetimes in the audit log [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
+* Add latest dependabot alert suggestions [see `PR #1959 <https://www.github.com/FlexMeasures/flexmeasures/pull/1959>`_]
+
+* Add standardized GitHub Copilot agent environment setup file for consistent development environment across agent sessions [see `PR #1962 <https://www.github.com/FlexMeasures/flexmeasures/pull/1962>`_, `PR #1963 <https://www.github.com/FlexMeasures/flexmeasures/pull/1963>`_ and `PR #1964 <https://www.github.com/FlexMeasures/flexmeasures/pull/1964>`_]
 
 Bugfixes
 -----------
@@ -61,6 +65,7 @@ Bugfixes
 * Have the ``StorageScheduler`` correctly combine multiple sessions targeting the same sensor [see `PR #1948 <https://www.github.com/FlexMeasures/flexmeasures/pull/1948>`_]
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>`` [see `PR #1929 <https://www.github.com/FlexMeasures/flexmeasures/pull/1929>`_ and `PR #1930 <https://www.github.com/FlexMeasures/flexmeasures/pull/1930>`_]
 * Prevent inplace operation when using ``simplify_index`` [see `PR #1931 <https://www.github.com/FlexMeasures/flexmeasures/pull/1931>`_]
+* Fix API tests failing with 401 UNAUTHORIZED when run in isolation by properly setting Flask-Security's ``fs_authn_via`` attribute in the ``requesting_user`` fixture [see `PR #1960 <https://www.github.com/FlexMeasures/flexmeasures/pull/1960>`_]
 
 
 v0.30.3 | January 12, 2026
