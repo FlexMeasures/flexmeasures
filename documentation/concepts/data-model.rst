@@ -147,6 +147,8 @@ Annotations appear in:
 - Individual sensor charts in the FlexMeasures UI
 - API responses when querying chart data with annotation flags
 
+More information, including code examples, is available in :ref:`annotations`.
+
 
 Accounts & Users
 ----------------
