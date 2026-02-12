@@ -141,7 +141,7 @@ typing-extensions==4.15.0
     # via
     #   -c requirements/3.12/app.txt
     #   referencing
-urllib3==2.6.0
+urllib3==2.6.3
     # via
     #   -c requirements/3.12/app.txt
     #   requests
