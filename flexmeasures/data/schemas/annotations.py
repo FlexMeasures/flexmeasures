@@ -24,7 +24,7 @@ class AnnotationSchema(Schema):
         dump_only=True,
         metadata=dict(
             description="The annotation's data source ID, which usually corresponds to a user (it is not the user ID, though).",
-            example=19,
+            example=21,
         ),
     )
 
