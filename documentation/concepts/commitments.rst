@@ -100,35 +100,6 @@ Typical translations include:
 - peak/excess limits (``site-peak-production``, ``site-peak-production-price``, etc.) → dedicated peak FlowCommitment(s);
 - storage-related fields (``soc-minima``, ``soc-minima-breach-price``, etc.) → StockCommitment(s).
 
-A short example for developers
-------------------------------
-
-Below is a compact example showing how the scheduler conceptually creates an
-``"energy"`` flow commitment from a (per-slot) tariff:
-
-.. code-block:: python
-
-    from pandas import Series, date_range
-    from flexmeasures.data.models.planning import FlowCommitment
-
-    index = date_range(start="2025-01-01 00:00", periods=24, freq="H")
-    # zero baseline → the asset may consume or produce; deviations are priced.
-    baseline = Series(0.0, index=index)
-
-    # consumption and production tariffs (per kWh)
-    consumption_price = Series(0.20, index=index)  # 0.20 EUR/kWh for consumption
-    production_price = Series(-0.05, index=index)  # -0.05 EUR/kWh reward for production
-
-    energy_commitment = FlowCommitment(
-        name="energy",
-        index=index,
-        quantity=baseline,
-        upwards_deviation_price=consumption_price,
-        downwards_deviation_price=production_price,
-        _type="each"
-    )
-
-The scheduler sets up such commitments (site-level and device-level) and, together with any prior commitments, hands them to the linear optimizer.
 
 Examples (commitments commonly derived from flex-context)
 --------------------------------------------------------
