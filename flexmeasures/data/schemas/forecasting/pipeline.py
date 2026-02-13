@@ -186,7 +186,7 @@ class ForecasterParametersSchema(Schema):
         return {k: v for k, v in data.items() if v is not None}
 
     @validates_schema
-    def validate_parameters(self, data: dict, **kwargs):
+    def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
         start_date = data.get("start_date")
         end_date = data.get("end_date")
         predict_start = data.get("start_predict_date", None)
