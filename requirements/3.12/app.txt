@@ -39,8 +39,10 @@ blinker==1.9.0
     #   flask-mail
     #   flask-principal
     #   sentry-sdk
-cbor2==5.7.1
-    # via webauthn
+cbor2==5.8.0
+    # via
+    #   -r requirements/app.in
+    #   webauthn
 certifi==2025.11.12
     # via
     #   requests
@@ -84,8 +86,10 @@ email-validator==2.3.0
     # via
     #   -r requirements/app.in
     #   flask-security-too
-filelock==3.20.0
-    # via tldextract
+filelock==3.20.3
+    # via
+    #   -r requirements/app.in
+    #   tldextract
 flask==3.1.2
     # via
     #   -r requirements/app.in
@@ -144,7 +148,9 @@ flexcache==0.3
 flexparser==0.4
     # via pint
 fonttools==4.61.0
-    # via matplotlib
+    # via
+    #   -r requirements/app.in
+    #   matplotlib
 greenlet==3.2.4
     # via sqlalchemy
 holidays==0.86
@@ -472,7 +478,7 @@ u8darts==0.39.0
     # via -r requirements/app.in
 uniplot==0.21.4
     # via -r requirements/app.in
-urllib3==2.6.0
+urllib3==2.6.3
     # via
     #   -r requirements/app.in
     #   requests
@@ -483,7 +489,7 @@ webargs==8.7.1
     # via -r requirements/app.in
 webauthn==2.7.0
     # via flask-security-too
-werkzeug==3.1.4
+werkzeug==3.1.5
     # via
     #   -r requirements/app.in
     #   flask

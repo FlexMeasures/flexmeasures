@@ -133,7 +133,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Maximum forecast horizon. Defaults to retrain_frequency if set and 48 hours otherwise.",
+            "description": "Maximum forecast horizon. Defaults to covering the whole prediction period (which itself defaults to 48 hours).",
             "example": "PT48H",
         },
     )
@@ -142,7 +142,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "How often to recompute forecasts. Defaults to 1 hour.",
+            "description": "How often to recompute forecasts. Defaults to retrain frequency.",
             "example": "PT1H",
         },
     )
@@ -205,7 +205,7 @@ class ForecasterParametersSchema(Schema):
         return {k: v for k, v in data.items() if v is not None}
 
     @validates_schema
-    def validate_parameters(self, data: dict, **kwargs):
+    def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
         start_date = data.get("start_date")
         end_date = data.get("end_date")
         predict_start = data.get("start_predict_date", None)
@@ -255,6 +255,13 @@ class ForecasterParametersSchema(Schema):
             if forecast_frequency % sensor.event_resolution != timedelta(0):
                 raise ValidationError(
                     f"forecast-frequency must be a multiple of the sensor resolution ({sensor.event_resolution})"
+                )
+
+        if retrain_frequency is not None and forecast_frequency is not None:
+            if retrain_frequency % forecast_frequency != timedelta(0):
+                raise ValidationError(
+                    "retrain-frequency must be a multiple of forecast-frequency",
+                    field_name="retrain_frequency",
                 )
 
         if isinstance(max_training_period, Duration):
