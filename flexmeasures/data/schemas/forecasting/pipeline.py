@@ -327,7 +327,11 @@ class ForecasterParametersSchema(Schema):
             and data.get("end_date") is None
             and data.get("max_forecast_horizon") is None
         ):
-            retrain_frequency_in_hours = current_app.config.get("FLEXMEASURES_PLANNING_HORIZON") // timedelta(hours=1)   # Set default retrain_frequency to planning horizon
+            retrain_frequency_in_hours = current_app.config.get(
+                "FLEXMEASURES_PLANNING_HORIZON"
+            ) // timedelta(
+                hours=1
+            )  # Set default retrain_frequency to planning horizon
         else:
             retrain_frequency_in_hours = data["retrain_frequency"] // timedelta(hours=1)
             if retrain_frequency_in_hours < 1:

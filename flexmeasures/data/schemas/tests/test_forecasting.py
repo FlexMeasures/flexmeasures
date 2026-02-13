@@ -52,30 +52,25 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
         #    - max-forecast-horizon = predict-period (actual horizons are 48, 36, 24 and 12)
         #    - forecast-frequency = retraining-period (capped by retraining-period, param changes based on config)
         #    - 4 cycles, 4 belief times
-
         # Case 5: predict-period = 10 days and max-forecast-horizon = 12 hours
         #
         # User expects to get forecasts for the next 10 days from a new viewpoint every 12 hours.
         #    - forecast-frequency = max-forecast-horizon
         #    - retraining-frequency = FM planning horizon
         #    - 5 cycles, 20 belief times
-
         # Case 6: predict-period = 12 hours and max-forecast-horizon = 10 days
         #
         # User expects that FM complains: the max-forecast-horizon should be lower than the predict-period
         #    - forecast-frequency = predict-period
         #    - retraining-frequency = FM planning horizon
         #    - 1 cycle, 1 belief time
-
         # Timing parameter defaults
         # - predict-period defaults to minimum of (FM planning horizon and max-forecast-horizon)
         # - max-forecast-horizon defaults to the predict-period
         # - forecast-frequency defaults to minimum of (FM planning horizon, predict-period, max-forecast-horizon and retraining-frequency)
         # - retraining-frequency defaults to FM planning horizon
-
         # Timing parameter constraints
         # - max-forecast-horizon <= predict-period
-
         # Case 1 user expectation:
         # - Get forecasts for next 12 hours from a single viewpoint
         # - max-forecast-horizon = 12 hours
@@ -232,7 +227,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
         #         "save_belief_time": pd.Timestamp(
         #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
         #         ),
-        #         "n_cycles": 1,
+        #         "n_cycles": 5,
         #     },
         # ),
         # Case 6 user expectation:
