@@ -6,8 +6,8 @@ Commitments
 This document will explain what commitments are on a technical level, and then gives examples of how the scheduler uses them and how you can create your own commitments in the flex-context to great effect.
 
 
-What is a commitments?
-----------------------
+What is a commitment?
+---------------------
 
 A **Commitment** is the economic abstraction FlexMeasures uses to express market positions and soft constraints (preferences) inside the scheduler.
 They are a powerful modeling concept used in current flex-context fields, but can also model new circumstances.
