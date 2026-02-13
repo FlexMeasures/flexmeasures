@@ -4,6 +4,7 @@ import logging
 import os
 
 from datetime import timedelta
+from flask import current_app
 from isodate.duration import Duration
 
 from marshmallow import (
@@ -326,7 +327,7 @@ class ForecasterParametersSchema(Schema):
             and data.get("end_date") is None
             and data.get("max_forecast_horizon") is None
         ):
-            retrain_frequency_in_hours = 48  # Set default retrain_frequency to 48 hours
+            retrain_frequency_in_hours = current_app.config.get("FLEXMEASURES_PLANNING_HORIZON") // timedelta(hours=1)   # Set default retrain_frequency to planning horizon
         else:
             retrain_frequency_in_hours = data["retrain_frequency"] // timedelta(hours=1)
             if retrain_frequency_in_hours < 1:
