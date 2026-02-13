@@ -5,6 +5,7 @@ Commitments
 
 This document will explain what commitments are on a technical level, and then gives examples of how the scheduler uses them and how you can create your own commitments in the flex-context to great effect.
 
+
 What is a commitments?
 ----------------------
 
@@ -44,6 +45,7 @@ across the schedule horizon. Absolute physical limitations (for example generato
 line capacities) are *not* modelled as commitments — those are enforced as
 Pyomo constraints.
 
+
 Key properties
 --------------
 
@@ -57,6 +59,7 @@ Each Commitment has the following important attributes (high level):
 - ``upwards_deviation_price`` — Series defining marginal cost/reward for upward deviations.
 - ``downwards_deviation_price`` — Series defining marginal cost/reward for downward deviations.
 - ``_type`` — grouping indicator: ``'each'`` or ``'any'`` (see Grouping below).
+
 
 Sign convention (flows vs stocks)
 ---------------------------------
@@ -77,6 +80,7 @@ Sign convention (flows vs stocks)
   - ``quantity`` is the target stock level; deviations above/below that target
     are priced via the upwards/downwards price series, respectively.
 
+
 How FlexMeasures uses commitments in the scheduler
 --------------------------------------------------
 
@@ -86,6 +90,21 @@ Hard operational constraints (such as physical power limits or strict device
 interlocks) are expressed separately as Pyomo constraints in the scheduling
 model. If a “hard” behaviour is required from a commitment, assign very large
 penalty prices, but we prefer modelling non-negotiable limits as Pyomo constraints.
+
+Commitments are grouping across time and devices:
+
+- ``_type == 'each'``: penalise deviations per time slot (default for time series).
+- ``_type == 'any'``: treat the whole commitment horizon as one group (useful
+  for peak-style penalties where only the maximum over the window should be
+  counted).
+
+.. note::
+
+   Near-term feature: support for **grouping over devices** is planned and
+   documented here. When enabled, grouping over devices lets you express
+   soft constraints that aggregate deviations across a set of devices,
+   for example, an intermediate capacity constraint from a feeder shared by a group of devices (via **flow commitments**), or multiple power-to-heat devices that feed a shared thermal buffer (via **stock commitments**).
+
 
 Converting flex-context fields into commitments
 -----------------------------------------------
@@ -150,6 +169,7 @@ commitments the scheduler constructs.
    - *Fields used*: ``consumption-capacity`` and ``production-capacity`` (baselines), ``consumption-breach-price`` (upwards-deviation price, with 0 downwards) and ``production-breach-price`` (downwards-deviation price, with 0 upwards).
    - *Commitment*: FlowCommitment with either baseline and corresponding prices.
 
+
 How you can use commitments: an example
 ---------------------------------------
 
@@ -172,21 +192,6 @@ Then you could add this to your flex-context:
 ```
 
 The scheduler then takes into account that exceeding 500 kW consumption during the congested period will lead to additional costs of 0.25 EUR for every kW it goes over the limit.
-
-Grouping across time and devices
---------------------------------
-
-- ``_type == 'each'``: penalise deviations per time slot (default for time series).
-- ``_type == 'any'``: treat the whole commitment horizon as one group (useful
-  for peak-style penalties where only the maximum over the window should be
-  counted).
-
-.. note::
-
-   Near-term feature: support for **grouping over devices** is planned and
-   documented here. When enabled, grouping over devices lets you express
-   soft constraints that aggregate deviations across a set of devices,
-   for example, an intermediate capacity constraint from a feeder shared by a group of devices (via **flow commitments**), or multiple power-to-heat devices that feed a shared thermal buffer (via **stock commitments**).
 
 
 Advanced: mathematical formulation
