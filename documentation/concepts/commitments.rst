@@ -183,7 +183,7 @@ Then you could add this to your flex-context:
         {
           "name": "congestion pricing",
           "baseline": [
-            {"start": "2026-02-01T16:00:00+01:00", "start": "2026-02-01T21:00:00+01:00", "value": "500 kW"}
+            {"start": "2026-02-01T16:00:00+01:00", "end": "2026-02-01T21:00:00+01:00", "value": "500 kW"}
           ],
           "up-price": "250 EUR/MW",
           "down-price": "0 EUR/MW",
