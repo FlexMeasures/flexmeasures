@@ -194,6 +194,11 @@ Then you could add this to your flex-context:
 
 The scheduler then takes into account that exceeding 500 kW consumption during the congested period will lead to additional costs of 0.25 EUR for every kW it goes over the limit.
 
+.. note::
+
+    The ``"commitments"`` field is not yet supported in the flex-context editor in the UI.
+    Once it is, you will be able to use fixed quantities or sensors (for the baseline, up-price and down-price) to store custom commitments in the database.
+    Passing the ``"commitments"`` field in the API call is already supported.
 
 Advanced: mathematical formulation
 ----------------------------------
