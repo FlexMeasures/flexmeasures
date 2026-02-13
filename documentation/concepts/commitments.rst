@@ -3,13 +3,35 @@
 Commitments
 ===========
 
-Overview
---------
+This document will explain what commitments are on a technical level, and then gives examples of how the scheduler uses them and how you can create your own commitments in the flex-context to great effect.
 
-A **Commitment** is the economic abstraction FlexMeasures uses to express
-market positions and soft constraints (preferences) inside the scheduler.
-Commitments are converted to linear objective terms; all non-negotiable
-operational limits are modelled separately as Pyomo constraints.
+What is a commitments?
+----------------------
+
+A **Commitment** is the economic abstraction FlexMeasures uses to express market positions and soft constraints (preferences) inside the scheduler.
+They are a powerful modeling concept used in current flex-context fields, but can also model new circumstances.
+
+.. admonition:: Examples of commitments
+
+   .. list-table::
+      :widths: 55 45
+      :header-rows: 1
+
+      * - **Market positions**
+        - **Soft constraints**
+      * - - dynamic electricity tariffs
+          - contracted (consumption|production) capacity
+          - peak pricing
+          - passive imbalance
+          - PPAs
+          - gas contracts
+        - - Desired fill levels
+          - Preferred power levels or idle states
+          - Preference to advance charging and postpone discharging
+          - Preference to postpone curtailment
+          - CO₂ intensity
+
+Commitments are converted to linear objective terms; all non-negotiable operational limits are modelled separately as Pyomo constraints.
 
 A commitment describes:
 
@@ -37,7 +59,7 @@ Each Commitment has the following important attributes (high level):
 - ``_type`` — grouping indicator: ``'each'`` or ``'any'`` (see Grouping below).
 
 Sign convention (flows vs stocks)
---------------------------------
+---------------------------------
 
 - **Flow commitments** (e.g. power/energy flows):
 
@@ -53,17 +75,17 @@ Sign convention (flows vs stocks)
 - **Stock commitments** (e.g. state of charge for storage):
 
   - ``quantity`` is the target stock level; deviations above/below that target
-    are priced via the upwards/downwards price series.
+    are priced via the upwards/downwards price series, respectively.
 
-Soft vs hard semantics
-----------------------
+How FlexMeasures uses commitments in the scheduler
+--------------------------------------------------
 
 Commitments in FlexMeasures are **soft** by design: they represent economic
 penalties or rewards that the optimizer considers when building schedules.
 Hard operational constraints (such as physical power limits or strict device
 interlocks) are expressed separately as Pyomo constraints in the scheduling
 model. If a “hard” behaviour is required from a commitment, assign very large
-penalty prices, but prefer modelling non-negotiable limits as Pyomo constraints.
+penalty prices, but we prefer modelling non-negotiable limits as Pyomo constraints.
 
 Converting flex-context fields into commitments
 -----------------------------------------------
@@ -78,8 +100,8 @@ Typical translations include:
 - peak/excess limits (``site-peak-production``, ``site-peak-production-price``, etc.) → dedicated peak FlowCommitment(s);
 - storage-related fields (``soc-minima``, ``soc-minima-breach-price``, etc.) → StockCommitment(s).
 
-A short example
----------------
+A short example for developers
+------------------------------
 
 Below is a compact example showing how the scheduler conceptually creates an
 ``"energy"`` flow commitment from a (per-slot) tariff:
@@ -156,6 +178,29 @@ commitments the scheduler constructs.
 
    - *Fields used*: ``consumption-capacity`` and ``production-capacity`` (baselines), ``consumption-breach-price`` (upwards-deviation price, with 0 downwards) and ``production-breach-price`` (downwards-deviation price, with 0 upwards).
    - *Commitment*: FlowCommitment with either baseline and corresponding prices.
+
+How you can use commitments: an example
+---------------------------------------
+
+Suppose a site is asked to stay under a 500 kW maximum import capacity from 4 to 9 PM, and exceeding this triggers a penalty.
+Then you could add this to your flex-context:
+
+```json
+{
+  "commitments": [
+    {
+      "name": "congestion pricing",
+      "baseline": [
+        {"start": "2026-02-01T16:00:00+01:00", "start": "2026-02-01T21:00:00+01:00", "value": "500 kW"}
+      ],
+      "up-price": "250 EUR/MW",
+      "down-price": "0 EUR/MW",
+    }
+  ]
+}
+```
+
+The scheduler then takes into account that exceeding 500 kW consumption during the congested period will lead to additional costs of 0.25 EUR for every kW it goes over the limit.
 
 Grouping across time and devices
 --------------------------------
