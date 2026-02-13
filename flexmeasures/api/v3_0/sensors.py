@@ -1762,9 +1762,13 @@ class SensorAPI(FlaskView):
 
         # Check job status
         if not job.is_finished:
+            job_status = job.get_status()
+            job_status_name = (
+                job_status.upper() if isinstance(job_status, str) else job_status.name
+            )
             return (
                 dict(
-                    status=job.get_status().name,
+                    status=job_status_name,
                     message=job_status_description(job),
                 ),
                 202 if job.get_status() != JobStatus.FAILED else 422,

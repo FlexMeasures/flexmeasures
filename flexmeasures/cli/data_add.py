@@ -810,46 +810,30 @@ def add_beliefs(
 )
 @click.option(
     "--account",
-    "--account-id",
     "account_ids",
     type=click.INT,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--account-id"],
-    preferred="--account",
     help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--asset",
-    "--asset-id",
     "generic_asset_ids",
     type=int,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
     help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--sensor",
-    "--sensor-id",
     "sensor_ids",
     type=int,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
     help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--user",
-    "--user-id",
     "user_id",
     type=int,
     required=True,
-    cls=DeprecatedOption,
-    deprecated=["--user-id"],
-    preferred="--user",
     help="Attribute annotation to this user. Follow up with the user's ID.",
 )
 def add_annotation(
@@ -870,6 +854,9 @@ def add_annotation(
         if end_str is not None
         else start + pd.offsets.DateOffset(days=1)
     )
+    if end <= start:
+        click.secho("End date must be after start date.", **MsgStyle.ERROR)
+        raise click.Abort()
     accounts = (
         db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
@@ -900,6 +887,12 @@ def add_annotation(
             type="label",
         )
     )
+    if not accounts and not assets and not sensors:
+        click.secho(
+            "No accounts, assets or sensors specified to add the annotation to. Please specify at least one.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
     for account in accounts:
         account.annotations.append(annotation)
     for asset in assets:

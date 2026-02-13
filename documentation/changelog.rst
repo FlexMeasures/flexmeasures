@@ -38,6 +38,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
+* End support for Python3.9 [see `PR #1965 <https://www.github.com/FlexMeasures/flexmeasures/pull/1965>`_]
 * Improve general description on SwaggerDocs page and add three settings for hosts: FLEXMEASURES_SUPPORT_PAGE, FLEXMEASURES_SIGNUP_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_ and `PR #1889 <https://www.github.com/FlexMeasures/flexmeasures/pull/1889>`_]
 * Allow plugins to register forecasters [see `PR #1863 <https://www.github.com/FlexMeasures/flexmeasures/pull/1863>`_]
 * Support setting a ``custom-scheduler`` by name [see `PR #1924 <https://www.github.com/FlexMeasures/flexmeasures/pull/1924>`_]
@@ -52,11 +53,14 @@ Infrastructure / Support
 * Improve reported test coverage by including doctests and bringing back CLI tests to GitHub Actions [see `PR #1914 <https://www.github.com/FlexMeasures/flexmeasures/pull/1914>`_ and `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_, respectively]
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
 * Allow seeing complete datetimes in the audit log [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
+* Add latest dependabot alert suggestions [see `PR #1959 <https://www.github.com/FlexMeasures/flexmeasures/pull/1959>`_]
+
 * Add standardized GitHub Copilot agent environment setup file for consistent development environment across agent sessions [see `PR #1962 <https://www.github.com/FlexMeasures/flexmeasures/pull/1962>`_, `PR #1963 <https://www.github.com/FlexMeasures/flexmeasures/pull/1963>`_ and `PR #1964 <https://www.github.com/FlexMeasures/flexmeasures/pull/1964>`_]
 
 Bugfixes
 -----------
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
+* Bring back the ability to show (timed) annotations on the sensor page, and add some color highlighting, too, while we're at it [see `PR #1967 <https://www.github.com/FlexMeasures/flexmeasures/pull/1967>`_]
 * Fixed toast notification display on the sensor detail upload form [see `PR #1921 <https://www.github.com/FlexMeasures/flexmeasures/pull/1921>`_]
 * Fix: return validation errors instead of database errors for API/CLI fields that map to database objects [see `PR #1923 <https://www.github.com/FlexMeasures/flexmeasures/pull/1923>`_]
 * Correct field documentation for flex-config fields that strictly allow sensor references [see `PR #1951 <https://www.github.com/FlexMeasures/flexmeasures/pull/1951>`_]

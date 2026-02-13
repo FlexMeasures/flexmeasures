@@ -29,7 +29,7 @@ jobs:
 
       - name: Set Python version
         run: |
-          # FlexMeasures supports Python 3.9-3.12
+          # FlexMeasures supports Python 3.10-3.12
           # Use Python 3.11 as the default for agent development
           python --version || python3 --version
 

@@ -10,18 +10,20 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
     ["timing_input", "expected_timing_output"],
     [
         # Test defaults when no timing parameters are given
+        # We expect training period of 30 days before predict start and prediction period of 48 hours after predict start, with predict start at server now (floored to hour).
+        # 1 cycle expected (1 belief time for forecast) given the forecast frequency equal defaulted to prediction period of 48 hours.
         (
             {},
             {
                 "predict-start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1h"),
-                # default training period 30 days. before predict-start
+                # default training period 30 days before predict start
                 "start-date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1h")
                 - pd.Timedelta(days=30),
-                # default prediction period 48 hours after predict-start
+                # default prediction period 48 hours after predict start
                 "end-date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1h")
@@ -41,6 +43,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
             },
         ),
         # Test defaults when only an end date is given
+        # We expect training period of 30 days before predict start and prediction period of 5 days after predict start, with predict start at server now (floored to hour).
+        # 1 cycle expected (1 belief time for forecast) given the forecast frequency equal defaulted to prediction period of 5 days.
         (
             {"end-date": "2025-01-20T12:00:00+01:00"},
             {
@@ -54,19 +58,19 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 ).floor("1h")
                 - pd.Timedelta(
                     days=30
-                ),  # default training period 30 days before predict-start
+                ),  # default training period 30 days before predict start
                 "end-date": pd.Timestamp(
                     "2025-01-20T12:00:00+01",
                     tz="Europe/Amsterdam",
                 ),
-                "train-period-in-hours": 720,  # from start-date to predict-start
-                "predict-period-in-hours": 120,  # from predict-start to end-date
+                "train-period-in-hours": 720,  # from start date to predict start
+                "predict-period-in-hours": 120,  # from predict start to end date
                 "forecast-frequency": pd.Timedelta(
                     days=5
-                ),  # duration between predict-start and end-date
+                ),  # duration between predict start and end date
                 "max-forecast-horizon": pd.Timedelta(
                     days=5
-                ),  # duration between predict-start and end-date
+                ),  # duration between predict start and end date
                 # default values
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
@@ -78,6 +82,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
             },
         ),
         # Test when both start and end dates are given
+        # We expect training period of 26.5 days (636 hours) from the given start date and predict start, prediction period of 108 hours duration from predict start to end date, with predict_start at server now (floored to hour).
+        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
         (
             {
                 "start-date": "2024-12-20T00:00:00+01:00",
@@ -94,12 +100,12 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ).floor("1h"),
-                "predict-period-in-hours": 108,  # hours from predict-start to end-date
-                "train-period-in-hours": 636,  # hours between start-date and predict-start
+                "predict-period-in-hours": 108,  # hours from predict start to end date
+                "train-period-in-hours": 636,  # hours between start date and predict start
                 "max-forecast-horizon": pd.Timedelta(days=4)
-                + pd.Timedelta(hours=12),  # duration between predict-start and end-date
+                + pd.Timedelta(hours=12),  # duration between predict start and end date
                 "forecast-frequency": pd.Timedelta(days=4)
-                + pd.Timedelta(hours=12),  # duration between predict-start and end-date
+                + pd.Timedelta(hours=12),  # duration between predict start and end date
                 # default values
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
@@ -112,6 +118,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         ),
         # Test when only end date is given with a training period
         # We expect the start date to be computed with respect to now. (training period before now (floored)).
+        # We expect training period of 30 days before predict start and prediction period of 48 hours after predict start, with predict start at server now (floored to hour).
+        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
         (
             {
                 "end-date": "2025-01-20T12:00:00+01:00",
@@ -129,14 +137,14 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
                 )
                 - pd.Timedelta(days=3),
-                "train-period-in-hours": 72,  # from start-date to predict-start
-                "predict-period-in-hours": 120,  # from predict-start to end-date
+                "train-period-in-hours": 72,  # from start date to predict start
+                "predict-period-in-hours": 120,  # from predict start to end date
                 "max-forecast-horizon": pd.Timedelta(
                     days=5
-                ),  # duration between predict-start and end-date
+                ),  # duration between predict start and end date
                 "forecast-frequency": pd.Timedelta(
                     days=5
-                ),  # duration between predict-start and end-date
+                ),  # duration between predict start and end date
                 # default values
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
@@ -149,6 +157,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         ),
         # Test when only start date is given with a training period
         # We expect the predict start to be computed with respect to the start date (training period after start date).
+        # We set training period of 3 days, we expect a prediction period to default 48 hours after predict start, with predict start at server now (floored to hour).
+        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
         (
             {
                 "start-date": "2024-12-25T00:00:00+01:00",
@@ -169,10 +179,10 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "train-period-in-hours": 72,
                 "max-forecast-horizon": pd.Timedelta(
                     days=2
-                ),  # duration between predict-start and end-date
+                ),  # duration between predict start and end date
                 "forecast-frequency": pd.Timedelta(
                     days=2
-                ),  # duration between predict-start and end-date
+                ),  # duration between predict start and end date
                 # default values
                 "predict-period-in-hours": 48,
                 "max-training-period": pd.Timedelta(days=365),
@@ -182,6 +192,9 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
             },
         ),
         # Test when only start date is given with a retrain frequency (prediction period)
+        # We expect the predict start to be computed with respect to the start date (training period after start date).
+        # We set training period of 3 days, we expect a prediction period to default 48 hours after predict start, with predict start at server now (floored to hour).
+        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
         (
             {
                 "start-date": "2024-12-25T00:00:00+01:00",
@@ -217,7 +230,9 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Test when only start date is given with both training period and retrain frequency
+        # Test when only start date is given with both training period 20 days and retrain frequency 3 days
+        # We expect the predict start to be computed with respect to the start date (training period after start date).
+        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
         (
             {
                 "start-date": "2024-12-01T00:00:00+01:00",
@@ -247,6 +262,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
             },
         ),
         # Test when only end date is given with a prediction period: we expect the train start and predict start to both be computed with respect to the end date.
+        # we expect training period of 30 days before predict_start and prediction period of 3 days after predict_start, with predict_start at server now (floored to hour).
         # we expect 2 cycles from the retrain frequency and predict period given the end date
         (
             {
@@ -268,10 +284,10 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "train-period-in-hours": 720,
                 "max-forecast-horizon": pd.Timedelta(
                     days=3
-                ),  # duration between predict_start and end_date (retrain frequency)
+                ),  # duration between predict start and end date (retrain frequency)
                 "forecast-frequency": pd.Timedelta(
                     days=3
-                ),  # duration between predict_start and end_date (retrain frequency)
+                ),  # duration between predict start and end date (retrain frequency)
                 # default values
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
