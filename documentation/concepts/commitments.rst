@@ -13,6 +13,7 @@ A **Commitment** is the economic abstraction FlexMeasures uses to express market
 They are a powerful modeling concept used in current flex-context fields, but can also model new circumstances.
 
 .. admonition:: Examples of commitments
+   :class: info-icon
 
    .. list-table::
       :widths: 55 45
