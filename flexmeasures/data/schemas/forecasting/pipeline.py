@@ -129,7 +129,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "How often to recompute forecasts. Defaults to retrain frequency.",
+            "description": "How often to recompute forecasts. Defaults to 1 hour.",
             "example": "PT1H",
         },
     )
@@ -238,13 +238,13 @@ class ForecasterParametersSchema(Schema):
                     f"forecast-frequency must be a multiple of the sensor resolution ({sensor.event_resolution})"
                 )
 
-        # if isinstance(max_training_period, Duration):
-        #     # DurationField only returns Duration when years/months are present
-        #     raise ValidationError(
-        #         "max-training-period must be specified using days or smaller units "
-        #         "(e.g. P365D, PT48H). Years and months are not supported.",
-        #         field_name="max_training_period",
-        #     )
+        if isinstance(max_training_period, Duration):
+            # DurationField only returns Duration when years/months are present
+            raise ValidationError(
+                "max-training-period must be specified using days or smaller units "
+                "(e.g. P365D, PT48H). Years and months are not supported.",
+                field_name="max_training_period",
+            )
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
@@ -295,7 +295,6 @@ class ForecasterParametersSchema(Schema):
                 "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
             )
-        breakpoint()
         max_training_period = data.get("max_training_period") or timedelta(days=365)
         if train_period_in_hours > max_training_period // timedelta(hours=1):
             train_period_in_hours = max_training_period // timedelta(hours=1)
@@ -362,7 +361,7 @@ class ForecasterParametersSchema(Schema):
             model_save_dir = self.fields["model_save_dir"].load_default
 
         ensure_positive = data.get("ensure_positive")
-        breakpoint()
+
         return dict(
             future_regressors=future_regressors,
             past_regressors=past_regressors,
