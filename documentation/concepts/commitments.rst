@@ -176,20 +176,21 @@ How you can use commitments: an example
 Suppose a site is asked to stay under a 500 kW maximum import capacity from 4 to 9 PM, and exceeding this triggers a penalty.
 Then you could add this to your flex-context:
 
-```json
-{
-  "commitments": [
+.. code-block:: json
+
     {
-      "name": "congestion pricing",
-      "baseline": [
-        {"start": "2026-02-01T16:00:00+01:00", "start": "2026-02-01T21:00:00+01:00", "value": "500 kW"}
-      ],
-      "up-price": "250 EUR/MW",
-      "down-price": "0 EUR/MW",
+      "commitments": [
+        {
+          "name": "congestion pricing",
+          "baseline": [
+            {"start": "2026-02-01T16:00:00+01:00", "start": "2026-02-01T21:00:00+01:00", "value": "500 kW"}
+          ],
+          "up-price": "250 EUR/MW",
+          "down-price": "0 EUR/MW",
+        }
+      ]
     }
-  ]
-}
-```
+
 
 The scheduler then takes into account that exceeding 500 kW consumption during the congested period will lead to additional costs of 0.25 EUR for every kW it goes over the limit.
 
