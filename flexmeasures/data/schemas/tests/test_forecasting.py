@@ -9,7 +9,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
     ["timing_input", "expected_timing_output"],
     [
         # Case 0: no timing parameters are given
-        # 
+        #
         # User expects to get forecasts for the default FM planning horizon from a single viewpoint.
         # Specifically, we expect:
         #    - predict-period = FM planning horizon
@@ -52,7 +52,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
         #    - max-forecast-horizon = predict-period (actual horizons are 48, 36, 24 and 12)
         #    - forecast-frequency = retraining-period (capped by retraining-period, param changes based on config)
         #    - 4 cycles, 4 belief times
-        
+
         # Case 5: predict-period = 10 days and max-forecast-horizon = 12 hours
         #
         # User expects to get forecasts for the next 10 days from a new viewpoint every 12 hours.
@@ -76,7 +76,197 @@ from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersS
         # Timing parameter constraints
         # - max-forecast-horizon <= predict-period
 
-        
+        # Case 1 user expectation:
+        # - Get forecasts for next 12 hours from a single viewpoint
+        # - max-forecast-horizon = 12 hours
+        # - forecast-frequency = 12 hours
+        # - 1 cycle
+        (
+            {"retrain_frequency": "PT12H"},
+            {
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h"),
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h")
+                - pd.Timedelta(days=30),
+                "train_period_in_hours": 720,
+                "predict_period_in_hours": 12,
+                "max_forecast_horizon": pd.Timedelta(hours=12),
+                "forecast_frequency": pd.Timedelta(hours=12),
+                "end_date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(hours=12),
+                "max_training_period": pd.Timedelta(days=365),
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ),
+                "n_cycles": 1,
+            },
+        ),
+        # Case 2 user expectation:
+        # - Same behavior as case 1
+        # - predict-period = 12 hours
+        # - forecast-frequency = 12 hours
+        # - 1 cycle
+        (
+            {"max_forecast_horizon": "PT12H"},
+            {
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h"),
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h")
+                - pd.Timedelta(days=30),
+                "train_period_in_hours": 720,
+                "predict_period_in_hours": 12,
+                "max_forecast_horizon": pd.Timedelta(hours=12),
+                "forecast_frequency": pd.Timedelta(hours=12),
+                "end_date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(hours=12),
+                "max_training_period": pd.Timedelta(days=365),
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ),
+                "n_cycles": 1,
+            },
+        ),
+        ###
+        # Case 3 user expectation:
+        # - Keep default planning horizon prediction window
+        # - New forecast viewpoint every 12 hours
+        # - max-forecast-horizon remains at planning horizon (48 hours)
+        # - 1 cycle, 4 belief times
+        # this fails
+        # (
+        #     {"forecast_frequency": "PT12H"},
+        #     {
+        #         "predict_start": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h"),
+        #         "start_date": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h")
+        #         - pd.Timedelta(days=30),
+        #         "train_period_in_hours": 720,
+        #         "predict_period_in_hours": 48,
+        #         "max_forecast_horizon": pd.Timedelta(hours=12),
+        #         "forecast_frequency": pd.Timedelta(hours=12),
+        #         "end_date": pd.Timestamp(
+        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+        #         )
+        #         + pd.Timedelta(hours=48),
+        #         "max_training_period": pd.Timedelta(days=365),
+        #         "save_belief_time": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ),
+        #         "n_cycles": 1,
+        #     },
+        # ),
+        ###
+        # Case 4 user expectation:
+        # - Default planning horizon predictions, retraining every 12 hours
+        # - forecast-frequency follows retraining period (12 hours)
+        # - 4 cycles, 4 belief times
+        (
+            {
+                "retrain_frequency": "PT12H",
+                "end_date": "2025-01-17T12:00:00+01:00",
+            },
+            {
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h"),
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h")
+                - pd.Timedelta(days=30),
+                "train_period_in_hours": 720,
+                "predict_period_in_hours": 12,
+                "max_forecast_horizon": pd.Timedelta(hours=12),
+                "forecast_frequency": pd.Timedelta(hours=12),
+                "end_date": pd.Timestamp(
+                    "2025-01-17T12:00:00+01", tz="Europe/Amsterdam"
+                ),
+                "max_training_period": pd.Timedelta(days=365),
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ),
+                "n_cycles": 4,
+            },
+        ),
+        ###
+        # Case 5 user expectation:
+        # - Predict-period = 10 days
+        # - max-forecast-horizon = 12 hours
+        # - forecast-frequency = 12 hours
+        # - 5 cycles, 20 belief times
+        # this fails
+        # (
+        #     {
+        #         "retrain_frequency": "P10D",
+        #         "max_forecast_horizon": "PT12H",
+        #     },
+        #     {
+        #         "predict_start": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h"),
+        #         "start_date": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h")
+        #         - pd.Timedelta(days=30),
+        #         "train_period_in_hours": 720,
+        #         "predict_period_in_hours": 240,
+        #         "max_forecast_horizon": pd.Timedelta(hours=12),
+        #         "forecast_frequency": pd.Timedelta(hours=12),
+        #         "end_date": pd.Timestamp(
+        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+        #         )
+        #         + pd.Timedelta(days=10),
+        #         "max_training_period": pd.Timedelta(days=365),
+        #         "save_belief_time": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ),
+        #         "n_cycles": 1,
+        #     },
+        # ),
+        # Case 6 user expectation:
+        # - FM should complain: max-forecast-horizon must be <= predict-period
+        # this fails
+        # (
+        #     {
+        #         "retrain_frequency": "PT12H",
+        #         "max_forecast_horizon": "P10D",
+        #     },
+        #     {
+        #         "predict_start": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h"),
+        #         "start_date": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h")
+        #         - pd.Timedelta(days=30),
+        #         "train_period_in_hours": 720,
+        #         "predict_period_in_hours": 12,
+        #         "max_forecast_horizon": pd.Timedelta(days=10),
+        #         "forecast_frequency": pd.Timedelta(days=10),
+        #         "end_date": pd.Timestamp(
+        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+        #         )
+        #         + pd.Timedelta(hours=12),
+        #         "max_training_period": pd.Timedelta(days=365),
+        #         "save_belief_time": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ),
+        #         "n_cycles": 1,
+        #     },
+        # ),
+        ###
         # We expect training period of 30 days before predict start and prediction period of 48 hours after predict start, with predict start at server now (floored to hour).
         # 1 cycle expected (1 belief time for forecast) given the forecast frequency equal defaulted to prediction period of 48 hours.
         (
