@@ -14,6 +14,7 @@ from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
 
+from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures import Sensor
@@ -469,6 +470,12 @@ def add_cli_options_from_schema(schema):
 
             if cli.get("is_flag"):
                 kwargs["is_flag"] = True
+
+            # Transfer the original field type
+            if isinstance(field, MarshmallowClickMixin):
+                kwargs["type"] = field.__class__()
+            else:
+                kwargs["type"] = field.__class__
 
             command = click.option(*options, **kwargs)(command)
 
