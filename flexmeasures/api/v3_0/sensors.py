@@ -1525,7 +1525,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
     @use_args(
-        forecaster_parameters_schema_openAPI,
+        ForecasterParametersSchema(),
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
