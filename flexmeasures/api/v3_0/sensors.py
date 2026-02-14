@@ -26,6 +26,7 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     fallback_schedule_redirect,
 )
+from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
 )
@@ -78,6 +79,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
+
+# Create ForecasterParametersSchema OpenAPI compatible schema
+forecaster_parameters_schema_openAPI = make_openapi_compatible(
+    ForecasterParametersSchema
+)
 
 
 class SensorKwargsSchema(Schema):
@@ -1533,9 +1539,8 @@ class SensorAPI(FlaskView):
           description: |
             Trigger a forecasting job for a sensor.
 
-            This endpoint starts a forecasting job asynchronously and returns a
-            job UUID. The job will run in the background and generate forecast values
-            for the specified period.
+            This endpoint starts a forecasting job asynchronously and returns a job UUID.
+            The job will run in the background and generate forecasts for the specified period.
 
             Once triggered, the job status and results can be retrieved using the
             ``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.
@@ -1554,11 +1559,11 @@ class SensorAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema: ForecasterParametersSchema
+                schema: forecaster_parameters_schema_openAPI
                 example:
-                  start_date: "2026-01-01T00:00:00+01:00"
-                  start_predict_date: "2026-01-15T00:00:00+01:00"
-                  end_date: "2026-01-17T00:00:00+01:00"
+                  start-date: "2026-01-01T00:00:00+01:00"
+                  start-predict-date: "2026-01-15T00:00:00+01:00"
+                  end-date: "2026-01-17T00:00:00+01:00"
           responses:
             200:
               description: PROCESSED
@@ -1598,7 +1603,7 @@ class SensorAPI(FlaskView):
         parameters["sensor"] = params["sensor_to_save"].id
 
         # Ensure the forecast is run as a job on a forecasting queue
-        parameters["as_job"] = True
+        parameters["as-job"] = True
 
         # Set forecaster model
         model = parameters.pop("model", "TrainPredictPipeline")

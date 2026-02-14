@@ -113,29 +113,31 @@ class Forecaster(DataGenerator):
 
         These parameters are already contained in the TimedBelief:
 
-        - end_date:             as the event end
-        - max_forecast_horizon: as the maximum belief horizon of the beliefs for a given event
-        - forecast_frequency:   as the spacing between unique belief times
+        - end-date:             as the event end
+        - max-forecast-horizon: as the maximum belief horizon of the beliefs for a given event
+        - forecast-frequency:   as the spacing between unique belief times
         - probabilistic:        as the cumulative_probability of each belief
-        - sensor_to_save:       as the sensor on which the beliefs are recorded
+        - sensor-to-save:       as the sensor on which the beliefs are recorded
 
         Other:
 
-        - model_save_dir:       used internally for the train and predict pipelines to save and load the model
-        - output_path:          for exporting forecasts to file, more of a developer feature
-        - as_job:               only indicates whether the computation was offloaded to a worker
+        - model-save-dir:       used internally for the train and predict pipelines to save and load the model
+        - output-path:          for exporting forecasts to file, more of a developer feature
+        - as-job:               only indicates whether the computation was offloaded to a worker
         """
         _parameters = deepcopy(parameters)
+        # Note: Parameter keys are in kebab-case due to Marshmallow schema data_key settings
+        # (see ForecasterParametersSchema in flexmeasures/data/schemas/forecasting/pipeline.py)
         fields_to_remove = [
-            "end_date",
-            "max_forecast_horizon",
-            "forecast_frequency",
+            "end-date",
+            "max-forecast-horizon",
+            "forecast-frequency",
             "probabilistic",
-            "model_save_dir",
-            "output_path",
-            "sensor_to_save",
-            "as_job",
-            "n_cycles",
+            "model-save-dir",
+            "output-path",
+            "sensor-to-save",
+            "as-job",
+            "n_cycles",  # Computed internally, still uses snake_case
         ]
 
         for field in fields_to_remove:
