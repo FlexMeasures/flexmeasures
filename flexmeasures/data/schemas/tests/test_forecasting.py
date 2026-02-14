@@ -78,7 +78,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # - forecast-frequency = 12 hours
         # - 1 cycle
         (
-            {"retrain_frequency": "PT12H"},
+            {"retrain-frequency": "PT12H"},
             {
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
@@ -108,7 +108,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # - forecast-frequency = 12 hours
         # - 1 cycle
         (
-            {"max_forecast_horizon": "PT12H"},
+            {"max-forecast-horizon": "PT12H"},
             {
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
@@ -140,7 +140,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # - 1 cycle, 4 belief times
         # this fails
         # (
-        #     {"forecast_frequency": "PT12H"},
+        #     {"forecast-frequency": "PT12H"},
         #     {
         #         "predict_start": pd.Timestamp(
         #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
@@ -171,8 +171,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # - 4 cycles, 4 belief times
         (
             {
-                "retrain_frequency": "PT12H",
-                "end_date": "2025-01-17T12:00:00+01:00",
+                "retrain-frequency": "PT12H",
+                "end-date": "2025-01-17T12:00:00+01:00",
             },
             {
                 "predict_start": pd.Timestamp(
@@ -205,8 +205,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # this fails
         # (
         #     {
-        #         "retrain_frequency": "P10D",
-        #         "max_forecast_horizon": "PT12H",
+        #         "retrain-frequency": "P10D",
+        #         "max-forecast-horizon": "PT12H",
         #     },
         #     {
         #         "predict_start": pd.Timestamp(
@@ -236,8 +236,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # this fails
         # (
         #     {
-        #         "retrain_frequency": "PT12H",
-        #         "max_forecast_horizon": "P10D",
+        #         "retrain-frequency": "PT12H",
+        #         "max-forecast-horizon": "P10D",
         #     },
         #     {
         #         "predict_start": pd.Timestamp(
