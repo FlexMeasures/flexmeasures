@@ -4174,7 +4174,7 @@
               "string",
               "null"
             ],
-            "description": "Maximum forecast horizon. Defaults to retrain_frequency if set and 'PT48H' otherwise.",
+            "description": "Maximum forecast horizon. Defaults to covering the whole prediction period (which itself defaults to 48 hours).",
             "example": "PT48H"
           },
           "forecast-frequency": {
@@ -4182,7 +4182,7 @@
               "string",
               "null"
             ],
-            "description": "How often to recompute forecasts. Defaults retrain-frequency.",
+            "description": "How often to recompute forecasts. Defaults to retrain frequency.",
             "example": "PT1H"
           },
           "sensor-to-save": {
