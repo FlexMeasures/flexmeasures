@@ -14,6 +14,7 @@ from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
 
+from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures import Sensor
@@ -435,3 +436,49 @@ def split_commas(ctx, param, value):
     for v in value:
         result.extend(v.split(","))
     return list(set([x.strip() for x in result if x.strip()]))
+
+
+def add_cli_options_from_schema(schema):
+    """Decorator to add CLI options based on a Marshmallow schema's fields."""
+
+    def decorator(command):
+        for field_name, field in reversed(schema.fields.items()):
+            cli = field.metadata.get("cli")
+            if not cli:
+                continue
+
+            option_names = cli["option"]
+            option_aliases = cli.get("aliases", [])
+            options = [option_names] + option_aliases
+
+            # build help text from field description and example, and optionally extra help provided in the cli metadata
+            help_text = field.metadata.get("description", "")
+
+            extra_help = cli.get("extra_help")
+            if extra_help:
+                help_text += f"\n{extra_help}"
+
+            example = field.metadata.get("example")
+            if example is not None:
+                help_text += f"\nExample: {example}"
+
+            kwargs = {
+                "help": help_text,
+                "required": field.required,
+                "default": field.load_default,
+            }
+
+            if cli.get("is_flag"):
+                kwargs["is_flag"] = True
+
+            # Transfer the original field type
+            if isinstance(field, MarshmallowClickMixin):
+                kwargs["type"] = field.__class__()
+            else:
+                kwargs["type"] = field.__class__
+
+            command = click.option(*options, **kwargs)(command)
+
+        return command
+
+    return decorator

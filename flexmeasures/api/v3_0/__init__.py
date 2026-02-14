@@ -15,7 +15,10 @@ from flask_swagger_ui import get_swaggerui_blueprint
 from marshmallow import Schema
 
 from flexmeasures import __version__ as fm_version
-from flexmeasures.api.v3_0.sensors import SensorAPI
+from flexmeasures.api.v3_0.sensors import (
+    SensorAPI,
+    forecaster_parameters_schema_openAPI,
+)
 from flexmeasures.api.v3_0.accounts import AccountAPI
 from flexmeasures.api.v3_0.users import UserAPI
 from flexmeasures.api.v3_0.assets import AssetAPI, AssetTypesAPI
@@ -137,6 +140,7 @@ def create_openapi_specs(app: Flask):
     # Explicitly register OpenAPI-compatible schemas
     schemas = [
         ("FlexContextOpenAPISchema", flex_context_schema_openAPI),
+        ("forecaster_parameters_schema_openAPI", forecaster_parameters_schema_openAPI),
         ("UserAPIQuerySchema", UserAPIQuerySchema),
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),

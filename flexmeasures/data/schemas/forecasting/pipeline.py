@@ -27,6 +27,9 @@ class TrainPredictPipelineConfigSchema(Schema):
 
 
 class ForecasterParametersSchema(Schema):
+    """
+    NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
+    """
 
     sensor = SensorIdField(
         data_key="sensor",
@@ -34,6 +37,9 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "ID of the sensor to forecast.",
             "example": 2092,
+            "cli": {
+                "option": "--sensor",
+            },
         },
     )
     future_regressors = fields.List(
@@ -41,8 +47,14 @@ class ForecasterParametersSchema(Schema):
         data_key="future-regressors",
         required=False,
         metadata={
-            "description": "Sensor IDs to be treated only as future regressors.",
+            "description": (
+                "Sensor IDs to be treated only as future regressors."
+                " Use this if only forecasts recorded on this sensor matter as a regressor."
+            ),
             "example": [2093, 2094],
+            "cli": {
+                "option": "--future-regressors",
+            },
         },
     )
     past_regressors = fields.List(
@@ -50,8 +62,14 @@ class ForecasterParametersSchema(Schema):
         data_key="past-regressors",
         required=False,
         metadata={
-            "description": "Sensor IDs to be treated only as past regressors.",
+            "description": (
+                "Sensor IDs to be treated only as past regressors."
+                " Use this if only realizations recorded on this sensor matter as a regressor."
+            ),
             "example": [2095],
+            "cli": {
+                "option": "--past-regressors",
+            },
         },
     )
     regressors = fields.List(
@@ -59,8 +77,14 @@ class ForecasterParametersSchema(Schema):
         data_key="regressors",
         required=False,
         metadata={
-            "description": "Sensor IDs used as both past and future regressors.",
+            "description": (
+                "Sensor IDs used as both past and future regressors."
+                " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
+            ),
             "example": [2093, 2094, 2095],
+            "cli": {
+                "option": "--regressors",
+            },
         },
     )
     model_save_dir = fields.Str(
@@ -71,6 +95,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Directory to save the trained model.",
             "example": "flexmeasures/data/models/forecasting/artifacts/models",
+            "cli": {
+                "cli-exclusive": True,
+                "option": "--model-save-dir",
+            },
         },
     )
     output_path = fields.Str(
@@ -80,6 +108,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Directory to save prediction outputs. Defaults to None (no outputs saved).",
             "example": "flexmeasures/data/models/forecasting/artifacts/forecasts",
+            "cli": {
+                "cli-exclusive": True,
+                "option": "--output-path",
+            },
         },
     )
     start_date = AwareDateTimeOrDateField(
@@ -89,6 +121,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
             "example": "2025-01-01T00:00:00+01:00",
+            "cli": {
+                "option": "--start-date",
+                "aliases": ["--train-start"],
+            },
         },
     )
     end_date = AwareDateTimeOrDateField(
@@ -99,6 +135,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "End date for running the pipeline.",
             "example": "2025-10-15T00:00:00+01:00",
+            "cli": {
+                "option": "--end-date",
+                "aliases": ["--to-date"],
+            },
         },
     )
     train_period = DurationField(
@@ -108,6 +148,9 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
             "example": "P7D",
+            "cli": {
+                "option": "--train-period",
+            },
         },
     )
     start_predict_date = AwareDateTimeOrDateField(
@@ -117,6 +160,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
             "example": "2025-01-08T00:00:00+01:00",
+            "cli": {
+                "option": "--start-predict-date",
+                "aliases": ["--from-date"],
+            },
         },
     )
     retrain_frequency = DurationField(
@@ -126,6 +173,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
             "example": "PT24H",
+            "cli": {
+                "cli-exclusive": True,
+                "option": "--retrain-frequency",
+            },
         },
     )
     max_forecast_horizon = DurationField(
@@ -135,6 +186,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Maximum forecast horizon. Defaults to covering the whole prediction period (which itself defaults to 48 hours).",
             "example": "PT48H",
+            "cli": {
+                "option": "--max-forecast-horizon",
+                "extra_help": "For example, if you have multiple viewpoints (by having set a `retrain-frequency`), then it is equal to the retrain-frequency by default.",
+            },
         },
     )
     forecast_frequency = DurationField(
@@ -144,6 +199,9 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "How often to recompute forecasts. Defaults to retrain frequency.",
             "example": "PT1H",
+            "cli": {
+                "option": "--forecast-frequency",
+            },
         },
     )
     probabilistic = fields.Bool(
@@ -153,6 +211,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Enable probabilistic predictions if True. Defaults to false.",
             "example": False,
+            "cli": {
+                "cli-exclusive": True,
+                "option": "--probabilistic",
+            },
         },
     )
     sensor_to_save = SensorIdField(
@@ -162,6 +224,9 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Sensor ID where forecasts will be saved; defaults to target sensor.",
             "example": 2092,
+            "cli": {
+                "option": "--sensor-to-save",
+            },
         },
     )
     ensure_positive = fields.Bool(
@@ -171,6 +236,9 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": True,
+            "cli": {
+                "option": "--ensure-positive",
+            },
         },
     )
     missing_threshold = fields.Float(
@@ -180,6 +248,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
             "example": 0.1,
+            "cli": {
+                "option": "--missing-threshold",
+                "extra_help": "Missing data under this threshold will be filled using forward filling or linear interpolation.",
+            },
         },
     )
     as_job = fields.Bool(
@@ -188,6 +260,10 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "If True, compute forecasts asynchronously using RQ jobs. Defaults to False.",
             "example": True,
+            "cli": {
+                "cli-exclusive": True,
+                "option": "--as-job",
+            },
         },
     )
     max_training_period = DurationField(
@@ -197,6 +273,9 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
             "example": "P1Y",
+            "cli": {
+                "option": "--max-training-period",
+            },
         },
     )
 
