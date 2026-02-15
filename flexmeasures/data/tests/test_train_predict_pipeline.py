@@ -15,7 +15,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
 @pytest.mark.parametrize(
-    ["config", "params", "expected_error"],
+    ["config", "params", "as_job", "expected_error"],
     [
         (
             {
@@ -35,6 +35,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
             },
+            False,
             (ValidationError, "retrain-frequency must be greater than 0"),
         ),
         (
@@ -52,8 +53,8 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "sensor-to-save": None,
                 "max-forecast-horizon": "PT1H",
                 "probabilistic": False,
-                "as-job": True,
             },
+            True,
             None,
         ),
         (
@@ -73,6 +74,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "max-forecast-horizon": "PT1H",
                 "probabilistic": False,
             },
+            False,
             None,
         ),
         (
@@ -92,6 +94,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "max-forecast-horizon": "PT1H",
                 "probabilistic": False,
             },
+            False,
             None,
         ),
         (
@@ -113,6 +116,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
             },
+            False,
             None,
         ),
         # (
@@ -130,6 +134,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         #         "forecast-frequency": 1,
         #         "probabilistic": False,
         #     },
+        #     False,
         #     (ValidationError, "Try increasing the --end-date."),
         # )
     ],
@@ -139,6 +144,7 @@ def test_train_predict_pipeline(  # noqa: C901
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
     params,  # parameters passed to the compute method of the Forecaster
+    as_job: bool,
     expected_error: bool | tuple[type[BaseException], str],
 ):
     sensor = setup_fresh_test_forecast_data[params["sensor"]]
@@ -173,14 +179,14 @@ def test_train_predict_pipeline(  # noqa: C901
         assert expected_error[1] in str(e_info)
     else:
         pipeline = TrainPredictPipeline(config=config)
-        pipeline_returns = pipeline.compute(parameters=params)
+        pipeline_returns = pipeline.compute(parameters=params, as_job=as_job)
 
         # Check pipeline properties
         for attr in ("model",):
             if config.get(attr):
                 assert hasattr(pipeline, attr)
 
-        if params.get("as-job"):
+        if as_job:
             work_on_rq(
                 app.queues["forecasting"], exc_handler=handle_forecasting_exception
             )
@@ -204,7 +210,7 @@ def test_train_predict_pipeline(  # noqa: C901
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
-        if dg_params["as_job"]:
+        if as_job:
             # Fetch returned job
             job = app.queues["forecasting"].fetch_job(pipeline_returns)
 
