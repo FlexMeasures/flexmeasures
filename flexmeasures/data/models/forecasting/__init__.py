@@ -75,18 +75,21 @@ class Forecaster(DataGenerator):
 
     _config_schema = ForecasterConfigSchema()
 
-    def _compute(self, check_output_resolution=True, **kwargs) -> list[dict[str, Any]]:
+    def _compute(
+        self, check_output_resolution=True, as_job: bool = False, **kwargs
+    ) -> list[dict[str, Any]]:
         """This method triggers the creation of a new forecast.
 
         The same object can generate multiple forecasts with different start, end, resolution and belief_time values.
 
         :param check_output_resolution: If True, checks each output for whether the event_resolution
                                         matches that of the sensor it is supposed to be recorded on.
+        :param as_job:                  If True, runs as a job.
         """
 
-        results = self._compute_forecast(**kwargs)
+        results = self._compute_forecast(**kwargs, as_job=as_job)
 
-        if not kwargs.get("as_job", False):
+        if not as_job:
             for result in results:
                 # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
                 assert not check_output_resolution or (
@@ -95,10 +98,11 @@ class Forecaster(DataGenerator):
 
         return results
 
-    def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
+    def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
         """Overwrite with the actual computation of your forecast.
 
-        :returns list of dictionaries, for example:
+        :param as_job:  If True, runs as a job.
+        :returns:       List of dictionaries, for example:
                  [
                      {
                          "sensor": 501,

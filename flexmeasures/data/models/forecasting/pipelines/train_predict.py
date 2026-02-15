@@ -146,9 +146,9 @@ class TrainPredictPipeline(Forecaster):
         )
         return total_runtime
 
-    def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
+    def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
         # Run the train-and-predict pipeline
-        return self.run(**kwargs)
+        return self.run(as_job=as_job, **kwargs)
 
     def run(
         self,

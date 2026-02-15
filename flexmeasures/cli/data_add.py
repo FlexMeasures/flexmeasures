@@ -1045,6 +1045,12 @@ def add_holidays(
     help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
 )
 @add_cli_options_from_schema(ForecasterParametersSchema())
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a forecasting job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
+)
 @with_appcontext
 def add_forecast(
     forecaster_class: str,
@@ -1053,6 +1059,7 @@ def add_forecast(
     parameters_file: TextIOBase | None = None,
     edit_config: bool = False,
     edit_parameters: bool = False,
+    as_job: bool = False,
     **kwargs,
 ):
     """
@@ -1126,7 +1133,7 @@ def add_forecast(
     )
 
     try:
-        pipeline_returns = forecaster.compute(parameters=parameters)
+        pipeline_returns = forecaster.compute(parameters=parameters, as_job=as_job)
 
         # Empty result
         if not pipeline_returns:

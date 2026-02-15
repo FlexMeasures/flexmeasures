@@ -255,18 +255,6 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
-    as_job = fields.Bool(
-        data_key="as-job",
-        load_default=False,
-        metadata={
-            "description": "If True, compute forecasts asynchronously using RQ jobs. Defaults to False.",
-            "example": True,
-            "cli": {
-                "cli-exclusive": True,
-                "option": "--as-job",
-            },
-        },
-    )
     max_training_period = DurationField(
         data_key="max-training-period",
         required=False,
@@ -490,7 +478,6 @@ class ForecasterParametersSchema(Schema):
             sensor_to_save=sensor_to_save,
             ensure_positive=ensure_positive,
             missing_threshold=data.get("missing_threshold"),
-            as_job=data.get("as_job"),
             save_belief_time=save_belief_time,
             n_cycles=int(
                 (data["end_date"] - predict_start)

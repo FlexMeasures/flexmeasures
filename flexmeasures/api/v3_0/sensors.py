@@ -1602,9 +1602,6 @@ class SensorAPI(FlaskView):
         # Put the sensor to save in the parameters
         parameters["sensor"] = params["sensor_to_save"].id
 
-        # Ensure the forecast is run as a job on a forecasting queue
-        parameters["as-job"] = True
-
         # Set forecaster model
         model = parameters.pop("model", "TrainPredictPipeline")
 
@@ -1622,7 +1619,7 @@ class SensorAPI(FlaskView):
 
         # Queue forecasting job
         try:
-            job_id = forecaster.compute(parameters=parameters)
+            job_id = forecaster.compute(parameters=parameters, as_job=True)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
             return unprocessable_entity(str(e))
