@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -134,7 +135,12 @@ class DataGenerator:
 
         self._parameters = self._parameters_schema.load(self._parameters)
 
-        results = self._compute(**self._parameters, as_job=as_job)
+        sig = inspect.signature(inspect.unwrap(self._compute))
+        accepts_as_job = "as_job" in sig.parameters
+        if accepts_as_job:
+            results = self._compute(**self._parameters, as_job=as_job)
+        else:
+            results = self._compute(**self._parameters)
 
         if not as_job:
             results = self._assign_sensors_and_source(results)
