@@ -280,8 +280,8 @@ class Commitment:
     """
 
     name: str
-    device: int | pd.Series = None
-    device_group: int | str | pd.Series = None
+    device: pd.Series = None
+    device_group: pd.Series = None
     index: pd.DatetimeIndex = field(repr=False, default=None)
     _type: str = field(repr=False, default="each")
     group: pd.Series = field(init=False)
