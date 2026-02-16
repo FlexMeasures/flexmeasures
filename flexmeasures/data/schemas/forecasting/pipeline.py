@@ -82,6 +82,18 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+    ensure_positive = fields.Bool(
+        data_key="ensure-positive",
+        load_default=False,
+        allow_none=True,
+        metadata={
+            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "example": True,
+            "cli": {
+                "option": "--ensure-positive",
+            },
+        },
+    )
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
@@ -254,18 +266,6 @@ class ForecasterParametersSchema(Schema):
             "example": 2092,
             "cli": {
                 "option": "--sensor-to-save",
-            },
-        },
-    )
-    ensure_positive = fields.Bool(
-        data_key="ensure-positive",
-        load_default=False,
-        allow_none=True,
-        metadata={
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
-            "example": True,
-            "cli": {
-                "option": "--ensure-positive",
             },
         },
     )
@@ -472,8 +472,6 @@ class ForecasterParametersSchema(Schema):
             # Read default from schema
             model_save_dir = self.fields["model_save_dir"].load_default
 
-        ensure_positive = data.get("ensure_positive")
-
         return dict(
             target=target_sensor,
             model_save_dir=model_save_dir,
@@ -488,7 +486,6 @@ class ForecasterParametersSchema(Schema):
             forecast_frequency=forecast_frequency,
             probabilistic=data["probabilistic"],
             sensor_to_save=sensor_to_save,
-            ensure_positive=ensure_positive,
             save_belief_time=save_belief_time,
             n_cycles=int(
                 (data["end_date"] - predict_start)
