@@ -50,6 +50,103 @@ Protect FlexMeasures users and integrators by ensuring API changes are backwards
 - [ ] **Type changes**: Field type changes are breaking
 - [ ] **Validation**: Stricter validation is breaking, looser is safe
 - [ ] **Marshmallow schemas**: Check schema version compatibility
+- [ ] **Response schema completeness**: Verify all response schemas include required fields (see Response Schema Patterns below)
+
+#### Response Schema Patterns
+
+**Always use separate input and output schemas for API endpoints**
+
+Input schemas validate request data; output schemas control response data. These should be separate classes even if they share fields.
+
+**Checklist for Response Schema Completeness**:
+
+- [ ] **ID field**: Response must include `id` field for created/updated resources
+- [ ] **Source field**: If resource has a source, include it in response
+- [ ] **Audit fields**: Consider including `created_at`, `updated_at` if relevant
+- [ ] **All identifying fields**: Include fields clients need to reference the resource
+- [ ] **Idempotency support**: Provide enough data for clients to detect duplicates
+
+**Session 2026-02-10 Case Study** (Annotation API):
+
+**Problem**: Initial annotation API used single schema for input and output:
+
+```python
+class AnnotationSchema(Schema):
+    content = fields.String(required=True)
+    start = AwareDateTimeField(required=True, format="iso")
+    # Missing: id field in output
+```
+
+**Issue**: Clients couldn't retrieve the `id` of created annotations, breaking idempotency checks.
+
+**Wrong Fix**: Separate input and output schemas:
+
+```python
+class AnnotationSchema(Schema):
+    """Input schema - validates request data"""
+    content = fields.String(required=True)
+    start = AwareDateTimeField(required=True, format="iso")
+
+class AnnotationResponseSchema(Schema):
+    """Output schema - includes all data clients need"""
+    id = fields.Integer(required=True)
+    content = fields.String(required=True)
+    start = AwareDateTimeField(required=True, format="iso")
+```
+
+**Right Fix**:
+
+```python
+class AnnotationResponseSchema(Schema):
+    """One schema - validates request data and includes all data clients need.
+    
+    Please note:
+    - the use of `dump_only`
+    - metadata description and example(s) must always be included.
+    - we prefer single-word data keys over snake_case or kebab-case data keys.
+    """
+    id = fields.Int(
+        dump_only=True,
+        metadata=dict(
+            description="The annotation's ID, which is automatically assigned.",
+            example=19,
+        ),
+    )
+    content = fields.Str(
+        required=True,
+        validate=Length(max=1024),
+        metadata={
+            "description": "Text content of the annotation (max 1024 characters).",
+            "examples": [
+                "Server maintenance",
+                "Installation upgrade",
+                "Operation Main Strike",
+            ],
+        },
+    )
+    start = AwareDateTimeField(
+        required=True,
+        format="iso",
+        metadata={
+            "description": "Start time in ISO 8601 format.",
+            "example": "2026-02-11T17:52:03+01:00",
+        },
+    )
+    source_id = fields.Int(
+        data_key="source",
+        dump_only=True,
+        metadata=dict(
+            description="The annotation's data source ID, which usually corresponds to a user (it is not the user ID, though).",
+            example=21,
+        ),
+    )
+ ```
+
+**Why This Matters**:
+- Clients need `id` to detect if they've already created this annotation
+- Clients need `id` to update or delete the annotation later
+- Missing fields force clients to make additional API calls
+- Breaks RESTful conventions (POST should return created resource)
 
 #### Parameter Format Consistency
 
@@ -181,6 +278,120 @@ Headers (RFC 8594): `Deprecation`, `Sunset`, `Link`
 Configuration: `FLEXMEASURES_PLUGINS`
 
 Known plugins: flexmeasures-client, flexmeasures-weather, flexmeasures-entsoe
+
+### Idempotency Detection Patterns
+
+**Never rely on `obj.id is None` to detect if object is new**
+
+SQLAlchemy may not assign IDs until commit, and the pattern is unreliable.
+
+**Anti-pattern** (Session 2026-02-10):
+```python
+annotation = get_or_create_annotation(...)
+is_new = annotation.id is None  # ❌ Unreliable!
+if is_new:
+    return success_response, 201
+else:
+    return success_response, 200
+```
+
+**Problem**: `annotation.id` might be `None` even for existing objects before flush/commit.
+
+**Correct pattern**: Make helper functions return explicit indicators:
+```python
+def get_or_create_annotation(...):
+    existing = db.session.query(Annotation).filter_by(...).first()
+    if existing:
+        return existing, False  # (object, was_created)
+    new_obj = Annotation(...)
+    db.session.add(new_obj)
+    return new_obj, True
+
+# In endpoint:
+annotation, was_created = get_or_create_annotation(...)
+status_code = 201 if was_created else 200
+```
+
+**Why This Matters**:
+- Idempotency is critical for API reliability
+- Wrong status codes break client logic
+- Clients depend on 201 vs 200 to track resource creation
+
+### Error Handling Patterns
+
+**Catch specific exceptions, not bare `Exception`**
+
+**Anti-pattern**:
+```python
+try:
+    annotation = get_or_create_annotation(...)
+except Exception as e:  # ❌ Too broad!
+    return error_response("Failed to create annotation")
+```
+
+**Problems**:
+- Catches programming errors (AttributeError, TypeError, etc.)
+- Hides bugs that should fail loudly
+- Makes debugging difficult
+
+**Correct pattern**:
+```python
+from sqlalchemy.exc import SQLAlchemyError
+
+try:
+    annotation = get_or_create_annotation(...)
+except SQLAlchemyError as e:  # ✅ Specific database errors
+    db.session.rollback()
+    return error_response("Database error creating annotation", 500)
+except ValueError as e:  # ✅ Expected validation errors
+    return error_response(str(e), 400)
+# Let other exceptions propagate - they indicate bugs
+```
+
+**When to catch what**:
+- `SQLAlchemyError`: Database errors (connection, integrity, etc.)
+- `ValueError`: Expected validation failures
+- `KeyError`: Missing required data
+- Don't catch: `AttributeError`, `TypeError`, `NameError` (these are bugs)
+
+### Experimental API Documentation
+
+**Endpoints in `/api/dev/` must warn users about instability**
+
+**Required elements**:
+
+1. **Docstring warning**:
+```python
+@annotations_bp.route("/annotations", methods=["POST"])
+def create_annotation():
+    """Create a new annotation.
+    
+    .. warning::
+        This endpoint is experimental and may change without notice.
+        It is not subject to semantic versioning guarantees.
+    """
+```
+
+2. **Response header** (if applicable):
+```python
+response.headers["X-API-Stability"] = "experimental"
+```
+
+3. **OpenAPI metadata**:
+```yaml
+/api/dev/annotations:
+  post:
+    tags:
+      - experimental
+    description: |
+      ⚠️ **Experimental API** - This endpoint may change without notice.
+```
+
+**Why This Matters**:
+- Users integrating with `/api/dev/` need clear expectations
+- Protects maintainers' ability to iterate quickly
+- Prevents users from depending on unstable contracts
+- Documents the migration path to stable API
 
 ### Related Files
 

@@ -35,6 +35,7 @@ from flexmeasures.api.common.schemas.assets import (
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -43,6 +44,7 @@ from flexmeasures.data.queries.generic_assets import (
     query_assets_by_search_terms,
 )
 from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
@@ -74,6 +76,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
+annotation_schema = AnnotationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -1527,3 +1530,60 @@ class AssetAPI(FlaskView):
             }
             kpis.append(kpi_dict)
         return dict(data=kpis), 200
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    def post_annotation(self, annotation: Annotation, id: int, asset: GenericAsset):
+        """.. :quickref: Assets; Add an annotation to an asset.
+        ---
+        post:
+          summary: Creates a new asset annotation.
+          description: |
+            This endpoint creates a new :ref:`annotation <annotations>` on an asset.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the asset to register the annotation on.
+              required: true
+              schema:
+                type: integer
+                format: int32
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+            - Annotations
+        """
+
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
+
+        # Link annotation to asset
+        if annotation not in asset.annotations:
+            asset.annotations.append(annotation)
+
+        db.session.commit()
+
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code

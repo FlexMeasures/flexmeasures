@@ -197,10 +197,12 @@ class SensorAnnotationRelationship(db.Model):
 
 def get_or_create_annotation(
     annotation: Annotation,
-) -> Annotation:
+) -> tuple[Annotation, bool]:
     """Add annotation to db session if it doesn't exist in the session already.
 
-    Return the old annotation object if it exists (and expunge the new one). Otherwise, return the new one.
+    Return tuple of (annotation object, is_new boolean).
+    If annotation exists, return (existing_annotation, False).
+    If annotation is new, return (new_annotation, True).
     """
     with db.session.no_autoflush:
         existing_annotation = db.session.execute(
@@ -214,10 +216,10 @@ def get_or_create_annotation(
         ).scalar_one_or_none()
     if existing_annotation is None:
         db.session.add(annotation)
-        return annotation
+        return annotation, True
     if annotation in db.session:
         db.session.expunge(annotation)
-    return existing_annotation
+    return existing_annotation, False
 
 
 def to_annotation_frame(annotations: list[Annotation]) -> pd.DataFrame:
