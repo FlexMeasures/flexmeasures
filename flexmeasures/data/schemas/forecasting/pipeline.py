@@ -76,18 +76,17 @@ class TrainPredictPipelineConfigSchema(Schema):
 
         future_regressors = data.get("future_regressors", [])
         past_regressors = data.get("past_regressors", [])
-        past_and_future_regressors = data.get("regressors", [])
+        past_and_future_regressors = data.pop("regressors", [])
 
         if past_and_future_regressors:
             future_regressors = list(
                 set(future_regressors + past_and_future_regressors)
             )
             past_regressors = list(set(past_regressors + past_and_future_regressors))
-        return dict(
-            future_regressors=future_regressors,
-            past_regressors=past_regressors,
-            model=data["model"],
-        )
+
+        data["future_regressors"] = future_regressors
+        data["past_regressors"] = past_regressors
+        return data
 
 
 class ForecasterParametersSchema(Schema):
