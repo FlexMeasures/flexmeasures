@@ -10,7 +10,7 @@ from marshmallow import ValidationError
 
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.models.forecasting.exceptions import CustomException
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
