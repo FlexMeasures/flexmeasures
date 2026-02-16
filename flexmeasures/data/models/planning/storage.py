@@ -159,12 +159,15 @@ class MetaStorageScheduler(Scheduler):
         # Get info from flex-context
         consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
         production_price_sensor = self.flex_context.get("production_price_sensor")
+        gas_price_sensor = self.flex_context.get("gas_price_sensor")
+
         consumption_price = self.flex_context.get(
             "consumption_price", consumption_price_sensor
         )
         production_price = self.flex_context.get(
             "production_price", production_price_sensor
         )
+        gas_price = self.flex_context.get("gas_price", gas_price_sensor)
         # fallback to using the consumption price, for backwards compatibility
         if production_price is None:
             production_price = consumption_price
@@ -174,6 +177,23 @@ class MetaStorageScheduler(Scheduler):
 
         # Fetch the device's power capacity (required Sensor attribute)
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, assets)
+
+        gas_deviation_prices = None
+        if gas_price is not None:
+            gas_deviation_prices = get_continuous_series_sensor_or_quantity(
+                variable_quantity=gas_price,
+                unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fill_sides=True,
+            ).to_frame(name="event_value")
+            ensure_prices_are_not_empty(gas_deviation_prices, gas_price)
+            gas_deviation_prices = (
+                gas_deviation_prices.loc[start : end - resolution]["event_value"]
+                * resolution
+                / pd.Timedelta("1h")
+            )
 
         # Check for known prices or price forecasts
         up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -262,19 +282,32 @@ class MetaStorageScheduler(Scheduler):
 
         # Set up commitments DataFrame
         for d, flex_model_d in enumerate(flex_model):
-            # todo: use the right commodity prices for non-electricity devices
-            if flex_model_d["commodity"] != "electricity":
-                continue
+            commodity = flex_model_d.get("commodity", "electricity")
+            if commodity == "electricity":
+                up_price = commitment_upwards_deviation_price
+                down_price = commitment_downwards_deviation_price
+            elif commodity == "gas":
+                if gas_deviation_prices is None:
+                    raise ValueError(
+                        "Gas prices are required in the flex-context to set up gas flow commitments."
+                    )
+                up_price = gas_deviation_prices
+                down_price = gas_deviation_prices
+            else:
+                raise ValueError(
+                    f"Unsupported commodity {commodity} in flex-model. Only 'electricity' and 'gas' are supported."
+                )
 
             commitment = FlowCommitment(
                 # todo: report aggregate energy costs, too (need to be backwards compatible)
-                name=f"energy {d}",
+                name=f"{commodity} energy {d}",
                 quantity=commitment_quantities,
-                upwards_deviation_price=commitment_upwards_deviation_price,
-                downwards_deviation_price=commitment_downwards_deviation_price,
+                upwards_deviation_price=up_price,
+                downwards_deviation_price=down_price,
+                commodity=commodity,
                 index=index,
                 device=d,
-                device_group=flex_model_d["commodity"],
+                device_group=commodity,
             )
             commitments.append(commitment)
 
