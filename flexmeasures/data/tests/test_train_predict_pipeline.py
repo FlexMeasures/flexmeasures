@@ -279,6 +279,11 @@ def test_train_predict_pipeline(  # noqa: C901
             "regressors" not in data_generator_config
         ), "(past and future) regressors should be stored under 'past_regressors' and 'future_regressors' instead"
 
+        # Check DataGenerator parameters stored under DataSource attributes is empty
+        data_generator_params = source.attributes["data_generator"]["parameters"]
+        # todo: replace this with `assert data_generator_params == {}` after moving max-training-period to config
+        assert "max-training-period" in data_generator_params
+
 
 # Test that missing data logging works and raises CustomException when threshold exceeded
 @pytest.mark.parametrize(
