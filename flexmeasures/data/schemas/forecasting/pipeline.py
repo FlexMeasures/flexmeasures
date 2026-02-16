@@ -25,24 +25,6 @@ from flexmeasures.utils.time_utils import server_now
 class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
-
-
-class ForecasterParametersSchema(Schema):
-    """
-    NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
-    """
-
-    sensor = SensorIdField(
-        data_key="sensor",
-        required=True,
-        metadata={
-            "description": "ID of the sensor to forecast.",
-            "example": 2092,
-            "cli": {
-                "option": "--sensor",
-            },
-        },
-    )
     future_regressors = fields.List(
         SensorIdField(),
         data_key="future-regressors",
@@ -85,6 +67,42 @@ class ForecasterParametersSchema(Schema):
             "example": [2093, 2094, 2095],
             "cli": {
                 "option": "--regressors",
+            },
+        },
+    )
+
+    @post_load
+    def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
+
+        future_regressors = data.get("future_regressors", [])
+        past_regressors = data.get("past_regressors", [])
+        past_and_future_regressors = data.get("regressors", [])
+
+        if past_and_future_regressors:
+            future_regressors = list(
+                set(future_regressors + past_and_future_regressors)
+            )
+            past_regressors = list(set(past_regressors + past_and_future_regressors))
+        return dict(
+            future_regressors=future_regressors,
+            past_regressors=past_regressors,
+            model=data["model"],
+        )
+
+
+class ForecasterParametersSchema(Schema):
+    """
+    NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
+    """
+
+    sensor = SensorIdField(
+        data_key="sensor",
+        required=True,
+        metadata={
+            "description": "ID of the sensor to forecast.",
+            "example": 2092,
+            "cli": {
+                "option": "--sensor",
             },
         },
     )
@@ -458,8 +476,6 @@ class ForecasterParametersSchema(Schema):
         ensure_positive = data.get("ensure_positive")
 
         return dict(
-            future_regressors=future_regressors,
-            past_regressors=past_regressors,
             target=target_sensor,
             model_save_dir=model_save_dir,
             output_path=output_path,

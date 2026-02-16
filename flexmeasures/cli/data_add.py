@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Dict, Any
-from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema
+from flexmeasures.data.schemas.forecasting.pipeline import TrainPredictPipelineConfigSchema, ForecasterParametersSchema
 import isodate
 import json
 import yaml
@@ -1045,6 +1045,7 @@ def add_holidays(
     help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
 )
 @add_cli_options_from_schema(ForecasterParametersSchema())
+@add_cli_options_from_schema(TrainPredictPipelineConfigSchema())
 @click.option(
     "--as-job",
     is_flag=True,
@@ -1106,6 +1107,12 @@ def add_forecast(
 
     if config_file:
         config = yaml.safe_load(config_file)
+    if regressors := kwargs.pop("regressors", None):
+        config["regressors"] = regressors
+    if past_regressors := kwargs.pop("past_regressors", None):
+        config["past-regressors"] = past_regressors
+    if future_regressors := kwargs.pop("future_regressors", None):
+        config["future-regressors"] = future_regressors
 
     if edit_config:
         config = launch_editor("/tmp/config.yml")

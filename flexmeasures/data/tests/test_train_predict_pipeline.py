@@ -41,10 +41,10 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         (
             {
                 # "model": "CustomLGBM",
+                "future-regressors": ["irradiance-sensor"],
             },
             {
                 "sensor": "solar-sensor",
-                "future-regressors": ["irradiance-sensor"],
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start-date": "2025-01-01T00:00+02:00",
@@ -60,10 +60,10 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         (
             {
                 # "model": "CustomLGBM",
+                "future-regressors": ["irradiance-sensor"],
             },
             {
                 "sensor": "solar-sensor",
-                "future-regressors": ["irradiance-sensor"],
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 # "start-date": "2025-01-01T00:00+02:00",  # without a start date, max-training-period takes over
@@ -80,11 +80,11 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         (
             {
                 # "model": "CustomLGBM",
+                "past-regressors": ["irradiance-sensor"],
+                "future-regressors": ["irradiance-sensor"],
             },
             {  # Test: duplicate sensor names in past and future regressors
                 "sensor": "solar-sensor",
-                "past-regressors": ["irradiance-sensor"],
-                "future-regressors": ["irradiance-sensor"],
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start-date": "2025-01-01T00:00+02:00",
@@ -100,10 +100,10 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         (
             {
                 # "model": "CustomLGBM",
+                "future-regressors": ["irradiance-sensor"],
             },
             {
                 "sensor": "solar-sensor",
-                "future-regressors": ["irradiance-sensor"],
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start-date": "2025-01-01T00:00+02:00",
@@ -152,22 +152,22 @@ def test_train_predict_pipeline(  # noqa: C901
 
     past_regressors = [
         setup_fresh_test_forecast_data[regressor_name]
-        for regressor_name in params.get("past-regressors", [])
+        for regressor_name in config.get("past-regressors", [])
     ]
     future_regressors = [
         setup_fresh_test_forecast_data[regressor_name]
-        for regressor_name in params.get("future-regressors", [])
+        for regressor_name in config.get("future-regressors", [])
     ]
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
         for regressor_name in params.get("regressors", [])
     ]
 
-    if params.get("past-regressors"):
-        params["past-regressors"] = [regressor.id for regressor in past_regressors]
+    if config.get("past-regressors"):
+        config["past-regressors"] = [regressor.id for regressor in past_regressors]
 
-    if params.get("future-regressors"):
-        params["future-regressors"] = [regressor.id for regressor in future_regressors]
+    if config.get("future-regressors"):
+        config["future-regressors"] = [regressor.id for regressor in future_regressors]
 
     if params.get("regressors"):
         params["regressors"] = [regressor.id for regressor in regressors]
@@ -264,19 +264,19 @@ def test_train_predict_pipeline(  # noqa: C901
         ), "data generator parameters should mention missing_threshold"
         for regressor in past_regressors:
             assert (
-                regressor.id in data_generator_params["past-regressors"]
+                regressor.id in data_generator_config["past-regressors"]
             ), f"data generator parameters should mention past regressor {regressor.name}"
 
         for regressor in future_regressors:
             assert (
-                regressor.id in data_generator_params["future-regressors"]
+                regressor.id in data_generator_config["future-regressors"]
             ), f"data generator parameters should mention future regressor {regressor.name}"
         for regressor in regressors:
             assert (
-                regressor.id in data_generator_params["past-regressors"]
+                regressor.id in data_generator_config["past-regressors"]
             ), f"data generator parameters should mention regressor {regressor.name} as a past regressor"
             assert (
-                regressor.id in data_generator_params["future-regressors"]
+                regressor.id in data_generator_config["future-regressors"]
             ), f"data generator parameters should mention regressor {regressor.name} as a future regressor"
         assert (
             "regressors" not in data_generator_params
@@ -310,10 +310,10 @@ def test_train_predict_pipeline(  # noqa: C901
         (
             {
                 # "model": "CustomLGBM",
+                "future-regressors": ["irradiance-sensor"],
             },
             {
                 "sensor": "solar-sensor",
-                "future-regressors": ["irradiance-sensor"],
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start-date": "2025-01-01T00:00+02:00",
@@ -354,10 +354,10 @@ def test_missing_data_logs_warning(
         for reg in params.get("regressors", [])
     ]
     params["missing-threshold"] = float(params.get("missing-threshold"))
-    if params.get("past-regressors"):
-        params["past-regressors"] = [r.id for r in past_regressors]
-    if params.get("future-regressors"):
-        params["future-regressors"] = [r.id for r in future_regressors]
+    if config.get("past-regressors"):
+        config["past-regressors"] = [r.id for r in past_regressors]
+    if config.get("future-regressors"):
+        config["future-regressors"] = [r.id for r in future_regressors]
     if params.get("regressors"):
         params["regressors"] = [r.id for r in regressors]
 

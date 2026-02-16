@@ -72,8 +72,8 @@ class TrainPredictPipeline(Forecaster):
 
         # Train model
         train_pipeline = TrainPipeline(
-            future_regressors=self._parameters["future_regressors"],
-            past_regressors=self._parameters["past_regressors"],
+            future_regressors=self._config["future_regressors"],
+            past_regressors=self._config["past_regressors"],
             target_sensor=self._parameters["target"],
             model_save_dir=self._parameters["model_save_dir"],
             n_steps_to_predict=self._parameters["train_period_in_hours"] * multiplier,
@@ -95,8 +95,8 @@ class TrainPredictPipeline(Forecaster):
         )
         # Make predictions
         predict_pipeline = PredictPipeline(
-            future_regressors=self._parameters["future_regressors"],
-            past_regressors=self._parameters["past_regressors"],
+            future_regressors=self._config["future_regressors"],
+            past_regressors=self._config["past_regressors"],
             target_sensor=self._parameters["target"],
             model_path=os.path.join(
                 self._parameters["model_save_dir"],
