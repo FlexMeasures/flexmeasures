@@ -14,8 +14,8 @@ repos:
       - id: mypy
         name: mypy (static typing)
         pass_filenames: false
-        language: script
-        entry: ci/run_mypy.sh
+        language: system
+        entry: uv run poe type-check
         verbose: true
   - repo: local
     hooks:
@@ -24,4 +24,4 @@ repos:
         files: '^flexmeasures/api|^flexmeasures/data/schemas'
         pass_filenames: false
         language: system
-        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; python flexmeasures/api/scripts/generate_open_api_specs.py)'
+        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (uv run poe generate-open-api-specs)'

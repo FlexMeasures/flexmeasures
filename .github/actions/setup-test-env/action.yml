@@ -1,5 +1,5 @@
 # Composite action: installs system dependencies, checks out code,
-# upgrades pip, loads psql extensions and installs FlexMeasures for testing.
+# loads psql extensions and installs FlexMeasures for testing.
 #
 # The caller is responsible for declaring the postgres (and, for the Copilot
 # agent, redis) service container(s) before calling this action.
@@ -14,20 +14,23 @@ description: >
 
 inputs:
   python-version:
-    description: "Python version to set up (e.g. '3.11')"
+    description: "Python version to set up (e.g. '3.12')"
     required: true
-  install-mode:
-    description: "'pinned' (default) uses pip-sync on locked .txt files; 'latest' upgrades to newest compatible packages"
-    required: false
-    default: "pinned"
 
 runs:
   using: "composite"
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ inputs.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        python-version: ${{ inputs.python-version }}
+        version: 0.10
 
     - name: Get history and tags for SCM versioning to work
       shell: bash
@@ -35,16 +38,11 @@ runs:
         git fetch --prune --unshallow || true
         git fetch --depth=1 origin +refs/tags/*:refs/tags/*
 
-    - name: Upgrade pip
-      # Pin due to https://github.com/pypa/pip/issues/13636
-      shell: bash
-      run: python -m pip install --upgrade "pip==25.2"
-
     - name: Install system dependencies
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get -y install libpq-dev coinor-cbc postgresql-client
+        sudo apt-get -y --no-install-recommends install libpq-dev coinor-cbc postgresql-client
 
     - name: Load PostgreSQL extensions
       shell: bash
@@ -60,9 +58,4 @@ runs:
 
     - name: Install FlexMeasures & dependencies
       shell: bash
-      run: |
-        if [[ "${{ inputs.install-mode }}" == "latest" ]]; then
-          make install-for-test pinned=no
-        else
-          make install-for-test
-        fi
+      run: uv sync --locked --group test --group dev
