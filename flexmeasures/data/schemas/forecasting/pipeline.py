@@ -359,16 +359,6 @@ class ForecasterParametersSchema(Schema):
 
         target_sensor = data["sensor"]
 
-        future_regressors = data.get("future_regressors", [])
-        past_regressors = data.get("past_regressors", [])
-        past_and_future_regressors = data.get("regressors", [])
-
-        if past_and_future_regressors:
-            future_regressors = list(
-                set(future_regressors + past_and_future_regressors)
-            )
-            past_regressors = list(set(past_regressors + past_and_future_regressors))
-
         resolution = target_sensor.event_resolution
 
         now = server_now()
