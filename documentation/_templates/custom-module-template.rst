@@ -10,7 +10,7 @@
    :template: custom-module-template.rst                
    :recursive:
 {% for item in modules %}
-   {% if "test" not in item %}
+   {% if "test" not in item and "scripts" not in item %}
    {{ fullname }}.{{ item }}
    {% endif %}
 {%- endfor %}
