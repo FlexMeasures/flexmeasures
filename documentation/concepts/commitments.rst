@@ -13,7 +13,7 @@ This document explains what commitments are on a technical level, and then gives
 
 .. contents::
     :local:
-    :depth: 2
+    :depth: 1
 
 
 What is a commitment?
@@ -117,11 +117,11 @@ Commitments are grouping across time and devices:
    for example, an intermediate capacity constraint from a feeder shared by a group of devices (via **flow commitments**), or multiple power-to-heat devices that feed a shared thermal buffer (via **stock commitments**).
 
 
-Converting flex-context fields into commitments
------------------------------------------------
+How flex-context fields are converted into commitments
+--------------------------------------------------------
 
 Users may supply preferences and price fields in the ``flex-context``. The
-scheduler translates the relevant fields into one or more `Commitment` objects
+scheduler then translates the relevant fields into one or more `Commitment` objects
 before calling the optimizer.
 
 Typical translations include:
@@ -131,9 +131,7 @@ Typical translations include:
 - storage-related fields (``soc-minima``, ``soc-minima-breach-price``, etc.) → StockCommitment(s).
 
 
-Examples (commitments commonly derived from flex-context)
---------------------------------------------------------
-
+Let us look at some concrete examples. 
 The examples below map the most common `flex-context` semantics to the
 commitments the scheduler constructs.
 
@@ -181,8 +179,8 @@ commitments the scheduler constructs.
    - *Commitment*: FlowCommitment with either baseline and corresponding prices.
 
 
-How you can use commitments: an example
----------------------------------------
+How you can use commitments for custom purposes: an example
+------------------------------------------------------------
 
 Suppose a site is asked to stay under a 500 kW maximum import capacity from 4 to 9 PM, and exceeding this triggers a penalty.
 Then you could add this to the ``flex-context`` field of the site asset:
