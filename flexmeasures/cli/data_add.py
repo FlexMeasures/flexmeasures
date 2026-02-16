@@ -1133,7 +1133,7 @@ def add_forecast(
     )
 
     try:
-        pipeline_returns = forecaster.compute(parameters=parameters, as_job=as_job)
+        pipeline_returns = forecaster.compute(as_job=as_job, **parameters)
 
         # Empty result
         if not pipeline_returns:
