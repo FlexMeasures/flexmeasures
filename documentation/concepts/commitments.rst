@@ -3,7 +3,17 @@
 Commitments
 ===========
 
-This document will explain what commitments are on a technical level, and then gives examples of how the scheduler uses them and how you can create your own commitments in the flex-context to great effect.
+Commitments are a key concept in FlexMeasures' flexibility modeling. With commitments, you can express economic preferences and pre-existing market positions to the scheduler in a flexible way.
+You can expand beyond only using one dynamic tariff signal.
+
+Commitments are used in the background without you having to worry about them explicitly (you can use "syntactic sugar" to enjoy them).
+However, they are also exposed as a powerful advanced tool to model your own preferences.
+
+This document explains what commitments are on a technical level, and then gives examples of how the scheduler uses them and how you can create your own commitments in the flex-context to great effect.
+
+.. contents::
+    :local:
+    :depth: 2
 
 
 What is a commitment?
@@ -175,7 +185,7 @@ How you can use commitments: an example
 ---------------------------------------
 
 Suppose a site is asked to stay under a 500 kW maximum import capacity from 4 to 9 PM, and exceeding this triggers a penalty.
-Then you could add this to your flex-context:
+Then you could add this to the ``flex-context`` field of the site asset:
 
 .. code-block:: json
 
@@ -197,9 +207,9 @@ The scheduler then takes into account that exceeding 500 kW consumption during t
 
 .. note::
 
-    The ``"commitments"`` field is not yet supported in the flex-context editor in the UI.
+    The ``"commitments"`` field in the ``flex-context`` of an asset is not yet supported to be edited in the flex-context editor in the UI.
     Once it is, you will be able to use fixed quantities or sensors (for the baseline, up-price and down-price) to store custom commitments in the database.
-    Passing the ``"commitments"`` field in the API call is already supported.
+    Passing the ``"commitments"`` field in the API call is already supported, and you can also use the FlexMeasures-Client to edit the ``flex-context``.
 
 Advanced: mathematical formulation
 ----------------------------------
