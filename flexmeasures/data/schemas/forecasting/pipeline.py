@@ -90,7 +90,6 @@ class ForecasterParametersSchema(Schema):
     )
     model_save_dir = fields.Str(
         data_key="model-save-dir",
-        required=False,
         allow_none=True,
         load_default="flexmeasures/data/models/forecasting/artifacts/models",
         metadata={
@@ -207,7 +206,6 @@ class ForecasterParametersSchema(Schema):
     )
     probabilistic = fields.Bool(
         data_key="probabilistic",
-        required=False,
         load_default=False,
         metadata={
             "description": "Enable probabilistic predictions if True. Defaults to false.",
@@ -232,7 +230,7 @@ class ForecasterParametersSchema(Schema):
     )
     ensure_positive = fields.Bool(
         data_key="ensure-positive",
-        required=False,
+        load_default=False,
         allow_none=True,
         metadata={
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
@@ -244,7 +242,6 @@ class ForecasterParametersSchema(Schema):
     )
     missing_threshold = fields.Float(
         data_key="missing-threshold",
-        required=False,
         load_default=1.0,
         metadata={
             "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
