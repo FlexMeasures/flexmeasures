@@ -11,7 +11,7 @@
    :recursive:
 {% for item in modules %}
    {% if "test" not in item %}
-   {{ item }}
+   {{ fullname }}.{{ item }}
    {% endif %}
 {%- endfor %}
 {% endif %}
