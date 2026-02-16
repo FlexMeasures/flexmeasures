@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Any
+import math
+import random
 import json
 
 from flask import current_app
@@ -275,19 +277,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         # If not set, use defaults (show first 2 sensors)
         if not self.sensors_to_show and suggest_default_sensors:
-            sensors_to_show = self.sensors[:2]
-            if (
-                len(sensors_to_show) == 2
-                and sensors_to_show[0].unit == sensors_to_show[1].unit
-            ):
-                # Sensors are shown together (e.g. they can share the same y-axis)
-                return [{"title": None, "sensors": sensors_to_show}]
-            # Otherwise, show separately
-            return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
+            return self._suggest_default_sensors_to_show()
 
         sensor_ids_to_show = self.sensors_to_show
         # Import the schema for validation
-        from flexmeasures.data.schemas.utils import extract_sensors_from_flex_config
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
         sensors_to_show_schema = SensorsToShowSchema()
@@ -299,51 +292,41 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         sensor_id_allowlist = SensorsToShowSchema.flatten(standardized_sensors_to_show)
 
-        # Only allow showing sensors from assets owned by the user's organization,
-        # except in play mode, where any sensor may be shown
-        accounts = [self.owner] if self.owner is not None else None
-        if current_app.config.get("FLEXMEASURES_MODE") == "play":
-            from flexmeasures.data.models.user import Account
-
-            accounts = db.session.scalars(select(Account)).all()
-
-        from flexmeasures.data.services.sensors import get_sensors
-
-        accessible_sensor_map = {
-            sensor.id: sensor
-            for sensor in get_sensors(
-                account=accounts,
-                include_public_assets=True,
-                sensor_id_allowlist=sensor_id_allowlist,
-            )
-        }
+        accessible_sensor_map = self._get_accessible_sensor_map(sensor_id_allowlist)
 
         # Build list of sensor objects that are accessible
         sensors_to_show = []
         missed_sensor_ids = []
+        asset_refs: list[dict] = []
+
+        from flexmeasures.data.schemas.utils import extract_sensors_from_flex_config
+        from flexmeasures.data.models.time_series import Sensor
 
         for entry in standardized_sensors_to_show:
-
             title = entry.get("title")
-            sensors = []
+            sensors_for_entry: list[int] = []
             plots = entry.get("plots", [])
-            if len(plots) > 0:
-                for plot in plots:
-                    if "sensor" in plot:
-                        sensors.append(plot["sensor"])
-                    if "sensors" in plot:
-                        sensors.extend(plot["sensors"])
-                    if "asset" in plot:
-                        extracted_sensors = extract_sensors_from_flex_config(plot)
-                        sensors.extend(extracted_sensors)
+
+            for plot in plots:
+                self._process_plot_entry(
+                    plot,
+                    sensors_for_entry,
+                    asset_refs,
+                    extract_sensors_from_flex_config,
+                    Sensor,
+                )
 
             accessible_sensors = [
                 accessible_sensor_map.get(sid)
-                for sid in sensors
+                for sid in sensors_for_entry
                 if sid in accessible_sensor_map
             ]
-            inaccessible = [sid for sid in sensors if sid not in accessible_sensor_map]
+
+            inaccessible = [
+                sid for sid in sensors_for_entry if sid not in accessible_sensor_map
+            ]
             missed_sensor_ids.extend(inaccessible)
+
             if accessible_sensors:
                 sensors_to_show.append(
                     {"title": title, "plots": [{"sensors": accessible_sensors}]}
@@ -353,7 +336,83 @@ class GenericAsset(db.Model, AuthModelMixin):
             current_app.logger.warning(
                 f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
             )
+
+        if asset_refs:
+            self._add_temporary_asset_sensors(asset_refs, sensors_to_show, Sensor)
+
         return sensors_to_show
+
+    def _suggest_default_sensors_to_show(self):
+        """Helper to return default sensors if none are configured."""
+        sensors_to_show = self.sensors[:2]
+        if (
+            len(sensors_to_show) == 2
+            and sensors_to_show[0].unit == sensors_to_show[1].unit
+        ):
+            # Sensors are shown together (e.g. they can share the same y-axis)
+            return [{"title": None, "sensors": sensors_to_show}]
+        # Otherwise, show separately
+        return [{"title": None, "sensors": [sensor]} for sensor in sensors_to_show]
+
+    def _get_accessible_sensor_map(self, sensor_id_allowlist: list[int]) -> dict:
+        """Helper to fetch and map accessible sensors."""
+        from flexmeasures.data.services.sensors import get_sensors
+
+        # Only allow showing sensors from assets owned by the user's organization,
+        # except in play mode, where any sensor may be shown
+        accounts = [self.owner] if self.owner is not None else None
+        if current_app.config.get("FLEXMEASURES_MODE") == "play":
+            from flexmeasures.data.models.user import Account
+
+            accounts = db.session.scalars(select(Account)).all()
+
+        return {
+            sensor.id: sensor
+            for sensor in get_sensors(
+                account=accounts,
+                include_public_assets=True,
+                sensor_id_allowlist=sensor_id_allowlist,
+            )
+        }
+
+    def _process_plot_entry(
+        self, plot, sensors_list, asset_refs_list, extract_utils, SensorClass
+    ):
+        """Helper to extract sensors and asset refs from a single plot configuration."""
+        if "sensor" in plot:
+            sensors_list.append(plot["sensor"])
+        if "sensors" in plot:
+            sensors_list.extend(plot["sensors"])
+        if "asset" in plot:
+            extracted_sensors, refs = extract_utils(plot)
+            for sensor_id in extracted_sensors:
+                sensor = db.session.get(SensorClass, sensor_id)
+                flex_config_key = plot.get("flex-context") or plot.get("flex-model")
+
+                # temporarily update sensor name for display context
+                sensor_name = f"{sensor.name} ({flex_config_key} for ({sensor.generic_asset.name}))"
+                sensor.name = sensor_name
+
+            sensors_list.extend(extracted_sensors)
+            asset_refs_list.extend(refs)
+
+    def _add_temporary_asset_sensors(self, asset_refs, sensors_to_show, SensorClass):
+        """Helper to create temporary sensor objects for asset references."""
+        for ref in asset_refs:
+            parent_asset = db.session.get(GenericAsset, ref["id"])
+            sensor_name = f"Temporary Sensor ({ref['field']} for ({parent_asset.name}))"
+            # create temporary sensor with negative ID
+            temporary = SensorClass(
+                name=sensor_name,
+                unit=ref["unit"],
+                generic_asset=parent_asset,
+                attributes={"graph_value": ref["value"]},
+            )
+            # random negative number between -1 and -10000 to avoid conflicts with real sensor ids
+            temporary.id = -1 * math.ceil(random.random() * 10000)
+            sensors_to_show.append(
+                {"title": "Temporary Sensor", "plots": [{"sensor": temporary}]}
+            )
 
     @property
     def asset_type(self) -> GenericAssetType:

@@ -46,7 +46,12 @@ const addInfo = (label, value, infoDiv, resource, isLink = false) => {
  * @param {number} plotIndex - The index of this specific plot within the graph's plots array.
  * @returns {Promise<HTMLElement>} The constructed HTML element representing the card.
  */
-export async function renderAssetPlotCard(assetPlot, graphIndex, plotIndex) {
+export async function renderAssetPlotCard(
+  assetPlot,
+  removeAssetPlotFromGraph,
+  graphIndex,
+  plotIndex,
+) {
   const Asset = await getAsset(assetPlot.asset);
   let IsFlexContext = false;
   let IsFlexModel = false;
@@ -89,8 +94,22 @@ export async function renderAssetPlotCard(assetPlot, graphIndex, plotIndex) {
   // Attach the actual function here
   closeIcon.addEventListener("click", (e) => {
     e.stopPropagation(); // Prevent card selection click
-    // removeAssetPlotFromGraph(graphIndex, plotIndex); // Note: Function reference needs to be available in scope
+    removeAssetPlotFromGraph(plotIndex, graphIndex);
   });
+
+  // Disabled input to show data
+  const disabledInput = document.createElement("input");
+  disabledInput.type = "text";
+  disabledInput.className = "form-control fst-italic col mt-2";
+  disabledInput.disabled = true;
+  const valueToDisplay = assetPlot.flexValue;
+  if (typeof valueToDisplay === "object") {
+    disabledInput.value = JSON.stringify(valueToDisplay);
+  } else {
+    disabledInput.value = valueToDisplay || "No Flex Context/Model Configured";
+  }
+
+  infoDiv.appendChild(disabledInput);
 
   flexDiv.appendChild(infoDiv);
   flexDiv.appendChild(closeIcon);
@@ -107,10 +126,16 @@ export async function renderAssetPlotCard(assetPlot, graphIndex, plotIndex) {
  *
  * @param {number} sensorId - The ID of the sensor to display.
  * @param {number} graphIndex - The index of the parent graph in the sensors_to_show array.
- * @param {number} sensorIndex - The index of this sensor within the graph's sensor list.
+ * @param {function} [removeAssetPlotFromGraph=null] - Optional function to remove the sensor's plot from the graph when the close icon is clicked.
+ * @param {number} [plotIndex=null] - The index of this sensor's plot within the graph's plots array, required if removeAssetPlotFromGraph is provided.
  * @returns {Promise<{element: HTMLElement, unit: string}>} An object containing the card element and the sensor's unit.
  */
-export async function renderSensorCard(sensorId, graphIndex, sensorIndex) {
+export async function renderSensorCard(
+  sensorId,
+  graphIndex,
+  removeAssetPlotFromGraph = null,
+  plotIndex = null,
+) {
   const Sensor = await getSensor(sensorId);
   const Asset = await getAsset(Sensor.generic_asset_id);
   const Account = await getAccount(Asset.account_id);
@@ -145,8 +170,10 @@ export async function renderSensorCard(sensorId, graphIndex, sensorIndex) {
 
   // Attach the actual function here
   closeIcon.addEventListener("click", (e) => {
-    e.stopPropagation(); // Prevent card selection click
-    removeSensorFromGraph(graphIndex, sensorIndex);
+    if (plotIndex !== null) {
+      e.stopPropagation(); // Prevent card selection click
+      removeAssetPlotFromGraph(plotIndex, graphIndex);
+    }
   });
 
   flexDiv.appendChild(infoDiv);
@@ -186,5 +213,5 @@ export async function renderSensorsList(sensorIds, graphIndex) {
     units.push(res.unit);
   });
 
-  return { element: listContainer, uniqueUnits: [...new Set(units)] }
-};
+  return { element: listContainer, uniqueUnits: [...new Set(units)] };
+}

@@ -312,8 +312,7 @@
 
                                     <div class="row my-3">
                                         <div class="col-8">
-                                            <input type="text" id="searchInput" class="form-control"
-                                                placeholder="Search sensors..." oninput="filterSensors()" />
+                                            <input type="text" id="searchInput" class="form-control" placeholder="Search sensors..." />
                                         </div>
 
                                         <div class="col-4">
@@ -383,6 +382,7 @@
         const flexConfigField = document.getElementById("flexConfigField");
         const flexConfigFieldDetail = document.getElementById("flexConfigFieldDetail");
         const unitsSelect = document.getElementById("unitsSelect");
+        const searchInput = document.getElementById("searchInput");
 
         let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
         sensorsToShowRawJSON = sensorsToShowRawJSON.replace(/'/g, '"');
@@ -414,6 +414,7 @@
                 const payload = {
                     "asset": configAsset().id,
                     [selectedFlexConfig]: selectedConfigField,
+                    "flexValue": JSON.parse(flexConfigFieldDetail.value)
                 }
 
                 const sensorsToShowOldState = getSensorToShow();
@@ -425,6 +426,10 @@
         };
 
         unitsSelect.onchange = function () {
+            filterSensors();
+        };
+
+        searchInput.oninput = function () {
             filterSensors();
         };
 
@@ -534,9 +539,9 @@
         async function renderRootAssets() {
             const assetTreeSelect = document.getElementById("assetTree");
             const rootAssetId = "{{asset.id}}"
-            const response = await fetch(`${apiBasePath}/api/v3_0/assets?page=1&per_page=200&sort_by=id&sort_dir=asc&root=${rootAssetId}`);
+            const response = await fetch(`${apiBasePath}/api/v3_0/assets?sort_by=id&sort_dir=asc&root=${rootAssetId}`);
             const resBody = await response.json();
-            const assets = resBody.data;
+            const assets = resBody;
 
             // Clear existing options
             assetTreeSelect.innerHTML = `<option value="${null}" selected>Select Asset</option>`;
@@ -547,7 +552,6 @@
                 option.textContent = `ID: ${asset.id}, Name: ${asset.name}`;
                 assetTreeSelect.appendChild(option);
                 option.onclick = () => {
-
                     // 1. Reset the Select State
                     configTypeSelect.innerHTML = '<option value="null" selected>Select Config Type</option>';
                     configTypeSelect.disabled = true;
@@ -682,7 +686,7 @@
 
             const childComponents = [];
 
-            for (const plot of item.plots) {
+            for (const [plotIndex, plot] of item.plots.entries()) {
                 if ("sensors" in plot) {
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "card-title pt-2";
@@ -705,7 +709,7 @@
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "card-title pt-2";
                     plotHeader.innerHTML = "<b>Sensor:</b>";
-                    const sensorContent = await renderSensorCard(plot.sensor, index, 0);
+                    const sensorContent = await renderSensorCard(plot.sensor, index, removeAssetPlotFromGraph, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(sensorContent.element);
                     childComponents.push({
@@ -716,7 +720,7 @@
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "card-title pt-2";
                     plotHeader.innerHTML = "<b>Asset:</b>";
-                    const assetPlotContent = await renderAssetPlotCard(plot, index, 0);
+                    const assetPlotContent = await renderAssetPlotCard(plot, removeAssetPlotFromGraph, index, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(assetPlotContent);
                     childComponents.push({ element: plotContainer, uniqueUnits: [] });
@@ -762,10 +766,14 @@
             return col;
         }
 
+        async function removeAssetPlotFromGraph(plotIndex, graphIndex) {
+            const sensorsToShowOldState = getSensorToShow();
+            sensorsToShowOldState[graphIndex].plots.splice(plotIndex, 1);
+            setSensorToShow(sensorsToShowOldState);
+        }
 
         // Function to render the graph cards
         async function renderGraphCards() {
-            console.log("Rendering graph cards...");
             const graphList = document.getElementById("graphList");
             graphList.innerHTML = "";
             const oldSensorsToShow = getSensorToShow();
@@ -923,8 +931,6 @@
 
         // Render the available API sensors
         function renderApiSensors(sensors, graphIndex) {
-            console.log("Rendering API sensors...");
-
             apiSensorsList.innerHTML = ""; // Clear the previous sensors
             if (sensors.length === 0) {
                 apiSensorsList.innerHTML = "<h3>No sensors found</h3>";

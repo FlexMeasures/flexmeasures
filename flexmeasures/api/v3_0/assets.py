@@ -48,6 +48,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
 )
+from flexmeasures.data.schemas.utils import generate_constant_time_series
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
 from flexmeasures.data.services.scheduling import (
@@ -898,7 +899,38 @@ class AssetAPI(FlaskView):
             - Assets
         """
         sensors = flatten_unique(asset.validate_sensors_to_show())
-        return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+        bdf = asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+        raw = json.loads(bdf)
+
+        new_data = {
+            "sensors": raw["sensors"],
+            "data": raw["data"],
+            "sources": raw["sources"],
+        }
+
+        for sensor in sensors:
+            if sensor.id < 0:
+                new_data["sensors"][f"{sensor.id}"] = {
+                    "name": sensor.name,
+                    "unit": sensor.unit,
+                    "description": f"{sensor.name} fdfd ",
+                    "asset_id": sensor.generic_asset_id,
+                    "asset_description": sensor.asset.name,
+                }
+
+                start_datetime = kwargs.get("event_starts_after")
+                end_datetime = kwargs.get("event_ends_before")
+
+                if start_datetime and end_datetime:
+                    simulated_graph_data = generate_constant_time_series(
+                        event_start=start_datetime,
+                        event_end=end_datetime,
+                        value=sensor.attributes["graph_value"],
+                        sid=sensor.id,
+                    )
+                    new_data["data"].extend(simulated_graph_data)
+
+        return new_data, 200
 
     @route("/<id>/auditlog")
     @use_kwargs(
