@@ -13,6 +13,7 @@ import click
 from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
+from marshmallow import fields
 
 from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
@@ -474,6 +475,10 @@ def add_cli_options_from_schema(schema):
             # Transfer the original field type
             if isinstance(field, MarshmallowClickMixin):
                 kwargs["type"] = field
+            elif isinstance(field, fields.List):
+                kwargs["multiple"] = True
+                kwargs["type"] = field.inner
+
             command = click.option(*options, **kwargs)(command)
 
         return command

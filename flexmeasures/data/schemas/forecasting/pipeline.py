@@ -28,7 +28,7 @@ class TrainPredictPipelineConfigSchema(Schema):
     future_regressors = fields.List(
         SensorIdField(),
         data_key="future-regressors",
-        required=False,
+        load_default=[],
         metadata={
             "description": (
                 "Sensor IDs to be treated only as future regressors."
@@ -43,7 +43,7 @@ class TrainPredictPipelineConfigSchema(Schema):
     past_regressors = fields.List(
         SensorIdField(),
         data_key="past-regressors",
-        required=False,
+        load_default=[],
         metadata={
             "description": (
                 "Sensor IDs to be treated only as past regressors."
@@ -58,7 +58,7 @@ class TrainPredictPipelineConfigSchema(Schema):
     regressors = fields.List(
         SensorIdField(),
         data_key="regressors",
-        required=False,
+        load_default=[],
         metadata={
             "description": (
                 "Sensor IDs used as both past and future regressors."
