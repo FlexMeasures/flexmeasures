@@ -22,6 +22,7 @@ from sqlalchemy import delete, select, or_
 from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_event,
+    unknown_forecast,
     unknown_schedule,
     unprocessable_entity,
     fallback_schedule_redirect,
@@ -1719,6 +1720,8 @@ class SensorAPI(FlaskView):
                       summary: Started forecasting job
                       value:
                         status: "STARTED"
+            400:
+              description: UNKNOWN_FORECAST
             401:
               description: UNAUTHORIZED
             403:
@@ -1758,7 +1761,9 @@ class SensorAPI(FlaskView):
             return dict(**response), s
 
         # Check job status
-        if not job.is_finished:
+        if job.is_finished:
+            message = "A forecasting job has been processed with your job ID"
+        else:
             job_status = job.get_status()
             job_status_name = (
                 job_status.upper() if isinstance(job_status, str) else job_status.name
@@ -1788,6 +1793,8 @@ class SensorAPI(FlaskView):
             current_app.logger.exception("Failed to get forecast job status.")
             return unprocessable_entity(str(e))
 
+        if forecasts.empty:
+            return unknown_forecast(f"{message}, but the forecast was not found in the database.")
         start = forecasts["event_start"].min()
         last_event_start = forecasts["event_start"].max()
 
