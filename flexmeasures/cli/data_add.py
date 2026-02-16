@@ -6,7 +6,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Dict, Any
-from flexmeasures.data.schemas.forecasting.pipeline import TrainPredictPipelineConfigSchema, ForecasterParametersSchema
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    TrainPredictPipelineConfigSchema,
+    ForecasterParametersSchema,
+)
 import isodate
 import json
 import yaml

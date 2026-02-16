@@ -1794,7 +1794,9 @@ class SensorAPI(FlaskView):
             return unprocessable_entity(str(e))
 
         if forecasts.empty:
-            return unknown_forecast(f"{message}, but the forecast was not found in the database.")
+            return unknown_forecast(
+                f"{message}, but the forecast was not found in the database."
+            )
         start = forecasts["event_start"].min()
         last_event_start = forecasts["event_start"].max()
 

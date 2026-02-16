@@ -193,9 +193,7 @@ class TrainPredictPipeline(Forecaster):
                 cycle_runtime = self.run_cycle(**train_predict_params)
                 cumulative_cycles_runtime += cycle_runtime
             else:
-                train_predict_params["target_sensor_id"] = self._parameters[
-                    "target"
-                ].id
+                train_predict_params["target_sensor_id"] = self._parameters["target"].id
                 cycles_job_params.append(train_predict_params)
 
             # Move forward to the next cycle one prediction period later
@@ -257,9 +255,7 @@ class TrainPredictPipeline(Forecaster):
 
             wrap_up_job = Job.create(
                 self.run_wrap_up,
-                kwargs={
-                    "cycle_job_ids": cycle_job_ids
-                },  # cycles jobs IDs to wait for
+                kwargs={"cycle_job_ids": cycle_job_ids},  # cycles jobs IDs to wait for
                 connection=current_app.queues[queue].connection,
                 depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
                 ttl=int(
@@ -279,4 +275,3 @@ class TrainPredictPipeline(Forecaster):
                 return cycle_job_ids[0]
 
         return self.return_values
-
