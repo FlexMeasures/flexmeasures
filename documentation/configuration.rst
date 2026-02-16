@@ -425,7 +425,7 @@ Default:
 SQLALCHEMY_TEST_DATABASE_URI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When running tests (``make test``, which runs ``pytest``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
+When running tests (``uv run poe test``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
 You can use this setting to overwrite that URI and point the tests to an (empty) database of your choice. 
 
 .. note:: This setting is only supported as an environment variable, not in a config file, and only during testing.

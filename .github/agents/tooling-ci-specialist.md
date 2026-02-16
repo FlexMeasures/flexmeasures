@@ -50,7 +50,7 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 - [ ] **Hook versions**: Hooks use recent, stable versions
 - [ ] **Hook coverage**: Appropriate hooks for code quality
 - [ ] **Performance**: Hooks run in reasonable time
-- [ ] **Configuration**: Hooks configured via `setup.cfg` or `pyproject.toml`
+- [ ] **Configuration**: Hooks configured via `pyproject.toml`
 - [ ] **Local vs CI**: Some hooks can skip in CI
 
 ### Caching Strategy
@@ -62,7 +62,7 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 
 ### Linter Configuration
 
-- [ ] **Flake8**: Configured in `setup.cfg` with appropriate rules
+- [ ] **Flake8**: Configured in `.flake8` with appropriate rules
 - [ ] **Black**: Line length and style consistent
 - [ ] **Mypy**: Type checking configuration appropriate
 - [ ] **Consistency**: Settings match across local and CI
@@ -87,9 +87,8 @@ This file defines standardized environment setup for GitHub Copilot agents. When
   - Other system tools
   
 - [ ] **Python environment**: 
-  - Is Python version appropriate? (Default: 3.11)
-  - Are dependencies installed correctly? (`pip-sync`, `pip install -e .`)
-  - Is pip-tools version pinned?
+  - Is Python version appropriate according to `.python-version`?
+  - Are dependencies installed correctly? (`uv sync`)
   
 - [ ] **Database setup**:
   - Is PostgreSQL service started?
@@ -145,23 +144,30 @@ This file defines standardized environment setup for GitHub Copilot agents. When
 
 1. **flake8** (v7.1.1) - Python linting
 2. **black** (v24.8.0) - Code formatting
-3. **mypy** (local script) - Type checking via `ci/run_mypy.sh`
+3. **mypy** (local task) - Type checking via `uv run poe type-check`
 4. **generate-openapi-specs** (local, skipped in CI)
 
 Setup:
 ```bash
-pip install pre-commit
+uv tool install pre-commit
 pre-commit run --all-files
 ```
 
 ### Flake8 Configuration
 
-`setup.cfg`:
+`.flake8`:
 ```ini
 [flake8]
+exclude = .git,__pycache__,documentation
 max-line-length = 160
 max-complexity = 13
+select = B,C,E,F,W,B9
 ignore = E501, W503, E203
+per-file-ignores =
+    flexmeasures/__init__.py:F401
+    flexmeasures/data/schemas/__init__.py:F401
+    flexmeasures/ui/crud/assets/__init__.py:F401
+
 ```
 
 Ignored rules:
@@ -179,13 +185,13 @@ Ignored rules:
 
 **Test execution**:
 ```bash
-make install-for-test  # Install dependencies
-make test              # Run pytest
+uv sync --group test  # Install dependencies
+uv run poe test              # Run pytest
 ```
 
 ### Caching Strategy
 
-Pip cache configuration:
+Uv cache configuration:
 ```yaml
 uses: actions/cache@v4
 with:
@@ -222,10 +228,9 @@ pytest -k test_auth_token  # Ensure auth setup runs
 
 - Workflows: `.github/workflows/`
 - Pre-commit: `.pre-commit-config.yaml`
-- Linter config: `setup.cfg`
-- Mypy runner: `ci/run_mypy.sh`
+- Linter config: `.flake8`
+- Task runner: `pyproject.toml` (poethepoet tasks)
 - PostgreSQL setup: `ci/setup-postgres.sh`
-- Makefile: `Makefile`
 - Docker: `Dockerfile`, `docker-compose.yml`
 
 ## Interaction Rules
@@ -312,15 +317,15 @@ Before committing CI changes:
 
 1. **Test pre-commit hooks locally**:
    ```bash
-   pip install pre-commit
+   uv tool install pre-commit
    pre-commit install
    pre-commit run --all-files
    ```
 2. **Test make targets**:
    ```bash
-   make install-for-test
-   make test
-   make update-docs
+   uv sync --group test
+   uv run poe test
+   uv run poe update-docs
    ```
 3. **Verify pytest configuration**:
    ```bash

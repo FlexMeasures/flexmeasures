@@ -60,3 +60,6 @@ iframe_figures/
 flexmeasures/data/models/forecasting/**/artifacts/
 flexmeasures/data/models/forecasting/**/*.pkl
 flexmeasures/data/models/forecasting/**/*.csv
+
+# Sphinx Autodoc generated files
+documentation/_autodoc/

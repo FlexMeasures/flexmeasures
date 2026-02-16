@@ -5,23 +5,13 @@ from getpass import getpass
 import inspect
 from importlib import import_module
 
-import pkg_resources
 from sqlalchemy import MetaData
 from sqlalchemy.orm import class_mapper
 
 """
 This is our dev script to make images displaying our data model.
 
-At the moment, this code requires an unreleased version of sqlalchemy_schemadisplay, install it like this:
-
-    pip install git+https://github.com/fschulze/sqlalchemy_schemadisplay.git@master
-
-
-See also https://github.com/fschulze/sqlalchemy_schemadisplay/issues/21
-
-For rendering of graphs (instead of saving a PNG), you'll need pillow:
-
-    pip install pillow
+To use this script, install the `visual-data-model` dependency group: `uv sync --extra visualize-data-model`
 
 """
 
@@ -58,23 +48,13 @@ RELEVANT_TABLES_NEW = []
 
 
 def check_sqlalchemy_schemadisplay_installation():
-    """Make sure the library which translates the model into a graph structure
-    is installed with the right version."""
+    """Make sure the library which translates the model into a graph structure is installed."""
     try:
         import sqlalchemy_schemadisplay  # noqa: F401
     except ImportError:
         print(
-            "You need to install sqlalchemy_schemadisplay==1.4dev0 or higher.\n"
-            "Try this: pip install git+https://github.com/fschulze/sqlalchemy_schemadisplay.git@master"
-        )
-        sys.exit(0)
-
-    packages_versions = {p.project_name: p.version for p in pkg_resources.working_set}
-    if packages_versions["sqlalchemy-schemadisplay"] < "1.4":
-        print(
-            "Your version of sqlalchemy_schemadisplay is too small. Should be 1.4 or higher."
-            " Currently, only 1.4dev0 is available with needed features.\n"
-            "Try this: pip install git+https://github.com/fschulze/sqlalchemy_schemadisplay.git@master"
+            "You need to install sqlalchemy_schemadisplay.\n"
+            "Make sure it is installed it: `uv sync --group visualize-data-model`"
         )
         sys.exit(0)
 
@@ -199,7 +179,7 @@ def show_image(graph):
     try:
         from PIL import Image
     except ImportError:
-        print("Please pip-install the pillow library in order to show graphs.")
+        print("Please install the pillow library in order to show graphs.")
         sys.exit(0)
 
     print("Creating PNG stream ...")
@@ -232,7 +212,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--deprecated",
         action="store_true",
-        help="If given, include the parts of the depcrecated data model, and leave out their new counterparts.",
+        help="If given, include the parts of the deprecated data model, and leave out their new counterparts.",
     )
     parser.add_argument(
         "--store",
