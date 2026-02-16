@@ -35,6 +35,8 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Migrate from ``pip`` to ``uv`` for dependency management [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
+* Migrate from ``make`` to ``poe`` for running tasks [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
 * End support for Python3.9 [see `PR #1965 <https://www.github.com/FlexMeasures/flexmeasures/pull/1965>`_]
 * Improve general description on SwaggerDocs page and add three settings for hosts: FLEXMEASURES_SUPPORT_PAGE, FLEXMEASURES_SIGNUP_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_ and `PR #1889 <https://www.github.com/FlexMeasures/flexmeasures/pull/1889>`_]
