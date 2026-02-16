@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 import os
-import sys
 import time
 import logging
 from datetime import datetime, timedelta
@@ -13,7 +12,6 @@ from rq.job import Job
 from flask import current_app
 
 from flexmeasures.data.models.forecasting import Forecaster
-from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
 from flexmeasures.data.schemas.forecasting.pipeline import (
