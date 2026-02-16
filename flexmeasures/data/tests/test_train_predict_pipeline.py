@@ -363,14 +363,13 @@ def test_missing_data_logs_warning(
     if params.get("regressors"):
         params["regressors"] = [r.id for r in regressors]
 
-    with caplog.at_level(logging.WARNING):
-        pipeline = TrainPredictPipeline(config=config)
-        # Expect CustomException when missing data exceeds threshold
-        with pytest.raises(CustomException) as excinfo:
-            pipeline.compute(parameters=params)
-        assert "missing values" in str(
-            excinfo.value
-        ), "Expected CustomException for missing data threshold"
+    pipeline = TrainPredictPipeline(config=config)
+    # Expect ValueError when missing data exceeds threshold
+    with pytest.raises(ValueError) as excinfo:
+        pipeline.compute(parameters=params)
+    assert "missing values" in str(
+        excinfo.value
+    ), "Expected CustomException for missing data threshold"
 
 
 # Test that max_training-period caps train-period and logs a warning
