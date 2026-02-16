@@ -70,6 +70,18 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+    missing_threshold = fields.Float(
+        data_key="missing-threshold",
+        load_default=1.0,
+        metadata={
+            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
+            "example": 0.1,
+            "cli": {
+                "option": "--missing-threshold",
+                "extra_help": "Missing data under this threshold will be filled using forward filling or linear interpolation.",
+            },
+        },
+    )
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
@@ -254,18 +266,6 @@ class ForecasterParametersSchema(Schema):
             "example": True,
             "cli": {
                 "option": "--ensure-positive",
-            },
-        },
-    )
-    missing_threshold = fields.Float(
-        data_key="missing-threshold",
-        load_default=1.0,
-        metadata={
-            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
-            "example": 0.1,
-            "cli": {
-                "option": "--missing-threshold",
-                "extra_help": "Missing data under this threshold will be filled using forward filling or linear interpolation.",
             },
         },
     )
@@ -489,7 +489,6 @@ class ForecasterParametersSchema(Schema):
             probabilistic=data["probabilistic"],
             sensor_to_save=sensor_to_save,
             ensure_positive=ensure_positive,
-            missing_threshold=data.get("missing_threshold"),
             save_belief_time=save_belief_time,
             n_cycles=int(
                 (data["end_date"] - predict_start)

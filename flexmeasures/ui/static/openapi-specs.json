@@ -4138,6 +4138,12 @@
             "items": {
               "type": "integer"
             }
+          },
+          "missing-threshold": {
+            "type": "number",
+            "default": 1.0,
+            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
+            "example": 0.1
           }
         },
         "additionalProperties": false
@@ -4217,12 +4223,6 @@
             "default": false,
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": true
-          },
-          "missing-threshold": {
-            "type": "number",
-            "default": 1.0,
-            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
-            "example": 0.1
           },
           "max-training-period": {
             "type": [

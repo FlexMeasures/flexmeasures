@@ -256,11 +256,8 @@ def test_train_predict_pipeline(  # noqa: C901
         # Check DataGenerator configuration stored under DataSource attributes
         data_generator_config = source.attributes["data_generator"]["config"]
         assert data_generator_config["model"] == "CustomLGBM"
-
-        # Check DataGenerator config stored under DataSource attributes
-        data_generator_params = source.attributes["data_generator"]["parameters"]
         assert (
-            "missing-threshold" in data_generator_params
+            "missing-threshold" in data_generator_config
         ), "data generator config should mention missing_threshold"
         for regressor in past_regressors:
             assert (
@@ -290,6 +287,7 @@ def test_train_predict_pipeline(  # noqa: C901
         (
             {
                 # "model": "CustomLGBM",
+                "missing-threshold": "0.0",
             },
             {
                 "sensor": "solar-sensor",
@@ -302,7 +300,6 @@ def test_train_predict_pipeline(  # noqa: C901
                 "retrain-frequency": "P1D",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
-                "missing-threshold": "0.0",
                 "probabilistic": False,
             },
         ),
@@ -311,6 +308,7 @@ def test_train_predict_pipeline(  # noqa: C901
             {
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
+                "missing-threshold": "0.0",
             },
             {
                 "sensor": "solar-sensor",
@@ -318,7 +316,6 @@ def test_train_predict_pipeline(  # noqa: C901
                 "output-path": None,
                 "start-date": "2025-01-01T00:00+02:00",
                 "end-date": "2025-01-30T00:00+02:00",
-                "missing-threshold": "0.0",
                 "sensor-to-save": None,
                 "start-predict-date": "2025-01-25T00:00+02:00",
                 "retrain-frequency": "P1D",
@@ -353,7 +350,7 @@ def test_missing_data_logs_warning(
         setup_fresh_test_forecast_data_with_missing_data[reg]
         for reg in params.get("regressors", [])
     ]
-    params["missing-threshold"] = float(params.get("missing-threshold"))
+    config["missing-threshold"] = float(config.get("missing-threshold"))
     if config.get("past-regressors"):
         config["past-regressors"] = [r.id for r in past_regressors]
     if config.get("future-regressors"):
@@ -419,7 +416,8 @@ def test_train_period_capped_logs_warning(
     ), "Expected warning about capping train_period"
 
     params_used = pipeline._parameters
-    assert params_used["missing_threshold"] == 1
+    config_used = pipeline._config
+    assert config_used["missing_threshold"] == 1
     assert params_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
         hours=1
     ), "train_period_in_hours should be capped to max_training_period"
