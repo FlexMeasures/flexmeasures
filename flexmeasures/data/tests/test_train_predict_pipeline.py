@@ -257,29 +257,29 @@ def test_train_predict_pipeline(  # noqa: C901
         data_generator_config = source.attributes["data_generator"]["config"]
         assert data_generator_config["model"] == "CustomLGBM"
 
-        # Check DataGenerator parameters stored under DataSource attributes
+        # Check DataGenerator config stored under DataSource attributes
         data_generator_params = source.attributes["data_generator"]["parameters"]
         assert (
             "missing-threshold" in data_generator_params
-        ), "data generator parameters should mention missing_threshold"
+        ), "data generator config should mention missing_threshold"
         for regressor in past_regressors:
             assert (
                 regressor.id in data_generator_config["past-regressors"]
-            ), f"data generator parameters should mention past regressor {regressor.name}"
+            ), f"data generator config should mention past regressor {regressor.name}"
 
         for regressor in future_regressors:
             assert (
                 regressor.id in data_generator_config["future-regressors"]
-            ), f"data generator parameters should mention future regressor {regressor.name}"
+            ), f"data generator config should mention future regressor {regressor.name}"
         for regressor in regressors:
             assert (
                 regressor.id in data_generator_config["past-regressors"]
-            ), f"data generator parameters should mention regressor {regressor.name} as a past regressor"
+            ), f"data generator config should mention regressor {regressor.name} as a past regressor"
             assert (
                 regressor.id in data_generator_config["future-regressors"]
-            ), f"data generator parameters should mention regressor {regressor.name} as a future regressor"
+            ), f"data generator config should mention regressor {regressor.name} as a future regressor"
         assert (
-            "regressors" not in data_generator_params
+            "regressors" not in data_generator_config
         ), "(past and future) regressors should be stored under 'past_regressors' and 'future_regressors' instead"
 
 
