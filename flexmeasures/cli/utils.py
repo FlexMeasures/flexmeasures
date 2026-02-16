@@ -473,10 +473,7 @@ def add_cli_options_from_schema(schema):
 
             # Transfer the original field type
             if isinstance(field, MarshmallowClickMixin):
-                kwargs["type"] = field.__class__()
-            else:
-                kwargs["type"] = field.__class__
-
+                kwargs["type"] = field
             command = click.option(*options, **kwargs)(command)
 
         return command
