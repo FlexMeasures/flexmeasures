@@ -11,6 +11,8 @@ from darts.dataprocessing.transformers import MissingValuesFiller
 from flexmeasures.data.models.time_series import Sensor
 from timely_beliefs import utils as tb_utils
 
+from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+
 
 class BasePipeline:
     """
@@ -588,7 +590,7 @@ class BasePipeline:
         - TimeSeries: The time series with missing values filled.
 
         Raises:
-        - ValueError: If the input dataframe is empty.
+        - NotEnoughDataException: If the input dataframe is empty or otherwise does not have enough data.
         - logging.warning: If missing values are detected and filled using `pd.DataFrame.interpolate()`.
         """
         dfs = []
@@ -602,7 +604,7 @@ class BasePipeline:
                 missing_fraction = n_missing / total if total > 0 else 1.0
 
                 if missing_fraction > self.missing_threshold:
-                    raise ValueError(
+                    raise NotEnoughDataException(
                         f"Sensor {sensor_name} has {missing_fraction*100:.1f}% missing values "
                         f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
                     )
@@ -687,7 +689,7 @@ class BasePipeline:
             missing_rows_fraction = total_missing / total_expected
 
             if missing_rows_fraction > self.missing_threshold:
-                raise ValueError(
+                raise NotEnoughDataException(
                     f"Sensor {sensor_name} has {missing_rows_fraction*100:.1f}% missing values "
                     f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
                 )

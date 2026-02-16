@@ -8,6 +8,7 @@ from datetime import timedelta
 
 from marshmallow import ValidationError
 
+from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.utils.job_utils import work_on_rq
@@ -285,7 +286,7 @@ def test_train_predict_pipeline(  # noqa: C901
         assert "max-training-period" in data_generator_params
 
 
-# Test that missing data logging works and raises CustomException when threshold exceeded
+# Test that missing data logging works and raises NotEnoughDataException when threshold exceeded
 @pytest.mark.parametrize(
     ["config", "params"],
     [  # Target sensor has missing data
@@ -338,7 +339,7 @@ def test_missing_data_logs_warning(
     caplog,
 ):
     """
-    Verify that a CustomException is raised (wrapping a ValueError)
+    Verify that a NotEnoughDataException is raised (wrapping a ValueError)
     """
     sensor = setup_fresh_test_forecast_data_with_missing_data[params["sensor"]]
     params["sensor"] = sensor.id
@@ -365,11 +366,11 @@ def test_missing_data_logs_warning(
 
     pipeline = TrainPredictPipeline(config=config)
     # Expect ValueError when missing data exceeds threshold
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(NotEnoughDataException) as excinfo:
         pipeline.compute(parameters=params)
     assert "missing values" in str(
         excinfo.value
-    ), "Expected CustomException for missing data threshold"
+    ), "Expected NotEnoughDataException for missing data threshold"
 
 
 # Test that max_training-period caps train-period and logs a warning
