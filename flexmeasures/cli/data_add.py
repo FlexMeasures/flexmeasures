@@ -1056,7 +1056,7 @@ def add_holidays(
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
 @with_appcontext
-def add_forecast(
+def add_forecast(  # noqa: C901
     forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
