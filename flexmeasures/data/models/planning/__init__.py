@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Type, Union
+from typing import Any, Type
 
 import pandas as pd
 from flask import current_app
@@ -14,8 +14,7 @@ from flexmeasures.utils.coding_utils import deprecated
 from .exceptions import WrongEntityException
 
 
-# todo: Use | instead of Union, list instead of List and dict instead of Dict when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
+SchedulerOutputType = pd.Series | list[dict[str, Any]] | None
 
 
 class Scheduler:
@@ -320,11 +319,34 @@ class Commitment:
             if not isinstance(val, pd.Series):
                 setattr(self, series_attr, pd.Series(val, index=self.index))
 
+        # Fill NaN prices with zero prices
+        self.upwards_deviation_price = self.upwards_deviation_price.fillna(0)
+        self.downwards_deviation_price = self.downwards_deviation_price.fillna(0)
+
         if self._type == "any":
-            # add all time steps to the same group
-            self.group = pd.Series(0, index=self.index)
+            # any grouping can be made here, if timeslots differ in up/down prices or qty
+            up = self.upwards_deviation_price
+            down = self.downwards_deviation_price
+            qty = self.quantity
+
+            # If everything is constant, keep one group
+            if up.nunique() == 1 and down.nunique() == 1 and qty.nunique() == 1:
+                self.group = pd.Series(0, index=self.index)
+            else:
+                # Group boundaries when ANY of the three series changes
+                up_change = up != up.shift()
+                down_change = down != down.shift()
+                qty_change = qty != qty.shift()
+
+                boundary = up_change | down_change | qty_change
+
+                group_id = boundary.cumsum() - 1
+                group_id.iloc[0] = 0
+
+                self.group = pd.Series(group_id.to_numpy(), index=self.index)
+
         elif self._type == "each":
-            # add each time step to their own group
+            # Each time step forms its own group
             self.group = pd.Series(list(range(len(self.index))), index=self.index)
         else:
             raise ValueError('Commitment `_type` must be "any" or "each".')

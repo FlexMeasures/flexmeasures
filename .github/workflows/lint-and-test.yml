@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ "3.9", "3.10", "3.11", "3.12" ]
+        py_version: [ "3.10", "3.11", "3.12" ]
         include:
           - python-version: "3.11"
             coverage: yes
@@ -63,7 +63,7 @@ jobs:
         # NB the --ignore and -k "not ..." statements are not used to ignore test modules,
         # but only to ignore some modules with doctests that do not (yet) pass (e.g. requiring app contexts)
         run: |
-          if [[ "${{ matrix.py_version }}" == "3.9" || "${{ matrix.py_version }}" == "3.10" ]]; then
+          if [[ "${{ matrix.py_version }}" == "3.10" ]]; then
             PYTEST_K="not get_object_or_literal and not get_or_create_model and not find_smallest_common_unit"
           else
             PYTEST_K="not get_object_or_literal and not get_or_create_model"

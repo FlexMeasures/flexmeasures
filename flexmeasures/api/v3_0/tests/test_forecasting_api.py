@@ -6,7 +6,7 @@ from flexmeasures.data.services.scheduling import (
     get_data_source_for_job,
 )
 from rq.job import Job
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
