@@ -413,3 +413,106 @@ def test_two_flexible_assets_with_commodity(app, db):
     # ---- assertions
     assert isinstance(schedules, list)
     assert len(schedules) >= 2  # at least one schedule per device
+
+
+def test_mixed_gas_and_electricity_assets(app, db):
+    """
+    Test scheduling two flexible assets with different commodities:
+    - Battery (electricity)
+    - Gas boiler (gas)
+    """
+
+    battery_type = get_or_create_model(GenericAssetType, name="battery")
+    boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    battery = GenericAsset(
+        name="Battery",
+        generic_asset_type=battery_type,
+        attributes={"energy-capacity": "100 kWh"},
+    )
+
+    gas_boiler = GenericAsset(
+        name="Gas Boiler",
+        generic_asset_type=boiler_type,
+    )
+
+    db.session.add_all([battery, gas_boiler])
+    db.session.commit()
+
+    battery_power = Sensor(
+        name="battery power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=battery,
+    )
+
+    boiler_power = Sensor(
+        name="boiler power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_boiler,
+    )
+
+    db.session.add_all([battery_power, boiler_power])
+    db.session.commit()
+
+    flex_model = [
+        {
+            # Electricity battery
+            "sensor": battery_power.id,
+            "commodity": "electricity",
+            "soc-at-start": 20.0,
+            "soc-min": 0.0,
+            "soc-max": 100.0,
+            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 80.0}],
+            "power-capacity": "20 kW",
+            "charging-efficiency": 0.95,
+            "discharging-efficiency": 0.95,
+        },
+        {
+            # Gas-powered device (no storage behavior)
+            "sensor": boiler_power.id,
+            "commodity": "gas",
+            "power-capacity": "30 kW",
+            "consumption-capacity": "30 kW",
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",  # electricity price
+        "production-price": "100 EUR/MWh",
+        "gas-price": "50 EUR/MWh",  # gas price
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    schedules = scheduler.compute(skip_validation=True)
+
+    assert isinstance(schedules, list)
+
+    scheduled_sensors = {
+        entry["sensor"]
+        for entry in schedules
+        if entry.get("name") == "storage_schedule"
+    }
+
+    assert battery_power in scheduled_sensors
+    assert boiler_power in scheduled_sensors
+
+    commitment_costs = [
+        entry for entry in schedules if entry.get("name") == "commitment_costs"
+    ]
+    assert len(commitment_costs) == 1
