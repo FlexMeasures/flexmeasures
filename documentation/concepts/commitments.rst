@@ -4,10 +4,10 @@ Commitments
 ===========
 
 Commitments are a key concept in FlexMeasures' flexibility modeling. With commitments, you can express economic preferences and pre-existing market positions to the scheduler in a flexible way.
-You can expand beyond only using one dynamic tariff signal.
+You can expand beyond only using one dynamic tariff signal, for example to also including peak prices and minimum fill rates. Or you can model passive imbalance.
 
-Commitments are used in the background without you having to worry about them explicitly (you can use "syntactic sugar" to enjoy them).
-However, they are also exposed as a powerful advanced tool to model your own preferences.
+Commitments are used in the background without you having to worry about them explicitly (you can use "syntactic sugar" in the ``flex-context`` to enjoy them).
+However, they are also exposed as a powerful advanced tool to model your custom preferences or contracts.
 
 This document explains what commitments are on a technical level, and then gives examples of how the scheduler uses them and how you can create your own commitments in the flex-context to great effect.
 
@@ -209,7 +209,8 @@ The scheduler then takes into account that exceeding 500 kW consumption during t
 
     The ``"commitments"`` field in the ``flex-context`` of an asset is not yet supported to be edited in the flex-context editor in the UI.
     Once it is, you will be able to use fixed quantities or sensors (for the baseline, up-price and down-price) to store custom commitments in the database.
-    Passing the ``"commitments"`` field in the API call is already supported, and you can also use the FlexMeasures-Client to edit the ``flex-context``.
+    Passing the ``"commitments"`` field in the API call for schedule triggering is already supported (and probably preferrable for one-off commitments like the example above).
+    And you can also use the FlexMeasures-Client to edit the ``flex-context`` on the asset level.
 
 Advanced: mathematical formulation
 ----------------------------------
