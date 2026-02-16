@@ -609,6 +609,9 @@
               }
             }
           },
+          "400": {
+            "description": "UNKNOWN_FORECAST"
+          },
           "401": {
             "description": "UNAUTHORIZED"
           },
@@ -4101,39 +4104,6 @@
             "description": "ID of the sensor to forecast.",
             "example": 2092
           },
-          "future-regressors": {
-            "type": "array",
-            "description": "Sensor IDs to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor.",
-            "example": [
-              2093,
-              2094
-            ],
-            "items": {
-              "type": "integer"
-            }
-          },
-          "past-regressors": {
-            "type": "array",
-            "description": "Sensor IDs to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor.",
-            "example": [
-              2095
-            ],
-            "items": {
-              "type": "integer"
-            }
-          },
-          "regressors": {
-            "type": "array",
-            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
-            "example": [
-              2093,
-              2094,
-              2095
-            ],
-            "items": {
-              "type": "integer"
-            }
-          },
           "start-date": {
             "type": [
               "string",
@@ -4198,6 +4168,7 @@
               "boolean",
               "null"
             ],
+            "default": false,
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": true
           },
