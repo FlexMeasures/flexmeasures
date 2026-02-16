@@ -73,7 +73,7 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.schemas.forecasting.pipeline import (
-    ForecasterParametersSchema,
+    ForecastingTriggerSchema,
 )
 
 # Instantiate schemes outside of endpoint logic to minimize response time
@@ -82,9 +82,7 @@ sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 # Create ForecasterParametersSchema OpenAPI compatible schema
-forecaster_parameters_schema_openAPI = make_openapi_compatible(
-    ForecasterParametersSchema
-)
+forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerSchema)
 
 
 class SensorKwargsSchema(Schema):
@@ -1526,7 +1524,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
     @use_args(
-        ForecasterParametersSchema(),
+        ForecastingTriggerSchema(),
         location="combined_sensor_data_description",
         as_kwargs=True,
     )

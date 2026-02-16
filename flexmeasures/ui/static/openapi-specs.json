@@ -4096,6 +4096,52 @@
         },
         "additionalProperties": false
       },
+      "TrainPredictPipelineConfig": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "default": "CustomLGBM"
+          },
+          "future-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor.",
+            "example": [
+              2093,
+              2094
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "past-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor.",
+            "example": [
+              2095
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
+            "example": [
+              2093,
+              2094,
+              2095
+            ],
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "forecaster_parameters_schema_openAPI": {
         "type": "object",
         "properties": {
@@ -4185,6 +4231,9 @@
             ],
             "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
             "example": "P1Y"
+          },
+          "config": {
+            "$ref": "#/components/schemas/TrainPredictPipelineConfig"
           }
         },
         "required": [

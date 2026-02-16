@@ -497,3 +497,8 @@ class ForecasterParametersSchema(Schema):
                 // timedelta(hours=retrain_frequency_in_hours)
             ),
         )
+
+
+class ForecastingTriggerSchema(ForecasterParametersSchema):
+
+    config = fields.Nested(TrainPredictPipelineConfigSchema(), required=False)
