@@ -1110,12 +1110,9 @@ def add_forecast(
 
     if config_file:
         config = yaml.safe_load(config_file)
-    if regressors := kwargs.pop("regressors", None):
-        config["regressors"] = regressors
-    if past_regressors := kwargs.pop("past_regressors", None):
-        config["past-regressors"] = past_regressors
-    if future_regressors := kwargs.pop("future_regressors", None):
-        config["future-regressors"] = future_regressors
+    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
+        if field_value := kwargs.pop(field_name, None):
+            config[field.data_key] = field_value
 
     if edit_config:
         config = launch_editor("/tmp/config.yml")
