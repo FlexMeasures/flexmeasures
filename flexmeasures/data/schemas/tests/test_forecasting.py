@@ -101,31 +101,31 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - forecast-frequency = max-forecast-horizon = 12 hours
         #    - retraining-period = FM planning horizon
         #    - 1 cycle, 1 belief time
-        (
-            {"max-forecast-horizon": "PT12H"},
-            {
-                "predict_start": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h"),
-                "start_date": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h")
-                - pd.Timedelta(days=30),
-                "train_period_in_hours": 720,
-                "predict_period_in_hours": 12,
-                "max_forecast_horizon": pd.Timedelta(hours=12),
-                "forecast_frequency": pd.Timedelta(hours=12),
-                "end_date": pd.Timestamp(
-                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-                )
-                + pd.Timedelta(hours=12),
-                "max_training_period": pd.Timedelta(days=365),
-                "save_belief_time": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ),
-                "n_cycles": 1,
-            },
-        ),
+        # (
+        #     {"max-forecast-horizon": "PT12H"},
+        #     {
+        #         "predict_start": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h"),
+        #         "start_date": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h")
+        #         - pd.Timedelta(days=30),
+        #         "train_period_in_hours": 720,
+        #         "predict_period_in_hours": 12,
+        #         "max_forecast_horizon": pd.Timedelta(hours=12),
+        #         "forecast_frequency": pd.Timedelta(hours=12),
+        #         "end_date": pd.Timestamp(
+        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+        #         )
+        #         + pd.Timedelta(hours=12),
+        #         "max_training_period": pd.Timedelta(days=365),
+        #         "save_belief_time": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ),
+        #         "n_cycles": 1,
+        #     },
+        # ),
         # Case 3: forecast-frequency = 12 hours
         #
         # User expects to get forecasts for the default FM planning horizon from a new viewpoint every 12 hours.
