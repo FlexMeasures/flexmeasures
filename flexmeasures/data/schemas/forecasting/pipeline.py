@@ -423,13 +423,8 @@ class ForecasterParametersSchema(Schema):
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
 
-        if max_forecast_horizon is None and forecast_frequency is None:
-            max_forecast_horizon = timedelta(hours=retrain_frequency_in_hours)
-            forecast_frequency = timedelta(hours=retrain_frequency_in_hours)
-        elif max_forecast_horizon is None:
-            max_forecast_horizon = forecast_frequency
-        elif forecast_frequency is None:
-            forecast_frequency = max_forecast_horizon
+        if max_forecast_horizon is None:
+            max_forecast_horizon = predict_period
 
         if data.get("sensor_to_save") is None:
             sensor_to_save = target_sensor
