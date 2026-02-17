@@ -460,9 +460,7 @@ class ForecasterParametersSchema(Schema):
                 retrain_frequency_in_hours = planning_horizon
             else:
                 # If retrain_freq <= forecast-frequency, we enforce retrain_freq = forecast-frequency
-                retrain_frequency_in_hours = max(
-                    planning_horizon, forecast_frequency
-                )
+                retrain_frequency_in_hours = max(planning_horizon, forecast_frequency)
         else:
             retrain_frequency_in_hours = data["retrain_frequency"]
 
