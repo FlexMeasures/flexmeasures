@@ -72,11 +72,11 @@ class TrainPredictPipeline(Forecaster):
         train_pipeline = TrainPipeline(
             future_regressors=self._config["future_regressors"],
             past_regressors=self._config["past_regressors"],
-            target_sensor=self._parameters["target"],
+            target_sensor=self._parameters["sensor"],
             model_save_dir=self._parameters["model_save_dir"],
             n_steps_to_predict=self._parameters["train_period_in_hours"] * multiplier,
             max_forecast_horizon=self._parameters["max_forecast_horizon"]
-            // self._parameters["target"].event_resolution,
+            // self._parameters["sensor"].event_resolution,
             event_starts_after=train_start,
             event_ends_before=train_end,
             probabilistic=self._parameters["probabilistic"],
@@ -95,7 +95,7 @@ class TrainPredictPipeline(Forecaster):
         predict_pipeline = PredictPipeline(
             future_regressors=self._config["future_regressors"],
             past_regressors=self._config["past_regressors"],
-            target_sensor=self._parameters["target"],
+            target_sensor=self._parameters["sensor"],
             model_path=os.path.join(
                 self._parameters["model_save_dir"],
                 f"sensor_{self._parameters['target'].id}-cycle_{counter}-lgbm.pkl",
@@ -110,9 +110,9 @@ class TrainPredictPipeline(Forecaster):
             ),
             n_steps_to_predict=self._parameters["predict_period_in_hours"] * multiplier,
             max_forecast_horizon=self._parameters["max_forecast_horizon"]
-            // self._parameters["target"].event_resolution,
+            // self._parameters["sensor"].event_resolution,
             forecast_frequency=self._parameters["forecast_frequency"]
-            // self._parameters["target"].event_resolution,
+            // self._parameters["sensor"].event_resolution,
             probabilistic=self._parameters["probabilistic"],
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
             event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period
@@ -140,7 +140,7 @@ class TrainPredictPipeline(Forecaster):
             f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
         self.return_values.append(
-            {"data": forecasts, "sensor": self._parameters["target"]}
+            {"data": forecasts, "sensor": self._parameters["sensor"]}
         )
         return total_runtime
 
@@ -168,7 +168,7 @@ class TrainPredictPipeline(Forecaster):
         train_end = predict_start
         counter = 0
 
-        sensor_resolution = self._parameters["target"].event_resolution
+        sensor_resolution = self._parameters["sensor"].event_resolution
         multiplier = int(
             timedelta(hours=1) / sensor_resolution
         )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predicitons to predict a week
@@ -191,7 +191,7 @@ class TrainPredictPipeline(Forecaster):
                 cycle_runtime = self.run_cycle(**train_predict_params)
                 cumulative_cycles_runtime += cycle_runtime
             else:
-                train_predict_params["target_sensor_id"] = self._parameters["target"].id
+                train_predict_params["target_sensor_id"] = self._parameters["sensor"].id
                 cycles_job_params.append(train_predict_params)
 
             # Move forward to the next cycle one prediction period later
@@ -245,7 +245,7 @@ class TrainPredictPipeline(Forecaster):
 
                 current_app.queues[queue].enqueue_job(job)
                 current_app.job_cache.add(
-                    self._parameters["target"].id,
+                    self._parameters["sensor"].id,
                     job_id=job.id,
                     queue=queue,
                     asset_or_sensor_type="sensor",

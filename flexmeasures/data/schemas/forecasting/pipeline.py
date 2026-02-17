@@ -494,7 +494,7 @@ class ForecasterParametersSchema(Schema):
             model_save_dir = self.fields["model_save_dir"].load_default
 
         return dict(
-            target=target_sensor,
+            sensor=target_sensor,
             model_save_dir=model_save_dir,
             output_path=output_path,
             start_date=start_date,
