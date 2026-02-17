@@ -1,5 +1,6 @@
 import pytest
 
+from marshmallow import ValidationError
 import pandas as pd
 
 from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema
@@ -236,31 +237,16 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - 1 cycle, 1 belief time
         (
             {
-                "retrain-frequency": "PT12H",
+                "duration": "PT12H",
                 "max-forecast-horizon": "P10D",
             },
-            {
-                "predict_start": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h"),
-                "start_date": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h")
-                - pd.Timedelta(days=30),
-                "train_period_in_hours": 720,
-                "predict_period_in_hours": 12,
-                "max_forecast_horizon": pd.Timedelta(days=10),
-                "forecast_frequency": pd.Timedelta(days=10),
-                "end_date": pd.Timestamp(
-                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-                )
-                + pd.Timedelta(hours=12),
-                "max_training_period": pd.Timedelta(days=365),
-                "save_belief_time": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ),
-                "n_cycles": 1,
-            },
+            ValidationError(
+                {
+                    "max_forecast_horizon": [
+                        "max-forecast-horizon must be less than or equal to predict-period"
+                    ]
+                }
+            ),
         ),
         # Test defaults when only an end date is given
         # We expect training period of 30 days before predict start and prediction period of 5 days after predict start, with predict start at server now (floored to hour).
@@ -527,6 +513,16 @@ def test_timing_parameters_of_forecaster_parameters_schema(
         pd.Timestamp("2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam")
     )
 
+    if isinstance(expected_timing_output, ValidationError):
+        with pytest.raises(ValidationError) as exc:
+            ForecasterParametersSchema().load(
+                {
+                    "sensor": 1,
+                    **timing_input,
+                }
+            )
+        assert exc.value.messages == expected_timing_output.messages
+        return
     data = ForecasterParametersSchema().load(
         {
             "sensor": 1,
