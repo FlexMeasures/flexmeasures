@@ -431,6 +431,15 @@ class ForecasterParametersSchema(Schema):
                 "max-forecast-horizon must be less than or equal to predict-period",
                 field_name="max_forecast_horizon",
             )
+
+        if forecast_frequency is None:
+            forecast_frequency = min(
+                planning_horizon,
+                predict_period,
+                max_forecast_horizon,
+                timedelta(hours=retrain_frequency_in_hours),
+            )
+
         if data.get("sensor_to_save") is None:
             sensor_to_save = target_sensor
         else:
