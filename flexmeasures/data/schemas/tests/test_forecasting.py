@@ -181,9 +181,9 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 ).floor("1h")
                 - pd.Timedelta(days=30),
                 "train_period_in_hours": 720,
-                "predict_period_in_hours": 12,
-                "max_forecast_horizon": pd.Timedelta(hours=12),
-                "forecast_frequency": pd.Timedelta(hours=12),
+                "predict_period_in_hours": 48,
+                "max_forecast_horizon": pd.Timedelta(hours=48),
+                "forecast_frequency": pd.Timedelta(hours=48),
                 "end_date": pd.Timestamp(
                     "2025-01-17T12:00:00+01", tz="Europe/Amsterdam"
                 ),
