@@ -474,8 +474,10 @@ class ForecasterParametersSchema(Schema):
                 retrain_frequency_in_hours = max(planning_horizon, forecast_frequency)
         else:
             retrain_frequency_in_hours = data["retrain_frequency"]
+        retrain_frequency_in_hours = int(
+            retrain_frequency_in_hours.total_seconds() / 3600
+        )
 
-        retrain_frequency_in_hours = predict_period // timedelta(hours=1)
         if retrain_frequency_in_hours < 1:
             raise ValidationError("retrain-frequency must be at least 1 hour")
 

@@ -213,14 +213,16 @@ class TrainPredictPipeline(Forecaster):
 
         if as_job:
             cycle_job_ids = []
+
+            # job metadata for tracking
+            job_metadata = {
+                "data_source_info": {"id": self.data_source.id},
+                "start_predict_date": self._parameters["predict_start"],
+                "end_date": self._parameters["end_date"],
+                "sensor_id": self._parameters["sensor_to_save"].id,
+            }
             for cycle_params in cycles_job_params:
-                # job metadata for tracking
-                job_metadata = {
-                    "data_source_info": {"id": self.data_source.id},
-                    "start_predict_date": self._parameters["predict_start"],
-                    "end_date": self._parameters["end_date"],
-                    "sensor_id": self._parameters["sensor_to_save"].id,
-                }
+
                 job = Job.create(
                     self.run_cycle,
                     # Some cycle job params override job kwargs
@@ -270,6 +272,6 @@ class TrainPredictPipeline(Forecaster):
                 return wrap_up_job.id
             else:
                 # Return the single cycle job ID if only one job is queued
-                return cycle_job_ids[0]
+                return cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
 
         return self.return_values
