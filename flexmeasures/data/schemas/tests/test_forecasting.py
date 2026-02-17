@@ -69,7 +69,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - 1 cycle, 1 belief time
         #    - training-period = 30 days
         (
-            {"retrain-frequency": "PT12H"},
+            {"duration": "PT12H"},
             {
                 "predict_start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
