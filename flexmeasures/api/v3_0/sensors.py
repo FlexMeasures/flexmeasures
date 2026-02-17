@@ -1558,7 +1558,7 @@ class SensorAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema: forecaster_parameters_schema_openAPI
+                schema: forecasting_trigger_schema_openAPI
                 example:
                   start-date: "2026-01-01T00:00:00+01:00"
                   start-predict-date: "2026-01-15T00:00:00+01:00"

@@ -1189,7 +1189,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/forecaster_parameters_schema_openAPI"
+                "$ref": "#/components/schemas/forecasting_trigger_schema_openAPI"
               },
               "example": {
                 "start-date": "2026-01-01T00:00:00+01:00",
@@ -4157,7 +4157,7 @@
         },
         "additionalProperties": false
       },
-      "forecaster_parameters_schema_openAPI": {
+      "forecasting_trigger_schema_openAPI": {
         "type": "object",
         "properties": {
           "sensor": {
