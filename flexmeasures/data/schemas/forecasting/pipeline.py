@@ -426,6 +426,11 @@ class ForecasterParametersSchema(Schema):
         if max_forecast_horizon is None:
             max_forecast_horizon = predict_period
 
+        if max_forecast_horizon > predict_period:
+            raise ValidationError(
+                "max-forecast-horizon must be less than or equal to predict-period",
+                field_name="max_forecast_horizon",
+            )
         if data.get("sensor_to_save") is None:
             sensor_to_save = target_sensor
         else:
