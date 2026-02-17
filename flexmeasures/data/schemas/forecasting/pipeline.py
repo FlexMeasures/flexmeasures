@@ -297,7 +297,7 @@ class ForecasterParametersSchema(Schema):
     def sanitize_input(self, data, **kwargs):
 
         # Check predict period
-        if {"start", "end", "duration"} & data.keys():
+        if len({"start", "end", "duration"} & data.keys()) > 2:
             raise ValidationError(
                 "Provide 'duration' with either 'start' or 'end', but not with both.",
                 field_name="duration",
