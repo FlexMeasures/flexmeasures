@@ -470,7 +470,6 @@ class ForecasterParametersSchema(Schema):
         if model_save_dir is None:
             # Read default from schema
             model_save_dir = self.fields["model_save_dir"].load_default
-        breakpoint()
         return dict(
             target=target_sensor,
             model_save_dir=model_save_dir,
