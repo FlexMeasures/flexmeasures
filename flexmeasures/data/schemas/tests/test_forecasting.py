@@ -70,7 +70,6 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # - max-forecast-horizon defaults to the predict-period
         # - forecast-frequency defaults to minimum of (FM planning horizon, predict-period, max-forecast-horizon)
         # - retraining-frequency defaults to  maximum of (FM planning horizon and forecast-frequency) so at this point we need forecast-frequency calculated
-
         # Timing parameter constraints
         # - max-forecast-horizon <= predict-period, raise validation error if not respected
         # - if retrain_freq <= forecast-frequency, enforce retrain_freq = forecast-frequency don't crash

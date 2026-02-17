@@ -425,7 +425,11 @@ class ForecasterParametersSchema(Schema):
         else:
             start_date = data["start_date"]
 
-        predict_period = data["end_date"] - predict_start if data.get("end_date") else data["duration"]
+        predict_period = (
+            data["end_date"] - predict_start
+            if data.get("end_date")
+            else data["duration"]
+        )
         forecast_frequency = data.get("forecast_frequency")
 
         max_forecast_horizon = data.get("max_forecast_horizon")
