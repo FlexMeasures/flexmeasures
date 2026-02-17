@@ -157,7 +157,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - predict-period = FM planning horizon
         #    - max-forecast-horizon = predict-period (actual horizons are 48, 36, 24 and 12)
         #    - forecast-frequency = predict-period (NOT capped by retraining-period, no param changes based on config)
-        #    - 1 cycle, 1 belief time
+        #    - 4 cycle, 1 belief time
         (
             {
                 "retrain-frequency": "PT12H",
@@ -182,7 +182,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ),
-                "n_cycles": 1,
+                "n_cycles": 4,
             },
         ),
         # Case 5: predict-period = 10 days and max-forecast-horizon = 12 hours
