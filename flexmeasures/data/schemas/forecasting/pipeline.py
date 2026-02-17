@@ -477,6 +477,9 @@ class ForecasterParametersSchema(Schema):
         retrain_frequency_in_hours = int(
             retrain_frequency_in_hours.total_seconds() / 3600
         )
+        predict_period_in_hours = int(
+            predict_period.total_seconds() / 3600
+        )
 
         if retrain_frequency_in_hours < 1:
             raise ValidationError("retrain-frequency must be at least 1 hour")
@@ -504,15 +507,14 @@ class ForecasterParametersSchema(Schema):
             train_period_in_hours=train_period_in_hours,
             max_training_period=max_training_period,
             predict_start=predict_start,
-            predict_period_in_hours=retrain_frequency_in_hours,
+            predict_period_in_hours=predict_period_in_hours,
             max_forecast_horizon=max_forecast_horizon,
             forecast_frequency=forecast_frequency,
             probabilistic=data["probabilistic"],
             sensor_to_save=sensor_to_save,
             save_belief_time=save_belief_time,
             n_cycles=int(
-                (data["end_date"] - predict_start)
-                // timedelta(hours=retrain_frequency_in_hours)
+                predict_period // timedelta(hours=retrain_frequency_in_hours)
             ),
         )
 
