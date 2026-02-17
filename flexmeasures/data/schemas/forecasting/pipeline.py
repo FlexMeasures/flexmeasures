@@ -360,6 +360,7 @@ class ForecasterParametersSchema(Schema):
         target_sensor = data["sensor"]
 
         resolution = target_sensor.event_resolution
+        planning_horizon = current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
 
         now = server_now()
         floored_now = floor_to_resolution(now, resolution)
