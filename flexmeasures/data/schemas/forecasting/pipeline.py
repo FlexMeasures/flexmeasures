@@ -413,9 +413,7 @@ class ForecasterParametersSchema(Schema):
             raise ValidationError("retrain-frequency must be at least 1 hour")
 
         if data.get("end_date") is None:
-            data["end_date"] = predict_start + timedelta(
-                hours=retrain_frequency_in_hours
-            )
+            data["end_date"] = predict_start + predict_period
 
         if data.get("start_date") is None:
             start_date = predict_start - timedelta(hours=train_period_in_hours)
