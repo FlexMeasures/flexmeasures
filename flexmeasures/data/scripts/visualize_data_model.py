@@ -54,7 +54,7 @@ def check_sqlalchemy_schemadisplay_installation():
     except ImportError:
         print(
             "You need to install sqlalchemy_schemadisplay.\n"
-            "Make sure it is installed it: `uv sync --group visualize-data-model`"
+            "Make sure it is installed: `uv sync --group visualize-data-model`"
         )
         sys.exit(0)
 
