@@ -474,6 +474,8 @@ class ForecasterParametersSchema(Schema):
                 retrain_frequency = max(planning_horizon, forecast_frequency)
         else:
             retrain_frequency = data["retrain_frequency"]
+        if retrain_frequency > predict_period:
+            retrain_frequency = predict_period
         retrain_frequency_in_hours = int(retrain_frequency.total_seconds() / 3600)
         predict_period_in_hours = int(predict_period.total_seconds() / 3600)
 
