@@ -365,8 +365,8 @@ class ForecasterParametersSchema(Schema):
                 field_name="max_training_period",
             )
 
-    @post_load
-    def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
+    @post_load(pass_original=True)
+    def resolve_config(self, data: dict, original_data, **kwargs) -> dict:  # noqa: C901
 
         target_sensor = data["sensor"]
 
