@@ -139,31 +139,31 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # - max-forecast-horizon remains at planning horizon (48 hours)
         # - 1 cycle, 4 belief times
         # this fails
-        # (
-        #     {"forecast-frequency": "PT12H"},
-        #     {
-        #         "predict_start": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ).floor("1h"),
-        #         "start_date": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ).floor("1h")
-        #         - pd.Timedelta(days=30),
-        #         "train_period_in_hours": 720,
-        #         "predict_period_in_hours": 48,
-        #         "max_forecast_horizon": pd.Timedelta(hours=12),
-        #         "forecast_frequency": pd.Timedelta(hours=12),
-        #         "end_date": pd.Timestamp(
-        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-        #         )
-        #         + pd.Timedelta(hours=48),
-        #         "max_training_period": pd.Timedelta(days=365),
-        #         "save_belief_time": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ),
-        #         "n_cycles": 1,
-        #     },
-        # ),
+        (
+            {"forecast-frequency": "PT12H"},
+            {
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h"),
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h")
+                - pd.Timedelta(days=30),
+                "train_period_in_hours": 720,
+                "predict_period_in_hours": 48,
+                "max_forecast_horizon": pd.Timedelta(hours=48),
+                "forecast_frequency": pd.Timedelta(hours=48),
+                "end_date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(hours=48),
+                "max_training_period": pd.Timedelta(days=365),
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ),
+                "n_cycles": 1,
+            },
+        ),
         ###
         # Case 4 user expectation:
         # - Default planning horizon predictions, retraining every 12 hours
@@ -203,65 +203,65 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # - forecast-frequency = 12 hours
         # - 5 cycles, 20 belief times
         # this fails
-        # (
-        #     {
-        #         "retrain-frequency": "P10D",
-        #         "max-forecast-horizon": "PT12H",
-        #     },
-        #     {
-        #         "predict_start": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ).floor("1h"),
-        #         "start_date": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ).floor("1h")
-        #         - pd.Timedelta(days=30),
-        #         "train_period_in_hours": 720,
-        #         "predict_period_in_hours": 240,
-        #         "max_forecast_horizon": pd.Timedelta(hours=12),
-        #         "forecast_frequency": pd.Timedelta(hours=12),
-        #         "end_date": pd.Timestamp(
-        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-        #         )
-        #         + pd.Timedelta(days=10),
-        #         "max_training_period": pd.Timedelta(days=365),
-        #         "save_belief_time": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ),
-        #         "n_cycles": 5,
-        #     },
-        # ),
+        (
+            {
+                "retrain-frequency": "P10D",
+                "max-forecast-horizon": "PT12H",
+            },
+            {
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h"),
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h")
+                - pd.Timedelta(days=30),
+                "train_period_in_hours": 720,
+                "predict_period_in_hours": 240,
+                "max_forecast_horizon": pd.Timedelta(hours=12),
+                "forecast_frequency": pd.Timedelta(hours=12),
+                "end_date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(days=10),
+                "max_training_period": pd.Timedelta(days=365),
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ),
+                "n_cycles": 1,
+            },
+        ),
         # Case 6 user expectation:
         # - FM should complain: max-forecast-horizon must be <= predict-period
-        # this fails
-        # (
-        #     {
-        #         "retrain-frequency": "PT12H",
-        #         "max-forecast-horizon": "P10D",
-        #     },
-        #     {
-        #         "predict_start": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ).floor("1h"),
-        #         "start_date": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ).floor("1h")
-        #         - pd.Timedelta(days=30),
-        #         "train_period_in_hours": 720,
-        #         "predict_period_in_hours": 12,
-        #         "max_forecast_horizon": pd.Timedelta(days=10),
-        #         "forecast_frequency": pd.Timedelta(days=10),
-        #         "end_date": pd.Timestamp(
-        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-        #         )
-        #         + pd.Timedelta(hours=12),
-        #         "max_training_period": pd.Timedelta(days=365),
-        #         "save_belief_time": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ),
-        #         "n_cycles": 1,
-        #     },
-        # ),
+        # this should fails it expects a validation error
+        (
+            {
+                "retrain-frequency": "PT12H",
+                "max-forecast-horizon": "P10D",
+            },
+            {
+                "predict_start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h"),
+                "start_date": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h")
+                - pd.Timedelta(days=30),
+                "train_period_in_hours": 720,
+                "predict_period_in_hours": 12,
+                "max_forecast_horizon": pd.Timedelta(days=10),
+                "forecast_frequency": pd.Timedelta(days=10),
+                "end_date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
+                + pd.Timedelta(hours=12),
+                "max_training_period": pd.Timedelta(days=365),
+                "save_belief_time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ),
+                "n_cycles": 1,
+            },
+        ),
         ###
         # We expect training period of 30 days before predict start and prediction period of 48 hours after predict start, with predict start at server now (floored to hour).
         # 1 cycle expected (1 belief time for forecast) given the forecast frequency equal defaulted to prediction period of 48 hours.
@@ -567,6 +567,7 @@ def test_timing_parameters_of_forecaster_parameters_schema(
         }
     )
 
+    breakpoint()
     for k, v in expected_timing_output.items():
         # Convert kebab-case key to snake_case to match data dictionary keys returned by schema
         snake_key = kebab_to_snake(k)
