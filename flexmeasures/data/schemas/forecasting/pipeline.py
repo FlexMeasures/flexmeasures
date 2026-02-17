@@ -506,6 +506,7 @@ class ForecasterParametersSchema(Schema):
             max_training_period=max_training_period,
             predict_start=predict_start,
             predict_period_in_hours=predict_period_in_hours,
+            retrain_frequency=retrain_frequency_in_hours,
             max_forecast_horizon=max_forecast_horizon,
             forecast_frequency=forecast_frequency,
             probabilistic=data["probabilistic"],
