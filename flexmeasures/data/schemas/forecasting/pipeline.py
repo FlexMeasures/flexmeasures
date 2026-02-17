@@ -457,13 +457,14 @@ class ForecasterParametersSchema(Schema):
 
         if data.get("retrain_frequency") is None:
             if data.get("max_forecast_horizon") is None:
-                predict_period = planning_horizon
+                retrain_frequency_in_hours = planning_horizon
             else:
-                predict_period = min(
-                    planning_horizon, data["max_forecast_horizon"]
-                )  # this is the iss
+                # If retrain_freq <= forecast-frequency, we enforce retrain_freq = forecast-frequency
+                retrain_frequency_in_hours = max(
+                    planning_horizon, forecast_frequency
+                )
         else:
-            predict_period = data["retrain_frequency"]
+            retrain_frequency_in_hours = data["retrain_frequency"]
 
         retrain_frequency_in_hours = predict_period // timedelta(hours=1)
         if retrain_frequency_in_hours < 1:
@@ -482,6 +483,7 @@ class ForecasterParametersSchema(Schema):
         if model_save_dir is None:
             # Read default from schema
             model_save_dir = self.fields["model_save_dir"].load_default
+
         return dict(
             target=target_sensor,
             model_save_dir=model_save_dir,
