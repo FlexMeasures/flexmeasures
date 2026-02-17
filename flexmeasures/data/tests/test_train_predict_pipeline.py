@@ -197,7 +197,7 @@ def test_train_predict_pipeline(  # noqa: C901
             dg_params["forecast_frequency"]
         )
         # 1 hour of forecasts is saved over 4 15-minute resolution events
-        n_events_per_horizon = timedelta(hours=1) / dg_params["target"].event_resolution
+        n_events_per_horizon = timedelta(hours=1) / dg_params["sensor"].event_resolution
         n_hourly_horizons = dg_params["max_forecast_horizon"] // timedelta(hours=1)
         assert (
             len(forecasts) == n_cycles * n_hourly_horizons * n_events_per_horizon

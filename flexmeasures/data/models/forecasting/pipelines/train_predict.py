@@ -98,12 +98,12 @@ class TrainPredictPipeline(Forecaster):
             target_sensor=self._parameters["sensor"],
             model_path=os.path.join(
                 self._parameters["model_save_dir"],
-                f"sensor_{self._parameters['target'].id}-cycle_{counter}-lgbm.pkl",
+                f"sensor_{self._parameters['sensor'].id}-cycle_{counter}-lgbm.pkl",
             ),
             output_path=(
                 os.path.join(
                     self._parameters["output_path"],
-                    f"sensor_{self._parameters['target'].id}-cycle_{counter}.csv",
+                    f"sensor_{self._parameters['sensor'].id}-cycle_{counter}.csv",
                 )
                 if self._parameters["output_path"]
                 else None
