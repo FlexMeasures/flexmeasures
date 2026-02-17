@@ -4206,6 +4206,7 @@
             "example": "PT48H"
           },
           "config": {
+            "description": "Changing any of these will result in a new data source ID.",
             "$ref": "#/components/schemas/TrainPredictPipelineConfig"
           }
         },

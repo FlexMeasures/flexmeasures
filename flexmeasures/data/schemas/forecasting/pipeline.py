@@ -517,4 +517,10 @@ class ForecasterParametersSchema(Schema):
 
 class ForecastingTriggerSchema(ForecasterParametersSchema):
 
-    config = fields.Nested(TrainPredictPipelineConfigSchema(), required=False)
+    config = fields.Nested(
+        TrainPredictPipelineConfigSchema(),
+        required=False,
+        metadata={
+            "description": "Changing any of these will result in a new data source ID."
+        },
+    )
