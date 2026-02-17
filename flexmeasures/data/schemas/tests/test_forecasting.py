@@ -10,16 +10,6 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
 @pytest.mark.parametrize(
     ["timing_input", "expected_timing_output"],
     [
-        # todo: move this into the schema docstring
-        # Timing parameter defaults
-        # - predict-period defaults to minimum of (FM planning horizon and max-forecast-horizon)
-        # - max-forecast-horizon defaults to the predict-period
-        # - forecast-frequency defaults to minimum of (FM planning horizon, predict-period, max-forecast-horizon)
-        # - retraining-frequency defaults to  maximum of (FM planning horizon and forecast-frequency) so at this point we need forecast-frequency calculated
-        # Timing parameter constraints
-        # - max-forecast-horizon <= predict-period, raise validation error if not respected
-        # - if retrain_freq <= forecast-frequency, enforce retrain_freq = forecast-frequency don't crash
-        #
         # Case 0: no timing parameters are given
         #
         # User expects to get forecasts for the default FM planning horizon from a single viewpoint (server now, floored to the hour).

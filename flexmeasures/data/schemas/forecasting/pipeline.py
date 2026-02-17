@@ -378,6 +378,17 @@ class ForecasterParametersSchema(Schema):
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
+        """Resolve timing parameters, using sensible defaults and choices.
+
+        Defaults:
+        - predict-period defaults to minimum of (FM planning horizon and max-forecast-horizon)
+        - max-forecast-horizon defaults to the predict-period
+        - forecast-frequency defaults to minimum of (FM planning horizon, predict-period, max-forecast-horizon)
+
+        Choices:
+        - If max-forecast-horizon <= predict-period, we raise a ValidationError due to incomplete coverage
+        - retraining-frequency becomes the maximum of (FM planning horizon and forecast-frequency)
+        """
 
         target_sensor = data["sensor"]
 
