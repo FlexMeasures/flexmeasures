@@ -228,7 +228,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ),
-                "n_cycles": 1,
+                "n_cycles": 5,
             },
         ),
         # Case 6 user expectation:
