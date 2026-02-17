@@ -17,7 +17,11 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
-from flexmeasures.data.schemas.times import AwareDateTimeOrDateField, DurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeOrDateField,
+    DurationField,
+    PlanningDurationField,
+)
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
 
@@ -167,6 +171,13 @@ class ForecasterParametersSchema(Schema):
                 "aliases": ["--train-start"],
             },
         },
+    )
+    duration = PlanningDurationField(
+        load_default=PlanningDurationField.load_default,
+        metadata=dict(
+            description="The duration for which to create the forecast, also known as the planning horizon, in ISO 8601 duration format.",
+            example="PT24H",
+        ),
     )
     end_date = AwareDateTimeOrDateField(
         data_key="end-date",
