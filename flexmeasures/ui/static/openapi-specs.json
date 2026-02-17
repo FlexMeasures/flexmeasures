@@ -4188,14 +4188,6 @@
             "description": "End date for running the pipeline.",
             "example": "2025-10-15T00:00:00+01:00"
           },
-          "train-period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
-            "example": "P7D"
-          },
           "start-predict-date": {
             "type": [
               "string",
@@ -4213,37 +4205,10 @@
             "description": "Maximum forecast horizon. Defaults to covering the whole prediction period (which itself defaults to 48 hours).",
             "example": "PT48H"
           },
-          "forecast-frequency": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "How often to recompute forecasts. Defaults to retrain frequency.",
-            "example": "PT1H"
-          },
-          "sensor-to-save": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "description": "Sensor ID where forecasts will be saved; defaults to target sensor.",
-            "example": 2092
-          },
-          "max-training-period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
-            "example": "P1Y"
-          },
           "config": {
             "$ref": "#/components/schemas/TrainPredictPipelineConfig"
           }
         },
-        "required": [
-          "sensor"
-        ],
         "additionalProperties": false
       },
       "UserAPIQuerySchema": {
