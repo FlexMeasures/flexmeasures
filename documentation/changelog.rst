@@ -58,6 +58,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
+* Bring back the ability to show (timed) annotations on the sensor page, and add some color highlighting, too, while we're at it [see `PR #1967 <https://www.github.com/FlexMeasures/flexmeasures/pull/1967>`_]
 * Fixed toast notification display on the sensor detail upload form [see `PR #1921 <https://www.github.com/FlexMeasures/flexmeasures/pull/1921>`_]
 * Fix: return validation errors instead of database errors for API/CLI fields that map to database objects [see `PR #1923 <https://www.github.com/FlexMeasures/flexmeasures/pull/1923>`_]
 * Correct field documentation for flex-config fields that strictly allow sensor references [see `PR #1951 <https://www.github.com/FlexMeasures/flexmeasures/pull/1951>`_]
@@ -65,6 +66,7 @@ Bugfixes
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>`` [see `PR #1929 <https://www.github.com/FlexMeasures/flexmeasures/pull/1929>`_ and `PR #1930 <https://www.github.com/FlexMeasures/flexmeasures/pull/1930>`_]
 * Prevent inplace operation when using ``simplify_index`` [see `PR #1931 <https://www.github.com/FlexMeasures/flexmeasures/pull/1931>`_]
 * Fix API tests failing with 401 UNAUTHORIZED when run in isolation by properly setting Flask-Security's ``fs_authn_via`` attribute in the ``requesting_user`` fixture [see `PR #1960 <https://www.github.com/FlexMeasures/flexmeasures/pull/1960>`_]
+* Fix ReadTheDocs build pipeline [see `PR #1972 <https://www.github.com/FlexMeasures/flexmeasures/pull/1972>`_]
 
 
 v0.30.3 | January 12, 2026
