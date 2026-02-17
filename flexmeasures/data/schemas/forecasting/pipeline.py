@@ -294,8 +294,19 @@ class ForecasterParametersSchema(Schema):
     )
 
     @pre_load
-    def drop_none_values(self, data, **kwargs):
-        return {k: v for k, v in data.items() if v is not None}
+    def sanitize_input(self, data, **kwargs):
+
+        # Check predict period
+        if {"start", "end", "duration"} & data.keys():
+            raise ValidationError(
+                "Provide 'duration' with either 'start' or 'end', but not with both.",
+                field_name="duration",
+            )
+
+        # Drop None values
+        data = {k: v for k, v in data.items() if v is not None}
+
+        return data
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
@@ -365,14 +376,8 @@ class ForecasterParametersSchema(Schema):
                 field_name="max_training_period",
             )
 
-    @post_load(pass_original=True)
-    def resolve_config(self, data: dict, original_data, **kwargs) -> dict:  # noqa: C901
-
-        if {"start", "end", "duration"} & original_data.keys():
-            raise ValidationError(
-                "Provide 'duration' with either 'start' or 'end', but not with both.",
-                field_name="duration",
-            )
+    @post_load
+    def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
 
         target_sensor = data["sensor"]
 
