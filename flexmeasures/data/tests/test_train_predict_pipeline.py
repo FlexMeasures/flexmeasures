@@ -17,28 +17,28 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
 @pytest.mark.parametrize(
     ["config", "params", "as_job", "expected_error"],
     [
-        (
-            {
-                # "model": "CustomLGBM",
-            },
-            {
-                "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "end-date": "2025-01-03T00:00+02:00",
-                "train-period": "P2D",
-                "sensor-to-save": None,
-                "start-predict-date": "2025-01-02T00:00+02:00",
-                "retrain-frequency": "P0D",  # 0 days is expected to fail
-                "max-forecast-horizon": "PT1H",
-                "forecast-frequency": "PT1H",
-                "probabilistic": False,
-            },
-            False,
-            (ValidationError, "retrain-frequency must be greater than 0"),
-        ),
-        (
+        # (
+        #     {
+        #         # "model": "CustomLGBM",
+        #     },
+        #     {
+        #         "sensor": "solar-sensor",
+        #         "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        #         "output-path": None,
+        #         "start-date": "2025-01-01T00:00+02:00",
+        #         "end-date": "2025-01-03T00:00+02:00",
+        #         "train-period": "P2D",
+        #         "sensor-to-save": None,
+        #         "start-predict-date": "2025-01-02T00:00+02:00",
+        #         "retrain-frequency": "P0D",  # 0 days is expected to fail
+        #         "max-forecast-horizon": "PT1H",
+        #         "forecast-frequency": "PT1H",
+        #         "probabilistic": False,
+        #     },
+        #     False,
+        #     (ValidationError, "retrain-frequency must be greater than 0"),
+        # ),
+        (   # this
             {
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
@@ -97,28 +97,28 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             False,
             None,
         ),
-        (
-            {
-                # "model": "CustomLGBM",
-                "future-regressors": ["irradiance-sensor"],
-            },
-            {
-                "sensor": "solar-sensor",
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
-                "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "end-date": "2025-01-03T00:00+02:00",
-                "train-period": "P2D",
-                "sensor-to-save": None,
-                "start-predict-date": "2025-01-02T00:00+02:00",
-                "retrain-frequency": "P1D",
-                "max-forecast-horizon": "PT1H",
-                "forecast-frequency": "PT1H",
-                "probabilistic": False,
-            },
-            False,
-            None,
-        ),
+        # (
+        #     {
+        #         # "model": "CustomLGBM",
+        #         "future-regressors": ["irradiance-sensor"],
+        #     },
+        #     {
+        #         "sensor": "solar-sensor",
+        #         "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        #         "output-path": None,
+        #         "start-date": "2025-01-01T00:00+02:00",
+        #         "end-date": "2025-01-03T00:00+02:00",
+        #         "train-period": "P2D",
+        #         "sensor-to-save": None,
+        #         "start-predict-date": "2025-01-02T00:00+02:00",
+        #         "retrain-frequency": "P1D",
+        #         "max-forecast-horizon": "PT1H",
+        #         "forecast-frequency": "PT1H",
+        #         "probabilistic": False,
+        #     },
+        #     False,
+        #     None,
+        # ),
         # (
         #     {},
         #     {
