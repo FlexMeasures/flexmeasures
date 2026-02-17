@@ -468,14 +468,14 @@ class ForecasterParametersSchema(Schema):
 
         if data.get("retrain_frequency") is None:
             if data.get("max_forecast_horizon") is None:
-                retrain_frequency_in_hours = planning_horizon
+                retrain_frequency = planning_horizon
             else:
                 # If retrain_freq <= forecast-frequency, we enforce retrain_freq = forecast-frequency
-                retrain_frequency_in_hours = max(planning_horizon, forecast_frequency)
+                retrain_frequency = max(planning_horizon, forecast_frequency)
         else:
-            retrain_frequency_in_hours = data["retrain_frequency"]
+            retrain_frequency = data["retrain_frequency"]
         retrain_frequency_in_hours = int(
-            retrain_frequency_in_hours.total_seconds() / 3600
+            retrain_frequency.total_seconds() / 3600
         )
         predict_period_in_hours = int(
             predict_period.total_seconds() / 3600
