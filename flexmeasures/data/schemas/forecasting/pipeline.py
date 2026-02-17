@@ -411,29 +411,23 @@ class ForecasterParametersSchema(Schema):
             logging.warning(
                 f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
             )
-
-        if data.get("retrain_frequency") is None:
-            if data.get("max_forecast_horizon") is None:
-                predict_period = planning_horizon
-            else:
-                predict_period = min(planning_horizon, data["max_forecast_horizon"])
-        else:
-            predict_period = data["retrain_frequency"]
-
-        retrain_frequency_in_hours = predict_period // timedelta(hours=1)
-        if retrain_frequency_in_hours < 1:
-            raise ValidationError("retrain-frequency must be at least 1 hour")
-
         if data.get("end_date") is None:
-            data["end_date"] = predict_start + predict_period
+            data["end_date"] = predict_start + data['duration']
 
         if data.get("start_date") is None:
             start_date = predict_start - timedelta(hours=train_period_in_hours)
         else:
             start_date = data["start_date"]
 
-        max_forecast_horizon = data.get("max_forecast_horizon")
+        if data.get("end_date") is not None and data.get("duration"): # check if duration has been given not check it's default value
+            raise ValidationError(
+                "end-date and duration cannot both be set. Please provide only one of these parameters.",
+                field_name="end_date",
+            )
+        predict_period = data["end_date"] - predict_start if data.get("end_date") else data["duration"]
         forecast_frequency = data.get("forecast_frequency")
+
+        max_forecast_horizon = data.get("max_forecast_horizon")
 
         if max_forecast_horizon is None:
             max_forecast_horizon = predict_period
@@ -447,10 +441,21 @@ class ForecasterParametersSchema(Schema):
         if forecast_frequency is None:
             forecast_frequency = min(
                 planning_horizon,
-                predict_period,
                 max_forecast_horizon,
-                timedelta(hours=retrain_frequency_in_hours),
+                predict_period,
             )
+
+        if data.get("retrain_frequency") is None:
+            if data.get("max_forecast_horizon") is None:
+                predict_period = planning_horizon
+            else:
+                predict_period = min(planning_horizon, data["max_forecast_horizon"]) # this is the iss
+        else:
+            predict_period = data["retrain_frequency"]
+
+        retrain_frequency_in_hours = predict_period // timedelta(hours=1)
+        if retrain_frequency_in_hours < 1:
+            raise ValidationError("retrain-frequency must be at least 1 hour")
 
         if data.get("sensor_to_save") is None:
             sensor_to_save = target_sensor
@@ -465,7 +470,7 @@ class ForecasterParametersSchema(Schema):
         if model_save_dir is None:
             # Read default from schema
             model_save_dir = self.fields["model_save_dir"].load_default
-
+        breakpoint()
         return dict(
             target=target_sensor,
             model_save_dir=model_save_dir,
