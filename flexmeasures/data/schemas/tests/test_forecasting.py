@@ -202,7 +202,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - 5 cycles, 20 belief times
         (
             {
-                "retrain-frequency": "P10D",
+                "duration": "P10D",
                 "max-forecast-horizon": "PT12H",
             },
             {
