@@ -425,18 +425,7 @@ class ForecasterParametersSchema(Schema):
         else:
             start_date = data["start_date"]
 
-        if data.get("end_date") is not None and data.get(
-            "duration"
-        ):  # check if duration has been given not check it's default value
-            raise ValidationError(
-                "end-date and duration cannot both be set. Please provide only one of these parameters.",
-                field_name="end_date",
-            )
-        predict_period = (
-            data["end_date"] - predict_start
-            if data.get("end_date")
-            else data["duration"]
-        )
+        predict_period = data["end_date"] - predict_start if data.get("end_date") else data["duration"]
         forecast_frequency = data.get("forecast_frequency")
 
         max_forecast_horizon = data.get("max_forecast_horizon")
