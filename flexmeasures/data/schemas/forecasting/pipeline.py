@@ -400,32 +400,17 @@ class ForecasterParametersSchema(Schema):
                 f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
             )
 
-        if data.get("retrain_frequency") is None and data.get("end_date") is not None:
-            retrain_frequency_in_hours = int(
-                (data["end_date"] - predict_start).total_seconds() / 3600
-            )
-        elif (
-            data.get("retrain_frequency") is None
-            and data.get("end_date") is None
-            and data.get("max_forecast_horizon") is not None
-        ):
-            retrain_frequency_in_hours = data.get("max_forecast_horizon") // timedelta(
-                hours=1
-            )
-        elif (
-            data.get("retrain_frequency") is None
-            and data.get("end_date") is None
-            and data.get("max_forecast_horizon") is None
-        ):
-            retrain_frequency_in_hours = current_app.config.get(
-                "FLEXMEASURES_PLANNING_HORIZON"
-            ) // timedelta(
-                hours=1
-            )  # Set default retrain_frequency to planning horizon
+        if data.get("retrain_frequency") is None:
+            if data.get("max_forecast_horizon") is None:
+                predict_period = planning_horizon
+            else:
+                predict_period = min(planning_horizon, data["max_forecast_horizon"])
         else:
-            retrain_frequency_in_hours = data["retrain_frequency"] // timedelta(hours=1)
-            if retrain_frequency_in_hours < 1:
-                raise ValidationError("retrain-frequency must be at least 1 hour")
+            predict_period = data["retrain_frequency"]
+
+        retrain_frequency_in_hours = predict_period // timedelta(hours=1)
+        if retrain_frequency_in_hours < 1:
+            raise ValidationError("retrain-frequency must be at least 1 hour")
 
         if data.get("end_date") is None:
             data["end_date"] = predict_start + timedelta(
