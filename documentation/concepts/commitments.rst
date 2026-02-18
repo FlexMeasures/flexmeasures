@@ -50,6 +50,9 @@ A commitment describes:
 - a **baseline quantity** over time (the contracted or preferred position), and
 - marginal prices for **upwards** and **downwards deviations** from that baseline.
 
+Per default, a commitment is applied per time slot and across all devices on the site,
+but it is possible to apply commitments across other groups of schedule values (more on that below).
+
 The scheduler converts all provided commitments into terms in the optimization
 objective function so that the solver *minimizes the total deviation cost*
 across the schedule horizon. Absolute physical limitations (for example generator or
@@ -69,7 +72,7 @@ Each Commitment has the following important attributes (high level):
 - ``quantity`` — the baseline Series (per slot or per group).
 - ``upwards_deviation_price`` — Series defining marginal cost/reward for upward deviations.
 - ``downwards_deviation_price`` — Series defining marginal cost/reward for downward deviations.
-- ``_type`` — grouping indicator: ``'each'`` or ``'any'`` (see Grouping below).
+- ``_type`` — grouping indicator: ``'each'`` or ``'any'`` (defaults to ``'each'``; see more info below on grouping).
 
 
 Sign convention (flows vs stocks)
@@ -95,6 +98,9 @@ Sign convention (flows vs stocks)
 How FlexMeasures uses commitments in the scheduler
 --------------------------------------------------
 
+Soft vs hard constraints
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
 Commitments in FlexMeasures are **soft** by design: they represent economic
 penalties or rewards that the optimizer considers when building schedules.
 Hard operational constraints (such as physical power limits or strict device
@@ -102,9 +108,16 @@ interlocks) are expressed separately as Pyomo constraints in the scheduling
 model. If a “hard” behaviour is required from a commitment, assign very large
 penalty prices, but we prefer modelling non-negotiable limits as Pyomo constraints.
 
-Commitments are grouping across time and devices:
+Grouping across time and devices
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``_type == 'each'``: penalise deviations per time slot (default for time series).
+It is possible to define what group of schedule values is expected to not deviate.
+
+The ``'device'`` attribute already lets us reduce from the values for all devices to just one.
+The ``' _type'``attribute offers more powerful grouping options.
+For now, this extra grouping can happen across different definitions of time slots, soon also per groups of devices.
+
+- ``_type == 'each'``: penalise deviations per time slot (this is the default for time series).
 - ``_type == 'any'``: treat the whole commitment horizon as one group (useful
   for peak-style penalties where only the maximum over the window should be
   counted).
@@ -112,7 +125,7 @@ Commitments are grouping across time and devices:
 .. note::
 
    Near-term feature: support for **grouping over devices** is planned and
-   documented here. When enabled, grouping over devices lets you express
+   will be documented here. When enabled, grouping over devices lets you express
    soft constraints that aggregate deviations across a set of devices,
    for example, an intermediate capacity constraint from a feeder shared by a group of devices (via **flow commitments**), or multiple power-to-heat devices that feed a shared thermal buffer (via **stock commitments**).
 
