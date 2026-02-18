@@ -88,7 +88,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
                 "start-date": "2025-01-01T00:00+02:00",
-                "start-predict-date": "2025-01-04T00:00+02:00",
+                "start-predict-date": "2025-01-08T00:00+02:00",
                 "end-date": "2025-01-09T00:00+02:00",
                 "sensor-to-save": None,
                 "max-forecast-horizon": "PT1H",
