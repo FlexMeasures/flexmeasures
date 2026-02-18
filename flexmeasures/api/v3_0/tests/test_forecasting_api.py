@@ -103,14 +103,11 @@ def test_trigger_and_fetch_forecasts(
         assert isinstance(api_forecasts, list)
         assert len(api_forecasts) > 0
 
-        # Identify which data source wrote these beliefs
-        data_source = get_data_source_for_job(job, type="forecasting")
-
         # Load only the latest belief per event_start
         forecasts_df = sensor_1.search_beliefs(
             event_starts_after=job.meta.get("start_predict_date"),
             event_ends_before=job.meta.get("end_date") + sensor_1.event_resolution,
-            source=data_source,
+            source_types=["forecaster"],
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
         ).reset_index()
