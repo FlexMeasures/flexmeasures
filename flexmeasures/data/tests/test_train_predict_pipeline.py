@@ -122,24 +122,6 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             False,
             None,
         ),
-        # (
-        #     {},
-        #     {
-        #         "sensor": "solar-sensor",
-        #         "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
-        #         "output-path": None,
-        #         "start-date": "2025-07-01T00:00+02:00",
-        #         "end-date": "2025-07-12T00:00+02:00",
-        #         "sensor-to-save": 1,
-        #         "start-predict-date": "2025-07-11T17:26+02:00",
-        #         "retrain-frequency": "PT24H",
-        #         "max-forecast-horizon": 24,
-        #         "forecast-frequency": 1,
-        #         "probabilistic": False,
-        #     },
-        #     False,
-        #     (ValidationError, "Try increasing the --end-date."),
-        # )
     ],
 )
 def test_train_predict_pipeline(  # noqa: C901
