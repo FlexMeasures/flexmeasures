@@ -49,6 +49,7 @@ def make_mock_user(
     return MockUser(id=user_id, username="Tester", roles=user_roles, account=account)
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "mock_user,principals,should_match",
     [

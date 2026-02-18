@@ -180,7 +180,7 @@ def check_failures(
 
 
 def test_failed_forecasting_insufficient_data(
-    app, run_as_cli, clean_redis, setup_test_data
+    app, run_as_cli, fresh_queues, setup_test_data
 ):
     """This one (as well as the fallback) should fail as there is no underlying data.
     (Power data is in 2015)"""
@@ -200,7 +200,7 @@ def test_failed_forecasting_insufficient_data(
 
 
 def test_failed_forecasting_invalid_horizon(
-    app, run_as_cli, clean_redis, setup_test_data
+    app, run_as_cli, fresh_queues, setup_test_data
 ):
     """This one (as well as the fallback) should fail as the horizon is invalid."""
 
@@ -218,7 +218,7 @@ def test_failed_forecasting_invalid_horizon(
     check_failures(app.queues["forecasting"], 2 * ["InvalidHorizonException"])
 
 
-def test_failed_unknown_model(app, clean_redis, setup_test_data):
+def test_failed_unknown_model(app, fresh_queues, setup_test_data):
     """This one should fail because we use a model search term which yields no model configurator."""
 
     # asset has only 1 power sensor

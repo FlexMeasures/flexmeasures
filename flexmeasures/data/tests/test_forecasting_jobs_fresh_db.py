@@ -19,7 +19,7 @@ from flexmeasures.utils.time_utils import as_server_time
 
 
 def test_forecasting_three_hours_of_wind(
-    app, run_as_cli, setup_fresh_test_data, clean_redis, fresh_db
+    app, run_as_cli, setup_fresh_test_data, fresh_queues, fresh_db
 ):
     # asset has only 1 power sensor
     wind_device_2: Sensor = setup_fresh_test_data["wind-asset-2"].sensors[0]
@@ -51,7 +51,7 @@ def test_forecasting_three_hours_of_wind(
 
 
 def test_forecasting_two_hours_of_solar(
-    app, run_as_cli, setup_fresh_test_data, clean_redis, fresh_db
+    app, run_as_cli, setup_fresh_test_data, fresh_queues, fresh_db
 ):
     # asset has only 1 power sensor
     solar_device_1: Sensor = setup_fresh_test_data["solar-asset-1"].sensors[0]
@@ -91,7 +91,7 @@ def test_forecasting_two_hours_of_solar(
 def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     app,
     run_as_cli,
-    clean_redis,
+    fresh_queues,
     setup_fresh_test_data,
     model_to_start_with,
     model_version,

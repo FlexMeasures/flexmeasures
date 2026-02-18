@@ -202,6 +202,7 @@ def test_trigger_and_get_schedule(
     assert sensor.generic_asset.get_attribute("soc_in_mwh") == start_soc
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "context_sensor, asset_sensor, parent_sensor, expect_sensor",
     [
@@ -243,6 +244,8 @@ def test_price_sensor_priority(
     requesting_user,
 ):  # noqa: C901
     message, asset_name = message_for_trigger_schedule(), "Test battery"
+    # Sensor priority can be verified on a short horizon, so we set the duration to 1 hour
+    message["duration"] = "PT1H"
     message["force_new_job_creation"] = True
 
     sensor_types = ["consumption", "production"]
@@ -418,7 +421,10 @@ def test_multiple_contracts(
     """Check planning against an energy contract, a breach contract and a peak contract."""
     message, asset_name = (
         message_for_trigger_schedule(
-            with_targets=True, use_time_window=True, use_perfect_efficiencies=True
+            with_targets=True,
+            use_time_window=True,
+            use_perfect_efficiencies=True,
+            resolution="PT1H",
         ),
         "Test battery",
     )
@@ -538,7 +544,7 @@ def test_multiple_contracts(
     # Check target is met
     for target in soc_targets:
         assert (
-            int(soc_schedule[target.get("datetime", target.get("end"))] * 1000)
+            round(soc_schedule[target.get("datetime", target.get("end"))] * 1000)
             == target["value"]
         )
 

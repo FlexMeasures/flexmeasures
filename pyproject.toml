@@ -126,6 +126,26 @@ flexmeasures = "flexmeasures.utils.app_utils:flexmeasures_cli"
 help = "Run the test suite."
 cmd = "pytest"
 
+[tool.poe.tasks.test-fast]
+help = "Run tests excluding slow parametrized tests (for faster dev iteration)"
+cmd = "pytest -m 'not slow'"
+
+[tool.poe.tasks.test-slow]
+help = "Run only slow parametrized tests"
+cmd = "pytest -m slow"
+
+[tool.poe.tasks.test-unit]
+help = "Run only (parallelized) unit tests"
+cmd = "pytest -m unit"
+
+[tool.poe.tasks.test-profile]
+help = "Run tests with profiling enabled"
+cmd = "pytest --durations=50"
+
+[tool.poe.tasks.test-coverage]
+help = "Run tests with coverage report"
+cmd = "pytest --cov=flexmeasures --cov-report=term-missing"
+
 [tool.poe.tasks.show-file-space]
 help = "Show where file space is being used."
 shell = "du --summarize --human-readable --total ./* ./.[a-zA-Z]* | sort -h"
@@ -262,8 +282,13 @@ packages = ["flexmeasures"]
 [tool.hatch.version]
 source = "vcs"
 
-[tool.pytest.ini_options]
-addopts = "--strict-markers --ignore=docker-compose-data"
+[tool.pytest]
+# 950 items
+# https://github.com/zupo/awesome-pytest-speedup?tab=readme-ov-file
+testpaths = ["flexmeasures"]
+addopts = ["--strict-markers", "--ignore=docker-compose-data", "--import-mode=importlib"]
 markers = [
-    "skip_github: skip test in GitHub Actions. Useful in case the test passes, but breaks the test suite on GH Actions."
+    "skip_github: skip test in GitHub Actions. Useful in case the test passes, but breaks the test suite on GH Actions.",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"' for faster dev iteration)",
+    "unit: pure unit tests"
 ]

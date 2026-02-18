@@ -7,6 +7,7 @@ import isodate
 from flexmeasures.data.schemas.times import DurationField, DurationValidationError
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "duration_input, exp_deserialization",
     [
@@ -24,6 +25,7 @@ def test_duration_field_straightforward(duration_input, exp_deserialization):
     assert df.serialize("duration", {"duration": deser}) == duration_input
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "duration_input, exp_deserialization, grounded_timedelta",
     [
@@ -58,6 +60,7 @@ def test_duration_field_nominal_grounded(
     assert grounded == grounded_timedelta
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "duration_input, error_msg",
     [

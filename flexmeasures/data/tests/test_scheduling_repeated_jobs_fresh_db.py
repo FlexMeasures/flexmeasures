@@ -28,7 +28,11 @@ class FailingScheduler(Scheduler):
 
 
 def test_requeue_failing_job(
-    fresh_db, app, add_charging_station_assets_fresh_db, setup_fresh_test_data
+    fresh_db,
+    fresh_queues,
+    app,
+    add_charging_station_assets_fresh_db,
+    setup_fresh_test_data,
 ):
     """
     Testing that failing jobs are requeued.

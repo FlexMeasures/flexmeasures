@@ -1206,6 +1206,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
     assert results.solver.status == "ok"
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "power_sensor_name,capacity,expected_capacity,site_capacity,site_consumption_capacity,site_production_capacity,expected_site_consumption_capacity, expected_site_production_capacity",
     [
@@ -1446,6 +1447,7 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
     assert np.count_nonzero(~np.isnan(device_values)) == expected_num_targets
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     [
         "battery_name",
@@ -2201,6 +2203,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     assert all(abs(soc[8:].values - expected_soc_schedule) < 1e-5)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("unit", [None, "MWh", "kWh"])
 @pytest.mark.parametrize("soc_unit", ["kWh", "MWh"])
 @pytest.mark.parametrize("power_sensor_name", ["power", "power (kW)"])

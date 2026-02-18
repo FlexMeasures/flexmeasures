@@ -5,6 +5,7 @@ from marshmallow.exceptions import ValidationError
 from flexmeasures.data.schemas.locations import LatitudeField, LongitudeField
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     ("input", "exp_deserialization"),
     [
@@ -44,6 +45,7 @@ def test_latitude_field_invalid(input, error_messages):
     assert error_messages == ve.value.messages
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     ("input", "exp_deserialization"),
     [
@@ -61,6 +63,7 @@ def test_longitude(input, exp_deserialization):
     assert lf.serialize("duration", {"duration": deser}) == round(input, 7)
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     ("input", "error_messages"),
     [

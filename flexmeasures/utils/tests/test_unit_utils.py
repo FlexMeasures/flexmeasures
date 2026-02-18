@@ -18,6 +18,7 @@ from flexmeasures.utils.unit_utils import (
 )
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "from_unit, to_unit, expected_multiplier, expected_values",
     [
@@ -65,6 +66,7 @@ def test_convert_unit(
     pd.testing.assert_series_equal(converted_data, expected_data)
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "from_unit, to_unit, timezone, input_values, expected_values",
     [
@@ -174,6 +176,7 @@ def test_convert_special_unit(
     pd.testing.assert_series_equal(converted_data, expected_data)
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "unit, time_unit, expected_unit",
     [
@@ -217,6 +220,7 @@ def test_determine_stock_unit(
         assert determine_stock_unit(unit, time_unit) == expected_unit
 
 
+@pytest.mark.unit
 def test_determine_unit_conversion_multiplier():
     assert determine_unit_conversion_multiplier("kW", "W") == 1000
     assert determine_unit_conversion_multiplier("J/s", "W") == 1
@@ -227,6 +231,7 @@ def test_determine_unit_conversion_multiplier():
         determine_unit_conversion_multiplier("°C", "K")
 
 
+@pytest.mark.unit
 def test_h_denotes_hour_and_not_planck_constant():
     assert ur.Quantity("h").dimensionality == ur.Quantity("hour").dimensionality
     assert (
@@ -250,6 +255,7 @@ def test_units_are_convertible():
     assert not units_are_convertible("not-a-unit", "W")
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "unit, power_unit",
     [
@@ -281,5 +287,6 @@ def test_is_power_unit(unit: str, power_unit: bool):
         ("not-a-unit", False),
     ],
 )
+@pytest.mark.unit
 def test_is_energy_unit(unit: str, energy_unit: bool):
     assert is_energy_unit(unit) is energy_unit

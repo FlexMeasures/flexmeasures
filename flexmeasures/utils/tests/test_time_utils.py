@@ -17,6 +17,7 @@ from flexmeasures.utils.time_utils import (
 )
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "td, iso",
     [
@@ -32,6 +33,7 @@ def test_duration_isoformat(td: timedelta, iso: str):
     assert duration_isoformat(td) == iso
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "td, iso",
     [
@@ -170,6 +172,7 @@ def test_naturalized_datetime_str(
         ),
     ],
 )
+@pytest.mark.unit
 def test_recent_clocktime_window(window_size, now, exp_start, exp_end, grace_period):
     start, end = get_most_recent_clocktime_window(
         window_size, now=now, grace_period_in_seconds=grace_period
@@ -178,6 +181,7 @@ def test_recent_clocktime_window(window_size, now, exp_start, exp_end, grace_per
     assert end == exp_end
 
 
+@pytest.mark.unit
 def test_recent_clocktime_window_invalid_window():
     with pytest.raises(AssertionError):
         get_most_recent_clocktime_window(25, now=datetime(2021, 4, 30, 3, 36))
@@ -185,6 +189,7 @@ def test_recent_clocktime_window_invalid_window():
         get_most_recent_clocktime_window(0, now=datetime(2021, 4, 30, 3, 36))
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "input_date, offset_chain, output_date",
     [
@@ -226,6 +231,7 @@ def test_apply_offset_chain(
         (None, None),
     ],
 )
+@pytest.mark.unit
 def test_to_utc_timestamp(input_value, expected_output):
     result = to_utc_timestamp(input_value)
     if expected_output is None:

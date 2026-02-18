@@ -216,6 +216,7 @@ def test_parse_entity_address(entity_type, entity_address, exp_result):
                 assert res[field] == exp_result[field]
 
 
+@pytest.mark.unit
 def test_reverse_domain_name():
     assert reverse_domain_name("flexmeasures.io") == "io.flexmeasures"
     assert reverse_domain_name("company.flexmeasures.io") == "io.flexmeasures.company"
