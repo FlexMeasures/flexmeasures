@@ -59,11 +59,15 @@
                                 <div class="form-group">
                                     {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
                                     <div class="col-md-6">
-                                            <select name="parent_asset_id" id="parent_asset_id" class="form-control">
-                                            <option value="" {% if asset.parent_asset_id is none %} selected {% endif %}>No Parent</option>
+                                        <select name="parent_asset_id" id="parent_asset_id" class="form-control">
+                                            <option value="" {% if asset.parent_asset_id is none %} selected {% endif
+                                                %}>No Parent</option>
                                             {% for account_asset in account_assets %}
-                                            <option value="{{ account_asset.id }}" {% if asset.parent_asset_id == account_asset.id %} selected {% endif %}>
+                                            {% if account_asset.id != asset.id %}
+                                            <option value="{{ account_asset.id }}" {% if
+                                                asset.parent_asset_id==account_asset.id %} selected {% endif %}>
                                                 {{ account_asset.name }} (ID: {{ account_asset.id }})</option>
+                                            {% endif %}
                                             {% endfor %}
                                         </select>
 

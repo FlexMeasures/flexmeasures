@@ -209,6 +209,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         Here, we can only check if we have all information (a full form),
         which usually is at creation time.
         """
+
         if "name" in data:
             parent_id = data.get("parent_asset_id", None)
 
