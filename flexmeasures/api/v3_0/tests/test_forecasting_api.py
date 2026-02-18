@@ -2,9 +2,7 @@ from flask import current_app
 import isodate
 import pytest
 from flask import url_for
-from flexmeasures.data.services.scheduling import (
-    get_data_source_for_job,
-)
+
 from rq.job import Job
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.api.tests.utils import get_auth_token

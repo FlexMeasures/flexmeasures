@@ -158,9 +158,7 @@ class TrainPredictPipeline(Forecaster):
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
         )
         # How much to move forward to the next cycle one prediction period later
-        cycle_frequency = timedelta(
-            hours=self._parameters["retrain_frequency"]
-        )
+        cycle_frequency = timedelta(hours=self._parameters["retrain_frequency"])
 
         predict_start = self._parameters["predict_start"]
         predict_end = predict_start + cycle_frequency
