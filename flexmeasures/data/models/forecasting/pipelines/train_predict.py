@@ -163,9 +163,8 @@ class TrainPredictPipeline(Forecaster):
         )
 
         predict_start = self._parameters["predict_start"]
-        predict_end = predict_start + timedelta(
-            hours=self._parameters["predict_period_in_hours"]
-        )
+        predict_end = predict_start + cycle_frequency
+
         train_start = predict_start - timedelta(
             hours=self._parameters["train_period_in_hours"]
         )
