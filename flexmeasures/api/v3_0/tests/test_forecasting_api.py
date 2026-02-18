@@ -106,7 +106,7 @@ def test_trigger_and_fetch_forecasts(
         # Load only the latest belief per event_start
         forecasts_df = sensor_1.search_beliefs(
             event_starts_after=job.meta.get("start_predict_date"),
-            event_ends_before=job.meta.get("end_date") + sensor_1.event_resolution,
+            event_ends_before=job.meta.get("end_date"),
             source_types=["forecaster"],
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
