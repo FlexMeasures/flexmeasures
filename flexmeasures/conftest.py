@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+import secrets
+import functools
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-from sqlalchemy import select
+from sqlalchemy import select, text
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify, Flask
+from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -61,6 +62,34 @@ Such fixtures can be recognised by having fresh_db appended to their name.
 """
 
 
+@pytest.fixture(scope="session", autouse=True)
+def preload_crypto_randomizer():
+    """Preload the crypto random number generator at session start.
+
+    This ensures the system RNG is initialized once rather than per password hash,
+    providing a small performance improvement for the many password hashing operations
+    during test user creation.
+    """
+    secrets.SystemRandom(x=42)
+    yield
+
+
+@functools.cache
+def _build_truncate_sql(db_obj):
+    table_names = ", ".join(
+        f'"{table.name}"' for table in db_obj.metadata.sorted_tables
+    )
+    return text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE")
+
+
+def _truncate_all_tables(db_obj):
+    """Truncate all tables, reset sequences to 1, and clear the session identity map."""
+    db_obj.session.rollback()
+    db_obj.session.execute(_build_truncate_sql(db_obj))
+    db_obj.session.commit()
+    db_obj.session.expunge_all()
+
+
 @pytest.fixture(scope="session")
 def app():
     print("APP FIXTURE")
@@ -72,42 +101,48 @@ def app():
     print("DONE WITH APP FIXTURE")
 
 
+@pytest.fixture(scope="session")
+def db_engine(app):
+    """
+    Initialises the database and creates all tables once per session.
+
+    The autouse fixture 'clear_db' takes care of truncating the content before
+    each test that uses fresh_db. The module-scoped 'db' fixture truncates at
+    the start of each module.
+    """
+    print("DB ENGINE FIXTURE")
+    from flexmeasures.data import db as _db
+
+    _db.drop_all()
+    _db.create_all()
+
+    return _db
+
+
 @pytest.fixture(scope="module")
-def db(app):
-    """Fresh test db per module."""
-    with create_test_db(app) as test_db:
-        yield test_db
+def db(db_engine):
+    """Module-scoped db. Tables are truncated at module start; data is shared within the module."""
+    _truncate_all_tables(db_engine)
+    yield db_engine
 
 
 @pytest.fixture(scope="function")
-def fresh_db(app):
-    """Fresh test db per function."""
-    with create_test_db(app) as test_db:
-        yield test_db
+def fresh_db(db_engine):
+    """Function-scoped db. Content is truncated before each test by the clear_db autouse fixture."""
+    yield db_engine
 
 
-@contextmanager
-def create_test_db(app: Flask):
+@pytest.fixture(autouse=True)
+def clear_db(request):
     """
-    Provide a db object with the structure freshly created.
-    It cleans up before it starts and after it's done (drops everything).
+    Truncates all database tables before each test that uses fresh_db.
+
+    This ensures every function-scoped test starts with a clean database
+    without the overhead of dropping and recreating all tables.
     """
-    print("DB FIXTURE")
-    # _db is a SQLAlchemy DB instance
-    from flexmeasures.data import db as _db
-
-    _db.app = app
-    with app.app_context():
-        _db.drop_all()
-        _db.create_all()
-
-    yield _db
-
-    print("DB FIXTURE CLEANUP")
-    # Explicitly close DB connection
-    _db.session.close()
-
-    _db.drop_all()
+    if "fresh_db" in request.fixturenames:
+        db = request.getfixturevalue("db_engine")
+        _truncate_all_tables(db)
 
 
 @pytest.fixture(scope="module")
@@ -188,11 +223,21 @@ def create_test_accounts(db) -> dict[str, Account]:
 
 @pytest.fixture(scope="module")
 def setup_roles_users(db, setup_accounts) -> dict[str, User]:
+    """Module-scoped users for read-only tests.
+
+    Use this fixture when tests only read user data and don't modify users.
+    For tests that modify users, use setup_roles_users_fresh_db instead.
+    """
     return create_roles_users(db, setup_accounts)
 
 
 @pytest.fixture(scope="function")
 def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, User]:
+    """Function-scoped users with fresh database for tests that modify user data.
+
+    Use this fixture when your test creates, modifies, or deletes users.
+    Each test gets a fresh set of users and a clean database.
+    """
     return create_roles_users(fresh_db, setup_accounts_fresh_db)
 
 
@@ -1446,7 +1491,14 @@ def run_as_cli(app, monkeypatch):
 
 
 @pytest.fixture(scope="function")
-def clean_redis(app):
+def keep_scheduling_queue_empty(app):
+    app.queues["scheduling"].empty()
+    yield
+    app.queues["scheduling"].empty()
+
+
+@pytest.fixture(scope="function")
+def fresh_queues(app):
     failed = app.queues["forecasting"].failed_job_registry
     app.queues["forecasting"].empty()
     for job_id in failed.get_job_ids():

@@ -15,6 +15,7 @@ from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_trigger_and_fetch_forecasts(
     app,
+    fresh_queues,
     setup_fresh_test_forecast_data,
     setup_roles_users_fresh_db,
     requesting_user,

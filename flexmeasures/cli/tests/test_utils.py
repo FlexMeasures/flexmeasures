@@ -15,6 +15,7 @@ def test_cli_is_running(app, monkeypatch):
     assert cli_is_running() is True
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "now, flag, expected_start, expected_end",
     [

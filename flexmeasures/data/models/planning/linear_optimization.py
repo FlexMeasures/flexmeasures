@@ -1,26 +1,15 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from flask import current_app
 import pandas as pd
 import numpy as np
 from pandas.tseries.frequencies import to_offset
-from pyomo.core import (
-    ConcreteModel,
-    Var,
-    RangeSet,
-    Set,
-    Param,
-    Reals,
-    NonNegativeReals,
-    NonPositiveReals,
-    Binary,
-    Constraint,
-    Objective,
-    minimize,
-)
-from pyomo.environ import UnknownSolver  # noqa F401
-from pyomo.environ import value
-from pyomo.opt import SolverFactory, SolverResults
+
+if TYPE_CHECKING:
+    from pyomo.core import ConcreteModel
+    from pyomo.opt import SolverResults
 
 from flexmeasures.data.models.planning import (
     Commitment,
@@ -87,6 +76,23 @@ def device_scheduler(  # noqa C901
     For now, we pass in the various constraints and prices as separate variables, from which we make a MultiIndex
     DataFrame. Later we could pass in a MultiIndex DataFrame directly.
     """
+    # Import here to avoid ~500ms of import time when loading module.
+    from pyomo.core import (
+        ConcreteModel,
+        Var,
+        RangeSet,
+        Set,
+        Param,
+        Reals,
+        NonNegativeReals,
+        NonPositiveReals,
+        Binary,
+        Constraint,
+        Objective,
+        minimize,
+    )
+    from pyomo.environ import value  # noqa: F401 (also registers all solver plugins)
+    from pyomo.opt import SolverFactory, SolverResults
 
     model = ConcreteModel()
 
@@ -617,6 +623,14 @@ def device_scheduler(  # noqa C901
     solver_name = current_app.config.get("FLEXMEASURES_LP_SOLVER")
 
     solver = SolverFactory(solver_name)
+
+    # Temporary fix for https://github.com/Pyomo/pyomo/issues/3841
+    if solver_name == "cbc":
+        import shutil
+
+        cbc_path = shutil.which("cbc") or shutil.which("Cbc")
+        if cbc_path is not None:
+            solver.set_executable(cbc_path)
 
     # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
     if current_app.config["LOGGING_LEVEL"] == "INFO" and (

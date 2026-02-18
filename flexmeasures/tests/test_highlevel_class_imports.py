@@ -1,6 +1,7 @@
 import pytest
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "class_name",
     [

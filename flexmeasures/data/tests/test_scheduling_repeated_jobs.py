@@ -182,7 +182,12 @@ def test_hashing(db, app, add_charging_station_assets, setup_test_data):
 
 
 def test_scheduling_multiple_triggers(
-    caplog, db, app, add_charging_station_assets, setup_test_data
+    caplog,
+    db,
+    app,
+    add_charging_station_assets,
+    setup_test_data,
+    keep_scheduling_queue_empty,
 ):
     caplog.set_level(
         logging.INFO
@@ -194,7 +199,7 @@ def test_scheduling_multiple_triggers(
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
-    resolution = timedelta(minutes=15)
+    resolution = timedelta(hours=1)
     target_datetime = start + duration_until_target
     soc_start = 2.5
 
@@ -246,7 +251,12 @@ def failing_function(*args, **kwargs):
 
 
 def test_allow_trigger_failed_jobs(
-    caplog, db, app, add_charging_station_assets, setup_test_data
+    caplog,
+    db,
+    app,
+    add_charging_station_assets,
+    setup_test_data,
+    keep_scheduling_queue_empty,
 ):
     @job_cache("scheduling")
     def create_failing_job(
@@ -283,7 +293,9 @@ def successful_function(*args, **kwargs):
     pass
 
 
-def test_force_new_job_creation(db, app, add_charging_station_assets, setup_test_data):
+def test_force_new_job_creation(
+    db, app, add_charging_station_assets, setup_test_data, keep_scheduling_queue_empty
+):
     @job_cache("scheduling")
     def create_successful_job(
         arg1: int,

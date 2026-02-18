@@ -83,7 +83,9 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
     - |
-      pip install --break-system-packages -r /usr/var/flexmeasures-instance/requirements.txt
+      if [ -f /usr/var/flexmeasures-instance/requirements.txt ]; then
+        pip install --no-cache-dir -r /usr/var/flexmeasures-instance/requirements.txt
+      fi
       flexmeasures db upgrade
       flexmeasures add toy-account --name 'Docker Toy Account'
       gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application
@@ -112,17 +114,19 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: 
     - |
-      pip install --break-system-packages -r /usr/var/flexmeasures-instance/requirements.txt
+      if [ -f /usr/var/flexmeasures-instance/requirements.txt ]; then
+        pip install --no-cache-dir -r /usr/var/flexmeasures-instance/requirements.txt
+      fi
       flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling
   test-db:
-    image: postgres
-    expose:
-      - 5432
+    image: postgres:17
+    ports:
+      - "5432:5432"  # Map to localhost so tests can connect
     restart: always
     environment:
-      POSTGRES_DB: fm-test-db
-      POSTGRES_USER: fm-test-db-user
-      POSTGRES_PASSWORD: fm-test-db-pass
+      POSTGRES_DB: flexmeasures_test
+      POSTGRES_USER: flexmeasures_test
+      POSTGRES_PASSWORD: flexmeasures_test
     volumes:
       - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
 volumes:

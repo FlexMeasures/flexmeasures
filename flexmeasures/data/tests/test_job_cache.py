@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 from redis.exceptions import ConnectionError
 from rq.job import NoSuchJobError
 
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.job_cache import JobCache, NoRedisConfigured
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import create_scheduling_job
@@ -26,24 +25,29 @@ def custom_model_params():
     )
 
 
-def test_cache_on_create_forecasting_jobs(db, run_as_cli, app, setup_test_data):
-    """Test we add job to cache on creating forecasting job + get job from cache"""
-    wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
+def test_cache_on_create_forecasting_jobs(run_as_cli, app):
+    """Test we add job to cache on creating forecasting job + get job from cache.
+
+    create_forecasting_jobs only needs an integer sensor_id — no DB access required.
+    """
+    sensor_id = 42  # arbitrary mock id; the function never queries the DB for it
 
     job = create_forecasting_jobs(
         start_of_roll=as_server_time(datetime(2015, 1, 1, 6)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 7)),
         horizons=[timedelta(hours=1)],
-        sensor_id=wind_device_1.id,
+        sensor_id=sensor_id,
         custom_model_params=custom_model_params(),
     )
 
-    assert app.job_cache.get(wind_device_1.id, "forecasting", "sensor") == [job[0]]
+    assert app.job_cache.get(sensor_id, "forecasting", "sensor") == [job[0]]
 
 
-def test_cache_on_create_scheduling_jobs(db, app, add_battery_assets, setup_test_data):
+def test_cache_on_create_scheduling_jobs(
+    app, add_battery_assets_fresh_db, setup_fresh_test_data
+):
     """Test we add job to cache on creating scheduling job + get job from cache"""
-    battery = add_battery_assets["Test battery"].sensors[0]
+    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
     start, end = tz.localize(datetime(2015, 1, 2)), tz.localize(datetime(2015, 1, 3))
 

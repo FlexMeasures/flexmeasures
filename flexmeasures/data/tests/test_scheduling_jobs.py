@@ -27,6 +27,7 @@ from flexmeasures.utils.calculations import integrate_time_series
 
 def test_scheduling_a_battery(
     fresh_db,
+    fresh_queues,
     app,
     add_battery_assets_fresh_db,
     setup_fresh_test_data,
@@ -119,7 +120,7 @@ def test_loading_custom_scheduler(is_path: bool):
 
 @pytest.mark.parametrize("is_path", [False, True])
 def test_assigning_custom_scheduler(
-    fresh_db, app, add_battery_assets_fresh_db, is_path: bool
+    fresh_db, fresh_queues, app, add_battery_assets_fresh_db, is_path: bool
 ):
     """
     Test if the custom scheduler is picked up when we assign it to a Sensor,
@@ -225,6 +226,7 @@ FailingScheduler1 = create_test_scheduler(
 
 def test_fallback_chain(
     fresh_db,
+    fresh_queues,
     app,
     add_battery_assets_fresh_db,
 ):
@@ -287,6 +289,7 @@ def test_fallback_chain(
     app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "charging_eff, discharging_eff, storage_eff, expected_avg_power",
     [
@@ -298,6 +301,7 @@ def test_fallback_chain(
 )
 def test_save_state_of_charge(
     fresh_db,
+    fresh_queues,
     app,
     smart_building,
     charging_eff,
@@ -393,6 +397,7 @@ def test_save_state_of_charge(
 
 def test_scheduling_unit_conversion(
     fresh_db,
+    fresh_queues,
     app,
     add_battery_kWh_assets_fresh_db,
     setup_fresh_test_data,

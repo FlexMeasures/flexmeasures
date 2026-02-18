@@ -104,13 +104,6 @@ def setup_user_without_data_source(
     return user
 
 
-@pytest.fixture(scope="function")
-def keep_scheduling_queue_empty(app):
-    app.queues["scheduling"].empty()
-    yield
-    app.queues["scheduling"].empty()
-
-
 @pytest.fixture(scope="module")
 def add_asset_with_children(db, setup_roles_users):
     test_supplier_user = setup_roles_users["Test Supplier User"]

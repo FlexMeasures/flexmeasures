@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=62", "setuptools_scm[toml]>=6.2", "wheel>=0.29.0"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "flexmeasures"
 description = "The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10, <3.13"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [
@@ -27,7 +27,91 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Natural Language :: English"
 ]
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
+
+dependencies = [
+    "pyyaml>=6.0.3",
+    "altair>=6.0.0",
+    "pandas>=2.2.1",
+    "pint>=0.19.1",
+    "py-moneyed>=3.0",
+    "iso8601>=2.1.0",
+    "xlrd>=2.0.2",
+    "workalendar>=17.0.0",
+    "inflection>=0.5.1",
+    "inflect>=7.5.0",
+    "pydantic>=2.12.5",
+    "humanize>=4.15.0",
+    "psycopg2-binary>=2.9.11",
+    # hashing backend for passlib
+    "argon2-cffi>=25.1.0",
+    "pytz>=2025.2",
+    "isodate>=0.7.2",
+    # see https://github.com/FlexMeasures/flexmeasures/issues/1485
+    "click<8.2.0",
+    "click-default-group>=1.2.4",
+    "email-validator>=2.3.0",
+    "rq>=2.6.1",
+    # sort order
+    "rq-dashboard>=0.8.0.2",
+    # the following uses environment markers (see PEP 496)
+    "rq-win; os_name == 'nt' or os_name == 'win'",
+    # Note: we sometimes limit redis due to our use of fakeredis (check their pyproject.toml)
+    "redis>4.5",
+    "tldextract>=5.3.1",
+    # pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
+    "pyomo>=5.6,<6.9",
+    "tabulate>=0.9.0",
+    "timetomodel>=0.7.3",
+    # 3.5.1: fixed issue with downsampling against non-midnight origins
+    "timely-beliefs[forecast]>=3.5.1",
+    "python-dotenv>=1.2.1",
+    # see GH#607 for issue on this pin
+    "sqlalchemy>=2.0",
+    "flask-sslify>=0.1.5",
+    "flask-json>=0.4.0",
+    "flask-migrate>=4.1.0",
+    "flask-wtf>=1.2.2",
+    "flask-mail>=0.10.0",
+    "Flask-Security-Too[fsqla,mfa]>=5.0",
+    "flask-login>=0.6.3",
+    "Flask-Classful>=0.16",
+    "flask-marshmallow>=1.4.0",
+    "flask-cors>=6.0.2",
+    "flask-swagger-ui>=5.21.0",
+    "sentry-sdk[flask]>=2.52.0",
+    "marshmallow>=3",
+    # See GH#1450 (failing tests on older Python versions)
+    "marshmallow~=3.0; python_version < '3.11'",
+    "marshmallow-oneofschema>=3.2.0",
+    "marshmallow-polyfield>=5.11",
+    "marshmallow-sqlalchemy>=0.23.1",
+    # OpenAPI Documentation
+    "apispec>=6.9.0",
+    "apispec-oneofschema>=3.0.2",
+    "apispec-webframeworks>=1.2.0",
+    "webargs>=8.7.1",
+    # Minimum version that supports datetimes on the (x-)axis.
+    "uniplot>=0.12.1",
+    # >=2.5.2: https://github.com/marshmallow-code/flask-marshmallow/issues/262
+    "Flask-SQLAlchemy>=2.5.2",
+    # flask should be after all the flask plugins, because setup might find they ARE flask
+    "flask>=1.0",
+    "werkzeug>=3.1.5",
+    "vl-convert-python>=1.9.0.post1",
+    # https://github.com/FlexMeasures/flexmeasures/security/dependabot/91
+    "Pillow>=10.0.1",
+    # https://github.com/FlexMeasures/flexmeasures/security/dependabot/508
+    "urllib3>=2.6.0",
+    # Concise asset audit log entries
+    "dictdiffer>=0.9.0",
+    # Forecaster: TrainPredictPipeline
+    "lightgbm>=4.6.0",
+    "u8darts>=0.29.0",
+    # LP solver. Required to test the function device_scheduler which is used by the StorageScheduler
+    "highspy>=1.12",
+    "rq-win>=0.4.2",
+]
 
 [project.urls]
 Homepage = "https://flexmeasures.io"
@@ -37,13 +121,174 @@ Documentation = "https://flexmeasures.readthedocs.io/"
 [project.scripts]
 flexmeasures = "flexmeasures.utils.app_utils:flexmeasures_cli"
 
-[tool.setuptools]
-include-package-data = true
+[tool.poe.tasks.test]
+# Simple for now, but allows us to configure tests in one place later.
+help = "Run the test suite."
+cmd = "pytest"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["flexmeasures*"]
+[tool.poe.tasks.test-fast]
+help = "Run tests excluding slow parametrized tests (for faster dev iteration)"
+cmd = "pytest -m 'not slow'"
 
-[tool.setuptools_scm]
-local_scheme = "no-local-version"
-version_scheme = "guess-next-dev"
+[tool.poe.tasks.test-slow]
+help = "Run only slow parametrized tests"
+cmd = "pytest -m slow"
+
+[tool.poe.tasks.test-unit]
+help = "Run only (parallelized) unit tests"
+cmd = "pytest -m unit"
+
+[tool.poe.tasks.test-profile]
+help = "Run tests with profiling enabled"
+cmd = "pytest --durations=50"
+
+[tool.poe.tasks.test-coverage]
+help = "Run tests with coverage report"
+cmd = "pytest --cov=flexmeasures --cov-report=term-missing"
+
+[tool.poe.tasks.show-file-space]
+help = "Show where file space is being used."
+shell = "du --summarize --human-readable --total ./* ./.[a-zA-Z]* | sort -h"
+
+[tool.poe.tasks.upgrade-db]
+help = "Upgrade the database to the latest migration."
+shell = """
+    flask db current
+    flask db upgrade
+    flask db current
+"""
+
+[tool.poe.tasks.show-data-model]
+help = "Show the data model as a PNG picture. Use --uml to show the UML diagram, or --schema to show the schema diagram."
+script = "flexmeasures.data.scripts.visualize_data_model"
+
+
+[tool.poe.tasks.clean-db]
+help = "Clean the database."
+shell = "flexmeasures/data/scripts/clean_database.sh"
+args = [
+    {name = "db-name", help = "The name of the database to clean."},
+    {name = "db-user", help = "The user to clean the database for."},
+]
+
+[tool.poe.tasks.cli-autocomplete]
+help = "Set up CLI autocomplete for the flexmeasures command."
+shell = "flexmeasures/cli/scripts/add_scripts_path.sh"
+args = [
+    {name = "extension", help = "Shell extension type."}
+]
+
+[tool.poe.tasks.type-check]
+help = "Run mypy type checking on Python files with type hints (excluding legacy code)."
+shell = """
+    files=$(find flexmeasures \
+        -not \\( -path flexmeasures/data/scripts -prune \\) \
+        -not \\( -path flexmeasures/data/models -prune \\) \
+        -not \\( -path flexmeasures/data/services -prune \\) \
+        -name \\*.py | xargs grep -l "from typing import")
+    mypy --follow-imports skip --ignore-missing-imports $files
+"""
+
+[tool.poe.tasks.update-docs]
+help = "Update the documentation and OpenAPI specifications"
+shell = """
+    printf "Installing docs dependencies ...\n"
+    uv sync --group docs
+    printf "Generating OpenAPI specifications ...\n"
+	uv run poe generate-open-api-specs
+	printf "Creating documentation ...\n"
+	sphinx-build -M html documentation flexmeasures/ui/static/documentation -W --keep-going -n
+	# Make sphinxcontrib-httpdomain links point to openapi-sphinx links.
+	python << 'EOF'
+    from pathlib import Path
+    doc_file = Path('flexmeasures/ui/static/documentation/html/api/v3_0.html')
+    doc_file.write_text(doc_file.read_text().replace('(id)', 'id'))
+    EOF
+"""
+env = { GEN_CODE_DOCS = "False" }
+args = [
+    {name = "gen-code-docs", help = "Generate code documentation", default = "False"}
+]
+
+[tool.poe.tasks.generate-open-api-specs]
+help = "Generate OpenAPI specifications"
+script = "flexmeasures.api.scripts.generate_open_api_specs"
+env = {FLEXMEASURES_ENV = "documentation", FLEXMEASURES_PLUGINS = ""}
+
+[dependency-groups]
+dev = [
+    "pre-commit",
+    # we're pinning the following two to what .pre-commit-config.yaml says
+    "black==24.8.0",
+    "flake8==7.1.1",
+    "flake8-blind-except",
+    "mypy",
+    "pytest-runner",
+    "watchdog",
+    "pyinstrument",
+    "poethepoet>=0.41.0",
+    # Types for Typing
+    "mypy>=0.902",
+    "types-pytz>=2025.2.0.20251108",
+    "types-requests>=2.32.4.20260107",
+    "types-flask>=1.1.6",
+    "types-click>=7.1.8",
+    "types-redis>=4.6.0.20241004",
+    "types-tzlocal>=5.1.0.1",
+    "types-python-dateutil>=2.9.0.20260124",
+    "types-setuptools>=82.0.0.20260210",
+    "types-tabulate>=0.9.0.20241207",
+    "types-pyyaml>=6.0.12.20250915",
+]
+
+docs = [
+     # TODO: Remove upper limit once upstream issue is fixed: https://github.com/executablebooks/sphinx-tabs/issues/206 
+    "sphinx>=7.5, <9.0.0",
+    "sphinx-rtd-theme>=1.2",
+    "sphinxcontrib.httpdomain>=2.0",
+    "sphinx_fontawesome>=0.0.6",
+    "sphinx_copybutton>=0.5.2",
+    "sphinx-tabs>=3.4.5",
+    "sphinxcontrib-mermaid>=2.0",
+    "sphinxcontrib-openapi>=0.8.4",
+]
+
+visualize-data-model = [
+    "pillow>=12.1.0",
+    "sqlalchemy-schemadisplay>=2.0",
+    "packaging",
+]
+
+test = [
+    "pytest>=9.0.2",
+    "pytest-flask>=1.3.0",
+    "pytest-sugar>=1.1.1",
+    "pytest-cov>=7.0.0",
+    # to test calls to the API
+    "requests>=2.32.5",
+    # to test responses from our API, as given to our UI code
+    "requests-mock>=1.12.1",
+    # lets tests run successfully in containers
+    "fakeredis>=2.33.0",
+    # required with fakeredis, maybe because we use rq
+    "lupa>=2.6",
+    "pytest-mock>=3.15.1",
+    "openpyxl>=3.1.5",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["flexmeasures"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.pytest]
+# 950 items
+# https://github.com/zupo/awesome-pytest-speedup?tab=readme-ov-file
+testpaths = ["flexmeasures"]
+addopts = ["--strict-markers", "--ignore=docker-compose-data", "--import-mode=importlib"]
+markers = [
+    "skip_github: skip test in GitHub Actions. Useful in case the test passes, but breaks the test suite on GH Actions.",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"' for faster dev iteration)",
+    "unit: pure unit tests"
+]

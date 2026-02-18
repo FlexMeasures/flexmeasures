@@ -8,13 +8,16 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    name: Check (on Python 3.11)
+    name: Check (on Python 3.12)
     steps:
-      - uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: 3.11
-      - uses: actions/checkout@v3
-      - uses: pre-commit/action@v3.0.0
+          enable-cache: true
+          uv-version: 0.10
+          python-version-file: ".python-version"
+      - uses: actions/checkout@v6
+      - uses: pre-commit/action@v3.0.1
 
   test:
     needs: check
@@ -24,41 +27,27 @@ jobs:
       matrix:
         py_version: [ "3.10", "3.11", "3.12" ]
         include:
-          - python-version: "3.11"
+        # Include coverage for Python 3.12
+          - py_version: 3.12
             coverage: yes
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.py_version }}
       - name: Check out src from Git
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
       - name: Get history and tags for SCM versioning to work
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-      - name: Upgrade pip
-        # Pin due to https://github.com/pypa/pip/issues/13636
-        run: |
-          pip3 install --upgrade "pip==25.2"
-      - name: "Caching for dependencies (.txt) - restore existing or ensure new cache will be made"
-        uses: actions/cache@v4
-        id: cache
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          path: ${{ env.pythonLocation }}
-          # manually disable a cache if needed by (re)setting CACHE_DATE
-          key: ${{ runner.os }}-pip-${{ env.pythonLocation }}-${{ SECRETS.CACHE_DATE }}-${{ hashFiles('**/requirements/**/*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          enable-cache: true
+          python-version: ${{ matrix.py_version }}
       - run: |
           ci/setup-postgres.sh
           sudo apt-get -y install coinor-cbc
       - name: Install FlexMeasures & exact dependencies for tests
-        run: make install-for-test
-        if: github.event_name == 'push' && steps.cache.outputs.cache-hit != 'true'
-      - name: Install FlexMeasures & latest dependencies for tests
-        run: make install-for-test pinned=no
-        if: github.event_name == 'pull_request'
+        run: uv sync --frozen --group test
       - name: Run all tests AND record coverage
         # NB the --ignore and -k "not ..." statements are not used to ignore test modules,
         # but only to ignore some modules with doctests that do not (yet) pass (e.g. requiring app contexts)
@@ -69,7 +58,7 @@ jobs:
             PYTEST_K="not get_object_or_literal and not get_or_create_model"
           fi
           
-          pytest -v \
+          uv run pytest -v \
           --doctest-modules \
           --ignore documentation \
           --ignore wsgi.py \

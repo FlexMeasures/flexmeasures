@@ -3,6 +3,7 @@ import inspect
 import pkgutil
 import importlib
 import marshmallow.fields as ma_fields
+import pytest
 
 import flexmeasures
 
@@ -102,6 +103,7 @@ def deserialize_calls_super(cls, and_queries_db: bool = True) -> bool:
     return calls_super
 
 
+@pytest.mark.unit
 def test_all_custom_fields_call_super_deserialize():
     """
     Ensure that all Marshmallow Field subclasses in FlexMeasures that override
