@@ -50,7 +50,7 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -92,7 +92,7 @@ def fm_add_data():
     """FlexMeasures: Add data."""
 
 
-@fm_add_data.command("sources")
+@fm_add_data.command("sources-for-generators")
 @click.option(
     "--kind",
     default=["reporter"],
@@ -101,7 +101,7 @@ def fm_add_data():
     help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
 @with_appcontext
-def add_sources(kind: list[str]):
+def add_sources_for_generators(kind: list[str]):
     """Create data sources for the data generators found registered in the
     application and the plugins. Currently, this command only registers the
     sources for the Reporters.
@@ -508,9 +508,10 @@ def add_initial_structure():
     "source_type",
     required=True,
     type=str,
-    help="Type of source (for example, 'forecaster' or 'scheduler').",
+    help=f"Type of source (free, but FlexMeasures has support for {DEFAULT_DATASOURCE_TYPES}).",
 )
 def add_source(name: str, model: str, version: str, source_type: str):
+    """Add a data source."""
     source = get_or_create_source(
         source=name,
         model=model,
