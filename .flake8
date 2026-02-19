@@ -1,5 +1,5 @@
 [flake8]
-exclude = .git,__pycache__,documentation
+exclude = .git,__pycache__,documentation,.venv
 max-line-length = 160
 max-complexity = 13
 select = B,C,E,F,W,B9
