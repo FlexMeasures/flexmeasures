@@ -509,7 +509,7 @@ class ForecasterParametersSchema(Schema):
             retrain_frequency=retrain_frequency_in_hours,
             max_forecast_horizon=max_forecast_horizon,
             forecast_frequency=forecast_frequency,
-            probabilistic=data.get("probabilistic", False),
+            probabilistic=data.get("probabilistic"),
             sensor_to_save=sensor_to_save,
             save_belief_time=save_belief_time,
             n_cycles=int(predict_period // timedelta(hours=retrain_frequency_in_hours)),
