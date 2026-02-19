@@ -12,6 +12,7 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_COMPILE_BYTECODE=${UV_COMPILE_BYTECODE}
+ENV UV_LINK_MODE=copy
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
