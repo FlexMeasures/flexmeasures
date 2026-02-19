@@ -1258,3 +1258,99 @@ def chart_for_chargepoint_sessions(
     ]
     chart_specs["vconcat"].insert(0, cp_chart)
     return chart_specs
+
+
+def chart_for_flex_config_reference(
+    sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    combine_legend: bool = True,
+    **override_chart_specs: dict,
+):
+    """
+    Generate chart specifications for comparing sensors against reference Flex Config values.
+
+    This function renders a vertically concatenated view of line charts for each provided sensor.
+    It features specific logic for temporary sensors (id < 0), treating them as configuration references:
+    instead of querying the database, it generates a constant horizontal line based on the
+    'graph_value' attribute found in the sensor's metadata.
+    """
+    all_sensors = flatten_unique(sensors_to_show)
+
+    charts = []
+
+    # Determine legend position based on config
+    # If combine_legend is True (default in asset view), we usually want a shared legend or
+    # to let the frontend defaults handle it. Here we force 'bottom' if combined, else 'right'.
+    legend_orient = "bottom" if combine_legend else "right"
+
+    for sensor in all_sensors:
+
+        # Define the chart
+        sensor_chart = {
+            "width": "container",
+            "height": 150,
+            "mark": {"type": "line", "point": True, "tooltip": True},
+            "encoding": {
+                "x": {
+                    "field": "event_start",
+                    "type": "temporal",
+                    "scale": {
+                        "domain": (
+                            [
+                                event_starts_after.timestamp() * 1000,
+                                event_ends_before.timestamp() * 1000,
+                            ]
+                            if event_starts_after and event_ends_before
+                            else None
+                        )
+                    },
+                    "title": None,
+                    "axis": {"labelOverlap": True},
+                },
+                "y": {
+                    "field": "event_value",
+                    "type": "quantitative",
+                    "title": f"{sensor.name} ({sensor.unit})",
+                },
+                "color": {
+                    "field": "sensor.name",
+                    "type": "nominal",
+                    "legend": {"title": "Sensor", "orient": legend_orient},
+                },
+            },
+            "transform": [{"filter": {"field": "sensor.id", "equal": sensor.id}}],
+        }
+
+        # SPECIAL HANDLING FOR TEMPORARY SENSORS
+        if sensor.id < 0:
+            custom_value = sensor.get_attribute("graph_value", 10)
+            start_ts = event_starts_after.timestamp() * 1000
+            end_ts = event_ends_before.timestamp() * 1000
+            manual_data = []
+            # loop and add 10 points between start and end
+            for i in range(11):
+                manual_data.append(
+                    {
+                        "event_start": start_ts + i * (end_ts - start_ts) / 10,
+                        "event_value": custom_value,
+                        "sensor": {"id": sensor.id, "name": sensor.name},
+                        "source": {"name": "Simulation"},
+                    }
+                )
+
+            sensor_chart["data"] = {"values": manual_data}
+            del sensor_chart["transform"]
+
+        charts.append(sensor_chart)
+
+    chart_specs = {
+        "description": "Custom Sensor View",
+        "vconcat": charts,
+        "resolve": {"scale": {"color": "shared", "x": "shared"}},
+    }
+
+    for k, v in override_chart_specs.items():
+        chart_specs[k] = v
+
+    return chart_specs

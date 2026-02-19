@@ -48,6 +48,9 @@
                 </button>
                 <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
                     <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
+                    <li style="display: none;"><a class="dropdown-item" href="#"
+                            data-chart-type="chart_for_flex_config_reference">My Custom View</a>
+                    </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center" href="#"
                             data-chart-type="chart_for_chargepoint_sessions">
@@ -312,7 +315,8 @@
 
                                     <div class="row my-3">
                                         <div class="col-8">
-                                            <input type="text" id="searchInput" class="form-control" placeholder="Search sensors..." />
+                                            <input type="text" id="searchInput" class="form-control"
+                                                placeholder="Search sensors..." />
                                         </div>
 
                                         <div class="col-4">
@@ -402,6 +406,9 @@
 
         const saveChangesBtn = document.getElementById("saveChangesBtn");
         const addPlotBtn = document.getElementById("addPlotBtn");
+
+        detectAssetFlexConfigRef();
+
         saveChangesBtn.onclick = async function () {
             await updateAssetSensorsToShow();
         };
@@ -477,6 +484,13 @@
 
         configTypeSelect.onchange = (e) => {
             const selectedConfig = e.target.value;
+            // Empty field options to re-populate with new keys
+            flexConfigField.innerHTML = ""
+
+            // Flex Config field to omit
+            const fieldsToOmit = [
+                "roundtrip-efficiency", "charging-efficiency", "discharging-efficiency", "storage-efficiency", "prefer-charging-sooner", "prefer-curtailing-later"
+            ];
 
             if (selectedConfig === "flex-context" || selectedConfig === "flex-model") {
                 let flexConfig = selectedConfig === "flex-context" ? configAsset().flex_context : configAsset().flex_model;
@@ -484,10 +498,12 @@
                 const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexModelSchema }, flexConfig, true);
 
                 for (const [key, value] of Object.entries(assetFlexModelRawJSON)) {
-                    const FlexFieldOption = document.createElement("option");
-                    FlexFieldOption.value = key;
-                    FlexFieldOption.textContent = getFlexFieldTitle(key);
-                    flexConfigField.appendChild(FlexFieldOption);
+                    if (!fieldsToOmit.includes(key)) {
+                        const FlexFieldOption = document.createElement("option");
+                        FlexFieldOption.value = key;
+                        FlexFieldOption.textContent = getFlexFieldTitle(key);
+                        flexConfigField.appendChild(FlexFieldOption);
+                    }
                 }
             }
         };
@@ -503,6 +519,23 @@
                 flexConfigFieldDetail.value = JSON.stringify(assetFlexConfigRawJSON[selectedField], null, 2);
             }
         };
+
+        function detectAssetFlexConfigRef() {
+            // This function detects whether there lies a plot in the sensorsToShow that contains
+            // a reference to an asset. If its found, it trigger the user of the "chart_for_flex_config_reference" chart type.
+            const sensorsToShowCurrentState = getSensorToShow();
+            for (const graph of sensorsToShowCurrentState) {
+                for (const plot of graph.plots) {
+                    if ("asset" in plot) {
+                        // If a plot contains a reference to an asset, trigger the "chart_for_flex_config_reference" chart type
+                        document.querySelector('[data-chart-type="chart_for_flex_config_reference"]').click();
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
 
         // This function is for backward compatibility with the previous format of sensors_to_show
         function sensorsToShowFormatter(graphs) {
@@ -1100,9 +1133,9 @@
                     return true;
                 };
             };
+
             return false;
         }
-
 
 
         // ============== Page Events ============== //
@@ -1119,40 +1152,43 @@
             renderRootAssets(); // Initial render of root assets
         });
 
-        // document.addEventListener("click", function (event) {
-        //     /**
-        //     The logic in this block is majorly to remove the border on click of the card and add it to the selected card
-        //     but as this event is added to the document, it will be triggered on any click event on the page
-        //     so the if statements are used to check if the click event is on the card or not
-        //     */
-        //     const card = event.target.closest(".card-highlight");
-        //     const sensorCard = event.target.closest(".sensor-card");
-        //     const searchInput = event.target.id === "searchInput";
-        //     const cardBody = event.target.closest(".card-body");
-        //     const editTitleBtn = event.target.id === "editTitleBtn";
-        //     const saveTitleBtn = event.target.id === "saveTitleBtn";
-        //     const unSetBtn = event.target.id === "unSetFlexField";
+        document.querySelectorAll("[data-chart-type]").forEach((el) => {
+            el.addEventListener("click", (e) => {
+                e.preventDefault();
 
-        //     if (card) {
-        //         if (card.classList.contains("border-on-click")) {
-        //             if (editTitleBtn || saveTitleBtn) {
-        //                 renderGraphCards();
-        //             }
-        //             // Pass
-        //         } else {
-        //             renderGraphCards();
-        //         }
-        //     } else if (
-        //         cardBody !== null && cardBody !== undefined ||
-        //         sensorCard !== null && sensorCard !== undefined ||
-        //         searchInput !== null && searchInput !== undefined
-        //     ) {
-        //         // Pass
-        //     } else {
-        //         document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click"));
-        //         renderApiSensors([], undefined);
-        //     }
-        // });
+                // 1. Get the selected type
+                const chartType = el.getAttribute("data-chart-type");
+
+                // 2. Update the Dropdown Text to show what's selected
+                const btn = document.getElementById("chartTypeDropdown");
+                btn.textContent = el.textContent;
+
+                // 3. Update the global variable or state that holds the current chart type
+                //    (Check provided JS files usually, typically it's 'window.chartType' or similar)
+                window.chartType = chartType;
+
+                // 4. Force the chart to reload
+                //    If you are using the standard 'initChart' or 'fetchData' function:
+                if (window.updateChart) {
+                    window.updateChart(chartType);
+                } else {
+                    // If you don't have a direct update function exposed, 
+                    // you might need to trigger the date picker change or reload page
+                    // But typically, FlexMeasures has a specific function for this.
+                    console.log("Setting chart type to:", chartType);
+                    // Try triggering the main chart update event usually tied to the date picker
+                    if (window.picker) { window.picker.emit('selected'); }
+                }
+
+                // 5. Toggle the help note (Existing logic)
+                const note = document.getElementById("chartInfoNote");
+                if (chartType === "chart_for_chargepoint_sessions") {
+                    note.style.display = "block";
+                } else {
+                    note.style.display = "none";
+                }
+            });
+        });
 
         // ============== Page Events ============== //
     });
