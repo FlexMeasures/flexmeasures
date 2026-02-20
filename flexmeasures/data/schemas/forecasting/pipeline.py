@@ -248,7 +248,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "How often to recompute forecasts. Defaults to retrain frequency.",
+            "description": "How often to recompute forecasts. This setting can be used to get forecasts from multiple viewpoints. Defaults to the max-forecast-horizon.",
             "example": "PT1H",
             "cli": {
                 "option": "--forecast-frequency",
