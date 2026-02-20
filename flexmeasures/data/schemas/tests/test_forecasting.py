@@ -319,7 +319,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Test when only end date is given with a training period
+        # Case 9: Test when only end date is given with a training period
         # We expect the start date to be computed with respect to now. (training period before now (floored)).
         # We expect training period of 30 days before predict start and prediction period of 48 hours after predict start, with predict start at server now (floored to hour).
         # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
@@ -358,7 +358,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Test when only start date is given with a training period
+        # Case 10: Test when only start date is given with a training period
         # We expect the predict start to be computed with respect to the start date (training period after start date).
         # We set training period of 3 days, we expect a prediction period to default 48 hours after predict start, with predict start at server now (floored to hour).
         # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
@@ -394,7 +394,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Test when only start date is given with a duration (prediction period)
+        # Case 11: Test when only start date is given with a duration (prediction period)
         # We expect the predict start to be computed with respect to the start date (training period after start date).
         # We set training period of 3 days, we expect a prediction period to default 48 hours after predict start, with predict start at server now (floored to hour).
         # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
@@ -433,7 +433,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Test when only start date is given with both training period 20 days and prediction period 3 days
+        # Case 12: Test when only start date is given with both training period 20 days and prediction period 3 days
         # We expect the predict start to be computed with respect to the start date (training period after start date).
         # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
         (
@@ -464,7 +464,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "save-belief-time": None,
             },
         ),
-        # Test when only end date is given with a prediction period: we expect the train start and predict start to both be computed with respect to the end date.
+        # Case 13: Test when only end date is given with a prediction period: we expect the train start and predict start to both be computed with respect to the end date.
         # we expect training period of 30 days before predict_start and prediction period of 3 days after predict_start, with predict_start at server now (floored to hour).
         # we expect 2 cycles from the retrain frequency and predict period given the end date
         (
