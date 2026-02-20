@@ -186,7 +186,7 @@ class TrainPredictPipeline(Forecaster):
                 "train_end": train_end,
                 "predict_start": predict_start,
                 "predict_end": predict_end,
-                "counter": counter,
+                "counter": counter + 1,
                 "multiplier": multiplier,
             }
 
