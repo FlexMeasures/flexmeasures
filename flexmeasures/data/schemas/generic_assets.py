@@ -209,17 +209,23 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         Here, we can only check if we have all information (a full form),
         which usually is at creation time.
         """
-        if "name" in data and "parent_asset_id" in data:
-            asset = db.session.scalars(
-                select(GenericAsset)
-                .filter_by(
-                    name=data["name"],
-                    parent_asset_id=data.get("parent_asset_id"),
-                )
-                .limit(1)
-            ).first()
 
-            if asset:
+        if "name" in data:
+            parent_id = data.get("parent_asset_id", None)
+
+            query = select(GenericAsset).filter_by(
+                name=data["name"],
+                parent_asset_id=parent_id,
+            )
+
+            current_editing_id = getattr(self, "context", {}).get("asset_id")
+
+            if current_editing_id is not None:
+                query = query.filter(GenericAsset.id != current_editing_id)
+
+            existing_asset = db.session.scalars(query).first()
+
+            if existing_asset:
                 err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
                 raise ValidationError(err_msg, "name")
 
@@ -233,11 +239,24 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates("parent_asset_id")
     def validate_parent_asset(self, parent_asset_id: int | None, **kwargs):
-        if parent_asset_id is not None:
-            parent_asset = db.session.get(GenericAsset, parent_asset_id)
-            if not parent_asset:
+        if parent_asset_id is None:
+            return
+
+        parent_asset = db.session.get(GenericAsset, parent_asset_id)
+        if not parent_asset:
+            raise ValidationError(
+                f"Parent GenericAsset with id {parent_asset_id} doesn't exist."
+            )
+
+        # Check account consistency (using context)
+        # Safely get the asset from context, defaulting to None if creating new
+        current_asset = self.context.get("asset")
+
+        # If editing an existing asset (context exists)
+        if current_asset and current_asset.account_id:
+            if parent_asset.account_id != current_asset.account_id:
                 raise ValidationError(
-                    f"Parent GenericAsset with id {parent_asset_id} doesn't exist."
+                    "Parent asset must belong to the same account as the child asset."
                 )
 
     @validates("account_id")
