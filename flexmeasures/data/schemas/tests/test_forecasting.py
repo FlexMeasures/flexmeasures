@@ -39,10 +39,10 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 # these are set by the schema defaults
                 "predict-period-in-hours": 48,
                 "max-forecast-horizon": pd.Timedelta(days=2),
-                "train-period-in-hours": 720,
+                "train-period-in-hours": 24 * 30,
                 "max-training-period": pd.Timedelta(days=365),
                 "forecast-frequency": pd.Timedelta(days=2),
-                # server now
+                # the one belief time corresponds to server now
                 "save-belief-time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
