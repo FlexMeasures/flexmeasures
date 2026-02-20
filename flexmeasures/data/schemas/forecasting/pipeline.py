@@ -470,14 +470,13 @@ class ForecasterParametersSchema(Schema):
 
         if forecast_frequency is None:
             forecast_frequency = min(
-                planning_horizon,
                 max_forecast_horizon,
                 predict_period,
             )
 
         if data.get("retrain_frequency") is None:
             if data.get("max_forecast_horizon") is None:
-                retrain_frequency = planning_horizon
+                retrain_frequency = predict_period  # to not have multiple cycles if max_forecast_horizon is not set, as it defaults to predict_period
             else:
                 # If retrain_freq <= forecast-frequency, we enforce retrain_freq = forecast-frequency
                 retrain_frequency = max(planning_horizon, forecast_frequency)
