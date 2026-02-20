@@ -309,7 +309,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "predict-period-in-hours": 108,  # hours from predict start to end date
                 "train-period-in-hours": 636,  # hours between start date and predict start
                 "max-forecast-horizon": pd.Timedelta(hours=108),
-                "forecast-frequency": pd.Timedelta(hours=48),  # default forecast frequency
+                "forecast-frequency": pd.Timedelta(hours=108),
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
                 "save-belief-time": pd.Timestamp(
@@ -345,10 +345,10 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "max-forecast-horizon": pd.Timedelta(
                     days=5
                 ),  # duration between predict start and end date
-                # default values
                 "forecast-frequency": pd.Timedelta(
-                    days=2
+                    days=5
                 ),
+                # default values
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
                 "save-belief-time": pd.Timestamp(
@@ -420,10 +420,10 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "max-forecast-horizon": pd.Timedelta(
                     days=3
                 ),  # duration between predict-start and end-date
-                # default values
                 "forecast-frequency": pd.Timedelta(
-                    days=2
+                    days=3
                 ),
+                # default values
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
                 "save-belief-time": pd.Timestamp(
@@ -457,8 +457,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "train-period-in-hours": 480,
                 "predict-period-in-hours": 72,
                 "max-forecast-horizon": pd.Timedelta(days=3),  # defaults to prediction period (duration)
+                "forecast-frequency": pd.Timedelta(days=3),
                 # default values
-                "forecast-frequency": pd.Timedelta(days=2),
                 "max-training-period": pd.Timedelta(days=365),
                 # the belief time of the forecasts will be calculated from start-predict-date and max-forecast-horizon and forecast-frequency
                 "save-belief-time": None,
@@ -488,10 +488,10 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "max-forecast-horizon": pd.Timedelta(
                     days=6
                 ),  # duration between predict start and end date
-                # default values
                 "forecast-frequency": pd.Timedelta(
-                    days=2
+                    hours=144
                 ),
+                # default values
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
                 "save-belief-time": pd.Timestamp(
