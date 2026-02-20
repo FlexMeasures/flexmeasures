@@ -36,7 +36,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "probabilistic": False,
             },
             False,
-            (ValidationError, "retrain-frequency must be greater than 0"),
+            (ValidationError, "retrain-frequency must be at least 1 hour"),
         ),
         (
             {

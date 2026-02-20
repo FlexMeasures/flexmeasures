@@ -114,9 +114,9 @@ class TrainPredictPipelineConfigSchema(Schema):
 
     @validates("retrain_frequency")
     def validate_parameters(self, value, **kwargs):
-        if value <= timedelta(0):
+        if value < timedelta(hours=1):
             raise ValidationError(
-                "retrain-frequency must be greater than 0",
+                "retrain-frequency must be at least 1 hour",
                 field_name="retrain_frequency",
             )
 
