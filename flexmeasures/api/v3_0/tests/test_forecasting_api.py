@@ -78,7 +78,7 @@ def test_trigger_and_fetch_forecasts(
     payload["sensor"] = sensor_1.id
 
     # Run pipeline manually to compute expected forecasts
-    pipeline = TrainPredictPipeline()
+    pipeline = TrainPredictPipeline(config=payload.pop("config", {}))
     pipeline.compute(parameters=payload)
 
     # Fetch forecasts for each job

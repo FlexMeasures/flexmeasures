@@ -1620,7 +1620,7 @@ class SensorAPI(FlaskView):
             forecaster = get_data_generator(
                 source=None,
                 model=model,
-                config={},
+                config=parameters.pop("config", {}),
                 save_config=True,
                 data_generator_type=Forecaster,
             )
