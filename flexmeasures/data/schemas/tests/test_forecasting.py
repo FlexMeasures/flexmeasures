@@ -193,37 +193,19 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         ),
         # Case 5: predict-period = 10 days and max-forecast-horizon = 12 hours
         #
-        # User expects to get forecasts for the next 10 days from a new viewpoint every 12 hours.
-        #    - forecast-frequency = max-forecast-horizon = 12 hours
-        #    - retraining-frequency = FM planning horizon
-        #    - 5 cycles, 20 belief times
+        # User expects to get a ValidationError for having set parameters that won't give complete coverage of the predict-period.
         (
             {
                 "duration": "P10D",
                 "max-forecast-horizon": "PT12H",
             },
-            {
-                "predict_start": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h"),
-                "start_date": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h")
-                - pd.Timedelta(days=30),
-                "train_period_in_hours": 720,
-                "predict_period_in_hours": 240,
-                "max_forecast_horizon": pd.Timedelta(hours=12),
-                "forecast_frequency": pd.Timedelta(hours=12),
-                "end_date": pd.Timestamp(
-                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-                )
-                + pd.Timedelta(days=10),
-                "max_training_period": pd.Timedelta(days=365),
-                "save_belief_time": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ),
-                "n_cycles": 5,
-            },
+            ValidationError(
+                {
+                    "max_forecast_horizon": [
+                        "This combination of parameters will not yield forecasts for the entire prediction window."
+                    ]
+                }
+            ),
         ),
         # Case 6: predict-period = 12 hours and max-forecast-horizon = 10 days
         #

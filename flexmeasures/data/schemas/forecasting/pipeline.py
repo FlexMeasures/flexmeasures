@@ -451,6 +451,17 @@ class ForecasterParametersSchema(Schema):
 
         max_forecast_horizon = data.get("max_forecast_horizon")
 
+        # Check for inconsistent parameters explicitly set
+        if (
+            "max-forecast-horizon" in original_data
+            and "duration" in original_data
+            and max_forecast_horizon < predict_period
+        ):
+            raise ValidationError(
+                "This combination of parameters will not yield forecasts for the entire prediction window.",
+                field_name="max_forecast_horizon",
+            )
+
         if max_forecast_horizon is None:
             max_forecast_horizon = predict_period
         elif max_forecast_horizon > predict_period:
