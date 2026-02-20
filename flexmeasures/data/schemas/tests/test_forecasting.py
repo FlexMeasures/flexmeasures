@@ -180,7 +180,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1h")
                 - pd.Timedelta(days=30),
-                "train_period_in_hours": 720,
+                "train_period_in_hours": 30 * 24,
                 "predict_period_in_hours": 48,
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "forecast_frequency": pd.Timedelta(hours=48),
@@ -256,7 +256,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-20T12:00:00+01",
                     tz="Europe/Amsterdam",
                 ),
-                "train-period-in-hours": 720,  # from start date to predict start
+                "train-period-in-hours": 30 * 24,  # from start date to predict start
                 "predict-period-in-hours": 120,  # from predict start to end date
                 "forecast-frequency": pd.Timedelta(
                     days=5
@@ -482,7 +482,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 )
                 - pd.Timedelta(days=30),
                 "predict-period-in-hours": 144,  # from predict start to end date
-                "train-period-in-hours": 720,
+                "train-period-in-hours": 30 * 24,
                 "max-forecast-horizon": pd.Timedelta(
                     days=6
                 ),  # duration between predict start and end date
