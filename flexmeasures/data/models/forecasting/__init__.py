@@ -141,7 +141,7 @@ class Forecaster(DataGenerator):
             "output-path",
             "sensor-to-save",
             "as-job",
-            "n_cycles",  # Computed internally, still uses snake_case
+            "m_viewpoints",  # Computed internally, still uses snake_case
         ]
 
         for field in fields_to_remove:

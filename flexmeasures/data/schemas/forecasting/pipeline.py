@@ -495,7 +495,7 @@ class ForecasterParametersSchema(Schema):
             # Read default from schema
             model_save_dir = self.fields["model_save_dir"].load_default
 
-        n_cycles = max(predict_period // forecast_frequency, 1)
+        m_viewpoints = max(predict_period // forecast_frequency, 1)
 
         return dict(
             sensor=target_sensor,
@@ -512,7 +512,7 @@ class ForecasterParametersSchema(Schema):
             probabilistic=data.get("probabilistic"),
             sensor_to_save=sensor_to_save,
             save_belief_time=save_belief_time,
-            n_cycles=n_cycles,
+            m_viewpoints=m_viewpoints,
         )
 
 

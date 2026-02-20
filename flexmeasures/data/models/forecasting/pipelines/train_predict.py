@@ -176,9 +176,19 @@ class TrainPredictPipeline(Forecaster):
             timedelta(hours=1) / sensor_resolution
         )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predicitons to predict a week
 
+        # Compute number of training cycles (at least 1)
+        n_cycles = max(
+            timedelta(hours=self._parameters["predict_period_in_hours"])
+            // max(
+                self._config["retrain_frequency"],
+                self._parameters["forecast_frequency"],
+            ),
+            1,
+        )
+
         cumulative_cycles_runtime = 0  # To track the cumulative runtime of TrainPredictPipeline cycles when not running as a job.
         cycles_job_params = []
-        for counter in range(self._parameters["n_cycles"]):
+        for counter in range(n_cycles):
             predict_end = min(predict_end, self._parameters["end_date"])
 
             train_predict_params = {

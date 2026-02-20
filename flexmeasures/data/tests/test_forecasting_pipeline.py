@@ -52,7 +52,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "end-date": "2025-01-09T00:00+02:00",
                 "sensor-to-save": None,
                 "max-forecast-horizon": "PT1H",
-                "forecast-frequency": "PT24H",
+                "forecast-frequency": "PT24H",  # 1 cycle and 1 viewpoint
                 "probabilistic": False,
             },
             True,
@@ -73,7 +73,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "end-date": "2025-01-09T00:00+02:00",
                 "sensor-to-save": None,
                 "max-forecast-horizon": "PT1H",
-                "forecast-frequency": "PT24H",
+                "forecast-frequency": "PT24H",  # 1 cycle and 1 viewpoint
                 "probabilistic": False,
             },
             False,
@@ -178,18 +178,18 @@ def test_train_predict_pipeline(  # noqa: C901
 
         forecasts = sensor.search_beliefs(source_types=["forecaster"])
         dg_params = pipeline._parameters  # parameters stored in the data generator
-        n_cycles = (dg_params["end_date"] - dg_params["predict_start"]) / (
+        m_viewpoints = (dg_params["end_date"] - dg_params["predict_start"]) / (
             dg_params["forecast_frequency"]
         )
         # 1 hour of forecasts is saved over 4 15-minute resolution events
         n_events_per_horizon = timedelta(hours=1) / dg_params["sensor"].event_resolution
         n_hourly_horizons = dg_params["max_forecast_horizon"] // timedelta(hours=1)
         assert (
-            len(forecasts) == n_cycles * n_hourly_horizons * n_events_per_horizon
-        ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_hourly_horizons} hourly horizons"
+            len(forecasts) == m_viewpoints * n_hourly_horizons * n_events_per_horizon
+        ), f"we expect 4 forecasts per horizon for each viewpoint within the prediction window, and {m_viewpoints} viewpoints with each {n_hourly_horizons} hourly horizons"
         assert (
-            forecasts.lineage.number_of_belief_times == n_cycles
-        ), f"we expect 1 belief time per cycle, and {n_cycles} cycles"
+            forecasts.lineage.number_of_belief_times == m_viewpoints
+        ), f"we expect {m_viewpoints} viewpoints"
         source = forecasts.lineage.sources[0]
         assert "TrainPredictPipeline" in str(
             source
