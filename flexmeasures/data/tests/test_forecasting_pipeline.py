@@ -362,6 +362,7 @@ def test_missing_data_logs_warning(
         (
             {
                 # "model": "CustomLGBM",
+                "retrain-frequency": "P1D",
             },
             {
                 "sensor": "solar-sensor",
@@ -372,7 +373,6 @@ def test_missing_data_logs_warning(
                 "max-training-period": "P10D",  # cap at 10 days
                 "sensor-to-save": None,
                 "start-predict-date": "2025-01-25T00:00+02:00",
-                "retrain-frequency": "P1D",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
