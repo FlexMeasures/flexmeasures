@@ -376,8 +376,10 @@ class ForecasterParametersSchema(Schema):
                 field_name="max_training_period",
             )
 
-    @post_load
-    def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
+    @post_load(pass_original=True)
+    def resolve_config(
+        self, data: dict, original_data: dict | None = None, **kwargs
+    ) -> dict:  # noqa: C901
         """Resolve timing parameters, using sensible defaults and choices.
 
         Defaults:
@@ -398,7 +400,14 @@ class ForecasterParametersSchema(Schema):
         now = server_now()
         floored_now = floor_to_resolution(now, resolution)
 
-        predict_start = data.get("start_predict_date") or floored_now
+        if data.get("start_predict_date") is None:
+            if original_data.get("duration") and data.get("end_date") is not None:
+                predict_start = data["end_date"] - data["duration"]
+            else:
+                predict_start = floored_now
+        else:
+            predict_start = data["start_predict_date"]
+
         save_belief_time = (
             now if data.get("start_predict_date") is None else predict_start
         )
