@@ -239,11 +239,24 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates("parent_asset_id")
     def validate_parent_asset(self, parent_asset_id: int | None, **kwargs):
-        if parent_asset_id is not None:
-            parent_asset = db.session.get(GenericAsset, parent_asset_id)
-            if not parent_asset:
+        if parent_asset_id is None:
+            return
+
+        parent_asset = db.session.get(GenericAsset, parent_asset_id)
+        if not parent_asset:
+            raise ValidationError(
+                f"Parent GenericAsset with id {parent_asset_id} doesn't exist."
+            )
+
+        # Check account consistency (using context)
+        # Safely get the asset from context, defaulting to None if creating new
+        current_asset = self.context.get("asset")
+
+        # If editing an existing asset (context exists)
+        if current_asset and current_asset.account_id:
+            if parent_asset.account_id != current_asset.account_id:
                 raise ValidationError(
-                    f"Parent GenericAsset with id {parent_asset_id} doesn't exist."
+                    "Parent asset must belong to the same account as the child asset."
                 )
 
     @validates("account_id")
