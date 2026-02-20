@@ -23,6 +23,7 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
+    import {apiBasePath} from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { decompressChartData, checkDSTTransitions, checkSourceMasking } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";

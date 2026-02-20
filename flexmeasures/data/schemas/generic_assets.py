@@ -243,7 +243,7 @@ class SensorsToShowSchema(fields.Field):
                         if "sensor" in plot:
                             all_objects.append(plot["sensor"])
                         if "asset" in plot:
-                            sensors = extract_sensors_from_flex_config(plot)
+                            sensors, _ = extract_sensors_from_flex_config(plot)
                             all_objects.extend(sensors)
                 elif "sensors" in s:
                     all_objects.extend(s["sensors"])

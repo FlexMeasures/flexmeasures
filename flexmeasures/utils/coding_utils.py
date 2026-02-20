@@ -111,7 +111,7 @@ def flatten_unique(nested_list_of_objects: list) -> list:
                     if "sensor" in entry:
                         all_objects.append(entry["sensor"])
                     if "asset" in entry:
-                        sensors = extract_sensors_from_flex_config(entry)
+                        sensors, _ = extract_sensors_from_flex_config(entry)
                         all_objects.extend(sensors)
         else:
             all_objects.append(s)

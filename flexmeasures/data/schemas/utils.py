@@ -4,7 +4,7 @@ from click import get_current_context
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
-from flexmeasures.utils.unit_utils import to_preferred, ur
+from flexmeasures.utils.unit_utils import to_preferred, ur, extract_unit_from_string
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -86,18 +86,22 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         )
 
 
-def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
+def extract_sensors_from_flex_config(plot: dict) -> tuple[list[Sensor], list[dict]]:
     """
     Extracts a consolidated list of sensors from an asset based on
     flex-context or flex-model definitions provided in a plot dictionary.
     """
     all_sensors = []
+    asset_refs = []
 
     from flexmeasures.data.schemas.generic_assets import (
         GenericAssetIdField,
     )  # Import here to avoid circular imports
 
     asset = GenericAssetIdField().deserialize(plot.get("asset"))
+
+    if asset is None:
+        raise FMValidationError("Asset not found for the provided plot configuration.")
 
     fields_to_check = {
         "flex-context": asset.flex_context,
@@ -115,5 +119,22 @@ def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
                 sensor = field_value.get("sensor")
                 if sensor:
                     all_sensors.append(sensor)
+            elif isinstance(field_value, str):
+                unit = None
+                # extract unit from the string value and add a dummy sensor with that unit
+                value, unit = extract_unit_from_string(field_value)
+                if unit is not None:
+                    asset_refs.append(
+                        {
+                            "id": asset.id,
+                            "field": field_key,
+                            "value": value,
+                            "unit": unit,
+                        }
+                    )
+                else:
+                    raise FMValidationError(
+                        f"Value '{field_value}' for field '{field_key}' in '{plot_key}' is not a valid quantity string."
+                    )
 
-    return all_sensors
+    return all_sensors, asset_refs
