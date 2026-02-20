@@ -159,7 +159,7 @@ class TrainPredictPipeline(Forecaster):
         )
         # How much to move forward to the next cycle one prediction period later
         cycle_frequency = max(
-            timedelta(hours=self._parameters["retrain_frequency"]),
+            self._config["retrain_frequency"],
             self._parameters["forecast_frequency"],
         )
 

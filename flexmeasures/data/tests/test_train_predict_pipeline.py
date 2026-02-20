@@ -20,6 +20,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         (
             {
                 # "model": "CustomLGBM",
+                "retrain-frequency": "P0D",  # 0 days is expected to fail
             },
             {
                 "sensor": "solar-sensor",
@@ -30,7 +31,6 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "train-period": "P2D",
                 "sensor-to-save": None,
                 "start-predict-date": "2025-01-02T00:00+02:00",
-                "retrain-frequency": "P0D",  # 0 days is expected to fail
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
@@ -104,6 +104,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             {
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
+                "retrain-frequency": "P1D",
             },
             {
                 "sensor": "solar-sensor",
@@ -114,7 +115,6 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "train-period": "P2D",
                 "sensor-to-save": None,
                 "start-predict-date": "2025-01-02T00:00+02:00",
-                "retrain-frequency": "P1D",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT24H",
                 "probabilistic": False,

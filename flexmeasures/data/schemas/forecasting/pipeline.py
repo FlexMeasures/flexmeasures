@@ -10,6 +10,7 @@ from marshmallow import (
     fields,
     Schema,
     validates_schema,
+    validates,
     pre_load,
     post_load,
     ValidationError,
@@ -97,6 +98,27 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+    retrain_frequency = DurationField(
+        data_key="retrain-frequency",
+        load_default=PlanningDurationField.load_default,
+        allow_none=True,
+        metadata={
+            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
+            "example": "PT24H",
+            "cli": {
+                "cli-exclusive": True,
+                "option": "--retrain-frequency",
+            },
+        },
+    )
+
+    @validates("retrain_frequency")
+    def validate_parameters(self, value, **kwargs):
+        if value <= timedelta(0):
+            raise ValidationError(
+                "retrain-frequency must be greater than 0",
+                field_name="retrain_frequency",
+            )
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
@@ -217,19 +239,6 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
-    retrain_frequency = DurationField(
-        data_key="retrain-frequency",
-        load_default=PlanningDurationField.load_default,
-        allow_none=True,
-        metadata={
-            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
-            "example": "PT24H",
-            "cli": {
-                "cli-exclusive": True,
-                "option": "--retrain-frequency",
-            },
-        },
-    )
     max_forecast_horizon = DurationField(
         data_key="max-forecast-horizon",
         required=False,
@@ -239,7 +248,6 @@ class ForecasterParametersSchema(Schema):
             "example": "PT48H",
             "cli": {
                 "option": "--max-forecast-horizon",
-                "extra_help": "For example, if you have multiple viewpoints (by having set a `retrain-frequency`), then it is equal to the retrain-frequency by default.",
             },
         },
     )
@@ -313,7 +321,6 @@ class ForecasterParametersSchema(Schema):
         end_date = data.get("end_date")
         predict_start = data.get("start_predict_date", None)
         train_period = data.get("train_period")
-        retrain_frequency = data.get("retrain_frequency")
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
@@ -340,12 +347,6 @@ class ForecasterParametersSchema(Schema):
             raise ValidationError(
                 "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
-            )
-
-        if retrain_frequency is not None and retrain_frequency <= timedelta(0):
-            raise ValidationError(
-                "retrain-frequency must be greater than 0",
-                field_name="retrain_frequency",
             )
 
         if max_forecast_horizon is not None:
@@ -478,12 +479,7 @@ class ForecasterParametersSchema(Schema):
                 predict_period,
             )
 
-        retrain_frequency = data["retrain_frequency"]
-        retrain_frequency_in_hours = int(retrain_frequency.total_seconds() / 3600)
         predict_period_in_hours = int(predict_period.total_seconds() / 3600)
-
-        if retrain_frequency_in_hours < 1:
-            raise ValidationError("retrain-frequency must be at least 1 hour")
 
         if data.get("sensor_to_save") is None:
             sensor_to_save = target_sensor
@@ -499,11 +495,7 @@ class ForecasterParametersSchema(Schema):
             # Read default from schema
             model_save_dir = self.fields["model_save_dir"].load_default
 
-        n_cycles = max(
-            predict_period
-            // max(timedelta(hours=retrain_frequency_in_hours), forecast_frequency),
-            1,
-        )
+        n_cycles = max(predict_period // forecast_frequency, 1)
 
         return dict(
             sensor=target_sensor,
@@ -515,7 +507,6 @@ class ForecasterParametersSchema(Schema):
             max_training_period=max_training_period,
             predict_start=predict_start,
             predict_period_in_hours=predict_period_in_hours,
-            retrain_frequency=retrain_frequency_in_hours,
             max_forecast_horizon=max_forecast_horizon,
             forecast_frequency=forecast_frequency,
             probabilistic=data.get("probabilistic"),

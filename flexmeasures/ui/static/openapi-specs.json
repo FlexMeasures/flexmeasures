@@ -4153,6 +4153,14 @@
             "default": false,
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": true
+          },
+          "retrain-frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
+            "example": "PT24H"
           }
         },
         "additionalProperties": false
@@ -4204,6 +4212,14 @@
             ],
             "description": "Maximum forecast horizon. Defaults to covering the whole prediction period (which itself defaults to 48 hours).",
             "example": "PT48H"
+          },
+          "forecast-frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How often to recompute forecasts. This setting can be used to get forecasts from multiple viewpoints. Defaults to the max-forecast-horizon.",
+            "example": "PT1H"
           },
           "config": {
             "description": "Changing any of these will result in a new data source ID.",
