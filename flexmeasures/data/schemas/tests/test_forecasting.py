@@ -314,10 +314,17 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Case 9: Test when only end date is given with a training period
-        # We expect the start date to be computed with respect to now. (training period before now (floored)).
-        # We expect training period of 30 days before predict start and prediction period of 48 hours after predict start, with predict start at server now (floored to hour).
-        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
+        # Case 9: end-date is given with train-period = 3 days
+        #
+        # User expects the start date to be computed from the inferred predict-start and train-period.
+        # Specifically, we expect:
+        #    - predict-start = server now floored to sensor resolution
+        #    - train-period = 3 days (72 hours)
+        #    - predict-period = 5 days (from predict-start to end-date)
+        #    - max-forecast-horizon = predict-period = 5 days
+        #    - forecast-frequency = predict-period = 5 days
+        #    - retrain-frequency = FM planning horizon
+        #    - 1 cycle, 1 belief time
         (
             {
                 "end-date": "2025-01-20T12:00:00+01:00",
@@ -352,10 +359,17 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Case 10: Test when only start date is given with a training period
-        # We expect the predict start to be computed with respect to the start date (training period after start date).
-        # We set training period of 3 days, we expect a prediction period to default 48 hours after predict start, with predict start at server now (floored to hour).
-        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
+        # Case 10: start-date is given with train-period = 3 days
+        #
+        # User expects predict-start to be derived from start-date + train-period.
+        # Specifically, we expect:
+        #    - predict-start = start-date + 3 days
+        #    - predict-period = FM planning horizon (48 hours)
+        #    - end-date = predict-start + 48 hours
+        #    - max-forecast-horizon = predict-period = 48 hours
+        #    - forecast-frequency = predict-period = 48 hours
+        #    - retrain-frequency = FM planning horizon
+        #    - 1 cycle, 1 belief time
         (
             {
                 "start-date": "2024-12-25T00:00:00+01:00",
@@ -389,10 +403,18 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Case 11: Test when only start date is given with a duration (prediction period)
-        # We expect the predict start to be computed with respect to the start date (training period after start date).
-        # We set training period of 3 days, we expect a prediction period to default 48 hours after predict start, with predict start at server now (floored to hour).
-        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
+        # Case 11: start-date is given with predict-period duration = 3 days
+        #
+        # User expects predict-start to remain based on server now (no train-period given).
+        # Specifically, we expect:
+        #    - predict-start = server now floored to sensor resolution
+        #    - predict-period = 3 days
+        #    - end-date = predict-start + 3 days
+        #    - train-period derived from start-date to predict-start
+        #    - max-forecast-horizon = predict-period = 3 days
+        #    - forecast-frequency = predict-period = 3 days
+        #    - retrain-frequency = FM planning horizon
+        #    - 1 cycle, 1 belief time
         (
             {
                 "start-date": "2024-12-25T00:00:00+01:00",
@@ -427,9 +449,17 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Case 12: Test when only start date is given with both training period 20 days and prediction period 3 days
-        # We expect the predict start to be computed with respect to the start date (training period after start date).
-        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period
+        # Case 12: start-date is given with train-period = 20 days and duration = 3 days
+        #
+        # User expects both predict-start and end-date to be derived from start-date.
+        # Specifically, we expect:
+        #    - predict-start = start-date + 20 days
+        #    - predict-period = 3 days
+        #    - end-date = start-date + 23 days
+        #    - max-forecast-horizon = predict-period = 3 days
+        #    - forecast-frequency = predict-period = 3 days
+        #    - retrain-frequency = FM planning horizon
+        #    - 1 cycle, 1 belief time
         (
             {
                 "start-date": "2024-12-01T00:00:00+01:00",
@@ -460,9 +490,18 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "save-belief-time": None,
             },
         ),
-        # Case 13: Test when only end date is given with a prediction period: we expect the train start and predict start to both be computed with respect to the end date.
-        # we expect training period of 30 days before predict_start and prediction period of 3 days after predict_start, with predict_start at server now (floored to hour).
-        # we expect 2 cycles from the retrain frequency and predict period given the end date
+        # Case 13: only end-date is given with retrain-frequency = 3 days
+        #
+        # User expects train start and predict start to be derived from end-date and defaults.
+        # Specifically, we expect:
+        #    - predict-start = end-date - default duration (FM planning horizon)
+        #    - train-period = default 30 days
+        #    - start-date = predict-start - 30 days
+        #    - predict-period = 6 days
+        #    - max-forecast-horizon = predict-period = 6 days
+        #    - forecast-frequency = predict-period = 6 days
+        #    - retrain-frequency = 3 days (explicit)
+        #    - 1 cycle, 1 belief time
         (
             {
                 "end-date": "2025-01-21T12:00:00+01:00",
