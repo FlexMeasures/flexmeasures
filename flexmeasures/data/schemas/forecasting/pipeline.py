@@ -375,7 +375,7 @@ class ForecasterParametersSchema(Schema):
         """Resolve timing parameters, using sensible defaults and choices.
 
         Defaults:
-        1. predict-period defaults to minimum of (FM planning horizon and max-forecast-horizon)
+        1. predict-period defaults to minimum of (FM planning horizon and max-forecast-horizon) only if there is one cycle.
         2. max-forecast-horizon defaults to the predict-period
         3. forecast-frequency defaults to minimum of (FM planning horizon, predict-period, max-forecast-horizon)
 
@@ -470,6 +470,8 @@ class ForecasterParametersSchema(Schema):
         elif max_forecast_horizon < predict_period and forecast_frequency is None:
             # Update the default predict-period if the user explicitly set a smaller max-forecast-horizon,
             # unless they also set a forecast-frequency explicitly
+            predict_period = max_forecast_horizon
+        elif max_forecast_horizon < predict_period and (predict_period // data.get("retrain_frequency")) <= 1:
             predict_period = max_forecast_horizon
 
         if forecast_frequency is None:
