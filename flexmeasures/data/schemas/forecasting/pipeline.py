@@ -369,9 +369,9 @@ class ForecasterParametersSchema(Schema):
             )
 
     @post_load(pass_original=True)
-    def resolve_config(
+    def resolve_config(  # noqa: C901
         self, data: dict, original_data: dict | None = None, **kwargs
-    ) -> dict:  # noqa: C901
+    ) -> dict:
         """Resolve timing parameters, using sensible defaults and choices.
 
         Defaults:
