@@ -49,7 +49,7 @@
                 <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
                     <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
                     <li style="display: none;"><a class="dropdown-item" href="#"
-                            data-chart-type="chart_for_flex_config_reference">My Custom View</a>
+                            data-chart-type="chart_for_flex_config_reference">Asset Reference Extension</a>
                     </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center" href="#"
@@ -571,7 +571,7 @@
 
         async function renderRootAssets() {
             const assetTreeSelect = document.getElementById("assetTree");
-            const rootAssetId = "{{asset.id}}"
+            const rootAssetId = "{{site_asset.id}}"
             const response = await fetch(`${apiBasePath}/api/v3_0/assets?sort_by=id&sort_dir=asc&root=${rootAssetId}`);
             const resBody = await response.json();
             const assets = resBody;

@@ -1103,6 +1103,15 @@ class GenericAsset(db.Model, AuthModelMixin):
             ).all()
         db.session.add(self)
 
+    def find_site_asset(self) -> GenericAsset | None:
+        """Find the site asset for this asset, if it exists.
+
+        The site asset is the highest ancestor asset without a parent.
+        """
+        if self.parent_asset is None:
+            return self
+        return self.parent_asset.find_site_asset()
+
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     """Create a GenericAsset and assigns it an id.

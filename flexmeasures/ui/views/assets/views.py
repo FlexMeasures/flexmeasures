@@ -335,7 +335,6 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/graphs")
     def graphs(self, id: str, start_time=None, end_time=None):
         """/assets/<id>/graphs"""
-        # from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
@@ -349,12 +348,12 @@ class AssetCrudUI(FlaskView):
         asset_form.with_options()
         asset_form.process(obj=asset)
 
-        # breadcrumb_info = get_breadcrumb_info(asset, current_page="Graphs")
-        # print("=====================Breadcrumb info:", breadcrumb_info)
+        site_asset = asset.find_site_asset()
 
         return render_flexmeasures_template(
             "assets/asset_graph.html",
             asset=asset,
+            site_asset=site_asset,
             has_kpis=has_kpis,
             asset_kpis=asset_kpis,
             available_units=available_units(),
