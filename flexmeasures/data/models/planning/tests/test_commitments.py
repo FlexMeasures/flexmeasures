@@ -479,6 +479,7 @@ def test_mixed_gas_and_electricity_assets(app, db):
             "commodity": "gas",
             "power-capacity": "30 kW",
             "consumption-capacity": "30 kW",
+            "production-capacity": "0 kW",
         },
     ]
 
