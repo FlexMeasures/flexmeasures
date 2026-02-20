@@ -550,16 +550,16 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "forecast-frequency": "P5D",
             },
             {
-                # "end-date": pd.Timestamp(
-                #     "2025-01-21T12:00:00+01", tz="Europe/Amsterdam"
-                # ),
-                # "predict-start": pd.Timestamp(
-                #     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-                # ),
-                # "start-date": pd.Timestamp(
-                #     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-                # )
-                # - pd.Timedelta(days=30),
+                "end-date": pd.Timestamp(
+                    "2025-01-25T12:00:00+01", tz="Europe/Amsterdam"
+                ),
+                "predict-start": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                ),
+                "start-date": pd.Timestamp(
+                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                )
+                - pd.Timedelta(days=30),
                 "predict-period-in-hours": 240,  # from predict start to end date
                 "train-period-in-hours": 30 * 24,
                 "max-forecast-horizon": pd.Timedelta(
