@@ -4168,11 +4168,6 @@
       "forecasting_trigger_schema_openAPI": {
         "type": "object",
         "properties": {
-          "sensor": {
-            "type": "integer",
-            "description": "ID of the sensor to forecast.",
-            "example": 2092
-          },
           "start-date": {
             "type": [
               "string",

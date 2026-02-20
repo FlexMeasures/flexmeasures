@@ -89,7 +89,7 @@ EXCLUDED_FORECASTING_FIELDS = [
 ]
 forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerSchema)(
     partial=True,
-    exclude=EXCLUDED_FORECASTING_FIELDS,
+    exclude=EXCLUDED_FORECASTING_FIELDS + ["sensor"],
 )
 
 
