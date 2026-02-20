@@ -469,7 +469,9 @@ class ForecasterParametersSchema(Schema):
                 "max-forecast-horizon must be less than or equal to predict-period",
                 field_name="max_forecast_horizon",
             )
-        elif max_forecast_horizon < predict_period:
+        elif max_forecast_horizon < predict_period and forecast_frequency is None:
+            # Update the default predict-period if the user explicitly set a smaller max-forecast-horizon,
+            # unless they also set a forecast-frequency explicitly
             predict_period = max_forecast_horizon
 
         if forecast_frequency is None:
