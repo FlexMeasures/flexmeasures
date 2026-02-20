@@ -471,8 +471,6 @@ class ForecasterParametersSchema(Schema):
             # Update the default predict-period if the user explicitly set a smaller max-forecast-horizon,
             # unless they also set a forecast-frequency explicitly
             predict_period = max_forecast_horizon
-        elif max_forecast_horizon < predict_period and (predict_period // data.get("retrain_frequency")) <= 1:
-            predict_period = max_forecast_horizon
 
         if forecast_frequency is None:
             forecast_frequency = min(
