@@ -417,7 +417,6 @@ class ForecasterParametersSchema(Schema):
             and data.get("train_period")
             and data.get("start_date")
         ):
-
             predict_start = data["start_date"] + data["train_period"]
             save_belief_time = None
 

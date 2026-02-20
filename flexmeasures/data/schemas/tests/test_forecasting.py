@@ -56,7 +56,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # Specifically, we expect:
         #    - max-forecast-horizon = predict-period = 12 hours
         #    - forecast-frequency = predict-period = 12 hours
-        #    - (config) retraining-frequency = FM planning horizon
+        #    - (config) retraining-frequency = FM planning horizon, but capped by predict-period, so 12 hours
         #    - 1 cycle, 1 belief time
         #    - training-period = 30 days
         (
@@ -69,7 +69,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1h")
                 - pd.Timedelta(days=30),
-                "train_period_in_hours": 720,
+                "train_period_in_hours": 24 * 30,
                 "predict_period_in_hours": 12,
                 "max_forecast_horizon": pd.Timedelta(hours=12),
                 "forecast_frequency": pd.Timedelta(hours=12),
@@ -77,6 +77,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
                 )
                 + pd.Timedelta(hours=12),
+                "retrain_frequency": 12,
                 "max_training_period": pd.Timedelta(days=365),
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
@@ -118,6 +119,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
             },
         ),
         # Case 3: forecast-frequency = 12 hours
+        # todo: add to description that this should really be used in combination with the predict-start field
         #
         # User expects to get forecasts for the default FM planning horizon from a new viewpoint every 12 hours.
         # Specifically, we expect:
