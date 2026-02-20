@@ -496,10 +496,8 @@ class ForecasterParametersSchema(Schema):
             model_save_dir = self.fields["model_save_dir"].load_default
 
         n_cycles = max(
-            int(
-                predict_period
-                // max(timedelta(hours=retrain_frequency_in_hours), forecast_frequency),
-            ),
+            predict_period
+            // max(timedelta(hours=retrain_frequency_in_hours), forecast_frequency),
             1,
         )
 
