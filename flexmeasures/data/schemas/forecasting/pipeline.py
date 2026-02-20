@@ -375,7 +375,7 @@ class ForecasterParametersSchema(Schema):
         """Resolve timing parameters, using sensible defaults and choices.
 
         Defaults:
-        1. predict-period defaults to minimum of (FM planning horizon and max-forecast-horizon) only if there is one cycle.
+        1. predict-period defaults to minimum of (FM planning horizon and max-forecast-horizon) only if there is a single default viewpoint.
         2. max-forecast-horizon defaults to the predict-period
         3. forecast-frequency defaults to minimum of (FM planning horizon, predict-period, max-forecast-horizon)
 
