@@ -158,7 +158,10 @@ class TrainPredictPipeline(Forecaster):
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
         )
         # How much to move forward to the next cycle one prediction period later
-        cycle_frequency = timedelta(hours=self._parameters["retrain_frequency"])
+        cycle_frequency = max(
+            timedelta(hours=self._parameters["retrain_frequency"]),
+            self._parameters["forecast_frequency"],
+        )
 
         predict_start = self._parameters["predict_start"]
         predict_end = predict_start + cycle_frequency
@@ -167,7 +170,6 @@ class TrainPredictPipeline(Forecaster):
             hours=self._parameters["train_period_in_hours"]
         )
         train_end = predict_start
-        counter = 0
 
         sensor_resolution = self._parameters["sensor"].event_resolution
         multiplier = int(
@@ -176,8 +178,8 @@ class TrainPredictPipeline(Forecaster):
 
         cumulative_cycles_runtime = 0  # To track the cumulative runtime of TrainPredictPipeline cycles when not running as a job.
         cycles_job_params = []
-        while predict_end <= self._parameters["end_date"]:
-            counter += 1
+        for counter in range(self._parameters["n_cycles"]):
+            predict_end = min(predict_end, self._parameters["end_date"])
 
             train_predict_params = {
                 "train_start": train_start,

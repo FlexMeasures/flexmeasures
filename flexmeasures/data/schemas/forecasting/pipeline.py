@@ -495,6 +495,14 @@ class ForecasterParametersSchema(Schema):
             # Read default from schema
             model_save_dir = self.fields["model_save_dir"].load_default
 
+        n_cycles = max(
+            int(
+                predict_period
+                // max(timedelta(hours=retrain_frequency_in_hours), forecast_frequency),
+            ),
+            1,
+        )
+
         return dict(
             sensor=target_sensor,
             model_save_dir=model_save_dir,
@@ -511,7 +519,7 @@ class ForecasterParametersSchema(Schema):
             probabilistic=data.get("probabilistic"),
             sensor_to_save=sensor_to_save,
             save_belief_time=save_belief_time,
-            n_cycles=int(predict_period // timedelta(hours=retrain_frequency_in_hours)),
+            n_cycles=n_cycles,
         )
 
 
