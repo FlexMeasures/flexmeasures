@@ -133,11 +133,12 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         (
             {
                 "start-predict-date": "2025-01-15T12:00:00+01:00",
-                "forecast-frequency": "PT12H"
+                "forecast-frequency": "PT12H",
             },
             {
                 "predict_start": pd.Timestamp(
-                    "2025-01-15T12:00:00.000+01", tz="Europe/Amsterdam"),
+                    "2025-01-15T12:00:00.000+01", tz="Europe/Amsterdam"
+                ),
                 "start_date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1h")
@@ -339,9 +340,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "max-forecast-horizon": pd.Timedelta(
                     days=5
                 ),  # duration between predict start and end date
-                "forecast-frequency": pd.Timedelta(
-                    days=5
-                ),
+                "forecast-frequency": pd.Timedelta(days=5),
                 # default values
                 "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
@@ -416,9 +415,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "max-forecast-horizon": pd.Timedelta(
                     days=3
                 ),  # duration between predict-start and end-date
-                "forecast-frequency": pd.Timedelta(
-                    days=3
-                ),
+                "forecast-frequency": pd.Timedelta(days=3),
                 # default values
                 "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
@@ -453,7 +450,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 + pd.Timedelta(days=23),
                 "train-period-in-hours": 480,
                 "predict-period-in-hours": 72,
-                "max-forecast-horizon": pd.Timedelta(days=3),  # defaults to prediction period (duration)
+                # defaults to prediction period (duration)
+                "max-forecast-horizon": pd.Timedelta(days=3),
                 "forecast-frequency": pd.Timedelta(days=3),
                 # default values
                 "retrain_frequency": 2 * 24,
