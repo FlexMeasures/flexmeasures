@@ -167,7 +167,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - predict-period = FM planning horizon
         #    - max-forecast-horizon = predict-period (actual horizons are 48, 36, 24 and 12)
         #    - forecast-frequency = predict-period (NOT capped by retraining-period, no param changes based on config)
-        #    - 4 cycle, 4 belief times
+        #    - 1 cycle, 1 belief time
         (
             {
                 "retrain-frequency": "PT12H",
@@ -193,7 +193,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ),
-                "n_cycles": 4,
+                "n_cycles": 1,
             },
         ),
         # Case 5: predict-period = 10 days and max-forecast-horizon = 12 hours
@@ -466,7 +466,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         (
             {
                 "end-date": "2025-01-21T12:00:00+01:00",
-                "retrain-frequency": "P3D",
+                "retrain-frequency": "P3D",  # only comes into play if forecast-frequency is lower than retrain-frequency, which here it is not
             },
             {
                 "end-date": pd.Timestamp(
@@ -484,9 +484,49 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "max-forecast-horizon": pd.Timedelta(
                     days=6
                 ),  # duration between predict start and end date
-                "forecast-frequency": pd.Timedelta(
-                    hours=144
+                "forecast-frequency": pd.Timedelta(hours=144),
+                # default values
+                "max-training-period": pd.Timedelta(days=365),
+                "retrain-frequency": 3 * 24,
+                # server now
+                "save-belief-time": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01",
+                    tz="Europe/Amsterdam",
                 ),
+                "n_cycles": 1,  # we expect 1 cycle from the forecast-frequency defaulting to the predict-period
+            },
+        ),
+        # Case 14: forecast-frequency = 5 days, predict-period = 10 days
+        #
+        # User expects to get forecasts for 10 days from two unique viewpoints 5 days apart.
+        # Specifically, we expect:
+        #    - predict-period = 10 days
+        #    - max-forecast-horizon = predict-period (actual horizons are 10 days and 5 days)
+        #    - forecast-frequency = 5 days
+        #    - retrain-frequency = FM planning horizon
+        #    - 2 cycles, 2 belief times
+        (
+            {
+                "duration": "P10D",
+                "forecast-frequency": "P5D",
+            },
+            {
+                # "end-date": pd.Timestamp(
+                #     "2025-01-21T12:00:00+01", tz="Europe/Amsterdam"
+                # ),
+                # "predict-start": pd.Timestamp(
+                #     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                # ),
+                # "start-date": pd.Timestamp(
+                #     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+                # )
+                # - pd.Timedelta(days=30),
+                "predict-period-in-hours": 240,  # from predict start to end date
+                "train-period-in-hours": 30 * 24,
+                "max-forecast-horizon": pd.Timedelta(
+                    days=10
+                ),  # duration between predict start and end date
+                "forecast-frequency": pd.Timedelta(hours=120),
                 # default values
                 "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": 2 * 24,
