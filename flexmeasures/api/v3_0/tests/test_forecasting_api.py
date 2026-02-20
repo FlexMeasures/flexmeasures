@@ -44,7 +44,7 @@ def test_trigger_and_fetch_forecasts(
     trigger_res = client.post(
         trigger_url, json=payload, headers={"Authorization": token}
     )
-    assert trigger_res.status_code == 200
+    assert trigger_res.status_code == 200, trigger_res.json
 
     trigger_json = trigger_res.get_json()
     wrap_up_job = app.queues["forecasting"].fetch_job(trigger_json["forecast"])
@@ -83,7 +83,7 @@ def test_trigger_and_fetch_forecasts(
 
         fetch_url = url_for("SensorAPI:get_forecast", id=sensor_0.id, uuid=job_id)
         res = client.get(fetch_url, headers={"Authorization": token})
-        assert res.status_code == 200
+        assert res.status_code == 200, res.json
 
         data = res.get_json()
 
