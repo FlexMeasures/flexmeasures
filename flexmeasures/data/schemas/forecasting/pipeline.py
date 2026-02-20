@@ -460,12 +460,13 @@ class ForecasterParametersSchema(Schema):
 
         if max_forecast_horizon is None:
             max_forecast_horizon = predict_period
-
-        if max_forecast_horizon > predict_period:
+        elif max_forecast_horizon > predict_period:
             raise ValidationError(
                 "max-forecast-horizon must be less than or equal to predict-period",
                 field_name="max_forecast_horizon",
             )
+        elif max_forecast_horizon < predict_period:
+            predict_period = max_forecast_horizon
 
         if forecast_frequency is None:
             forecast_frequency = min(

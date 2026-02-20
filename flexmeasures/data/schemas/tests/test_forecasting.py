@@ -93,6 +93,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - forecast-frequency = max-forecast-horizon = 12 hours
         #    - retraining-period = FM planning horizon
         #    - 1 cycle, 1 belief time
+        # These expectations are encoded in default 1 of ForecasterParametersSchema.resolve_config
         (
             {"max-forecast-horizon": "PT12H"},
             {
@@ -107,8 +108,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
                 )
                 + pd.Timedelta(hours=48),
-                "train_period_in_hours": 720,
-                "predict_period_in_hours": 48,
+                "train_period_in_hours": 30 * 24,
+                "predict_period_in_hours": 12,
                 "max_forecast_horizon": pd.Timedelta(hours=12),
                 "forecast_frequency": pd.Timedelta(hours=12),
                 "max_training_period": pd.Timedelta(days=365),
