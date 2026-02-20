@@ -220,7 +220,7 @@ class ForecasterParametersSchema(Schema):
     )
     retrain_frequency = DurationField(
         data_key="retrain-frequency",
-        required=False,
+        load_default=PlanningDurationField.load_default,
         allow_none=True,
         metadata={
             "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
@@ -474,16 +474,7 @@ class ForecasterParametersSchema(Schema):
                 predict_period,
             )
 
-        if data.get("retrain_frequency") is None:
-            if data.get("max_forecast_horizon") is None:
-                retrain_frequency = predict_period  # to not have multiple cycles if max_forecast_horizon is not set, as it defaults to predict_period
-            else:
-                # If retrain_freq <= forecast-frequency, we enforce retrain_freq = forecast-frequency
-                retrain_frequency = max(planning_horizon, forecast_frequency)
-        else:
-            retrain_frequency = data["retrain_frequency"]
-        if retrain_frequency > predict_period:
-            retrain_frequency = predict_period
+        retrain_frequency = data["retrain_frequency"]
         retrain_frequency_in_hours = int(retrain_frequency.total_seconds() / 3600)
         predict_period_in_hours = int(predict_period.total_seconds() / 3600)
 
