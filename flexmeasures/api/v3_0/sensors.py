@@ -85,7 +85,6 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 EXCLUDED_FORECASTING_FIELDS = [
     "train_period",
     "max_training_period",
-    "forecast_frequency",
     "sensor_to_save",
 ]
 forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerSchema)(
