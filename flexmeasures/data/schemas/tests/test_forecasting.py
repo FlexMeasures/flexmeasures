@@ -140,7 +140,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1h")
                 - pd.Timedelta(days=30),
-                "train_period_in_hours": 720,
+                "train_period_in_hours": 30 * 24,
                 "predict_period_in_hours": 48,
                 "max_forecast_horizon": pd.Timedelta(hours=48),
                 "forecast_frequency": pd.Timedelta(hours=12),
@@ -149,6 +149,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 )
                 + pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
+                # this is the first belief time of the four belief times
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:00:00.00+01", tz="Europe/Amsterdam"
                 ),
