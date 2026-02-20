@@ -31,6 +31,7 @@ New features
 * Allow testing out the scheduling CLI without saving anything, using ``flexmeasures add schedule --dry-run`` [see `PR #1892 <https://www.github.com/FlexMeasures/flexmeasures/pull/1892>`_]
 * Allow unsupported ``flex-context`` or ``flex-model`` fields to be shown in the UI editors (they will be un-editable) [see `PR #1915 <https://www.github.com/FlexMeasures/flexmeasures/pull/1915>`_]
 * Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
+* Add a documentation section on the concept of ``Commitments`` [see `PR #1849 <https://www.github.com/FlexMeasures/flexmeasures/pull/1849>`_]
 
 
 Infrastructure / Support
@@ -49,6 +50,7 @@ Infrastructure / Support
 * Add extra security layer to check for breached passwords [see `PR #1919 <https://www.github.com/FlexMeasures/flexmeasures/pull/1919>`_]
 * Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 * Improve reported test coverage by including doctests and bringing back CLI tests to GitHub Actions [see `PR #1914 <https://www.github.com/FlexMeasures/flexmeasures/pull/1914>`_ and `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_, respectively]
+* Add DEFAULT_DATASOURCE_TYPES and use it in CLI and status page [see `PR #1938 <https://www.github.com/FlexMeasures/flexmeasures/pull/1938>`_]
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
 * Allow seeing complete datetimes in the audit log [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
 * Add latest dependabot alert suggestions [see `PR #1959 <https://www.github.com/FlexMeasures/flexmeasures/pull/1959>`_]
