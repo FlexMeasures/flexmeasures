@@ -241,11 +241,11 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # Case 7: end-date = almost 5 days after now
         #
         # User expects to get forecasts for the next 5 days (from server now floored to 1 hour) with a default 30-day training period
-        # Test defaults when only an end date is given
         #    - predict-period = 5 days
         #    - forecast-frequency = predict-period
         #    - retraining-frequency = FM planning horizon
         #    - 1 cycle, 1 belief time
+        #    - training-period = 30 days
         (
             {"end-date": "2025-01-20T12:00:00+01:00"},
             {
@@ -282,9 +282,14 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "n_cycles": 1,
             },
         ),
-        # Test when both start and end dates are given
-        # We expect training period of 26.5 days (636 hours) from the given start date and predict start, prediction period of 108 hours duration from predict start to end date, with predict_start at server now (floored to hour).
-        # 1 cycle expected (1 belief_time for forecast) given the forecast frequency equal defaulted to prediction period. how many belief times we expect? we expect 1 belief time for the forecast, as the forecast frequency defaults to the prediction period, and the prediction period is 108 hours, which is longer than the default forecast frequency of 48 hours, so we should not have multiple cycles.
+        # Case 8: end-date = almost 4.5 days after now, start-date is 26.5 days before now
+        #
+        # User expects to get forecasts for the next 4.5 days (from server now floored to 1 hour) with a custom 636-hour training period
+        #    - predict-period = 108 hours
+        #    - forecast-frequency = predict-period
+        #    - retraining-frequency = FM planning horizon
+        #    - 1 cycle, 1 belief time
+        #    - training-period = 636 hours
         (
             {
                 "start-date": "2024-12-20T00:00:00+01:00",
