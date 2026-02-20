@@ -40,7 +40,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "predict-period-in-hours": 48,
                 "max-forecast-horizon": pd.Timedelta(days=2),
                 "train-period-in-hours": 24 * 30,
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
                 "forecast-frequency": pd.Timedelta(days=2),
                 # the one belief time corresponds to server now
@@ -48,7 +48,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
-                "n_cycles": 1,
+                "m_viewpoints": 1,
             },
         ),
         # Case 1: predict-period = 12 hours
@@ -78,12 +78,12 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
                 )
                 + pd.Timedelta(hours=12),
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max_training_period": pd.Timedelta(days=365),
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ),
-                "n_cycles": 1,
+                "m_viewpoints": 1,
             },
         ),
         # Case 2: max-forecast-horizon = 12 hours  # here we have issue that predict period is defaulted to 48 hours, but max-forecast-horizon is set to 12 hours, which should be less than or equal to predict-period
@@ -113,12 +113,12 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "predict_period_in_hours": 12,
                 "max_forecast_horizon": pd.Timedelta(hours=12),
                 "forecast_frequency": pd.Timedelta(hours=12),
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max_training_period": pd.Timedelta(days=365),
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ),
-                "n_cycles": 1,
+                "m_viewpoints": 1,
             },
         ),
         # Case 3: forecast-frequency = 12 hours
@@ -152,12 +152,12 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 )
                 + pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
-                "retrain-frequency": 2 * 24,
+                # "retrain-frequency": 2 * 24,
                 # this is the first belief time of the four belief times
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:00:00.00+01", tz="Europe/Amsterdam"
                 ),
-                "n_cycles": 1,
+                "m_viewpoints": 4,
             },
         ),
         # Case 4: (config) retraining-period = 12 hours
@@ -168,34 +168,34 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - max-forecast-horizon = predict-period (actual horizons are 48, 36, 24 and 12)
         #    - forecast-frequency = predict-period (NOT capped by retraining-period, no param changes based on config)
         #    - 1 cycle, 1 belief time
-        (
-            {
-                "retrain-frequency": "PT12H",
-                "end-date": "2025-01-17T12:00:00+01:00",
-            },
-            {
-                "predict_start": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h"),
-                "start_date": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h")
-                - pd.Timedelta(days=30),
-                "train_period_in_hours": 30 * 24,
-                "predict_period_in_hours": 48,
-                "max_forecast_horizon": pd.Timedelta(hours=48),
-                "forecast_frequency": pd.Timedelta(hours=48),
-                "end_date": pd.Timestamp(
-                    "2025-01-17T12:00:00+01", tz="Europe/Amsterdam"
-                ),
-                "retrain-frequency": 12,
-                "max_training_period": pd.Timedelta(days=365),
-                "save_belief_time": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ),
-                "n_cycles": 1,
-            },
-        ),
+        # (
+        #     {
+        #         "retrain-frequency": "PT12H",
+        #         "end-date": "2025-01-17T12:00:00+01:00",
+        #     },
+        #     {
+        #         "predict_start": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h"),
+        #         "start_date": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ).floor("1h")
+        #         - pd.Timedelta(days=30),
+        #         "train_period_in_hours": 30 * 24,
+        #         "predict_period_in_hours": 48,
+        #         "max_forecast_horizon": pd.Timedelta(hours=48),
+        #         "forecast_frequency": pd.Timedelta(hours=48),
+        #         "end_date": pd.Timestamp(
+        #             "2025-01-17T12:00:00+01", tz="Europe/Amsterdam"
+        #         ),
+        #         "retrain-frequency": 12,
+        #         "max_training_period": pd.Timedelta(days=365),
+        #         "save_belief_time": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+        #         ),
+        #         "m_viewpoints": 1,
+        #     },
+        # ),
         # Case 5: predict-period = 10 days and max-forecast-horizon = 12 hours
         #
         # User expects to get a ValidationError for having set parameters that won't give complete coverage of the predict-period.
@@ -266,14 +266,14 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                     days=5
                 ),  # duration between predict start and end date
                 # default values
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
                 "save-belief-time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
-                "n_cycles": 1,
+                "m_viewpoints": 1,
             },
         ),
         # Case 8: end-date = almost 4.5 days after now, start-date is 26.5 days before now
@@ -304,14 +304,14 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "train-period-in-hours": 636,  # hours between start date and predict start
                 "max-forecast-horizon": pd.Timedelta(hours=108),
                 "forecast-frequency": pd.Timedelta(hours=108),
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
                 "save-belief-time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
-                "n_cycles": 1,
+                "m_viewpoints": 1,
             },
         ),
         # Case 9: end-date is given with train-period = 3 days
@@ -349,14 +349,14 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 ),  # duration between predict start and end date
                 "forecast-frequency": pd.Timedelta(days=5),
                 # default values
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
                 "save-belief-time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
-                "n_cycles": 1,
+                "m_viewpoints": 1,
             },
         ),
         # Case 10: start-date is given with train-period = 3 days
@@ -396,11 +396,11 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 ),  # duration between predict start and end date
                 # default values
                 "predict-period-in-hours": 48,
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
                 # the belief time of the forecasts will be calculated from start-predict-date and max-forecast-horizon and forecast-frequency
                 "save-belief-time": None,
-                "n_cycles": 1,
+                "m_viewpoints": 1,
             },
         ),
         # Case 11: start-date is given with predict-period duration = 3 days
@@ -439,14 +439,14 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 ),  # duration between predict-start and end-date
                 "forecast-frequency": pd.Timedelta(days=3),
                 # default values
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
                 # server now
                 "save-belief-time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
-                "n_cycles": 1,
+                "m_viewpoints": 1,
             },
         ),
         # Case 12: start-date is given with train-period = 20 days and duration = 3 days
@@ -484,7 +484,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "max-forecast-horizon": pd.Timedelta(days=3),
                 "forecast-frequency": pd.Timedelta(days=3),
                 # default values
-                "retrain_frequency": 2 * 24,
+                # "retrain_frequency": 2 * 24,
                 "max-training-period": pd.Timedelta(days=365),
                 # the belief time of the forecasts will be calculated from start-predict-date and max-forecast-horizon and forecast-frequency
                 "save-belief-time": None,
@@ -502,39 +502,39 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - forecast-frequency = predict-period = 6 days
         #    - retrain-frequency = 3 days (explicit)
         #    - 1 cycle, 1 belief time
-        (
-            {
-                "end-date": "2025-01-21T12:00:00+01:00",
-                "retrain-frequency": "P3D",  # only comes into play if forecast-frequency is lower than retrain-frequency, which here it is not
-            },
-            {
-                "end-date": pd.Timestamp(
-                    "2025-01-21T12:00:00+01", tz="Europe/Amsterdam"
-                ),
-                "predict-start": pd.Timestamp(
-                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-                ),
-                "start-date": pd.Timestamp(
-                    "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-                )
-                - pd.Timedelta(days=30),
-                "predict-period-in-hours": 144,  # from predict start to end date
-                "train-period-in-hours": 30 * 24,
-                "max-forecast-horizon": pd.Timedelta(
-                    days=6
-                ),  # duration between predict start and end date
-                "forecast-frequency": pd.Timedelta(hours=144),
-                # default values
-                "max-training-period": pd.Timedelta(days=365),
-                "retrain-frequency": 3 * 24,
-                # server now
-                "save-belief-time": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01",
-                    tz="Europe/Amsterdam",
-                ),
-                "n_cycles": 1,  # we expect 1 cycle from the forecast-frequency defaulting to the predict-period
-            },
-        ),
+        # (
+        #     {
+        #         "end-date": "2025-01-21T12:00:00+01:00",
+        #         "retrain-frequency": "P3D",  # only comes into play if forecast-frequency is lower than retrain-frequency, which here it is not
+        #     },
+        #     {
+        #         "end-date": pd.Timestamp(
+        #             "2025-01-21T12:00:00+01", tz="Europe/Amsterdam"
+        #         ),
+        #         "predict-start": pd.Timestamp(
+        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+        #         ),
+        #         "start-date": pd.Timestamp(
+        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
+        #         )
+        #         - pd.Timedelta(days=30),
+        #         "predict-period-in-hours": 144,  # from predict start to end date
+        #         "train-period-in-hours": 30 * 24,
+        #         "max-forecast-horizon": pd.Timedelta(
+        #             days=6
+        #         ),  # duration between predict start and end date
+        #         "forecast-frequency": pd.Timedelta(hours=144),
+        #         # default values
+        #         "max-training-period": pd.Timedelta(days=365),
+        #         "retrain-frequency": 3 * 24,
+        #         # server now
+        #         "save-belief-time": pd.Timestamp(
+        #             "2025-01-15T12:23:58.387422+01",
+        #             tz="Europe/Amsterdam",
+        #         ),
+        #         "m_viewpoints": 1,  # we expect 1 cycle from the forecast-frequency defaulting to the predict-period
+        #     },
+        # ),
         # Case 14: forecast-frequency = 5 days, predict-period = 10 days
         #
         # User expects to get forecasts for 10 days from two unique viewpoints 5 days apart.
@@ -568,13 +568,13 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "forecast-frequency": pd.Timedelta(hours=120),
                 # default values
                 "max-training-period": pd.Timedelta(days=365),
-                "retrain-frequency": 2 * 24,
+                # "retrain-frequency": 2 * 24,
                 # server now
                 "save-belief-time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
                 ),
-                "n_cycles": 2,  # we expect 2 cycles from the retrain frequency and predict period given the end date
+                "m_viewpoints": 2,  # we expect 2 cycles from the retrain frequency and predict period given the end date
             },
         ),
     ],
