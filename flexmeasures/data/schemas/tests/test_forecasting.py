@@ -157,7 +157,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - predict-period = FM planning horizon
         #    - max-forecast-horizon = predict-period (actual horizons are 48, 36, 24 and 12)
         #    - forecast-frequency = predict-period (NOT capped by retraining-period, no param changes based on config)
-        #    - 4 cycle, 1 belief time
+        #    - 4 cycle, 4 belief times
         (
             {
                 "retrain-frequency": "PT12H",
