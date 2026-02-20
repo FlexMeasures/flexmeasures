@@ -40,9 +40,10 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "predict-period-in-hours": 48,
                 "max-forecast-horizon": pd.Timedelta(days=2),
                 "train-period-in-hours": 720,
+                # default values
                 "max-training-period": pd.Timedelta(days=365),
                 "forecast-frequency": pd.Timedelta(days=2),
-                # server now
+                # server now for saving belief time of forecasts when run 
                 "save-belief-time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
                     tz="Europe/Amsterdam",
@@ -126,11 +127,13 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - retraining-period = FM planning horizon
         #    - 1 cycle, 4 belief times
         (
-            {"forecast-frequency": "PT12H"},
+            {
+                "start-predict-date": "2025-01-15T12:00:00+01:00",
+                "forecast-frequency": "PT12H"
+            },
             {
                 "predict_start": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-                ).floor("1h"),
+                    "2025-01-15T12:00:00.000+01", tz="Europe/Amsterdam"),
                 "start_date": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ).floor("1h")
@@ -145,7 +148,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 + pd.Timedelta(hours=48),
                 "max_training_period": pd.Timedelta(days=365),
                 "save_belief_time": pd.Timestamp(
-                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                    "2025-01-15T12:00:00.00+01", tz="Europe/Amsterdam"
                 ),
                 "n_cycles": 1,
             },
