@@ -361,13 +361,6 @@ class ForecasterParametersSchema(Schema):
                     f"forecast-frequency must be a multiple of the sensor resolution ({sensor.event_resolution})"
                 )
 
-        if retrain_frequency is not None and forecast_frequency is not None:
-            if retrain_frequency % forecast_frequency != timedelta(0):
-                raise ValidationError(
-                    "retrain-frequency must be a multiple of forecast-frequency",
-                    field_name="retrain_frequency",
-                )
-
         if isinstance(max_training_period, Duration):
             # DurationField only returns Duration when years/months are present
             raise ValidationError(
