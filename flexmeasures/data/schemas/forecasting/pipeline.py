@@ -389,7 +389,7 @@ class ForecasterParametersSchema(Schema):
 
         Choices:
         - If max-forecast-horizon <= predict-period, we raise a ValidationError due to incomplete coverage
-        - retraining-frequency becomes the maximum of (FM planning horizon and forecast-frequency)
+        - retraining-frequency becomes the maximum of (FM planning horizon and forecast-frequency), this is capped by the predict-period.
         """
 
         target_sensor = data["sensor"]
