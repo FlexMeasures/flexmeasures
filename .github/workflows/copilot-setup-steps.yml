@@ -15,44 +15,29 @@ jobs:
     steps:
       - name: Install system dependencies
         run: |
-          # Update package list
-          sudo apt-get update
-          
-          # Install PostgreSQL client libraries (required for psycopg2)
-          sudo apt-get install -y libpq-dev
-          
-          # Install Redis (used for job queuing)
-          sudo apt-get install -y redis-server
+          # Install PostgreSQL client libraries (required for psycopg2) and Redis (used for job queuing)
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+            libpq-dev redis-server && \
+            apt-get clean && \
+            rm -rf /var/lib/apt/lists/*
           
           # Start Redis service
           sudo service redis-server start
 
-      - name: Set Python version
-        run: |
-          # FlexMeasures supports Python 3.10-3.12
-          # Use Python 3.11 as the default for agent development
-          python --version || python3 --version
-
-      - name: Install pip-tools
-        run: |
-          # Install pip-tools for dependency management
-          pip3 install -q "pip-tools>=7.2"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          uv-version: 0.10
+          python-version-file: ".python-version"
 
       - name: Install Python dependencies for testing
-        run: |
-          # Get Python version (major.minor)
-          PYV=$(python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
-          
-          # Install pinned test and app dependencies
-          pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
-          
-          # Install FlexMeasures in editable mode
-          pip install -e .
+        run: uv sync --locked --group test --group dev
 
       - name: Install pre-commit hooks
         run: |
           # Install pre-commit for code quality checks
-          pip install pre-commit
+          uv tool install pre-commit
           
           # Install the pre-commit hooks
           pre-commit install
@@ -60,7 +45,10 @@ jobs:
       - name: Setup PostgreSQL for testing
         run: |
           # Install PostgreSQL if not already available
-          sudo apt-get install -y postgresql postgresql-contrib
+          sudo apt-get install -y --no-install-recommends \
+            postgresql postgresql-contrib && \
+            apt-get clean && \
+            rm -rf /var/lib/apt/lists/*
           
           # Start PostgreSQL service
           sudo service postgresql start
