@@ -1189,7 +1189,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/forecaster_parameters_schema_openAPI"
+                "$ref": "#/components/schemas/forecasting_trigger_schema_openAPI"
               },
               "example": {
                 "start-date": "2026-01-01T00:00:00+01:00",
@@ -4153,18 +4153,21 @@
             "default": false,
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": true
+          },
+          "retrain-frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
+            "example": "PT24H"
           }
         },
         "additionalProperties": false
       },
-      "forecaster_parameters_schema_openAPI": {
+      "forecasting_trigger_schema_openAPI": {
         "type": "object",
         "properties": {
-          "sensor": {
-            "type": "integer",
-            "description": "ID of the sensor to forecast.",
-            "example": 2092
-          },
           "start-date": {
             "type": [
               "string",
@@ -4174,6 +4177,11 @@
             "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
             "example": "2025-01-01T00:00:00+01:00"
           },
+          "duration": {
+            "type": "string",
+            "description": "The duration for which to create the forecast, also known as the planning horizon, in ISO 8601 duration format.",
+            "example": "PT24H"
+          },
           "end-date": {
             "type": [
               "string",
@@ -4182,14 +4190,6 @@
             "format": "date-time",
             "description": "End date for running the pipeline.",
             "example": "2025-10-15T00:00:00+01:00"
-          },
-          "train-period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
-            "example": "P7D"
           },
           "start-predict-date": {
             "type": [
@@ -4213,32 +4213,14 @@
               "string",
               "null"
             ],
-            "description": "How often to recompute forecasts. Defaults to retrain frequency.",
+            "description": "How often to recompute forecasts. This setting can be used to get forecasts from multiple viewpoints. Defaults to the max-forecast-horizon.",
             "example": "PT1H"
           },
-          "sensor-to-save": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "description": "Sensor ID where forecasts will be saved; defaults to target sensor.",
-            "example": 2092
-          },
-          "max-training-period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
-            "example": "P1Y"
-          },
           "config": {
+            "description": "Changing any of these will result in a new data source ID.",
             "$ref": "#/components/schemas/TrainPredictPipelineConfig"
           }
         },
-        "required": [
-          "sensor"
-        ],
         "additionalProperties": false
       },
       "UserAPIQuerySchema": {

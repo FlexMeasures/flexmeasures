@@ -140,7 +140,7 @@ def create_openapi_specs(app: Flask):
     # Explicitly register OpenAPI-compatible schemas
     schemas = [
         ("FlexContextOpenAPISchema", flex_context_schema_openAPI),
-        ("forecaster_parameters_schema_openAPI", forecasting_trigger_schema_openAPI),
+        ("forecasting_trigger_schema_openAPI", forecasting_trigger_schema_openAPI),
         ("UserAPIQuerySchema", UserAPIQuerySchema),
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),

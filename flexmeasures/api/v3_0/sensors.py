@@ -82,7 +82,17 @@ sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 # Create ForecasterParametersSchema OpenAPI compatible schema
-forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerSchema)
+EXCLUDED_FORECASTING_FIELDS = [
+    # todo: hide these in the config schema instead
+    # "train_period",
+    # "max_training_period",
+    "sensor_to_save",
+]
+forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerSchema)(
+    # partial=True,
+    exclude=EXCLUDED_FORECASTING_FIELDS
+    + ["sensor"],
+)
 
 
 class SensorKwargsSchema(Schema):
@@ -1524,7 +1534,10 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
     @use_args(
-        ForecastingTriggerSchema(),
+        ForecastingTriggerSchema(
+            # partial=True,
+            exclude=EXCLUDED_FORECASTING_FIELDS,
+        ),
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
@@ -1558,7 +1571,7 @@ class SensorAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema: forecaster_parameters_schema_openAPI
+                schema: forecasting_trigger_schema_openAPI
                 example:
                   start-date: "2026-01-01T00:00:00+01:00"
                   start-predict-date: "2026-01-15T00:00:00+01:00"
@@ -1609,7 +1622,7 @@ class SensorAPI(FlaskView):
             forecaster = get_data_generator(
                 source=None,
                 model=model,
-                config={},
+                config=parameters.pop("config", {}),
                 save_config=True,
                 data_generator_type=Forecaster,
             )
