@@ -83,13 +83,15 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 
 # Create ForecasterParametersSchema OpenAPI compatible schema
 EXCLUDED_FORECASTING_FIELDS = [
-    "train_period",
-    "max_training_period",
+    # todo: hide these in the config schema instead
+    # "train_period",
+    # "max_training_period",
     "sensor_to_save",
 ]
 forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerSchema)(
-    partial=True,
-    exclude=EXCLUDED_FORECASTING_FIELDS + ["sensor"],
+    # partial=True,
+    exclude=EXCLUDED_FORECASTING_FIELDS
+    + ["sensor"],
 )
 
 
@@ -1533,7 +1535,7 @@ class SensorAPI(FlaskView):
     @route("/<id>/forecasts/trigger", methods=["POST"])
     @use_args(
         ForecastingTriggerSchema(
-            partial=True,
+            # partial=True,
             exclude=EXCLUDED_FORECASTING_FIELDS,
         ),
         location="combined_sensor_data_description",

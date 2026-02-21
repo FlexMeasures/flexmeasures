@@ -142,6 +142,7 @@ class Forecaster(DataGenerator):
             "sensor-to-save",
             "as-job",
             "m_viewpoints",  # Computed internally, still uses snake_case
+            "sensor",  # todo: forecaster parameters should not be saved by default altogether
         ]
 
         for field in fields_to_remove:

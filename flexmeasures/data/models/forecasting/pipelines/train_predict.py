@@ -74,7 +74,9 @@ class TrainPredictPipeline(Forecaster):
             past_regressors=self._config["past_regressors"],
             target_sensor=self._parameters["sensor"],
             model_save_dir=self._parameters["model_save_dir"],
-            n_steps_to_predict=self._parameters["train_period_in_hours"] * multiplier,
+            n_steps_to_predict=(predict_start - train_start)
+            // timedelta(hours=1)
+            * multiplier,
             max_forecast_horizon=self._parameters["max_forecast_horizon"]
             // self._parameters["sensor"].event_resolution,
             event_starts_after=train_start,
@@ -166,10 +168,28 @@ class TrainPredictPipeline(Forecaster):
         predict_start = self._parameters["predict_start"]
         predict_end = predict_start + cycle_frequency
 
-        train_start = predict_start - timedelta(
-            hours=self._parameters["train_period_in_hours"]
+        # Determine training window (start, end)
+        train_start = self._config.get("start_date", None)
+        training_period_in_hours = self._config.get("train_period_in_hours", None)
+        training_period = (
+            timedelta(hours=training_period_in_hours)
+            if training_period_in_hours is not None
+            else None
         )
+        if training_period is not None:
+            train_start_from_training_period = predict_start - training_period
+            if train_start is None:
+                train_start = train_start_from_training_period
+            else:
+                train_start = max(train_start, train_start_from_training_period)
+        train_start_from_max_training_period = (
+            predict_start - self._config["max_training_period"]
+        )
+        train_start = max(train_start, train_start_from_max_training_period)
         train_end = predict_start
+        min_training_period = timedelta(days=2)
+        if train_end - train_start < min_training_period:
+            train_start = train_end - min_training_period
 
         sensor_resolution = self._parameters["sensor"].event_resolution
         multiplier = int(
