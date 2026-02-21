@@ -150,25 +150,21 @@ class TrainPredictPipeline(Forecaster):
         # Run the train-and-predict pipeline
         return self.run(as_job=as_job, **kwargs)
 
-    def run(
-        self,
-        as_job: bool = False,
-        queue: str = "forecasting",
-        **job_kwargs,
-    ):
-        logging.info(
-            f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
-        )
-        # How much to move forward to the next cycle one prediction period later
-        cycle_frequency = max(
-            self._config["retrain_frequency"],
-            self._parameters["forecast_frequency"],
-        )
+    def _derive_training_period(self) -> tuple[datetime, datetime]:
+        """Derive the effective training period for model fitting.
 
-        predict_start = self._parameters["predict_start"]
-        predict_end = predict_start + cycle_frequency
+        The training period ends at ``predict_start`` and starts at the
+        most restrictive (latest) of the following:
 
-        # Determine training window (start, end)
+        - The configured ``start_date`` (if any)
+        - ``predict_start - train_period_in_hours`` (if configured)
+        - ``predict_start - max_training_period`` (always enforced)
+
+        Additionally, the resulting training window is guaranteed to span
+        at least two days.
+
+        :return:    A tuple ``(train_start, train_end)`` defining the training window.
+        """
         train_start = self._config.get("start_date", None)
         training_period_in_hours = self._config.get("train_period_in_hours", None)
         training_period = (
@@ -190,6 +186,28 @@ class TrainPredictPipeline(Forecaster):
         min_training_period = timedelta(days=2)
         if train_end - train_start < min_training_period:
             train_start = train_end - min_training_period
+        return train_start, train_end
+
+    def run(
+        self,
+        as_job: bool = False,
+        queue: str = "forecasting",
+        **job_kwargs,
+    ):
+        logging.info(
+            f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
+        )
+        # How much to move forward to the next cycle one prediction period later
+        cycle_frequency = max(
+            self._config["retrain_frequency"],
+            self._parameters["forecast_frequency"],
+        )
+
+        predict_start = self._parameters["predict_start"]
+        predict_end = predict_start + cycle_frequency
+
+        # Determine training window (start, end)
+        train_start, train_end = self._derive_training_period()
 
         sensor_resolution = self._parameters["sensor"].event_resolution
         multiplier = int(
