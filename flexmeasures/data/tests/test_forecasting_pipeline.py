@@ -401,7 +401,6 @@ def test_train_period_capped_logs_warning(
         for message in caplog.messages
     ), "Expected warning about capping train_period"
 
-    params_used = pipeline._parameters
     config_used = pipeline._config
     assert config_used["missing_threshold"] == 1
     assert config_used["train_period_in_hours"] == timedelta(days=10) / timedelta(

@@ -10,7 +10,6 @@ from marshmallow import (
     fields,
     Schema,
     validates_schema,
-    validates,
     pre_load,
     post_load,
     ValidationError,
