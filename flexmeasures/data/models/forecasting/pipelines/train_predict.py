@@ -165,27 +165,29 @@ class TrainPredictPipeline(Forecaster):
 
         :return:    A tuple ``(train_start, train_end)`` defining the training window.
         """
-        train_start = self._config.get("start_date", None)
-        training_period_in_hours = self._config.get("train_period_in_hours", None)
-        training_period = (
-            timedelta(hours=training_period_in_hours)
-            if training_period_in_hours is not None
-            else None
-        )
-        if training_period is not None:
-            train_start_from_training_period = predict_start - training_period
-            if train_start is None:
-                train_start = train_start_from_training_period
-            else:
-                train_start = max(train_start, train_start_from_training_period)
-        train_start_from_max_training_period = (
-            predict_start - self._config["max_training_period"]
-        )
-        train_start = max(train_start, train_start_from_max_training_period)
-        train_end = predict_start
+        train_end = self._parameters["predict_start"]
+
+        configured_start: datetime | None = self._config.get("start_date")
+        period_hours: int | None = self._config.get("train_period_in_hours")
+
+        candidates: list[datetime] = []
+
+        if configured_start is not None:
+            candidates.append(configured_start)
+
+        if period_hours is not None:
+            candidates.append(train_end - timedelta(hours=period_hours))
+
+        # Always enforce maximum training period
+        candidates.append(train_end - self._config["max_training_period"])
+
+        train_start = max(candidates)
+
+        # Enforce minimum training period of 2 days
         min_training_period = timedelta(days=2)
         if train_end - train_start < min_training_period:
             train_start = train_end - min_training_period
+
         return train_start, train_end
 
     def run(
