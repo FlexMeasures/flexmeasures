@@ -34,7 +34,7 @@ class TrainPredictPipeline(Forecaster):
         config: dict | None = None,
         delete_model: bool = False,
         save_config: bool = True,
-        save_parameters: bool = True,
+        save_parameters: bool = False,
     ):
         super().__init__(
             config=config, save_config=save_config, save_parameters=save_parameters

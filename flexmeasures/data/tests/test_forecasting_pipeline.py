@@ -266,8 +266,7 @@ def test_train_predict_pipeline(  # noqa: C901
         assert "max-training-period" in data_generator_config
 
         # Check DataGenerator parameters stored under DataSource attributes is empty
-        data_generator_params = source.attributes["data_generator"]["parameters"]
-        assert data_generator_params == {}
+        assert "parameters" not in source.attributes["data_generator"]
 
 
 # Test that missing data logging works and raises NotEnoughDataException when threshold exceeded
