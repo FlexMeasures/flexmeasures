@@ -34,7 +34,7 @@ def test_trigger_and_fetch_forecasts(
     # Trigger job
     payload = {
         "start": "2025-01-05T00:00:00+00:00",
-        "end-date": "2025-01-05T02:00:00+00:00",
+        "end": "2025-01-05T02:00:00+00:00",
         "max-forecast-horizon": "PT1H",
         "forecast-frequency": "PT1H",
         "config": {
@@ -106,8 +106,8 @@ def test_trigger_and_fetch_forecasts(
 
         # Load only the latest belief per event_start
         forecasts_df = sensor_1.search_beliefs(
-            event_starts_after=job.meta.get("start_predict_date"),
-            event_ends_before=job.meta.get("end_date"),
+            event_starts_after=job.meta.get("start"),
+            event_ends_before=job.meta.get("end"),
             source_types=["forecaster"],
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
