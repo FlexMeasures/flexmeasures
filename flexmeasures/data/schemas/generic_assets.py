@@ -239,6 +239,24 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     @validates("parent_asset_id")
     def validate_parent_asset(self, parent_asset_id: int | None, **kwargs):
+        """
+        Validate the `parent_asset_id`.
+
+        Ensures the referenced parent GenericAsset exists. When editing an existing
+        asset (available in `self.context.get("asset")`), also ensures the parent
+        belongs to the same `Account` as the asset being edited.
+
+        Parameters
+        ----------
+        parent_asset_id : int | None
+            ID of the parent GenericAsset, or None.
+
+        Raises
+        ------
+        ValidationError
+            If the parent asset does not exist, or if the parent belongs to a different
+            account than the current asset.
+        """
         if parent_asset_id is None:
             return
 

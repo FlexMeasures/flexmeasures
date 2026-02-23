@@ -730,12 +730,13 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # For us to be able to add our own context, we need to validate tehdata ourselves
         asset_data = request.get_json()
         if not asset_data:
             return unprocessable_entity("No JSON data provided.")
 
         asset_schema = AssetSchema(partial=True)
-        asset_schema.context = {"asset": db_asset}
+        asset_schema.context = {"asset": db_asset}  # context for validating fields like parent_asset_id
 
         try:
             validated_data = asset_schema.load(asset_data)
