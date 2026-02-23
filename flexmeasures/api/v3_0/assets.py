@@ -51,8 +51,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
 )
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
-from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
