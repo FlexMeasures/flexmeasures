@@ -1574,7 +1574,7 @@ class SensorAPI(FlaskView):
                 schema: forecasting_trigger_schema_openAPI
                 example:
                   start: "2026-01-15T00:00:00+01:00"
-                  duration: "Ps2D"
+                  duration: "P2D"
           responses:
             200:
               description: PROCESSED
