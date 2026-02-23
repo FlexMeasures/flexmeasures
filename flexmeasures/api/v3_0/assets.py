@@ -94,7 +94,7 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
         ),
     )
     flex_model = fields.Nested(
-        storage_flex_model_schema_openAPI,
+        storage_flex_model_schema_openAPI(exclude=["asset"]),
         required=True,
         data_key="flex-model",
         metadata=dict(

@@ -147,7 +147,7 @@ class TriggerScheduleKwargsSchema(Schema):
         ),
     )
     flex_model = fields.Nested(
-        storage_flex_model_schema_openAPI,
+        storage_flex_model_schema_openAPI(exclude=["asset"]),
         data_key="flex-model",
         metadata=dict(
             description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",

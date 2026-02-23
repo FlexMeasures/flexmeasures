@@ -5171,10 +5171,6 @@
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
-          "asset": {
-            "type": "integer",
-            "description": "ID of the asset that is requested to be scheduled."
-          },
           "soc-at-start": {
             "type": "string",
             "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).\nUsually added to each scheduling request.\n",
