@@ -3894,8 +3894,10 @@
         "description": "Quantity string describing a fixed quantity.",
         "examples": [
           "130 EUR/MWh",
-          "230 V",
-          "4.5 m/s"
+          "12 V",
+          "4.5 m/s",
+          "20 \u00b0C",
+          "3 * 230V * 16A"
         ]
       },
       "SensorReference": {
