@@ -132,7 +132,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - 1 cycle, 4 belief times
         (
             {
-                "start-predict-date": "2025-01-15T12:00:00+01:00",
+                "start": "2025-01-15T12:00:00+01:00",
                 "forecast-frequency": "PT12H",
             },
             {
@@ -240,7 +240,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - 1 cycle, 1 belief time
         #    - training-period = 30 days
         (
-            {"end-date": "2025-01-20T12:00:00+01:00"},
+            {"end": "2025-01-20T12:00:00+01:00"},
             {
                 "predict-start": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01",
@@ -276,7 +276,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 8: end-date = almost 4.5 days after now, start-date is 26.5 days before now
+        # Case 8: end-date = almost 4.5 days after now, train-start is 26.5 days before now
         #
         # User expects to get forecasts for the next 4.5 days (from server now floored to 1 hour) with a custom 636-hour training period
         #    - predict-period = 108 hours
@@ -286,8 +286,8 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - training-period = 636 hours
         (
             {
-                # "start-date": "2024-12-20T00:00:00+01:00",
-                "end-date": "2025-01-20T00:00:00+01:00",
+                # "train-start": "2024-12-20T00:00:00+01:00",
+                "end": "2025-01-20T00:00:00+01:00",
             },
             {
                 # "start-date": pd.Timestamp(
@@ -327,7 +327,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - 1 cycle, 1 belief time
         (
             {
-                "end-date": "2025-01-20T12:00:00+01:00",
+                "end": "2025-01-20T12:00:00+01:00",
                 # "train-period": "P3D",
             },
             {
@@ -359,11 +359,11 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 10: start-date is given with train-period = 3 days
+        # Case 10: train-start is given with train-period = 3 days
         #
-        # User expects predict-start to be derived from start-date + train-period.
+        # User expects predict-start to be derived from train-start + train-period.
         # Specifically, we expect:
-        #    - predict-start = start-date + 3 days
+        #    - predict-start = train-start + 3 days
         #    - predict-period = FM planning horizon (48 hours)
         #    - end-date = predict-start + 48 hours
         #    - max-forecast-horizon = predict-period = 48 hours
@@ -372,11 +372,11 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - 1 cycle, 1 belief time
         # (
         #     {
-        #         # "start-date": "2024-12-25T00:00:00+01:00",
+        #         # "train-start": "2024-12-25T00:00:00+01:00",
         #         # "train-period": "P3D",
         #     },
         #     {
-        #         # "start-date": pd.Timestamp(
+        #         # "train-start": pd.Timestamp(
         #         #     "2024-12-25T00:00:00+01", tz="Europe/Amsterdam"
         #         # ),
         #         "predict-start": pd.Timestamp(
@@ -398,26 +398,26 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #         "predict-period-in-hours": 48,
         #         # "retrain_frequency": 2 * 24,
         #         # "max-training-period": pd.Timedelta(days=365),
-        #         # the belief time of the forecasts will be calculated from start-predict-date and max-forecast-horizon and forecast-frequency
+        #         # the belief time of the forecasts will be calculated from start and max-forecast-horizon and forecast-frequency
         #         "save-belief-time": None,
         #         "m_viewpoints": 1,
         #     },
         # ),
-        # Case 11: start-date is given with predict-period duration = 3 days
+        # Case 11: train-start is given with predict-period duration = 3 days
         #
         # User expects predict-start to remain based on server now (no train-period given).
         # Specifically, we expect:
         #    - predict-start = server now floored to sensor resolution
         #    - predict-period = 3 days
         #    - end-date = predict-start + 3 days
-        #    - train-period derived from start-date to predict-start
+        #    - train-period derived from train-start to predict-start
         #    - max-forecast-horizon = predict-period = 3 days
         #    - forecast-frequency = predict-period = 3 days
         #    - retrain-frequency = FM planning horizon
         #    - 1 cycle, 1 belief time
         (
             {
-                # "start-date": "2024-12-25T00:00:00+01:00",
+                # "train-start": "2024-12-25T00:00:00+01:00",
                 "duration": "P3D",
             },
             {
@@ -433,7 +433,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 )
                 + pd.Timedelta(days=3),
                 "predict-period-in-hours": 72,
-                # "train-period-in-hours": 516,  # from start-date to predict-start
+                # "train-period-in-hours": 516,  # from train-start to predict-start
                 "max-forecast-horizon": pd.Timedelta(
                     days=3
                 ),  # duration between predict-start and end-date
@@ -449,20 +449,20 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 12: start-date is given with train-period = 20 days and duration = 3 days
+        # Case 12: train-start is given with train-period = 20 days and duration = 3 days
         #
-        # User expects both predict-start and end-date to be derived from start-date.
+        # User expects both predict-start and end-date to be derived from train-start.
         # Specifically, we expect:
-        #    - predict-start = start-date + 20 days
+        #    - predict-start = train-start + 20 days
         #    - predict-period = 3 days
-        #    - end-date = start-date + 23 days
+        #    - end-date = train-start + 23 days
         #    - max-forecast-horizon = predict-period = 3 days
         #    - forecast-frequency = predict-period = 3 days
         #    - retrain-frequency = FM planning horizon
         #    - 1 cycle, 1 belief time
         # (
         #     {
-        #         # "start-date": "2024-12-01T00:00:00+01:00",
+        #         # "train-start": "2024-12-01T00:00:00+01:00",
         #         # "train-period": "P20D",
         #         "duration": "P3D",
         #     },
@@ -486,17 +486,17 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #         # default values
         #         # "retrain_frequency": 2 * 24,
         #         # "max-training-period": pd.Timedelta(days=365),
-        #         # the belief time of the forecasts will be calculated from start-predict-date and max-forecast-horizon and forecast-frequency
+        #         # the belief time of the forecasts will be calculated from start and max-forecast-horizon and forecast-frequency
         #         "save-belief-time": None,
         #     },
         # ),
-        # Case 13: only end-date is given with retrain-frequency = 3 days
+        # Case 13: only end is given with retrain-frequency = 3 days
         #
         # User expects train start and predict start to be derived from end-date and defaults.
         # Specifically, we expect:
         #    - predict-start = end-date - default duration (FM planning horizon)
         #    - train-period = default 30 days
-        #    - start-date = predict-start - 30 days
+        #    - train-start = predict-start - 30 days
         #    - predict-period = 6 days
         #    - max-forecast-horizon = predict-period = 6 days
         #    - forecast-frequency = predict-period = 6 days

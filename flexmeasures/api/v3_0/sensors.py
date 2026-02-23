@@ -1573,9 +1573,8 @@ class SensorAPI(FlaskView):
               application/json:
                 schema: forecasting_trigger_schema_openAPI
                 example:
-                  start-date: "2026-01-01T00:00:00+01:00"
-                  start-predict-date: "2026-01-15T00:00:00+01:00"
-                  end-date: "2026-01-17T00:00:00+01:00"
+                  start: "2026-01-15T00:00:00+01:00"
+                  duration: "P2D"
           responses:
             200:
               description: PROCESSED
@@ -1793,8 +1792,8 @@ class SensorAPI(FlaskView):
             data_source = get_data_source_for_job(job, type="forecasting")
 
             forecasts = sensor.search_beliefs(
-                event_starts_after=job.meta.get("start_predict_date"),
-                event_ends_before=job.meta.get("end_date"),
+                event_starts_after=job.meta.get("start"),
+                event_ends_before=job.meta.get("end"),
                 source=data_source,
                 most_recent_beliefs_only=True,
                 use_latest_version_per_event=True,

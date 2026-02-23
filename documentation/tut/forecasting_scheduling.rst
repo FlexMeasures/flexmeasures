@@ -104,9 +104,8 @@ There are two ways to queue a forecasting job:
    .. code-block:: json
 
        {
-         "start_date": "2025-01-01T00:00:00+00:00",
-         "start_predict_date": "2025-01-04T00:00:00+00:00",
-         "end_date": "2025-01-04T04:00:00+00:00"
+         "start": "2025-01-04T00:00:00+00:00",
+         "duration": "PT4H"
        }
 
    Example response:

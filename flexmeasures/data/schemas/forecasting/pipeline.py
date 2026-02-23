@@ -98,17 +98,17 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
-    start_date = AwareDateTimeOrDateField(
-        data_key="start-date",
+    train_start = AwareDateTimeOrDateField(
+        data_key="train-start",
         required=False,
         allow_none=True,
         metadata={
-            "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
+            "description": "Timestamp marking the start of training data. Defaults to train_period before start if not set.",
             "example": "2025-01-01T00:00:00+01:00",
             "cli": {
                 "cli-exclusive": True,
-                "option": "--start-date",
-                "aliases": ["--train-start"],
+                "option": "--train-start",
+                "aliases": ["--start-date", "--train-start"],
             },
         },
     )
@@ -117,7 +117,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=timedelta(days=30),
         allow_none=True,
         metadata={
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
+            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from train_start and start if not set or defaults to P30D (30 days).",
             "example": "P7D",
             "cli": {
                 "cli-exclusive": True,
@@ -262,35 +262,39 @@ class ForecasterParametersSchema(Schema):
     duration = PlanningDurationField(
         load_default=PlanningDurationField.load_default,
         metadata=dict(
-            description="The duration for which to create the forecast, also known as the planning horizon, in ISO 8601 duration format.",
+            description="The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
             example="PT24H",
+            cli={
+                "option": "--duration",
+                "aliases": ["--predict-period"],
+            },
         ),
     )
-    end_date = AwareDateTimeOrDateField(
-        data_key="end-date",
+    end = AwareDateTimeOrDateField(
+        data_key="end",
         required=False,
         allow_none=True,
         inclusive=True,
         metadata={
-            "description": "End date for running the pipeline.",
+            "description": "End of the last event forecasted. Use either this field or the duration field.",
             "example": "2025-10-15T00:00:00+01:00",
             "cli": {
                 "cli-exclusive": True,
-                "option": "--end-date",
-                "aliases": ["--to-date"],
+                "option": "--end",
+                "aliases": ["--end-date", "--to-date"],
             },
         },
     )
-    start_predict_date = AwareDateTimeOrDateField(
-        data_key="start-predict-date",
+    start = AwareDateTimeOrDateField(
+        data_key="start",
         required=False,
         allow_none=True,
         metadata={
             "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
             "example": "2025-01-08T00:00:00+01:00",
             "cli": {
-                "option": "--start-predict-date",
-                "aliases": ["--from-date"],
+                "option": "--start",
+                "aliases": ["--start-predict-date", "--from-date"],
             },
         },
     )
@@ -361,28 +365,28 @@ class ForecasterParametersSchema(Schema):
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
-        end_date = data.get("end_date")
-        predict_start = data.get("start_predict_date", None)
+        end_date = data.get("end")
+        predict_start = data.get("start", None)
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
 
         # todo: consider moving this to the run method in train_predict.py
-        # if start_date is not None and end_date is not None and start_date >= end_date:
+        # if train_start is not None and end is not None and train_start >= end_date:
         #     raise ValidationError(
-        #         "start-date must be before end-date", field_name="start_date"
+        #         "train_start must be before end", field_name="train-start"
         #     )
 
         if predict_start:
-            # if start_date is not None and predict_start < start_date:
+            # if train_start is not None and predict_start < train_start:
             #     raise ValidationError(
-            #         "start-predict-date cannot be before start-date",
-            #         field_name="start_predict_date",
+            #         "start cannot be before start",
+            #         field_name="start",
             #     )
             if end_date is not None and predict_start >= end_date:
                 raise ValidationError(
-                    "start-predict-date must be before end-date",
-                    field_name="start_predict_date",
+                    "start must be before end",
+                    field_name="start",
                 )
 
         if max_forecast_horizon is not None:
@@ -420,26 +424,24 @@ class ForecasterParametersSchema(Schema):
         now = server_now()
         floored_now = floor_to_resolution(now, resolution)
 
-        if data.get("start_predict_date") is None:
-            if original_data.get("duration") and data.get("end_date") is not None:
-                predict_start = data["end_date"] - data["duration"]
+        if data.get("start") is None:
+            if original_data.get("duration") and data.get("end") is not None:
+                predict_start = data["end"] - data["duration"]
             else:
                 predict_start = floored_now
         else:
-            predict_start = data["start_predict_date"]
+            predict_start = data["start"]
 
         save_belief_time = data.get(
             "belief_time",
-            now if data.get("start_predict_date") is None else predict_start,
+            now if data.get("start") is None else predict_start,
         )
 
-        if data.get("end_date") is None:
-            data["end_date"] = predict_start + data["duration"]
+        if data.get("end") is None:
+            data["end"] = predict_start + data["duration"]
 
         predict_period = (
-            data["end_date"] - predict_start
-            if data.get("end_date")
-            else data["duration"]
+            data["end"] - predict_start if data.get("end") else data["duration"]
         )
         forecast_frequency = data.get("forecast_frequency")
 
@@ -496,7 +498,7 @@ class ForecasterParametersSchema(Schema):
             sensor=target_sensor,
             model_save_dir=model_save_dir,
             output_path=output_path,
-            end_date=data["end_date"],
+            end_date=data["end"],
             predict_start=predict_start,
             predict_period_in_hours=predict_period_in_hours,
             max_forecast_horizon=max_forecast_horizon,

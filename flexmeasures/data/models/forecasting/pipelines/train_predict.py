@@ -168,7 +168,7 @@ class TrainPredictPipeline(Forecaster):
         """
         train_end = self._parameters["predict_start"]
 
-        configured_start: datetime | None = self._config.get("start_date")
+        configured_start: datetime | None = self._config.get("train_start")
         period_hours: int | None = self._config.get("train_period_in_hours")
 
         candidates: list[datetime] = []
@@ -215,7 +215,7 @@ class TrainPredictPipeline(Forecaster):
         sensor_resolution = self._parameters["sensor"].event_resolution
         multiplier = int(
             timedelta(hours=1) / sensor_resolution
-        )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predicitons to predict a week
+        )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predictions to predict a week
 
         # Compute number of training cycles (at least 1)
         n_cycles = max(
@@ -262,8 +262,8 @@ class TrainPredictPipeline(Forecaster):
             # job metadata for tracking
             job_metadata = {
                 "data_source_info": {"id": self.data_source.id},
-                "start_predict_date": self._parameters["predict_start"],
-                "end_date": self._parameters["end_date"],
+                "start": self._parameters["predict_start"],
+                "end": self._parameters["end_date"],
                 "sensor_id": self._parameters["sensor_to_save"].id,
             }
             for cycle_params in cycles_job_params:
