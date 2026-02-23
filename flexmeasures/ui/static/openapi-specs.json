@@ -1192,9 +1192,8 @@
                 "$ref": "#/components/schemas/forecasting_trigger_schema_openAPI"
               },
               "example": {
-                "start-date": "2026-01-01T00:00:00+01:00",
-                "start-predict-date": "2026-01-15T00:00:00+01:00",
-                "end-date": "2026-01-17T00:00:00+01:00"
+                "start": "2026-01-15T00:00:00+01:00",
+                "duration": "P2D"
               }
             }
           }
@@ -4165,7 +4164,7 @@
             "description": "The duration for which to create the forecast, also known as the planning horizon, in ISO 8601 duration format.",
             "example": "PT24H"
           },
-          "start-predict-date": {
+          "start": {
             "type": [
               "string",
               "null"
