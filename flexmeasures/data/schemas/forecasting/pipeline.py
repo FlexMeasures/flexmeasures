@@ -302,6 +302,7 @@ class ForecasterParametersSchema(Schema):
             "description": "Maximum forecast horizon. Defaults to covering the whole prediction period (which itself defaults to 48 hours).",
             "example": "PT48H",
             "cli": {
+                "cli-exclusive": True,
                 "option": "--max-forecast-horizon",
             },
         },
