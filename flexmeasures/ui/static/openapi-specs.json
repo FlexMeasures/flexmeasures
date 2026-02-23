@@ -4159,11 +4159,6 @@
       "forecasting_trigger_schema_openAPI": {
         "type": "object",
         "properties": {
-          "duration": {
-            "type": "string",
-            "description": "The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
-            "example": "PT24H"
-          },
           "start": {
             "type": [
               "string",
@@ -4172,6 +4167,11 @@
             "format": "date-time",
             "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
             "example": "2025-01-08T00:00:00+01:00"
+          },
+          "duration": {
+            "type": "string",
+            "description": "The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
+            "example": "PT24H"
           },
           "forecast-frequency": {
             "type": [
