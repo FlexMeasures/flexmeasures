@@ -263,7 +263,7 @@ class ForecasterParametersSchema(Schema):
         allow_none=True,
         inclusive=True,
         metadata={
-            "description": "last event start of forecasts generated.",
+            "description": "Last event start of forecasts generated.",
             "example": "2025-10-15T00:00:00+01:00",
             "cli": {
                 "cli-exclusive": True,
