@@ -251,6 +251,10 @@ class ForecasterParametersSchema(Schema):
         metadata=dict(
             description="The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
             example="PT24H",
+            cli={
+                "option": "--duration",
+                "aliases": ["--predict-period"],
+            },
         ),
     )
     end = AwareDateTimeOrDateField(
