@@ -418,14 +418,14 @@ def extract_unit_from_string(text: str) -> tuple[str | None, str | None]:
     >>> extract_unit_from_string("350 EUR/MWh")
     ('350', 'EUR/MWh')
     >>> extract_unit_from_string("50")
-    ('50', 'dimensionless')
+    ('50', '')
     >>> extract_unit_from_string("kW")
     (None, 'kW')
     """
     try:
         # ur.Quantity parses the number and unit automatically
         qty = ur.Quantity(text)
-        value = str(qty.magnitude) if qty.magnitude != 1 else None
+        value = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
 
         # We return the units formatted with "~P" (short pretty format)
         # to match the registry settings.
