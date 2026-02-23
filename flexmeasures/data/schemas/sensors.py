@@ -732,7 +732,7 @@ class QuantitySchema(Schema):
         required=True,
         metadata=dict(
             description="Quantity string describing a fixed quantity.",
-            examples=["130 EUR/MWh", "230 V", "4.5 m/s"],
+            examples=["130 EUR/MWh", "230 V", "4.5 m/s", "3 * 230V * 16A"],
         ),
     )
 
