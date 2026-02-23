@@ -214,7 +214,7 @@ class TrainPredictPipeline(Forecaster):
         sensor_resolution = self._parameters["sensor"].event_resolution
         multiplier = int(
             timedelta(hours=1) / sensor_resolution
-        )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predicitons to predict a week
+        )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predictions to predict a week
 
         # Compute number of training cycles (at least 1)
         n_cycles = max(
