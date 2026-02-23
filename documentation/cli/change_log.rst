@@ -10,6 +10,7 @@ since v0.31.0 | February XX, 2026
 * Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
 * Allow ``flexmeasures add schedule`` to create schedules with only information known prior to some time using the ``prior`` option.
 * New ``-dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
+* Streamlines option names for ``flexmeasures add forecasts`` with API usage (preserving backwards compatibility).
 * Return validation errors instead of database errors for fields that map to database objects.
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>``, including updating metadata and moving between registries
 * Rename ``flexmeasures add sources`` to ``flexmeasures add sources-for-generators`` to better reflect its purpose.

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import pickle
-import sys
 import logging
 from datetime import datetime
 
@@ -15,7 +14,6 @@ from timely_beliefs import BeliefsDataFrame
 from flexmeasures import Sensor, Source
 from flexmeasures.data import db
 from flexmeasures.data.models.forecasting.utils import data_to_bdf
-from flexmeasures.data.models.forecasting.exceptions import CustomException
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.utils import save_to_db
 
@@ -100,16 +98,11 @@ class PredictPipeline(BasePipeline):
         """
         Load the model and its metadata from the model_path.
         """
-        try:
-            logging.debug("Loading model and metadata from %s", self.model_path)
-            with open(self.model_path, "rb") as file:
-                model = pickle.load(file)
-            logging.debug(
-                "Model and metadata loaded successfully from %s", self.model_path
-            )
-            return model
-        except Exception as e:
-            raise CustomException(f"Error loading model and metadata: {e}", sys) from e
+        logging.debug("Loading model and metadata from %s", self.model_path)
+        with open(self.model_path, "rb") as file:
+            model = pickle.load(file)
+        logging.debug("Model and metadata loaded successfully from %s", self.model_path)
+        return model
 
     def _prepare_df_single_horizon_prediction(
         self,
@@ -123,46 +116,39 @@ class PredictPipeline(BasePipeline):
         Prepare the DataFrame for a single prediction.
         Make an additional column for quantiles forecast when probabilistic is True
         """
-        try:
-            logging.debug(f"Preparing DataFrame for viewpoint {viewpoint}.")
+        logging.debug(f"Preparing DataFrame for viewpoint {viewpoint}.")
 
-            if self.probabilistic:
-                q_kwargs = dict(quantiles=self.quantiles) if self.quantiles else dict()
-                y_pred_df = y_pred.quantiles_df(**q_kwargs).T
-            else:
-                try:
-                    y_pred_df = y_pred.pd_dataframe().T
-                except AttributeError:
-                    y_pred_df = y_pred.to_dataframe().T
+        if self.probabilistic:
+            q_kwargs = dict(quantiles=self.quantiles) if self.quantiles else dict()
+            y_pred_df = y_pred.quantiles_df(**q_kwargs).T
+        else:
+            try:
+                y_pred_df = y_pred.pd_dataframe().T
+            except AttributeError:
+                y_pred_df = y_pred.to_dataframe().T
 
-            y_pred_df.columns = [
-                f"{h}h" for h in range(1, self.max_forecast_horizon + 1)
-            ]
-            y_pred_df.reset_index(inplace=True)
-            # Insert forecasts event_start timestamps
-            y_pred_df.insert(0, "event_start", belief_horizon)
+        y_pred_df.columns = [f"{h}h" for h in range(1, self.max_forecast_horizon + 1)]
+        y_pred_df.reset_index(inplace=True)
+        # Insert forecasts event_start timestamps
+        y_pred_df.insert(0, "event_start", belief_horizon)
 
-            # Insert forecasts belief_time timestamps
-            y_pred_df.insert(1, "belief_time", belief_timestamp)
+        # Insert forecasts belief_time timestamps
+        y_pred_df.insert(1, "belief_time", belief_timestamp)
 
-            # Insert the target sensor name and value at belief time forecasts are made
-            y_pred_df.insert(2, self.target, value_at_belief_horizon)
-            if self.quantiles:
-                y_pred_df.set_index(
-                    ["event_start", "belief_time", self.target, "component"],
-                    inplace=True,
-                )
-            else:
-                y_pred_df.set_index(
-                    ["event_start", "belief_time", self.target], inplace=True
-                )
+        # Insert the target sensor name and value at belief time forecasts are made
+        y_pred_df.insert(2, self.target, value_at_belief_horizon)
+        if self.quantiles:
+            y_pred_df.set_index(
+                ["event_start", "belief_time", self.target, "component"],
+                inplace=True,
+            )
+        else:
+            y_pred_df.set_index(
+                ["event_start", "belief_time", self.target], inplace=True
+            )
 
-            logging.debug(f"DataFrame prepared for viewpoint {viewpoint}.")
-            return y_pred_df
-        except Exception as e:
-            raise CustomException(
-                f"Error preparing prediction DataFrame: {e}", sys
-            ) from e
+        logging.debug(f"DataFrame prepared for viewpoint {viewpoint}.")
+        return y_pred_df
 
     def make_single_fixed_viewpoint_prediction(
         self,
@@ -182,37 +168,31 @@ class PredictPipeline(BasePipeline):
         - `BasePipeline` class docstring (“Covariate semantics”)
         - `BasePipeline.split_data_all_beliefs` → `_generate_splits`
         """
-        try:
-            logging.debug(
-                f"Predicting for viewpoint {viewpoint}, forecasting up to {self.total_forecast_hours} hours ahead."
-            )
-            # Inputs (y, past_covariates, future_covariates) are pre-sliced for this
-            # belief time by BasePipeline._generate_splits. See BasePipeline docs and
-            # CHECK THIS DIAGRAM : https://cloud.seita.nl/index.php/s/FYRgJwE3ER8kTLk aka 20250210_123637.png
+        logging.debug(
+            f"Predicting for viewpoint {viewpoint}, forecasting up to {self.total_forecast_hours} hours ahead."
+        )
+        # Inputs (y, past_covariates, future_covariates) are pre-sliced for this
+        # belief time by BasePipeline._generate_splits. See BasePipeline docs and
+        # CHECK THIS DIAGRAM : https://cloud.seita.nl/index.php/s/FYRgJwE3ER8kTLk aka 20250210_123637.png
 
-            # Get time series of forecasts at a single viewpoint
-            y_pred = model.predict(
-                current_y,
-                past_covariates=past_covariates,
-                future_covariates=future_covariates,
-            )
+        # Get time series of forecasts at a single viewpoint
+        y_pred = model.predict(
+            current_y,
+            past_covariates=past_covariates,
+            future_covariates=future_covariates,
+        )
 
-            belief_horizon = current_y.end_time()
-            value_at_belief_horizon = current_y.last_value()
-            y_pred_df = self._prepare_df_single_horizon_prediction(
-                y_pred=y_pred,
-                belief_horizon=belief_horizon,
-                value_at_belief_horizon=value_at_belief_horizon,
-                viewpoint=viewpoint,
-                belief_timestamp=belief_timestamp,
-            )
-            logging.debug(f"Prediction for viewpoint {viewpoint} completed.")
-            return y_pred_df
-        except Exception as e:
-            raise CustomException(
-                f"Error predicting for viewpoint {viewpoint}: {e}",
-                sys,
-            ) from e
+        belief_horizon = current_y.end_time()
+        value_at_belief_horizon = current_y.last_value()
+        y_pred_df = self._prepare_df_single_horizon_prediction(
+            y_pred=y_pred,
+            belief_horizon=belief_horizon,
+            value_at_belief_horizon=value_at_belief_horizon,
+            viewpoint=viewpoint,
+            belief_timestamp=belief_timestamp,
+        )
+        logging.debug(f"Prediction for viewpoint {viewpoint} completed.")
+        return y_pred_df
 
     def make_multi_fixed_viewpoint_predictions(
         self,
@@ -225,101 +205,89 @@ class PredictPipeline(BasePipeline):
         """
         Make predictions for multiple fixed viewpoints, for the given model, X, and y.
         """
-        try:
-            logging.debug(
-                f"Starting to generate predictions for up to {self.max_forecast_horizon} ({self.readable_resolution}) intervals (i.e. {self.total_forecast_hours} hours)."
-            )
+        logging.debug(
+            f"Starting to generate predictions for up to {self.max_forecast_horizon} ({self.readable_resolution}) intervals (i.e. {self.total_forecast_hours} hours)."
+        )
 
-            # We make predictions up to the last hour in the predict_period
-            y_pred_dfs = list()
-            for v, belief_timestamp in enumerate(belief_timestamps_list):
-                future_covariates = (
-                    future_covariates_list[v] if future_covariates_list else None
-                )
-                past_covariates = (
-                    past_covariates_list[v] if past_covariates_list else None
-                )
-                y = y_list[v]
-                logging.debug(
-                    f"Making prediction for {belief_timestamp} (viewpoint {v + 1}/{self.number_of_viewpoints})"
-                )
-                y_pred_df = self.make_single_fixed_viewpoint_prediction(
-                    model=model,
-                    future_covariates=future_covariates,
-                    past_covariates=past_covariates,
-                    current_y=y,
-                    viewpoint=v + 1,  # humanized iterator starting from 1
-                    belief_timestamp=belief_timestamp,
-                )
-                y_pred_dfs.append(y_pred_df)
-            df_res = pd.concat(y_pred_dfs)
-            logging.debug("Finished generating predictions.")
-            return df_res
-        except Exception as e:
-            raise CustomException(f"Error generating predictions: {e}", sys) from e
+        # We make predictions up to the last hour in the predict_period
+        y_pred_dfs = list()
+        for v, belief_timestamp in enumerate(belief_timestamps_list):
+            future_covariates = (
+                future_covariates_list[v] if future_covariates_list else None
+            )
+            past_covariates = past_covariates_list[v] if past_covariates_list else None
+            y = y_list[v]
+            logging.debug(
+                f"Making prediction for {belief_timestamp} (viewpoint {v + 1}/{self.number_of_viewpoints})"
+            )
+            y_pred_df = self.make_single_fixed_viewpoint_prediction(
+                model=model,
+                future_covariates=future_covariates,
+                past_covariates=past_covariates,
+                current_y=y,
+                viewpoint=v + 1,  # humanized iterator starting from 1
+                belief_timestamp=belief_timestamp,
+            )
+            y_pred_dfs.append(y_pred_df)
+        df_res = pd.concat(y_pred_dfs)
+        logging.debug("Finished generating predictions.")
+        return df_res
 
     def save_results_to_CSV(self, df_pred: pd.DataFrame):
         """
         Save the predictions to a CSV file.
         """
-        try:
-            logging.debug("Saving predictions to a CSV file.")
-            os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
-            df_pred.to_csv(self.output_path)
-            logging.debug("Successfully saved predictions to %s", self.output_path)
-
-        except Exception as e:
-            raise CustomException(f"Error saving predictions: {e}", sys) from e
+        logging.debug("Saving predictions to a CSV file.")
+        os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+        df_pred.to_csv(self.output_path)
+        logging.debug("Successfully saved predictions to %s", self.output_path)
 
     def run(self, delete_model: bool = False) -> BeliefsDataFrame:
         """
         Execute the prediction pipeline.
         """
-        try:
-            df = self.load_data_all_beliefs()
-            (
-                past_covariates_list,
-                future_covariates_list,
-                y_list,
-                belief_timestamps_list,
-            ) = self.split_data_all_beliefs(df, is_predict_pipeline=True)
-            logging.debug("Done splitting data")
+        df = self.load_data_all_beliefs()
+        (
+            past_covariates_list,
+            future_covariates_list,
+            y_list,
+            belief_timestamps_list,
+        ) = self.split_data_all_beliefs(df, is_predict_pipeline=True)
+        logging.debug("Done splitting data")
 
-            model = self.load_model()
-            logging.debug("Model loaded")
-            df_pred = self.make_multi_fixed_viewpoint_predictions(
-                model,
-                future_covariates_list=future_covariates_list,
-                past_covariates_list=past_covariates_list,
-                y_list=y_list,
-                belief_timestamps_list=belief_timestamps_list,
-            )
-            logging.debug("Predictions ready to be saved")
+        model = self.load_model()
+        logging.debug("Model loaded")
+        df_pred = self.make_multi_fixed_viewpoint_predictions(
+            model,
+            future_covariates_list=future_covariates_list,
+            past_covariates_list=past_covariates_list,
+            y_list=y_list,
+            belief_timestamps_list=belief_timestamps_list,
+        )
+        logging.debug("Predictions ready to be saved")
 
-            # todo: it looks like data_to_bdf should become a class method
-            bdf = data_to_bdf(
-                data=df_pred,
-                horizon=self.max_forecast_horizon,
-                probabilistic=self.probabilistic,
-                target_sensor=self.target_sensor,
-                sensor_to_save=self.sensor_to_save,
-                data_source=self.data_source,
-            )
-            if self.output_path is not None:
-                self.save_results_to_CSV(bdf)
+        # todo: it looks like data_to_bdf should become a class method
+        bdf = data_to_bdf(
+            data=df_pred,
+            horizon=self.max_forecast_horizon,
+            probabilistic=self.probabilistic,
+            target_sensor=self.target_sensor,
+            sensor_to_save=self.sensor_to_save,
+            data_source=self.data_source,
+        )
+        if self.output_path is not None:
+            self.save_results_to_CSV(bdf)
 
-            save_to_db(
-                bdf, save_changed_beliefs_only=False
-            )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
-            db.session.commit()
-            logging.info(
-                f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
-            )
-            if delete_model:
-                os.remove(self.model_path)
+        save_to_db(
+            bdf, save_changed_beliefs_only=False
+        )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
+        db.session.commit()
+        logging.info(
+            f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
+        )
+        if delete_model:
+            os.remove(self.model_path)
 
-            logging.info("Prediction pipeline completed successfully.")
+        logging.info("Prediction pipeline completed successfully.")
 
-            return bdf
-        except Exception as e:
-            raise CustomException(f"Error running pipeline: {e}", sys) from e
+        return bdf
