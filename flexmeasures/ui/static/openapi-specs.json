@@ -4096,7 +4096,7 @@
         },
         "additionalProperties": false
       },
-      "TrainPredictPipelineConfig": {
+      "TrainPredictPipelineConfigSchemaOpenAPI": {
         "type": "object",
         "properties": {
           "model": {
@@ -4180,14 +4180,6 @@
             "default": "P365D",
             "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
             "example": "P1Y"
-          },
-          "retrain-frequency": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Frequency of retraining/prediction cycle (ISO 8601 duration). Defaults to prediction window length if not set.",
-            "example": "PT24H"
           }
         },
         "additionalProperties": false
@@ -4236,7 +4228,7 @@
           },
           "config": {
             "description": "Changing any of these will result in a new data source ID.",
-            "$ref": "#/components/schemas/TrainPredictPipelineConfig"
+            "$ref": "#/components/schemas/TrainPredictPipelineConfigSchemaOpenAPI"
           }
         },
         "additionalProperties": false
