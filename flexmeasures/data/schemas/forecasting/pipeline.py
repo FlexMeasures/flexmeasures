@@ -249,7 +249,7 @@ class ForecasterParametersSchema(Schema):
     duration = PlanningDurationField(
         load_default=PlanningDurationField.load_default,
         metadata=dict(
-            description="The duration for which to create the forecast, also known as the planning horizon, in ISO 8601 duration format.",
+            description="The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
             example="PT24H",
         ),
     )
