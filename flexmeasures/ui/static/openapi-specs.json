@@ -3892,7 +3892,11 @@
       "Quantity": {
         "type": "string",
         "description": "Quantity string describing a fixed quantity.",
-        "example": "130 EUR/MWh"
+        "examples": [
+          "130 EUR/MWh",
+          "230 V",
+          "4.5 m/s"
+        ]
       },
       "SensorReference": {
         "type": "object",
