@@ -167,7 +167,7 @@ class TrainPredictPipeline(Forecaster):
         """
         train_end = self._parameters["predict_start"]
 
-        configured_start: datetime | None = self._config.get("start_date")
+        configured_start: datetime | None = self._config.get("train_start")
         period_hours: int | None = self._config.get("train_period_in_hours")
 
         candidates: list[datetime] = []
@@ -261,8 +261,8 @@ class TrainPredictPipeline(Forecaster):
             # job metadata for tracking
             job_metadata = {
                 "data_source_info": {"id": self.data_source.id},
-                "start": self._parameters["start"],
-                "end": self._parameters["date"],
+                "start": self._parameters["predict_start"],
+                "end": self._parameters["end_date"],
                 "sensor_id": self._parameters["sensor_to_save"].id,
             }
             for cycle_params in cycles_job_params:

@@ -407,8 +407,8 @@ class ForecasterParametersSchema(Schema):
         floored_now = floor_to_resolution(now, resolution)
 
         if data.get("start") is None:
-            if original_data.get("duration") and data.get("end_date") is not None:
-                predict_start = data["end_date"] - data["duration"]
+            if original_data.get("duration") and data.get("end") is not None:
+                predict_start = data["end"] - data["duration"]
             else:
                 predict_start = floored_now
         else:
@@ -481,7 +481,7 @@ class ForecasterParametersSchema(Schema):
             sensor=target_sensor,
             model_save_dir=model_save_dir,
             output_path=output_path,
-            end_date=data["end_date"],
+            end_date=data["end"],
             predict_start=predict_start,
             predict_period_in_hours=predict_period_in_hours,
             max_forecast_horizon=max_forecast_horizon,
