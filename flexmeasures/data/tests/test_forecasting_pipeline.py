@@ -20,38 +20,39 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         (
             {
                 # "model": "CustomLGBM",
+                "train-start": "2025-01-01T00:00+02:00",
+                "train-period": "P2D",
+                "retrain-frequency": "P0D",  # 0 days is expected to fail
             },
             {
                 "sensor": "solar-sensor",
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "end-date": "2025-01-03T00:00+02:00",
-                "train-period": "P2D",
+                "end": "2025-01-03T00:00+02:00",
                 "sensor-to-save": None,
-                "start-predict-date": "2025-01-02T00:00+02:00",
-                "retrain-frequency": "P0D",  # 0 days is expected to fail
+                "start": "2025-01-02T00:00+02:00",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
             },
             False,
-            (ValidationError, "retrain-frequency must be greater than 0"),
+            (ValidationError, "retrain-frequency must be at least 1 hour"),
         ),
         (
             {
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
+                "train-start": "2025-01-01T00:00+02:00",
             },
             {
                 "sensor": "solar-sensor",
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "start-predict-date": "2025-01-08T00:00+02:00",  # start-predict-date coincides with end of available data in sensor
-                "end-date": "2025-01-09T00:00+02:00",
+                "start": "2025-01-08T00:00+02:00",  # start coincides with end of available data in sensor
+                "end": "2025-01-09T00:00+02:00",
                 "sensor-to-save": None,
                 "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT24H",  # 1 cycle and 1 viewpoint
                 "probabilistic": False,
             },
             True,
@@ -61,17 +62,18 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             {
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
+                # "train-start": "2025-01-01T00:00+02:00",  # without a start date, max-training-period takes over
+                "max-training-period": "P7D",
             },
             {
                 "sensor": "solar-sensor",
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
-                # "start-date": "2025-01-01T00:00+02:00",  # without a start date, max-training-period takes over
-                "max-training-period": "P7D",
-                "start-predict-date": "2025-01-08T00:00+02:00",  # start-predict-date coincides with end of available data in sensor
-                "end-date": "2025-01-09T00:00+02:00",
+                "start": "2025-01-08T00:00+02:00",  # start coincides with end of available data in sensor
+                "end": "2025-01-09T00:00+02:00",
                 "sensor-to-save": None,
                 "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT24H",  # 1 cycle and 1 viewpoint
                 "probabilistic": False,
             },
             False,
@@ -82,16 +84,17 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 # "model": "CustomLGBM",
                 "past-regressors": ["irradiance-sensor"],
                 "future-regressors": ["irradiance-sensor"],
+                "train-start": "2025-01-01T00:00+02:00",
             },
             {  # Test: duplicate sensor names in past and future regressors
                 "sensor": "solar-sensor",
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "start-predict-date": "2025-01-04T00:00+02:00",
-                "end-date": "2025-01-09T00:00+02:00",
+                "start": "2025-01-08T00:00+02:00",
+                "end": "2025-01-09T00:00+02:00",
                 "sensor-to-save": None,
                 "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT24H",
                 "probabilistic": False,
             },
             False,
@@ -101,42 +104,24 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             {
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
+                "retrain-frequency": "P1D",
+                "train-start": "2025-01-01T00:00+02:00",
+                "train-period": "P2D",
             },
             {
                 "sensor": "solar-sensor",
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "end-date": "2025-01-03T00:00+02:00",
-                "train-period": "P2D",
+                "end": "2025-01-03T00:00+02:00",
                 "sensor-to-save": None,
-                "start-predict-date": "2025-01-02T00:00+02:00",
-                "retrain-frequency": "P1D",
+                "start": "2025-01-02T00:00+02:00",
                 "max-forecast-horizon": "PT1H",
-                "forecast-frequency": "PT1H",
+                "forecast-frequency": "PT24H",
                 "probabilistic": False,
             },
             False,
             None,
         ),
-        # (
-        #     {},
-        #     {
-        #         "sensor": "solar-sensor",
-        #         "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
-        #         "output-path": None,
-        #         "start-date": "2025-07-01T00:00+02:00",
-        #         "end-date": "2025-07-12T00:00+02:00",
-        #         "sensor-to-save": 1,
-        #         "start-predict-date": "2025-07-11T17:26+02:00",
-        #         "retrain-frequency": "PT24H",
-        #         "max-forecast-horizon": 24,
-        #         "forecast-frequency": 1,
-        #         "probabilistic": False,
-        #     },
-        #     False,
-        #     (ValidationError, "Try increasing the --end-date."),
-        # )
     ],
 )
 def test_train_predict_pipeline(  # noqa: C901
@@ -193,18 +178,18 @@ def test_train_predict_pipeline(  # noqa: C901
 
         forecasts = sensor.search_beliefs(source_types=["forecaster"])
         dg_params = pipeline._parameters  # parameters stored in the data generator
-        n_cycles = (dg_params["end_date"] - dg_params["predict_start"]) / (
+        m_viewpoints = (dg_params["end_date"] - dg_params["predict_start"]) / (
             dg_params["forecast_frequency"]
         )
         # 1 hour of forecasts is saved over 4 15-minute resolution events
-        n_events_per_horizon = timedelta(hours=1) / dg_params["target"].event_resolution
+        n_events_per_horizon = timedelta(hours=1) / dg_params["sensor"].event_resolution
         n_hourly_horizons = dg_params["max_forecast_horizon"] // timedelta(hours=1)
         assert (
-            len(forecasts) == n_cycles * n_hourly_horizons * n_events_per_horizon
-        ), f"we expect 4 forecasts per horizon for each cycle within the prediction window, and {n_cycles} cycles with each {n_hourly_horizons} hourly horizons"
+            len(forecasts) == m_viewpoints * n_hourly_horizons * n_events_per_horizon
+        ), f"we expect 4 forecasts per horizon for each viewpoint within the prediction window, and {m_viewpoints} viewpoints with each {n_hourly_horizons} hourly horizons"
         assert (
-            forecasts.lineage.number_of_belief_times == n_cycles
-        ), f"we expect 1 belief time per cycle, and {n_cycles} cycles"
+            forecasts.lineage.number_of_belief_times == m_viewpoints
+        ), f"we expect {m_viewpoints} viewpoints"
         source = forecasts.lineage.sources[0]
         assert "TrainPredictPipeline" in str(
             source
@@ -278,11 +263,10 @@ def test_train_predict_pipeline(  # noqa: C901
         assert (
             "regressors" not in data_generator_config
         ), "(past and future) regressors should be stored under 'past_regressors' and 'future_regressors' instead"
+        assert "max-training-period" in data_generator_config
 
         # Check DataGenerator parameters stored under DataSource attributes is empty
-        data_generator_params = source.attributes["data_generator"]["parameters"]
-        # todo: replace this with `assert data_generator_params == {}` after moving max-training-period to config
-        assert "max-training-period" in data_generator_params
+        assert "parameters" not in source.attributes["data_generator"]
 
 
 # Test that missing data logging works and raises NotEnoughDataException when threshold exceeded
@@ -293,16 +277,15 @@ def test_train_predict_pipeline(  # noqa: C901
             {
                 # "model": "CustomLGBM",
                 "missing-threshold": "0.0",
+                "train-start": "2025-01-01T00:00+02:00",
             },
             {
                 "sensor": "solar-sensor",
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "end-date": "2025-01-30T00:00+02:00",
+                "end": "2025-01-30T00:00+02:00",
                 "sensor-to-save": None,
-                "start-predict-date": "2025-01-25T00:00+02:00",
-                "retrain-frequency": "P1D",
+                "start": "2025-01-25T00:00+02:00",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
@@ -314,16 +297,15 @@ def test_train_predict_pipeline(  # noqa: C901
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
                 "missing-threshold": "0.0",
+                "train-start": "2025-01-01T00:00+02:00",
             },
             {
                 "sensor": "solar-sensor",
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "end-date": "2025-01-30T00:00+02:00",
+                "end": "2025-01-30T00:00+02:00",
                 "sensor-to-save": None,
-                "start-predict-date": "2025-01-25T00:00+02:00",
-                "retrain-frequency": "P1D",
+                "start": "2025-01-25T00:00+02:00",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
@@ -379,17 +361,17 @@ def test_missing_data_logs_warning(
         (
             {
                 # "model": "CustomLGBM",
+                "retrain-frequency": "P1D",
+                "train-start": "2025-01-01T00:00+02:00",
+                "max-training-period": "P10D",  # cap at 10 days
             },
             {
                 "sensor": "solar-sensor",
                 "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
                 "output-path": None,
-                "start-date": "2025-01-01T00:00+02:00",
-                "end-date": "2025-01-30T00:00+02:00",
-                "max-training-period": "P10D",  # cap at 10 days
+                "end": "2025-01-30T00:00+02:00",
                 "sensor-to-save": None,
-                "start-predict-date": "2025-01-25T00:00+02:00",
-                "retrain-frequency": "P1D",
+                "start": "2025-01-25T00:00+02:00",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
@@ -419,9 +401,8 @@ def test_train_period_capped_logs_warning(
         for message in caplog.messages
     ), "Expected warning about capping train_period"
 
-    params_used = pipeline._parameters
     config_used = pipeline._config
     assert config_used["missing_threshold"] == 1
-    assert params_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
+    assert config_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
         hours=1
     ), "train_period_in_hours should be capped to max_training_period"
