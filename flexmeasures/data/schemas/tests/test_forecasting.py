@@ -132,7 +132,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #    - 1 cycle, 4 belief times
         (
             {
-                "start-predict-date": "2025-01-15T12:00:00+01:00",
+                "start": "2025-01-15T12:00:00+01:00",
                 "forecast-frequency": "PT12H",
             },
             {
@@ -398,7 +398,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #         "predict-period-in-hours": 48,
         #         # "retrain_frequency": 2 * 24,
         #         # "max-training-period": pd.Timedelta(days=365),
-        #         # the belief time of the forecasts will be calculated from start-predict-date and max-forecast-horizon and forecast-frequency
+        #         # the belief time of the forecasts will be calculated from start and max-forecast-horizon and forecast-frequency
         #         "save-belief-time": None,
         #         "m_viewpoints": 1,
         #     },
@@ -486,7 +486,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         #         # default values
         #         # "retrain_frequency": 2 * 24,
         #         # "max-training-period": pd.Timedelta(days=365),
-        #         # the belief time of the forecasts will be calculated from start-predict-date and max-forecast-horizon and forecast-frequency
+        #         # the belief time of the forecasts will be calculated from start and max-forecast-horizon and forecast-frequency
         #         "save-belief-time": None,
         #     },
         # ),

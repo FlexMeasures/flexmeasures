@@ -268,16 +268,16 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
-    start_predict_date = AwareDateTimeOrDateField(
-        data_key="start-predict-date",
+    start = AwareDateTimeOrDateField(
+        data_key="start",
         required=False,
         allow_none=True,
         metadata={
             "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
             "example": "2025-01-08T00:00:00+01:00",
             "cli": {
-                "option": "--start-predict-date",
-                "aliases": ["--from-date"],
+                "option": "--start",
+                "aliases": ["--start-predict-date", "--from-date"],
             },
         },
     )
@@ -348,7 +348,7 @@ class ForecasterParametersSchema(Schema):
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
         end_date = data.get("end_date")
-        predict_start = data.get("start_predict_date", None)
+        predict_start = data.get("start", None)
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
@@ -367,8 +367,8 @@ class ForecasterParametersSchema(Schema):
             #     )
             if end_date is not None and predict_start >= end_date:
                 raise ValidationError(
-                    "start-predict-date must be before end-date",
-                    field_name="start_predict_date",
+                    "start must be before end",
+                    field_name="start",
                 )
 
         if max_forecast_horizon is not None:
@@ -406,16 +406,16 @@ class ForecasterParametersSchema(Schema):
         now = server_now()
         floored_now = floor_to_resolution(now, resolution)
 
-        if data.get("start_predict_date") is None:
+        if data.get("start") is None:
             if original_data.get("duration") and data.get("end_date") is not None:
                 predict_start = data["end_date"] - data["duration"]
             else:
                 predict_start = floored_now
         else:
-            predict_start = data["start_predict_date"]
+            predict_start = data["start"]
 
         save_belief_time = (
-            now if data.get("start_predict_date") is None else predict_start
+            now if data.get("start") is None else predict_start
         )
 
         if data.get("end_date") is None:

@@ -33,7 +33,7 @@ def test_trigger_and_fetch_forecasts(
 
     # Trigger job
     payload = {
-        "start-predict-date": "2025-01-05T00:00:00+00:00",
+        "start": "2025-01-05T00:00:00+00:00",
         "end-date": "2025-01-05T02:00:00+00:00",
         "max-forecast-horizon": "PT1H",
         "forecast-frequency": "PT1H",
