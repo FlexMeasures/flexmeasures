@@ -10,14 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     name: Check (on Python 3.12)
     steps:
+      - uses: actions/checkout@v6
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: ".python-version"
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: '.pre-commit-config.yaml'
-          uv-version: 0.10
-          python-version-file: ".python-version"
-      - uses: actions/checkout@v6
+          uv-version: "0.10"
       - name: Install dev dependencies
         run: uv sync --only-group dev --frozen
       - uses: tox-dev/action-pre-commit-uv@v1
@@ -41,10 +44,16 @@ jobs:
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          # Installs the correct Python version for the job.
+          python-version: ${{ matrix.py_version }}
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          # Overrides the default python version (.python-version) for the uv command.
           python-version: ${{ matrix.py_version }}
       - run: |
           ci/setup-postgres.sh

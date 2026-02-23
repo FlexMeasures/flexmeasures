@@ -23,13 +23,17 @@ jobs:
           
           # Start Redis service
           sudo service redis-server start
+      
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: ".python-version"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          uv-version: 0.10
-          python-version-file: ".python-version"
+          uv-version: "0.10"
 
       - name: Install Python dependencies for testing
         run: uv sync --locked --group test --group dev
