@@ -262,7 +262,7 @@ class TrainPredictPipeline(Forecaster):
             job_metadata = {
                 "data_source_info": {"id": self.data_source.id},
                 "start": self._parameters["start"],
-                "end_date": self._parameters["end_date"],
+                "end": self._parameters["date"],
                 "sensor_id": self._parameters["sensor_to_save"].id,
             }
             for cycle_params in cycles_job_params:
