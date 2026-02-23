@@ -354,16 +354,16 @@ class ForecasterParametersSchema(Schema):
         sensor = data.get("sensor")
 
         # todo: consider moving this to the run method in train_predict.py
-        # if start_date is not None and end_date is not None and start_date >= end_date:
+        # if train_start is not None and end is not None and train_start >= end_date:
         #     raise ValidationError(
-        #         "start-date must be before end-date", field_name="start_date"
+        #         "train_start must be before end", field_name="train-start"
         #     )
 
         if predict_start:
-            # if start_date is not None and predict_start < start_date:
+            # if train_start is not None and predict_start < train_start:
             #     raise ValidationError(
-            #         "start-predict-date cannot be before start-date",
-            #         field_name="start_predict_date",
+            #         "start cannot be before start",
+            #         field_name="start",
             #     )
             if end_date is not None and predict_start >= end_date:
                 raise ValidationError(
