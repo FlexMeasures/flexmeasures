@@ -27,6 +27,10 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     fallback_schedule_redirect,
 )
+from flexmeasures.api.common.schemas.scheduling import (
+    flex_context_schema_openAPI,
+    storage_flex_model_schema_openAPI,
+)
 from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
@@ -142,13 +146,15 @@ class TriggerScheduleKwargsSchema(Schema):
             example="2026-01-15T10:00+01:00",
         ),
     )
-    flex_model = fields.Dict(
+    flex_model = fields.Nested(
+        storage_flex_model_schema_openAPI,
         data_key="flex-model",
         metadata=dict(
             description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
         ),
     )
-    flex_context = fields.Dict(
+    flex_context = fields.Nested(
+        flex_context_schema_openAPI,
         required=False,
         data_key="flex-context",
         metadata=dict(
