@@ -105,6 +105,7 @@ class TrainPredictPipelineConfigSchema(Schema):
             "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
             "example": "2025-01-01T00:00:00+01:00",
             "cli": {
+                "cli-exclusive": True,
                 "option": "--start-date",
                 "aliases": ["--train-start"],
             },
@@ -118,6 +119,7 @@ class TrainPredictPipelineConfigSchema(Schema):
             "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
             "example": "P7D",
             "cli": {
+                "cli-exclusive": True,
                 "option": "--train-period",
             },
         },
@@ -130,6 +132,7 @@ class TrainPredictPipelineConfigSchema(Schema):
             "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
             "example": "P1Y",
             "cli": {
+                "cli-exclusive": True,
                 "option": "--max-training-period",
             },
         },
@@ -259,6 +262,7 @@ class ForecasterParametersSchema(Schema):
             "description": "End date for running the pipeline.",
             "example": "2025-10-15T00:00:00+01:00",
             "cli": {
+                "cli-exclusive": True,
                 "option": "--end-date",
                 "aliases": ["--to-date"],
             },

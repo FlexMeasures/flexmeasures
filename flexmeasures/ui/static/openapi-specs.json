@@ -4153,33 +4153,6 @@
             "default": false,
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": true
-          },
-          "start-date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
-            "example": "2025-01-01T00:00:00+01:00"
-          },
-          "train-period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "P30D",
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
-            "example": "P7D"
-          },
-          "max-training-period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": "P365D",
-            "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
-            "example": "P1Y"
           }
         },
         "additionalProperties": false
@@ -4191,15 +4164,6 @@
             "type": "string",
             "description": "The duration for which to create the forecast, also known as the planning horizon, in ISO 8601 duration format.",
             "example": "PT24H"
-          },
-          "end-date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "description": "End date for running the pipeline.",
-            "example": "2025-10-15T00:00:00+01:00"
           },
           "start-predict-date": {
             "type": [
