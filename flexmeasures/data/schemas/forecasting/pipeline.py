@@ -253,18 +253,18 @@ class ForecasterParametersSchema(Schema):
             example="PT24H",
         ),
     )
-    end_date = AwareDateTimeOrDateField(
-        data_key="end-date",
+    end = AwareDateTimeOrDateField(
+        data_key="end",
         required=False,
         allow_none=True,
         inclusive=True,
         metadata={
-            "description": "End date for running the pipeline.",
+            "description": "last event start of forecasts generated.",
             "example": "2025-10-15T00:00:00+01:00",
             "cli": {
                 "cli-exclusive": True,
-                "option": "--end-date",
-                "aliases": ["--to-date"],
+                "option": "--end",
+                "aliases": ["--end-date", "--to-date"],
             },
         },
     )
@@ -347,7 +347,7 @@ class ForecasterParametersSchema(Schema):
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
-        end_date = data.get("end_date")
+        end_date = data.get("end")
         predict_start = data.get("start", None)
         max_forecast_horizon = data.get("max_forecast_horizon")
         forecast_frequency = data.get("forecast_frequency")
@@ -418,12 +418,12 @@ class ForecasterParametersSchema(Schema):
             now if data.get("start") is None else predict_start
         )
 
-        if data.get("end_date") is None:
-            data["end_date"] = predict_start + data["duration"]
+        if data.get("end") is None:
+            data["end"] = predict_start + data["duration"]
 
         predict_period = (
-            data["end_date"] - predict_start
-            if data.get("end_date")
+            data["end"] - predict_start
+            if data.get("end")
             else data["duration"]
         )
         forecast_frequency = data.get("forecast_frequency")
