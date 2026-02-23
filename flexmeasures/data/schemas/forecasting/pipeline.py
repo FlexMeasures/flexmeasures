@@ -97,17 +97,17 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
-    start_date = AwareDateTimeOrDateField(
-        data_key="start-date",
+    train_start = AwareDateTimeOrDateField(
+        data_key="train-start",
         required=False,
         allow_none=True,
         metadata={
-            "description": "Timestamp marking the start of training data. Defaults to train_period before start_predict_date if not set.",
+            "description": "Timestamp marking the start of training data. Defaults to train_period before start if not set.",
             "example": "2025-01-01T00:00:00+01:00",
             "cli": {
                 "cli-exclusive": True,
-                "option": "--start-date",
-                "aliases": ["--train-start"],
+                "option": "--train-start",
+                "aliases": ["--start-date", "--train-start"],
             },
         },
     )
@@ -116,7 +116,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=timedelta(days=30),
         allow_none=True,
         metadata={
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from start_date and start_predict_date or defaults to P30D (30 days).",
+            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from train_start and start if not set or defaults to P30D (30 days).",
             "example": "P7D",
             "cli": {
                 "cli-exclusive": True,

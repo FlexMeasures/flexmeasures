@@ -38,7 +38,7 @@ def test_trigger_and_fetch_forecasts(
         "max-forecast-horizon": "PT1H",
         "forecast-frequency": "PT1H",
         "config": {
-            "start-date": "2025-01-01T00:00:00+00:00",
+            "train-start": "2025-01-01T00:00:00+00:00",
             "retrain-frequency": "PT1H",
         },
     }
