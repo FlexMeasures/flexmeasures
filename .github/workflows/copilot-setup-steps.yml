@@ -14,13 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out src from Git
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Set up test environment
         uses: ./.github/actions/setup-test-env
         with:
-          python-version: "3.11"
-          install-mode: pinned
+          python-version: "3.12"
       - name: Install pre-commit hooks
         run: |
           # Install pre-commit for code quality checks
