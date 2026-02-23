@@ -312,7 +312,7 @@ class ForecasterParametersSchema(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "How often to recompute forecasts. This setting can be used to get forecasts from multiple viewpoints. Defaults to the max-forecast-horizon.",
+            "description": "How often to recompute forecasts. This setting can be used to get forecasts from multiple viewpoints, which is especially useful for running simulations. Defaults to the max-forecast-horizon.",
             "example": "PT1H",
             "cli": {
                 "option": "--forecast-frequency",
