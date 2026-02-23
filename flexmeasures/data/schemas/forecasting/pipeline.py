@@ -414,17 +414,13 @@ class ForecasterParametersSchema(Schema):
         else:
             predict_start = data["start"]
 
-        save_belief_time = (
-            now if data.get("start") is None else predict_start
-        )
+        save_belief_time = now if data.get("start") is None else predict_start
 
         if data.get("end") is None:
             data["end"] = predict_start + data["duration"]
 
         predict_period = (
-            data["end"] - predict_start
-            if data.get("end")
-            else data["duration"]
+            data["end"] - predict_start if data.get("end") else data["duration"]
         )
         forecast_frequency = data.get("forecast_frequency")
 
