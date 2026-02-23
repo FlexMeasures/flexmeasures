@@ -263,7 +263,7 @@ class ForecasterParametersSchema(Schema):
         allow_none=True,
         inclusive=True,
         metadata={
-            "description": "Last event start of forecasts generated.",
+            "description": "End of the last event forecasted. Use either this field or the duration field.",
             "example": "2025-10-15T00:00:00+01:00",
             "cli": {
                 "cli-exclusive": True,
