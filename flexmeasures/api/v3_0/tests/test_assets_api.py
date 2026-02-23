@@ -96,7 +96,7 @@ def test_get_asset_nonaccount_access(
             False,
             "name",
             "asc",
-            "incineration line",
+            "Test wind turbine",
         ),
         (
             "test_admin_user@seita.nl",
@@ -105,7 +105,7 @@ def test_get_asset_nonaccount_access(
             False,
             "name",
             "desc",
-            "Test wind turbine",
+            "incineration line",
         ),
         ("test_consultant@seita.nl", "ConsultancyClient", 1, False, None, None, None),
         ("test_admin_user@seita.nl", "Prosumer", 1, True, None, None, None),
