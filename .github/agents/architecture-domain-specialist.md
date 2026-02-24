@@ -64,6 +64,116 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - [ ] **Separation of concerns**: Validate, process, and persist should be distinct steps
 - [ ] **Multi-tenancy**: Ensure account-level access control is maintained
 
+### Schema-Code Consistency
+
+Marshmallow schemas define the canonical format for parameter dictionaries. All code manipulating these dictionaries must respect the schema's output format (using `data_key` values, not Python attribute names).
+
+**Domain Invariant**: "Schema as Source of Truth for Parameter Format"
+
+**Checklist**:
+
+- [ ] **Schema inspection**: Identify Marshmallow schemas defining parameters
+- [ ] **data_key audit**: List all `data_key` attributes and their values
+- [ ] **Dictionary access**: Verify code uses dict keys from `data_key`, not Python attributes
+- [ ] **Parameter modification**: Check `pop()`, `del`, assignment operations use correct keys
+- [ ] **Storage consistency**: Ensure DataSource.attributes, job.meta use schema format
+
+**Domain Pattern: Schema Format Migrations**
+
+When Marshmallow schemas change format (e.g., kebab-case migration in PR #1953):
+
+```python
+# Before: Python attributes and dict keys matched
+class ForecasterParametersSchema(Schema):
+    as_job = fields.Boolean()  # Python: as_job, Dict: "as_job" (same)
+
+# After: data_key introduces format difference
+class ForecasterParametersSchema(Schema):
+    as_job = fields.Boolean(data_key="as-job")  # Python: as_job, Dict: "as-job" (different!)
+```
+
+**Impact on Code**:
+
+```python
+# Schema output (what code receives)
+parameters = {
+    "as-job": True,           # ← This is the actual dict key
+    "sensor-to-save": 2,
+}
+
+# ✅ Correct: Use schema output format
+parameters.pop("as-job", None)          # Matches dict key
+value = parameters.get("sensor-to-save")
+
+# ❌ Wrong: Use Python attribute name
+parameters.pop("as_job", None)          # Key doesn't exist!
+value = parameters.get("sensor_to_save")  # Returns None
+```
+
+**Code Paths to Audit**:
+
+1. **Parameter cleaning**: Removing fields before storage
+   ```python
+   # flexmeasures/data/models/forecasting/__init__.py:111
+   def _clean_parameters(self, parameters: dict) -> dict:
+       fields_to_remove = ["as-job", "sensor-to-save"]  # Use data_key format
+   ```
+
+2. **Parameter access**: Reading values
+   ```python
+   as_job = params.get("as-job")  # Use data_key format
+   ```
+
+3. **Parameter storage**: DataSource attributes
+   ```python
+   source.attributes = {"data_generator": {"parameters": params}}  # params must use data_key format
+   ```
+
+4. **Parameter comparison**: Checking equality
+   ```python
+   if source1.attributes == source2.attributes:  # Both must use same format
+   ```
+
+**Enforcement**:
+
+When reviewing code that handles Marshmallow schema output:
+
+1. **Find the schema**: Locate schema class definition
+2. **List data_key mappings**: Create table of Python attr → dict key
+3. **Audit all dict operations**: Check `.get()`, `[]`, `.pop()`, `del`, assignment
+4. **Verify consistency**: All operations use same format (data_key values)
+5. **Test data source equality**: Verify different code paths create identical sources
+
+**Session 2026-02-08 Case Study**:
+
+**Bug**: `_clean_parameters` used snake_case keys, but Marshmallow output kebab-case
+
+```python
+# Marshmallow schema
+as_job = fields.Boolean(data_key="as-job")
+
+# Marshmallow output
+{"as-job": True}
+
+# _clean_parameters tried to remove
+fields_to_remove = ["as_job"]  # ❌ Wrong format
+
+# Result
+{"as-job": True}  # Not cleaned!
+```
+
+**Impact**: API-triggered and direct forecasts created different data sources because parameters weren't cleaned consistently.
+
+**Fix**: Update `_clean_parameters` to use kebab-case keys matching Marshmallow output.
+
+**Key Insight**: When schema format changes, all code paths handling those dictionaries must be updated. Tests comparing data sources detect these consistency issues.
+
+**Related Files**:
+- Schemas: `flexmeasures/data/schemas/forecasting/`
+- Parameter handling: `flexmeasures/data/models/forecasting/__init__.py`
+- Data sources: `flexmeasures/data/models/data_sources.py`
+- Tests: `flexmeasures/api/v3_0/tests/test_forecasting_api.py`
+
 ## Domain Knowledge
 
 ### Core Domain Entities
@@ -244,3 +354,84 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - Monitor coupling between layers
 - Propose refactorings when architecture degrades
 - Keep domain knowledge section updated with code changes
+
+* * *
+
+## Critical Requirements for Architecture Specialist
+
+### Must Verify Fixes Against Actual Scenarios
+
+**This agent MUST test fixes against the reported bug scenario, not just unit tests.**
+When reviewing or implementing domain model fixes:
+1. **Reproduce the bug scenario first**:
+   - Use the exact CLI commands or API calls from the bug report
+   - Use the same data, parameters, and context
+   - Verify the bug actually manifests as reported
+2. **Test the fix end-to-end**:
+   ```bash
+   # Example: Test a CLI fix
+   make install-for-dev
+   flexmeasures <command> <args>  # The exact command from bug report
+   ```
+3. **Verify domain invariants still hold**:
+   - Run relevant test suite: `make test` or `pytest path/to/tests`
+   - Check database constraints are satisfied
+   - Verify no regressions in related functionality
+4. **Document verification in commit**:
+   - Show that bug scenario now works
+   - Include test output or CLI results
+   - Explain what was verified
+
+### Must Make Atomic Commits
+
+**Never mix code changes with documentation or analysis files.**
+Examples of non-atomic commits to avoid:
+- Code fix + `ARCHITECTURE_ANALYSIS.md` in same commit
+- Multiple unrelated model changes
+- Production code + test code (should be separate)
+Good commit practice:
+1. Code change (single logical unit)
+2. Test for that change (separate commit)
+3. Documentation update (separate commit)
+4. Agent instruction update (separate commit)
+
+### Must Avoid Committing Analysis Files
+
+**Never commit temporary analysis or planning files:**
+Files to never commit:
+- `ARCHITECTURE_ANALYSIS.md`
+- `DOMAIN_MODEL_ANALYSIS.md`
+- Any `.md` files created for understanding/planning
+These should:
+- Stay in working memory only
+- Be written to `/tmp/` if needed for reference
+- Never be added to git
+
+### Must Verify Claims Before Stating Them
+
+**All claims about performance, behavior, or correctness must be verified.**
+Avoid unfounded claims like:
+- "This is 1000x faster" (without benchmarks)
+- "Tests pass" (without actually running them)
+- "This fixes the bug" (without testing the scenario)
+Instead:
+- Run actual benchmarks if claiming performance improvements
+- Execute tests and show output: `pytest -v path/to/tests`
+- Test the exact bug scenario and confirm it's fixed
+- Use FlexMeasures dev environment to verify CLI/API behavior
+
+### Self-Improvement Loop
+
+After each assignment:
+1. **Review what worked and what didn't**
+2. **Update this agent file** with lessons learned
+3. **Commit agent updates separately** using format:
+   ```
+   agents/architecture: learned <specific lesson>
+   
+   Context:
+   - Assignment revealed issue with <area>
+   
+   Change:
+   - Added guidance on <specific topic>
+   ```

@@ -609,6 +609,9 @@
               }
             }
           },
+          "400": {
+            "description": "UNKNOWN_FORECAST"
+          },
           "401": {
             "description": "UNAUTHORIZED"
           },
@@ -1163,7 +1166,7 @@
     "/api/v3_0/sensors/{id}/forecasts/trigger": {
       "post": {
         "summary": "Trigger forecasting job for one sensor",
-        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a\njob UUID. The job will run in the background and generate forecast values\nfor the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
+        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a job UUID.\nThe job will run in the background and generate forecasts for the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1186,29 +1189,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "start_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Start date of the historical data used for training."
-                  },
-                  "start_predict_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Start date of the forecast period."
-                  },
-                  "end_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "End date of the forecast period."
-                  }
-                }
+                "$ref": "#/components/schemas/forecasting_trigger_schema_openAPI"
               },
               "example": {
-                "start_date": "2026-01-01T00:00:00+01:00",
-                "start_predict_date": "2026-01-15T00:00:00+01:00",
-                "end_date": "2026-01-17T00:00:00+01:00"
+                "start": "2026-01-15T00:00:00+01:00",
+                "duration": "P2D"
               }
             }
           }
@@ -1262,7 +1247,7 @@
     "/api/v3_0/sensors/{id}/schedules/trigger": {
       "post": {
         "summary": "Trigger scheduling job for one device",
-        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nThe 'resolution' field governs how often setpoints are allowed to change.\nNote that the resulting schedule is still saved in the sensor resolution.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3537,7 +3522,7 @@
     "/api/v3_0/assets/{id}/schedules/trigger": {
       "post": {
         "summary": "Trigger scheduling job for any number of devices",
-        "description": "Trigger FlexMeasures to create a schedule for this asset.\nThe flex-model needs to reference the power sensors of flexible devices, which must belong to the given asset,\neither directly or indirectly, by being assigned to one of the asset's (grand)children.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, [see describing_flexibility](https://flexmeasures.readthedocs.io/stable/features/scheduling.html#describing-flexibility).\nBelow, we'll also list some examples.\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors). The examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** This endpoint supports scheduling an EMS with multiple flexible devices at once.\n> It can do so jointly (the default) or sequentially\n> (considering previously scheduled sensors as inflexible).\n> To use sequential scheduling, use ``sequential=true`` in the JSON body.\n\nThe length of the schedule can be set explicitly through the 'duration' field.\nOtherwise, it is set by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.\nIf the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\nFinally, the schedule length is limited by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.\nTargets that exceed the max planning horizon are not accepted.\n\nThe appropriate algorithm is chosen by FlexMeasures (based on asset type).\nIt's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).\n\nIf you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "description": "Trigger FlexMeasures to create a schedule for this asset.\nThe flex-model needs to reference the power sensors of flexible devices, which must belong to the given asset,\neither directly or indirectly, by being assigned to one of the asset's (grand)children.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility models for the asset's relevant sensors (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the asset operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, [see describing_flexibility](https://flexmeasures.readthedocs.io/stable/features/scheduling.html#describing-flexibility).\nBelow, we'll also list some examples.\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors). The examples below illustrate how to describe a flexibility model and context.\n\n> **Note:** This endpoint supports scheduling an EMS with multiple flexible devices at once.\n> It can do so jointly (the default) or sequentially\n> (considering previously scheduled sensors as inflexible).\n> To use sequential scheduling, use ``sequential=true`` in the JSON body.\n\nThe length of the schedule can be set explicitly through the 'duration' field.\nOtherwise, it is set by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.\nIf the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\nFinally, the schedule length is limited by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.\nTargets that exceed the max planning horizon are not accepted.\n\nThe 'resolution' field governs how often setpoints are allowed to change.\nNote that the resulting schedule is still saved in the resolution of each individual sensor.\n\nThe appropriate algorithm is chosen by FlexMeasures (based on asset type).\nIt's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).\n\nIf you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4103,6 +4088,102 @@
             "items": {
               "type": "integer"
             }
+          },
+          "aggregate-power": {
+            "$ref": "#/components/schemas/SensorReference"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrainPredictPipelineConfigSchemaOpenAPI": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "default": "CustomLGBM"
+          },
+          "future-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor.",
+            "example": [
+              2093,
+              2094
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "past-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor.",
+            "example": [
+              2095
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
+            "example": [
+              2093,
+              2094,
+              2095
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "missing-threshold": {
+            "type": "number",
+            "default": 1.0,
+            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
+            "example": 0.1
+          },
+          "ensure-positive": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": false,
+            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "example": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "forecasting_trigger_schema_openAPI": {
+        "type": "object",
+        "properties": {
+          "duration": {
+            "type": "string",
+            "description": "The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
+            "example": "PT24H"
+          },
+          "start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
+            "example": "2025-01-08T00:00:00+01:00"
+          },
+          "forecast-frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How often to recompute forecasts. This setting can be used to get forecasts from multiple viewpoints, which is especially useful for running simulations. Defaults to the max-forecast-horizon.",
+            "example": "PT1H"
+          },
+          "config": {
+            "description": "Changing any of these will result in a new data source ID.",
+            "$ref": "#/components/schemas/TrainPredictPipelineConfigSchemaOpenAPI"
           }
         },
         "additionalProperties": false
@@ -5094,6 +5175,11 @@
             "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
             "example": "PT24H"
           },
+          "resolution": {
+            "type": "string",
+            "description": "The resolution of the requested schedule in ISO 8601 duration format. This governs how often setpoints are allowed to change. Note that the resulting schedule is still saved in the sensor resolution.",
+            "example": "PT2H"
+          },
           "flex-model": {
             "type": "object",
             "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
@@ -5341,7 +5427,7 @@
             "example": {
               "sensor": 12
             },
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+            "$ref": "#/components/schemas/SensorReference"
           },
           "charging-efficiency": {
             "description": "One-way conversion efficiency from electricity to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
@@ -5415,6 +5501,11 @@
             "type": "string",
             "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
             "example": "PT24H"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "The resolution of the requested schedule in ISO 8601 duration format. This governs how often setpoints are allowed to change. Note that the resulting schedule is still saved in the resolution of each individual sensor.",
+            "example": "PT2H"
           },
           "flex-model": {
             "description": "The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",

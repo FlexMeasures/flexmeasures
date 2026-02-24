@@ -136,5 +136,14 @@ def extract_sensors_from_flex_config(plot: dict) -> tuple[list[Sensor], list[dic
                     raise FMValidationError(
                         f"Value '{field_value}' for field '{field_key}' in '{plot_key}' is not a valid quantity string."
                     )
-
     return all_sensors, asset_refs
+  
+
+def snake_to_kebab(key: str) -> str:
+    """Convert snake_case to kebab-case."""
+    return key.replace("_", "-")
+
+
+def kebab_to_snake(key: str) -> str:
+    """Convert kebab-case to snake_case."""
+    return key.replace("-", "_")

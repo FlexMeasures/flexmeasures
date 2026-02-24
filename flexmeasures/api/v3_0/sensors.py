@@ -22,10 +22,12 @@ from sqlalchemy import delete, select, or_
 from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_event,
+    unknown_forecast,
     unknown_schedule,
     unprocessable_entity,
     fallback_schedule_redirect,
 )
+from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
 )
@@ -53,7 +55,11 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorIdField,
     SensorDataFileSchema,
 )
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    PlanningDurationField,
+)
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.sensors import UnitField
@@ -67,13 +73,26 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.schemas.forecasting.pipeline import (
-    ForecasterParametersSchema,
+    ForecastingTriggerSchema,
 )
 
 # Instantiate schemes outside of endpoint logic to minimize response time
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
+
+# Create ForecasterParametersSchema OpenAPI compatible schema
+EXCLUDED_FORECASTING_FIELDS = [
+    # todo: hide these in the config schema instead
+    # "train_period",
+    # "max_training_period",
+    "sensor_to_save",
+]
+forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerSchema)(
+    # partial=True,
+    exclude=EXCLUDED_FORECASTING_FIELDS
+    + ["sensor"],
+)
 
 
 class SensorKwargsSchema(Schema):
@@ -114,6 +133,14 @@ class TriggerScheduleKwargsSchema(Schema):
             description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
             example="PT24H",
         ),
+    )
+    resolution = DurationField(
+        metadata=dict(
+            description="The resolution of the requested schedule in ISO 8601 duration format. "
+            "This governs how often setpoints are allowed to change. "
+            "Note that the resulting schedule is still saved in the sensor resolution.",
+            example="PT2H",
+        )
     )
     flex_model = fields.Dict(
         data_key="flex-model",
@@ -610,6 +637,7 @@ class SensorAPI(FlaskView):
         sensor: Sensor,
         start_of_schedule: datetime,
         duration: timedelta,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
@@ -644,6 +672,9 @@ class SensorAPI(FlaskView):
             - Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.
             - If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
             - Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.
+
+            The 'resolution' field governs how often setpoints are allowed to change.
+            Note that the resulting schedule is still saved in the sensor resolution.
 
             About the scheduling algorithm being used:
 
@@ -786,12 +817,22 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+
+        # Check if resolution is a multiple of the sensor resolution
+        if (
+            resolution is not None
+            and resolution % sensor.event_resolution != timedelta(0)
+        ):
+            raise ValidationError(
+                f"Resolution of {resolution} is incompatible with the sensor's required resolution of {sensor.event_resolution}."
+            )
+
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
             asset_or_sensor=sensor,
             start=start_of_schedule,
             end=end_of_schedule,
-            resolution=sensor.event_resolution,
+            resolution=resolution or sensor.event_resolution,
             belief_time=belief_time,  # server time if no prior time was sent
             flex_model=flex_model,
             flex_context=flex_context,
@@ -1493,7 +1534,10 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
     @use_args(
-        ForecasterParametersSchema(),
+        ForecastingTriggerSchema(
+            # partial=True,
+            exclude=EXCLUDED_FORECASTING_FIELDS,
+        ),
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
@@ -1507,9 +1551,8 @@ class SensorAPI(FlaskView):
           description: |
             Trigger a forecasting job for a sensor.
 
-            This endpoint starts a forecasting job asynchronously and returns a
-            job UUID. The job will run in the background and generate forecast values
-            for the specified period.
+            This endpoint starts a forecasting job asynchronously and returns a job UUID.
+            The job will run in the background and generate forecasts for the specified period.
 
             Once triggered, the job status and results can be retrieved using the
             ``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.
@@ -1528,25 +1571,10 @@ class SensorAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema:
-                  type: object
-                  properties:
-                    start_date:
-                      type: string
-                      format: date-time
-                      description: Start date of the historical data used for training.
-                    start_predict_date:
-                      type: string
-                      format: date-time
-                      description: Start date of the forecast period.
-                    end_date:
-                      type: string
-                      format: date-time
-                      description: End date of the forecast period.
+                schema: forecasting_trigger_schema_openAPI
                 example:
-                  start_date: "2026-01-01T00:00:00+01:00"
-                  start_predict_date: "2026-01-15T00:00:00+01:00"
-                  end_date: "2026-01-17T00:00:00+01:00"
+                  start: "2026-01-15T00:00:00+01:00"
+                  duration: "P2D"
           responses:
             200:
               description: PROCESSED
@@ -1585,9 +1613,6 @@ class SensorAPI(FlaskView):
         # Put the sensor to save in the parameters
         parameters["sensor"] = params["sensor_to_save"].id
 
-        # Ensure the forecast is run as a job on a forecasting queue
-        parameters["as_job"] = True
-
         # Set forecaster model
         model = parameters.pop("model", "TrainPredictPipeline")
 
@@ -1596,7 +1621,7 @@ class SensorAPI(FlaskView):
             forecaster = get_data_generator(
                 source=None,
                 model=model,
-                config={},
+                config=parameters.pop("config", {}),
                 save_config=True,
                 data_generator_type=Forecaster,
             )
@@ -1605,7 +1630,7 @@ class SensorAPI(FlaskView):
 
         # Queue forecasting job
         try:
-            job_id = forecaster.compute(parameters=parameters)
+            job_id = forecaster.compute(parameters=parameters, as_job=True)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
             return unprocessable_entity(str(e))
@@ -1705,6 +1730,8 @@ class SensorAPI(FlaskView):
                       summary: Started forecasting job
                       value:
                         status: "STARTED"
+            400:
+              description: UNKNOWN_FORECAST
             401:
               description: UNAUTHORIZED
             403:
@@ -1744,10 +1771,16 @@ class SensorAPI(FlaskView):
             return dict(**response), s
 
         # Check job status
-        if not job.is_finished:
+        if job.is_finished:
+            message = "A forecasting job has been processed with your job ID"
+        else:
+            job_status = job.get_status()
+            job_status_name = (
+                job_status.upper() if isinstance(job_status, str) else job_status.name
+            )
             return (
                 dict(
-                    status=job.get_status().name,
+                    status=job_status_name,
                     message=job_status_description(job),
                 ),
                 202 if job.get_status() != JobStatus.FAILED else 422,
@@ -1759,8 +1792,8 @@ class SensorAPI(FlaskView):
             data_source = get_data_source_for_job(job, type="forecasting")
 
             forecasts = sensor.search_beliefs(
-                event_starts_after=job.meta.get("start_predict_date"),
-                event_ends_before=job.meta.get("end_date"),
+                event_starts_after=job.meta.get("start"),
+                event_ends_before=job.meta.get("end"),
                 source=data_source,
                 most_recent_beliefs_only=True,
                 use_latest_version_per_event=True,
@@ -1770,6 +1803,10 @@ class SensorAPI(FlaskView):
             current_app.logger.exception("Failed to get forecast job status.")
             return unprocessable_entity(str(e))
 
+        if forecasts.empty:
+            return unknown_forecast(
+                f"{message}, but the forecast was not found in the database."
+            )
         start = forecasts["event_start"].min()
         last_event_start = forecasts["event_start"].max()
 
