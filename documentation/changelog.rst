@@ -52,7 +52,7 @@ Infrastructure / Support
 * Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 * Improve reported test coverage by including doctests and bringing back CLI tests to GitHub Actions [see `PR #1914 <https://www.github.com/FlexMeasures/flexmeasures/pull/1914>`_ and `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_, respectively]
 * Add DEFAULT_DATASOURCE_TYPES and use it in CLI and status page [see `PR #1938 <https://www.github.com/FlexMeasures/flexmeasures/pull/1938>`_]
-* Fix README badges [see `PR s#1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
+* Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
 * Allow seeing complete datetimes in the audit log [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
 * Add latest dependabot alert suggestions [see `PR #1959 <https://www.github.com/FlexMeasures/flexmeasures/pull/1959>`_]
 
