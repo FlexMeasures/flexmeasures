@@ -664,7 +664,6 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_args(patch_asset_schema)
     @use_kwargs(
         {
             "db_asset": AssetIdField(
@@ -675,7 +674,7 @@ class AssetAPI(FlaskView):
     )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
-    def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
+    def patch(self, id: int, db_asset: GenericAsset):
         """
         .. :quickref: Assets; Update an asset given its identifier.
         ---
@@ -733,10 +732,26 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # For us to be able to add our own context, we need to validate the data ourselves
+        asset_data = request.get_json()
+        if not asset_data:
+            return unprocessable_entity("No JSON data provided.")
+
+        asset_schema = AssetSchema(partial=True)
+        asset_schema.context = {
+            "asset": db_asset
+        }  # context for validating fields like parent_asset_id
+
         try:
-            db_asset = patch_asset(db_asset, asset_data)
+            validated_data = asset_schema.load(asset_data)
         except ValidationError as e:
-            return unprocessable_entity(str(e.messages))
+            return unprocessable_entity(e.messages)
+
+        try:
+            db_asset = patch_asset(db_asset, validated_data)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
