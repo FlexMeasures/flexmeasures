@@ -730,7 +730,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        # For us to be able to add our own context, we need to validate tehdata ourselves
+        # For us to be able to add our own context, we need to validate the data ourselves
         asset_data = request.get_json()
         if not asset_data:
             return unprocessable_entity("No JSON data provided.")
