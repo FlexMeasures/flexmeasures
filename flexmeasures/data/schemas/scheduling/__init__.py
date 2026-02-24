@@ -5,6 +5,7 @@ from marshmallow import (
     Schema,
     fields,
     validate,
+    validates,
     validates_schema,
     ValidationError,
     pre_load,
@@ -293,6 +294,11 @@ class FlexContextSchema(Schema):
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
+    aggregate_power = VariableQuantityField(
+        to_unit="MW",
+        data_key="aggregate-power",
+        required=False,
+    )
 
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
@@ -309,6 +315,13 @@ class FlexContextSchema(Schema):
                 + self.declared_fields[field].to_unit.split("/")[-1]
             )
         return data
+
+    @validates("aggregate_power")
+    def validate_aggregate_power_is_sensor(
+        self, aggregate_power: Sensor | list[dict] | ur.Quantity, **kwargs
+    ):
+        if not isinstance(aggregate_power, Sensor):
+            raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):
@@ -555,6 +568,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "commitments": {
         "default": None,
         "description": rst_to_openapi(metadata.COMMITMENTS.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "aggregate-power": {
+        "default": None,
+        "description": rst_to_openapi(metadata.AGGREGATE_POWER.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
 }

@@ -89,7 +89,9 @@ def test_ui_flexcontext_schema():
     schema_keys = set(schema_keys)
     ui_flexcontext_schema_fields = set(ui_flexcontext_schema_fields)
 
-    assert schema_keys == ui_flexcontext_schema_fields
+    assert (
+        schema_keys == ui_flexcontext_schema_fields
+    ), "If this test fails, you may have added a new flex-context field, but forgot about UI support."
 
 
 def test_ui_flexmodel_schema():

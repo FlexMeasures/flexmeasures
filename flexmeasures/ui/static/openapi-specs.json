@@ -609,6 +609,9 @@
               }
             }
           },
+          "400": {
+            "description": "UNKNOWN_FORECAST"
+          },
           "401": {
             "description": "UNAUTHORIZED"
           },
@@ -1163,7 +1166,7 @@
     "/api/v3_0/sensors/{id}/forecasts/trigger": {
       "post": {
         "summary": "Trigger forecasting job for one sensor",
-        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a\njob UUID. The job will run in the background and generate forecast values\nfor the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
+        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a job UUID.\nThe job will run in the background and generate forecasts for the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1186,29 +1189,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "start_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Start date of the historical data used for training."
-                  },
-                  "start_predict_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Start date of the forecast period."
-                  },
-                  "end_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "End date of the forecast period."
-                  }
-                }
+                "$ref": "#/components/schemas/forecasting_trigger_schema_openAPI"
               },
               "example": {
-                "start_date": "2026-01-01T00:00:00+01:00",
-                "start_predict_date": "2026-01-15T00:00:00+01:00",
-                "end_date": "2026-01-17T00:00:00+01:00"
+                "start": "2026-01-15T00:00:00+01:00",
+                "duration": "P2D"
               }
             }
           }
@@ -4103,6 +4088,102 @@
             "items": {
               "type": "integer"
             }
+          },
+          "aggregate-power": {
+            "$ref": "#/components/schemas/SensorReference"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrainPredictPipelineConfigSchemaOpenAPI": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "default": "CustomLGBM"
+          },
+          "future-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor.",
+            "example": [
+              2093,
+              2094
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "past-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor.",
+            "example": [
+              2095
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
+            "example": [
+              2093,
+              2094,
+              2095
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "missing-threshold": {
+            "type": "number",
+            "default": 1.0,
+            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
+            "example": 0.1
+          },
+          "ensure-positive": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": false,
+            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "example": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "forecasting_trigger_schema_openAPI": {
+        "type": "object",
+        "properties": {
+          "duration": {
+            "type": "string",
+            "description": "The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
+            "example": "PT24H"
+          },
+          "start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
+            "example": "2025-01-08T00:00:00+01:00"
+          },
+          "forecast-frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How often to recompute forecasts. This setting can be used to get forecasts from multiple viewpoints, which is especially useful for running simulations. Defaults to the max-forecast-horizon.",
+            "example": "PT1H"
+          },
+          "config": {
+            "description": "Changing any of these will result in a new data source ID.",
+            "$ref": "#/components/schemas/TrainPredictPipelineConfigSchemaOpenAPI"
           }
         },
         "additionalProperties": false
@@ -5346,7 +5427,7 @@
             "example": {
               "sensor": 12
             },
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+            "$ref": "#/components/schemas/SensorReference"
           },
           "charging-efficiency": {
             "description": "One-way conversion efficiency from electricity to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
