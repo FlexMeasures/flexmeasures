@@ -62,7 +62,7 @@ from flexmeasures.api.common.responses import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.utils.coding_utils import (
-    flatten_unique,
+    flatten_sensors_to_show,
 )
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
@@ -896,7 +896,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = flatten_unique(asset.validate_sensors_to_show())
+        sensors = flatten_sensors_to_show(asset.validate_sensors_to_show())
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
     @route("/<id>/auditlog")

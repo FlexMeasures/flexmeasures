@@ -30,7 +30,7 @@ from flexmeasures.auth.policy import (
     CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.coding_utils import flatten_unique
+from flexmeasures.utils.coding_utils import flatten_sensors_to_show
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
@@ -665,7 +665,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :returns: JSON string defining vega-lite chart specs
         """
         processed_sensors_to_show = self.validate_sensors_to_show()
-        sensors = flatten_unique(processed_sensors_to_show)
+        sensors = flatten_sensors_to_show(processed_sensors_to_show)
 
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
@@ -1025,7 +1025,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        sensor_ids = [s.id for s in flatten_unique(sensors)]
+        sensor_ids = [s.id for s in flatten_sensors_to_show(sensors)]
         start, end = get_timerange(sensor_ids)
         return dict(start=start, end=end)
 

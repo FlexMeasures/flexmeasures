@@ -71,8 +71,8 @@ def sort_dict(unsorted_dict: dict) -> dict:
     return sorted_dict
 
 
-# This function is used for sensors_to_show in follow-up PR it will be moved and renamed to flatten_sensors_to_show
-def flatten_unique(nested_list_of_objects: list) -> list:
+# This function is used for sensors_to_show in follow-up PR it will be moved
+def flatten_sensors_to_show(nested_list_of_objects: list) -> list:
     """
     Get unique sensor IDs from a list of `sensors_to_show`.
 

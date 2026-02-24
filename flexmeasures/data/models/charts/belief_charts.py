@@ -11,7 +11,7 @@ from flexmeasures.data.models.charts.defaults import (
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
-from flexmeasures.utils.coding_utils import flatten_unique
+from flexmeasures.utils.coding_utils import flatten_sensors_to_show
 from flexmeasures.utils.unit_utils import find_smallest_common_unit, get_unit_dimension
 
 
@@ -500,7 +500,7 @@ def chart_for_multiple_sensors(
     **override_chart_specs: dict,
 ):
     # Determine the shared data resolution
-    all_shown_sensors = flatten_unique(sensors_to_show)
+    all_shown_sensors = flatten_sensors_to_show(sensors_to_show)
     condition = list(
         sensor.event_resolution
         for sensor in all_shown_sensors
