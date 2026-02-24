@@ -692,10 +692,8 @@ class SensorAPI(FlaskView):
           parameters:
             - name: id
               in: path
-              description: ID of the sensor to schedule.
               required: true
-              schema:
-                type: SensorId
+              schema: SensorId
           requestBody:
             required: true
             content:

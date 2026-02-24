@@ -1257,13 +1257,12 @@
         ],
         "parameters": [
           {
-            "name": "id",
             "in": "path",
-            "description": "ID of the sensor to schedule.",
-            "required": true,
+            "name": "id",
             "schema": {
-              "type": "SensorId"
-            }
+              "type": "integer"
+            },
+            "required": true
           }
         ],
         "requestBody": {
