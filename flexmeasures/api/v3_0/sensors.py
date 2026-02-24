@@ -118,15 +118,6 @@ class TriggerScheduleKwargsSchema(Schema):
             example="2026-01-15T10:00+01:00",
         ),
     )
-    belief_time = AwareDateTimeField(
-        format="iso",
-        data_key="prior",
-        metadata=dict(
-            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
-            "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
-            example="2026-01-15T10:00+01:00",
-        ),
-    )
     duration = PlanningDurationField(
         load_default=PlanningDurationField.load_default,
         metadata=dict(
@@ -141,6 +132,15 @@ class TriggerScheduleKwargsSchema(Schema):
             "Note that the resulting schedule is still saved in the sensor resolution.",
             example="PT2H",
         )
+    )
+    belief_time = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        metadata=dict(
+            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            example="2026-01-15T10:00+01:00",
+        ),
     )
     flex_model = fields.Dict(
         data_key="flex-model",
