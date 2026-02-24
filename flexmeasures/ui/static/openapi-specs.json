@@ -3535,10 +3535,7 @@
             "in": "path",
             "name": "id",
             "required": true,
-            "description": "ID of the asset to schedule.",
-            "schema": {
-              "type": "integer"
-            }
+            "$ref": "#/components/parameters/AssetIdPath"
           }
         ],
         "requestBody": {
@@ -5536,6 +5533,17 @@
           "start"
         ],
         "additionalProperties": false
+      }
+    },
+    "parameters": {
+      "AssetIdPath": {
+        "name": "id",
+        "required": true,
+        "description": "ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account.",
+        "schema": {
+          "type": "integer"
+        },
+        "in": "path"
       }
     },
     "securitySchemes": {
