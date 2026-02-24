@@ -736,7 +736,9 @@ class AssetAPI(FlaskView):
             return unprocessable_entity("No JSON data provided.")
 
         asset_schema = AssetSchema(partial=True)
-        asset_schema.context = {"asset": db_asset}  # context for validating fields like parent_asset_id
+        asset_schema.context = {
+            "asset": db_asset
+        }  # context for validating fields like parent_asset_id
 
         try:
             validated_data = asset_schema.load(asset_data)
