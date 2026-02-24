@@ -23,6 +23,7 @@ from flexmeasures.data.models.generic_assets import (
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
+from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
 from flexmeasures.ui.views.assets.utils import (
@@ -172,6 +173,7 @@ class AssetCrudUI(FlaskView):
         current_asset_sensors = [
             {
                 "name": sensor.name,
+                "resolution": duration_isoformat(sensor.event_resolution),
                 "unit": sensor._ui_unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
