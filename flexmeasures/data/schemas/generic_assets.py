@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 import json
 from http import HTTPStatus
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
@@ -11,7 +11,8 @@ from marshmallow.validate import OneOf
 from flask_security import current_user
 from sqlalchemy import select
 
-
+if TYPE_CHECKING:
+    from flexmeasures import Sensor
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -21,7 +22,6 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
-    extract_sensors_from_flex_config,
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
@@ -427,3 +427,36 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     def _serialize(self, value: GenericAsset, attr, obj, **kwargs) -> int:
         """Turn a GenericAsset into a generic asset id."""
         return value.id
+
+
+def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
+    """
+    Extracts a consolidated list of sensors from an asset based on
+    flex-context or flex-model definitions provided in a plot dictionary.
+    """
+    all_sensors = []
+
+    from flexmeasures.data.schemas.generic_assets import (
+        GenericAssetIdField,
+    )  # Import here to avoid circular imports
+
+    asset = GenericAssetIdField().deserialize(plot.get("asset"))
+
+    fields_to_check = {
+        "flex-context": asset.flex_context,
+        "flex-model": asset.flex_model,
+    }
+
+    for plot_key, flex_config in fields_to_check.items():
+        if plot_key in plot:
+            field_key = plot[plot_key]
+            data = flex_config or {}
+            field_value = data.get(field_key)
+
+            if isinstance(field_value, dict):
+                # Add a single sensor if it exists
+                sensor = field_value.get("sensor")
+                if sensor:
+                    all_sensors.append(sensor)
+
+    return all_sensors
