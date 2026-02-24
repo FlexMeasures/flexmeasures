@@ -282,7 +282,8 @@
                                         <div class="col">
                                             <h6 class="card-title fw-bold pb-2">
                                                 Assets
-                                                <i class="bi bi-info-circle" title="Technically, the site asset is the highest ancestor of the current asset without a parent itself.&#10;&#10;The list includes all descendants of the site asset."></i>
+                                                <i class="bi bi-info-circle"
+                                                    title="Technically, the site asset is the highest ancestor of the current asset without a parent itself.&#10;&#10;The list includes all descendants of the site asset."></i>
 
                                             </h6>
                                             <select id="assetTree" class="form-select">
@@ -971,6 +972,8 @@
 
         window.addNewGraph = addNewGraph;
         window.addSensorAsGraph = addSensorAsGraph;
+        window.addSensorToExistingGraph = addSensorToExistingGraph;
+        window.removePlotFromGraph = removePlotFromGraph;
 
         // ============== Graph Cards Management ============== //
 
