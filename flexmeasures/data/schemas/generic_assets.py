@@ -436,10 +436,6 @@ def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
     """
     all_sensors = []
 
-    from flexmeasures.data.schemas.generic_assets import (
-        GenericAssetIdField,
-    )  # Import here to avoid circular imports
-
     asset = GenericAssetIdField().deserialize(plot.get("asset"))
 
     fields_to_check = {
