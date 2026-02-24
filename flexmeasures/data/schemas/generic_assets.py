@@ -237,11 +237,8 @@ class SensorsToShowSchema(fields.Field):
         >>> SensorsToShowSchema.flatten([1, [2, 20, 6], 10, [6, 2], {"title": None,"sensors": [10, 15]}, 15, {"plots": [{"sensor": 1}, {"sensors": [20, 8]}]}])
         [1, 2, 20, 6, 10, 15, 8]
 
-        Args:
-            nested_list (list): A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
-
-        Returns:
-            list: A unique list of sensor IDs.
+        :param nested_list: A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
+        :returns:           A unique list of sensor IDs, or a unique list of Sensors
         """
         all_objects = []
         for s in nested_list:
