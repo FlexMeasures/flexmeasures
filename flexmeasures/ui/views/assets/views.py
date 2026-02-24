@@ -400,7 +400,7 @@ class AssetCrudUI(FlaskView):
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
 
-        # order by ID in asc
+        # suggestions for the parent asset selection
         account_assets = (
             db.session.query(GenericAsset)
             .filter_by(account_id=asset.account_id)
