@@ -211,15 +211,27 @@ class SensorsToShowSchema(fields.Field):
                 )
 
     @classmethod
-    def flatten(cls, nested_list) -> list[int]:
+    def flatten(cls, nested_list: list) -> list[int] | list[Sensor]:
         """
-        Flatten a nested list of sensors or sensor dictionaries into a unique list of sensor IDs.
+        Flatten a nested list of sensor IDs into a unique list. Also works for Sensor objects.
 
-        This method processes the following formats, for each of the entries of the nested list:
-        - A list of sensor IDs: `[1, 2, 3]`
-        - A list of dictionaries where each dictionary contains a `sensors` list, a `sensor` key or a `plots` key
-        `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5,6]}]}]`
-        - Mixed formats: `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}, 4, 5, 1]`
+        This method processes the following formats for each entry in the list:
+        1. A single sensor ID:
+           `3`
+        2. A list of sensor IDs:
+           `[1, 2]`
+        3. A dictionary with a `sensor` key:
+           `{"sensor": 3}`
+        4. A dictionary with a `sensors` key:
+           `{"sensors": [1, 2]}`
+        5. A dictionary with a `plots` key, containing a list of dictionaries,
+           each with a `sensor` or `sensors` key:
+           `{"plots": [{"sensor": 4}, {"sensors": [5, 6]}]}`
+        6. A dictionary under the `plots` key containing the `asset` key together with a `flex-model` or `flex-context` key,
+           containing a field name or a list of field names:
+            `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
+        7. Mixed formats:
+           `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5, 6]}]}]`
 
         It extracts all sensor IDs, removes duplicates, and returns a flattened list of unique sensor IDs.
 
@@ -249,7 +261,6 @@ class SensorsToShowSchema(fields.Field):
                     all_objects.extend(s["sensors"])
                 elif "sensor" in s:
                     all_objects.append(s["sensor"])
-
         return list(dict.fromkeys(all_objects).keys())
 
 

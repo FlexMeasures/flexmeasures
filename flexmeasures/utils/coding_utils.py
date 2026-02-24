@@ -71,54 +71,6 @@ def sort_dict(unsorted_dict: dict) -> dict:
     return sorted_dict
 
 
-# This function is used for sensors_to_show in follow-up PR it will be moved
-def flatten_sensors_to_show(nested_list_of_objects: list) -> list:
-    """
-    Get unique sensor IDs from a list of `sensors_to_show`.
-
-    Handles:
-    - Lists of sensor IDs
-    - Dictionaries with a `sensors` key
-    - Nested lists (one level)
-    - Dictionaries with `plots` key containing lists of sensors or asset's flex-config reference
-
-    Example:
-        Input:
-        [1, [2, 20, 6], 10, [6, 2], {"title":None,"sensors": [10, 15]}, 15, {"plots": [{"sensor": 1}, {"sensors": [20, 6]}]}]
-
-        Output:
-        [1, 2, 20, 6, 10, 15]
-    """
-    all_objects = []
-    for s in nested_list_of_objects:
-        if isinstance(s, list):
-            all_objects.extend(s)
-        elif isinstance(s, int):
-            all_objects.append(s)
-        elif isinstance(s, dict):
-            if "sensors" in s:
-                all_objects.extend(s["sensors"])
-            elif "sensor" in s:
-                all_objects.append(s["sensor"])
-            elif "plots" in s:
-                from flexmeasures.data.schemas.generic_assets import (
-                    extract_sensors_from_flex_config,
-                )
-
-                for entry in s["plots"]:
-                    if "sensors" in entry:
-                        all_objects.extend(entry["sensors"])
-                    if "sensor" in entry:
-                        all_objects.append(entry["sensor"])
-                    if "asset" in entry:
-                        sensors = extract_sensors_from_flex_config(entry)
-                        all_objects.extend(sensors)
-        else:
-            all_objects.append(s)
-
-    return list(dict.fromkeys(all_objects).keys())
-
-
 def timeit(func):
     """Decorator for printing the time it took to execute the decorated function."""
 

@@ -30,7 +30,6 @@ from flexmeasures.auth.policy import (
     CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.coding_utils import flatten_sensors_to_show
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
@@ -664,8 +663,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
         processed_sensors_to_show = self.validate_sensors_to_show()
-        sensors = flatten_sensors_to_show(processed_sensors_to_show)
+        sensors = SensorsToShowSchema.flatten(processed_sensors_to_show)
 
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
@@ -1025,7 +1026,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        sensor_ids = [s.id for s in flatten_sensors_to_show(sensors)]
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+        sensor_ids = [s.id for s in SensorsToShowSchema.flatten(sensors)]
         start, end = get_timerange(sensor_ids)
         return dict(start=start, end=end)
 
