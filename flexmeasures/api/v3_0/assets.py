@@ -85,6 +85,11 @@ sensors_schema = SensorSchema(many=True)
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = ["asset"]
+        super().__init__(*args, **kwargs)
+
     flex_context = fields.Nested(
         flex_context_schema_openAPI,
         required=True,

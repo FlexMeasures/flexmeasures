@@ -5492,10 +5492,6 @@
       "AssetTriggerOpenAPI": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer",
-            "description": "ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account."
-          },
           "start": {
             "type": "string",
             "format": "date-time",
