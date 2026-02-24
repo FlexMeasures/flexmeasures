@@ -34,3 +34,12 @@ And here are 4 days of (dis)-charging patterns in Seita's V2GLiberty project:
 Charging (blue) mostly happens in sunshine hours, discharging during high-price hours (morning & evening)
 
 So on a technical level, the daily heatmap is essentially a heatmap of the sensor's values, with dates on the y-axis and time of day on the x-axis. For individual devices, it gives an insight into the device's running times. A new button lets users switch between charts.
+
+.. _view_sensors_forecast_button:
+
+Creating a forecast
+-------------------
+
+Users with the ``create-children`` permission on a sensor can create a 24-hour forecast directly from the sensor page by clicking the **Create forecast** button in the left side panel. The button is enabled once the sensor has at least two days of historical data. After clicking, a background job is queued and the page shows progress updates via status messages. When the job finishes, the page reloads to display the new forecast alongside the historical data.
+
+See :ref:`forecasting` for more details on how FlexMeasures generates forecasts.

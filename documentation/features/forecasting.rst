@@ -62,6 +62,11 @@ Note that:
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
 ``train-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
 
+Forecasting via the UI
+-----------------------
+
+The quickest way to create a one-off 24-hour forecast is the **Create forecast** button on the sensor page (see :ref:`view_sensors_forecast_button`). The button is available to users with the ``create-children`` permission on the sensor, provided at least two days of historical data exist. No further configuration is needed — one click queues the job and the page shows progress messages until the forecast is ready.
+
 Forecasting via the API
 -----------------------
 

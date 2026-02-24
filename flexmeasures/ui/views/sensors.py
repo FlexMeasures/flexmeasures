@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from flask import request
 from flask_classful import FlaskView
 from flask_security import login_required
@@ -6,6 +8,7 @@ from webargs.flaskparser import use_kwargs
 
 from flexmeasures.data import db
 from flexmeasures.data.schemas import StartEndTimeSchema
+from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures import Sensor
 from flexmeasures.ui.utils.view_utils import (
     render_flexmeasures_template,
@@ -13,6 +16,7 @@ from flexmeasures.ui.utils.view_utils import (
 )
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.ui.views.assets.utils import (
+    user_can_create_children,
     user_can_delete,
     user_can_update,
 )
@@ -39,11 +43,18 @@ class SensorUI(FlaskView):
         sensor = db.session.get(Sensor, id)
         if sensor is None:
             raise NotFound
+        can_create_children = user_can_create_children(sensor)
+        has_enough_data = False
+        if can_create_children:
+            earliest, latest = get_timerange([sensor.id])
+            has_enough_data = (latest - earliest) >= timedelta(days=2)
         return render_flexmeasures_template(
             "sensors/index.html",
             sensor=sensor,
             user_can_update_sensor=user_can_update(sensor),
             user_can_delete_sensor=user_can_delete(sensor),
+            user_can_create_children_sensor=can_create_children,
+            sensor_has_enough_data_for_forecast=has_enough_data,
             available_units=available_units(),
             msg="",
             breadcrumb_info=get_breadcrumb_info(sensor),
