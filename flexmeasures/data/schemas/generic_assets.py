@@ -454,9 +454,18 @@ def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
     }
 
     for plot_key, flex_config in fields_to_check.items():
-        if plot_key in plot:
-            field_key = plot[plot_key]
-            data = flex_config or {}
+        if plot_key not in plot:
+            continue
+
+        field_keys = plot[plot_key]
+        data = flex_config or {}
+
+        if isinstance(field_keys, str):
+            field_keys = [field_keys]
+        elif not isinstance(field_keys, list):
+            continue
+
+        for field_key in field_keys:
             field_value = data.get(field_key)
 
             if isinstance(field_value, dict):
