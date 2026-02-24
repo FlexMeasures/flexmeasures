@@ -33,6 +33,7 @@ New features
 * Allow unsupported ``flex-context`` or ``flex-model`` fields to be shown in the UI editors (they will be un-editable) [see `PR #1915 <https://www.github.com/FlexMeasures/flexmeasures/pull/1915>`_]
 * Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
 * Add a documentation section on the concept of ``Commitments`` [see `PR #1849 <https://www.github.com/FlexMeasures/flexmeasures/pull/1849>`_]
+* Add resolution column to sensors list on asset context page [see `PR #1986 <https://www.github.com/FlexMeasures/flexmeasures/pull/1986>`_]
 
 
 Infrastructure / Support
