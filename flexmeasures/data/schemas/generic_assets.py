@@ -233,7 +233,9 @@ class SensorsToShowSchema(fields.Field):
         7. Mixed formats:
            `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5, 6]}]}]`
 
-        It extracts all sensor IDs, removes duplicates, and returns a flattened list of unique sensor IDs.
+        Example:
+        >>> SensorsToShowSchema.flatten([1, [2, 20, 6], 10, [6, 2], {"title": None,"sensors": [10, 15]}, 15, {"plots": [{"sensor": 1}, {"sensors": [20, 8]}]}])
+        [1, 2, 20, 6, 10, 15, 8]
 
         Args:
             nested_list (list): A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
