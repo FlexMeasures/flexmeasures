@@ -85,7 +85,7 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
             f"Cannot convert value '{value}' to a valid quantity. {e}"
         )
 
-        
+
 def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
     """
     Extracts a consolidated list of sensors from an asset based on
@@ -118,8 +118,8 @@ def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
 
     return all_sensors
 
-  
-  def snake_to_kebab(key: str) -> str:
+
+def snake_to_kebab(key: str) -> str:
     """Convert snake_case to kebab-case."""
     return key.replace("_", "-")
 
