@@ -488,6 +488,27 @@ def test_timing_parameters_of_forecaster_parameters_schema(
                 "train-period-in-hours": 24 * 3,
             },
         ),
+        # Case 2: train-start is given with train-period = 20 days
+        #
+        # User expects both predict-start and end-date to be derived from train-start.
+        # Specifically from config, we expect:
+        #    - train-period = 20 days
+        #    - max-training-period = default 365 days
+        #    - retraining-frequency = FM planning horizon
+        #    - train-period-in-hours = 480 (20 days)
+        (
+            {
+                "train-start": "2024-12-01T00:00:00+01:00",
+                "train-period": "P20D",
+            },
+            {
+                "model": "CustomLGBM",
+                "train-period": pd.Timedelta(days=20),
+                "max-training-period": pd.Timedelta(days=365),
+                "retrain-frequency": pd.Timedelta(days=2),
+                "train-period-in-hours": 24 * 20,
+            },
+        ),
 def test_timing_parameters_of_forecaster_config_schema(
     setup_dummy_sensors, freeze_server_now, timing_input, expected_timing_output
 ):
