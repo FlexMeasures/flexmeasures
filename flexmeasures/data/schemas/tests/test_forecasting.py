@@ -509,6 +509,29 @@ def test_timing_parameters_of_forecaster_parameters_schema(
                 "train-period-in-hours": 24 * 20,
             },
         ),
+        # Case 3: only end is given with retrain-frequency = 3 days
+        #
+        # User expects train start and predict start to be derived from end-date and defaults.
+        # Specifically from config, we expect:
+        #    - train-period = default 30 days
+        #    - max-training-period = default 365 days
+        #    - retraining-frequency = 12 hours
+        #    - train-period-in-hours = 720 (30 days)
+        (
+            {
+                # "end-date": "2025-01-21T12:00:00+01:00",
+                "retrain-frequency": "P3D",  # only comes into play if forecast-frequency is lower than retrain-frequency, which here it is not
+            },
+            {
+                "model": "CustomLGBM",
+                "train-period": pd.Timedelta(days=30),
+                "max-training-period": pd.Timedelta(days=365),
+                "retrain-frequency": pd.Timedelta(days=3),
+                "train-period-in-hours": 24 * 30,
+            },
+        ),
+    ],
+)
 def test_timing_parameters_of_forecaster_config_schema(
     setup_dummy_sensors, freeze_server_now, timing_input, expected_timing_output
 ):
