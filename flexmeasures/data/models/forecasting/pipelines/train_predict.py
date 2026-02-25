@@ -7,6 +7,7 @@ import time
 import logging
 from datetime import datetime, timedelta
 
+from redis import Redis
 from rq.job import Job
 
 from flask import current_app
@@ -44,11 +45,12 @@ class TrainPredictPipeline(Forecaster):
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
 
-    def run_wrap_up(self, cycle_job_ids: list[str]):
+    def run_wrap_up(self, cycle_job_ids: list[str], queue: str):
         """Log the status of all cycle jobs after completion."""
+        connection = current_app.queues[queue].connection
         for index, job_id in enumerate(cycle_job_ids):
             logging.info(
-                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}"
+                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id, connection=connection).get_status()}"
             )
 
     def run_cycle(
@@ -199,6 +201,7 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
         )
+        connection = current_app.queues[queue].connection
         # How much to move forward to the next cycle one prediction period later
         cycle_frequency = max(
             self._config["retrain_frequency"],
@@ -271,7 +274,7 @@ class TrainPredictPipeline(Forecaster):
                     self.run_cycle,
                     # Some cycle job params override job kwargs
                     kwargs={**job_kwargs, **cycle_params},
-                    connection=current_app.queues[queue].connection,
+                    connection=connection,
                     ttl=int(
                         current_app.config.get(
                             "FLEXMEASURES_JOB_TTL", timedelta(-1)
@@ -299,8 +302,11 @@ class TrainPredictPipeline(Forecaster):
 
             wrap_up_job = Job.create(
                 self.run_wrap_up,
-                kwargs={"cycle_job_ids": cycle_job_ids},  # cycles jobs IDs to wait for
-                connection=current_app.queues[queue].connection,
+                kwargs={
+                    "cycle_job_ids": cycle_job_ids,  # cycles jobs IDs to wait for
+                    "queue": queue,
+                },
+                connection=connection,
                 depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
                 ttl=int(
                     current_app.config.get(
