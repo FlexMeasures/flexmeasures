@@ -7,7 +7,6 @@ import time
 import logging
 from datetime import datetime, timedelta
 
-from redis import Redis
 from rq.job import Job
 
 from flask import current_app
