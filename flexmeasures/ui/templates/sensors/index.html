@@ -35,7 +35,7 @@
                         <div class="sidepanel left-sidepanel" style="text-align: left;">
                             <fieldset>
                                 <h3>Edit {{ sensor.name }}</h3>
-                                <small>Parent asset: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset.id }} )</small>
+                                <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
                                 <form class="form-horizontal" method="POST">
                                 
                                     <div class="form-group">
@@ -62,7 +62,7 @@
                         <div class="sidepanel left-sidepanel" style="text-align: left;">
                             <fieldset>
                                 <h3>Upload {{ sensor.name }} data</h3>
-                                <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
+                                <small>Sensor: {{ sensor.name }} (ID: {{ sensor.id }})</small>
                                 <form id="uploadForm" enctype="multipart/form-data" method="post" class="form-horizontal">
                                     
                                     <div class="mb-3">
@@ -151,6 +151,52 @@ For the data, note the following:
 
                                     
                                 </form>
+                            </fieldset>
+                        </div>
+                    </div>
+                  {% endif %}
+
+                   {% if user_can_create_children_sensor %}
+                    <div class="sidepanel-container">
+                        <div class="left-sidepanel-label">Forecast</div>
+                        <div class="sidepanel left-sidepanel" style="text-align: left;">
+                            <fieldset>
+                                <h3>
+                                    Create forecast
+                                    <i
+                                        class="fa fa-info-circle ms-1"
+                                        title="Queues a job to forecast up to {{ forecast_default_duration_human }} ahead from now. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
+                                        style="cursor: pointer;"
+                                    ></i>
+                                </h3>
+                                <small>Sensor: {{ sensor.name }} (ID: {{ sensor.id }})</small>
+                                {% if sensor_has_enough_data_for_forecast %}
+                                <div class="mb-3" style="margin-top: 10px;">
+                                    <label for="forecastDuration" class="form-label fw-bold">Duration (days)</label>
+                                    <input type="number" class="form-control" id="forecastDuration" min="1" max="7" value="{{ forecast_default_duration_days }}" />
+                                </div>
+                                <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
+                                    <a href="/api/v3_0/docs/#/Sensors/post_api_v3_0_sensors__id__forecasts_trigger" target="_blank" style="font-size: 0.8em;">
+                                        More options <i class="fa fa-external-link ms-1"></i>
+                                    </a>
+                                    <button id="triggerForecastButton" class="btn btn-sm btn-responsive btn-success create-button" type="button"
+                                        style="border: 1px solid var(--light-gray);">
+                                        Trigger job
+                                    </button>
+                                </div>
+                                <div id="spinner-forecast" class="d-none spinner spinner-bottom-right">
+                                    <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+                                    <span class="sr-only">Loading...</span>
+                                </div>
+                                {% else %}
+                                <p style="margin-top: 10px;">
+                                    <small class="text-muted">At least two days of sensor data are needed to create a forecast.</small>
+                                </p>
+                                <button class="btn btn-sm btn-responsive btn-success create-button" type="button" disabled
+                                    style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                    Create forecast
+                                </button>
+                                {% endif %}
                             </fieldset>
                         </div>
                     </div>
@@ -432,6 +478,83 @@ For the data, note the following:
             deleteSensor();
         }
     });
+
+    {% if user_can_create_children_sensor and sensor_has_enough_data_for_forecast %}
+    async function triggerForecast() {
+        const button = document.getElementById('triggerForecastButton');
+        const spinner = document.getElementById('spinner-forecast');
+        const durationDays = parseInt(document.getElementById('forecastDuration').value) || {{ forecast_default_duration_days }};
+        const durationIso = 'P' + durationDays + 'D';
+
+        button.disabled = true;
+        spinner.classList.remove('d-none');
+
+        showToast("Triggering forecast job...", "info");
+
+        try {
+            const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}/forecasts/trigger", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ duration: durationIso }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                showToast("Error triggering forecast: " + (errorData.message || response.statusText), "error");
+                button.disabled = false;
+                spinner.classList.add('d-none');
+                return;
+            }
+
+            const data = await response.json();
+            const jobId = data.forecast;
+
+            showToast("Forecast job queued. Checking status...", "info");
+
+            let finished = false;
+            const maxAttempts = 60; // poll for up to 3 minutes
+            for (let i = 0; i < maxAttempts; i++) {
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                let statusResponse;
+                try {
+                    statusResponse = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}/forecasts/" + jobId);
+                } catch (pollError) {
+                    showToast("Error checking forecast status: " + pollError.message, "error");
+                    break;
+                }
+
+                if (statusResponse.status === 200) {
+                    showToast("Forecast created successfully! Refreshing chart...", "success");
+                    finished = true;
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    document.dispatchEvent(new CustomEvent('sensorsToShowUpdated'));
+                    break;
+                } else if (statusResponse.status === 202) {
+                    const statusData = await statusResponse.json();
+                    showToast("Forecast status: " + statusData.status + "...", "info");
+                } else {
+                    const errorData = await statusResponse.json();
+                    showToast("Forecast job failed: " + (errorData.message || "Unknown error"), "error");
+                    break;
+                }
+            }
+
+            if (!finished) {
+                showToast("Forecast job timed out or failed.", "error");
+            }
+        } catch (error) {
+            showToast("Error: " + error.message, "error");
+        } finally {
+            button.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+
+    document.getElementById('triggerForecastButton').addEventListener('click', triggerForecast);
+    {% endif %}
 </script>
 
 {% endblock %}
