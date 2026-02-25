@@ -3,7 +3,10 @@ import pytest
 from marshmallow import ValidationError
 import pandas as pd
 
-from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema, TrainPredictPipelineConfigSchema
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
+    TrainPredictPipelineConfigSchema,
+)
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
 
