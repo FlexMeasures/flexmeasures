@@ -61,6 +61,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix: schedules are no longer saved upside down [see `PR #1348 <https://www.github.com/FlexMeasures/flexmeasures/pull/1348>`_]
 * Fix: visiting the job page for any forecasting job led to a server error ("Object of type datetime is not JSON serializable"), by storing serialized kwargs in forecasting job meta [see `PR #1990 <https://www.github.com/FlexMeasures/flexmeasures/pull/1990>`_]
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
 * Bring back the ability to show (timed) annotations on the sensor page, and add some color highlighting, too, while we're at it [see `PR #1967 <https://www.github.com/FlexMeasures/flexmeasures/pull/1967>`_]
