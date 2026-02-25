@@ -517,3 +517,72 @@ def test_mixed_gas_and_electricity_assets(app, db):
         entry for entry in schedules if entry.get("name") == "commitment_costs"
     ]
     assert len(commitment_costs) == 1
+
+
+def test_two_devices_shared_stock(app, db):
+
+    # ---- time
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    # ---- assets
+    battery_type = get_or_create_model(GenericAssetType, name="battery")
+
+    b1 = GenericAsset(name="B1", generic_asset_type=battery_type)
+    b2 = GenericAsset(name="B2", generic_asset_type=battery_type)
+
+    db.session.add_all([b1, b2])
+    db.session.commit()
+
+    s1 = Sensor(name="power1", unit="kW", event_resolution=resolution, generic_asset=b1)
+    s2 = Sensor(name="power2", unit="kW", event_resolution=resolution, generic_asset=b2)
+
+    db.session.add_all([s1, s2])
+    db.session.commit()
+
+    # ---- shared stock
+    flex_model = [
+        {
+            "sensor": s1.id,
+            "stock-id": "tank_A",
+            "soc-at-start": 0,
+            "soc-min": 0,
+            "soc-max": 50,
+            "power-capacity": "50 kW",
+        },
+        {
+            "sensor": s2.id,
+            "stock-id": "tank_A",
+            "soc-at-start": 0,
+            "soc-min": 0,
+            "soc-max": 50,
+            "power-capacity": "50 kW",
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "10 EUR/MWh",
+        "production-price": "10 EUR/MWh",
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=b1,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    schedules = scheduler.compute(skip_validation=True)
+
+    # extract SoC schedules
+    soc_schedules = [s for s in schedules if s["name"] == "state_of_charge"]
+
+    # total shared stock must never exceed 50
+    total_soc = soc_schedules[0]["data"] + soc_schedules[1]["data"]
+
+    assert total_soc.max() <= 50 + 1e-6
