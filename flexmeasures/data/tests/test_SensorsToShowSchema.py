@@ -1,6 +1,7 @@
 import pytest
 from marshmallow import ValidationError
 
+from flexmeasures import Sensor
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
 
@@ -45,6 +46,38 @@ def test_dict_with_asset_and_no_title_plot(setup_test_data):
         {"title": None, "plots": [{"asset": asset_id, "flex-model": "soc-min"}]}
     ]
     assert schema.deserialize(input_value) == expected_output
+
+
+def _get_sensor_by_name(sensors: list[Sensor], name: str) -> Sensor:
+    for sensor in sensors:
+        if sensor.name == name:
+            return sensor
+    raise ValueError(f"Sensor {name} not found")
+
+
+def test_flatten_with_multiple_flex_config_fields(setup_test_data):
+    asset = setup_test_data["wind-asset-1"]
+    schema = SensorsToShowSchema()
+    input_value = [
+        {
+            "plots": [
+                {
+                    "asset": asset.id,
+                    "flex-model": ["consumption-capacity", "production-capacity"],
+                    "flex-context": "site-consumption-capacity",
+                }
+            ]
+        }
+    ]
+    expected_output = [
+        _get_sensor_by_name(asset.sensors, name).id
+        for name in (
+            "site-consumption-capacity",
+            "consumption-capacity",
+            "production-capacity",
+        )
+    ]
+    assert schema.flatten(input_value) == expected_output
 
 
 def test_invalid_sensor_string_input():
