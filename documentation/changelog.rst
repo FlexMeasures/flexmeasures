@@ -25,6 +25,7 @@ New features
 * Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_]
 * Give ability to edit sensor timezone from the UI [see `PR #1900 <https://www.github.com/FlexMeasures/flexmeasures/pull/1900>`_]
 * Support creating schedules with only information known prior to some time, now also via the CLI (the API already supported it) [see `PR #1871 <https://www.github.com/FlexMeasures/flexmeasures/pull/1871>`_].
+* Added capability to upate an asset's parent from the UI [`PR #1957 <https://www.github.com/FlexMeasures/flexmeasures/pull/1957>`_]
 * Add ``fields`` param to the asset-listing endpoints, to save bandwidth in response data [see `PR #1884 <https://www.github.com/FlexMeasures/flexmeasures/pull/1884>`_]
 
   .. note:: For backwards-compatibility, the new ``fields`` parameter will only be fully active, i.e. also returning less fields per default, in v0.32. Set ``FLEXMEASURES_API_SUNSET_ACTIVE=True`` to test the full effect now.
@@ -33,6 +34,7 @@ New features
 * Allow unsupported ``flex-context`` or ``flex-model`` fields to be shown in the UI editors (they will be un-editable) [see `PR #1915 <https://www.github.com/FlexMeasures/flexmeasures/pull/1915>`_]
 * Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
 * Add a documentation section on the concept of ``Commitments`` [see `PR #1849 <https://www.github.com/FlexMeasures/flexmeasures/pull/1849>`_]
+* Add resolution column to sensors list on asset context page [see `PR #1986 <https://www.github.com/FlexMeasures/flexmeasures/pull/1986>`_]
 
 
 Infrastructure / Support
@@ -60,6 +62,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix: visiting the job page for any forecasting job led to a server error ("Object of type datetime is not JSON serializable"), by storing serialized kwargs in forecasting job meta [see `PR #1990 <https://www.github.com/FlexMeasures/flexmeasures/pull/1990>`_]
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
 * Bring back the ability to show (timed) annotations on the sensor page, and add some color highlighting, too, while we're at it [see `PR #1967 <https://www.github.com/FlexMeasures/flexmeasures/pull/1967>`_]
 * Fixed toast notification display on the sensor detail upload form [see `PR #1921 <https://www.github.com/FlexMeasures/flexmeasures/pull/1921>`_]

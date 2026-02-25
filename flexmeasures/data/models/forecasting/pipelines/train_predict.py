@@ -261,10 +261,12 @@ class TrainPredictPipeline(Forecaster):
             cycle_job_ids = []
 
             # job metadata for tracking
+            # Serialize start and end to ISO format strings
+            # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
             job_metadata = {
                 "data_source_info": {"id": self.data_source.id},
-                "start": self._parameters["predict_start"],
-                "end": self._parameters["end_date"],
+                "start": self._parameters["predict_start"].isoformat(),
+                "end": self._parameters["end_date"].isoformat(),
                 "sensor_id": self._parameters["sensor_to_save"].id,
             }
             for cycle_params in cycles_job_params:

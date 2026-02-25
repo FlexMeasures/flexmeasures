@@ -3,7 +3,10 @@ import pytest
 from marshmallow import ValidationError
 import pandas as pd
 
-from flexmeasures.data.schemas.forecasting.pipeline import ForecasterParametersSchema
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
+    TrainPredictPipelineConfigSchema,
+)
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
 
@@ -160,43 +163,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 4,
             },
         ),
-        # Case 4: (config) retraining-period = 12 hours
-        #
-        # User expects to get forecasts for the default FM planning horizon from a new viewpoint every 12 hours (retraining at every viewpoint).
-        # Specifically, we expect:
-        #    - predict-period = FM planning horizon
-        #    - max-forecast-horizon = predict-period (actual horizons are 48, 36, 24 and 12)
-        #    - forecast-frequency = predict-period (NOT capped by retraining-period, no param changes based on config)
-        #    - 1 cycle, 1 belief time
-        # (
-        #     {
-        #         "retrain-frequency": "PT12H",
-        #         "end-date": "2025-01-17T12:00:00+01:00",
-        #     },
-        #     {
-        #         "predict_start": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ).floor("1h"),
-        #         "start_date": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ).floor("1h")
-        #         - pd.Timedelta(days=30),
-        #         "train_period_in_hours": 30 * 24,
-        #         "predict_period_in_hours": 48,
-        #         "max_forecast_horizon": pd.Timedelta(hours=48),
-        #         "forecast_frequency": pd.Timedelta(hours=48),
-        #         "end_date": pd.Timestamp(
-        #             "2025-01-17T12:00:00+01", tz="Europe/Amsterdam"
-        #         ),
-        #         "retrain-frequency": 12,
-        #         "max_training_period": pd.Timedelta(days=365),
-        #         "save_belief_time": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
-        #         ),
-        #         "m_viewpoints": 1,
-        #     },
-        # ),
-        # Case 5: predict-period = 10 days and max-forecast-horizon = 12 hours
+        # Case 4: predict-period = 10 days and max-forecast-horizon = 12 hours
         #
         # User expects to get a ValidationError for having set parameters that won't give complete coverage of the predict-period.
         (
@@ -212,7 +179,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 }
             ),
         ),
-        # Case 6: predict-period = 12 hours and max-forecast-horizon = 10 days
+        # Case 5: predict-period = 12 hours and max-forecast-horizon = 10 days
         #
         # User expects that FM complains: the max-forecast-horizon should be lower than the predict-period
         #    - forecast-frequency = predict-period
@@ -231,7 +198,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 }
             ),
         ),
-        # Case 7: end-date = almost 5 days after now
+        # Case 6: end-date = almost 5 days after now
         #
         # User expects to get forecasts for the next 5 days (from server now floored to 1 hour) with a default 30-day training period
         #    - predict-period = 5 days
@@ -276,7 +243,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 8: end-date = almost 4.5 days after now, train-start is 26.5 days before now
+        # Case 7: end-date = almost 4.5 days after now, train-start is 26.5 days before now
         #
         # User expects to get forecasts for the next 4.5 days (from server now floored to 1 hour) with a custom 636-hour training period
         #    - predict-period = 108 hours
@@ -314,7 +281,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 9: end-date is given with train-period = 3 days
+        # Case 8: end-date is given with train-period = 3 days
         #
         # User expects the start date to be computed from the inferred predict-start and train-period.
         # Specifically, we expect:
@@ -359,51 +326,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 10: train-start is given with train-period = 3 days
-        #
-        # User expects predict-start to be derived from train-start + train-period.
-        # Specifically, we expect:
-        #    - predict-start = train-start + 3 days
-        #    - predict-period = FM planning horizon (48 hours)
-        #    - end-date = predict-start + 48 hours
-        #    - max-forecast-horizon = predict-period = 48 hours
-        #    - forecast-frequency = predict-period = 48 hours
-        #    - retrain-frequency = FM planning horizon
-        #    - 1 cycle, 1 belief time
-        # (
-        #     {
-        #         # "train-start": "2024-12-25T00:00:00+01:00",
-        #         # "train-period": "P3D",
-        #     },
-        #     {
-        #         # "train-start": pd.Timestamp(
-        #         #     "2024-12-25T00:00:00+01", tz="Europe/Amsterdam"
-        #         # ),
-        #         "predict-start": pd.Timestamp(
-        #             "2024-12-25T00:00:00+01", tz="Europe/Amsterdam"
-        #         )
-        #         + pd.Timedelta(days=3),
-        #         "end-date": pd.Timestamp(
-        #             "2024-12-28T00:00:00+01", tz="Europe/Amsterdam"
-        #         )
-        #         + pd.Timedelta(days=2),
-        #         # "train-period-in-hours": 72,
-        #         "max-forecast-horizon": pd.Timedelta(
-        #             days=2
-        #         ),  # duration between predict start and end date
-        #         "forecast-frequency": pd.Timedelta(
-        #             days=2
-        #         ),  # duration between predict start and end date
-        #         # default values
-        #         "predict-period-in-hours": 48,
-        #         # "retrain_frequency": 2 * 24,
-        #         # "max-training-period": pd.Timedelta(days=365),
-        #         # the belief time of the forecasts will be calculated from start and max-forecast-horizon and forecast-frequency
-        #         "save-belief-time": None,
-        #         "m_viewpoints": 1,
-        #     },
-        # ),
-        # Case 11: train-start is given with predict-period duration = 3 days
+        # Case 9: train-start is given with predict-period duration = 3 days
         #
         # User expects predict-start to remain based on server now (no train-period given).
         # Specifically, we expect:
@@ -449,93 +372,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 12: train-start is given with train-period = 20 days and duration = 3 days
-        #
-        # User expects both predict-start and end-date to be derived from train-start.
-        # Specifically, we expect:
-        #    - predict-start = train-start + 20 days
-        #    - predict-period = 3 days
-        #    - end-date = train-start + 23 days
-        #    - max-forecast-horizon = predict-period = 3 days
-        #    - forecast-frequency = predict-period = 3 days
-        #    - retrain-frequency = FM planning horizon
-        #    - 1 cycle, 1 belief time
-        # (
-        #     {
-        #         # "train-start": "2024-12-01T00:00:00+01:00",
-        #         # "train-period": "P20D",
-        #         "duration": "P3D",
-        #     },
-        #     {
-        #         # "start-date": pd.Timestamp(
-        #         #     "2024-12-01T00:00:00+01", tz="Europe/Amsterdam"
-        #         # ),
-        #         "predict-start": pd.Timestamp(
-        #             "2024-12-01T00:00:00+01", tz="Europe/Amsterdam"
-        #         )
-        #         + pd.Timedelta(days=20),
-        #         "end-date": pd.Timestamp(
-        #             "2024-12-01T00:00:00+01", tz="Europe/Amsterdam"
-        #         )
-        #         + pd.Timedelta(days=23),
-        #         # "train-period-in-hours": 480,
-        #         "predict-period-in-hours": 72,
-        #         # defaults to prediction period (duration)
-        #         "max-forecast-horizon": pd.Timedelta(days=3),
-        #         "forecast-frequency": pd.Timedelta(days=3),
-        #         # default values
-        #         # "retrain_frequency": 2 * 24,
-        #         # "max-training-period": pd.Timedelta(days=365),
-        #         # the belief time of the forecasts will be calculated from start and max-forecast-horizon and forecast-frequency
-        #         "save-belief-time": None,
-        #     },
-        # ),
-        # Case 13: only end is given with retrain-frequency = 3 days
-        #
-        # User expects train start and predict start to be derived from end-date and defaults.
-        # Specifically, we expect:
-        #    - predict-start = end-date - default duration (FM planning horizon)
-        #    - train-period = default 30 days
-        #    - train-start = predict-start - 30 days
-        #    - predict-period = 6 days
-        #    - max-forecast-horizon = predict-period = 6 days
-        #    - forecast-frequency = predict-period = 6 days
-        #    - retrain-frequency = 3 days (explicit)
-        #    - 1 cycle, 1 belief time
-        # (
-        #     {
-        #         "end-date": "2025-01-21T12:00:00+01:00",
-        #         "retrain-frequency": "P3D",  # only comes into play if forecast-frequency is lower than retrain-frequency, which here it is not
-        #     },
-        #     {
-        #         "end-date": pd.Timestamp(
-        #             "2025-01-21T12:00:00+01", tz="Europe/Amsterdam"
-        #         ),
-        #         "predict-start": pd.Timestamp(
-        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-        #         ),
-        #         "start-date": pd.Timestamp(
-        #             "2025-01-15T12:00:00+01", tz="Europe/Amsterdam"
-        #         )
-        #         - pd.Timedelta(days=30),
-        #         "predict-period-in-hours": 144,  # from predict start to end date
-        #         "train-period-in-hours": 30 * 24,
-        #         "max-forecast-horizon": pd.Timedelta(
-        #             days=6
-        #         ),  # duration between predict start and end date
-        #         "forecast-frequency": pd.Timedelta(hours=144),
-        #         # default values
-        #         "max-training-period": pd.Timedelta(days=365),
-        #         "retrain-frequency": 3 * 24,
-        #         # server now
-        #         "save-belief-time": pd.Timestamp(
-        #             "2025-01-15T12:23:58.387422+01",
-        #             tz="Europe/Amsterdam",
-        #         ),
-        #         "m_viewpoints": 1,  # we expect 1 cycle from the forecast-frequency defaulting to the predict-period
-        #     },
-        # ),
-        # Case 14: forecast-frequency = 5 days, predict-period = 10 days
+        # Case 10: forecast-frequency = 5 days, predict-period = 10 days
         #
         # User expects to get forecasts for 10 days from two unique viewpoints 5 days apart.
         # Specifically, we expect:
@@ -603,6 +440,123 @@ def test_timing_parameters_of_forecaster_parameters_schema(
         }
     )
     # breakpoint()
+    for k, v in expected_timing_output.items():
+        # Convert kebab-case key to snake_case to match data dictionary keys returned by schema
+        snake_key = kebab_to_snake(k)
+        assert data[snake_key] == v, f"{k} did not match expectations."
+
+
+@pytest.mark.parametrize(
+    ["timing_input", "expected_timing_output"],
+    [
+        # Case 0: (config) retraining-period = 12 hours
+        #
+        # User expects to get forecasts for the default FM planning horizon from a new viewpoint every 12 hours (retraining at every viewpoint).
+        # Specifically from config, we expect:
+        #    - train-period = default 30 days
+        #    - max-training-period = default 365 days
+        #    - retraining-frequency = 12 hours
+        #    - train-period-in-hours = 720 (30 days)
+        (
+            {
+                "retrain-frequency": "PT12H",
+                # "end-date": "2025-01-17T12:00:00+01:00",
+            },
+            {
+                "model": "CustomLGBM",
+                "train-period": pd.Timedelta(days=30),
+                "max-training-period": pd.Timedelta(days=365),
+                "retrain-frequency": pd.Timedelta(hours=12),
+                "train-period-in-hours": 24 * 30,
+            },
+        ),
+        # Case 1: train-start is given with train-period = 3 days
+        #
+        # User expects predict-start to be derived from train-start + train-period.
+        # Specifically from config, we expect:
+        #    - train-period = 3 days
+        #    - max-training-period = default 365 days
+        #    - retraining-frequency = FM planning horizon
+        #    - train-period-in-hours = 72 (3 days)
+        (
+            {
+                "train-start": "2024-12-25T00:00:00+01:00",
+                "train-period": "P3D",
+            },
+            {
+                "model": "CustomLGBM",
+                "train-period": pd.Timedelta(days=3),
+                "max-training-period": pd.Timedelta(days=365),
+                "retrain-frequency": pd.Timedelta(days=2),
+                "train-period-in-hours": 24 * 3,
+            },
+        ),
+        # Case 2: train-start is given with train-period = 20 days
+        #
+        # User expects both predict-start and end-date to be derived from train-start.
+        # Specifically from config, we expect:
+        #    - train-period = 20 days
+        #    - max-training-period = default 365 days
+        #    - retraining-frequency = FM planning horizon
+        #    - train-period-in-hours = 480 (20 days)
+        (
+            {
+                "train-start": "2024-12-01T00:00:00+01:00",
+                "train-period": "P20D",
+            },
+            {
+                "model": "CustomLGBM",
+                "train-period": pd.Timedelta(days=20),
+                "max-training-period": pd.Timedelta(days=365),
+                "retrain-frequency": pd.Timedelta(days=2),
+                "train-period-in-hours": 24 * 20,
+            },
+        ),
+        # Case 3: only end is given with retrain-frequency = 3 days
+        #
+        # User expects train start and predict start to be derived from end-date and defaults.
+        # Specifically from config, we expect:
+        #    - train-period = default 30 days
+        #    - max-training-period = default 365 days
+        #    - retraining-frequency = 12 hours
+        #    - train-period-in-hours = 720 (30 days)
+        (
+            {
+                # "end-date": "2025-01-21T12:00:00+01:00",
+                "retrain-frequency": "P3D",  # only comes into play if forecast-frequency is lower than retrain-frequency, which here it is not
+            },
+            {
+                "model": "CustomLGBM",
+                "train-period": pd.Timedelta(days=30),
+                "max-training-period": pd.Timedelta(days=365),
+                "retrain-frequency": pd.Timedelta(days=3),
+                "train-period-in-hours": 24 * 30,
+            },
+        ),
+    ],
+)
+def test_timing_parameters_of_forecaster_config_schema(
+    setup_dummy_sensors, freeze_server_now, timing_input, expected_timing_output
+):
+    freeze_server_now(
+        pd.Timestamp("2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam")
+    )
+
+    if isinstance(expected_timing_output, ValidationError):
+        with pytest.raises(ValidationError) as exc:
+            TrainPredictPipelineConfigSchema().load(
+                {
+                    **timing_input,
+                }
+            )
+        assert exc.value.messages == expected_timing_output.messages
+        return
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            **timing_input,
+        }
+    )
+
     for k, v in expected_timing_output.items():
         # Convert kebab-case key to snake_case to match data dictionary keys returned by schema
         snake_key = kebab_to_snake(k)
