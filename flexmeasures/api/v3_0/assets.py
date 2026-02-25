@@ -25,7 +25,10 @@ from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
     get_sensor_stats,
 )
-from flexmeasures.api.common.schemas.utils import make_openapi_compatible
+from flexmeasures.api.common.schemas.scheduling import (
+    flex_context_schema_openAPI,
+    storage_flex_model_schema_openAPI,
+)
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
@@ -48,8 +51,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
 )
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
-from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
@@ -81,12 +83,12 @@ sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
 
-# Create FlexContext, FlexModel and AssetTrigger OpenAPI compatible schemas
-storage_flex_model_schema_openAPI = make_openapi_compatible(StorageFlexModelSchema)
-flex_context_schema_openAPI = make_openapi_compatible(FlexContextSchema)
-
-
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = ["asset"]
+        super().__init__(*args, **kwargs)
+
     flex_context = fields.Nested(
         flex_context_schema_openAPI,
         required=True,
@@ -96,7 +98,7 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
         ),
     )
     flex_model = fields.Nested(
-        storage_flex_model_schema_openAPI,
+        storage_flex_model_schema_openAPI(exclude=["asset"]),
         required=True,
         data_key="flex-model",
         metadata=dict(
@@ -662,7 +664,6 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_args(patch_asset_schema)
     @use_kwargs(
         {
             "db_asset": AssetIdField(
@@ -673,7 +674,7 @@ class AssetAPI(FlaskView):
     )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
-    def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
+    def patch(self, id: int, db_asset: GenericAsset):
         """
         .. :quickref: Assets; Update an asset given its identifier.
         ---
@@ -731,10 +732,26 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # For us to be able to add our own context, we need to validate the data ourselves
+        asset_data = request.get_json()
+        if not asset_data:
+            return unprocessable_entity("No JSON data provided.")
+
+        asset_schema = AssetSchema(partial=True)
+        asset_schema.context = {
+            "asset": db_asset
+        }  # context for validating fields like parent_asset_id
+
         try:
-            db_asset = patch_asset(db_asset, asset_data)
+            validated_data = asset_schema.load(asset_data)
         except ValidationError as e:
-            return unprocessable_entity(str(e.messages))
+            return unprocessable_entity(e.messages)
+
+        try:
+            db_asset = patch_asset(db_asset, validated_data)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -1286,9 +1303,7 @@ class AssetAPI(FlaskView):
             - in: path
               name: id
               required: true
-              description: ID of the asset to schedule.
-              schema:
-                type: integer
+              $ref: '#/components/parameters/AssetIdPath'
 
           requestBody:
               content:

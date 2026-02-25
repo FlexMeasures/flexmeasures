@@ -371,7 +371,8 @@
             "description": "Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
             "schema": {
               "type": "string",
-              "example": "PT1H"
+              "example": "PT1H",
+              "format": "duration"
             },
             "required": true
           },
@@ -381,7 +382,8 @@
             "description": "All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
             "schema": {
               "type": "string",
-              "example": "PT2H"
+              "example": "PT2H",
+              "format": "duration"
             },
             "required": false
           },
@@ -608,6 +610,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "UNKNOWN_FORECAST"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -1163,7 +1168,7 @@
     "/api/v3_0/sensors/{id}/forecasts/trigger": {
       "post": {
         "summary": "Trigger forecasting job for one sensor",
-        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a\njob UUID. The job will run in the background and generate forecast values\nfor the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
+        "description": "Trigger a forecasting job for a sensor.\n\nThis endpoint starts a forecasting job asynchronously and returns a job UUID.\nThe job will run in the background and generate forecasts for the specified period.\n\nOnce triggered, the job status and results can be retrieved using the\n``GET /api/v3_0/sensors/<id>/forecasts/<uuid>`` endpoint.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1186,29 +1191,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "start_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Start date of the historical data used for training."
-                  },
-                  "start_predict_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Start date of the forecast period."
-                  },
-                  "end_date": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "End date of the forecast period."
-                  }
-                }
+                "$ref": "#/components/schemas/forecasting_trigger_schema_openAPI"
               },
               "example": {
-                "start_date": "2026-01-01T00:00:00+01:00",
-                "start_predict_date": "2026-01-15T00:00:00+01:00",
-                "end_date": "2026-01-17T00:00:00+01:00"
+                "start": "2026-01-15T00:00:00+01:00",
+                "duration": "P2D"
               }
             }
           }
@@ -3548,10 +3535,7 @@
             "in": "path",
             "name": "id",
             "required": true,
-            "description": "ID of the asset to schedule.",
-            "schema": {
-              "type": "integer"
-            }
+            "$ref": "#/components/parameters/AssetIdPath"
           }
         ],
         "requestBody": {
@@ -3905,7 +3889,13 @@
       "Quantity": {
         "type": "string",
         "description": "Quantity string describing a fixed quantity.",
-        "example": "130 EUR/MWh"
+        "examples": [
+          "130 EUR/MWh",
+          "12 V",
+          "4.5 m/s",
+          "20 \u00b0C",
+          "3 * 230V * 16A"
+        ]
       },
       "SensorReference": {
         "type": "object",
@@ -4105,7 +4095,102 @@
             }
           },
           "aggregate-power": {
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+            "$ref": "#/components/schemas/SensorReference"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrainPredictPipelineConfigSchemaOpenAPI": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "default": "CustomLGBM"
+          },
+          "future-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor.",
+            "example": [
+              2093,
+              2094
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "past-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor.",
+            "example": [
+              2095
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
+            "example": [
+              2093,
+              2094,
+              2095
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "missing-threshold": {
+            "type": "number",
+            "default": 1.0,
+            "description": "Maximum fraction of missing data allowed before raising an error. Defaults to 1.0.",
+            "example": 0.1
+          },
+          "ensure-positive": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": false,
+            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "example": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "forecasting_trigger_schema_openAPI": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
+            "example": "2025-01-08T00:00:00+01:00"
+          },
+          "duration": {
+            "type": "string",
+            "description": "The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
+            "example": "PT24H",
+            "format": "duration"
+          },
+          "forecast-frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How often to recompute forecasts. This setting can be used to get forecasts from multiple viewpoints, which is especially useful for running simulations. Defaults to the max-forecast-horizon.",
+            "example": "PT1H",
+            "format": "duration"
+          },
+          "config": {
+            "description": "Changing any of these will result in a new data source ID.",
+            "$ref": "#/components/schemas/TrainPredictPipelineConfigSchemaOpenAPI"
           }
         },
         "additionalProperties": false
@@ -4988,7 +5073,8 @@
           "event_resolution": {
             "type": "string",
             "description": "The duration of events recorded by the sensor.",
-            "example": "PT15M"
+            "example": "PT15M",
+            "format": "duration"
           },
           "entity_address": {
             "type": "string",
@@ -5025,12 +5111,14 @@
           "duration": {
             "type": "string",
             "description": "Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
-            "example": "PT1H"
+            "example": "PT1H",
+            "format": "duration"
           },
           "horizon": {
             "type": "string",
             "description": "All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
-            "example": "PT2H"
+            "example": "PT2H",
+            "format": "duration"
           },
           "prior": {
             "type": "string",
@@ -5086,21 +5174,23 @@
             "description": "Start time of the schedule, in ISO 8601 datetime format.",
             "example": "2026-01-15T10:00+01:00"
           },
+          "duration": {
+            "type": "string",
+            "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
+            "example": "PT24H",
+            "format": "duration"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "The resolution of the requested schedule in ISO 8601 duration format. This governs how often setpoints are allowed to change. Note that the resulting schedule is still saved in the sensor resolution.",
+            "example": "PT2H",
+            "format": "duration"
+          },
           "prior": {
             "type": "string",
             "format": "date-time",
             "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
-          },
-          "duration": {
-            "type": "string",
-            "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
-            "example": "PT24H"
-          },
-          "resolution": {
-            "type": "string",
-            "description": "The resolution of the requested schedule in ISO 8601 duration format. This governs how often setpoints are allowed to change. Note that the resulting schedule is still saved in the sensor resolution.",
-            "example": "PT2H"
           },
           "flex-model": {
             "type": "object",
@@ -5257,10 +5347,6 @@
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
-          "asset": {
-            "type": "integer",
-            "description": "ID of the asset that is requested to be scheduled."
-          },
           "soc-at-start": {
             "type": "string",
             "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).\nUsually added to each scheduling request.\n",
@@ -5349,7 +5435,7 @@
             "example": {
               "sensor": 12
             },
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+            "$ref": "#/components/schemas/SensorReference"
           },
           "charging-efficiency": {
             "description": "One-way conversion efficiency from electricity to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
@@ -5403,10 +5489,6 @@
       "AssetTriggerOpenAPI": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer",
-            "description": "ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account."
-          },
           "start": {
             "type": "string",
             "format": "date-time",
@@ -5422,12 +5504,14 @@
           "duration": {
             "type": "string",
             "description": "The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
-            "example": "PT24H"
+            "example": "PT24H",
+            "format": "duration"
           },
           "resolution": {
             "type": "string",
             "description": "The resolution of the requested schedule in ISO 8601 duration format. This governs how often setpoints are allowed to change. Note that the resulting schedule is still saved in the resolution of each individual sensor.",
-            "example": "PT2H"
+            "example": "PT2H",
+            "format": "duration"
           },
           "flex-model": {
             "description": "The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
@@ -5449,6 +5533,17 @@
           "start"
         ],
         "additionalProperties": false
+      }
+    },
+    "parameters": {
+      "AssetIdPath": {
+        "name": "id",
+        "required": true,
+        "description": "ID of the asset that is requested to be scheduled. Together with its children and their further offspring, the asset may represent a tree of assets, in which case the whole asset tree will be taken into account.",
+        "schema": {
+          "type": "integer"
+        },
+        "in": "path"
       }
     },
     "securitySchemes": {

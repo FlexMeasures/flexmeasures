@@ -51,7 +51,7 @@ def lookup_model_specs_configurator(
 
     Model meta data in this context means a tuple of:
         * timetomodel.ModelSpecs. To fill in those specs, a configurator should accept:
-          - old_sensor: Union[Asset, Market, WeatherSensor],
+          - old_sensor: Asset | Market | WeatherSensor,
           - start: datetime,  # Start of forecast period
           - end: datetime,  # End of forecast period
           - horizon: timedelta,  # Duration between time of forecasting and time which is forecast
@@ -75,18 +75,21 @@ class Forecaster(DataGenerator):
 
     _config_schema = ForecasterConfigSchema()
 
-    def _compute(self, check_output_resolution=True, **kwargs) -> list[dict[str, Any]]:
+    def _compute(
+        self, check_output_resolution=True, as_job: bool = False, **kwargs
+    ) -> list[dict[str, Any]]:
         """This method triggers the creation of a new forecast.
 
         The same object can generate multiple forecasts with different start, end, resolution and belief_time values.
 
         :param check_output_resolution: If True, checks each output for whether the event_resolution
                                         matches that of the sensor it is supposed to be recorded on.
+        :param as_job:                  If True, runs as a job.
         """
 
-        results = self._compute_forecast(**kwargs)
+        results = self._compute_forecast(**kwargs, as_job=as_job)
 
-        if not kwargs.get("as_job", False):
+        if not as_job:
             for result in results:
                 # checking that the event_resolution of the output BeliefDataFrame is equal to the one of the output sensor
                 assert not check_output_resolution or (
@@ -95,10 +98,11 @@ class Forecaster(DataGenerator):
 
         return results
 
-    def _compute_forecast(self, **kwargs) -> list[dict[str, Any]]:
+    def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
         """Overwrite with the actual computation of your forecast.
 
-        :returns list of dictionaries, for example:
+        :param as_job:  If True, runs as a job.
+        :returns:       List of dictionaries, for example:
                  [
                      {
                          "sensor": 501,
@@ -113,28 +117,32 @@ class Forecaster(DataGenerator):
 
         These parameters are already contained in the TimedBelief:
 
-        - end_date:             as the event end
-        - max_forecast_horizon: as the maximum belief horizon of the beliefs for a given event
-        - forecast_frequency:   as the spacing between unique belief times
+        - end-date:             as the event end
+        - max-forecast-horizon: as the maximum belief horizon of the beliefs for a given event
+        - forecast-frequency:   as the spacing between unique belief times
         - probabilistic:        as the cumulative_probability of each belief
-        - sensor_to_save:       as the sensor on which the beliefs are recorded
+        - sensor-to-save:       as the sensor on which the beliefs are recorded
 
         Other:
 
-        - model_save_dir:       used internally for the train and predict pipelines to save and load the model
-        - output_path:          for exporting forecasts to file, more of a developer feature
-        - as_job:               only indicates whether the computation was offloaded to a worker
+        - model-save-dir:       used internally for the train and predict pipelines to save and load the model
+        - output-path:          for exporting forecasts to file, more of a developer feature
+        - as-job:               only indicates whether the computation was offloaded to a worker
         """
         _parameters = deepcopy(parameters)
+        # Note: Parameter keys are in kebab-case due to Marshmallow schema data_key settings
+        # (see ForecasterParametersSchema in flexmeasures/data/schemas/forecasting/pipeline.py)
         fields_to_remove = [
-            "end_date",
-            "max_forecast_horizon",
-            "forecast_frequency",
+            "end-date",
+            "max-forecast-horizon",
+            "forecast-frequency",
             "probabilistic",
-            "model_save_dir",
-            "output_path",
-            "sensor_to_save",
-            "as_job",
+            "model-save-dir",
+            "output-path",
+            "sensor-to-save",
+            "as-job",
+            "m_viewpoints",  # Computed internally, still uses snake_case
+            "sensor",
         ]
 
         for field in fields_to_remove:

@@ -240,3 +240,38 @@ def test_failed_unknown_model(app, clean_redis, setup_test_data):
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     check_failures(app.queues["forecasting"], ["No model found for search term"])
+
+
+def test_forecasting_job_meta_is_json_serializable(app):
+    """Test that forecasting job meta is JSON-serializable.
+
+    This ensures the rq-dashboard job page can display forecasting jobs without errors,
+    as rq-dashboard calls json.dumps(job.get_meta()) when rendering job details.
+    See: https://github.com/Parallels/rq-dashboard/issues/510
+    """
+    import json
+
+    horizon = timedelta(hours=1)
+    sensor_id = 1  # any int will do since enqueue=False (job won't run)
+    jobs = create_forecasting_jobs(
+        start_of_roll=as_server_time(datetime(2015, 1, 1, 6)),
+        end_of_roll=as_server_time(datetime(2015, 1, 1, 7)),
+        horizons=[horizon],
+        sensor_id=sensor_id,
+        enqueue=False,
+    )
+    assert len(jobs) == 1
+    job = jobs[0]
+
+    # This should not raise a TypeError: Object of type datetime is not JSON serializable
+    meta_json = json.dumps(job.get_meta())
+    assert meta_json is not None
+
+    meta = json.loads(meta_json)
+    assert "model_search_term" in meta
+    assert "forecast_kwargs" in meta
+    assert meta["forecast_kwargs"]["sensor_id"] == sensor_id
+    # Verify horizon, start, end are stored as strings (not datetime/timedelta objects)
+    assert isinstance(meta["forecast_kwargs"]["horizon"], str)
+    assert isinstance(meta["forecast_kwargs"]["start"], str)
+    assert isinstance(meta["forecast_kwargs"]["end"], str)

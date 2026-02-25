@@ -2,9 +2,7 @@ from flask import current_app
 import isodate
 import pytest
 from flask import url_for
-from flexmeasures.data.services.scheduling import (
-    get_data_source_for_job,
-)
+
 from rq.job import Job
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.api.tests.utils import get_auth_token
@@ -35,18 +33,21 @@ def test_trigger_and_fetch_forecasts(
 
     # Trigger job
     payload = {
-        "start_date": "2025-01-01T00:00:00+00:00",
-        "start_predict_date": "2025-01-05T00:00:00+00:00",
-        "end_date": "2025-01-05T02:00:00+00:00",
-        "max_forecast_horizon": "PT1H",
-        "retrain_frequency": "PT1H",
+        "start": "2025-01-05T00:00:00+00:00",
+        "end": "2025-01-05T02:00:00+00:00",
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        "config": {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "retrain-frequency": "PT1H",
+        },
     }
 
     trigger_url = url_for("SensorAPI:trigger_forecast", id=sensor_0.id)
     trigger_res = client.post(
         trigger_url, json=payload, headers={"Authorization": token}
     )
-    assert trigger_res.status_code == 200
+    assert trigger_res.status_code == 200, trigger_res.json
 
     trigger_json = trigger_res.get_json()
     wrap_up_job = app.queues["forecasting"].fetch_job(trigger_json["forecast"])
@@ -77,7 +78,7 @@ def test_trigger_and_fetch_forecasts(
     payload["sensor"] = sensor_1.id
 
     # Run pipeline manually to compute expected forecasts
-    pipeline = TrainPredictPipeline()
+    pipeline = TrainPredictPipeline(config=payload.pop("config", {}))
     pipeline.compute(parameters=payload)
 
     # Fetch forecasts for each job
@@ -85,7 +86,7 @@ def test_trigger_and_fetch_forecasts(
 
         fetch_url = url_for("SensorAPI:get_forecast", id=sensor_0.id, uuid=job_id)
         res = client.get(fetch_url, headers={"Authorization": token})
-        assert res.status_code == 200
+        assert res.status_code == 200, res.json
 
         data = res.get_json()
 
@@ -103,14 +104,11 @@ def test_trigger_and_fetch_forecasts(
         assert isinstance(api_forecasts, list)
         assert len(api_forecasts) > 0
 
-        # Identify which data source wrote these beliefs
-        data_source = get_data_source_for_job(job, type="forecasting")
-
         # Load only the latest belief per event_start
         forecasts_df = sensor_1.search_beliefs(
-            event_starts_after=job.meta.get("start_predict_date"),
-            event_ends_before=job.meta.get("end_date") + sensor_1.event_resolution,
-            source=data_source,
+            event_starts_after=job.meta.get("start"),
+            event_ends_before=job.meta.get("end"),
+            source_types=["forecaster"],
             most_recent_beliefs_only=True,
             use_latest_version_per_event=True,
         ).reset_index()

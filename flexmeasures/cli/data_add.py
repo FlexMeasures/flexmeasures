@@ -6,6 +6,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Dict, Any
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    TrainPredictPipelineConfigSchema,
+    ForecasterParametersSchema,
+)
 import isodate
 import json
 import yaml
@@ -32,6 +36,7 @@ from flexmeasures.cli.utils import (
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    add_cli_options_from_schema,
 )
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -50,7 +55,7 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -70,6 +75,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
+from flexmeasures.data.schemas.utils import snake_to_kebab
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
@@ -81,7 +87,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.cli.utils import validate_color_cli, validate_url_cli, split_commas
+from flexmeasures.cli.utils import validate_color_cli, validate_url_cli
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
@@ -92,7 +98,7 @@ def fm_add_data():
     """FlexMeasures: Add data."""
 
 
-@fm_add_data.command("sources")
+@fm_add_data.command("sources-for-generators")
 @click.option(
     "--kind",
     default=["reporter"],
@@ -101,7 +107,7 @@ def fm_add_data():
     help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
 @with_appcontext
-def add_sources(kind: list[str]):
+def add_sources_for_generators(kind: list[str]):
     """Create data sources for the data generators found registered in the
     application and the plugins. Currently, this command only registers the
     sources for the Reporters.
@@ -508,9 +514,10 @@ def add_initial_structure():
     "source_type",
     required=True,
     type=str,
-    help="Type of source (for example, 'forecaster' or 'scheduler').",
+    help=f"Type of source (free, but FlexMeasures has support for {DEFAULT_DATASOURCE_TYPES}).",
 )
 def add_source(name: str, model: str, version: str, source_type: str):
+    """Add a data source."""
     source = get_or_create_source(
         source=name,
         model=model,
@@ -807,46 +814,30 @@ def add_beliefs(
 )
 @click.option(
     "--account",
-    "--account-id",
     "account_ids",
     type=click.INT,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--account-id"],
-    preferred="--account",
     help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--asset",
-    "--asset-id",
     "generic_asset_ids",
     type=int,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
     help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--sensor",
-    "--sensor-id",
     "sensor_ids",
     type=int,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
     help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--user",
-    "--user-id",
     "user_id",
     type=int,
     required=True,
-    cls=DeprecatedOption,
-    deprecated=["--user-id"],
-    preferred="--user",
     help="Attribute annotation to this user. Follow up with the user's ID.",
 )
 def add_annotation(
@@ -867,6 +858,9 @@ def add_annotation(
         if end_str is not None
         else start + pd.offsets.DateOffset(days=1)
     )
+    if end <= start:
+        click.secho("End date must be after start date.", **MsgStyle.ERROR)
+        raise click.Abort()
     accounts = (
         db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
@@ -897,6 +891,12 @@ def add_annotation(
             type="label",
         )
     )
+    if not accounts and not assets and not sensors:
+        click.secho(
+            "No accounts, assets or sensors specified to add the annotation to. Please specify at least one.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
     for account in accounts:
         account.annotations.append(annotation)
     for asset in assets:
@@ -1000,127 +1000,12 @@ def add_holidays(
 
 @fm_add_data.command("forecasts")
 @click.option(
-    "--sensor",
-    required=True,
-    help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
-)
-@click.option(
-    "--regressors",
-    "--regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated as a regressor. "
-    "Use this if both realizations and forecasts recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--future-regressors",
-    "--future-regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated only as a future regressor. "
-    "Use this if only forecasts recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--past-regressors",
-    "--past-regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated only as a past regressor. "
-    "Use this if only realizations recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--train-start",
-    "--start-date",
-    "start_date",
-    required=False,
-    help=(
-        "Timestamp marking when training data begins. "
-        "Format: YYYY-MM-DDTHH:MM:SS±HH:MM. "
-        "If not provided, it defaults to a period equal to the training duration "
-        "ending at --from-date."
-    ),
-)
-@click.option(
-    "--to-date",
-    "--end-date",
-    "end_date",
-    required=True,
-    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
-)
-@click.option(
-    "--train-period",
-    required=False,
-    help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
-    "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
-    "If not set, derives a training period from --start-predict-date instead. "
-    "If that is also not set, defaults to 2 days.",
-)
-@click.option(
-    "--retrain-frequency",
-    "--remodel-frequency",  # the term as used in the old forecasting tooling
-    "--predict-period",  # only used during development afaik
-    required=False,
-    help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
-    "If not set, the model is not retrained.",
-)
-@click.option(
-    "--from-date",
-    "start_predict_date",
-    default=None,
-    required=False,
-    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
-    "If not set, defaults to now.",
-)
-@click.option(
-    "--max-forecast-horizon",
-    required=False,
-    help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H'). "
-    "Defaults to 48 hours.",
-)
-@click.option(
-    "--forecast-frequency",
-    help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
-    "Defaults to 1 hour.",
-)
-@click.option(
-    "--model-save-dir",
-    help="Directory to save the trained model.",
-)
-@click.option(
-    "--output-path",
-    help="Directory to save prediction outputs.",
-)
-@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions.")
-@click.option(
-    "--sensor-to-save",
-    default=None,
-    help="Sensor ID to save forecasts into a specific sensor. By default, forecasts are saved to the target sensor.",
-)
-@click.option(
-    "--as-job",
-    is_flag=True,
-    help="Whether to queue a forecasting job instead of computing directly. "
-    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
-)
-@click.option(
-    "--max-training-period",
-    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). Defaults to 1 year.",
-)
-@click.option(
     "--resolution",
     help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
 )
 @click.option(
     "--horizon",
     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
-)
-@click.option(
-    "--ensure-positive",
-    is_flag=True,
-    help="Whether to ensure positive forecasts, by clipping out negative values.",
 )
 @click.option(
     "--config",
@@ -1163,22 +1048,23 @@ def add_holidays(
     is_flag=True,
     help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
 )
+@add_cli_options_from_schema(ForecasterParametersSchema())
+@add_cli_options_from_schema(TrainPredictPipelineConfigSchema())
 @click.option(
-    "--missing-threshold",
-    default=1.0,
-    help=(
-        "Maximum fraction of missing data allowed before raising an error. "
-        "Missing data under this threshold will be filled using forward filling or linear interpolation."
-    ),
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a forecasting job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
 @with_appcontext
-def train_predict_pipeline(
+def add_forecast(  # noqa: C901
     forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
     edit_config: bool = False,
     edit_parameters: bool = False,
+    as_job: bool = False,
     **kwargs,
 ):
     """
@@ -1187,11 +1073,11 @@ def train_predict_pipeline(
     \b
     Example
       flexmeasures add forecasts --sensor 2092 --regressors 2093
-        --start-date 2025-01-01T00:00:00+01:00 --to-date 2025-10-15T00:00:00+01:00
+        --to-date 2025-10-15T00:00:00+01:00
 
     \b
     Workflow
-      - Training window: defaults from --start-date until the CLI execution time.
+      - Training window: defaults to a 30-day period in advance of the CLI execution time.
       - Prediction window: defaults from CLI execution time until --to-date.
       - max-forecast-horizon: defaults to the length of the prediction window.
       - Forecasts are computed immediately; use --as-job to enqueue them.
@@ -1225,6 +1111,9 @@ def train_predict_pipeline(
 
     if config_file:
         config = yaml.safe_load(config_file)
+    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
+        if field_value := kwargs.pop(field_name, None):
+            config[field.data_key] = field_value
 
     if edit_config:
         config = launch_editor("/tmp/config.yml")
@@ -1237,10 +1126,11 @@ def train_predict_pipeline(
     if edit_parameters:
         parameters = launch_editor("/tmp/parameters.yml")
 
-    # Move remaining kwargs to parameters
+    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
     for k, v in kwargs.items():
-        if k not in parameters:
-            parameters[k] = v
+        kebab_key = snake_to_kebab(k)
+        if kebab_key not in parameters:
+            parameters[kebab_key] = v
 
     forecaster = get_data_generator(
         source=source,
@@ -1251,7 +1141,7 @@ def train_predict_pipeline(
     )
 
     try:
-        pipeline_returns = forecaster.compute(parameters=parameters)
+        pipeline_returns = forecaster.compute(as_job=as_job, **parameters)
 
         # Empty result
         if not pipeline_returns:
