@@ -1126,6 +1126,7 @@ class MetaStorageScheduler(Scheduler):
                     soc_targets=self.flex_model[d].get("soc_targets"),
                     sensor=self.flex_model[d]["sensor"],
                 )
+            self.stock_groups = self._build_stock_groups(self.flex_model)
 
         else:
             raise TypeError(
