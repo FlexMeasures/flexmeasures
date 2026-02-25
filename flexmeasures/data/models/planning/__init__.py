@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from tabulate import tabulate
@@ -63,6 +63,14 @@ class Scheduler:
     supports_scheduling_an_asset = False
 
     return_multiple: bool = False
+
+    def _build_stock_groups(self, flex_model: list[dict]) -> dict[str, list[int]]:
+        groups: dict[str, list[int]] = defaultdict(list)
+        for d, fm in enumerate(flex_model):
+            stock_id = fm.get("stock_id") or f"device-{d}"  # default: per-device stock
+            fm["stock_id"] = stock_id  # normalize
+            groups[stock_id].append(d)
+        return dict(groups)
 
     def __init__(
         self,
