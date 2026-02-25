@@ -65,7 +65,9 @@ Note that:
 Forecasting via the UI
 -----------------------
 
-The quickest way to create a one-off 24-hour forecast is the **Create forecast** button on the sensor page (see :ref:`view_sensors_forecast_button`). The button is available to users with the ``create-children`` permission on the sensor, provided at least two days of historical data exist. No further configuration is needed — one click queues the job and the page shows progress messages until the forecast is ready.
+The quickest way to create a one-off forecast is the **Create forecast** button on the sensor page (see :ref:`view_sensors_forecast_button`). The button is available to users with permission to record data on sensors, provided at least two days of historical data exist. The forecast duration defaults to 48 hours (configured via ``FLEXMEASURES_PLANNING_HORIZON``) but can be adjusted up to 7 days in the panel. No further configuration is needed — one click queues the job and the page shows progress messages until the forecast is ready.
+
+For more control over what and how to forecast, use the API.
 
 Forecasting via the API
 -----------------------

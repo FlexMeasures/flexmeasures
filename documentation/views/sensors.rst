@@ -40,6 +40,6 @@ So on a technical level, the daily heatmap is essentially a heatmap of the senso
 Creating a forecast
 -------------------
 
-Users with the ``create-children`` permission on a sensor can create a 24-hour forecast directly from the sensor page by clicking the **Create forecast** button in the left side panel. The button is enabled once the sensor has at least two days of historical data. After clicking, a background job is queued and the page shows progress updates via status messages. When the job finishes, the page reloads to display the new forecast alongside the historical data.
+Users with permission to record data on a sensor can create a forecast directly from the sensor page by clicking the **Create forecast** button in the left side panel. The forecast duration defaults to 48 hours (configured via ``FLEXMEASURES_PLANNING_HORIZON``) but can be adjusted up to 7 days in the panel. The button is enabled once the sensor has at least two days of historical data. After clicking, a background job is queued and the page shows progress updates via status messages. When the job finishes, the chart is refreshed to display the new forecast alongside the historical data.
 
 See :ref:`forecasting` for more details on how FlexMeasures generates forecasts.

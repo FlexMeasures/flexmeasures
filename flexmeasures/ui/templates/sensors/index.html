@@ -156,7 +156,7 @@ For the data, note the following:
                     </div>
                   {% endif %}
 
-                  {% if user_can_create_children_sensor %}
+                   {% if user_can_create_children_sensor %}
                     <div class="sidepanel-container">
                         <div class="left-sidepanel-label">Forecast</div>
                         <div class="sidepanel left-sidepanel" style="text-align: left;">
@@ -165,16 +165,25 @@ For the data, note the following:
                                     Create forecast
                                     <i
                                         class="fa fa-info-circle ms-1"
-                                        title="Queues a 24-hour forecast job starting from now. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
+                                        title="Queues a {{ forecast_default_duration_human }} regression forecast job starting from now. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
                                         style="cursor: pointer;"
                                     ></i>
                                 </h3>
                                 <small>Sensor: {{ sensor.name }} (ID: {{ sensor.id }})</small>
                                 {% if sensor_has_enough_data_for_forecast %}
-                                <button id="triggerForecastButton" class="btn btn-sm btn-responsive btn-success create-button" type="button"
-                                    style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
-                                    Trigger job
-                                </button>
+                                <div class="mb-3" style="margin-top: 10px;">
+                                    <label for="forecastDuration" class="form-label fw-bold">Duration (days)</label>
+                                    <input type="number" class="form-control" id="forecastDuration" min="1" max="7" value="{{ forecast_default_duration_days }}" />
+                                </div>
+                                <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
+                                    <a href="/api/v3_0/docs/#/Sensors/post_api_v3_0_sensors__id__forecasts_trigger" target="_blank" style="font-size: 0.8em;">
+                                        More options <i class="fa fa-external-link ms-1"></i>
+                                    </a>
+                                    <button id="triggerForecastButton" class="btn btn-sm btn-responsive btn-success create-button" type="button"
+                                        style="border: 1px solid var(--light-gray);">
+                                        Trigger job
+                                    </button>
+                                </div>
                                 <div id="spinner-forecast" class="d-none spinner spinner-bottom-right">
                                     <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                                     <span class="sr-only">Loading...</span>
@@ -474,6 +483,8 @@ For the data, note the following:
     async function triggerForecast() {
         const button = document.getElementById('triggerForecastButton');
         const spinner = document.getElementById('spinner-forecast');
+        const durationDays = parseInt(document.getElementById('forecastDuration').value) || {{ forecast_default_duration_days }};
+        const durationIso = 'P' + durationDays + 'D';
 
         button.disabled = true;
         spinner.classList.remove('d-none');
@@ -486,7 +497,7 @@ For the data, note the following:
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ duration: "PT24H" }),
+                body: JSON.stringify({ duration: durationIso }),
             });
 
             if (!response.ok) {
@@ -516,11 +527,11 @@ For the data, note the following:
                 }
 
                 if (statusResponse.status === 200) {
-                    showToast("Forecast created successfully! Reloading...", "success");
+                    showToast("Forecast created successfully! Refreshing chart...", "success");
                     finished = true;
                     await new Promise(resolve => setTimeout(resolve, 1500));
-                    window.location.reload();
-                    return;
+                    document.dispatchEvent(new CustomEvent('sensorsToShowUpdated'));
+                    break;
                 } else if (statusResponse.status === 202) {
                     const statusData = await statusResponse.json();
                     showToast("Forecast status: " + statusData.status + "...", "info");
