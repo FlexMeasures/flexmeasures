@@ -15,7 +15,7 @@ from flexmeasures.data.schemas.sensors import (
 )
 
 
-def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:
+def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:  # noqa: C901
     """
     Create an OpenAPI-compatible version of a Marshmallow schema.
 

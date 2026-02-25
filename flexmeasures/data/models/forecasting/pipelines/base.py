@@ -144,10 +144,6 @@ class BasePipeline:
                 exclude_source_types=(
                     ["forecaster"] if name == self.target else []
                 ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
-                beliefs_before=self.save_belief_time
-                + self.number_of_viewpoints
-                * self.forecast_frequency
-                * self.target_sensor.event_resolution,
             )
             try:
                 # We resample regressors to the target sensor’s resolution so they align in time.

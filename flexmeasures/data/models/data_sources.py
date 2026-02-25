@@ -255,6 +255,17 @@ class DataGenerator:
         return _parameters
 
 
+DEFAULT_DATASOURCE_TYPES = [
+    "user",
+    "scheduler",
+    "forecaster",
+    "reporter",
+    "demo script",
+    "gateway",
+    "market",
+]
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
@@ -264,6 +275,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     )
 
     # The type of data source (e.g. user, forecaster or scheduler)
+    # just a string, but preferably one of DEFAULT_DATASOURCE_TYPES
     type = db.Column(db.String(80), default="")
 
     # The id of the user source (can link e.g. to fm_user table)
