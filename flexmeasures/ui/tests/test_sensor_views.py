@@ -9,6 +9,7 @@ a "Create forecast" side panel.  These tests verify:
 - Forecast button enabled/disabled state based on available data range
 - Guard that ``get_timerange`` is NOT called for users without permission
 """
+
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -48,9 +49,7 @@ def _get_prosumer_sensor(db):
 def test_sensor_page_loads(db, client, setup_assets, as_prosumer_user1):
     """Sensor page returns HTTP 200 for a logged-in owner-account user."""
     sensor = _get_prosumer_sensor(db)
-    response = client.get(
-        url_for("SensorUI:get", id=sensor.id), follow_redirects=True
-    )
+    response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert sensor.name.encode() in response.data
 
@@ -63,9 +62,7 @@ def test_sensor_page_requires_login(client, setup_assets):
 
 def test_sensor_page_404_for_nonexistent_sensor(db, client, as_prosumer_user1):
     """Requesting a non-existent sensor ID returns a 404."""
-    response = client.get(
-        url_for("SensorUI:get", id=999999), follow_redirects=True
-    )
+    response = client.get(url_for("SensorUI:get", id=999999), follow_redirects=True)
     assert response.status_code == 404
 
 
@@ -83,21 +80,15 @@ def test_create_forecast_panel_visible_for_account_member(
     every member of the owning account).
     """
     sensor = _get_prosumer_sensor(db)
-    response = client.get(
-        url_for("SensorUI:get", id=sensor.id), follow_redirects=True
-    )
+    response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Create forecast" in response.data
 
 
-def test_create_forecast_panel_visible_for_admin(
-    db, client, setup_assets, as_admin
-):
+def test_create_forecast_panel_visible_for_admin(db, client, setup_assets, as_admin):
     """Admin users bypass ACL and also see the "Create forecast" panel."""
     sensor = _get_prosumer_sensor(db)
-    response = client.get(
-        url_for("SensorUI:get", id=sensor.id), follow_redirects=True
-    )
+    response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Create forecast" in response.data
 
@@ -110,9 +101,7 @@ def test_create_forecast_panel_hidden_for_other_account(
     sensor) does not see the "Create forecast" panel at all.
     """
     sensor = _get_prosumer_sensor(db)
-    response = client.get(
-        url_for("SensorUI:get", id=sensor.id), follow_redirects=True
-    )
+    response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Create forecast" not in response.data
 
@@ -133,9 +122,7 @@ def test_forecast_button_disabled_with_insufficient_data(
     (2015-01-01 at 15-minute resolution), which is below the 2-day threshold.
     """
     sensor = _get_prosumer_sensor(db)
-    response = client.get(
-        url_for("SensorUI:get", id=sensor.id), follow_redirects=True
-    )
+    response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Create forecast" in response.data
     # The enabled button (identified by its unique id) is absent
@@ -208,9 +195,7 @@ def test_get_timerange_not_called_without_permission(
     """
     sensor = _get_prosumer_sensor(db)
 
-    with patch(
-        "flexmeasures.ui.views.sensors.get_timerange"
-    ) as mock_get_timerange:
+    with patch("flexmeasures.ui.views.sensors.get_timerange") as mock_get_timerange:
         response = client.get(
             url_for("SensorUI:get", id=sensor.id), follow_redirects=True
         )
