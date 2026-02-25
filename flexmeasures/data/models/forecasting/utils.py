@@ -251,11 +251,12 @@ def data_to_bdf(
     #     source_type="forecaster",
     #     attributes=self.data_source.attributes,
     # )
+    source = refresh_data_source(data_source)
 
     # Convert to BeliefsDataFrame
     bdf = tb.BeliefsDataFrame(
         forecast_df.reset_index().rename(columns={"forecasts": "event_value"}),
-        source=data_source,
+        source=source,
         sensor=sensor_to_save,
     )
     return bdf
@@ -265,3 +266,22 @@ def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
     delta_seconds = resolution.total_seconds()
     floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
     return datetime.fromtimestamp(floored, tz=dt.tzinfo)
+
+
+def refresh_data_source(data_source: DataSource) -> DataSource:
+    """Refresh the potentially detached data source.
+
+    This avoids a sqlalchemy.exc.IntegrityError / psycopg2.errors.ForeignKeyViolation
+    for the data source ID not being present in the data_source table.
+    """
+
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    source = get_or_create_source(
+        data_source.name,
+        source_type=data_source.type,
+        model=data_source.model,
+        version=data_source.version,
+        attributes=data_source.attributes,
+    )
+    return source
