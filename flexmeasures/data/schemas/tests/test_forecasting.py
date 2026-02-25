@@ -160,7 +160,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 4,
             },
         ),
-        # Case 5: predict-period = 10 days and max-forecast-horizon = 12 hours
+        # Case 4: predict-period = 10 days and max-forecast-horizon = 12 hours
         #
         # User expects to get a ValidationError for having set parameters that won't give complete coverage of the predict-period.
         (
@@ -176,7 +176,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 }
             ),
         ),
-        # Case 6: predict-period = 12 hours and max-forecast-horizon = 10 days
+        # Case 5: predict-period = 12 hours and max-forecast-horizon = 10 days
         #
         # User expects that FM complains: the max-forecast-horizon should be lower than the predict-period
         #    - forecast-frequency = predict-period
@@ -195,7 +195,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 }
             ),
         ),
-        # Case 7: end-date = almost 5 days after now
+        # Case 6: end-date = almost 5 days after now
         #
         # User expects to get forecasts for the next 5 days (from server now floored to 1 hour) with a default 30-day training period
         #    - predict-period = 5 days
@@ -240,7 +240,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 8: end-date = almost 4.5 days after now, train-start is 26.5 days before now
+        # Case 7: end-date = almost 4.5 days after now, train-start is 26.5 days before now
         #
         # User expects to get forecasts for the next 4.5 days (from server now floored to 1 hour) with a custom 636-hour training period
         #    - predict-period = 108 hours
@@ -278,7 +278,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 9: end-date is given with train-period = 3 days
+        # Case 8: end-date is given with train-period = 3 days
         #
         # User expects the start date to be computed from the inferred predict-start and train-period.
         # Specifically, we expect:
@@ -323,7 +323,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 11: train-start is given with predict-period duration = 3 days
+        # Case 9: train-start is given with predict-period duration = 3 days
         #
         # User expects predict-start to remain based on server now (no train-period given).
         # Specifically, we expect:
@@ -369,7 +369,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 14: forecast-frequency = 5 days, predict-period = 10 days
+        # Case 10: forecast-frequency = 5 days, predict-period = 10 days
         #
         # User expects to get forecasts for 10 days from two unique viewpoints 5 days apart.
         # Specifically, we expect:
