@@ -441,3 +441,55 @@ def test_timing_parameters_of_forecaster_parameters_schema(
         # Convert kebab-case key to snake_case to match data dictionary keys returned by schema
         snake_key = kebab_to_snake(k)
         assert data[snake_key] == v, f"{k} did not match expectations."
+
+
+@pytest.mark.parametrize(
+    ["timing_input", "expected_timing_output"],
+    [
+        # Case 0: (config) retraining-period = 12 hours
+        #
+        # User expects to get forecasts for the default FM planning horizon from a new viewpoint every 12 hours (retraining at every viewpoint).
+        # Specifically from config, we expect:
+        #    - train-period = default 30 days
+        #    - max-training-period = default 365 days
+        #    - retraining-frequency = 12 hours
+        #    - train-period-in-hours = 720 (30 days)
+        (
+            {
+                "retrain-frequency": "PT12H",
+                # "end-date": "2025-01-17T12:00:00+01:00",
+            },
+            {
+                "model": "CustomLGBM",
+                "train-period": pd.Timedelta(days=30),
+                "max-training-period": pd.Timedelta(days=365),
+                "retrain-frequency": pd.Timedelta(hours=12),
+                "train-period-in-hours": 24 * 30,
+            },
+        ),
+def test_timing_parameters_of_forecaster_config_schema(
+    setup_dummy_sensors, freeze_server_now, timing_input, expected_timing_output
+):
+    freeze_server_now(
+        pd.Timestamp("2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam")
+    )
+
+    if isinstance(expected_timing_output, ValidationError):
+        with pytest.raises(ValidationError) as exc:
+            TrainPredictPipelineConfigSchema().load(
+                {
+                    **timing_input,
+                }
+            )
+        assert exc.value.messages == expected_timing_output.messages
+        return
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            **timing_input,
+        }
+    )
+
+    for k, v in expected_timing_output.items():
+        # Convert kebab-case key to snake_case to match data dictionary keys returned by schema
+        snake_key = kebab_to_snake(k)
+        assert data[snake_key] == v, f"{k} did not match expectations."
