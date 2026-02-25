@@ -307,6 +307,11 @@ class TrainPredictPipeline(Forecaster):
                         "FLEXMEASURES_JOB_TTL", timedelta(-1)
                     ).total_seconds()
                 ),
+                result_ttl=int(
+                    current_app.config.get(
+                        "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+                    ).total_seconds()
+                ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
                 meta=job_metadata,
             )
             current_app.queues[queue].enqueue_job(wrap_up_job)
