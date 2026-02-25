@@ -247,28 +247,18 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
-    belief_time = AwareDateTimeField(
-        format="iso",
-        data_key="prior",
+    start = AwareDateTimeOrDateField(
+        data_key="start",
+        required=False,
+        allow_none=True,
         metadata={
-            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
-            "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
-            "example": "2026-01-15T10:00+01:00",
+            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
+            "example": "2025-01-08T00:00:00+01:00",
             "cli": {
-                "option": "--prior",
+                "option": "--start",
+                "aliases": ["--start-predict-date", "--from-date"],
             },
         },
-    )
-    duration = PlanningDurationField(
-        load_default=PlanningDurationField.load_default,
-        metadata=dict(
-            description="The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
-            example="PT24H",
-            cli={
-                "option": "--duration",
-                "aliases": ["--predict-period"],
-            },
-        ),
     )
     end = AwareDateTimeOrDateField(
         data_key="end",
@@ -285,16 +275,26 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
-    start = AwareDateTimeOrDateField(
-        data_key="start",
-        required=False,
-        allow_none=True,
+    duration = PlanningDurationField(
+        load_default=PlanningDurationField.load_default,
+        metadata=dict(
+            description="The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
+            example="PT24H",
+            cli={
+                "option": "--duration",
+                "aliases": ["--predict-period"],
+            },
+        ),
+    )
+    belief_time = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
         metadata={
-            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
-            "example": "2025-01-08T00:00:00+01:00",
+            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "example": "2026-01-15T10:00+01:00",
             "cli": {
-                "option": "--start",
-                "aliases": ["--start-predict-date", "--from-date"],
+                "option": "--prior",
             },
         },
     )
