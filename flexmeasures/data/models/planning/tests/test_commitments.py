@@ -480,6 +480,10 @@ def test_mixed_gas_and_electricity_assets(app, db):
             "power-capacity": "30 kW",
             "consumption-capacity": "30 kW",
             "production-capacity": "0 kW",
+            "soc-usage": ["1 kW"],
+            "soc-min": 0.0,
+            "soc-max": 0.0,
+            "soc-at-start": 0.0,
         },
     ]
 
