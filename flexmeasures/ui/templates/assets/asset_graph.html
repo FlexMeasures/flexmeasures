@@ -48,9 +48,6 @@
                 </button>
                 <ul class="dropdown-menu center-aligned" aria-labelledby="chartTypeDropdown">
                     <li><a class="dropdown-item" href="#" data-chart-type="chart_for_multiple_sensors">Default</a></li>
-                    <li style="display: none;"><a class="dropdown-item" href="#"
-                            data-chart-type="chart_for_flex_config_reference">Asset Reference Extension</a>
-                    </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center" href="#"
                             data-chart-type="chart_for_chargepoint_sessions">
@@ -533,22 +530,6 @@
             }
         };
 
-        function detectAssetFlexConfigRef() {
-            // This function detects whether there lies a plot in the sensorsToShow that contains
-            // a reference to an asset. If its found, it trigger the user of the "chart_for_flex_config_reference" chart type.
-            const sensorsToShowCurrentState = getSensorToShow();
-            for (const graph of sensorsToShowCurrentState) {
-                for (const plot of graph.plots) {
-                    if ("asset" in plot) {
-                        // If a plot contains a reference to an asset, trigger the "chart_for_flex_config_reference" chart type
-                        document.querySelector('[data-chart-type="chart_for_flex_config_reference"]').click();
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
 
         // This function is for backward compatibility with the previous format of sensors_to_show
         function sensorsToShowFormatter(graphs) {

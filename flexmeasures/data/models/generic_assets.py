@@ -297,7 +297,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         # Build list of sensor objects that are accessible
         sensors_to_show = []
         missed_sensor_ids = []
-        asset_refs: list[dict] = []
 
         from flexmeasures.data.schemas.utils import extract_sensors_from_flex_config
         from flexmeasures.data.models.time_series import Sensor
@@ -305,6 +304,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         for entry in standardized_sensors_to_show:
             title = entry.get("title")
             sensors_for_entry: list[int] = []
+            asset_refs: list[dict] = []
             plots = entry.get("plots", [])
 
             for plot in plots:
@@ -316,15 +316,21 @@ class GenericAsset(db.Model, AuthModelMixin):
                     Sensor,
                 )
 
-            accessible_sensors = [
-                accessible_sensor_map.get(sid)
-                for sid in sensors_for_entry
-                if sid in accessible_sensor_map
-            ]
+            accessible_sensors: list[Sensor] = []
+
+            if asset_refs:
+                self._add_temporary_asset_sensors(
+                    asset_refs, accessible_sensors, Sensor
+                )
+
+            for sid in sensors_for_entry:
+                if sid in accessible_sensor_map:
+                    accessible_sensors.append(accessible_sensor_map[sid])
 
             inaccessible = [
                 sid for sid in sensors_for_entry if sid not in accessible_sensor_map
             ]
+
             missed_sensor_ids.extend(inaccessible)
 
             if accessible_sensors:
@@ -336,9 +342,6 @@ class GenericAsset(db.Model, AuthModelMixin):
             current_app.logger.warning(
                 f"Cannot include sensor(s) {missed_sensor_ids} in sensors_to_show on asset {self}, as it is not accessible to user {current_user}."
             )
-
-        if asset_refs:
-            self._add_temporary_asset_sensors(asset_refs, sensors_to_show, Sensor)
 
         return sensors_to_show
 
@@ -396,9 +399,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensors_list.extend(extracted_sensors)
             asset_refs_list.extend(refs)
 
-    def _add_temporary_asset_sensors(self, asset_refs, sensors_to_show, SensorClass):
+    def _add_temporary_asset_sensors(self, asset_refs, accessible_sensors, SensorClass):
         """Helper to create temporary sensor objects for asset references."""
         for ref in asset_refs:
+            temp_sensors = []
             parent_asset = db.session.get(GenericAsset, ref["id"])
             sensor_name = f"Temporary Sensor ({ref['field']} for ({parent_asset.name}))"
             # create temporary sensor with negative ID
@@ -410,9 +414,21 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
             # random negative number between -1 and -10000 to avoid conflicts with real sensor ids
             temporary.id = -1 * math.ceil(random.random() * 10000)
-            sensors_to_show.append(
-                {"title": "Temporary Sensor", "plots": [{"sensor": temporary}]}
-            )
+
+            # Add as_dict property for chart compatibility
+            # This mimics what real sensors return from their as_dict property
+            temporary._as_dict_override = {
+                "id": temporary.id,
+                "name": sensor_name,
+                "description": sensor_name,  # This is what the chart uses for color encoding
+                "unit": ref["unit"],
+                "asset_id": parent_asset.id,
+                "asset_description": parent_asset.name,
+            }
+            temp_sensors.append(temporary)
+
+            if len(temp_sensors) >= 1:
+                accessible_sensors.extend(temp_sensors)
 
     @property
     def asset_type(self) -> GenericAssetType:

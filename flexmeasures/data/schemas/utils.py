@@ -130,6 +130,7 @@ def extract_sensors_from_flex_config(plot: dict) -> tuple[list[Sensor], list[dic
                             "field": field_key,
                             "value": value,
                             "unit": unit,
+                            "plot": plot,
                         }
                     )
                 else:
@@ -137,7 +138,7 @@ def extract_sensors_from_flex_config(plot: dict) -> tuple[list[Sensor], list[dic
                         f"Value '{field_value}' for field '{field_key}' in '{plot_key}' is not a valid quantity string."
                     )
     return all_sensors, asset_refs
-  
+
 
 def snake_to_kebab(key: str) -> str:
     """Convert snake_case to kebab-case."""
