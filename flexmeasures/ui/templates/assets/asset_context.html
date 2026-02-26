@@ -571,7 +571,7 @@
         const card = document.createElement("div");
         card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
         card.id = `${fieldName}-control`;
-        // set card element to disabled if it's an extrafield
+        // set card element to disabled if it's an extra field
         if (isExtraField) {
             card.setAttribute("data-disabled", "true");
             card.style.pointerEvents = "none";
