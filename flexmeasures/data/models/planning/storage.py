@@ -218,17 +218,6 @@ class MetaStorageScheduler(Scheduler):
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
 
-        # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
-        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
-        # todo: move to flow or stock commitment per device
-        if any(prefer_charging_sooner):
-            up_deviation_prices = add_tiny_price_slope(
-                up_deviation_prices, "event_value"
-            )
-            down_deviation_prices = add_tiny_price_slope(
-                down_deviation_prices, "event_value"
-            )
-
         # Create Series with EMS capacities
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
@@ -525,6 +514,25 @@ class MetaStorageScheduler(Scheduler):
                     # Prefer curtailing consumption later by penalizing later consumption
                     upwards_deviation_price=tiny_price_slope,
                     # Prefer curtailing production later by penalizing later production
+                    downwards_deviation_price=-tiny_price_slope,
+                    index=index,
+                    device=d,
+                )
+                commitments.append(commitment)
+
+        # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
+        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
+        for d, prefer_charging_sooner_d in enumerate(prefer_charging_sooner):
+            if prefer_charging_sooner_d:
+                tiny_price_slope = (
+                    add_tiny_price_slope(up_deviation_prices, "event_value")
+                    - up_deviation_prices
+                )
+                commitment = FlowCommitment(
+                    name=f"prefer charging device {d} sooner",
+                    # Prefer charging sooner by penalizing later consumption
+                    upwards_deviation_price=tiny_price_slope,
+                    # Prefer discharging later by penalizing earlier production
                     downwards_deviation_price=-tiny_price_slope,
                     index=index,
                     device=d,
