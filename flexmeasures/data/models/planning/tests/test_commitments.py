@@ -507,17 +507,50 @@ def test_mixed_gas_and_electricity_assets(app, db):
     schedules = scheduler.compute(skip_validation=True)
 
     assert isinstance(schedules, list)
+    assert len(schedules) == 3  # 2 storage schedules + 1 commitment costs
 
-    scheduled_sensors = {
-        entry["sensor"]
-        for entry in schedules
-        if entry.get("name") == "storage_schedule"
-    }
-
-    assert battery_power in scheduled_sensors
-    assert boiler_power in scheduled_sensors
-
+    # Extract schedules by type
+    storage_schedules = [
+        entry for entry in schedules if entry.get("name") == "storage_schedule"
+    ]
     commitment_costs = [
         entry for entry in schedules if entry.get("name") == "commitment_costs"
     ]
+
+    assert len(storage_schedules) == 2
     assert len(commitment_costs) == 1
+
+    # Get battery schedule
+    battery_schedule = next(
+        entry for entry in storage_schedules if entry["sensor"] == battery_power
+    )
+    battery_data = battery_schedule["data"]
+
+    early_charging_hours = battery_data.iloc[:3]
+    assert (early_charging_hours > 0).all(), "Battery should charge early"
+
+    assert battery_data.iloc[-1] < 0, "Battery should discharge at the end"
+
+    middle_hours = battery_data.iloc[4:-2]
+    assert (middle_hours == 0).all(), "Battery should be idle during middle hours"
+
+    boiler_schedule = next(
+        entry for entry in storage_schedules if entry["sensor"] == boiler_power
+    )
+    boiler_data = boiler_schedule["data"]
+
+    assert (boiler_data == 1.0).all(), "Boiler should have constant 1 kW consumption"
+
+    costs_data = commitment_costs[0]["data"]
+
+    assert (
+        costs_data["electricity energy 0"] > 4.0
+    ), "Battery electricity cost should be around 4.3 EUR"
+    assert costs_data["gas energy 1"] > 1.0, "Boiler gas cost should be around 1.2 EUR"
+
+    # charging preference costs are roughly 2x curtailing preference costs
+    # (because curtailing uses 0.5x multiplier)
+    assert (
+        costs_data["prefer charging device 0 sooner"]
+        > costs_data["prefer curtailing device 0 later"]
+    ), "Charging preference should have higher cost than curtailing (no 0.5x multiplier)"
