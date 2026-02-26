@@ -1224,7 +1224,7 @@ class MetaStorageScheduler(Scheduler):
 
 
 class StorageFallbackScheduler(MetaStorageScheduler):
-    __version__ = "2"
+    __version__ = "3"
     __author__ = "Seita"
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
@@ -1293,7 +1293,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
 
 
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "6"
+    __version__ = "7"
     __author__ = "Seita"
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
