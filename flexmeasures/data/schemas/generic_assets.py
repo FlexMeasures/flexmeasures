@@ -25,6 +25,7 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
+from flexmeasures.utils.unit_utils import extract_unit_from_string
 
 
 class SensorsToShowSchema(fields.Field):
@@ -439,14 +440,18 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
         return value.id
 
 
-def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
+def extract_sensors_from_flex_config(plot: dict) -> tuple[list[Sensor], list[dict]]:
     """
     Extracts a consolidated list of sensors from an asset based on
     flex-context or flex-model definitions provided in a plot dictionary.
     """
     all_sensors = []
+    asset_refs = []
 
     asset = GenericAssetIdField().deserialize(plot.get("asset"))
+
+    if asset is None:
+        raise FMValidationError("Asset not found for the provided plot configuration.")
 
     fields_to_check = {
         "flex-context": asset.flex_context,
@@ -454,18 +459,9 @@ def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
     }
 
     for plot_key, flex_config in fields_to_check.items():
-        if plot_key not in plot:
-            continue
-
-        field_keys = plot[plot_key]
-        data = flex_config or {}
-
-        if isinstance(field_keys, str):
-            field_keys = [field_keys]
-        elif not isinstance(field_keys, list):
-            continue
-
-        for field_key in field_keys:
+        if plot_key in plot:
+            field_key = plot[plot_key]
+            data = flex_config or {}
             field_value = data.get(field_key)
 
             if isinstance(field_value, dict):
@@ -473,5 +469,22 @@ def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
                 sensor = field_value.get("sensor")
                 if sensor:
                     all_sensors.append(sensor)
-
-    return all_sensors
+            elif isinstance(field_value, str):
+                unit = None
+                # extract unit from the string value and add a dummy sensor with that unit
+                value, unit = extract_unit_from_string(field_value)
+                if unit is not None:
+                    asset_refs.append(
+                        {
+                            "id": asset.id,
+                            "field": field_key,
+                            "value": value,
+                            "unit": unit,
+                            "plot": plot,
+                        }
+                    )
+                else:
+                    raise FMValidationError(
+                        f"Value '{field_value}' for field '{field_key}' in '{plot_key}' is not a valid quantity string."
+                    )
+    return all_sensors, asset_refs

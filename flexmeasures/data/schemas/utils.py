@@ -4,8 +4,7 @@ from click import get_current_context
 from flask.cli import with_appcontext as with_cli_appcontext
 from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 
-from flexmeasures.utils.unit_utils import to_preferred, ur, extract_unit_from_string
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.utils.unit_utils import to_preferred, ur
 
 
 class MarshmallowClickMixin(click.ParamType):
@@ -84,60 +83,6 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         raise FMValidationError(
             f"Cannot convert value '{value}' to a valid quantity. {e}"
         )
-
-
-def extract_sensors_from_flex_config(plot: dict) -> tuple[list[Sensor], list[dict]]:
-    """
-    Extracts a consolidated list of sensors from an asset based on
-    flex-context or flex-model definitions provided in a plot dictionary.
-    """
-    all_sensors = []
-    asset_refs = []
-
-    from flexmeasures.data.schemas.generic_assets import (
-        GenericAssetIdField,
-    )  # Import here to avoid circular imports
-
-    asset = GenericAssetIdField().deserialize(plot.get("asset"))
-
-    if asset is None:
-        raise FMValidationError("Asset not found for the provided plot configuration.")
-
-    fields_to_check = {
-        "flex-context": asset.flex_context,
-        "flex-model": asset.flex_model,
-    }
-
-    for plot_key, flex_config in fields_to_check.items():
-        if plot_key in plot:
-            field_key = plot[plot_key]
-            data = flex_config or {}
-            field_value = data.get(field_key)
-
-            if isinstance(field_value, dict):
-                # Add a single sensor if it exists
-                sensor = field_value.get("sensor")
-                if sensor:
-                    all_sensors.append(sensor)
-            elif isinstance(field_value, str):
-                unit = None
-                # extract unit from the string value and add a dummy sensor with that unit
-                value, unit = extract_unit_from_string(field_value)
-                if unit is not None:
-                    asset_refs.append(
-                        {
-                            "id": asset.id,
-                            "field": field_key,
-                            "value": value,
-                            "unit": unit,
-                            "plot": plot,
-                        }
-                    )
-                else:
-                    raise FMValidationError(
-                        f"Value '{field_value}' for field '{field_key}' in '{plot_key}' is not a valid quantity string."
-                    )
-    return all_sensors, asset_refs
 
 
 def snake_to_kebab(key: str) -> str:

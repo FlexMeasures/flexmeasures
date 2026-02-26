@@ -300,7 +300,6 @@ class GenericAsset(db.Model, AuthModelMixin):
         sensors_to_show = []
         missed_sensor_ids = []
 
-        from flexmeasures.data.schemas.utils import extract_sensors_from_flex_config
         from flexmeasures.data.models.time_series import Sensor
 
         for entry in standardized_sensors_to_show:

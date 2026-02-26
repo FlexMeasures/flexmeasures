@@ -101,7 +101,7 @@ def flatten_unique(nested_list_of_objects: list) -> list:
             elif "sensor" in s:
                 all_objects.append(s["sensor"])
             elif "plots" in s:
-                from flexmeasures.data.schemas.utils import (
+                from flexmeasures.data.schemas.generic_assets import (
                     extract_sensors_from_flex_config,
                 )
 
