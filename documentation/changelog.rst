@@ -7,6 +7,19 @@ FlexMeasures Changelog
 v0.31.0 | February XX, 2026
 ============================
 
+.. warning:: As of this version, power schedules will no longer appear flipped (in UI charts) when they are recorded on *consumption* sensors.
+             Please note that:
+
+             - Schedules obtained via the dedicated API endpoints for scheduling are not affected by this change!
+             - The ``consumption_is_positive`` sensor attribute governs the sign of schedules saved to the database.
+               The sign convention of UI charts is to simply match what is in the database.
+             - If you inadvertently make use of the `sensor data API endpoint <https://flexmeasures.readthedocs.io/v0.30.3/api/v3_0.html#get--api-v3_0-sensors-id-data>`_ to fetch *schedules*,
+               or have reporters that compute reports on *schedules*, rather than on *measurements*, be advised that you may experience flipped results.
+               You may need to adjust your client-side code or reporter configuration accordingly.
+               (Updating a reporter configuration automatically leads to a fresh data source for the saved time series.)
+             - Finally, if you maintain a plugin with a custom ``Scheduler`` class that returns time series to be saved on power sensors, we recommend incrementing the version of the ``Scheduler`` class.
+               This will yield a fresh data source for new schedules and allow you to discriminate your flipped schedules, which, for instance, will make it easier to flip back the historical schedules if you later want to.
+
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
