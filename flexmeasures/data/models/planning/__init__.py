@@ -288,12 +288,25 @@ class Commitment:
     quantity: pd.Series = 0
     upwards_deviation_price: pd.Series = 0
     downwards_deviation_price: pd.Series = 0
+    commodity: str | pd.Series | None = None
 
     def __post_init__(self):
+        if (
+            isinstance(self, FlowCommitment)
+            and isinstance(self.commodity, pd.Series)
+            and self.device is not None
+        ):
+            devices = extract_devices(self.device)
+            missing = set(devices) - set(self.commodity.index)
+            if missing:
+                raise ValueError(f"commodity mapping missing for devices: {missing}")
+
         series_attributes = [
             attr
             for attr, _type in self.__annotations__.items()
-            if _type == "pd.Series" and hasattr(self, attr)
+            if _type == "pd.Series"
+            and hasattr(self, attr)
+            and attr not in ("device_group", "commodity")
         ]
         for series_attr in series_attributes:
             val = getattr(self, series_attr)
@@ -386,6 +399,10 @@ class Commitment:
                 range(len(devices)), index=devices, name="device_group"
             )
         else:
+            if not isinstance(self.device_group, pd.Series):
+                self.device_group = pd.Series(
+                    self.device_group, index=devices, name="device_group"
+                )
             # Validate custom grouping
             missing = set(devices) - set(self.device_group.index)
             if missing:
@@ -435,11 +452,24 @@ class Commitment:
             ],
             axis=1,
         )
-        # map device → device_group
+        # device_group
         if self.device is not None:
             df["device_group"] = map_device_to_group(self.device, self.device_group)
         else:
             df["device_group"] = 0
+
+        # commodity
+        if getattr(self, "commodity", None) is None:
+            df["commodity"] = None
+        elif isinstance(self.commodity, pd.Series):
+            # commodity is a device→commodity mapping, like device_group
+            if self.device is None:
+                df["commodity"] = None
+            else:
+                df["commodity"] = map_device_to_group(self.device, self.commodity)
+        else:
+            # scalar commodity
+            df["commodity"] = self.commodity
 
         return df
 

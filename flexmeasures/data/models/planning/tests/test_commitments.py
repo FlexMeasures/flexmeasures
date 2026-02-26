@@ -1,12 +1,20 @@
 import pandas as pd
 import numpy as np
 
-from flexmeasures.data.models.planning import Commitment, StockCommitment, FlowCommitment
+from flexmeasures.data.services.utils import get_or_create_model
+from flexmeasures.data.models.planning import (
+    Commitment,
+    StockCommitment,
+    FlowCommitment,
+)
 from flexmeasures.data.models.planning.utils import (
     initialize_index,
     add_tiny_price_slope,
 )
+from flexmeasures.data.models.planning.storage import StorageScheduler
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 
 
 def test_multi_feed_device_scheduler_shared_buffer():
@@ -118,6 +126,7 @@ def test_multi_feed_device_scheduler_shared_buffer():
                 downwards_deviation_price=prices[device_commodity[d]],
                 device=pd.Series(d, index=index),
                 device_group=device_commodity,
+                commodity=device_commodity[d],
             )
         )
 
@@ -130,6 +139,7 @@ def test_multi_feed_device_scheduler_shared_buffer():
                 downwards_deviation_price=sloped_prices,
                 device=pd.Series(d, index=index),
                 device_group=device_commodity,
+                commodity=device_commodity[d],
             )
         )
 
@@ -306,3 +316,241 @@ def test_each_type_assigns_unique_group_per_slot():
         device=pd.Series("dev", index=idx),
     )
     assert list(c.group) == list(range(len(idx)))
+
+
+def test_two_flexible_assets_with_commodity(app, db):
+    """
+    Test scheduling two flexible assets (battery + heat pump)
+    with explicit electricity commodity.
+    """
+    # ---- asset types
+    battery_type = get_or_create_model(GenericAssetType, name="battery")
+    hp_type = get_or_create_model(GenericAssetType, name="heat-pump")
+
+    # ---- time setup
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    # ---- assets
+    battery = GenericAsset(
+        name="Battery",
+        generic_asset_type=battery_type,
+        attributes={"energy-capacity": "100 kWh"},
+    )
+    heat_pump = GenericAsset(
+        name="Heat Pump",
+        generic_asset_type=hp_type,
+        attributes={"energy-capacity": "50 kWh"},
+    )
+    db.session.add_all([battery, heat_pump])
+    db.session.commit()
+
+    # ---- sensors
+    battery_power = Sensor(
+        name="battery power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=battery,
+    )
+    hp_power = Sensor(
+        name="heat pump power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=heat_pump,
+    )
+    db.session.add_all([battery_power, hp_power])
+    db.session.commit()
+
+    # ---- flex-model (list = multi-asset)
+    flex_model = [
+        {
+            # Battery as storage
+            "sensor": battery_power.id,
+            "commodity": "electricity",
+            "soc-at-start": 20.0,
+            "soc-min": 0.0,
+            "soc-max": 100.0,
+            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 80.0}],
+            "power-capacity": "20 kW",
+            "charging-efficiency": 0.95,
+            "discharging-efficiency": 0.95,
+        },
+        {
+            # Heat pump modeled as storage
+            "sensor": hp_power.id,
+            "commodity": "electricity",
+            "soc-at-start": 10.0,
+            "soc-min": 0.0,
+            "soc-max": 50.0,
+            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 40.0}],
+            "power-capacity": "10 kW",
+            "production-capacity": "0 kW",
+            "charging-efficiency": 0.95,
+        },
+    ]
+
+    # ---- flex-context (single electricity market)
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "100 EUR/MWh",
+    }
+
+    # ---- run scheduler (use one asset as entry point)
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    schedules = scheduler.compute(skip_validation=True)
+
+    # ---- assertions
+    assert isinstance(schedules, list)
+    assert len(schedules) >= 2  # at least one schedule per device
+
+
+def test_mixed_gas_and_electricity_assets(app, db):
+    """
+    Test scheduling two flexible assets with different commodities:
+    - Battery (electricity)
+    - Gas boiler (gas)
+    """
+
+    battery_type = get_or_create_model(GenericAssetType, name="battery")
+    boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    battery = GenericAsset(
+        name="Battery",
+        generic_asset_type=battery_type,
+        attributes={"energy-capacity": "100 kWh"},
+    )
+
+    gas_boiler = GenericAsset(
+        name="Gas Boiler",
+        generic_asset_type=boiler_type,
+    )
+
+    db.session.add_all([battery, gas_boiler])
+    db.session.commit()
+
+    battery_power = Sensor(
+        name="battery power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=battery,
+    )
+
+    boiler_power = Sensor(
+        name="boiler power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_boiler,
+    )
+
+    db.session.add_all([battery_power, boiler_power])
+    db.session.commit()
+
+    flex_model = [
+        {
+            # Electricity battery
+            "sensor": battery_power.id,
+            "commodity": "electricity",
+            "soc-at-start": 20.0,
+            "soc-min": 0.0,
+            "soc-max": 100.0,
+            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 80.0}],
+            "power-capacity": "20 kW",
+            "charging-efficiency": 0.95,
+            "discharging-efficiency": 0.95,
+        },
+        {
+            # Gas-powered device (no storage behavior)
+            "sensor": boiler_power.id,
+            "commodity": "gas",
+            "power-capacity": "30 kW",
+            "consumption-capacity": "30 kW",
+            "production-capacity": "0 kW",
+            "soc-usage": ["1 kW"],
+            "soc-min": 0.0,
+            "soc-max": 0.0,
+            "soc-at-start": 0.0,
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",  # electricity price
+        "production-price": "100 EUR/MWh",
+        "gas-price": "50 EUR/MWh",  # gas price
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    schedules = scheduler.compute(skip_validation=True)
+
+    assert isinstance(schedules, list)
+    assert len(schedules) == 3  # 2 storage schedules + 1 commitment costs
+
+    # Extract schedules by type
+    storage_schedules = [
+        entry for entry in schedules if entry.get("name") == "storage_schedule"
+    ]
+    commitment_costs = [
+        entry for entry in schedules if entry.get("name") == "commitment_costs"
+    ]
+
+    assert len(storage_schedules) == 2
+    assert len(commitment_costs) == 1
+
+    # Get battery schedule
+    battery_schedule = next(
+        entry for entry in storage_schedules if entry["sensor"] == battery_power
+    )
+    battery_data = battery_schedule["data"]
+
+    early_charging_hours = battery_data.iloc[:3]
+    assert (early_charging_hours > 0).all(), "Battery should charge early"
+
+    assert battery_data.iloc[-1] < 0, "Battery should discharge at the end"
+
+    middle_hours = battery_data.iloc[4:-2]
+    assert (middle_hours == 0).all(), "Battery should be idle during middle hours"
+
+    boiler_schedule = next(
+        entry for entry in storage_schedules if entry["sensor"] == boiler_power
+    )
+    boiler_data = boiler_schedule["data"]
+
+    assert (boiler_data == 1.0).all(), "Boiler should have constant 1 kW consumption"
+
+    costs_data = commitment_costs[0]["data"]
+
+    assert (
+        costs_data["electricity energy 0"] > 4.0
+    ), "Battery electricity cost should be around 4.3 EUR"
+    assert costs_data["gas energy 1"] > 1.0, "Boiler gas cost should be around 1.2 EUR"
+
+    # charging preference costs are roughly 2x curtailing preference costs
+    # (because curtailing uses 0.5x multiplier)
+    assert (
+        costs_data["prefer charging device 0 sooner"]
+        > costs_data["prefer curtailing device 0 later"]
+    ), "Charging preference should have higher cost than curtailing (no 0.5x multiplier)"
