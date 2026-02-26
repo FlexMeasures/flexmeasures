@@ -417,8 +417,6 @@
         const saveChangesBtn = document.getElementById("saveChangesBtn");
         const addPlotBtn = document.getElementById("addPlotBtn");
 
-        detectAssetFlexConfigRef();
-
         saveChangesBtn.onclick = async function () {
             await updateAssetSensorsToShow();
         };
