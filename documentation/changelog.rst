@@ -38,6 +38,8 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Migrate from ``pip`` to ``uv`` for dependency management [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
+* Migrate from ``make`` to ``poe`` for running tasks [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
 * End support for Python3.9 [see `PR #1965 <https://www.github.com/FlexMeasures/flexmeasures/pull/1965>`_]
 * Improve general description on SwaggerDocs page and add three settings for hosts: FLEXMEASURES_SUPPORT_PAGE, FLEXMEASURES_SIGNUP_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_ and `PR #1889 <https://www.github.com/FlexMeasures/flexmeasures/pull/1889>`_]
@@ -997,7 +999,7 @@ Infrastructure / Support
 * Sunset API versions 1.0, 1.1, 1.2, 1.3 and 2.0 [see `PR #650 <https://www.github.com/FlexMeasures/flexmeasures/pull/650>`_]
 * Sunset several API fields for `[POST] /sensors/<id>/schedules/trigger` that have moved into the ``flex-model`` or ``flex-context`` fields [see `PR #580 <https://www.github.com/FlexMeasures/flexmeasures/pull/580>`_]
 * Fix broken ``make show-data-model`` command [see `PR #638 <https://www.github.com/FlexMeasures/flexmeasures/pull/638>`_]
-* Bash script for a clean database to run toy-tutorial by using ``make clean-db db_name=database_name`` command [see `PR #640 <https://github.com/FlexMeasures/flexmeasures/pull/640>`_]
+* Bash script for a clean database to run toy-tutorial by using ``uv run poe clean-db db-name=database-name`` command [see `PR #640 <https://github.com/FlexMeasures/flexmeasures/pull/640>`_]
 
 
 v0.12.3 | February 28, 2023

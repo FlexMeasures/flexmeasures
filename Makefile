@@ -1,18 +1,41 @@
+# This Makefile is deprecated. Please use the Poethepoet tasks or UV commands instead.
+# See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html
+
 # Check Python major and minor version
 # For more information, see https://stackoverflow.com/a/22105036
-PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
-HIGHS_DIR = "../HiGHS"
+# Not used anymore, as we now use the .python-version file to specify the Python version
+# PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
 .PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs generate-openapi show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
 
+SEE_ABOVE_MSG = @echo "" && echo "Warning: See the deprecation notice above."
 
+define POE_MSG
+	@echo "Warning: this Make target has been superseded by a Poethepoet task (see pyproject.toml)."
+	@echo "See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html"
+	@echo "Running 'uv run poe $(1)' for you now ..."
+	@echo ""
+endef
+
+define UV_MSG
+	@echo "Warning: this Make target has been superseded by a simple UV command."
+	@echo "See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html"
+	@echo "Running '$(1)' for you now ..."
+	@echo ""
+endef
+
+SEE_DOCUMENTATION_MSG = See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html
+DEPRECATED_MSG = This command is no longer supported.
 # ---- Development ---
 
 test:
-	make install-for-test
-	pytest
+	$(call UV_MSG,uv sync --group test)
+	uv sync --group test
+	$(call POE_MSG,test)
+	uv run poe test
+	$(SEE_ABOVE_MSG)
 
 # ---- Documentation ---
 
@@ -20,127 +43,103 @@ gen_code_docs := False # by default code documentation is not generated
 
 # Note: this makes docs for the FlexMeasures project, free from custom settings and plugins
 update-docs:
-	@echo "Creating docs environment ..."
-	make install-docs-dependencies
-	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; make generate-openapi
-	@echo "Creating documentation ..."
-	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
-	sed -i 's/(id)/id/g' flexmeasures/ui/static/documentation/html/api/v3_0.html # make sphinxcontrib-httpdomain links point to openapi-sphinx links
+	$(call POE_MSG,update-docs)
+	uv run poe update-docs
+	$(SEE_ABOVE_MSG)
 
 # Note: this will create SwaggerDocs with host-specific settings (e.g. platform name, support page, TOS) and plugins - use update-docs to make generic specs
 generate-openapi:
-	@echo "Generating OpenAPI specifications... "
-	python flexmeasures/api/scripts/generate_open_api_specs.py
+	$(call POE_MSG,generate-open-api-specs)
+	uv run poe generate-open-api-specs
+	$(SEE_ABOVE_MSG)
 
 # ---- Installation ---
 
-install: install-deps install-flexmeasures
+install:
+	$(call UV_MSG,uv sync)
+	uv sync --group dev --group test
+	$(SEE_ABOVE_MSG)
 
 install-for-dev:
-	make freeze-deps
-	make ensure-deps-folder
-	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
-	make install-flexmeasures
-# Locally install HiGHS on macOS
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		make install-highs-macos; \
-	fi
+	$(call UV_MSG,uv sync --group dev --group test)
+	uv sync --group dev --group test
+	$(SEE_ABOVE_MSG)
 
 install-for-test:
-	make install-pip-tools
-# Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
-ifneq ($(pinned), no)
-	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
-else
-	pip install --upgrade -r requirements/app.in -r requirements/test.in
-endif
-	make install-flexmeasures
-# Locally install HiGHS on macOS
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		make install-highs-macos; \
-	fi
+	$(call UV_MSG,uv sync --group test)
+	uv sync --group test
+	$(SEE_ABOVE_MSG)
 
-$(HIGHS_DIR):
-	@if [ ! -d $(HIGHS_DIR) ]; then \
-		git clone https://github.com/ERGO-Code/HiGHS.git $(HIGHS_DIR); \
-	fi
-	brew install cmake;
+build-highs-macos:
+	@echo "$(DEPRECATED_MSG)"
+	@echo "$(SEE_DOCUMENTATION_MSG)"
 
-build-highs-macos: $(HIGHS_DIR)
-	cd $(HIGHS_DIR); \
-	git checkout latest; \
-	mkdir -p build; \
-	cd build; \
-	cmake ..; \
-	make; \
-	make install; \
-	cd ../../flexmeasures;
-
-install-highs-macos: build-highs-macos
-	pip install $(HIGHS_DIR) ; \
+install-highs-macos:
+	$(call UV_MSG,uv sync --group dev --group test)
+	uv sync --group dev --group test
+	$(SEE_ABOVE_MSG)
 
 install-deps:
-	make install-pip-tools
-	make freeze-deps
-# Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
-ifneq ($(pinned), no)
-	pip-sync requirements/${PYV}/app.txt
-else
-	pip install --upgrade -r requirements/app.in
-endif
+	ifneq ($(pinned), no)
+		$(call UV_MSG,uv sync --group dev --group test)
+		uv sync --group dev --group test
+		$(SEE_ABOVE_MSG)
+	else
+		@echo "$(DEPRECATED_MSG)"
+		@echo "To upgrade the lockfile, use 'uv lock --upgrade'.
+		@echo "To upgrade ranges, manually upgrade them or use dependabot."
+		@echo "$(SEE_DOCUMENTATION_MSG)"
+	endif
 
 install-flexmeasures:
-	pip install -e .
+	$(call UV_MSG,uv sync)
+	uv sync
+	$(SEE_ABOVE_MSG)
 
 install-pip-tools:
-	pip3 install -q "pip-tools>=7.2"
+	@echo "$(DEPRECATED_MSG)"
+	@echo "Pip tools has been replaced by uv."
+	@echo "$(SEE_DOCUMENTATION_MSG)"
 
 install-docs-dependencies:
-	pip install -r requirements/${PYV}/docs.txt
+	$(call UV_MSG,uv sync --group docs)
+	uv sync --group docs
+	$(SEE_ABOVE_MSG)
 
 freeze-deps:
-	make ensure-deps-folder
-	make install-pip-tools
-	pip-compile -o requirements/${PYV}/app.txt requirements/app.in
-	pip-compile -c requirements/${PYV}/app.txt -o requirements/${PYV}/test.txt requirements/test.in
-	pip-compile -c requirements/${PYV}/app.txt -c requirements/${PYV}/test.txt -o requirements/${PYV}/dev.txt requirements/dev.in
-	pip-compile -c requirements/${PYV}/app.txt -o requirements/${PYV}/docs.txt requirements/docs.in
+	@echo "$(DEPRECATED_MSG)"
+	@echo "Pip tools has been replaced by uv."
+	@echo "$(SEE_DOCUMENTATION_MSG)"
 
 upgrade-deps:
-	make ensure-deps-folder
-	make install-pip-tools
-	pip-compile --upgrade -o requirements/${PYV}/app.txt requirements/app.in
-	pip-compile --upgrade -c requirements/${PYV}/app.txt -o requirements/${PYV}/test.txt requirements/test.in
-	pip-compile --upgrade -c requirements/${PYV}/app.txt -c requirements/${PYV}/test.txt -o requirements/${PYV}/dev.txt requirements/dev.in
-	pip-compile --upgrade -c requirements/${PYV}/app.txt -o requirements/${PYV}/docs.txt requirements/docs.in
-
-ifneq ($(skip-test), yes)
-	make test
-endif
+	@echo "$(DEPRECATED_MSG)"
+	@echo "To upgrade the lockfile, use 'uv lock --upgrade'."
+	@echo "To upgrade ranges, manually upgrade them or use dependabot."
+	@echo "$(SEE_DOCUMENTATION_MSG)"
 
 # ---- Data ----
 
 show-file-space:
-	# Where is our file space going?
-	du --summarize --human-readable --total ./* ./.[a-zA-Z]* | sort -h
+	$(call POE_MSG,show-file-space)
+	uv run poe show-file-space
+	$(SEE_ABOVE_MSG)
 
 upgrade-db:
-	flask db current
-	flask db upgrade
-	flask db current
+	$(call POE_MSG,upgrade-db)
+	uv run poe upgrade-db
+	$(SEE_ABOVE_MSG)
 
 show-data-model:
-	# This generates the data model, as currently written in code, as a PNG picture.
-	# Also try with --schema for the database model. 
-	# With --deprecated, you'll see the legacy models, and not their replacements.
-	# Use --help to learn more. 
-	./flexmeasures/data/scripts/visualize_data_model.py --uml
-
-ensure-deps-folder:
-	mkdir -p requirements/${PYV}
+	$(call POE_MSG,show-data-model)
+	uv run poe show-data-model --uml
+	$(SEE_ABOVE_MSG)
 
 clean-db:
-	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
+	$(call POE_MSG,clean-db)
+	uv run poe clean-db
+	$(SEE_ABOVE_MSG)
 
 cli-autocomplete:
-	./flexmeasures/cli/scripts/add_scripts_path.sh ${extension}
+	$(call POE_MSG,cli-autocomplete)
+	uv run poe cli-autocomplete
+	$(SEE_ABOVE_MSG)

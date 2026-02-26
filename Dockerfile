@@ -1,43 +1,90 @@
-FROM amd64/ubuntu:24.04
+ARG UV_MAJOR_VERSION=0.10
+ARG PYTHON_VERSION=3.12
+ARG DEBIAN_VERSION=trixie
 
-ENV DEBIAN_FRONTEND noninteractive
-ENV LC_ALL C.UTF-8
-ENV LANG C.UTF-8
+# Build the virtual environment using UV
+FROM ghcr.io/astral-sh/uv:${UV_MAJOR_VERSION}-python${PYTHON_VERSION}-${DEBIAN_VERSION}-slim AS builder
 
-# pre-requisites
-# libgomp1 is required by lightgmb to open a shared object file for parallel computation
-RUN apt-get update && apt-get install --no-install-recommends -y --upgrade \
-    python3 python3-pip git curl gunicorn coinor-cbc postgresql-client libgomp1 && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Redeclare ARG after FROM to make it available in this stage
+ARG UV_COMPILE_BYTECODE=1
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+ENV UV_COMPILE_BYTECODE=${UV_COMPILE_BYTECODE}
+ENV UV_LINK_MODE=copy
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev python3-dev gcc git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-# requirements - doing this earlier, so we don't install them each time. Use --no-cache to refresh them.
-COPY requirements /app/requirements
 
-# py dev tooling
-# NB --break-system-packages, as Python >=3.11 separates system & external libs, see also https://github.com/FlexMeasures/flexmeasures/pull/1723#pullrequestreview-3271273745
-RUN python3 -m pip install --no-cache-dir --break-system-packages highspy && \
-    PYV=$(python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)") && \
-    pip install --no-cache-dir --break-system-packages -r requirements/$PYV/app.txt -r requirements/$PYV/dev.txt -r requirements/$PYV/test.txt
+# Sync dependencies without installing the project itself (creates .venv)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project
 
-# Copy code and meta/config data
-COPY setup.* pyproject.toml .flaskenv wsgi.py /app/
-COPY flexmeasures/ /app/flexmeasures
-RUN find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
-COPY .git/ /app/.git
+# Ensure subsequent commands use the virtual environment
+ENV VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
 
-RUN pip3 install --no-cache-dir --break-system-packages .
+# Copy application code (including .git for version detection)
+COPY pyproject.toml uv.lock README.md ./
+COPY flexmeasures ./flexmeasures
+COPY .git ./.git
+COPY .flaskenv wsgi.py ./
+
+# Install FlexMeasures itself in the virtual environment
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+# Install gunicorn separately since it's not a dependency of the project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install gunicorn==25.0.3
+
+# Use a separate runtime image to run the code
+FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS runtime
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install runtime dependencies only
+# libgomp1 is required by lightgmb to open a shared object file for parallel computation
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 coinor-cbc libgomp1 curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ENV VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
+
+# Copy virtual environment from builder
+COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+
+# Copy application code
+COPY --from=builder /app/flexmeasures ./flexmeasures
+COPY --from=builder /app/.flaskenv /app/wsgi.py ./
+
+# Set environment variables to optimize Python
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 EXPOSE 5000
 
-CMD [ \
-    "gunicorn", \
-    "--bind", "0.0.0.0:5000", \
-    # This is set to /tmp by default, but this is part of the Docker overlay filesystem, and can cause stalls.
-    # http://docs.gunicorn.org/en/latest/faq.html#how-do-i-avoid-gunicorn-excessively-blocking-in-os-fchmod
-    "--worker-tmp-dir", "/dev/shm", \
-    # Ideally you'd want one worker per container, but we don't want to risk the health check timing out because
-    # another request is taking a long time to complete.
-    "--workers", "2", "--threads", "4", \
-    "wsgi:application" \
-]
+# Gunicorn configuration:
+# - worker-tmp-dir is set to /dev/shm instead of /tmp (default) to avoid stalls from Docker overlay filesystem
+#   http://docs.gunicorn.org/en/latest/faq.html#how-do-i-avoid-gunicorn-excessively-blocking-in-os-fchmod
+# - Using 2 workers to avoid health check timeouts when another request is taking a long time
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:5000", \
+     "--worker-tmp-dir", "/dev/shm", \
+     "--workers", "2", \
+     "--threads", "4", \
+     "wsgi:application"]

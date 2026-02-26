@@ -370,11 +370,11 @@ When reviewing or implementing domain model fixes:
 2. **Test the fix end-to-end**:
    ```bash
    # Example: Test a CLI fix
-   make install-for-dev
+   uv sync --group dev --group test
    flexmeasures <command> <args>  # The exact command from bug report
    ```
 3. **Verify domain invariants still hold**:
-   - Run relevant test suite: `make test` or `pytest path/to/tests`
+   - Run relevant test suite: `uv run poe test`
    - Check database constraints are satisfied
    - Verify no regressions in related functionality
 4. **Document verification in commit**:
