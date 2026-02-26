@@ -11,7 +11,6 @@ from flexmeasures.data.models.charts.defaults import (
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
-from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import find_smallest_common_unit, get_unit_dimension
 
 
