@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import collections.abc
+import decimal
 import functools
 import time
 import inspect
@@ -9,6 +11,8 @@ import importlib
 import pkgutil
 
 from flask import current_app
+
+from flexmeasures.utils.time_utils import duration_isoformat
 
 
 def delete_key_recursive(value, key):
@@ -231,3 +235,49 @@ class OrderByIdMixin:
                 f"Unhashable object: {self} has no ID. Consider calling `db.session.flush()` before using {type(self).__name__} objects in sets or as dictionary keys."
             )
         return hash(self.id)
+
+
+def make_serializable(obj):
+    """Recursively convert an object into something JSON-serializable."""
+    # dict: recursively convert keys and values
+    if isinstance(obj, dict):
+        return {str(k): make_serializable(v) for k, v in obj.items()}
+
+    # list, tuple, set, frozenset: convert elements
+    if isinstance(obj, (list, tuple, set, frozenset, collections.abc.Set)):
+        return [make_serializable(v) for v in obj]
+
+    # datetime-like -> datetime isoformat
+    if (
+        hasattr(obj, "isoformat")
+        and callable(obj.isoformat)
+        and not hasattr(obj, "total_seconds")
+    ):
+        return obj.isoformat()
+
+    # timedelta-like -> duration isoformat
+    if hasattr(obj, "total_seconds") and callable(obj.total_seconds):
+        return duration_isoformat(obj)
+
+    # decimals -> float
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+
+    # exceptions
+    if isinstance(obj, BaseException):
+        return {
+            "__exception__": type(obj).__name__,
+            "args": make_serializable(obj.args),
+            "message": str(obj),
+        }
+
+    # objects with __dict__ (custom classes)
+    if hasattr(obj, "__dict__"):
+        return make_serializable(obj.__dict__)
+
+    # fallback: try default JSON types (int, float, str, bool, None)
+    if isinstance(obj, (int, float, str, bool)) or obj is None:
+        return obj
+
+    # anything else: convert to string as last resort
+    return str(obj)
