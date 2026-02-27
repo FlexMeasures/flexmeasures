@@ -20,6 +20,7 @@ from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
 
 from flexmeasures.api.common.responses import (
+    invalid_unit,
     request_processed,
     unrecognized_event,
     unknown_forecast,
@@ -70,6 +71,7 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.utils.unit_utils import convert_units, units_are_convertible
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.schemas.forecasting.pipeline import (
@@ -863,12 +865,16 @@ class SensorAPI(FlaskView):
         },
         location="path",
     )
+    @use_kwargs(
+        {"unit": UnitField(load_default=None)},
+        location="query",
+    )
     @optional_duration_accepted(
         timedelta(hours=6)
     )  # todo: make this a Marshmallow field
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_schedule(  # noqa: C901
-        self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs
+        self, sensor: Sensor, job_id: str, duration: timedelta, unit: str | None = None, **kwargs
     ):
         """
         .. :quickref: Schedules; Get schedule for one device
@@ -881,6 +887,7 @@ class SensorAPI(FlaskView):
             Optional fields:
 
             - "duration" (6 hours by default; can be increased to plan further into the future)
+            - "unit" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)
           security:
             - ApiKeyAuth: []
           parameters:
@@ -910,6 +917,16 @@ class SensorAPI(FlaskView):
                 A better approach is to request only the near-term part of the schedule,
                 and to refresh the schedule as new information becomes relevant.
               example: PT24H
+              schema:
+                type: string
+            - in: query
+              name: unit
+              required: false
+              description: |
+                Unit of the schedule values to retrieve.
+                If omitted, the unit of the sensor is used.
+                The unit must be convertible from the sensor's unit.
+              example: kW
               schema:
                 type: string
           responses:
@@ -1063,11 +1080,25 @@ class SensorAPI(FlaskView):
         consumption_schedule = consumption_schedule[
             start : start + duration - resolution
         ]
+
+        # Convert to the requested unit if needed
+        if unit is not None and unit != sensor.unit:
+            if not units_are_convertible(sensor.unit, unit):
+                return invalid_unit(None, [unit])
+            consumption_schedule = convert_units(
+                consumption_schedule,
+                from_unit=sensor.unit,
+                to_unit=unit,
+                event_resolution=resolution,
+            )
+        else:
+            unit = sensor.unit
+
         response = dict(
             values=consumption_schedule.tolist(),
             start=isodate.datetime_isoformat(start),
             duration=duration_isoformat(duration),
-            unit=sensor.unit,
+            unit=unit,
         )
 
         d, s = request_processed(scheduler_info_msg)
