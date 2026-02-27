@@ -8,16 +8,58 @@ and confidential settings can be set via the <app-env>-conf.py file.
 
 from __future__ import annotations
 
+import collections.abc
 from datetime import timedelta
+import decimal
 import json
 import logging
 
 
-class CustomEncoder(json.JSONEncoder):
+def make_serializable(obj):
+    """Recursively convert an object into something JSON-serializable."""
+    # dict: recursively convert keys and values
+    if isinstance(obj, dict):
+        return {str(k): make_serializable(v) for k, v in obj.items()}
+
+    # list, tuple, set, frozenset: convert elements
+    if isinstance(obj, (list, tuple, set, frozenset, collections.abc.Set)):
+        return [make_serializable(v) for v in obj]
+
+    # datetime-like: isoformat
+    if hasattr(obj, "isoformat") and callable(obj.isoformat):
+        return obj.isoformat()
+
+    # timedelta-like: total_seconds
+    if hasattr(obj, "total_seconds") and callable(obj.total_seconds):
+        return {"__timedelta__": obj.total_seconds()}
+
+    # decimals -> float
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+
+    # exceptions
+    if isinstance(obj, BaseException):
+        return {
+            "__exception__": type(obj).__name__,
+            "args": make_serializable(obj.args),
+            "message": str(obj),
+        }
+
+    # objects with __dict__ (custom classes)
+    if hasattr(obj, "__dict__"):
+        return make_serializable(obj.__dict__)
+
+    # fallback: try default JSON types (int, float, str, bool, None)
+    if isinstance(obj, (int, float, str, bool)) or obj is None:
+        return obj
+
+    # anything else: convert to string as last resort
+    return str(obj)
+
+
+class RecursiveJSONEncoder(json.JSONEncoder):
     def default(self, obj):
-        if hasattr(obj, "isoformat"):
-            return obj.isoformat()
-        return super().default(obj)
+        return make_serializable(obj)
 
 
 class Config(object):
@@ -103,7 +145,7 @@ class Config(object):
     RQ_DASHBOARD_POLL_INTERVAL: int = (
         3000  # Web interface poll period for updates in ms
     )
-    RQ_DASHBOARD_JSON_ENCODER = CustomEncoder
+    RQ_DASHBOARD_JSON_ENCODER = RecursiveJSONEncoder
 
     SENTRY_DSN: str | None = None
     # Place additional Sentry config here.
