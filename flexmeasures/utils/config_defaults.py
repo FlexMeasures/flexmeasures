@@ -9,7 +9,15 @@ and confidential settings can be set via the <app-env>-conf.py file.
 from __future__ import annotations
 
 from datetime import timedelta
+import json
 import logging
+
+
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if hasattr(obj, "isoformat"):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class Config(object):
@@ -95,6 +103,7 @@ class Config(object):
     RQ_DASHBOARD_POLL_INTERVAL: int = (
         3000  # Web interface poll period for updates in ms
     )
+    RQ_DASHBOARD_JSON_ENCODER = CustomEncoder
 
     SENTRY_DSN: str | None = None
     # Place additional Sentry config here.
