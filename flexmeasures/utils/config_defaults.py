@@ -14,6 +14,8 @@ import decimal
 import json
 import logging
 
+from flexmeasures.utils.time_utils import duration_isoformat
+
 
 def make_serializable(obj):
     """Recursively convert an object into something JSON-serializable."""
@@ -25,13 +27,17 @@ def make_serializable(obj):
     if isinstance(obj, (list, tuple, set, frozenset, collections.abc.Set)):
         return [make_serializable(v) for v in obj]
 
-    # datetime-like: isoformat
-    if hasattr(obj, "isoformat") and callable(obj.isoformat):
+    # datetime-like -> datetime isoformat
+    if (
+        hasattr(obj, "isoformat")
+        and callable(obj.isoformat)
+        and not hasattr(obj, "total_seconds")
+    ):
         return obj.isoformat()
 
-    # timedelta-like: total_seconds
+    # timedelta-like -> duration isoformat
     if hasattr(obj, "total_seconds") and callable(obj.total_seconds):
-        return {"__timedelta__": obj.total_seconds()}
+        return duration_isoformat(obj)
 
     # decimals -> float
     if isinstance(obj, decimal.Decimal):
