@@ -20,7 +20,6 @@ from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
 
 from flexmeasures.api.common.responses import (
-    invalid_unit,
     request_processed,
     unrecognized_event,
     unknown_forecast,
@@ -69,7 +68,7 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
-from flexmeasures.utils.unit_utils import convert_units, units_are_convertible
+from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.schemas.forecasting.pipeline import (
