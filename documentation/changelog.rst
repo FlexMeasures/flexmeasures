@@ -16,6 +16,7 @@ New features
 * Support setting a resolution when triggering a schedule via the API or CLI [see `PR #1857 <https://www.github.com/FlexMeasures/flexmeasures/pull/1857>`_]
 * Support variable peak pricing and changes in commitment baselines [see `PR #1835 <https://www.github.com/FlexMeasures/flexmeasures/pull/1835>`_]
 * Support storing the aggregate power schedule [see `PR #1736 <https://www.github.com/FlexMeasures/flexmeasures/pull/1736>`_]
+* Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
 * Step-by-step replay in the UI, using the **n** key to go to the **n**\ ext time step [see `PR #1898 <https://www.github.com/FlexMeasures/flexmeasures/pull/1898>`_]
 * Support changing a sensor's timezone in the UI [see `PR #1900 <https://www.github.com/FlexMeasures/flexmeasures/pull/1900>`_]
