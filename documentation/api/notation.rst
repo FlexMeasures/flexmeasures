@@ -289,7 +289,10 @@ In this case, FlexMeasures will convert the data using the resolution of the tim
 
 Signs of power values
 ^^^^^^^^^^^^^^^^^^^^^
+In general, FlexMeasures lets you store data as you want. Negative power values to indicate production, positive consumption - or the other way around.
 
-USEF recommends to use positive power values to indicate consumption and negative values to indicate production, i.e.
-to take the perspective of the Prosumer.
-If an asset has been configured as a pure producer or pure consumer, the web service will help avoid mistakes by checking the sign of posted power values.
+We'd recommend to use positive power values to indicate consumption and negative values to indicate production, i.e.
+-to take the perspective of the Prosumer.
+
+Read more at :ref:`signs_of_power_beliefs` about our treatment of data, which includes data you send in, or you get from forecasts and schedules
+(hint: you are free to define the sign for your data, but it might affect how you receive your schedules).
