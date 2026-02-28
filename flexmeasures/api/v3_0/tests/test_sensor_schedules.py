@@ -449,3 +449,76 @@ def test_get_schedule_fallback_not_redirect(
         assert schedule["scheduler_info"]["scheduler"] == "StorageFallbackScheduler"
 
         app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_schedule_with_unit(
+    app,
+    client,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+    db,
+):
+    """Test that the get_schedule endpoint accepts a unit parameter and converts values accordingly."""
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    assert sensor.unit == "MW"
+
+    message = message_for_trigger_schedule()
+
+    # trigger a schedule
+    trigger_schedule_response = client.post(
+        url_for("SensorAPI:trigger_schedule", id=sensor.id),
+        json=message,
+    )
+    assert trigger_schedule_response.status_code == 200, trigger_schedule_response.json
+    job_id = trigger_schedule_response.json["schedule"]
+
+    # process the scheduling queue
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_finished
+
+    # retrieve schedule in the sensor's unit (MW)
+    get_schedule_mw = client.get(
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+    )
+    assert get_schedule_mw.status_code == 200, get_schedule_mw.json
+    assert get_schedule_mw.json["unit"] == "MW"
+    mw_values = get_schedule_mw.json["values"]
+
+    # retrieve schedule in a compatible unit (kW) - values should be 1000x
+    get_schedule_kw = client.get(
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        query_string={"unit": "kW"},
+    )
+    assert get_schedule_kw.status_code == 200, get_schedule_kw.json
+    assert get_schedule_kw.json["unit"] == "kW"
+    kw_values = get_schedule_kw.json["values"]
+    assert len(kw_values) == len(mw_values)
+    for mw_val, kw_val in zip(mw_values, kw_values):
+        assert abs(kw_val - mw_val * 1000) < 1e-6
+
+    # retrieve schedule in an invalid unit (bananas) - should return 422
+    get_schedule_incompatible = client.get(
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        query_string={"unit": "bananas"},
+    )
+    assert get_schedule_incompatible.status_code == 422, get_schedule_incompatible.json
+    assert "Invalid unit: bananas" in get_schedule_incompatible.json["message"]["unit"]
+
+    # retrieve schedule in an incompatible unit (°C) - should return 422
+    get_schedule_incompatible = client.get(
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        query_string={"unit": "°C"},
+    )
+    assert get_schedule_incompatible.status_code == 422, get_schedule_incompatible.json
+    assert (
+        "Incompatible units: MW cannot be converted to °C."
+        in get_schedule_incompatible.json["message"]["unit"]
+    )

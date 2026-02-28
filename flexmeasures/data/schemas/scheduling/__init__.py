@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import timedelta
 from typing import Any, Callable, Dict
 
 from marshmallow import (
@@ -10,6 +11,7 @@ from marshmallow import (
     ValidationError,
     pre_load,
     post_dump,
+    post_load,
 )
 
 from flexmeasures import Sensor
@@ -20,6 +22,7 @@ from flexmeasures.data.schemas.sensors import (
     SensorIdField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
@@ -986,4 +989,33 @@ class AssetTriggerSchema(Schema):
                     f"Sensor {sensor_flex_model['sensor'].id} does not belong to asset {asset.id} (or to one of its offspring)"
                 )
             sensors.append(sensor)
+        return data
+
+
+class GetScheduleSchema(Schema):
+    sensor = SensorIdField(required=True, data_key="id")
+    job_id = fields.Str(required=True, data_key="uuid")
+    duration = DurationField(load_default=timedelta(hours=6))
+    unit = UnitField(load_default=None)
+
+    @post_load
+    def finalize_unit(self, data, **kwargs):
+        sensor = data["sensor"]
+        unit = data.get("unit")
+
+        if unit is None:
+            data["unit"] = sensor.unit
+        elif unit != sensor.unit and not units_are_convertible(sensor.unit, unit):
+            raise ValidationError(
+                f"Incompatible units: {sensor.unit} cannot be converted to {unit}.",
+                field_name="unit",
+            )
+
+        duration = data["duration"]
+
+        data["duration"] = DurationField.ground_from(
+            duration,
+            data.get("start", data.get("datetime")),
+        )
+
         return data
