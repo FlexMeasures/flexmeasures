@@ -476,7 +476,7 @@ def test_get_schedule_with_unit(
         url_for("SensorAPI:trigger_schedule", id=sensor.id),
         json=message,
     )
-    assert trigger_schedule_response.status_code == 200
+    assert trigger_schedule_response.status_code == 200, trigger_schedule_response.json
     job_id = trigger_schedule_response.json["schedule"]
 
     # process the scheduling queue
@@ -488,7 +488,7 @@ def test_get_schedule_with_unit(
     get_schedule_mw = client.get(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
     )
-    assert get_schedule_mw.status_code == 200
+    assert get_schedule_mw.status_code == 200, get_schedule_mw.json
     assert get_schedule_mw.json["unit"] == "MW"
     mw_values = get_schedule_mw.json["values"]
 
@@ -497,7 +497,7 @@ def test_get_schedule_with_unit(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string={"unit": "kW"},
     )
-    assert get_schedule_kw.status_code == 200
+    assert get_schedule_kw.status_code == 200, get_schedule_kw.json
     assert get_schedule_kw.json["unit"] == "kW"
     kw_values = get_schedule_kw.json["values"]
     assert len(kw_values) == len(mw_values)
@@ -509,5 +509,5 @@ def test_get_schedule_with_unit(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string={"unit": "°C"},
     )
-    assert get_schedule_incompatible.status_code == 400
+    assert get_schedule_incompatible.status_code == 400, get_schedule_incompatible.json
     assert get_schedule_incompatible.json["status"] == "INVALID_UNIT"
