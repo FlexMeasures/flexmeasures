@@ -2,6 +2,7 @@
 **********************
 FlexMeasures Changelog
 **********************
+* Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
 
 
 v0.31.0 | February 28, 2026
@@ -31,7 +32,6 @@ New features
 * Support setting a resolution when triggering a schedule via the API or CLI [see `PR #1857 <https://www.github.com/FlexMeasures/flexmeasures/pull/1857>`_]
 * Support variable peak pricing and changes in commitment baselines [see `PR #1835 <https://www.github.com/FlexMeasures/flexmeasures/pull/1835>`_]
 * Support storing the aggregate power schedule [see `PR #1736 <https://www.github.com/FlexMeasures/flexmeasures/pull/1736>`_]
-* Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
 * Step-by-step replay in the UI, using the **n** key to go to the **n**\ ext time step [see `PR #1898 <https://www.github.com/FlexMeasures/flexmeasures/pull/1898>`_]
 * Support changing a sensor's timezone in the UI [see `PR #1900 <https://www.github.com/FlexMeasures/flexmeasures/pull/1900>`_]
@@ -50,7 +50,6 @@ New features
 * Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
 * Add a documentation section on the concept of ``Commitments`` [see `PR #1849 <https://www.github.com/FlexMeasures/flexmeasures/pull/1849>`_]
 * Add resolution column to sensors list on asset context page [see `PR #1986 <https://www.github.com/FlexMeasures/flexmeasures/pull/1986>`_]
-
 
 Infrastructure / Support
 ----------------------
