@@ -4,8 +4,10 @@ FlexMeasures Changelog
 **********************
 
 
-v0.31.0 | February XX, 2026
+v0.31.0 | February 28, 2026
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v031-forecasting-api-annotations/>`_.
 
 .. warning:: As of this version, power schedules will no longer appear flipped (in UI charts) when they are recorded on *consumption* sensors.
              Please note that:
