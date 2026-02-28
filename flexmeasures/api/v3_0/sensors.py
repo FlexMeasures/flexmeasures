@@ -29,9 +29,6 @@ from flexmeasures.api.common.responses import (
     fallback_schedule_redirect,
 )
 from flexmeasures.api.common.schemas.utils import make_openapi_compatible
-from flexmeasures.api.common.utils.validators import (
-    optional_duration_accepted,
-)
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
     GetSensorDataSchema,
@@ -63,7 +60,8 @@ from flexmeasures.data.schemas.times import (
 )
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
-from flexmeasures.api.common.schemas.sensors import UnitField
+from flexmeasures.data.schemas.scheduling import GetScheduleSchema
+from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -858,17 +856,7 @@ class SensorAPI(FlaskView):
         return dict(**response, **d), s
 
     @route("/<id>/schedules/<uuid>", methods=["GET"])
-    @use_kwargs(
-        {
-            "sensor": SensorIdField(data_key="id"),
-            "job_id": fields.Str(data_key="uuid"),
-            "unit": UnitField(load_default=None),
-        },
-        location="args_and_json",
-    )
-    @optional_duration_accepted(
-        timedelta(hours=6)
-    )  # todo: make this a Marshmallow field
+    @use_kwargs(GetScheduleSchema(), location="args_and_json")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_schedule(  # noqa: C901
         self,
@@ -983,7 +971,7 @@ class SensorAPI(FlaskView):
                         duration: "PT45M"
                         unit: "MW"
             400:
-              description: INVALID_TIMEZONE, INVALID_DOMAIN, INVALID_UNIT, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP
+              description: INVALID_TIMEZONE, INVALID_DOMAIN, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP
             401:
               description: UNAUTHORIZED
             403:
@@ -1084,17 +1072,13 @@ class SensorAPI(FlaskView):
         ]
 
         # Convert to the requested unit if needed
-        if unit is not None and unit != sensor.unit:
-            if not units_are_convertible(sensor.unit, unit):
-                return invalid_unit(None, [unit])
+        if unit != sensor.unit:
             consumption_schedule = convert_units(
                 consumption_schedule,
                 from_unit=sensor.unit,
                 to_unit=unit,
                 event_resolution=resolution,
             )
-        else:
-            unit = sensor.unit
 
         response = dict(
             values=consumption_schedule.tolist(),

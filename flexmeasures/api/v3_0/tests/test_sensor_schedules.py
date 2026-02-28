@@ -504,10 +504,21 @@ def test_get_schedule_with_unit(
     for mw_val, kw_val in zip(mw_values, kw_values):
         assert abs(kw_val - mw_val * 1000) < 1e-6
 
-    # retrieve schedule in an incompatible unit (°C) - should return 400
+    # retrieve schedule in an invalid unit (bananas) - should return 422
+    get_schedule_incompatible = client.get(
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        query_string={"unit": "bananas"},
+    )
+    assert get_schedule_incompatible.status_code == 422, get_schedule_incompatible.json
+    assert "Invalid unit: bananas" in get_schedule_incompatible.json["message"]["unit"]
+
+    # retrieve schedule in an incompatible unit (°C) - should return 422
     get_schedule_incompatible = client.get(
         url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string={"unit": "°C"},
     )
-    assert get_schedule_incompatible.status_code == 400, get_schedule_incompatible.json
-    assert get_schedule_incompatible.json["status"] == "INVALID_UNIT"
+    assert get_schedule_incompatible.status_code == 422, get_schedule_incompatible.json
+    assert (
+        "Incompatible units: MW cannot be converted to °C."
+        in get_schedule_incompatible.json["message"]["unit"]
+    )

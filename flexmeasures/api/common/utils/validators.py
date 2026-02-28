@@ -1,30 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from functools import wraps
 import re
 
 import isodate
 from isodate.isoerror import ISO8601Error
-from flask import request, current_app
-from flask_json import as_json
-import marshmallow
 
-from webargs.flaskparser import parser
-
-from flexmeasures.data.schemas.times import DurationField
 from flexmeasures.api.common.responses import (  # noqa: F401
     required_info_missing,
     invalid_horizon,
     invalid_method,
     invalid_message_type,
-    invalid_period,
     unapplicable_resolution,
     invalid_resolution_str,
     conflicting_resolutions,
     invalid_source,
     invalid_timezone,
-    invalid_unit,
     no_message_type,
     ptus_incomplete,
     unrecognized_connection_group,
@@ -94,47 +85,3 @@ def parse_duration(
         return duration
     except (ISO8601Error, AttributeError):
         return None
-
-
-def optional_duration_accepted(default_duration: timedelta):
-    """Decorator which specifies that a GET or POST request accepts an optional duration.
-    It parses relevant form data and sets the "duration" keyword param.
-
-    Example:
-
-        @app.route('/getDeviceMessage')
-        @optional_duration_accepted(timedelta(hours=6))
-        def get_device_message(duration):
-            return 'Here is your message'
-
-    The message may specify a duration to overwrite the default duration of 6 hours.
-    """
-
-    def wrapper(fn):
-        @wraps(fn)
-        @as_json
-        def decorated_service(*args, **kwargs):
-            duration_arg = parser.parse(
-                {"duration": DurationField()},
-                request,
-                location="args_and_json",
-                unknown=marshmallow.EXCLUDE,
-            )
-            if "duration" in duration_arg:
-                duration = duration_arg["duration"]
-                duration = DurationField.ground_from(
-                    duration,
-                    kwargs.get("start", kwargs.get("datetime", None)),
-                )
-                if not duration:  # TODO: deprecate
-                    extra_info = "Cannot parse 'duration' value."
-                    current_app.logger.warning(extra_info)
-                    return invalid_period(extra_info)
-                kwargs["duration"] = duration
-            else:
-                kwargs["duration"] = default_duration
-            return fn(*args, **kwargs)
-
-        return decorated_service
-
-    return wrapper
