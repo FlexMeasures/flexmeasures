@@ -862,12 +862,9 @@ class SensorAPI(FlaskView):
         {
             "sensor": SensorIdField(data_key="id"),
             "job_id": fields.Str(data_key="uuid"),
+            "unit": UnitField(load_default=None),
         },
-        location="path",
-    )
-    @use_kwargs(
-        {"unit": UnitField(load_default=None)},
-        location="query",
+        location="args_and_json",
     )
     @optional_duration_accepted(
         timedelta(hours=6)
