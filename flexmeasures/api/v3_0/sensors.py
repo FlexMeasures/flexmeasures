@@ -874,7 +874,12 @@ class SensorAPI(FlaskView):
     )  # todo: make this a Marshmallow field
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_schedule(  # noqa: C901
-        self, sensor: Sensor, job_id: str, duration: timedelta, unit: str | None = None, **kwargs
+        self,
+        sensor: Sensor,
+        job_id: str,
+        duration: timedelta,
+        unit: str | None = None,
+        **kwargs,
     ):
         """
         .. :quickref: Schedules; Get schedule for one device
