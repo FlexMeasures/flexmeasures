@@ -23,4 +23,4 @@ docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 6 --sch
   --flex-context '{"consumption-price": {"sensor": 1}}' \
   --flex-model '{"duration": "PT4H", "process-type": "SHIFTABLE", "power": 0.2, "time-restrictions": [{"start": "'"${TOMORROW}"'T15:00:00+02:00", "duration": "PT1H"}]}'
 
-echo "Now visit http://localhost:5000/assets/5/graphs to see all three schedules."
+echo "Now visit http://localhost:5000/assets/6/graphs to see all three schedules."
