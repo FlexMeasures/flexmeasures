@@ -30,7 +30,6 @@ from flexmeasures.auth.policy import (
     CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
@@ -234,7 +233,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         Steps:
         - The function deserializes the 'sensors_to_show' data from the database, ensuring that older formats are parsed correctly.
         - It checks if each sensor is accessible by the user and filters out any unauthorized sensors.
-        - The sensor structure is rebuilt according to the latest format, which allows for grouping sensors and adding optional titles.
+        - The sensor structure is rebuilt according to the latest format, which allows for grouping sensors and adding optional titles, all into a single 'plots' array.
 
         Details on format:
         - The 'sensors_to_show' attribute is defined as a list of sensor IDs or nested lists of sensor IDs (to indicate grouping).
@@ -247,8 +246,8 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         2. List with titles and sensor groupings:
             sensors_to_show = [
-                {"title": "Title 1", "sensor": 40},
-                {"title": "Title 2", "sensors": [41, 42]},
+                {"title": "Title 1", "plots": [{"sensor": 40}]},
+                {"title": "Title 2", "plots": [{"sensors": [41, 42]}]},
                 [43, 44], 45, 46
             ]
 
@@ -287,6 +286,9 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         sensor_ids_to_show = self.sensors_to_show
         # Import the schema for validation
+        from flexmeasures.data.schemas.generic_assets import (
+            extract_sensors_from_flex_config,
+        )
         from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
         sensors_to_show_schema = SensorsToShowSchema()
@@ -324,7 +326,17 @@ class GenericAsset(db.Model, AuthModelMixin):
         for entry in standardized_sensors_to_show:
 
             title = entry.get("title")
-            sensors = entry.get("sensors")
+            sensors = []
+            plots = entry.get("plots", [])
+            if len(plots) > 0:
+                for plot in plots:
+                    if "sensor" in plot:
+                        sensors.append(plot["sensor"])
+                    if "sensors" in plot:
+                        sensors.extend(plot["sensors"])
+                    if "asset" in plot:
+                        extracted_sensors = extract_sensors_from_flex_config(plot)
+                        sensors.extend(extracted_sensors)
 
             accessible_sensors = [
                 accessible_sensor_map.get(sid)
@@ -334,7 +346,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             inaccessible = [sid for sid in sensors if sid not in accessible_sensor_map]
             missed_sensor_ids.extend(inaccessible)
             if accessible_sensors:
-                sensors_to_show.append({"title": title, "sensors": accessible_sensors})
+                sensors_to_show.append(
+                    {"title": title, "plots": [{"sensors": accessible_sensors}]}
+                )
 
         if missed_sensor_ids:
             current_app.logger.warning(
@@ -649,8 +663,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
         """
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
         processed_sensors_to_show = self.validate_sensors_to_show()
-        sensors = flatten_unique(processed_sensors_to_show)
+        sensors = SensorsToShowSchema.flatten(processed_sensors_to_show)
 
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
@@ -1010,7 +1026,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
-        sensor_ids = [s.id for s in flatten_unique(sensors)]
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+        sensor_ids = [s.id for s in SensorsToShowSchema.flatten(sensors)]
         start, end = get_timerange(sensor_ids)
         return dict(start=start, end=end)
 

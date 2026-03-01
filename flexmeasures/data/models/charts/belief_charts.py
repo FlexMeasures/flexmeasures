@@ -11,7 +11,6 @@ from flexmeasures.data.models.charts.defaults import (
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
-from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import find_smallest_common_unit, get_unit_dimension
 
 
@@ -499,8 +498,10 @@ def chart_for_multiple_sensors(
     combine_legend: bool = True,
     **override_chart_specs: dict,
 ):
+    from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
     # Determine the shared data resolution
-    all_shown_sensors = flatten_unique(sensors_to_show)
+    all_shown_sensors = SensorsToShowSchema.flatten(sensors_to_show)
     condition = list(
         sensor.event_resolution
         for sensor in all_shown_sensors
@@ -528,7 +529,14 @@ def chart_for_multiple_sensors(
         title = entry.get("title")
         if title == "Charge Point sessions":
             continue
-        sensors = entry.get("sensors")
+        plots = entry.get("plots", [])
+        sensors = []
+        for plot in plots:
+            if "sensors" in plot:
+                sensors.extend(plot.get("sensors"))
+            elif "sensor" in plot:
+                sensors.extend([plot.get("sensor")])
+
         # List the sensors that go into one row
         row_sensors: list["Sensor"] = sensors  # noqa F821
 

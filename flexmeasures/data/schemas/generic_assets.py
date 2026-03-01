@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 import json
 from http import HTTPStatus
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
@@ -11,7 +11,8 @@ from marshmallow.validate import OneOf
 from flask_security import current_user
 from sqlalchemy import select
 
-
+if TYPE_CHECKING:
+    from flexmeasures import Sensor
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -32,23 +33,24 @@ class SensorsToShowSchema(fields.Field):
 
     The `sensors_to_show` attribute defines which sensors should be displayed for a particular asset.
     It supports various input formats, which are standardized into a list of dictionaries, each containing
-    a `title` (optional) and a `sensors` list. The valid input formats include:
+    a `title` (optional) and a `plots` list, this list then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
 
-    - A single sensor ID (int): `42` -> `{"title": None, "sensors": [42]}`
-    - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "sensors": [42, 43]}`
-    - A dictionary with a title and sensor: `{"title": "Temperature", "sensor": 42}` -> `{"title": "Temperature", "sensors": [42]}`
-    - A dictionary with a title and sensors: `{"title": "Pressure", "sensors": [42, 43]}`
+    - A single sensor ID (int): `42` -> `{"title": None, "plots": [{"sensor": 42}]}`
+    - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "plots": [{"sensors": [42, 43]}]}`
+    - A dictionary with a title and sensor: `{"title": "Temperature", "sensor": 42}` -> `{"title": "Temperature", "plots": [{"sensor": 42}]}`
+    - A dictionary with a title and sensors: `{"title": "Pressure", "sensors": [42, 43]}` -> `{"title": "Pressure", "plots": [{"sensors": [42, 43]}]}`
 
     Validation ensures that:
     - The input is either a list, integer, or dictionary.
-    - If the input is a dictionary, it must contain either `sensor` (int) or `sensors` (list of ints).
+    - If the input is a dictionary, it must contain either `sensor` (int), `sensors` (list of ints) or `plots` (list of dicts).
     - All sensor IDs must be valid integers.
 
-    Example Input:
-    - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, 5]`
+    Example Inputs:
+    - `[{"title": "Test", "plots": [{"sensor": 1}, {"sensor": 2}]}, {"title": "Another Test", "plots": [{"sensors": [3, 4]}]}, 5]`
+    - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, 5]` (Older format but still compatible)
 
     Example Output (Standardized):
-    - `[{"title": "Test", "sensors": [1, 2]}, {"title": None, "sensors": [3, 4]}, {"title": None, "sensors": [5]}]`
+    - `[{"title": "Test", "plots": [{"sensors": [1, 2]}]}, {"title": None, "plots": [{"sensors": [3, 4]}]}, {"title": None, "plots": [{"sensor": 5}]}]`
     """
 
     def deserialize(self, value, **kwargs) -> list:
@@ -71,76 +73,193 @@ class SensorsToShowSchema(fields.Field):
 
     def _standardize_item(self, item) -> dict:
         """
-        Standardize different input formats to a consistent dictionary format.
+        Normalize various input formats (int, list, or dict) into a standard plot dictionary.
         """
         if isinstance(item, int):
-            return {"title": None, "sensors": [item]}
+            return {"title": None, "plots": [{"sensor": item}]}
         elif isinstance(item, list):
             if not all(isinstance(sensor_id, int) for sensor_id in item):
                 raise ValidationError(
                     "All elements in a list within 'sensors_to_show' must be integers."
                 )
-            return {"title": None, "sensors": item}
+            return {"title": None, "plots": [{"sensors": item}]}
         elif isinstance(item, dict):
-            if "title" not in item:
-                raise ValidationError("Dictionary must contain a 'title' key.")
-            else:
-                title = item["title"]
-                if not isinstance(title, str) and title is not None:
-                    raise ValidationError("'title' value must be a string.")
-
-            if "sensor" in item:
-                sensor = item["sensor"]
-                if not isinstance(sensor, int):
-                    raise ValidationError("'sensor' value must be an integer.")
-                return {"title": title, "sensors": [sensor]}
-            elif "sensors" in item:
-                sensors = item["sensors"]
-                if not isinstance(sensors, list) or not all(
-                    isinstance(sensor_id, int) for sensor_id in sensors
-                ):
-                    raise ValidationError("'sensors' value must be a list of integers.")
-                return {"title": title, "sensors": sensors}
-            else:
-                raise ValidationError(
-                    "Dictionary must contain either 'sensor' or 'sensors' key."
-                )
+            return self._standardize_dict_item(item)
         else:
             raise ValidationError(
                 "Invalid item type in 'sensors_to_show'. Expected int, list, or dict."
             )
 
+    def _standardize_dict_item(self, item: dict) -> dict:
+        """
+        Transform a dictionary-based sensor configuration into a standardized 'plots' structure.
+        Ensures 'title' is a string and processes 'sensor', 'sensors', or direct 'plots' keys.
+        """
+
+        # Get the value, default to "No Title" if the key doesn't exist
+        title = item.get("title", None)
+
+        if title is not None and not isinstance(title, str):
+            raise ValidationError("'title' value must be a string.")
+
+        item["title"] = title or "No Title"
+
+        if "sensor" in item:
+            sensor = item["sensor"]
+            if not isinstance(sensor, int):
+                raise ValidationError("'sensor' value must be an integer.")
+            return {"title": title, "plots": [{"sensor": sensor}]}
+        elif "sensors" in item:
+            sensors = item["sensors"]
+            if not isinstance(sensors, list) or not all(
+                isinstance(sensor_id, int) for sensor_id in sensors
+            ):
+                raise ValidationError("'sensors' value must be a list of integers.")
+            return {"title": title, "plots": [{"sensors": sensors}]}
+        elif "plots" in item:
+            plots = item["plots"]
+            if not isinstance(plots, list):
+                raise ValidationError("'plots' must be a list or dictionary.")
+            for plot in plots:
+                self._validate_single_plot(plot)
+
+            return {"title": title, "plots": plots}
+        else:
+            raise ValidationError(
+                "Dictionary must contain either 'sensor', 'sensors' or 'plots' key."
+            )
+
+    def _validate_single_plot(self, plot):
+        """
+        Perform structural validation on an individual plot dictionary.
+        Requires at least one of: 'sensor', 'sensors', or 'asset'.
+        """
+        if not isinstance(plot, dict):
+            raise ValidationError("Each plot in 'plots' must be a dictionary.")
+
+        if "sensor" not in plot and "sensors" not in plot and "asset" not in plot:
+            raise ValidationError(
+                "Each plot must contain either 'sensor', 'sensors' or an 'asset' key."
+            )
+
+        if "asset" in plot:
+            self._validate_asset_in_plot(plot)
+        if "sensor" in plot:
+            sensor = plot["sensor"]
+            if not isinstance(sensor, int):
+                raise ValidationError("'sensor' value must be an integer.")
+        if "sensors" in plot:
+            sensors = plot["sensors"]
+            if not isinstance(sensors, list) or not all(
+                isinstance(sensor_id, int) for sensor_id in sensors
+            ):
+                raise ValidationError("'sensors' value must be a list of integers.")
+
+    def _validate_asset_in_plot(self, plot):
+        """
+        Validate plots that reference a GenericAsset.
+        Ensures flex-config schemas are respected when an asset is provided.
+        """
+        from flexmeasures.data.schemas.scheduling import (
+            DBFlexContextSchema,
+        )
+        from flexmeasures.data.schemas.scheduling.storage import (
+            DBStorageFlexModelSchema,
+        )
+
+        if "flex-context" not in plot and "flex-model" not in plot:
+            raise ValidationError(
+                "When 'asset' is provided in a plot, 'flex-context' or 'flex-model' must also be provided."
+            )
+
+        self._validate_flex_config_field_is_valid_choice(
+            plot, "flex-context", DBFlexContextSchema.mapped_schema_keys.values()
+        )
+        self._validate_flex_config_field_is_valid_choice(
+            plot, "flex-model", DBStorageFlexModelSchema().mapped_schema_keys.values()
+        )
+
+    def _validate_flex_config_field_is_valid_choice(
+        self, plot_config, field_name, valid_collection
+    ):
+        """
+        Verify that the chosen flex-config field exists on the specific asset and matches
+        allowed schema keys.
+        """
+        if field_name in plot_config:
+            value = plot_config[field_name]
+            asset_id = plot_config.get("asset")
+            asset = GenericAssetIdField().deserialize(asset_id)
+
+            if asset is None:
+                raise ValidationError(f"Asset with ID {asset_id} does not exist.")
+
+            if value and not isinstance(value, str):
+                raise ValidationError(f"The value for '{field_name}' must be a string.")
+
+            if value not in valid_collection:
+                raise ValidationError(f"'{field_name}' value '{value}' is not valid.")
+
+            attr_to_check = (
+                "flex_model" if field_name == "flex-model" else "flex_context"
+            )
+            asset_flex_config = getattr(asset, attr_to_check, {})
+
+            if value not in asset_flex_config:
+                raise ValidationError(
+                    f"The asset with ID '{asset_id}' does not have a '{value}' set in its '{attr_to_check}'."
+                )
+
     @classmethod
-    def flatten(cls, nested_list) -> list[int]:
+    def flatten(cls, nested_list: list) -> list[int] | list[Sensor]:
         """
-        Flatten a nested list of sensors or sensor dictionaries into a unique list of sensor IDs.
+        Flatten a nested list of sensor IDs into a unique list. Also works for Sensor objects.
 
-        This method processes the following formats, for each of the entries of the nested list:
-        - A list of sensor IDs: `[1, 2, 3]`
-        - A list of dictionaries where each dictionary contains a `sensors` list or a `sensor` key:
-        `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}]`
-        - Mixed formats: `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3}, 4, 5, 1]`
+        This method processes the following formats for each entry in the list:
+        1. A single sensor ID:
+           `3`
+        2. A list of sensor IDs:
+           `[1, 2]`
+        3. A dictionary with a `sensor` key:
+           `{"sensor": 3}`
+        4. A dictionary with a `sensors` key:
+           `{"sensors": [1, 2]}`
+        5. A dictionary with a `plots` key, containing a list of dictionaries,
+           each with a `sensor` or `sensors` key:
+           `{"plots": [{"sensor": 4}, {"sensors": [5, 6]}]}`
+        6. A dictionary under the `plots` key containing the `asset` key together with a `flex-model` or `flex-context` key,
+           containing a field name or a list of field names:
+            `{"plots": [{"asset": 100, "flex-model": ["consumption-capacity", "production-capacity"], "flex-context": "site-power-capacity"}}`
+        7. Mixed formats:
+           `[{"title": "Temperature", "sensors": [1, 2]}, {"title": "Pressure", "sensor": 3},  {"title": "Pressure", "plots": [{"sensor": 4}, {"sensors": [5, 6]}]}]`
 
-        It extracts all sensor IDs, removes duplicates, and returns a flattened list of unique sensor IDs.
+        Example:
+        >>> SensorsToShowSchema.flatten([1, [2, 20, 6], 10, [6, 2], {"title": None,"sensors": [10, 15]}, 15, {"plots": [{"sensor": 1}, {"sensors": [20, 8]}]}])
+        [1, 2, 20, 6, 10, 15, 8]
 
-        Args:
-            nested_list (list): A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
-
-        Returns:
-            list: A unique list of sensor IDs.
+        :param nested_list: A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
+        :returns:           A unique list of sensor IDs, or a unique list of Sensors
         """
-
         all_objects = []
         for s in nested_list:
             if isinstance(s, list):
                 all_objects.extend(s)
-            elif isinstance(s, dict):
-                if "sensors" in s:
-                    all_objects.extend(s["sensors"])
-                if "sensor" in s:
-                    all_objects.append(s["sensor"])
-            else:
+            elif isinstance(s, int):
                 all_objects.append(s)
+            elif isinstance(s, dict):
+                if "plots" in s:
+                    for plot in s["plots"]:
+                        if "sensors" in plot:
+                            all_objects.extend(plot["sensors"])
+                        if "sensor" in plot:
+                            all_objects.append(plot["sensor"])
+                        if "asset" in plot:
+                            sensors = extract_sensors_from_flex_config(plot)
+                            all_objects.extend(sensors)
+                elif "sensors" in s:
+                    all_objects.extend(s["sensors"])
+                elif "sensor" in s:
+                    all_objects.append(s["sensor"])
         return list(dict.fromkeys(all_objects).keys())
 
 
@@ -355,3 +474,41 @@ class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
     def _serialize(self, value: GenericAsset, attr, obj, **kwargs) -> int:
         """Turn a GenericAsset into a generic asset id."""
         return value.id
+
+
+def extract_sensors_from_flex_config(plot: dict) -> list[Sensor]:
+    """
+    Extracts a consolidated list of sensors from an asset based on
+    flex-context or flex-model definitions provided in a plot dictionary.
+    """
+    all_sensors = []
+
+    asset = GenericAssetIdField().deserialize(plot.get("asset"))
+
+    fields_to_check = {
+        "flex-context": asset.flex_context,
+        "flex-model": asset.flex_model,
+    }
+
+    for plot_key, flex_config in fields_to_check.items():
+        if plot_key not in plot:
+            continue
+
+        field_keys = plot[plot_key]
+        data = flex_config or {}
+
+        if isinstance(field_keys, str):
+            field_keys = [field_keys]
+        elif not isinstance(field_keys, list):
+            continue
+
+        for field_key in field_keys:
+            field_value = data.get(field_key)
+
+            if isinstance(field_value, dict):
+                # Add a single sensor if it exists
+                sensor = field_value.get("sensor")
+                if sensor:
+                    all_sensors.append(sensor)
+
+    return all_sensors

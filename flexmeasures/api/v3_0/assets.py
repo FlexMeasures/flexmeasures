@@ -50,6 +50,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
+    SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.services.scheduling import (
@@ -63,9 +64,6 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
-from flexmeasures.utils.coding_utils import (
-    flatten_unique,
-)
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas.sensors import (
@@ -913,7 +911,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = flatten_unique(asset.validate_sensors_to_show())
+        sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
     @route("/<id>/auditlog")
