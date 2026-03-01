@@ -92,3 +92,5 @@ fonttools>=4.60.2
 cbor2>=5.8.0
 # https://github.com/FlexMeasures/flexmeasures/security/dependabot/527
 marshmallow>=3.26.2
+# 81.0.0 is needed to fix `pkg_resources.DistributionNotFound` errors when using python 3.12
+setuptools==81.0.0
