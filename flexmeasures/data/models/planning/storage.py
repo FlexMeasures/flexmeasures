@@ -90,9 +90,10 @@ class MetaStorageScheduler(Scheduler):
             self.deserialize_config()
 
         # todo: look for the reason why flex_model has an object(dict) without a sensor, and fix the root cause if possible, instead of filtering it out here
-        self.flex_model = [
-            model for model in self.flex_model if model["sensor"] is not None
-        ]
+        if isinstance(self.flex_model, list):
+            self.flex_model = [
+                model for model in self.flex_model if model["sensor"] is not None
+            ]
 
         start = self.start
         end = self.end
