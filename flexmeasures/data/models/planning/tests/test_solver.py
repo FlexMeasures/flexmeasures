@@ -1370,6 +1370,7 @@ def test_capacity(
         device_constraints,
         ems_constraints,
         commitments,
+        inflexible_device_sensors,
     ) = scheduler._prepare(skip_validation=True)
 
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
