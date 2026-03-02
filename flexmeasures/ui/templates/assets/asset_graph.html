@@ -1140,6 +1140,18 @@
         }
 
         formModal.addEventListener('shown.bs.modal', function () {
+            // Clear asset cache for all assets used in plots when modal opens
+            // This ensures we get fresh data for asset plots
+            const sensorsToShowData = getSensorToShow();
+            for (const entry of sensorsToShowData) {
+                for (const plot of entry.plots || []) {
+                    if ("asset" in plot) {
+                        // Clear cache for this asset so we fetch fresh data
+                        localStorage.removeItem(`asset_${plot.asset}`);
+                    }
+                }
+            }
+            
             // Initial renders
             reRenderForm(); // Initial render of graph cards
             filterSensors(); // Initial render of sensors

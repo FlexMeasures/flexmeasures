@@ -102,7 +102,24 @@ export async function renderAssetPlotCard(
   disabledInput.type = "text";
   disabledInput.className = "form-control fst-italic col mt-2";
   disabledInput.disabled = true;
-  const valueToDisplay = assetPlot.flexValue;
+
+  let flexConfigData = IsFlexContext
+    ? Asset["flex_context"]
+    : IsFlexModel
+      ? Asset["flex_model"]
+      : null;
+      
+  // convert string to object if it's a string, otherwise keep it as is (could be null or already an object)
+  if (typeof flexConfigData === "string") {
+    try {
+      flexConfigData = JSON.parse(flexConfigData);
+    } catch (e) {
+      console.error("Failed to parse flexConfigData:", e);
+    }
+  }
+
+  const valueToDisplay =
+    flexConfigData[assetPlot[IsFlexContext ? "flex-context" : "flex-model"]];
   if (typeof valueToDisplay === "object") {
     disabledInput.value = JSON.stringify(valueToDisplay);
   } else {
