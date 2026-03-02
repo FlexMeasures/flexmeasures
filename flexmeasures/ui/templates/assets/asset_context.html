@@ -396,7 +396,13 @@
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         let data = getFlexContext();
-        console.log("Updating flex context with data:", data);
+
+        // Take out keys thats are not in the specs
+        for (const key in data) {
+            if (!assetFlexContextSchema.hasOwnProperty(key)) {
+                delete data[key];
+            }
+        }
 
         // Clean null values
         for (const [key, value] of Object.entries(data)) {
@@ -409,7 +415,6 @@
                 delete data[key];
             }
         }
-
 
         const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
 
