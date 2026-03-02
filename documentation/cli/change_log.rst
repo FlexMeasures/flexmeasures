@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.31.0 | February XX, 2026
+since v0.31.0 | February 28, 2026
 =================================
 
 * Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
