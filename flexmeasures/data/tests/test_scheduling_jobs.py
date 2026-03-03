@@ -9,6 +9,7 @@ import pytest
 from rq.job import Job
 from sqlalchemy import select
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.utils import initialize_series
@@ -389,6 +390,94 @@ def test_save_state_of_charge(
     assert all(
         np.isclose(soc_schedule.event_value.values, soc_schedule_from_power.values)
     )
+
+
+@pytest.mark.parametrize(
+    "soc_max, expect_schedule_saved",
+    [
+        ("100kWh", True),  # soc-max is set; schedule should be saved as percentages
+        ("0kWh", False),  # soc-max is zero; schedule should not be saved
+    ],
+)
+def test_save_state_of_charge_percent_sensor(
+    fresh_db,
+    app,
+    smart_building,
+    soc_max,
+    expect_schedule_saved,
+):
+    """
+    Test saving state of charge to a sensor with '%' unit.
+
+    If soc-max is zero, the SOC schedule should not be saved (no crash).
+    If soc-max is provided, the schedule should be saved as percentages in [0, 100].
+    """
+    assets, sensors, _soc_sensors = smart_building
+
+    # Create an additional SOC sensor with '%' unit attached to the Test Heat Buffer asset
+    soc_sensor_pct = Sensor(
+        "state of charge percent",
+        unit="%",
+        event_resolution=timedelta(hours=0),
+        generic_asset=assets["Test Heat Buffer"],
+        timezone="Europe/Amsterdam",
+    )
+    fresh_db.session.add(soc_sensor_pct)
+    fresh_db.session.flush()
+
+    assert len(soc_sensor_pct.search_beliefs()) == 0
+
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    flex_model = {
+        "power-capacity": "10kW",
+        "soc-at-start": "0kWh",
+        "soc-min": 0.0,
+        "soc-max": soc_max,
+        "state-of-charge": {"sensor": soc_sensor_pct.id},
+        "prefer-charging-sooner": True,
+        "storage-efficiency": "100%",
+        "charging-efficiency": "100%",
+        "discharging-efficiency": "100%",
+    }
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "0 EUR/MWh",
+        "site-production-capacity": "1MW",
+        "site-consumption-capacity": "1MW",
+    }
+
+    create_scheduling_job(
+        asset_or_sensor=sensors["Test Heat Buffer"],
+        scheduler_specs=scheduler_specs,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        enqueue=True,
+        start=start,
+        end=end,
+        round_to_decimals=12,
+        resolution=timedelta(minutes=15),
+    )
+
+    # Work on jobs
+    work_on_rq(queue, handle_scheduling_exception)
+
+    # Check that the SOC data is (or is not) saved
+    soc_data = soc_sensor_pct.search_beliefs(resolution=timedelta(0)).reset_index()
+    if expect_schedule_saved:
+        assert len(soc_data) > 0
+        # Values should be percentages in [0, 100]
+        assert soc_data["event_value"].between(0, 100).all()
+    else:
+        assert len(soc_data) == 0
 
 
 def test_scheduling_unit_conversion(
