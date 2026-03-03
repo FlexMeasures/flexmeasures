@@ -1298,8 +1298,8 @@ class StorageScheduler(MetaStorageScheduler):
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
+    @staticmethod
     def _build_soc_schedule(
-        self,
         flex_model: list[dict],
         ems_schedule: pd.DataFrame,
         soc_at_start: list[float],
@@ -1311,6 +1311,10 @@ class StorageScheduler(MetaStorageScheduler):
         Converts the integrated power schedule from MWh to the sensor's unit.
         For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
         If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
+
+        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
+        after deserialization and cannot be a sensor reference. The isinstance guard below is
+        therefore a defensive check for forward-compatibility.
         """
         soc_schedule = {}
         for d, flex_model_d in enumerate(flex_model):
@@ -1321,6 +1325,13 @@ class StorageScheduler(MetaStorageScheduler):
             capacity = None
             if soc_unit == "%":
                 soc_max = flex_model_d.get("soc_max")
+                if isinstance(soc_max, Sensor):
+                    current_app.logger.warning(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
+                        "Skipping state-of-charge schedule."
+                    )
+                    continue
                 if not soc_max:
                     current_app.logger.warning(
                         f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "

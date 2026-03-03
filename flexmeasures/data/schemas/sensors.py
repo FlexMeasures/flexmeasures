@@ -367,8 +367,12 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                                     in the time series uses a nominal duration, such as "P1D".
         :param additional_sensor_units:
                                     Additional sensor units (besides those convertible to ``to_unit``) that are
-                                    accepted for sensor references. For example, ``["%"]`` allows sensors with a
-                                    percentage unit in addition to the default ``to_unit``-compatible units.
+                                    accepted for sensor references. Use this only for units that are dimensionally
+                                    incompatible with ``to_unit`` but contextually meaningful — for example,
+                                    ``["%"]`` allows sensors with a percentage unit for fields where the conversion
+                                    requires an external capacity factor (such as ``soc-max``).
+                                    The actual unit conversion must be handled downstream by the caller.
+                                    Do not use this as a general-purpose unit allowlist.
         """
         super().__init__(*args, **kwargs)
         if value_validator is not None:
