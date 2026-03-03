@@ -47,7 +47,7 @@ jobs:
         with:
           path: ${{ env.pythonLocation }}
           # manually disable a cache if needed by (re)setting CACHE_DATE
-          key: ${{ runner.os }}-pip-${{ env.pythonLocation }}-${{ SECRETS.CACHE_DATE }}-${{ hashFiles('**/requirements/**/*.txt') }}
+          key: ${{ runner.os }}-pip-${{ env.pythonLocation }}-${{ secrets.CACHE_DATE }}-${{ hashFiles('**/requirements/**/*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - run: |
