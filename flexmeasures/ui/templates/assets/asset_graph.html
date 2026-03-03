@@ -793,7 +793,7 @@
 
         async function removeAssetPlotFromGraph(plotIndex, graphIndex, sensorIndex = null) {
             const sensorsToShowOldState = getSensorToShow();
-            if (sensorIndex >= 0) {
+            if (sensorIndex !== null) {
                 sensorsToShowOldState[graphIndex].plots[plotIndex].sensors.splice(sensorIndex, 1);
             } else {
                 sensorsToShowOldState[graphIndex].plots.splice(plotIndex, 1);
