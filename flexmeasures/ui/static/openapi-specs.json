@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.31.0"
+    "version": "0.1.dev4"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4858,7 +4858,6 @@
               "Asia/Barnaul",
               "Asia/Beirut",
               "Asia/Bishkek",
-              "Asia/Brunei",
               "Asia/Chita",
               "Asia/Colombo",
               "Asia/Damascus",
@@ -5431,7 +5430,7 @@
             "example": "kWh"
           },
           "state-of-charge": {
-            "description": "Sensor used to record the scheduled state of charge.",
+            "description": "Sensor used to record the scheduled state of charge. The sensor unit may be an energy unit (e.g. MWh or kWh) or a percentage (<code>\"%\"</code>). For sensors with a <code>\"%\"</code> unit, the <code>soc-max</code> flex-model field must be set to a non-zero value to allow converting the energy-based schedule to a percentage.",
             "example": {
               "sensor": 12
             },

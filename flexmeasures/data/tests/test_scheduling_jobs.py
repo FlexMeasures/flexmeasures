@@ -392,25 +392,25 @@ def test_save_state_of_charge(
     )
 
 
-@pytest.mark.parametrize(
-    "soc_max, expect_schedule_saved",
-    [
-        ("100kWh", True),  # soc-max is set; schedule should be saved as percentages
-        ("0kWh", False),  # soc-max is zero; schedule should not be saved
-    ],
-)
 def test_save_state_of_charge_percent_sensor(
     fresh_db,
     app,
     smart_building,
-    soc_max,
-    expect_schedule_saved,
 ):
     """
     Test saving state of charge to a sensor with '%' unit.
 
-    If soc-max is zero, the SOC schedule should not be saved (no crash).
-    If soc-max is provided, the schedule should be saved as percentages in [0, 100].
+    Setup:
+    - 50% storage efficiency per 15-minute step
+    - soc-at-start = soc-max (starting full; cannot charge since already at max capacity)
+    - soc-minima at t+60min = 8% forcing charging in the last interval before that
+
+    Expected idle-decay pattern (no power flow in first 3 intervals):
+    - t+ 0min: 100 kWh = 100%
+    - t+15min:  50 kWh =  50%
+    - t+30min:  25 kWh =  25%
+    - t+45min:  12.5 kWh = 12.5%
+    - t+60min:   8 kWh =   8%  (soc-minima forces ~9.7 kW of charging in [t+45, t+60])
     """
     assets, sensors, _soc_sensors = smart_building
 
@@ -431,6 +431,8 @@ def test_save_state_of_charge_percent_sensor(
     start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
     end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
 
+    soc_max_kwh = 100
+
     scheduler_specs = {
         "module": "flexmeasures.data.models.planning.storage",
         "class": "StorageScheduler",
@@ -438,14 +440,16 @@ def test_save_state_of_charge_percent_sensor(
 
     flex_model = {
         "power-capacity": "10kW",
-        "soc-at-start": "0kWh",
+        "soc-at-start": f"{soc_max_kwh}kWh",  # starting full → first steps are idle
         "soc-min": 0.0,
-        "soc-max": soc_max,
-        "state-of-charge": {"sensor": soc_sensor_pct.id},
-        "prefer-charging-sooner": True,
-        "storage-efficiency": "100%",
+        "soc-max": f"{soc_max_kwh}kWh",
+        "storage-efficiency": "50%",
         "charging-efficiency": "100%",
         "discharging-efficiency": "100%",
+        "prefer-charging-sooner": False,
+        "state-of-charge": {"sensor": soc_sensor_pct.id},
+        # At t+60min, the SOC must be ≥ 8 kWh (= 8%), forcing charging in [t+45, t+60]
+        "soc-minima": [{"datetime": "2015-01-03T01:00+01:00", "value": "8 kWh"}],
     }
 
     flex_context = {
@@ -470,14 +474,93 @@ def test_save_state_of_charge_percent_sensor(
     # Work on jobs
     work_on_rq(queue, handle_scheduling_exception)
 
-    # Check that the SOC data is (or is not) saved
-    soc_data = soc_sensor_pct.search_beliefs(resolution=timedelta(0)).reset_index()
-    if expect_schedule_saved:
-        assert len(soc_data) > 0
-        # Values should be percentages in [0, 100]
-        assert soc_data["event_value"].between(0, 100).all()
-    else:
-        assert len(soc_data) == 0
+    # Retrieve the SOC schedule from the %-unit sensor.
+    # No resolution argument needed: the sensor has event_resolution=timedelta(0)
+    # (instantaneous), so beliefs are already stored as point-in-time events.
+    soc_data = soc_sensor_pct.search_beliefs().reset_index()
+    assert len(soc_data) > 0
+
+    # All values must be valid percentages
+    assert soc_data["event_value"].between(0, 100).all()
+
+    soc_values = soc_data["event_value"].values
+
+    # Verify the idle-decay pattern: starting full, 50% storage efficiency
+    # (soc-at-start = soc-max means charging is not possible until the SOC decays)
+    storage_eff = 0.5
+    for i in range(4):
+        expected_pct = 100.0 * (storage_eff**i)  # 100, 50, 25, 12.5
+        assert np.isclose(
+            soc_values[i], expected_pct, rtol=1e-9
+        ), f"Expected SOC at step {i} = {expected_pct}%, got {soc_values[i]:.6f}%"
+
+    # At t+60min (index 4), the soc-minima forces charging → SOC ≈ 8%
+    assert np.isclose(
+        soc_values[4], 8.0, rtol=1e-4
+    ), f"Expected SOC at t+60min ≈ 8%, got {soc_values[4]:.6f}%"
+
+
+def test_save_state_of_charge_percent_sensor_skipped_when_zero_soc_max(
+    fresh_db,
+    app,
+    smart_building,
+):
+    """Test that the SOC schedule is silently skipped (no crash) when soc-max is zero,
+    because the '%' conversion requires a non-zero capacity."""
+    assets, sensors, _soc_sensors = smart_building
+
+    soc_sensor_pct = Sensor(
+        "state of charge percent",
+        unit="%",
+        event_resolution=timedelta(hours=0),
+        generic_asset=assets["Test Heat Buffer"],
+        timezone="Europe/Amsterdam",
+    )
+    fresh_db.session.add(soc_sensor_pct)
+    fresh_db.session.flush()
+
+    assert len(soc_sensor_pct.search_beliefs()) == 0
+
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    create_scheduling_job(
+        asset_or_sensor=sensors["Test Heat Buffer"],
+        scheduler_specs=scheduler_specs,
+        flex_model={
+            "power-capacity": "10kW",
+            "soc-at-start": "0kWh",
+            "soc-min": 0.0,
+            "soc-max": "0kWh",
+            "state-of-charge": {"sensor": soc_sensor_pct.id},
+            "prefer-charging-sooner": True,
+            "storage-efficiency": "100%",
+            "charging-efficiency": "100%",
+            "discharging-efficiency": "100%",
+        },
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-production-capacity": "1MW",
+            "site-consumption-capacity": "1MW",
+        },
+        enqueue=True,
+        start=start,
+        end=end,
+        round_to_decimals=12,
+        resolution=timedelta(minutes=15),
+    )
+
+    work_on_rq(queue, handle_scheduling_exception)
+
+    # With soc-max = 0, the SOC schedule should not be saved (no crash)
+    assert len(soc_sensor_pct.search_beliefs()) == 0
 
 
 def test_scheduling_unit_conversion(
