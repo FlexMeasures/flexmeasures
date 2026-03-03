@@ -722,7 +722,7 @@
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "card-title pt-2";
                     plotHeader.innerHTML = "<b>Sensors:</b>";
-                    const sensorsContent = await renderSensorsList(plot.sensors, index, removeAssetPlotFromGraph, plotIndex);
+                    const sensorsContent = await renderSensorsList(plot.sensors, index, removePlotOrSensor, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(sensorsContent.element);
                     const uniqueUnits = [...new Set(sensorsContent.uniqueUnits)];
@@ -740,7 +740,7 @@
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "card-title pt-2";
                     plotHeader.innerHTML = "<b>Sensor:</b>";
-                    const sensorContent = await renderSensorCard(plot.sensor, index, removeAssetPlotFromGraph, plotIndex);
+                    const sensorContent = await renderSensorCard(plot.sensor, index, removePlotOrSensor, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(sensorContent.element);
                     childComponents.push({
@@ -751,7 +751,7 @@
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "card-title pt-2";
                     plotHeader.innerHTML = "<b>Asset:</b>";
-                    const assetPlotContent = await renderAssetPlotCard(plot, removeAssetPlotFromGraph, index, plotIndex);
+                    const assetPlotContent = await renderAssetPlotCard(plot, removePlotOrSensor, index, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(assetPlotContent);
                     childComponents.push({ element: plotContainer, uniqueUnits: [] });
@@ -797,14 +797,27 @@
             return col;
         }
 
-        async function removeAssetPlotFromGraph(plotIndex, graphIndex, sensorIndex = null) {
-            const sensorsToShowOldState = getSensorToShow();
-            if (sensorIndex !== null) {
-                sensorsToShowOldState[graphIndex].plots[plotIndex].sensors.splice(sensorIndex, 1);
+        async function removePlotOrSensor(plotIndex, graphIndex, sensorIndex = null) {
+            const sensorsToShow = getSensorToShow();
+            const plot = sensorsToShow[graphIndex].plots[plotIndex];
+
+            if (sensorIndex === null) {
+                // Remove the entire plot
+                sensorsToShow[graphIndex].plots.splice(plotIndex, 1);
             } else {
-                sensorsToShowOldState[graphIndex].plots.splice(plotIndex, 1);
+                // Remove a specific sensor from the plot
+                const isLastSensor = plot.sensors.length === 1;
+
+                if (isLastSensor) {
+                    // Remove the entire plot if this is the last sensor
+                    sensorsToShow[graphIndex].plots.splice(plotIndex, 1);
+                } else {
+                    // Remove only the specified sensor
+                    plot.sensors.splice(sensorIndex, 1);
+                }
             }
-            setSensorToShow(sensorsToShowOldState);
+
+            setSensorToShow(sensorsToShow);
         }
 
         // Function to render the graph cards
