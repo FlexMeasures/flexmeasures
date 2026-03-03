@@ -24,7 +24,7 @@ jobs:
       matrix:
         py_version: [ "3.10", "3.11", "3.12" ]
         include:
-          - python-version: "3.11"
+          - py_version: "3.11"
             coverage: yes
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
