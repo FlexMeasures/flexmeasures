@@ -716,7 +716,7 @@
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "card-title pt-2";
                     plotHeader.innerHTML = "<b>Sensors:</b>";
-                    const sensorsContent = await renderSensorsList(plot.sensors, index);
+                    const sensorsContent = await renderSensorsList(plot.sensors, index, removeAssetPlotFromGraph, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(sensorsContent.element);
                     const uniqueUnits = [...new Set(sensorsContent.uniqueUnits)];
@@ -791,9 +791,13 @@
             return col;
         }
 
-        async function removeAssetPlotFromGraph(plotIndex, graphIndex) {
+        async function removeAssetPlotFromGraph(plotIndex, graphIndex, sensorIndex = null) {
             const sensorsToShowOldState = getSensorToShow();
-            sensorsToShowOldState[graphIndex].plots.splice(plotIndex, 1);
+            if (sensorIndex >= 0) {
+                sensorsToShowOldState[graphIndex].plots[plotIndex].sensors.splice(sensorIndex, 1);
+            } else {
+                sensorsToShowOldState[graphIndex].plots.splice(plotIndex, 1);
+            }
             setSensorToShow(sensorsToShowOldState);
         }
 
@@ -1151,7 +1155,7 @@
                     }
                 }
             }
-            
+
             // Initial renders
             reRenderForm(); // Initial render of graph cards
             filterSensors(); // Initial render of sensors
@@ -1181,7 +1185,6 @@
                     // If you don't have a direct update function exposed, 
                     // you might need to trigger the date picker change or reload page
                     // But typically, FlexMeasures has a specific function for this.
-                    console.log("Setting chart type to:", chartType);
                     // Try triggering the main chart update event usually tied to the date picker
                     if (window.picker) { window.picker.emit('selected'); }
                 }

@@ -108,7 +108,7 @@ export async function renderAssetPlotCard(
     : IsFlexModel
       ? Asset["flex_model"]
       : null;
-      
+
   // convert string to object if it's a string, otherwise keep it as is (could be null or already an object)
   if (typeof flexConfigData === "string") {
     try {
@@ -145,6 +145,7 @@ export async function renderAssetPlotCard(
  * @param {number} graphIndex - The index of the parent graph in the sensors_to_show array.
  * @param {function} [removeAssetPlotFromGraph=null] - Optional function to remove the sensor's plot from the graph when the close icon is clicked.
  * @param {number} [plotIndex=null] - The index of this sensor's plot within the graph's plots array, required if removeAssetPlotFromGraph is provided.
+ * @param {number} [sensorIndex=null] - The index of this sensor within the plot's sensors array, required if removeAssetPlotFromGraph is provided.
  * @returns {Promise<{element: HTMLElement, unit: string}>} An object containing the card element and the sensor's unit.
  */
 export async function renderSensorCard(
@@ -152,6 +153,7 @@ export async function renderSensorCard(
   graphIndex,
   removeAssetPlotFromGraph = null,
   plotIndex = null,
+  sensorIndex = null,
 ) {
   const Sensor = await getSensor(sensorId);
   const Asset = await getAsset(Sensor.generic_asset_id);
@@ -189,7 +191,7 @@ export async function renderSensorCard(
   closeIcon.addEventListener("click", (e) => {
     if (plotIndex !== null) {
       e.stopPropagation(); // Prevent card selection click
-      removeAssetPlotFromGraph(plotIndex, graphIndex);
+      removeAssetPlotFromGraph(plotIndex, graphIndex, sensorIndex);
     }
   });
 
@@ -209,9 +211,16 @@ export async function renderSensorCard(
  *
  * @param {number[]} sensorIds - Array of sensor IDs to render.
  * @param {number} graphIndex - The index of the parent graph being rendered.
+ * @param {function} [removeAssetPlotFromGraphV2=null] - Optional function to remove the sensor's plot from the graph when the close icon is clicked.
+ * @param {number} [plotIndex=null] - The index of this sensor's plot within the graph's plots array, required if removeAssetPlotFromGraphV2 is provided.
  * @returns {Promise<{element: HTMLElement, uniqueUnits: string[]}>} An object containing the container element with all sensors and a list of unique units found.
  */
-export async function renderSensorsList(sensorIds, graphIndex) {
+export async function renderSensorsList(
+  sensorIds,
+  graphIndex,
+  removeAssetPlotFromGraphV2 = null,
+  plotIndex = null,
+) {
   const listContainer = document.createElement("div");
   const units = [];
 
@@ -222,7 +231,15 @@ export async function renderSensorsList(sensorIds, graphIndex) {
 
   // Using Promise.all to maintain order and wait for all sensors
   const results = await Promise.all(
-    sensorIds.map((id, sIdx) => renderSensorCard(id, graphIndex, sIdx)),
+    sensorIds.map((id, sIdx) =>
+      renderSensorCard(
+        id,
+        graphIndex,
+        removeAssetPlotFromGraphV2,
+        plotIndex,
+        sIdx,
+      ),
+    ),
   );
 
   results.forEach((res) => {
