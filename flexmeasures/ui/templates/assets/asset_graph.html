@@ -505,6 +505,12 @@
                 const assetFlexModelSchema = {};
                 const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexModelSchema }, flexConfig, true);
 
+                // Add an initial option with a null value
+                const FirstOption = document.createElement("option");
+                FirstOption.value = null;
+                FirstOption.textContent = "Select Field";
+                flexConfigField.appendChild(FirstOption);
+
                 for (const [key, value] of Object.entries(assetFlexModelRawJSON)) {
                     if (!fieldsToOmit.includes(key)) {
                         const FlexFieldOption = document.createElement("option");
