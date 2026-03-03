@@ -74,6 +74,7 @@ export async function renderAssetPlotCard(
   flexDiv.className = "d-flex justify-content-between";
 
   const infoDiv = document.createElement("div");
+  infoDiv.className = "flex-grow-1 me-2"; 
 
   addInfo("ID", Asset.id, infoDiv, Asset, true);
   infoDiv.appendChild(document.createTextNode(", "));
