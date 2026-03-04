@@ -307,13 +307,17 @@ def test_price_sensor_priority(
     "context_sensor_num, asset_sensor_num, parent_sensor_num, expect_sensor_num",
     [
         # Sensors are present in context and parent, use from context
-        (1, 0, 2, 1),
+        # +1 for the curtailable device sensor always present in the flex-context
+        (1, 0, 2, 2),
         # No sensors in context, have in asset and parent, use asset sensors
-        (0, 1, 2, 1),
+        # +1 for the curtailable device sensor always present in the flex-context
+        (0, 1, 2, 2),
         # No sensors in context and asset, use from parent asset
-        (0, 0, 1, 1),
+        # +1 for the curtailable device sensor always present in the flex-context
+        (0, 0, 1, 2),
         # Have sensors everywhere, use from context
-        (1, 2, 3, 1),
+        # +1 for the curtailable device sensor always present in the flex-context
+        (1, 2, 3, 2),
     ],
 )
 @pytest.mark.parametrize(
@@ -390,7 +394,7 @@ def test_inflexible_device_sensors_priority(
     ) as mock_storage_get_power_values:
         work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
 
-        # Counting how many times power values (for inflexible sensors) were fetched (gives us the number of sensors)
+        # Counting how many times power values (for inflexible and curtailable sensors) were fetched (gives us the number of sensors)
         call_args = mock_storage_get_power_values.call_args_list
         assert len(call_args) == expect_sensor_num
 

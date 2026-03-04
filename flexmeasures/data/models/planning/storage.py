@@ -170,6 +170,9 @@ class MetaStorageScheduler(Scheduler):
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
+        curtailable_device_sensors = self.flex_context.get(
+            "curtailable_device_sensors", []
+        )
 
         # Fetch the device's power capacity (required Sensor attribute)
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, assets)
@@ -462,10 +465,14 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitments.append(commitment)
 
-        # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1), plus the forecasted inflexible devices (at indices D to n).
+        # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1), plus the forecasted inflexible devices (at indices D to D+I-1), plus the curtailable devices (at indices D+I to D+I+C-1).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(num_flexible_devices + len(inflexible_device_sensors))
+            for i in range(
+                num_flexible_devices
+                + len(inflexible_device_sensors)
+                + len(curtailable_device_sensors)
+            )
         ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
@@ -476,6 +483,18 @@ class MetaStorageScheduler(Scheduler):
                     sensor=inflexible_sensor,
                 )
             )
+        for i, curtailable_sensor in enumerate(curtailable_device_sensors):
+            idx = i + num_flexible_devices + len(inflexible_device_sensors)
+            forecast_values = get_power_values(
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                sensor=curtailable_sensor,
+            )
+            # Curtailable devices can be reduced to zero power (curtailed),
+            # but cannot exceed their forecast (positive for consumers, negative for producers).
+            device_constraints[idx]["derivative min"] = forecast_values.clip(upper=0)
+            device_constraints[idx]["derivative max"] = forecast_values.clip(lower=0)
 
         # Create the device constraints for all the flexible devices
         for d in range(num_flexible_devices):
