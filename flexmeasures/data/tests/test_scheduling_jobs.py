@@ -500,7 +500,7 @@ def test_save_state_of_charge_percent_sensor(
     ), f"Expected SOC at t+60min ≈ 8%, got {soc_values[4]:.6f}%"
 
 
-def test_save_state_of_charge_percent_sensor_skipped_when_zero_soc_max(
+def test_save_state_of_charge_percent_sensor_with_zero_soc_max_fails(
     fresh_db,
     app,
     smart_building,
@@ -530,7 +530,7 @@ def test_save_state_of_charge_percent_sensor_skipped_when_zero_soc_max(
         "class": "StorageScheduler",
     }
 
-    create_scheduling_job(
+    job = create_scheduling_job(
         asset_or_sensor=sensors["Test Heat Buffer"],
         scheduler_specs=scheduler_specs,
         flex_model={
@@ -559,7 +559,8 @@ def test_save_state_of_charge_percent_sensor_skipped_when_zero_soc_max(
 
     work_on_rq(queue, handle_scheduling_exception)
 
-    # With soc-max = 0, the SOC schedule should not be saved (no crash)
+    # With soc-max = 0, the job should fail and the SOC schedule should not be saved
+    assert job.is_failed
     assert len(soc_sensor_pct.search_beliefs()) == 0
 
 
