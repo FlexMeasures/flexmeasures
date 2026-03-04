@@ -2,8 +2,10 @@
 # upgrades pip, loads psql extensions and installs FlexMeasures for testing.
 #
 # The caller is responsible for declaring the postgres (and, for the Copilot
-# agent, redis) service container(s) and exporting the PG* / FLEXMEASURES_*
-# environment variables before calling this action.
+# agent, redis) service container(s) before calling this action.
+# PG* connection variables default to the standard test configuration
+# (127.0.0.1:5432, user/db/password = flexmeasures_test) but can be
+# overridden via the calling job's env: block.
 
 name: "Setup FlexMeasures test environment"
 description: >
@@ -50,7 +52,11 @@ runs:
         psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDB" \
              -f ci/load-psql-extensions.sql
       env:
-        PGPASSWORD: ${{ env.PGPASSWORD }}
+        PGHOST: ${{ env.PGHOST || '127.0.0.1' }}
+        PGPORT: ${{ env.PGPORT || '5432' }}
+        PGUSER: ${{ env.PGUSER || 'flexmeasures_test' }}
+        PGDB: ${{ env.PGDB || 'flexmeasures_test' }}
+        PGPASSWORD: ${{ env.PGPASSWORD || 'flexmeasures_test' }}
 
     - name: Install FlexMeasures & dependencies
       shell: bash
