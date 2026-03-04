@@ -177,6 +177,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - Field
      - Example value
      - Description 
+   * - ``state-of-charge``
+     - |STATE_OF_CHARGE.example|
+     - .. include:: ../_autodoc/STATE_OF_CHARGE.rst
    * - ``soc-at-start``
      - |SOC_AT_START.example|
      - .. include:: ../_autodoc/SOC_AT_START.rst
