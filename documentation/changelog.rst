@@ -13,6 +13,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Make the test environment used by agents and by the test workflow identical [see `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
 
 Bugfixes
 -----------

@@ -5,7 +5,7 @@ from getpass import getpass
 import inspect
 from importlib import import_module
 
-import pkg_resources
+from importlib.metadata import version as get_package_version, PackageNotFoundError
 from sqlalchemy import MetaData
 from sqlalchemy.orm import class_mapper
 
@@ -69,8 +69,11 @@ def check_sqlalchemy_schemadisplay_installation():
         )
         sys.exit(0)
 
-    packages_versions = {p.project_name: p.version for p in pkg_resources.working_set}
-    if packages_versions["sqlalchemy-schemadisplay"] < "1.4":
+    try:
+        pkg_ver = get_package_version("sqlalchemy-schemadisplay")
+    except PackageNotFoundError:
+        pkg_ver = "0"
+    if pkg_ver < "1.4":
         print(
             "Your version of sqlalchemy_schemadisplay is too small. Should be 1.4 or higher."
             " Currently, only 1.4dev0 is available with needed features.\n"
