@@ -183,10 +183,7 @@ For the data, note the following:
                                         style="border: 1px solid var(--light-gray);">
                                         Trigger job
                                     </button>
-                                </div>
-                                <div id="spinner-forecast" class="d-none spinner spinner-bottom-right">
-                                    <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
-                                    <span class="sr-only">Loading...</span>
+                                    <span id="spinner-forecast" class="spinner-border spinner-border-sm d-none" role="status"></span>
                                 </div>
                                 {% else %}
                                 <p style="margin-top: 10px;">
@@ -486,7 +483,7 @@ For the data, note the following:
         const durationDays = parseInt(document.getElementById('forecastDuration').value) || {{ forecast_default_duration_days }};
         const durationIso = 'P' + durationDays + 'D';
 
-        button.disabled = true;
+        button.classList.add('d-none');
         spinner.classList.remove('d-none');
 
         showToast("Triggering forecast job...", "info");
@@ -503,7 +500,7 @@ For the data, note the following:
             if (!response.ok) {
                 const errorData = await response.json();
                 showToast("Error triggering forecast: " + (errorData.message || response.statusText), "error");
-                button.disabled = false;
+                button.classList.remove('d-none');
                 spinner.classList.add('d-none');
                 return;
             }
@@ -548,7 +545,7 @@ For the data, note the following:
         } catch (error) {
             showToast("Error: " + error.message, "error");
         } finally {
-            button.disabled = false;
+            button.classList.remove('d-none');
             spinner.classList.add('d-none');
         }
     }
