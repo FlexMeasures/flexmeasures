@@ -1326,18 +1326,16 @@ class StorageScheduler(MetaStorageScheduler):
             if soc_unit == "%":
                 soc_max = flex_model_d.get("soc_max")
                 if isinstance(soc_max, Sensor):
-                    current_app.logger.warning(
+                    raise ValueError(
                         f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
                         "soc-max as a sensor reference is not supported for '%' unit conversion. "
                         "Skipping state-of-charge schedule."
                     )
-                    continue
                 if not soc_max:
-                    current_app.logger.warning(
+                    raise ValueError(
                         f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
                         "soc-max is missing or zero. Skipping state-of-charge schedule."
                     )
-                    continue
                 capacity = f"{soc_max} MWh"
             soc_schedule[state_of_charge_sensor] = convert_units(
                 integrate_time_series(
