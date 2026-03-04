@@ -13,6 +13,9 @@ jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out src from Git
+        uses: actions/checkout@v3
+
       - name: Set up test environment
         uses: ./.github/actions/setup-test-env
         with:
