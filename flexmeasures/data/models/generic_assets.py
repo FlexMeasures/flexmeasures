@@ -637,7 +637,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
 
-        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param chart_type: currently only "chart_for_multiple_sensors" # todo: where can we properly list the available chart types?
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
