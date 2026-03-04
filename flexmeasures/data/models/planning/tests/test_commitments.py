@@ -536,9 +536,8 @@ def test_two_flexible_assets_with_commodity(app, db):
 
 def test_mixed_gas_and_electricity_assets(app, db):
     """
-    Test scheduling two flexible assets with different commodities:
-    - Battery (electricity)
-    - Gas boiler (gas)
+    Test scheduling with mixed commodities: battery (electricity) and boiler (gas).
+    Verify cost calculations for both commodity types.
     """
 
     battery_type = get_or_create_model(GenericAssetType, name="battery")
