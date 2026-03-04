@@ -80,9 +80,10 @@ def get_source_or_none(
 def get_data_generator(
     source: Source | None,
     model: str,
-    config: dict,
     save_config: bool,
     data_generator_type: Type[DG],
+    config: dict | None = None,
+    **kwargs,
 ) -> DG | None:
     dg_type_name = data_generator_type.__name__
     if source is None:
@@ -104,7 +105,7 @@ def get_data_generator(
 
         # initialize data generator class with the config
         data_generator: DataGenerator = data_generator_class(
-            config=config, save_config=save_config
+            config=config, save_config=save_config, **kwargs
         )
 
     else:

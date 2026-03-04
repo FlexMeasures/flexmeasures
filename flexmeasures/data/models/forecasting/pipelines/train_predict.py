@@ -35,9 +35,13 @@ class TrainPredictPipeline(Forecaster):
         delete_model: bool = False,
         save_config: bool = True,
         save_parameters: bool = False,
+        **kwargs,
     ):
         super().__init__(
-            config=config, save_config=save_config, save_parameters=save_parameters
+            config=config,
+            save_config=save_config,
+            save_parameters=save_parameters,
+            **kwargs,
         )
         for k, v in self._config.items():
             setattr(self, k, v)
