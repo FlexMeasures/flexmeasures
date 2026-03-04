@@ -14,6 +14,7 @@ from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
 from marshmallow import fields
+from marshmallow.constants import _Missing
 
 from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
@@ -463,10 +464,21 @@ def add_cli_options_from_schema(schema):
             if example is not None:
                 help_text += f"\nExample: {example}"
 
+            # CLI option expects a serialized default (only serialize if a real default exists)
+            default = field.load_default
+            if callable(default):
+                # For instance, PlanningDurationField.load_default
+                default = default()
+            if default is not None and not isinstance(default, _Missing):
+                default = field._serialize(default, attr=field_name, obj=None)
+            else:
+                default = None  # Or omit the default from Click kwargs
+
+            # Start to build CLI option kwargs
             kwargs = {
                 "help": help_text,
                 "required": field.required,
-                "default": field.load_default,
+                "default": default,
             }
 
             if cli.get("is_flag"):
