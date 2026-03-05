@@ -724,7 +724,11 @@ def test_mixed_gas_and_electricity_assets(app, db):
 
 
 def test_two_devices_shared_stock(app, db):
-
+    """
+    Test scheduling two batteries sharing a single shared stock.
+    Each battery: 20→80 kWh (60 kWh increase).
+    Combined SoC in shared stock cannot exceed 100 kWh at any time.
+    """
     # ---- time
     start = pd.Timestamp("2024-01-01T00:00:00+01:00")
     end = pd.Timestamp("2024-01-02T00:00:00+01:00")
@@ -769,8 +773,8 @@ def test_two_devices_shared_stock(app, db):
 
     db.session.add_all([soc1, soc2, s1, s2])
     db.session.commit()
-    pd.set_option("display.max_rows", None)
-    # ---- shared stock
+
+    # ---- shared stock (both batteries charge from same pool)
     flex_model = [
         {
             "sensor": s1.id,
@@ -816,10 +820,106 @@ def test_two_devices_shared_stock(app, db):
 
     schedules = scheduler.compute(skip_validation=True)
 
-    # extract SoC schedules
-    soc_schedules = [s for s in schedules if s["name"] == "state_of_charge"]
+    # Extract schedules by type
+    storage_schedules = [
+        entry for entry in schedules if entry.get("name") == "storage_schedule"
+    ]
+    soc_schedules = [
+        entry for entry in schedules if entry.get("name") == "state_of_charge"
+    ]
+    commitment_costs = [
+        entry for entry in schedules if entry.get("name") == "commitment_costs"
+    ]
 
-    # total shared stock must never exceed 50
-    total_soc = soc_schedules[0]["data"] + soc_schedules[1]["data"]
+    assert len(storage_schedules) == 2
+    assert len(soc_schedules) == 1  # single shared SoC schedule
+    assert len(commitment_costs) == 1
 
-    assert total_soc.max() <= 50 + 1e-6
+    # Get battery schedules
+    b1_schedule = next(entry for entry in storage_schedules if entry["sensor"] == s1)
+    b1_data = b1_schedule["data"]
+
+    b2_schedule = next(entry for entry in storage_schedules if entry["sensor"] == s2)
+    b2_data = b2_schedule["data"]
+
+    # Both devices should charge to meet their targets
+    assert (b1_data > 0).any(), "B1 should charge at some point"
+    assert (b2_data > 0).any(), "B2 should charge at some point"
+
+    costs_data = commitment_costs[0]["data"]
+
+    # B1: 60kWh Δ (20→80) / 0.95 eff × 100 EUR/MWh ≈ 6.32 EUR (charge) + discharge ≈ 4.32 EUR
+    assert costs_data["electricity energy 0"] == pytest.approx(4.32, rel=1e-2), (
+        f"B1 electricity cost (60kWh @ 95% eff + discharge): "
+        f"60kWh/0.95 × (100 EUR/MWh) ≈ 4.32 EUR, "
+        f"got {costs_data['electricity energy 0']}"
+    )
+
+    # B2: identical to B1 (same parameters and targets)
+    assert costs_data["electricity energy 1"] == pytest.approx(4.32, rel=1e-2), (
+        f"B2 electricity cost (60kWh @ 95% eff + discharge, same as B1): "
+        f"60kWh/0.95 × (100 EUR/MWh) ≈ 4.32 EUR, "
+        f"got {costs_data['electricity energy 1']}"
+    )
+
+    # Total electricity: B1 (4.32) + B2 (4.32) = 8.64 EUR
+    total_electricity_cost = sum(
+        v for k, v in costs_data.items() if k.startswith("electricity energy")
+    )
+    assert total_electricity_cost == pytest.approx(8.64, rel=1e-2), (
+        f"Total electricity cost (B1 4.32 + B2 4.32): "
+        f"≈ 8.64 EUR, got {total_electricity_cost}"
+    )
+
+    # B1 charging preference: early charging in shared stock scenario ≈ 9.44e-6 EUR
+    assert costs_data["prefer charging device 0 sooner"] == pytest.approx(
+        9.44e-6, rel=1e-2
+    ), (
+        f"B1 charging preference (shared stock: both compete for same resource): "
+        f"≈ 9.44e-6 EUR, got {costs_data['prefer charging device 0 sooner']}"
+    )
+
+    # B1 curtailing preference (0.5× multiplier): ≈ 4.72e-6 EUR
+    assert costs_data["prefer curtailing device 0 later"] == pytest.approx(
+        4.72e-6, rel=1e-2
+    ), (
+        f"B1 curtailing preference (0.5× idle multiplier): "
+        f"≈ 0.5 × 9.44e-6 = 4.72e-6 EUR, "
+        f"got {costs_data['prefer curtailing device 0 later']}"
+    )
+
+    # B2 charging preference: same as B1 ≈ 9.44e-6 EUR
+    assert costs_data["prefer charging device 1 sooner"] == pytest.approx(
+        9.44e-6, rel=1e-2
+    ), (
+        f"B2 charging preference (shared stock, same as B1): "
+        f"≈ 9.44e-6 EUR, got {costs_data['prefer charging device 1 sooner']}"
+    )
+
+    # B2 curtailing preference: same as B1 ≈ 4.72e-6 EUR
+    assert costs_data["prefer curtailing device 1 later"] == pytest.approx(
+        4.72e-6, rel=1e-2
+    ), (
+        f"B2 curtailing preference (0.5× idle multiplier, same as B1): "
+        f"≈ 4.72e-6 EUR, got {costs_data['prefer curtailing device 1 later']}"
+    )
+
+    # Verify charging cost ~2× curtailing cost for B1 (due to 0.5× multiplier)
+    assert (
+        costs_data["prefer charging device 0 sooner"]
+        > costs_data["prefer curtailing device 0 later"]
+    ), (
+        f"B1 charging preference should cost ~2× more than curtailing "
+        f"due to 0.5× multiplier. "
+        f"Ratio: {costs_data['prefer charging device 0 sooner'] / costs_data['prefer curtailing device 0 later']:.1f}×"
+    )
+
+    # Verify charging cost ~2× curtailing cost for B2 (due to 0.5× multiplier)
+    assert (
+        costs_data["prefer charging device 1 sooner"]
+        > costs_data["prefer curtailing device 1 later"]
+    ), (
+        f"B2 charging preference should cost ~2× more than curtailing "
+        f"due to 0.5× multiplier. "
+        f"Ratio: {costs_data['prefer charging device 1 sooner'] / costs_data['prefer curtailing device 1 later']:.1f}×"
+    )
