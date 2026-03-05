@@ -112,6 +112,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``production-breach-price``
      - |PRODUCTION_BREACH_PRICE.example|
      - .. include:: ../_autodoc/PRODUCTION_BREACH_PRICE.rst
+   * - ``commitments``
+     - |COMMITMENTS.example|
+     - .. include:: ../_autodoc/COMMITMENTS.rst
 
 .. [#old_consumption_price_field] This field replaced the ``consumption-price-sensor`` field, which only accepted an integer (sensor ID).
 
