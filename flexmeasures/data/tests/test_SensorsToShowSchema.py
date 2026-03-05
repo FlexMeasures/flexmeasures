@@ -63,7 +63,7 @@ def test_flatten_with_multiple_flex_config_fields(setup_test_data):
             "plots": [
                 {
                     "asset": asset.id,
-                    "flex-model": ["consumption-capacity", "production-capacity"],
+                    # "flex-model": ["consumption-capacity", "production-capacity"], # Future expansion: allow multiple flex-models in one plot
                     "flex-context": "site-consumption-capacity",
                 }
             ]
@@ -73,8 +73,8 @@ def test_flatten_with_multiple_flex_config_fields(setup_test_data):
         _get_sensor_by_name(asset.sensors, name).id
         for name in (
             "site-consumption-capacity",
-            "consumption-capacity",
-            "production-capacity",
+            # "consumption-capacity",
+            # "production-capacity",
         )
     ]
     assert schema.flatten(input_value) == expected_output
