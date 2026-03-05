@@ -554,6 +554,21 @@ class MetaStorageScheduler(Scheduler):
                 )
             )
 
+        # --- apply shared stock groups
+        if hasattr(self, "stock_groups") and self.stock_groups:
+            for stock_id, devices in self.stock_groups.items():
+
+                if len(devices) <= 1:
+                    continue
+
+                # combine stock delta
+                combined_delta = sum(
+                    device_constraints[d]["stock delta"] for d in devices
+                )
+
+                for d in devices:
+                    device_constraints[d]["stock delta"] = combined_delta
+
         # Create the device constraints for all the flexible devices
         for d in range(num_flexible_devices):
             sensor_d = sensors[d]
@@ -1134,6 +1149,7 @@ class MetaStorageScheduler(Scheduler):
                     soc_targets=self.flex_model[d].get("soc_targets"),
                     sensor=self.flex_model[d]["sensor"],
                 )
+            self.stock_groups = self._build_stock_groups(self.flex_model)
 
         else:
             raise TypeError(
@@ -1381,7 +1397,9 @@ class StorageScheduler(MetaStorageScheduler):
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
-    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
+    def compute(  # noqa: C901
+        self, skip_validation: bool = False
+    ) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
@@ -1400,18 +1418,22 @@ class StorageScheduler(MetaStorageScheduler):
             commitments,
         ) = self._prepare(skip_validation=skip_validation)
 
+        initial_stock = [0] * len(soc_at_start)
+
+        for stock_id, devices in self.stock_groups.items():
+            d0 = devices[0]
+            s = soc_at_start[d0]
+
+            value = s * (timedelta(hours=1) / resolution) if s is not None else 0
+
+            for d in devices:
+                initial_stock[d] = value
+
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints=device_constraints,
             ems_constraints=ems_constraints,
             commitments=commitments,
-            initial_stock=[
-                (
-                    soc_at_start_d * (timedelta(hours=1) / resolution)
-                    if soc_at_start_d is not None
-                    else 0
-                )
-                for soc_at_start_d in soc_at_start
-            ],
+            initial_stock=initial_stock,
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
@@ -1450,26 +1472,35 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model["sensor"] = sensors[0]
             flex_model = [flex_model]
 
-        soc_schedule = {
-            flex_model_d["state_of_charge"]: convert_units(
-                integrate_time_series(
-                    series=ems_schedule[d],
-                    initial_stock=soc_at_start[d],
-                    stock_delta=device_constraints[d]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                ),
-                from_unit="MWh",
-                to_unit=flex_model_d["state_of_charge"].unit,
+        soc_schedule = {}
+
+        for stock_idx, (stock_id, devices) in enumerate(self.stock_groups.items()):
+            d0 = devices[0]
+
+            stock_series = sum(ems_schedule[d] for d in devices)
+
+            soc = integrate_time_series(
+                series=stock_series,
+                initial_stock=soc_at_start[d0],
+                stock_delta=device_constraints[d0]["stock delta"]
+                * resolution
+                / timedelta(hours=1),
+                up_efficiency=device_constraints[d0]["derivative up efficiency"],
+                down_efficiency=device_constraints[d0]["derivative down efficiency"],
+                storage_efficiency=device_constraints[d0]["efficiency"]
+                .astype(float)
+                .fillna(1),
             )
-            for d, flex_model_d in enumerate(flex_model)
-            if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
-        }
+
+            # attach SOC sensor if defined
+            soc_sensor = flex_model[d0].get("state_of_charge")
+
+            if isinstance(soc_sensor, Sensor):
+                soc_schedule[soc_sensor] = convert_units(
+                    soc,
+                    from_unit="MWh",
+                    to_unit=soc_sensor.unit,
+                )
 
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:
