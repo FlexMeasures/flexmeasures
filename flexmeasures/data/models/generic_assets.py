@@ -405,7 +405,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         for ref in asset_refs:
             temp_sensors = []
             parent_asset = db.session.get(GenericAsset, ref["id"])
-            sensor_name = f"Temporary Sensor ({ref['field']} for ({parent_asset.name}))"
+            sensor_name = f"{ref['field']} for ({parent_asset.name})"
             # create temporary sensor with negative ID
             temporary = SensorClass(
                 name=sensor_name,
