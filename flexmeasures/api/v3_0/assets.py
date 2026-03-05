@@ -159,6 +159,69 @@ class KPIKwargsSchema(Schema):
     event_ends_before = AwareDateTimeField(format="iso", required=False)
 
 
+def fetch_all_assets_in_account(
+    account_id: int, target_account_id: int
+) -> list[GenericAsset]:
+    try:
+        # order from oldest to newest to help with parent/child dependencies
+        assets = db.session.scalars(
+            select(GenericAsset)
+            .filter(GenericAsset.account_id == account_id)
+            .order_by(GenericAsset.id)
+        ).all()
+
+        asset_mapping = {}
+        new_assets = []
+
+        for old_asset in assets:
+            asset_kwargs = {}
+            for column in old_asset.__table__.columns:
+                if column.name not in ["id"]:
+                    asset_kwargs[column.name] = getattr(old_asset, column.name)
+
+            # Avoid name collisions
+            asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
+            # Assign to the target account
+            asset_kwargs["account_id"] = target_account_id
+
+            # Assign the new parent if applicable, otherwise keep the old (or None)
+            if old_asset.parent_asset_id in asset_mapping:
+                asset_kwargs["parent_asset_id"] = asset_mapping[
+                    old_asset.parent_asset_id
+                ].id
+
+            new_asset = GenericAsset(**asset_kwargs)
+            db.session.add(new_asset)
+            db.session.flush()
+
+            asset_mapping[old_asset.id] = new_asset
+            new_assets.append(new_asset)
+
+            sensors = db.session.scalars(
+                select(Sensor).filter(Sensor.generic_asset_id == old_asset.id)
+            ).all()
+
+            for old_sensor in sensors:
+                sensor_kwargs = {}
+                for column in old_sensor.__table__.columns:
+                    if column.name not in ["id", "generic_asset_id"]:
+                        sensor_kwargs[column.name] = getattr(old_sensor, column.name)
+
+                sensor_kwargs["generic_asset_id"] = new_asset.id
+
+                # Check for any external_id collision or similar unique constraints on sensors?
+                # Usually sensors are unique per asset name, or timezone, etc.
+
+                new_sensor = Sensor(**sensor_kwargs)
+                db.session.add(new_sensor)
+
+        db.session.commit()
+        return new_assets
+    except Exception as e:
+        db.session.rollback()
+        raise e
+
+
 class AssetTypesAPI(FlaskView):
     """
     This API view exposes generic asset types.
@@ -295,6 +358,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        fetch_all_assets_in_account(account.id, 2) if account else []
 
         # Find out which accounts are relevant
         if account is not None:
