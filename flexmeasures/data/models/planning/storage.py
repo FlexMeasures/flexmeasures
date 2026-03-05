@@ -568,7 +568,7 @@ class MetaStorageScheduler(Scheduler):
 
                 for d in devices:
                     device_constraints[d]["stock delta"] = combined_delta
-        breakpoint()
+
         # Create the device constraints for all the flexible devices
         for d in range(num_flexible_devices):
             sensor_d = sensors[d]
