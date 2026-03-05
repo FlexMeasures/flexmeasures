@@ -40,7 +40,7 @@ AGGREGATE_POWER = MetaData(
     example={"sensor": 9},
 )
 COMMITMENTS = MetaData(
-    description="Prior commitments. Support for this field in the UI is still under further development, but you can study the code to learn more.",
+    description="Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
     example=[],
 )
 CONSUMPTION_PRICE = MetaData(
