@@ -728,7 +728,8 @@ def test_two_devices_shared_stock(app, db):
     # ---- time
     start = pd.Timestamp("2024-01-01T00:00:00+01:00")
     end = pd.Timestamp("2024-01-02T00:00:00+01:00")
-    resolution = pd.Timedelta("1h")
+    power_sensor_resolution = pd.Timedelta("15m")
+    soc_sensor_resolution = pd.Timedelta(0)
 
     # ---- assets
     battery_type = get_or_create_model(GenericAssetType, name="battery")
@@ -739,42 +740,74 @@ def test_two_devices_shared_stock(app, db):
     db.session.add_all([b1, b2])
     db.session.commit()
 
-    s1 = Sensor(name="power1", unit="kW", event_resolution=resolution, generic_asset=b1)
-    s2 = Sensor(name="power2", unit="kW", event_resolution=resolution, generic_asset=b2)
+    s1 = Sensor(
+        name="power1",
+        unit="kW",
+        event_resolution=power_sensor_resolution,
+        generic_asset=b1,
+    )
+    s2 = Sensor(
+        name="power2",
+        unit="kW",
+        event_resolution=power_sensor_resolution,
+        generic_asset=b2,
+    )
 
-    db.session.add_all([s1, s2])
+    soc1 = Sensor(
+        name="soc1",
+        unit="kWh",
+        event_resolution=soc_sensor_resolution,
+        generic_asset=b1,
+    )
+
+    soc2 = Sensor(
+        name="soc2",
+        unit="kWh",
+        event_resolution=soc_sensor_resolution,
+        generic_asset=b2,
+    )
+
+    db.session.add_all([soc1, soc2, s1, s2])
     db.session.commit()
-
+    pd.set_option("display.max_rows", None)
     # ---- shared stock
     flex_model = [
         {
             "sensor": s1.id,
-            "stock-id": "tank_A",
-            "soc-at-start": 0,
-            "soc-min": 0,
-            "soc-max": 50,
-            "power-capacity": "50 kW",
+            "stock-id": "shared",
+            "state-of-charge": {"sensor": soc1.id},
+            "soc-at-start": 20.0,
+            "soc-min": 0.0,
+            "soc-max": 100.0,
+            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 80.0}],
+            "power-capacity": "20 kW",
+            "charging-efficiency": 0.95,
+            "discharging-efficiency": 0.95,
         },
         {
             "sensor": s2.id,
-            "stock-id": "tank_A",
-            "soc-at-start": 0,
-            "soc-min": 0,
-            "soc-max": 50,
-            "power-capacity": "50 kW",
+            "stock-id": "shared",
+            "state-of-charge": {"sensor": soc2.id},
+            "soc-at-start": 20.0,
+            "soc-min": 0.0,
+            "soc-max": 100.0,
+            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 80.0}],
+            "power-capacity": "20 kW",
+            "charging-efficiency": 0.95,
+            "discharging-efficiency": 0.95,
         },
     ]
 
     flex_context = {
-        "consumption-price": "10 EUR/MWh",
-        "production-price": "10 EUR/MWh",
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "100 EUR/MWh",
     }
 
     scheduler = StorageScheduler(
         asset_or_sensor=b1,
         start=start,
         end=end,
-        resolution=resolution,
+        resolution=power_sensor_resolution,
         belief_time=start,
         flex_model=flex_model,
         flex_context=flex_context,
