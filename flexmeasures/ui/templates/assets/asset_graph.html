@@ -569,6 +569,9 @@
 
         async function renderRootAssets() {
             const assetTreeSelect = document.getElementById("assetTree");
+            if (assetTreeSelect.options && assetTreeSelect.options.length > 1) {
+                return;
+            }
             const rootAssetId = "{{site_asset.id}}"
             const response = await fetch(`${apiBasePath}/api/v3_0/assets?sort_by=id&sort_dir=asc&root=${rootAssetId}`);
             const resBody = await response.json();
