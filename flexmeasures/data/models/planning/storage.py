@@ -1298,6 +1298,64 @@ class StorageScheduler(MetaStorageScheduler):
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
+    @staticmethod
+    def _build_soc_schedule(
+        flex_model: list[dict],
+        ems_schedule: pd.DataFrame,
+        soc_at_start: list[float],
+        device_constraints: list,
+        resolution: timedelta,
+    ) -> dict:
+        """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
+
+        Converts the integrated power schedule from MWh to the sensor's unit.
+        For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
+        If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
+
+        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
+        after deserialization and cannot be a sensor reference. The isinstance guard below is
+        therefore a defensive check for forward-compatibility.
+        """
+        soc_schedule = {}
+        for d, flex_model_d in enumerate(flex_model):
+            state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
+            if not isinstance(state_of_charge_sensor, Sensor):
+                continue
+            soc_unit = state_of_charge_sensor.unit
+            capacity = None
+            if soc_unit == "%":
+                soc_max = flex_model_d.get("soc_max")
+                if isinstance(soc_max, Sensor):
+                    raise ValueError(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
+                        "Skipping state-of-charge schedule."
+                    )
+                if not soc_max:
+                    raise ValueError(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max is missing or zero. Skipping state-of-charge schedule."
+                    )
+                capacity = f"{soc_max} MWh"
+            soc_schedule[state_of_charge_sensor] = convert_units(
+                integrate_time_series(
+                    series=ems_schedule[d],
+                    initial_stock=soc_at_start[d],
+                    stock_delta=device_constraints[d]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
+                    up_efficiency=device_constraints[d]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d]["derivative down efficiency"],
+                    storage_efficiency=device_constraints[d]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
+                ),
+                from_unit="MWh",
+                to_unit=soc_unit,
+                capacity=capacity,
+            )
+        return soc_schedule
+
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -1367,26 +1425,9 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model["sensor"] = sensors[0]
             flex_model = [flex_model]
 
-        soc_schedule = {
-            flex_model_d["state_of_charge"]: convert_units(
-                integrate_time_series(
-                    series=ems_schedule[d],
-                    initial_stock=soc_at_start[d],
-                    stock_delta=device_constraints[d]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                ),
-                from_unit="MWh",
-                to_unit=flex_model_d["state_of_charge"].unit,
-            )
-            for d, flex_model_d in enumerate(flex_model)
-            if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
-        }
+        soc_schedule = self._build_soc_schedule(
+            flex_model, ems_schedule, soc_at_start, device_constraints, resolution
+        )
 
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:
