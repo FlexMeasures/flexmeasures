@@ -8,6 +8,12 @@ from flexmeasures.data.schemas.scheduling.metadata import MetaData
 
 DOC_PATH = Path("documentation/features/scheduling.rst")
 
+# Metadata constants that intentionally do not appear in the documentation
+EXCLUDED_METADATA = {
+    "RELAX_CAPACITY_CONSTRAINTS",
+    "RELAX_SITE_CAPACITY_CONSTRAINTS",
+    "RELAX_SOC_CONSTRAINTS",
+}
 
 def snake_to_kebab(name: str) -> str:
     return name.lower().replace("_", "-")
@@ -16,7 +22,11 @@ def snake_to_kebab(name: str) -> str:
 def get_metadata_constants():
     """Return all MetaData instances defined in the metadata module."""
     members = inspect.getmembers(metadata_module)
-    return {name: value for name, value in members if isinstance(value, MetaData)}
+    return {
+        name: value
+        for name, value in members
+        if isinstance(value, MetaData) and name not in EXCLUDED_METADATA
+    }
 
 
 def get_rst_fields():
