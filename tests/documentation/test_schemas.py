@@ -15,6 +15,7 @@ EXCLUDED_METADATA = {
     "RELAX_SOC_CONSTRAINTS",
 }
 
+
 def snake_to_kebab(name: str) -> str:
     return name.lower().replace("_", "-")
 
