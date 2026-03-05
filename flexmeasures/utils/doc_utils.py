@@ -1,4 +1,7 @@
 import re
+from urllib.parse import quote_plus
+
+DOCS_SEARCH_PATH = "/ui/static/documentation/html/search.html?q="
 
 
 def rst_to_openapi(text: str) -> str:
@@ -19,11 +22,16 @@ def rst_to_openapi(text: str) -> str:
     def ref_repl(match):
         content = match.group(1)
 
-        # explicit text form: text <target>
-        if "<" in content and content.endswith(">"):
-            return content.split("<", 1)[0].strip() + " in the docs"
+        m = re.match(r"(.*?)\s*<([^>]+)>", content)
+        if m:
+            title = m.group(1).strip()
+            search_term = title
+        else:
+            title = content.strip()
+            search_term = title
 
-        return "the docs"
+        url = DOCS_SEARCH_PATH + quote_plus(search_term)
+        return f'<a href="{url}" target="_blank">the docs</a>'
 
     text = re.sub(r":ref:`([^`]+)`", ref_repl, text)
 

@@ -4076,7 +4076,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "commitments": {
-            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in the docs.",
+            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
             "example": [],
             "type": "array",
             "items": {
