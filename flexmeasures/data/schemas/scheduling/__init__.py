@@ -582,6 +582,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.AGGREGATE_POWER.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "gas-price": {
+        "default": None,
+        "description": rst_to_openapi(metadata.GAS_PRICE.description),
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
 }
 
 UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
