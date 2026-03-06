@@ -226,6 +226,7 @@ class StorageFlexModelSchema(Schema):
     )
     commodity = fields.Str(
         required=False,
+        data_key="commodity",
         load_default="electricity",
         validate=OneOf(["electricity", "gas"]),
         metadata=dict(description="Commodity label for this device/asset."),
@@ -507,6 +508,7 @@ class DBStorageFlexModelSchema(Schema):
 
     commodity = fields.Str(
         required=False,
+        data_key="commodity",
         load_default="electricity",
         validate=OneOf(["electricity", "gas"]),
         metadata=dict(description="Commodity label for this device/asset."),
