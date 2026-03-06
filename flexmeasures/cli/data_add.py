@@ -1135,9 +1135,9 @@ def add_forecast(  # noqa: C901
     forecaster = get_data_generator(
         source=source,
         model=forecaster_class,
+        config=config,
         save_config=True,
         data_generator_type=Forecaster,
-        **config,
     )
 
     try:
