@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.31.1 | March 6, 2026
+=================================
+
+* Fix CLI command ``flexmeasures add forecasts``.
+
 since v0.31.0 | February 28, 2026
 =================================
 
