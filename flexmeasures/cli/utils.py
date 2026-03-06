@@ -13,7 +13,8 @@ import click
 from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
-from marshmallow import fields, missing
+from marshmallow import fields
+from marshmallow.constants import _Missing
 
 from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
@@ -468,7 +469,7 @@ def add_cli_options_from_schema(schema):
             if callable(default):
                 # For instance, PlanningDurationField.load_default
                 default = default()
-            if default is not None and not default == missing:
+            if default is not None and not isinstance(default, _Missing):
                 default = field._serialize(default, attr=field_name, obj=None)
             else:
                 default = None  # Or omit the default from Click kwargs
