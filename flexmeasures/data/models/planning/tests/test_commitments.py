@@ -623,7 +623,7 @@ def test_mixed_gas_and_electricity_assets(app, db):
     )
 
     schedules = scheduler.compute(skip_validation=True)
-    breakpoint()
+
     assert isinstance(schedules, list)
     assert len(schedules) == 3  # 2 storage schedules + 1 commitment costs
 
