@@ -299,6 +299,13 @@ class FlexContextSchema(Schema):
         data_key="aggregate-power",
         required=False,
     )
+    gas_price = VariableQuantityField(
+        "/MWh",
+        data_key="gas-price",
+        required=False,
+        return_magnitude=False,
+        metadata=metadata.GAS_PRICE.to_dict(),
+    )
 
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
