@@ -18,12 +18,13 @@ Bugfixes
 -----------
 
 
-v0.31.1 | March XX, 2026
+v0.31.1 | March 6, 2026
 ============================
 
 Bugfixes
 -----------
-- Add missing field documentation for ``aggregate-power`` and ``state-of-charge`` fields, which can be used to reference a sensor on which to record extra scheduling results [see `PR #2003 <https://www.github.com/FlexMeasures/flexmeasures/pull/2003>`_ and `PR #2006 <https://www.github.com/FlexMeasures/flexmeasures/pull/2006>`_]
+* Fix CLI command ``flexmeasures add forecasts`` [see `PR #2007 <https://www.github.com/FlexMeasures/flexmeasures/pull/2007>`_]
+* Add missing field documentation for ``aggregate-power`` and ``state-of-charge`` fields, which can be used to reference a sensor on which to record extra scheduling results [see `PR #2003 <https://www.github.com/FlexMeasures/flexmeasures/pull/2003>`_ and `PR #2006 <https://www.github.com/FlexMeasures/flexmeasures/pull/2006>`_]
 
 
 v0.31.0 | February 28, 2026
