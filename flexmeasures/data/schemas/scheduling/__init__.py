@@ -738,6 +738,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "commodity": {
+        "default": "electricity",
+        "description": rst_to_openapi(metadata.COMMODITY.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only.",
+        },
+        "options": ["electricity", "gas"],
+    },
 }
 
 
