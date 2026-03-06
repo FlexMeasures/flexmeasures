@@ -30,7 +30,6 @@ from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
     find_first_applicable_config_entry,
 )
-from flexmeasures.utils.doc_utils import sphinx_docs_exist
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_ui = Blueprint(
@@ -173,7 +172,13 @@ def add_jinja_variables(app):
         ("FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS", ""),
     ):
         app.jinja_env.globals[v] = app.config.get(v, d)
-    app.jinja_env.globals["sphinx_docs_exist"] = sphinx_docs_exist
+    app.jinja_env.globals["sphinx_docs_exist"] = (
+        True
+        if os.path.exists(
+            "%s/static/documentation/html/index.html" % flexmeasures_ui.root_path
+        )
+        else False
+    )
     app.jinja_env.globals["openapi_docs_exist"] = (
         True
         if os.path.exists("%s/static/openapi-specs.json" % flexmeasures_ui.root_path)

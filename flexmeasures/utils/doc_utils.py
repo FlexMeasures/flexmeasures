@@ -1,8 +1,7 @@
-import os
 import re
 from urllib.parse import quote_plus
 
-DOCS_PATH = "/ui/static/documentation/html"
+DOCS_SEARCH_PATH = "/ui/static/documentation/html/search.html?q="
 
 
 def rst_to_openapi(text: str) -> str:
@@ -31,11 +30,7 @@ def rst_to_openapi(text: str) -> str:
             title = content.strip()
             search_term = title
 
-        if sphinx_docs_exist():
-            docs_path = DOCS_PATH
-        else:
-            docs_path = "https://flexmeasures.readthedocs.io/stable"
-        url = docs_path + "/search.html?q=" + quote_plus(search_term)
+        url = DOCS_SEARCH_PATH + quote_plus(search_term)
         return f'<a href="{url}" target="_blank">the docs</a>'
 
     text = re.sub(r":ref:`([^`]+)`", ref_repl, text)
@@ -84,9 +79,3 @@ def rst_to_openapi(text: str) -> str:
     text = re.sub(r"\*(.*?)\*", r"<em>\1</em>", text)
 
     return text
-
-
-def sphinx_docs_exist() -> bool:
-    if os.path.exists(DOCS_PATH + "/index.html"):
-        return True
-    return False
