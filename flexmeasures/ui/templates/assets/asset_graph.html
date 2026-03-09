@@ -408,7 +408,7 @@
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
 
         // ==========================================
-        // REACTIVE STATE MANAGEMENT (Vanilla JS)
+        // REACTIVE STATE MANAGEMENT
         // ==========================================
         // We use createReactiveState (from ui-utils.js) to mimic React's useState.
         // It returns a getter and a setter function for the given piece of state.
@@ -846,6 +846,19 @@
 
             if (oldSensorsToShow.length === 0) {
                 return;
+            }
+
+            // Update 'Add plot' button text based on selected graph
+            const btn = document.getElementById("addPlotBtn");
+            if (btn) {
+                const card = activeCard();
+                if (card) {
+                    const index = parseInt(card.id.split("_")[1]);
+                    const selectedTitle = getSensorToShow()[index]?.title || "graph";
+                    btn.textContent = `Add '${selectedTitle}' plot`;
+                } else {
+                    btn.textContent = "Add plot";
+                }
             }
 
             for (const [index, item] of oldSensorsToShow.entries()) {
