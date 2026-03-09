@@ -1152,7 +1152,7 @@ def add_forecast(  # noqa: C901
 
         # as_job case → list of job dicts like {"job-1": "<uuid>"}
         if as_job:
-            n_jobs = len(pipeline_returns)
+            n_jobs = pipeline_returns["n_jobs"]
             click.secho(f"Created {n_jobs} forecasting job(s).", **MsgStyle.SUCCESS)
             return
 
