@@ -50,9 +50,7 @@ class TrainPredictPipeline(Forecaster):
 
         for index, job_id in enumerate(cycle_job_ids):
             status = Job.fetch(job_id, connection=connection).get_status()
-            logging.info(
-                f"forecasting job-{index}: {job_id} status: {status}"
-            )
+            logging.info(f"forecasting job-{index}: {job_id} status: {status}")
 
     def run_cycle(
         self,
@@ -318,9 +316,14 @@ class TrainPredictPipeline(Forecaster):
 
             if len(cycle_job_ids) > 1:
                 # Return the wrap-up job ID if multiple cycle jobs are queued
-                return {"job_id" : wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
+                return {"job_id": wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
             else:
                 # Return the single cycle job ID if only one job is queued
-                return {"job_id" : cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id, "n_jobs": 1}
+                return {
+                    "job_id": (
+                        cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
+                    ),
+                    "n_jobs": 1,
+                }
 
         return self.return_values
