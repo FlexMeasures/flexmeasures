@@ -197,7 +197,7 @@ def test_train_predict_pipeline(  # noqa: C901
 
         if as_job:
             # Fetch returned job
-            job = app.queues["forecasting"].fetch_job(pipeline_returns)
+            job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
 
             assert (
                 job is not None
