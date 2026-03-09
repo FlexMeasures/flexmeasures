@@ -394,7 +394,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 flex_config_key = plot.get("flex-context") or plot.get("flex-model")
 
                 # temporarily update sensor name for display context
-                sensor_name = f"{sensor.name} ({flex_config_key} for ({sensor.generic_asset.name}))"
+                sensor_name = f"{sensor.name} ({flex_config_key})"
                 sensor.name = sensor_name
 
             sensors_list.extend(extracted_sensors)
