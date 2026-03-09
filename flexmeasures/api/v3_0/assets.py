@@ -83,6 +83,29 @@ sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
 
+def convert_asset_json_fields(asset_kwargs):
+    """
+    Convert string fields in asset_kwargs to JSON where needed.
+    """
+    if "attributes" in asset_kwargs and isinstance(asset_kwargs["attributes"], str):
+        asset_kwargs["attributes"] = json.loads(asset_kwargs["attributes"])
+    if "sensors_to_show" in asset_kwargs and isinstance(
+        asset_kwargs["sensors_to_show"], str
+    ):
+        asset_kwargs["sensors_to_show"] = json.loads(asset_kwargs["sensors_to_show"])
+    if "flex_context" in asset_kwargs and isinstance(asset_kwargs["flex_context"], str):
+        asset_kwargs["flex_context"] = json.loads(asset_kwargs["flex_context"])
+    if "flex_model" in asset_kwargs and isinstance(asset_kwargs["flex_model"], str):
+        asset_kwargs["flex_model"] = json.loads(asset_kwargs["flex_model"])
+    if "sensors_to_show_as_kpis" in asset_kwargs and isinstance(
+        asset_kwargs["sensors_to_show_as_kpis"], str
+    ):
+        asset_kwargs["sensors_to_show_as_kpis"] = json.loads(
+            asset_kwargs["sensors_to_show_as_kpis"]
+        )
+    return asset_kwargs
+
+
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
 
     def __init__(self, *args, **kwargs):
@@ -170,25 +193,30 @@ def fetch_all_assets_in_account(
             .order_by(GenericAsset.id)
         ).all()
 
+        if len(assets) == 0:
+            raise ValueError(f"No assets found for account {account_id}.")
+
         asset_mapping = {}
+        parent_mapping = {}
         new_assets = []
 
         for old_asset in assets:
-            asset_kwargs = {}
-            for column in old_asset.__table__.columns:
-                if column.name not in ["id"]:
-                    asset_kwargs[column.name] = getattr(old_asset, column.name)
+            asset_kwargs = asset_schema.dump(old_asset)
+
+            # Remove dump_only and read-only fields
+            for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
+                asset_kwargs.pop(key, None)
 
             # Avoid name collisions
             asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
             # Assign to the target account
             asset_kwargs["account_id"] = target_account_id
+            asset_kwargs = convert_asset_json_fields(asset_kwargs)
 
-            # Assign the new parent if applicable, otherwise keep the old (or None)
-            if old_asset.parent_asset_id in asset_mapping:
-                asset_kwargs["parent_asset_id"] = asset_mapping[
-                    old_asset.parent_asset_id
-                ].id
+            # Keep track of parent_asset_id to reconnect later
+            if asset_kwargs.get("parent_asset_id"):
+                parent_mapping[old_asset.id] = asset_kwargs["parent_asset_id"]
+            asset_kwargs["parent_asset_id"] = None
 
             new_asset = GenericAsset(**asset_kwargs)
             db.session.add(new_asset)
@@ -197,23 +225,10 @@ def fetch_all_assets_in_account(
             asset_mapping[old_asset.id] = new_asset
             new_assets.append(new_asset)
 
-            sensors = db.session.scalars(
-                select(Sensor).filter(Sensor.generic_asset_id == old_asset.id)
-            ).all()
-
-            for old_sensor in sensors:
-                sensor_kwargs = {}
-                for column in old_sensor.__table__.columns:
-                    if column.name not in ["id", "generic_asset_id"]:
-                        sensor_kwargs[column.name] = getattr(old_sensor, column.name)
-
-                sensor_kwargs["generic_asset_id"] = new_asset.id
-
-                # Check for any external_id collision or similar unique constraints on sensors?
-                # Usually sensors are unique per asset name, or timezone, etc.
-
-                new_sensor = Sensor(**sensor_kwargs)
-                db.session.add(new_sensor)
+        # Second loop to set the proper parent
+        for old_id, old_parent_id in parent_mapping.items():
+            if old_parent_id in asset_mapping:
+                asset_mapping[old_id].parent_asset_id = asset_mapping[old_parent_id].id
 
         db.session.commit()
         return new_assets
@@ -358,7 +373,6 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        fetch_all_assets_in_account(account.id, 2) if account else []
 
         # Find out which accounts are relevant
         if account is not None:
@@ -1606,3 +1620,26 @@ class AssetAPI(FlaskView):
             }
             kpis.append(kpi_dict)
         return dict(data=kpis), 200
+
+    @route("/copy", methods=["POST"])
+    @use_kwargs(
+        {
+            "account_id": fields.Int(required=True),
+            "target_account_id": fields.Int(required=True),
+        },
+        location="query",
+    )
+    @as_json
+    def copy_assets(self, account_id: int, target_account_id: int):
+        """
+        .. :quickref: Assets; Copy all assets from one account to another.
+        """
+
+        # Ensure the user has administrative privileges or access to both accounts, if needed,
+        # but for now we just call the function as requested.
+        new_assets = fetch_all_assets_in_account(account_id, target_account_id)
+
+        return {
+            "message": f"Successfully copied {len(new_assets)} assets to account {target_account_id}.",
+            "assets": [a.id for a in new_assets],
+        }, 200

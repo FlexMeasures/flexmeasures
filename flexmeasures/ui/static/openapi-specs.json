@@ -2638,6 +2638,7 @@
         ]
       }
     },
+    "/api/v3_0/assets/copy": {},
     "/api/v3_0/assets/{id}": {
       "delete": {
         "summary": "Delete an asset.",
