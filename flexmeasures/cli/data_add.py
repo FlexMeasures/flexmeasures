@@ -1841,7 +1841,6 @@ def add_toy_account(kind: str, name: str):
                     {
                         "asset": building_asset.id,
                         "flex-context": "consumption-price",
-                        "flexValue": {"sensor": day_ahead_sensor.id},
                     }
                 ],
             },
