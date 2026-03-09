@@ -299,6 +299,13 @@ class FlexContextSchema(Schema):
         data_key="aggregate-power",
         required=False,
     )
+    gas_price = VariableQuantityField(
+        "/MWh",
+        data_key="gas-price",
+        required=False,
+        return_magnitude=False,
+        metadata=metadata.GAS_PRICE.to_dict(),
+    )
 
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
@@ -575,6 +582,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.AGGREGATE_POWER.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "gas-price": {
+        "default": None,
+        "description": rst_to_openapi(metadata.GAS_PRICE.description),
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
 }
 
 UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
@@ -730,6 +742,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
             "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "commodity": {
+        "default": "electricity",
+        "description": rst_to_openapi(metadata.COMMODITY.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only.",
+        },
+        "options": ["electricity", "gas"],
     },
 }
 
