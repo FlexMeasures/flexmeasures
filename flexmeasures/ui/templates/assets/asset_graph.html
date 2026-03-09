@@ -407,10 +407,26 @@
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
 
+        // ==========================================
+        // REACTIVE STATE MANAGEMENT (Vanilla JS)
+        // ==========================================
+        // We use createReactiveState (from ui-utils.js) to mimic React's useState.
+        // It returns a getter and a setter function for the given piece of state.
+        // Calling the setter function automatically triggers the provided render callback.
+        // This lets us re-render the appropriate parts of the DOM precisely when the data changes,
+        // rather than manually updating HTML elements on every user action.
 
+        // getSensorToShow / setSensorToShow: Manages the 'sensors_to_show' graph data array.
+        // Changing it triggers `reRenderForm` which redraws all graph cards in the modal UI.
         const [getSensorToShow, setSensorToShow] = createReactiveState(newFormat, reRenderForm);
+
+        // editingIndex: Tracks the index of the graph whose title is actively being edited inline.
         const [editingIndex, setEditingIndex] = createReactiveState(null, () => { });
+
+        // activeCard: Tracks which configuration graph card is currently "active" or expanded.
         const [activeCard, setActiveCard] = createReactiveState(null, () => { });
+
+        // configAsset: Stores a temporary caching of a selected Asset object used in flex configurations.
         const [configAsset, setConfigAsset] = createReactiveState(null, () => { });
 
         const saveChangesBtn = document.getElementById("saveChangesBtn");
