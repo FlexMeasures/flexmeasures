@@ -1,4 +1,4 @@
-""" Various coding utils (e.g. around function decoration) """
+r"""Various coding utils (e.g. around function decoration)"""
 
 from __future__ import annotations
 
@@ -69,34 +69,6 @@ def optional_arg_decorator(fn):
 def sort_dict(unsorted_dict: dict) -> dict:
     sorted_dict = dict(sorted(unsorted_dict.items(), key=lambda item: item[0]))
     return sorted_dict
-
-
-# This function is used for sensors_to_show in follow-up PR it will be moved and renamed to flatten_sensors_to_show
-def flatten_unique(nested_list_of_objects: list) -> list:
-    """
-    Get unique sensor IDs from a list of `sensors_to_show`.
-
-    Handles:
-    - Lists of sensor IDs
-    - Dictionaries with a `sensors` key
-    - Nested lists (one level)
-
-    Example:
-        Input:
-        [1, [2, 20, 6], 10, [6, 2], {"title":None,"sensors": [10, 15]}, 15]
-
-        Output:
-        [1, 2, 20, 6, 10, 15]
-    """
-    all_objects = []
-    for s in nested_list_of_objects:
-        if isinstance(s, list):
-            all_objects.extend(s)
-        elif isinstance(s, dict):
-            all_objects.extend(s["sensors"])
-        else:
-            all_objects.append(s)
-    return list(dict.fromkeys(all_objects).keys())
 
 
 def timeit(func):
