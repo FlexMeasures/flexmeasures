@@ -62,6 +62,27 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             {
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
+                "train-start": "2025-01-01T00:00+02:00",
+                "retrain-frequency": "PT12H",
+            },
+            {
+                "sensor": "solar-sensor",
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start": "2025-01-08T00:00+02:00",  # start coincides with end of available data in sensor
+                "end": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT12H",  # 2 cycles and 2 viewpoint
+                "probabilistic": False,
+            },
+            True,
+            None,
+        ),
+        (
+            {
+                # "model": "CustomLGBM",
+                "future-regressors": ["irradiance-sensor"],
                 # "train-start": "2025-01-01T00:00+02:00",  # without a start date, max-training-period takes over
                 "max-training-period": "P7D",
             },
