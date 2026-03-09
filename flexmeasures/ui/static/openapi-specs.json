@@ -4076,7 +4076,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "commitments": {
-            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can study the code to learn more.",
+            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
             "example": [],
             "type": "array",
             "items": {
@@ -4095,6 +4095,10 @@
             }
           },
           "aggregate-power": {
+            "description": "Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.",
+            "example": {
+              "sensor": 9
+            },
             "$ref": "#/components/schemas/SensorReference"
           }
         },
