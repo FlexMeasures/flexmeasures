@@ -1835,7 +1835,16 @@ def add_toy_account(kind: str, name: str):
 
         # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
         building_asset.sensors_to_show = [
-            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
+            {
+                "title": "Prices",
+                "plots": [
+                    {
+                        "asset": building_asset.id,
+                        "flex-context": "consumption-price",
+                        "flexValue": {"sensor": day_ahead_sensor.id},
+                    }
+                ],
+            },
             {
                 "title": "Power flows",
                 "plots": [
