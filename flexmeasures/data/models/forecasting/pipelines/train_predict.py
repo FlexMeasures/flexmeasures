@@ -315,9 +315,9 @@ class TrainPredictPipeline(Forecaster):
 
             if len(cycle_job_ids) > 1:
                 # Return the wrap-up job ID if multiple cycle jobs are queued
-                return wrap_up_job.id
+                return {"job_id" : wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
             else:
                 # Return the single cycle job ID if only one job is queued
-                return cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
+                return {"job_id" : cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id, "n_jobs": 1}
 
         return self.return_values
