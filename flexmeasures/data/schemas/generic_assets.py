@@ -25,7 +25,7 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
-from flexmeasures.utils.unit_utils import extract_unit_from_string
+from flexmeasures.utils.unit_utils import split_into_magnitude_and_unit
 
 
 class SensorsToShowSchema(fields.Field):
@@ -472,7 +472,7 @@ def extract_sensors_from_flex_config(plot: dict) -> tuple[list[Sensor], list[dic
             elif isinstance(field_value, str):
                 unit = None
                 # extract unit from the string value and add a dummy sensor with that unit
-                value, unit = extract_unit_from_string(field_value)
+                value, unit = split_into_magnitude_and_unit(field_value)
                 if unit is not None:
                     asset_refs.append(
                         {
