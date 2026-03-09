@@ -202,6 +202,9 @@ def test_train_predict_pipeline(  # noqa: C901
             assert (
                 job is not None
             ), "a returned job should exist in the forecasting queue"
+            assert (
+                job.is_finished
+            ), f"The wrap-up job should be finished, and not {job.get_status()}"
 
             if job.dependency_ids:
                 cycle_job_ids = [job]  # only one cycle job, no wrap-up job
