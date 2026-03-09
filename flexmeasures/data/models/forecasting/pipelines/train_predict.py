@@ -46,9 +46,12 @@ class TrainPredictPipeline(Forecaster):
 
     def run_wrap_up(self, cycle_job_ids: list[str]):
         """Log the status of all cycle jobs after completion."""
+        connection = current_app.queues["forecasting"].connection
+
         for index, job_id in enumerate(cycle_job_ids):
+            status = Job.fetch(job_id, connection=connection).get_status()
             logging.info(
-                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}"
+                f"forecasting job-{index}: {job_id} status: {status}"
             )
 
     def run_cycle(
