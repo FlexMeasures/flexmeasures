@@ -4,6 +4,14 @@ FlexMeasures Changelog
 **********************
 
 
+v0.31.2 | March XX, 2026
+============================
+
+Bugfixes
+-----------
+* Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
+
+
 v0.31.1 | March 6, 2026
 ============================
 
@@ -59,7 +67,6 @@ New features
 * Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
 * Add a documentation section on the concept of ``Commitments`` [see `PR #1849 <https://www.github.com/FlexMeasures/flexmeasures/pull/1849>`_]
 * Add resolution column to sensors list on asset context page [see `PR #1986 <https://www.github.com/FlexMeasures/flexmeasures/pull/1986>`_]
-
 
 Infrastructure / Support
 ----------------------
