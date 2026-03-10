@@ -72,13 +72,14 @@ def add_tiny_price_slope(
     """Add tiny price slope to col_name to represent e.g. inflation as a simple linear price increase.
     This is meant to break ties, when multiple time slots have equal prices, in favour of acting sooner.
     We penalise the future with at most d times the price spread (1 per thousand by default).
+    For flat prices, we scale by the absolute price level instead of the spread.
     """
     prices = orig_prices.copy()
     price_spread = prices[col_name].max() - prices[col_name].min()
     if price_spread > 0:
         max_penalty = price_spread * d
     else:
-        max_penalty = d
+        max_penalty = max(abs(prices[col_name].mean()), 1.0) * d
     prices[col_name] = prices[col_name] + np.linspace(
         0, max_penalty, prices[col_name].size
     )

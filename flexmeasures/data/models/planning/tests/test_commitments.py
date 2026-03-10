@@ -1,3 +1,4 @@
+import pytest
 import pandas as pd
 import numpy as np
 import pytest
@@ -531,6 +532,61 @@ def test_two_flexible_assets_with_commodity(app, db):
     assert battery_total_pref > hp_total_pref, (
         f"Battery preference costs ({battery_total_pref:.2e}) should be higher than "
         f"heat pump ({hp_total_pref:.2e}) since battery moves more energy (60 kWh vs 30 kWh)"
+    )
+
+    # Extract storage schedules by sensor
+    storage_schedules = {
+        s["sensor"]: s["data"]
+        for s in schedules
+        if s["name"] == "storage_schedule"
+    }
+    battery_schedule = storage_schedules[battery_power]
+    hp_schedule = storage_schedules[hp_power]
+
+    # With constant prices (100 EUR/MWh), the tiny price slope should cause all charging
+    # to happen as soon as possible. Both devices charge at full capacity until done.
+    #
+    # Battery: needs to go from SOC 20 kWh to 80 kWh = 60 kWh of SOC.
+    #   Energy drawn = 60 kWh / 0.95 charging efficiency ≈ 63.16 kWh
+    #   At 20 kW: 3 full hours + 3.16 kW in hour 3.
+    #
+    # Heat pump: needs to go from SOC 10 kWh to 40 kWh = 30 kWh of SOC.
+    #   Energy drawn = 30 kWh / 0.95 charging efficiency ≈ 31.58 kWh
+    #   At 10 kW: 3 full hours + 1.58 kW in hour 3.
+    battery_energy_needed = (80.0 - 20.0) / 0.95  # ≈ 63.16 kWh
+    hp_energy_needed = (40.0 - 10.0) / 0.95  # ≈ 31.58 kWh
+
+    # All charging should happen in the first 4 time slots; the rest should be near zero
+    assert battery_schedule.iloc[:3].values == pytest.approx(
+        [20.0, 20.0, 20.0], abs=1e-3
+    ), "Battery should charge at full 20 kW in hours 0-2"
+    assert battery_schedule.iloc[3] == pytest.approx(
+        battery_energy_needed - 60.0, abs=1e-3
+    ), "Battery should partially charge in hour 3"
+    assert battery_schedule.iloc[4:].values == pytest.approx(
+        [0.0] * 20, abs=1e-3
+    ), "Battery should not charge after hour 3"
+
+    assert hp_schedule.iloc[:3].values == pytest.approx(
+        [10.0, 10.0, 10.0], abs=1e-3
+    ), "Heat pump should charge at full 10 kW in hours 0-2"
+    assert hp_schedule.iloc[3] == pytest.approx(
+        hp_energy_needed - 30.0, abs=1e-3
+    ), "Heat pump should partially charge in hour 3"
+    assert hp_schedule.iloc[4:].values == pytest.approx(
+        [0.0] * 20, abs=1e-3
+    ), "Heat pump should not charge after hour 3"
+
+    # Electricity costs: energy drawn times the price.
+    # Battery:    63.16 kWh * 100 EUR/MWh = 6.316 EUR
+    # Heat pump:  31.58 kWh * 100 EUR/MWh = 3.158 EUR
+    commitment_costs_entry = next(
+        s for s in schedules if s["name"] == "commitment_costs"
+    )
+    total_costs = sum(commitment_costs_entry["data"].values())
+    expected_total_costs = (battery_energy_needed + hp_energy_needed) / 1000 * 100
+    assert total_costs == pytest.approx(expected_total_costs, rel=1e-3), (
+        f"Total electricity costs should be ≈ {expected_total_costs:.4f} EUR"
     )
 
 
