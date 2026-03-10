@@ -8,6 +8,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
+import timely_beliefs.beliefs.utils as belief_utils
 
 from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -345,6 +346,8 @@ def get_series_from_quantity_or_sensor(
         )
         if as_instantaneous_events:
             bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
+            # Workaround suggested by https://github.com/SeitaBV/timely-beliefs/issues/226
+            bdf = belief_utils.select_most_recent_belief(bdf)
         time_series = simplify_index(bdf).reindex(index).squeeze(axis=1)
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution
