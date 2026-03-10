@@ -208,6 +208,14 @@ def test_train_predict_pipeline(  # noqa: C901
         # 1 hour of forecasts is saved over 4 15-minute resolution events
         n_events_per_horizon = timedelta(hours=1) / dg_params["sensor"].event_resolution
         n_hourly_horizons = dg_params["max_forecast_horizon"] // timedelta(hours=1)
+        n_cycles = max(
+            timedelta(hours=dg_params["predict_period_in_hours"])
+            // max(
+                pipeline._config["retrain_frequency"],
+                pipeline._parameters["forecast_frequency"],
+            ),
+            1,
+        )
         assert (
             len(forecasts) == m_viewpoints * n_hourly_horizons * n_events_per_horizon * n_cycles
         ), f"we expect 4 forecasts per horizon for each viewpoint within the prediction window, and {m_viewpoints} viewpoints with each {n_hourly_horizons} hourly horizons"
