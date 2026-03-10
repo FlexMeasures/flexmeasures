@@ -405,7 +405,7 @@
         let cachedFilteredSensors = []; // keeps track of the filtered sensors
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
-        const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ asset.id }}&include_public_assets=true`;
+        const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}&include_public_assets=true`;
 
         // ==========================================
         // REACTIVE STATE MANAGEMENT
