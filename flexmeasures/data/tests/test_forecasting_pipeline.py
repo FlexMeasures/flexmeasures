@@ -219,7 +219,11 @@ def test_train_predict_pipeline(  # noqa: C901
         assert (
             len(forecasts)
             == m_viewpoints * n_hourly_horizons * n_events_per_horizon * n_cycles
-        ), f"we expect 4 forecasts per horizon for each viewpoint within the prediction window, and {m_viewpoints} viewpoints with each {n_hourly_horizons} hourly horizons"
+        ), (
+            f"we expect {n_events_per_horizon} event(s) per horizon, "
+            f"{n_hourly_horizons} horizon(s), {m_viewpoints} viewpoint(s)"
+            f"{f', {n_cycles} cycle(s)' if n_cycles > 1 else ''}"
+        )
         assert (
             forecasts.lineage.number_of_belief_times == m_viewpoints
         ), f"we expect {m_viewpoints} viewpoints"
