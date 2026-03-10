@@ -9,6 +9,7 @@ v0.32.0 | April XX, 2026
 
 New features
 -------------
+* Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
 
 Infrastructure / Support
 ----------------------
