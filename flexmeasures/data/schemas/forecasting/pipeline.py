@@ -17,6 +17,7 @@ from marshmallow import (
 
 from flexmeasures.data.schemas import SensorIdField
 from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
     AwareDateTimeOrDateField,
     DurationField,
     PlanningDurationField,
@@ -285,6 +286,18 @@ class ForecasterParametersSchema(Schema):
             },
         ),
     )
+    belief_time = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        metadata={
+            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "example": "2026-01-15T10:00+01:00",
+            "cli": {
+                "option": "--prior",
+            },
+        },
+    )
     max_forecast_horizon = DurationField(
         data_key="max-forecast-horizon",
         required=False,
@@ -419,7 +432,10 @@ class ForecasterParametersSchema(Schema):
         else:
             predict_start = data["start"]
 
-        save_belief_time = now if data.get("start") is None else predict_start
+        save_belief_time = data.get(
+            "belief_time",
+            now if data.get("start") is None else predict_start,
+        )
 
         if data.get("end") is None:
             data["end"] = predict_start + data["duration"]

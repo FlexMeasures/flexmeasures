@@ -27,6 +27,7 @@ class TrainPipeline(BasePipeline):
         forecast_frequency: int = 1,
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
+        save_belief_time: datetime | None = None,
         probabilistic: bool = False,
         ensure_positive: bool = False,
         missing_threshold: float = 1.0,
@@ -62,6 +63,7 @@ class TrainPipeline(BasePipeline):
             max_forecast_horizon=max_forecast_horizon,
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,
+            save_belief_time=save_belief_time,
             forecast_frequency=forecast_frequency,
             missing_threshold=missing_threshold,
         )
