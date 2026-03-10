@@ -268,7 +268,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
         # Check account consistency (using context)
         # Safely get the asset from context, defaulting to None if creating new
-        current_asset = self.context.get("asset")
+        current_asset = self.context.get("asset") if hasattr(self, "context") else None
 
         # If editing an existing asset (context exists)
         if current_asset and current_asset.account_id:
