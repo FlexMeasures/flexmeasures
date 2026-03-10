@@ -197,7 +197,10 @@ def test_train_predict_pipeline(  # noqa: C901
                 app.queues["forecasting"], exc_handler=handle_forecasting_exception
             )
 
-        forecasts = sensor.search_beliefs(source_types=["forecaster"])
+        forecasts = sensor.search_beliefs(
+            source_types=["forecaster"], most_recent_beliefs_only=False
+        )
+
         dg_params = pipeline._parameters  # parameters stored in the data generator
         m_viewpoints = (dg_params["end_date"] - dg_params["predict_start"]) / (
             dg_params["forecast_frequency"]
