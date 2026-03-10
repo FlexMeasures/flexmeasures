@@ -205,9 +205,9 @@ def test_train_predict_pipeline(  # noqa: C901
         # 1 hour of forecasts is saved over 4 15-minute resolution events
         n_events_per_horizon = timedelta(hours=1) / dg_params["sensor"].event_resolution
         n_hourly_horizons = dg_params["max_forecast_horizon"] // timedelta(hours=1)
-        # assert (
-        #     len(forecasts) == m_viewpoints * n_hourly_horizons * n_events_per_horizon
-        # ), f"we expect 4 forecasts per horizon for each viewpoint within the prediction window, and {m_viewpoints} viewpoints with each {n_hourly_horizons} hourly horizons"
+        assert (
+            len(forecasts) == m_viewpoints * n_hourly_horizons * n_events_per_horizon * n_cycles
+        ), f"we expect 4 forecasts per horizon for each viewpoint within the prediction window, and {m_viewpoints} viewpoints with each {n_hourly_horizons} hourly horizons"
         assert (
             forecasts.lineage.number_of_belief_times == m_viewpoints
         ), f"we expect {m_viewpoints} viewpoints"
