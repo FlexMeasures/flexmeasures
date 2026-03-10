@@ -187,6 +187,28 @@ This file contains all necessary steps for:
 - Database setup
 - Environment variables
 
+**Concrete setup steps for the agent environment** (translating what the workflow does):
+
+```bash
+# 1. Install system dependencies
+sudo apt-get update && sudo apt-get -y install libpq-dev coinor-cbc postgresql-client
+
+# 2. Install FlexMeasures with pinned test dependencies
+make install-for-test
+
+# 3. Export required environment variables (if not already set by the runner)
+export FLEXMEASURES_ENV=testing
+export SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test
+export FLEXMEASURES_REDIS_URL=redis://127.0.0.1:6379/0
+
+# 4. Install and activate pre-commit hooks
+pip install pre-commit && pre-commit install
+```
+
+**Note on services**: PostgreSQL (postgres:17.4, port 5432) and Redis (redis:7, port 6379) service
+containers are started automatically by the GitHub Actions runner environment. In a local dev
+environment you must have these running yourself before executing tests.
+
 If setup steps fail or are unclear, escalate to the Tooling & CI Specialist.
 
 ## Running Tests in FlexMeasures Dev Environment
