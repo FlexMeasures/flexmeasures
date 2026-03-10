@@ -11,6 +11,7 @@ from rq.job import Job
 
 from flask import current_app
 
+from flexmeasures.data import db
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
@@ -262,6 +263,7 @@ class TrainPredictPipeline(Forecaster):
             # job metadata for tracking
             # Serialize start and end to ISO format strings
             # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
+            db.session.commit()  # Ensure the data source ID is available in the database when the job runs.
             job_metadata = {
                 "data_source_info": {"id": self.data_source.id},
                 "start": self._parameters["predict_start"].isoformat(),
