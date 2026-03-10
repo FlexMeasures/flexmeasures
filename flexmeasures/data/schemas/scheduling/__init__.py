@@ -301,6 +301,7 @@ class FlexContextSchema(Schema):
         to_unit="MW",
         data_key="aggregate-power",
         required=False,
+        metadata=metadata.AGGREGATE_POWER.to_dict(),
     )
 
     def set_default_breach_prices(
