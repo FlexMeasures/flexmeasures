@@ -632,7 +632,7 @@
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
-        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -665,6 +665,16 @@
             "required": false,
             "description": "Duration of the schedule to retrieve.\nIf omitted, the default is 6 hours.\nThe maximum allowed value is limited by the `FLEXMEASURES_PLANNING_HORIZON` configuration option\n(default: 48 hours).\nWhile a full-horizon schedule is available, it is usually not useful to fetch it entirely.\nA better approach is to request only the near-term part of the schedule,\nand to refresh the schedule as new information becomes relevant.\n",
             "example": "PT24H",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unit",
+            "required": false,
+            "description": "Unit of the schedule values to retrieve.\nIf omitted, the unit of the sensor is used.\nThe unit must be convertible from the sensor's unit.\n",
+            "example": "kW",
             "schema": {
               "type": "string"
             }
@@ -736,7 +746,7 @@
             }
           },
           "400": {
-            "description": "INVALID_TIMEZONE, INVALID_DOMAIN, INVALID_UNIT, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP"
+            "description": "INVALID_TIMEZONE, INVALID_DOMAIN, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP"
           },
           "401": {
             "description": "UNAUTHORIZED"
