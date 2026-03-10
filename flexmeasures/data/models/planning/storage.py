@@ -1336,7 +1336,7 @@ class StorageScheduler(MetaStorageScheduler):
                         f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
                         "soc-max is missing or zero. Skipping state-of-charge schedule."
                     )
-                capacity = f"{soc_max} MWh"
+                capacity = f"{soc_max} MWh"  # all flex model fields are in MWh by now
             soc_schedule[state_of_charge_sensor] = convert_units(
                 integrate_time_series(
                     series=ems_schedule[d],
