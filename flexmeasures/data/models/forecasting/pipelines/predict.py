@@ -35,6 +35,7 @@ class PredictPipeline(BasePipeline):
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
         save_belief_time: datetime | None = None,
+        beliefs_before: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         data_source: Source = None,
@@ -76,6 +77,7 @@ class PredictPipeline(BasePipeline):
             predict_end=predict_end,
             missing_threshold=missing_threshold,
             save_belief_time=save_belief_time,
+            beliefs_before=beliefs_before,
         )
         self.model_path = model_path
         self.output_path = output_path

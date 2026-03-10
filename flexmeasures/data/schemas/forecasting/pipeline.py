@@ -506,6 +506,7 @@ class ForecasterParametersSchema(Schema):
             probabilistic=data.get("probabilistic"),
             sensor_to_save=sensor_to_save,
             save_belief_time=save_belief_time,
+            beliefs_before=data.get("belief_time"),
             m_viewpoints=m_viewpoints,
         )
 
