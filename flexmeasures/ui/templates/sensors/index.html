@@ -200,6 +200,18 @@ For the data, note the following:
                                   <td>{{ sensor.knowledge_horizon_fnc }}</td>
                               </tr>
                           </table>
+                          {% if sensor.attributes %}
+                              <h5>Attributes</h5>
+
+                              <table class="table table-striped">
+                                  {% for name, value in sensor.attributes.items() %}
+                                  <tr>
+                                      <th>{{ name }}</th>
+                                      <td>{{ value }}</td>
+                                  </tr>
+                                  {% endfor %}
+                              </table>
+                          {% endif %}
                       </div>
                       <div class="card col-lg-5" id="statsContainer" style="align-items: center;">
                         <span id="spinner-run-simulation" class="spinner-border spinner-border-sm d-none" role="status"></span>
