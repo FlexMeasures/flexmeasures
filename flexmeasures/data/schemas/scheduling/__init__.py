@@ -1000,7 +1000,7 @@ class GetScheduleSchema(Schema):
     unit = UnitField(load_default=None)
 
     @post_load
-    def finalize_unit(self, data, **kwargs):
+    def finalize_unit_and_duration(self, data, **kwargs):
         sensor = data["sensor"]
         unit = data.get("unit")
 
