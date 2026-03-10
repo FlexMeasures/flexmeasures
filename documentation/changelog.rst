@@ -16,8 +16,13 @@ Infrastructure / Support
 ----------------------
 * Make the test environment used by agents and by the test workflow identical [see `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
 
+
+v0.31.2 | March XX, 2026
+============================
+
 Bugfixes
 -----------
+* Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
 
 
 v0.31.1 | March 6, 2026
