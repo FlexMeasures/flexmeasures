@@ -577,6 +577,53 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 2,  # we expect 2 cycles from the retrain frequency and predict period given the end date
             },
         ),
+        # Case 15: prior is given (no start)
+        #
+        # User expects save_belief_time to be set to the provided prior timestamp,
+        # overriding the default of server now. This is useful for simulations.
+        # Specifically, we expect:
+        #    - save-belief-time = prior timestamp (not server now)
+        #    - predict-start = server now floored to resolution (start not given)
+        #    - 1 cycle, 1 belief time
+        (
+            {
+                "prior": "2025-01-10T10:00:00+01:00",
+            },
+            {
+                "predict-start": pd.Timestamp(
+                    "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
+                ).floor("1h"),
+                "save-belief-time": pd.Timestamp(
+                    "2025-01-10T10:00:00+01:00",
+                    tz="Europe/Amsterdam",
+                ),
+                "m_viewpoints": 1,
+            },
+        ),
+        # Case 16: prior is given together with start
+        #
+        # User expects save_belief_time to be set to the provided prior timestamp,
+        # overriding the default of predict_start. This is useful for simulations.
+        # Specifically, we expect:
+        #    - save-belief-time = prior timestamp (not predict_start)
+        #    - predict-start = start
+        #    - 1 cycle, 1 belief time
+        (
+            {
+                "start": "2025-01-15T12:00:00+01:00",
+                "prior": "2025-01-10T10:00:00+01:00",
+            },
+            {
+                "predict-start": pd.Timestamp(
+                    "2025-01-15T12:00:00+01:00", tz="Europe/Amsterdam"
+                ),
+                "save-belief-time": pd.Timestamp(
+                    "2025-01-10T10:00:00+01:00",
+                    tz="Europe/Amsterdam",
+                ),
+                "m_viewpoints": 1,
+            },
+        ),
     ],
 )
 def test_timing_parameters_of_forecaster_parameters_schema(
