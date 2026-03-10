@@ -53,6 +53,43 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 - [ ] **Configuration**: Hooks configured via `setup.cfg` or `pyproject.toml`
 - [ ] **Local vs CI**: Some hooks can skip in CI
 
+#### generate-openapi-specs Hook: Known Regressions
+
+**Critical**: The `generate-openapi-specs` hook regenerates `flexmeasures/ui/static/openapi-specs.json`
+and is **skipped in CI** (local-only hook). When run in an agent dev environment (e.g. `pip install -e .`
+with setuptools_scm), it can introduce **unintended regressions** alongside any intentional schema changes.
+
+**Known regression types** (discovered in PR #1996):
+
+1. **Version regression**: `setuptools_scm` may produce a dev version string (e.g. `"0.1.dev4"`)
+   instead of the tagged release version (e.g. `"0.31.0"`). This happens when the agent's git
+   checkout does not have full tag history, so the version is inferred from commit distance.
+
+2. **Timezone list changes**: The generated timezone enum may drop valid entries (e.g. `"Asia/Brunei"`),
+   depending on which `pytz` or `zoneinfo` version is installed in the agent's environment.
+
+**Checklist when reviewing an openapi-specs.json diff**:
+
+- [ ] **Version field unchanged**: `"version"` remains the tagged release string, not a dev string
+- [ ] **No timezone entries removed**: Check that the timezone enum list did not lose entries
+- [ ] **Only intentional changes**: Only changes explicitly motivated by the PR should appear
+- [ ] **Revert unintended changes**: If version or timezone regressions are present, revert them manually
+
+**Recommended workflow** when the hook must be run to pick up intentional schema changes:
+
+```bash
+# Run the hook to get the intentional changes
+pre-commit run generate-openapi-specs --all-files
+
+# Inspect the full diff
+git diff flexmeasures/ui/static/openapi-specs.json
+
+# If version or timezone regressions are present, revert just those lines
+# Use git checkout or manual editing to restore the correct values
+git diff flexmeasures/ui/static/openapi-specs.json | grep '"version"'
+git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
+```
+
 ### Caching Strategy
 
 - [ ] **Cache keys**: Include relevant dependency files in hash
@@ -146,7 +183,7 @@ This file defines standardized environment setup for GitHub Copilot agents. When
 1. **flake8** (v7.1.1) - Python linting
 2. **black** (v24.8.0) - Code formatting
 3. **mypy** (local script) - Type checking via `ci/run_mypy.sh`
-4. **generate-openapi-specs** (local, skipped in CI)
+4. **generate-openapi-specs** (local, skipped in CI) — **see "generate-openapi-specs Hook: Known Regressions" in checklist above**
 
 Setup:
 ```bash
