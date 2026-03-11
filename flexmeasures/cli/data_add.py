@@ -1141,7 +1141,9 @@ def add_forecast(  # noqa: C901
     )
 
     try:
-        pipeline_returns = forecaster.compute(as_job=as_job, **parameters)
+        # Drop None values
+        parameters = {k: v for k, v in parameters.items() if v is not None}
+        pipeline_returns = forecaster.compute(as_job=as_job, parameters=parameters)
 
         # Empty result
         if not pipeline_returns:

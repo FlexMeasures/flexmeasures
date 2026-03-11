@@ -47,6 +47,58 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - [ ] **Non-null flex-context**: Check that required flex-context fields are populated
 - [ ] **Flex-model validation**: Ensure flex-model conforms to `FlexModelSchema`
 - [ ] **Scheduler contracts**: Validate scheduler inputs (start, end, resolution, belief_time)
+- [ ] **VariableQuantityField guards**: When a flex-model field can be either a raw value or a `Sensor` object, add `isinstance(value, Sensor)` guards (see pattern below)
+
+#### Pattern: Defensive isinstance() Guards for flex-model Fields
+
+Some flex-model fields use `VariableQuantityField`, which can deserialize to either a plain
+value (e.g. `float`) or a `Sensor` object. Whenever production code branches on such a field,
+it must guard with `isinstance(field_value, Sensor)`:
+
+```python
+# ❌ Wrong: assumes soc_max is always a number
+if soc_max > 0:
+    ...
+
+# ✅ Correct: handles both Sensor and numeric cases
+if isinstance(soc_max, Sensor):
+    # sensor-referenced max — handle sensor lookup
+    ...
+elif soc_max > 0:
+    # plain numeric max
+    ...
+```
+
+**Why it matters**: Missing guards will raise `TypeError` when plugins or future PRs start
+passing `Sensor` objects for fields that currently only see plain values (e.g. `soc-max`
+in `StorageScheduler`). Adding the guard now is cheap; fixing crashes in production is not.
+
+**Discovered in**: PR #1996 (`e03e91a`) — `_build_soc_schedule` received `soc_max` that could
+eventually be a `Sensor` when `VariableQuantityField` is used for `soc-max`.
+
+#### Pattern: @staticmethod for Methods Without Instance State
+
+When a scheduler or data-generator method does not access `self` or `cls`, it should be
+decorated with `@staticmethod`:
+
+```python
+# ❌ Before: unused self
+def _build_soc_schedule(self, soc_schedule, sensor, ...):
+    ...
+
+# ✅ After: explicit no-self contract
+@staticmethod
+def _build_soc_schedule(soc_schedule, sensor, ...):
+    ...
+```
+
+Benefits:
+- Signals intent: this is a pure function, not dependent on object state
+- Prevents accidental use of `self` (e.g. accessing stale cached state)
+- Easier to unit-test in isolation
+
+**Review trigger**: Any private method in a Scheduler or DataGenerator subclass that does not
+reference `self` or `cls` — propose `@staticmethod`.
 
 ### Domain Boundaries
 

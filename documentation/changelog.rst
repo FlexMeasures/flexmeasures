@@ -2,6 +2,7 @@
 **********************
 FlexMeasures Changelog
 **********************
+* Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
 
 
 v0.32.0 | April XX, 2026
@@ -9,12 +10,29 @@ v0.32.0 | April XX, 2026
 
 New features
 -------------
+* Support saving state-of-charge schedules to sensors with ``"%"`` unit, using the ``soc-max`` flex-model field as the capacity for unit conversion [see `PR #1996 <https://www.github.com/FlexMeasures/flexmeasures/pull/1996>`_]
 
 Infrastructure / Support
 ----------------------
+* Make the test environment used by agents and by the test workflow identical [see `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
+
+
+v0.31.2 | March XX, 2026
+============================
 
 Bugfixes
 -----------
+* Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
+
+
+v0.31.1 | March 6, 2026
+============================
+
+Bugfixes
+-----------
+* Fix bug with resampling time series of e.g. SoC minima with different belief times for adjacent time slots [see `PR #2012 <https://www.github.com/FlexMeasures/flexmeasures/pull/2012>`_]
+* Fix CLI command ``flexmeasures add forecasts`` [see `PR #2007 <https://www.github.com/FlexMeasures/flexmeasures/pull/2007>`_]
+* Add missing field documentation for ``aggregate-power`` and ``state-of-charge`` fields, which can be used to reference a sensor on which to record extra scheduling results [see `PR #2003 <https://www.github.com/FlexMeasures/flexmeasures/pull/2003>`_ and `PR #2006 <https://www.github.com/FlexMeasures/flexmeasures/pull/2006>`_]
 
 
 v0.31.0 | February 28, 2026
@@ -62,7 +80,6 @@ New features
 * Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
 * Add a documentation section on the concept of ``Commitments`` [see `PR #1849 <https://www.github.com/FlexMeasures/flexmeasures/pull/1849>`_]
 * Add resolution column to sensors list on asset context page [see `PR #1986 <https://www.github.com/FlexMeasures/flexmeasures/pull/1986>`_]
-
 
 Infrastructure / Support
 ----------------------
