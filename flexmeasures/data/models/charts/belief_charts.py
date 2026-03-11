@@ -501,6 +501,7 @@ def _create_temp_sensor_layers(
     sensor_descriptions: list[str],
     sensor_type: str,
     unit: str,
+    sensor_title: str = "Sensor",
 ) -> list[dict]:
     """Create Vega-Lite layers for temporary sensors with fixed values.
 
@@ -513,6 +514,7 @@ def _create_temp_sensor_layers(
         sensor_descriptions: List of all sensor descriptions for color domain
         sensor_type: Type of sensor for tooltip title
         unit: Unit for tooltip display
+        sensor_title: Title for the sensor field
 
     Returns:
         List of Vega-Lite layer specifications
@@ -522,7 +524,7 @@ def _create_temp_sensor_layers(
     )
 
     temp_tooltip = [
-        {"field": "sensor.description", "type": "nominal", "title": "Sensor"},
+        {"field": "sensor.description", "type": "nominal", "title": sensor_title},
         {
             "field": "event_value",
             "type": "quantitative",
@@ -757,19 +759,20 @@ def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
 
 
 def _setup_shared_tooltip(
-    event_value_field_definition: dict, sensor_type: str
+    event_value_field_definition: dict, sensor_type: str, sensor_title: str = "Sensor"
 ) -> list[dict]:
     """Set up the shared tooltip configuration.
 
     Args:
         event_value_field_definition: Field definition for event values
         sensor_type: Type of sensor
+        sensor_title: Display title for the sensor field
 
     Returns:
         List of tooltip field definitions
     """
     return [
-        dict(field="sensor.description", type="nominal", title="Sensor"),
+        dict(field="sensor.description", type="nominal", title=sensor_title),
         {**event_value_field_definition, **dict(title=f"{capitalize(sensor_type)}")},
         FIELD_DEFINITIONS["full_date"],
         dict(
@@ -885,6 +888,11 @@ def chart_for_multiple_sensors(
     )
     minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
 
+    has_temp_sensors = any(
+        getattr(s, "id", None) is not None and s.id < 0 for s in all_shown_sensors
+    )
+    sensor_title = "Sensor & Fixed Values" if has_temp_sensors else "Sensor"
+
     event_start_field_definition = _setup_event_start_field(
         minimum_non_zero_resolution, event_starts_after, event_ends_before
     )
@@ -897,6 +905,7 @@ def chart_for_multiple_sensors(
             event_starts_after,
             event_ends_before,
             combine_legend,
+            sensor_title,
         )
         if sensor_spec:
             sensors_specs.append(sensor_spec)
@@ -910,6 +919,7 @@ def _process_sensor_entry(
     event_starts_after: datetime | None,
     event_ends_before: datetime | None,
     combine_legend: bool,
+    sensor_title: str = "Sensor",
 ) -> dict | None:
     """Process a single sensor entry from sensors_to_show.
 
@@ -940,6 +950,7 @@ def _process_sensor_entry(
     ]
 
     sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+    sensor_field_definition["title"] = sensor_title
     sensor_descriptions = [_get_sensor_description(s) for s in row_sensors]
     sensor_field_definition["scale"] = dict(domain=sensor_descriptions)
 
@@ -947,7 +958,9 @@ def _process_sensor_entry(
     sensor_type = determine_shared_sensor_type(row_sensors)
 
     event_value_field_definition = _setup_event_value_field(sensor_type, unit)
-    shared_tooltip = _setup_shared_tooltip(event_value_field_definition, sensor_type)
+    shared_tooltip = _setup_shared_tooltip(
+        event_value_field_definition, sensor_type, sensor_title
+    )
 
     layers = _build_layers(
         real_sensors,
@@ -962,6 +975,7 @@ def _process_sensor_entry(
         event_ends_before,
         shared_tooltip,
         combine_legend,
+        sensor_title,
     )
 
     if not layers:
@@ -1002,6 +1016,7 @@ def _build_layers(
     event_ends_before: datetime | None,
     shared_tooltip: list,
     combine_legend: bool,
+    sensor_title: str = "Sensor",
 ) -> list[dict]:
     """Build all layers for a sensor row.
 
@@ -1045,6 +1060,7 @@ def _build_layers(
             sensor_descriptions=sensor_descriptions,
             sensor_type=sensor_type,
             unit=unit,
+            sensor_title=sensor_title,
         )
         layers.extend(temp_layers)
 
