@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from typing import Sequence
 from datetime import timedelta
@@ -14,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
@@ -22,6 +24,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     already_received_and_successfully_processed,
 )
+from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.utils.error_utils import error_handling_router
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
@@ -182,3 +185,83 @@ def get_accessible_accounts() -> list[Account]:
             pass
 
     return accounts
+
+
+def convert_asset_json_fields(asset_kwargs):
+    """
+    Convert string fields in asset_kwargs to JSON where needed.
+    """
+    if "attributes" in asset_kwargs and isinstance(asset_kwargs["attributes"], str):
+        asset_kwargs["attributes"] = json.loads(asset_kwargs["attributes"])
+    if "sensors_to_show" in asset_kwargs and isinstance(
+        asset_kwargs["sensors_to_show"], str
+    ):
+        asset_kwargs["sensors_to_show"] = json.loads(asset_kwargs["sensors_to_show"])
+    if "flex_context" in asset_kwargs and isinstance(asset_kwargs["flex_context"], str):
+        asset_kwargs["flex_context"] = json.loads(asset_kwargs["flex_context"])
+    if "flex_model" in asset_kwargs and isinstance(asset_kwargs["flex_model"], str):
+        asset_kwargs["flex_model"] = json.loads(asset_kwargs["flex_model"])
+    if "sensors_to_show_as_kpis" in asset_kwargs and isinstance(
+        asset_kwargs["sensors_to_show_as_kpis"], str
+    ):
+        asset_kwargs["sensors_to_show_as_kpis"] = json.loads(
+            asset_kwargs["sensors_to_show_as_kpis"]
+        )
+    return asset_kwargs
+
+
+def fetch_and_copy_all_assets_in_account(
+    account_id: int, target_account_id: int
+) -> list[GenericAsset]:
+    try:
+        asset_schema = AssetSchema()
+
+        # order from oldest to newest to help with parent/child dependencies
+        assets = db.session.scalars(
+            select(GenericAsset)
+            .filter(GenericAsset.account_id == account_id)
+            .order_by(GenericAsset.id)
+        ).all()
+
+        if len(assets) == 0:
+            raise ValueError(f"No assets found for account {account_id}.")
+
+        asset_mapping = {}
+        parent_mapping = {}
+        new_assets = []
+
+        for old_asset in assets:
+            asset_kwargs = asset_schema.dump(old_asset)
+
+            # Remove dump_only and read-only fields
+            for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
+                asset_kwargs.pop(key, None)
+
+            # Avoid name collisions
+            asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
+            # Assign to the target account
+            asset_kwargs["account_id"] = target_account_id
+            asset_kwargs = convert_asset_json_fields(asset_kwargs)
+
+            # Keep track of parent_asset_id to reconnect later
+            if asset_kwargs.get("parent_asset_id"):
+                parent_mapping[old_asset.id] = asset_kwargs["parent_asset_id"]
+            asset_kwargs["parent_asset_id"] = None
+
+            new_asset = GenericAsset(**asset_kwargs)
+            db.session.add(new_asset)
+            db.session.flush()
+
+            asset_mapping[old_asset.id] = new_asset
+            new_assets.append(new_asset)
+
+        # Second loop to set the proper parent
+        for old_id, old_parent_id in parent_mapping.items():
+            if old_parent_id in asset_mapping:
+                asset_mapping[old_id].parent_asset_id = asset_mapping[old_parent_id].id
+
+        db.session.commit()
+        return new_assets
+    except Exception as e:
+        db.session.rollback()
+        raise e

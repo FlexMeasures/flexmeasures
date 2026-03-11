@@ -56,7 +56,10 @@ from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
 )
-from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
+from flexmeasures.api.common.utils.api_utils import (
+    get_accessible_accounts,
+    fetch_and_copy_all_assets_in_account,
+)
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_processed,
@@ -81,29 +84,6 @@ default_list_assets_schema = AssetSchema(many=True, only=default_response_fields
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
-
-
-def convert_asset_json_fields(asset_kwargs):
-    """
-    Convert string fields in asset_kwargs to JSON where needed.
-    """
-    if "attributes" in asset_kwargs and isinstance(asset_kwargs["attributes"], str):
-        asset_kwargs["attributes"] = json.loads(asset_kwargs["attributes"])
-    if "sensors_to_show" in asset_kwargs and isinstance(
-        asset_kwargs["sensors_to_show"], str
-    ):
-        asset_kwargs["sensors_to_show"] = json.loads(asset_kwargs["sensors_to_show"])
-    if "flex_context" in asset_kwargs and isinstance(asset_kwargs["flex_context"], str):
-        asset_kwargs["flex_context"] = json.loads(asset_kwargs["flex_context"])
-    if "flex_model" in asset_kwargs and isinstance(asset_kwargs["flex_model"], str):
-        asset_kwargs["flex_model"] = json.loads(asset_kwargs["flex_model"])
-    if "sensors_to_show_as_kpis" in asset_kwargs and isinstance(
-        asset_kwargs["sensors_to_show_as_kpis"], str
-    ):
-        asset_kwargs["sensors_to_show_as_kpis"] = json.loads(
-            asset_kwargs["sensors_to_show_as_kpis"]
-        )
-    return asset_kwargs
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
@@ -180,61 +160,6 @@ class DefaultAssetViewJSONSchema(Schema):
 class KPIKwargsSchema(Schema):
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
-
-
-def fetch_and_copy_all_assets_in_account(
-    account_id: int, target_account_id: int
-) -> list[GenericAsset]:
-    try:
-        # order from oldest to newest to help with parent/child dependencies
-        assets = db.session.scalars(
-            select(GenericAsset)
-            .filter(GenericAsset.account_id == account_id)
-            .order_by(GenericAsset.id)
-        ).all()
-
-        if len(assets) == 0:
-            raise ValueError(f"No assets found for account {account_id}.")
-
-        asset_mapping = {}
-        parent_mapping = {}
-        new_assets = []
-
-        for old_asset in assets:
-            asset_kwargs = asset_schema.dump(old_asset)
-
-            # Remove dump_only and read-only fields
-            for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
-                asset_kwargs.pop(key, None)
-
-            # Avoid name collisions
-            asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
-            # Assign to the target account
-            asset_kwargs["account_id"] = target_account_id
-            asset_kwargs = convert_asset_json_fields(asset_kwargs)
-
-            # Keep track of parent_asset_id to reconnect later
-            if asset_kwargs.get("parent_asset_id"):
-                parent_mapping[old_asset.id] = asset_kwargs["parent_asset_id"]
-            asset_kwargs["parent_asset_id"] = None
-
-            new_asset = GenericAsset(**asset_kwargs)
-            db.session.add(new_asset)
-            db.session.flush()
-
-            asset_mapping[old_asset.id] = new_asset
-            new_assets.append(new_asset)
-
-        # Second loop to set the proper parent
-        for old_id, old_parent_id in parent_mapping.items():
-            if old_parent_id in asset_mapping:
-                asset_mapping[old_id].parent_asset_id = asset_mapping[old_parent_id].id
-
-        db.session.commit()
-        return new_assets
-    except Exception as e:
-        db.session.rollback()
-        raise e
 
 
 class AssetTypesAPI(FlaskView):

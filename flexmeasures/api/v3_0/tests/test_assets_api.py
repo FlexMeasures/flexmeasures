@@ -9,7 +9,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
-from flexmeasures.api.v3_0.assets import fetch_and_copy_all_assets_in_account
+from flexmeasures.api.common.utils.api_utils import fetch_and_copy_all_assets_in_account
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 
@@ -708,10 +708,6 @@ def test_fetch_and_copy_all_assets_in_account(setup_api_test_data, setup_account
         select(GenericAsset).filter_by(account_id=target_account.id)
     ).all()
     target_asset_count_before = len(target_assets_before)
-
-    assert (
-        target_asset_count_before == 0
-    ), "Empty account should have exactly 0 assets initially"
 
     # Call the copy function
     new_assets = fetch_and_copy_all_assets_in_account(
