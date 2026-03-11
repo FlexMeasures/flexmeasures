@@ -182,7 +182,7 @@ class KPIKwargsSchema(Schema):
     event_ends_before = AwareDateTimeField(format="iso", required=False)
 
 
-def fetch_all_assets_in_account(
+def fetch_and_copy_all_assets_in_account(
     account_id: int, target_account_id: int
 ) -> list[GenericAsset]:
     try:
@@ -1637,7 +1637,7 @@ class AssetAPI(FlaskView):
 
         # Ensure the user has administrative privileges or access to both accounts, if needed,
         # but for now we just call the function as requested.
-        new_assets = fetch_all_assets_in_account(account_id, target_account_id)
+        new_assets = fetch_and_copy_all_assets_in_account(account_id, target_account_id)
 
         return {
             "message": f"Successfully copied {len(new_assets)} assets to account {target_account_id}.",

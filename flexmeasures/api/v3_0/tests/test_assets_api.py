@@ -9,6 +9,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
+from flexmeasures.api.v3_0.assets import fetch_and_copy_all_assets_in_account
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 
@@ -685,3 +686,49 @@ def test_consultant_get_asset(
     print("Server responded with:\n%s" % get_asset_response.json)
     assert get_asset_response.status_code == 200
     assert get_asset_response.json["name"] == "Test ConsultancyClient Asset"
+
+
+def test_fetch_and_copy_all_assets_in_account(setup_api_test_data, setup_accounts, db):
+
+    base_account = setup_accounts["Prosumer"]
+    target_account = setup_accounts["Empty"]
+
+    # Get the original assets in the base account
+    original_assets = db.session.scalars(
+        select(GenericAsset).filter_by(account_id=base_account.id)
+    ).all()
+    original_asset_count = len(original_assets)
+
+    assert (
+        original_asset_count > 0
+    ), "Base account should have at least one asset to test properly"
+
+    # Count assets in the target account before the operation
+    target_assets_before = db.session.scalars(
+        select(GenericAsset).filter_by(account_id=target_account.id)
+    ).all()
+    target_asset_count_before = len(target_assets_before)
+
+    assert (
+        target_asset_count_before == 0
+    ), "Empty account should have exactly 0 assets initially"
+
+    # Call the copy function
+    new_assets = fetch_and_copy_all_assets_in_account(
+        base_account.id, target_account.id
+    )
+
+    # 1. Check if the amount of assets copied are complete
+    target_assets_after = db.session.scalars(
+        select(GenericAsset).filter_by(account_id=target_account.id)
+    ).all()
+
+    assert len(target_assets_after) == target_asset_count_before + original_asset_count
+    assert len(new_assets) == original_asset_count
+
+    # 2. Using the name of the original asset, search if it exists in the new account
+    new_asset_names = [a.name for a in target_assets_after]
+
+    for old_asset in original_assets:
+        expected_new_name = f"{old_asset.name} (Copy)"
+        assert expected_new_name in new_asset_names
