@@ -2,10 +2,10 @@
 Tests for the Sensor UI view (SensorUI).
 
 The sensor page at /sensors/<id> renders sensor details and optionally
-a "Create forecast" side panel.  These tests verify:
+a "Trigger forecast" side panel.  These tests verify:
 
 - Basic access and 404 behaviour
-- "Create forecast" panel visibility gated on ``create-children`` permission
+- "Trigger forecast" panel visibility gated on ``create-children`` permission
 - Forecast button enabled/disabled state based on available data range
 - Guard that ``get_timerange`` is NOT called for users without permission
 """
@@ -67,15 +67,15 @@ def test_sensor_page_404_for_nonexistent_sensor(db, client, as_prosumer_user1):
 
 
 # ---------------------------------------------------------------------------
-# "Create forecast" panel – visibility based on permissions
+# "Trigger forecast" panel – visibility based on permissions
 # ---------------------------------------------------------------------------
 
 
-def test_create_forecast_panel_visible_for_account_member(
+def test_trigger_forecast_panel_visible_for_account_member(
     db, client, setup_assets, as_prosumer_user1
 ):
     """
-    The "Create forecast" panel is rendered for a user who belongs to the
+    The "Trigger forecast" panel is rendered for a user who belongs to the
     account that owns the sensor (Sensor ACL grants ``create-children`` to
     every member of the owning account).
     """
@@ -85,20 +85,20 @@ def test_create_forecast_panel_visible_for_account_member(
     assert b"Trigger forecast" in response.data
 
 
-def test_create_forecast_panel_visible_for_admin(db, client, setup_assets, as_admin):
-    """Admin users bypass ACL and also see the "Create forecast" panel."""
+def test_trigger_forecast_panel_visible_for_admin(db, client, setup_assets, as_admin):
+    """Admin users bypass ACL and also see the "Trigger forecast" panel."""
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
 
 
-def test_create_forecast_panel_hidden_for_other_account(
+def test_trigger_forecast_panel_hidden_for_other_account(
     db, client, setup_assets, as_supplier_user
 ):
     """
     A user from a different account (no ``create-children`` permission on the
-    sensor) does not see the "Create forecast" panel at all.
+    sensor) does not see the "Trigger forecast" panel at all.
     """
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
