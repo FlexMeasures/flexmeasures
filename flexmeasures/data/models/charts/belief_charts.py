@@ -891,7 +891,7 @@ def chart_for_multiple_sensors(
     has_temp_sensors = any(
         getattr(s, "id", None) is not None and s.id < 0 for s in all_shown_sensors
     )
-    sensor_title = "Sensor & Fixed Values" if has_temp_sensors else "Sensor"
+    sensor_title = "Sensor/Value" if has_temp_sensors else "Sensor"
 
     event_start_field_definition = _setup_event_start_field(
         minimum_non_zero_resolution, event_starts_after, event_ends_before
