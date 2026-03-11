@@ -481,7 +481,23 @@ For the data, note the following:
     async function triggerForecast() {
         const button = document.getElementById('triggerForecastButton');
         const spinner = document.getElementById('spinner-forecast');
-        const durationDays = parseInt(document.getElementById('forecastDuration').value) || {{ forecast_default_duration_days }};
+        const durationInput = document.getElementById('forecastDuration');
+        let durationDays = parseInt(durationInput.value);
+
+        if (isNaN(durationDays)) {
+            durationDays = {{ forecast_default_duration_days }};
+        }
+        if (durationDays < 1) {
+            showToast("For durations smaller than 1 day, please use the API. Adjusted to 1.", "error");
+            durationDays = 1;
+            durationInput.value = durationDays;
+            return;
+        } else if (durationDays > 7) {
+            showToast("For durations over 7 days, please use the API. Adjusted to 7.", "error");
+            durationDays = 7;
+            durationInput.value = durationDays;
+            return;
+        }
         const durationIso = 'P' + durationDays + 'D';
 
         button.classList.add('d-none');
