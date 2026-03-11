@@ -5,7 +5,12 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-29 | 2025-12-30
+v3.0-30 | 2026-XX-XX
+""""""""""""""""""""
+- Added ``unit`` field to the `/sensors/<id>/schedules/<uuid>` (GET) endpoint for fetching a schedule, to get the schedule in a different unit still compatible to the sensor unit.
+
+
+v3.0-29 | 2026-02-28
 """"""""""""""""""""
 
 Added two new forecasting API endpoints:
@@ -17,6 +22,7 @@ These endpoints enable programmatic triggering and retrieval of forecasts via th
 
 Also:
 
+- Schedules are no longer saved upside down.
 - Support saving the aggregate power schedule by referencing a power sensor in the ``flex-context`` (new field ``aggregate-power``).
 - Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
 - Added ``fields`` field to the `/assets` (GET) and `/assets/public` endpoints, to transfer less data by default (will be fully active, i.e. also returning less fields per default, in v0.32).
