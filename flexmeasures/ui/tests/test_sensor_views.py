@@ -82,7 +82,7 @@ def test_create_forecast_panel_visible_for_account_member(
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
-    assert b"Create forecast" in response.data
+    assert b"Trigger forecast" in response.data
 
 
 def test_create_forecast_panel_visible_for_admin(db, client, setup_assets, as_admin):
@@ -90,7 +90,7 @@ def test_create_forecast_panel_visible_for_admin(db, client, setup_assets, as_ad
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
-    assert b"Create forecast" in response.data
+    assert b"Trigger forecast" in response.data
 
 
 def test_create_forecast_panel_hidden_for_other_account(
@@ -103,7 +103,7 @@ def test_create_forecast_panel_hidden_for_other_account(
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
-    assert b"Create forecast" not in response.data
+    assert b"Trigger forecast" not in response.data
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ def test_forecast_button_disabled_with_insufficient_data(
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
-    assert b"Create forecast" in response.data
+    assert b"Trigger forecast" in response.data
     # The enabled button (identified by its unique id) is absent
     assert b"triggerForecastButton" not in response.data
     # The explanatory message is shown
