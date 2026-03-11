@@ -25,6 +25,14 @@ Bugfixes
 * Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
 
 
+v0.31.2 | March XX, 2026
+============================
+
+Bugfixes
+-----------
+* Fix wrap-up forecasting job [see `PR #2011 <https://www.github.com/FlexMeasures/flexmeasures/pull/2011>`_]
+
+
 v0.31.1 | March 6, 2026
 ============================
 

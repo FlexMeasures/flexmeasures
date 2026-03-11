@@ -11,6 +11,7 @@ from rq.job import Job
 
 from flask import current_app
 
+from flexmeasures.data import db
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
@@ -46,10 +47,11 @@ class TrainPredictPipeline(Forecaster):
 
     def run_wrap_up(self, cycle_job_ids: list[str]):
         """Log the status of all cycle jobs after completion."""
+        connection = current_app.queues["forecasting"].connection
+
         for index, job_id in enumerate(cycle_job_ids):
-            logging.info(
-                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}"
-            )
+            status = Job.fetch(job_id, connection=connection).get_status()
+            logging.info(f"forecasting job-{index}: {job_id} status: {status}")
 
     def run_cycle(
         self,
@@ -261,6 +263,7 @@ class TrainPredictPipeline(Forecaster):
             # job metadata for tracking
             # Serialize start and end to ISO format strings
             # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
+            db.session.commit()  # Ensure the data source ID is available in the database when the job runs.
             job_metadata = {
                 "data_source_info": {"id": self.data_source.id},
                 "start": self._parameters["predict_start"].isoformat(),
@@ -315,9 +318,14 @@ class TrainPredictPipeline(Forecaster):
 
             if len(cycle_job_ids) > 1:
                 # Return the wrap-up job ID if multiple cycle jobs are queued
-                return wrap_up_job.id
+                return {"job_id": wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
             else:
                 # Return the single cycle job ID if only one job is queued
-                return cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
+                return {
+                    "job_id": (
+                        cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
+                    ),
+                    "n_jobs": 1,
+                }
 
         return self.return_values
