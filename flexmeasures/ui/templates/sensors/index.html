@@ -34,8 +34,6 @@
                       <div class="left-sidepanel-label">Edit sensor</div>
                         <div class="sidepanel left-sidepanel" style="text-align: left;">
                             <fieldset>
-                                <h3>Edit {{ sensor.name }}</h3>
-                                <small>Belongs to: {{ sensor.generic_asset.name }} (ID: {{ sensor.generic_asset_id }})</small>
                                 <form class="form-horizontal" method="POST">
                                 
                                     <div class="form-group">
@@ -61,8 +59,6 @@
                         <div class="left-sidepanel-label">Upload data</div>
                         <div class="sidepanel left-sidepanel" style="text-align: left;">
                             <fieldset>
-                                <h3>Upload {{ sensor.name }} data</h3>
-                                <small>Sensor: {{ sensor.name }} (ID: {{ sensor.id }})</small>
                                 <form id="uploadForm" enctype="multipart/form-data" method="post" class="form-horizontal">
                                     
                                     <div class="mb-3">
@@ -161,15 +157,6 @@ For the data, note the following:
                         <div class="left-sidepanel-label">Forecast</div>
                         <div class="sidepanel left-sidepanel" style="text-align: left;">
                             <fieldset>
-                                <h3>
-                                    Create forecast
-                                    <i
-                                        class="fa fa-info-circle ms-1"
-                                        title="Queues a job to forecast up to {{ forecast_default_duration_human }} ahead from now. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
-                                        style="cursor: pointer;"
-                                    ></i>
-                                </h3>
-                                <small>Sensor: {{ sensor.name }} (ID: {{ sensor.id }})</small>
                                 {% if sensor_has_enough_data_for_forecast %}
                                 <div class="mb-3" style="margin-top: 10px;">
                                     <label for="forecastDuration" class="form-label fw-bold">Duration (days)</label>
