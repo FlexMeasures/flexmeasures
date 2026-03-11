@@ -137,7 +137,7 @@ For the data, note the following:
                                     </div>
 
                                     <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" type="button"
-                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                        style="float: right; border: 1px solid var(--light-gray);">
                                         Upload file
                                     </button>
                                     <div id="spinner-upload-sensor-data" class="d-none spinner spinner-bottom-right">
@@ -158,28 +158,42 @@ For the data, note the following:
                         <div class="sidepanel left-sidepanel" style="text-align: left;">
                             <fieldset>
                                 {% if sensor_has_enough_data_for_forecast %}
-                                <div class="mb-3" style="margin-top: 10px;">
+                                <div class="mb-3">
                                     <label for="forecastDuration" class="form-label fw-bold">Duration (days)</label>
                                     <input type="number" class="form-control" id="forecastDuration" min="1" max="7" value="{{ forecast_default_duration_days }}" />
                                 </div>
-                                <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
                                     <a href="/api/v3_0/docs/#/Sensors/post_api_v3_0_sensors__id__forecasts_trigger" target="_blank" style="font-size: 0.8em;">
                                         More options <i class="fa fa-external-link ms-1"></i>
                                     </a>
-                                    <button id="triggerForecastButton" class="btn btn-sm btn-responsive btn-success create-button" type="button"
+                                    <button
+                                        id="triggerForecastButton"
+                                        class="btn btn-sm btn-responsive btn-success create-button"
+                                        type="button"
+                                        title="Queues a job to forecast up to {{ forecast_default_duration_human }} ahead from now. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
                                         style="border: 1px solid var(--light-gray);">
-                                        Trigger job
+                                        Trigger forecast
                                     </button>
                                     <span id="spinner-forecast" class="spinner-border spinner-border-sm d-none" role="status"></span>
                                 </div>
                                 {% else %}
-                                <p style="margin-top: 10px;">
-                                    <small>At least two days of sensor data are needed to create a forecast.</small>
-                                </p>
-                                <button class="btn btn-sm btn-responsive btn-success create-button" type="button" disabled
-                                    style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
-                                    Create forecast
-                                </button>
+                                <div class="mb-3">
+                                    <p>At least two days of sensor data are needed to create a forecast.</p>
+                                </div>
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <a href="/api/v3_0/docs/#/Sensors/post_api_v3_0_sensors__id__forecasts_trigger" target="_blank" style="font-size: 0.8em;">
+                                        More options <i class="fa fa-external-link ms-1"></i>
+                                    </a>
+                                    <span title="Queues a job to forecast up to {{ forecast_default_duration_human }} ahead from now. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages.">
+                                        <button
+                                            class="btn btn-sm btn-responsive btn-success create-button"
+                                            type="button"
+                                            disabled
+                                            style="float: right; border: 1px solid var(--light-gray);">
+                                            Trigger forecast
+                                        </button>
+                                    </span>
+                                </div>
                                 {% endif %}
                             </fieldset>
                         </div>
