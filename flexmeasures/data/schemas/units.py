@@ -86,3 +86,15 @@ class QuantityField(MarshmallowClickMixin, fields.Str):
     def _serialize(self, value, attr, obj, **kwargs):
         """Turn a Quantity into a string in scientific format."""
         return "{:~P}".format(value.to(ur.Quantity(self.to_unit)))
+
+
+class UnitField(fields.Str):
+    """Field that represents a unit."""
+
+    def _deserialize(self, value, attr, data, **kwargs) -> str:
+        if not is_valid_unit(value):
+            raise ValidationError(f"Invalid unit: {value}", field="unit")
+        return value
+
+    def _serialize(self, value: str, attr, obj, **kwargs) -> str:
+        return value

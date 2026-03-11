@@ -28,9 +28,6 @@ from flexmeasures.api.common.responses import (
     fallback_schedule_redirect,
 )
 from flexmeasures.api.common.schemas.utils import make_openapi_compatible
-from flexmeasures.api.common.utils.validators import (
-    optional_duration_accepted,
-)
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
     GetSensorDataSchema,
@@ -62,7 +59,8 @@ from flexmeasures.data.schemas.times import (
 )
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
-from flexmeasures.api.common.schemas.sensors import UnitField
+from flexmeasures.data.schemas.scheduling import GetScheduleSchema
+from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -70,6 +68,7 @@ from flexmeasures.data.services.scheduling import (
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.schemas.forecasting.pipeline import (
@@ -856,19 +855,15 @@ class SensorAPI(FlaskView):
         return dict(**response, **d), s
 
     @route("/<id>/schedules/<uuid>", methods=["GET"])
-    @use_kwargs(
-        {
-            "sensor": SensorIdField(data_key="id"),
-            "job_id": fields.Str(data_key="uuid"),
-        },
-        location="path",
-    )
-    @optional_duration_accepted(
-        timedelta(hours=6)
-    )  # todo: make this a Marshmallow field
+    @use_kwargs(GetScheduleSchema(), location="args_and_json")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_schedule(  # noqa: C901
-        self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs
+        self,
+        sensor: Sensor,
+        job_id: str,
+        duration: timedelta,
+        unit: str | None = None,
+        **kwargs,
     ):
         """
         .. :quickref: Schedules; Get schedule for one device
@@ -881,6 +876,7 @@ class SensorAPI(FlaskView):
             Optional fields:
 
             - "duration" (6 hours by default; can be increased to plan further into the future)
+            - "unit" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)
           security:
             - ApiKeyAuth: []
           parameters:
@@ -910,6 +906,16 @@ class SensorAPI(FlaskView):
                 A better approach is to request only the near-term part of the schedule,
                 and to refresh the schedule as new information becomes relevant.
               example: PT24H
+              schema:
+                type: string
+            - in: query
+              name: unit
+              required: false
+              description: |
+                Unit of the schedule values to retrieve.
+                If omitted, the unit of the sensor is used.
+                The unit must be convertible from the sensor's unit.
+              example: kW
               schema:
                 type: string
           responses:
@@ -964,7 +970,7 @@ class SensorAPI(FlaskView):
                         duration: "PT45M"
                         unit: "MW"
             400:
-              description: INVALID_TIMEZONE, INVALID_DOMAIN, INVALID_UNIT, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP
+              description: INVALID_TIMEZONE, INVALID_DOMAIN, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP
             401:
               description: UNAUTHORIZED
             403:
@@ -1063,11 +1069,21 @@ class SensorAPI(FlaskView):
         consumption_schedule = consumption_schedule[
             start : start + duration - resolution
         ]
+
+        # Convert to the requested unit if needed
+        if unit != sensor.unit:
+            consumption_schedule = convert_units(
+                consumption_schedule,
+                from_unit=sensor.unit,
+                to_unit=unit,
+                event_resolution=resolution,
+            )
+
         response = dict(
             values=consumption_schedule.tolist(),
             start=isodate.datetime_isoformat(start),
             duration=duration_isoformat(duration),
-            unit=sensor.unit,
+            unit=unit,
         )
 
         d, s = request_processed(scheduler_info_msg)
