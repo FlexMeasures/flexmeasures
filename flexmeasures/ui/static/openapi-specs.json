@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.31.0"
+    "version": "0.32.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -5412,6 +5412,15 @@
               "gas"
             ],
             "description": "Commodity label for this device/asset."
+          },
+          "stock-id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "minLength": 1,
+            "description": "Identifier of a shared storage (stock) that this device charges/discharges. Devices with the same stock-id share one SOC state."
           }
         },
         "additionalProperties": false

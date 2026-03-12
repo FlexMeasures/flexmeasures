@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from tabulate import tabulate
@@ -63,6 +63,28 @@ class Scheduler:
     supports_scheduling_an_asset = False
 
     return_multiple: bool = False
+
+    def _build_stock_groups(self, flex_model):
+
+        groups = defaultdict(list)
+        soc_sensor_to_stock_model = {}
+
+        # identify stock models
+        for i, fm in enumerate(flex_model):
+            if fm.get("soc_at_start") is not None:
+                soc_sensor = fm["sensor"]
+                soc_sensor_to_stock_model[soc_sensor] = i
+
+        # group devices by soc sensor
+        for d, fm in enumerate(flex_model):
+            soc = fm.get("state_of_charge")
+
+            if soc is None:
+                continue
+
+            groups[soc.id].append(d)
+
+        return dict(groups)
 
     def __init__(
         self,

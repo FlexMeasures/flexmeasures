@@ -41,6 +41,7 @@ def device_scheduler(  # noqa C901
     commitment_upwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitments: list[pd.DataFrame] | list[Commitment] | None = None,
     initial_stock: float | list[float] = 0,
+    stock_groups: dict[int, list[int]] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -99,6 +100,17 @@ def device_scheduler(  # noqa C901
     # Workaround for https://github.com/pandas-dev/pandas/issues/53643. Was: resolution = pd.to_timedelta(device_constraints[0].index.freq)
     resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
     end = device_constraints[0].index.to_pydatetime()[-1] + resolution
+
+    # map device → stock group
+    device_to_group = {}
+
+    if stock_groups:
+        for g, devices in stock_groups.items():
+            for d in devices:
+                device_to_group[d] = g
+    else:
+        for d in range(len(device_constraints)):
+            device_to_group[d] = d
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -484,33 +496,77 @@ def device_scheduler(  # noqa C901
     )
     model.commitment_sign = Var(model.c, domain=Binary, initialize=0)
 
+    # def _get_stock_change(m, d, j):
+    #     """Determine final stock change of device d until time j.
+    #
+    #     Apply conversion efficiencies to conversion from flow to stock change and vice versa,
+    #     and apply storage efficiencies to stock levels from one datetime to the next.
+    #     """
+    #     if isinstance(initial_stock, list):
+    #         # No initial stock defined for inflexible device
+    #         initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
+    #     else:
+    #         initial_stock_d = initial_stock
+    #
+    #     stock_changes = [
+    #         (
+    #             m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
+    #             + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
+    #             + m.stock_delta[d, k]
+    #         )
+    #         for k in range(0, j + 1)
+    #     ]
+    #     efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+    #     final_stock_change = [
+    #         stock - initial_stock_d
+    #         for stock in apply_stock_changes_and_losses(
+    #             initial_stock_d, stock_changes, efficiencies
+    #         )
+    #     ][-1]
+    #     return final_stock_change
+
     def _get_stock_change(m, d, j):
-        """Determine final stock change of device d until time j.
 
-        Apply conversion efficiencies to conversion from flow to stock change and vice versa,
-        and apply storage efficiencies to stock levels from one datetime to the next.
-        """
+        # determine the stock group of this device
+        group = device_to_group[d]
+
+        # all devices belonging to this stock
+        devices = [dev for dev, g in device_to_group.items() if g == group]
+
+        # initial stock
         if isinstance(initial_stock, list):
-            # No initial stock defined for inflexible device
-            initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
+            initial_stock_g = initial_stock[d] if d < len(initial_stock) else 0
         else:
-            initial_stock_d = initial_stock
+            initial_stock_g = initial_stock
 
-        stock_changes = [
-            (
-                m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
-                + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-                + m.stock_delta[d, k]
-            )
-            for k in range(0, j + 1)
-        ]
+        stock_changes = []
+
+        for k in range(0, j + 1):
+
+            change = 0
+
+            for dev in devices:
+                change += (
+                    m.device_power_down[dev, k]
+                    / m.device_derivative_down_efficiency[dev, k]
+                    + m.device_power_up[dev, k]
+                    * m.device_derivative_up_efficiency[dev, k]
+                    + m.stock_delta[dev, k]
+                )
+
+            stock_changes.append(change)
+
         efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+
         final_stock_change = [
-            stock - initial_stock_d
+            stock - initial_stock_g
             for stock in apply_stock_changes_and_losses(
-                initial_stock_d, stock_changes, efficiencies
+                initial_stock_g,
+                stock_changes,
+                efficiencies,
             )
         ][-1]
+
         return final_stock_change
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
