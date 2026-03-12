@@ -381,7 +381,7 @@
 
     import { renderAssetPlotCard, renderSensorCard, renderSensorsList } from "{{ url_for('flexmeasures_ui.static', filename='js/components.js') }}?v={{ flexmeasures_version }}";
 
-    // This variable is used to prevent reRenderForm from running on initial load
+    // This variable is used to skip the first reactive render triggered during state initialization
     let hasInitialized = false;
 
     document.addEventListener('DOMContentLoaded', async function () {
@@ -417,8 +417,8 @@
         // rather than manually updating HTML elements on every user action.
 
         // getSensorToShow / setSensorToShow: Manages the 'sensors_to_show' graph data array.
-        // Changing it triggers `reRenderForm` which redraws all graph cards in the modal UI.
-        const [getSensorToShow, setSensorToShow] = createReactiveState(newFormat, reRenderForm);
+        // Changing it triggers `renderGraphCards` which redraws all graph cards in the modal UI.
+        const [getSensorToShow, setSensorToShow] = createReactiveState(newFormat, renderGraphCards);
 
         // editingIndex: Tracks the index of the graph whose title is actively being edited inline.
         const [editingIndex, setEditingIndex] = createReactiveState(null, () => { });
@@ -461,14 +461,6 @@
         searchInput.oninput = function () {
             filterSensors();
         };
-
-        function reRenderForm() {
-            if (!hasInitialized) {
-                hasInitialized = true;
-            } else {
-                renderGraphCards();
-            }
-        }
 
         assetTree.onchange = async (e) => {
             let hasOptions = false;
@@ -687,7 +679,7 @@
                 editBtn.onclick = (e) => {
                     e.stopPropagation(); // Prevent card selection
                     setEditingIndex(index);
-                    reRenderForm();
+                    renderGraphCards();
                 };
 
                 header.appendChild(h5);
@@ -711,7 +703,7 @@
                 setActiveCard(activeCard()?.id === card.id ? null : card);
                 setEditingIndex(editingIndex() === index ? null : index);
                 filterSensors();
-                reRenderForm();
+                renderGraphCards();
             };
 
             const cardBody = document.createElement("div");
@@ -839,6 +831,11 @@
 
         // Function to render the graph cards
         async function renderGraphCards() {
+            if (!hasInitialized) {
+                hasInitialized = true;
+                return;
+            } 
+
             const graphList = document.getElementById("graphList");
             graphList.innerHTML = "";
             const oldSensorsToShow = getSensorToShow();
@@ -1207,7 +1204,7 @@
             }
 
             // Initial renders
-            reRenderForm(); // Initial render of graph cards
+            renderGraphCards(); // Initial render of graph cards
             filterSensors(); // Initial render of sensors
             renderRootAssets(); // Initial render of root assets
         });
