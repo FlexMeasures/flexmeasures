@@ -1,8 +1,0 @@
-# This file controls whether the toy account is created when starting the Docker Compose stack.
-#
-# The first time you run `docker compose up`, the toy account (with user and assets) is created
-# and this file is deleted, so that the toy account is not re-created on subsequent runs.
-#
-# If you want to re-create the toy account, you can:
-# - Place this file back in this directory, or
-# - Run `flexmeasures add toy-account` manually.

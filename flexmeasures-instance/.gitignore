@@ -1,7 +1,0 @@
-# Ignore everything in this directory by default
-*
-
-# But keep these files that are tracked by the repository
-!.gitignore
-!.create-toy-account-on-first-run
-!requirements.txt

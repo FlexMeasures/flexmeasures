@@ -1,2 +1,0 @@
-# Add your plugin dependencies here.
-# They will be installed each time you run `docker compose up`.
