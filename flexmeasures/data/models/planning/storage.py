@@ -458,7 +458,9 @@ class MetaStorageScheduler(Scheduler):
         for d, prefer_charging_sooner_d in enumerate(prefer_charging_sooner):
             if prefer_charging_sooner_d:
                 tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value")
+                    add_tiny_price_slope(
+                        up_deviation_prices, "event_value", order="desc"
+                    )
                     - up_deviation_prices
                 )
                 commitment = StockCommitment(
@@ -467,7 +469,7 @@ class MetaStorageScheduler(Scheduler):
                     # Prefer curtailing consumption later by penalizing later consumption
                     upwards_deviation_price=0,
                     # Prefer curtailing production later by penalizing later production
-                    downwards_deviation_price=-0.00000001,
+                    downwards_deviation_price=-tiny_price_slope,
                     # downwards_deviation_price=-tiny_price_slope / 1000000,#0.00000001,
                     index=index,
                     device=d,
