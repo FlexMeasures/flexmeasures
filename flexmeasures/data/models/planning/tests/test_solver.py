@@ -816,8 +816,8 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     # soc maxima and soc minima
     soc_maxima = [
-        {"datetime": "2015-01-02T15:00:00+01:00", "value": 1.0},
-        {"datetime": "2015-01-02T16:00:00+01:00", "value": 1.0},
+        {"datetime": "2015-01-02T12:00:00+01:00", "value": 1.0},
+        {"datetime": "2015-01-02T13:00:00+01:00", "value": 1.0},
     ]
 
     soc_minima = [{"datetime": "2015-01-02T08:00:00+01:00", "value": 3.5}]
@@ -853,7 +853,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     # test for soc_maxima
     # check that the local maximum constraint is respected
-    assert soc_schedule_2.loc["2015-01-02T15:00:00+01:00"] <= 1.0
+    assert soc_schedule_2.loc["2015-01-02T13:00:00+01:00"] <= 1.0
 
     # test for soc_targets
     # check that the SOC target (at 19 pm, local time) is met
