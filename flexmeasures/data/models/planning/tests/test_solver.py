@@ -270,6 +270,7 @@ def run_test_charge_discharge_sign(
             for soc_at_start_d in soc_at_start
         ],
     )
+    assert results.solver.termination_condition == "optimal"
 
     device_power_sign = pd.Series(model.device_power_sign.extract_values())[0]
     device_power_up = pd.Series(model.device_power_up.extract_values())[0]
