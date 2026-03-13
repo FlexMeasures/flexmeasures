@@ -888,10 +888,10 @@ def chart_for_multiple_sensors(
     )
     minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
 
-    has_temp_sensors = any(
+    has_fixed_values = any(
         getattr(s, "id", None) is not None and s.id < 0 for s in all_shown_sensors
     )
-    sensor_title = "Sensor/Value" if has_temp_sensors else "Sensor"
+    sensor_title = "Sensor/Value" if has_fixed_values else "Sensor"
 
     event_start_field_definition = _setup_event_start_field(
         minimum_non_zero_resolution, event_starts_after, event_ends_before
