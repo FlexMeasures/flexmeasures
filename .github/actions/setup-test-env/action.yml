@@ -30,7 +30,7 @@ runs:
       with:
         enable-cache: true
         python-version: ${{ inputs.python-version }}
-        version: 0.10
+        version: "0.10.9"
 
     - name: Get history and tags for SCM versioning to work
       shell: bash

@@ -20,7 +20,7 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: '.pre-commit-config.yaml'
-          uv-version: "0.10"
+          version: "0.10.9"
       - name: Install dev dependencies
         run: uv sync --only-group dev --frozen
       - uses: tox-dev/action-pre-commit-uv@v1
