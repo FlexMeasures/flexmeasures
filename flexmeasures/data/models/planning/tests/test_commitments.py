@@ -725,9 +725,11 @@ def test_mixed_gas_and_electricity_assets(app, db):
 
 def test_two_devices_shared_stock(app, db):
     """
-    Test scheduling two batteries sharing a single shared stock.
-    Each battery: 20→80 kWh (60 kWh increase).
-    Combined SoC in shared stock cannot exceed 100 kWh at any time.
+    Two feeders charging a single storage.
+    Consider a single battery with two inverters feeding it, and a single state-of-charge sensor for the battery.
+     - Both inverters can charge the battery, but with different efficiencies.
+     - The battery has a single state of charge that both inverters affect.
+     - The scheduler should recognize the shared stock and optimize accordingly, without duplicating baselines or costs.
     """
     # ---- time
     start = pd.Timestamp("2024-01-01T00:00:00+01:00")
@@ -737,68 +739,69 @@ def test_two_devices_shared_stock(app, db):
 
     # ---- assets
     battery_type = get_or_create_model(GenericAssetType, name="battery")
+    inverter_type = get_or_create_model(GenericAssetType, name="inverter")
 
-    b1 = GenericAsset(name="B1", generic_asset_type=battery_type)
-    b2 = GenericAsset(name="B2", generic_asset_type=battery_type)
+    battery = GenericAsset(name="battery", generic_asset_type=battery_type)
+    inverter_1 = GenericAsset(name="inverter 1", generic_asset_type=inverter_type)
+    inverter_2 = GenericAsset(name="inverter 2", generic_asset_type=inverter_type)
 
-    db.session.add_all([b1, b2])
+    db.session.add_all([battery, inverter_1, inverter_2])
     db.session.commit()
 
-    s1 = Sensor(
-        name="power1",
+    power_1 = Sensor(
+        name="power",
         unit="kW",
         event_resolution=power_sensor_resolution,
-        generic_asset=b1,
+        generic_asset=inverter_1,
     )
-    s2 = Sensor(
-        name="power2",
+    power_2 = Sensor(
+        name="power",
         unit="kW",
         event_resolution=power_sensor_resolution,
-        generic_asset=b2,
+        generic_asset=inverter_2,
+    )
+    power_3 = Sensor(
+        name="power",
+        unit="kW",
+        event_resolution=power_sensor_resolution,
+        generic_asset=battery,
     )
 
-    soc1 = Sensor(
-        name="soc1",
+    state_of_charge = Sensor(
+        name="state-of-charge",
         unit="kWh",
         event_resolution=soc_sensor_resolution,
-        generic_asset=b1,
+        generic_asset=battery,
     )
 
-    soc2 = Sensor(
-        name="soc2",
-        unit="kWh",
-        event_resolution=soc_sensor_resolution,
-        generic_asset=b2,
-    )
-
-    db.session.add_all([soc1, soc2, s1, s2])
+    db.session.add_all([power_1, power_2, power_3, state_of_charge])
     db.session.commit()
 
     # ---- shared stock (both batteries charge from same pool)
     flex_model = [
         {
-            "sensor": s1.id,
-            "stock-id": "shared",
-            "state-of-charge": {"sensor": soc1.id},
-            "soc-at-start": 20.0,
-            "soc-min": 0.0,
-            "soc-max": 100.0,
-            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 80.0}],
+            "sensor": power_1.id,
+            "state-of-charge": {"sensor": state_of_charge.id},
             "power-capacity": "20 kW",
             "charging-efficiency": 0.95,
             "discharging-efficiency": 0.95,
         },
         {
-            "sensor": s2.id,
-            "stock-id": "shared",
-            "state-of-charge": {"sensor": soc2.id},
+            "sensor": power_2.id,
+            "state-of-charge": {"sensor": state_of_charge.id},
+            "power-capacity": "20 kW",
+            "charging-efficiency": 0.99,
+            "discharging-efficiency": 0.45,
+        },
+        {
+            "sensor": state_of_charge.id,
             "soc-at-start": 20.0,
             "soc-min": 0.0,
-            "soc-max": 100.0,
-            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 80.0}],
-            "power-capacity": "20 kW",
-            "charging-efficiency": 0.95,
-            "discharging-efficiency": 0.95,
+            "soc-max": 200.0,
+            "soc-targets": [{"datetime": "2024-01-01T23:00:00+01:00", "value": 189.0}],
+            "power-capacity": "50 kW",
+            "charging-efficiency": 0.45,
+            "discharging-efficiency": 0.45,
         },
     ]
 
@@ -806,9 +809,10 @@ def test_two_devices_shared_stock(app, db):
         "consumption-price": "100 EUR/MWh",
         "production-price": "100 EUR/MWh",
     }
+    pd.set_option("display.max_rows", None)
 
     scheduler = StorageScheduler(
-        asset_or_sensor=b1,
+        asset_or_sensor=battery,
         start=start,
         end=end,
         resolution=power_sensor_resolution,
@@ -820,106 +824,118 @@ def test_two_devices_shared_stock(app, db):
 
     schedules = scheduler.compute(skip_validation=True)
 
-    # Extract schedules by type
-    storage_schedules = [
-        entry for entry in schedules if entry.get("name") == "storage_schedule"
-    ]
-    soc_schedules = [
-        entry for entry in schedules if entry.get("name") == "state_of_charge"
-    ]
-    commitment_costs = [
-        entry for entry in schedules if entry.get("name") == "commitment_costs"
-    ]
+    # ---- verify scheduler returned expected outputs
+    assert isinstance(schedules, list), (
+        "Scheduler should return a list of result objects "
+        "(device schedules, commitment costs, SOC)."
+    )
 
-    assert len(storage_schedules) == 2
-    assert len(soc_schedules) == 1  # single shared SoC schedule
-    assert len(commitment_costs) == 1
+    assert len(schedules) == 4, (
+        "Expected 4 outputs: two inverter schedules, one commitment_costs "
+        "object, and one state_of_charge schedule."
+    )
 
-    # Get battery schedules
-    b1_schedule = next(entry for entry in storage_schedules if entry["sensor"] == s1)
-    b1_data = b1_schedule["data"]
+    # ---- extract schedules
+    storage_schedules = [s for s in schedules if s["name"] == "storage_schedule"]
+    commitment_costs = [s for s in schedules if s["name"] == "commitment_costs"]
+    soc_schedule = next(s for s in schedules if s["name"] == "state_of_charge")
 
-    b2_schedule = next(entry for entry in storage_schedules if entry["sensor"] == s2)
-    b2_data = b2_schedule["data"]
+    assert len(storage_schedules) == 2, (
+        "There should be two storage schedules corresponding to the two "
+        "inverters feeding the shared battery."
+    )
 
-    # Both devices should charge to meet their targets
-    assert (b1_data > 0).any(), "B1 should charge at some point"
-    assert (b2_data > 0).any(), "B2 should charge at some point"
+    assert (
+        len(commitment_costs) == 1
+    ), "Commitment costs should be aggregated into a single result."
 
+    power1_schedule = next(s for s in storage_schedules if s["sensor"] == power_1)
+    power2_schedule = next(s for s in storage_schedules if s["sensor"] == power_2)
+
+    power1_data = power1_schedule["data"]
+    power2_data = power2_schedule["data"]
+    soc_data = soc_schedule["data"]
     costs_data = commitment_costs[0]["data"]
 
-    # B1: 60kWh Δ (20→80) / 0.95 eff × 100 EUR/MWh ≈ 6.32 EUR (charge) + discharge ≈ 4.32 EUR
-    assert costs_data["electricity energy 0"] == pytest.approx(4.32, rel=1e-2), (
-        f"B1 electricity cost (60kWh @ 95% eff + discharge): "
-        f"60kWh/0.95 × (100 EUR/MWh) ≈ 4.32 EUR, "
-        f"got {costs_data['electricity energy 0']}"
+    # ---- charging behaviour
+    assert (power2_data > 0).any(), (
+        "The more efficient inverter should charge the battery at least "
+        "during some periods, showing that the optimizer prefers it."
     )
 
-    # B2: identical to B1 (same parameters and targets)
-    assert costs_data["electricity energy 1"] == pytest.approx(4.32, rel=1e-2), (
-        f"B2 electricity cost (60kWh @ 95% eff + discharge, same as B1): "
-        f"60kWh/0.95 × (100 EUR/MWh) ≈ 4.32 EUR, "
-        f"got {costs_data['electricity energy 1']}"
+    assert (power1_data == 0).sum() > len(power1_data) * 0.5, (
+        "The less efficient inverter should remain idle for most of the "
+        "charging window, confirming that efficiency differences influence "
+        "device selection."
     )
 
-    # Total electricity: B1 (4.32) + B2 (4.32) = 8.64 EUR
-    total_electricity_cost = sum(
-        v for k, v in costs_data.items() if k.startswith("electricity energy")
-    )
-    assert total_electricity_cost == pytest.approx(8.64, rel=1e-2), (
-        f"Total electricity cost (B1 4.32 + B2 4.32): "
-        f"≈ 8.64 EUR, got {total_electricity_cost}"
-    )
-
-    # B1 charging preference: early charging in shared stock scenario ≈ 9.44e-6 EUR
-    assert costs_data["prefer charging device 0 sooner"] == pytest.approx(
-        9.44e-6, rel=1e-2
-    ), (
-        f"B1 charging preference (shared stock: both compete for same resource): "
-        f"≈ 9.44e-6 EUR, got {costs_data['prefer charging device 0 sooner']}"
-    )
-
-    # B1 curtailing preference (0.5× multiplier): ≈ 4.72e-6 EUR
-    assert costs_data["prefer curtailing device 0 later"] == pytest.approx(
-        4.72e-6, rel=1e-2
-    ), (
-        f"B1 curtailing preference (0.5× idle multiplier): "
-        f"≈ 0.5 × 9.44e-6 = 4.72e-6 EUR, "
-        f"got {costs_data['prefer curtailing device 0 later']}"
-    )
-
-    # B2 charging preference: same as B1 ≈ 9.44e-6 EUR
-    assert costs_data["prefer charging device 1 sooner"] == pytest.approx(
-        9.44e-6, rel=1e-2
-    ), (
-        f"B2 charging preference (shared stock, same as B1): "
-        f"≈ 9.44e-6 EUR, got {costs_data['prefer charging device 1 sooner']}"
-    )
-
-    # B2 curtailing preference: same as B1 ≈ 4.72e-6 EUR
-    assert costs_data["prefer curtailing device 1 later"] == pytest.approx(
-        4.72e-6, rel=1e-2
-    ), (
-        f"B2 curtailing preference (0.5× idle multiplier, same as B1): "
-        f"≈ 4.72e-6 EUR, got {costs_data['prefer curtailing device 1 later']}"
-    )
-
-    # Verify charging cost ~2× curtailing cost for B1 (due to 0.5× multiplier)
+    # ---- discharge behaviour
     assert (
-        costs_data["prefer charging device 0 sooner"]
-        > costs_data["prefer curtailing device 0 later"]
-    ), (
-        f"B1 charging preference should cost ~2× more than curtailing "
-        f"due to 0.5× multiplier. "
-        f"Ratio: {costs_data['prefer charging device 0 sooner'] / costs_data['prefer curtailing device 0 later']:.1f}×"
+        power1_data.iloc[-4:] < 0
+    ).all(), "Battery should discharge at the end of the horizon through inverter 1."
+
+    assert (power2_data.iloc[-4:] < 0).all(), (
+        "Battery should discharge through inverter 2 as well, since both "
+        "devices share the same stock."
     )
 
-    # Verify charging cost ~2× curtailing cost for B2 (due to 0.5× multiplier)
+    # ---- SOC behaviour
+    assert soc_data.iloc[0] == pytest.approx(
+        20.0
+    ), "Initial state of charge must match the provided soc-at-start value."
+
+    assert soc_data.max() == pytest.approx(182.17, rel=1e-3), (
+        "SOC should rise to approximately 182 kWh during charging, "
+        "confirming that both inverters contribute to the same shared stock."
+    )
+
+    assert soc_data.iloc[-1] == pytest.approx(
+        140.07, rel=1e-3
+    ), "SOC should decrease after the final discharge period."
+
+    assert (
+        soc_data.max() > soc_data.iloc[0]
+    ), "SOC must increase during the charging phase."
+
+    # ---- energy cost checks
+    assert costs_data["electricity energy 0"] == pytest.approx(-2.0, rel=1e-2), (
+        "Electricity energy 0 corresponds to inverter 1 energy cost. "
+        "Negative value indicates net production/discharge value."
+    )
+
+    assert costs_data["electricity energy 1"] == pytest.approx(15.07, rel=1e-2), (
+        "Electricity energy 1 corresponds to inverter 2 charging cost, "
+        "which should dominate since it performs most charging."
+    )
+
+    # ---- total electricity cost sanity check
+    total_energy_cost = (
+        costs_data["electricity energy 0"] + costs_data["electricity energy 1"]
+    )
+
+    assert total_energy_cost == pytest.approx(
+        13.07, rel=1e-2
+    ), "Total electricity cost should equal the sum of device costs."
+
+    # ---- preference costs
     assert (
         costs_data["prefer charging device 1 sooner"]
-        > costs_data["prefer curtailing device 1 later"]
+        > costs_data["prefer charging device 0 sooner"]
     ), (
-        f"B2 charging preference should cost ~2× more than curtailing "
-        f"due to 0.5× multiplier. "
-        f"Ratio: {costs_data['prefer charging device 1 sooner'] / costs_data['prefer curtailing device 1 later']:.1f}×"
+        "The optimizer should prefer charging through the more efficient "
+        "inverter, resulting in larger accumulated preference costs."
+    )
+
+    assert (
+        costs_data["prefer curtailing device 1 later"]
+        > costs_data["prefer curtailing device 0 later"]
+    ), (
+        "Curtailing preference costs should follow the same pattern as "
+        "charging preference costs due to proportional energy usage."
+    )
+
+    # ---- efficiency preference check
+    assert power2_data.sum() > power1_data.sum(), (
+        "Total energy flowing through the more efficient inverter should "
+        "be higher than through the less efficient one."
     )
