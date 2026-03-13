@@ -36,7 +36,7 @@ runs:
       shell: bash
       run: |
         git fetch --prune --unshallow || true
-        git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+        git fetch --depth=1 origin +refs/tags/*:refs/tags/* || true
 
     - name: Install system dependencies
       shell: bash
