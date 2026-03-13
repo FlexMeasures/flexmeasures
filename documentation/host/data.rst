@@ -306,7 +306,7 @@ You can visualise the data model like this:
 
 .. code-block:: bash
 
-   $ uv run poe show-data-model
+   $ uv run poe show-data-model --uml
 
 
 This will generate a picture based on the model code.

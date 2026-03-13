@@ -19,17 +19,6 @@ Furthermore, we discuss several guidelines and best practices.
 Getting started
 ------------------
 
-UV
-^^
-
-We use the excellent `uv <https://docs.astral.sh/uv/>`_ tool to manage our dependencies.
-To `install uv <https://docs.astral.sh/uv/getting-started/installation/>`_, then run:
-
-.. code-block:: bash
-
-    $ uv sync --group dev --group test
-
-
 Download FlexMeasures
 ^^^^^^^^^^^^^^^^^^^^^^^
 Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from GitHub.
@@ -38,16 +27,28 @@ Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures
 
    $ git clone https://github.com/FlexMeasures/flexmeasures.git
 
-
 Dependencies
 ^^^^^^^^^^^^
 
-Go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
+We use the excellent `uv <https://docs.astral.sh/uv/>`_ tool to manage our dependencies.
+First, `install uv <https://docs.astral.sh/uv/getting-started/installation/>`_.
+
+Next, go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
 
 .. code-block:: bash
 
    $ cd flexmeasures
    $ uv sync --group dev --group test
+
+All ``flexmeasures`` commands in this guide are prefixed with ``uv run``, which ensures they always run in the correct project environment without needing to activate it first. This is specific to the developer setup: when using Docker or a globally installed FlexMeasures, ``flexmeasures`` is available directly on your ``PATH`` and no prefix is needed.
+
+.. note::
+
+   If you prefer shorter commands during interactive development, you can either activate the virtual environment (``source .venv/bin/activate``, or ``.venv\Scripts\activate`` on Windows) or add an alias to your ``~/.bashrc`` / ``~/.zshrc``:
+
+   .. code-block:: bash
+
+      alias flexmeasures="uv run flexmeasures"
 
 :ref:`Installing test dependencies <install-test-dependencies>`. Install the test dependencies with:
 
@@ -62,7 +63,7 @@ On Linux and Windows, everything will be installed using Python packages.
 On MacOS, this will install all test dependencies, and locally install the HiGHS solver.
 For this to work, make sure you have `Homebrew <https://brew.sh/>`_ installed.
 
-Besides HiGHS, the CBC solver is required for tests as well. See `The install instructions <https://github.com/coin-or/Cbc?tab=readme-ov-file#binaries`_ for more information.
+Besides the HiGHS solver (as the current default), the CBC solver is required for tests as well. See `The install instructions <https://github.com/coin-or/Cbc?tab=readme-ov-file#binaries`_ for more information.
 
 Configuration
 ^^^^^^^^^^^^^
@@ -101,7 +102,7 @@ One other possibility is to add a toy account (which owns some assets and a batt
 
 .. code-block:: bash
 
-    $ flexmeasures add toy-account
+    $ uv run flexmeasures add toy-account
 
 
 
@@ -112,7 +113,7 @@ Now, to start the web application, you can run:
 
 .. code-block:: bash
 
-    $ flexmeasures run
+    $ uv run flexmeasures run
 
 And access the server at http://localhost:5000
 
@@ -122,8 +123,8 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 
 .. code-block:: bash
     
-    $ flexmeasures add account --name MyCompany
-    $ flexmeasures add user --username admin --account 1 --email admin@mycompany.io --roles admin
+    $ uv run flexmeasures add account --name MyCompany
+    $ uv run flexmeasures add user --username admin --account 1 --email admin@mycompany.io --roles admin
 
 (The `account` you need in the 2nd command is printed by the 1st)
 
@@ -140,7 +141,7 @@ We recommend you populate the database with some standard asset types, user role
 
 .. code-block:: bash
 
-   $ flexmeasures add initial-structure
+   $ uv run flexmeasures add initial-structure
 
 For instance, without an asset type, you cannot add an asset.
 
@@ -148,7 +149,7 @@ Actually, you can add many things from the terminal. Check what data you can add
 
 .. code-block:: bash
 
-   $ flexmeasures add --help
+   $ uv run flexmeasures add --help
 
 
 
