@@ -1,145 +1,148 @@
 # This Makefile is deprecated. Please use the Poethepoet tasks or UV commands instead.
 # See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html
 
-# Check Python major and minor version
-# For more information, see https://stackoverflow.com/a/22105036
-# Not used anymore, as we now use the .python-version file to specify the Python version
-# PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
-
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs generate-openapi show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures install-pip-tools install-docs-dependencies install-highs-macos build-highs-macos test freeze-deps upgrade-deps upgrade-db update-docs generate-openapi show-file-space show-data-model clean-db cli-autocomplete
 
-SEE_ABOVE_MSG = @echo "" && echo "Warning: See the deprecation notice above."
+DOCS_URL = https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html
 
-define POE_MSG
-	@echo "Warning: this Make target has been superseded by a Poethepoet task (see pyproject.toml)."
-	@echo "See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html"
-	@echo "Running 'uv run poe $(1)' for you now ..."
+define WARN_DEPRECATED
+	@echo "Warning: 'make $@' has now been implemented by uv and poe commands. The Makefile will be deprecated in favour of poe soon."
+	@echo "See: $(DOCS_URL)"
 	@echo ""
 endef
 
-define UV_MSG
-	@echo "Warning: this Make target has been superseded by a simple UV command."
-	@echo "See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html"
-	@echo "Running '$(1)' for you now ..."
-	@echo ""
+define CHECK_UV
+	@if ! command -v uv >/dev/null 2>&1; then \
+		echo "You seem to not have installed your environment via uv. We advise to do that soon for a seamless developer experience."; \
+		echo "Take a look at the new setup here: $(DOCS_URL)"; \
+		exit 1; \
+	fi
 endef
 
-SEE_DOCUMENTATION_MSG = See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html
-DEPRECATED_MSG = This command is no longer supported.
 # ---- Development ---
 
 test:
-	$(call UV_MSG,uv sync --group test)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv sync --group test
-	$(call POE_MSG,test)
 	uv run poe test
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 # ---- Documentation ---
 
-gen_code_docs := False # by default code documentation is not generated
-
 # Note: this makes docs for the FlexMeasures project, free from custom settings and plugins
 update-docs:
-	$(call POE_MSG,update-docs)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv run poe update-docs
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 # Note: this will create SwaggerDocs with host-specific settings (e.g. platform name, support page, TOS) and plugins - use update-docs to make generic specs
 generate-openapi:
-	$(call POE_MSG,generate-open-api-specs)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv run poe generate-open-api-specs
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 # ---- Installation ---
 
 install:
-	$(call UV_MSG,uv sync)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv sync --group dev --group test
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 install-for-dev:
-	$(call UV_MSG,uv sync --group dev --group test)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv sync --group dev --group test
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 install-for-test:
-	$(call UV_MSG,uv sync --group test)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv sync --group test
-	$(SEE_ABOVE_MSG)
-
-build-highs-macos:
-	@echo "$(DEPRECATED_MSG)"
-	@echo "$(SEE_DOCUMENTATION_MSG)"
-
-install-highs-macos:
-	$(call UV_MSG,uv sync --group dev --group test)
-	uv sync --group dev --group test
-	$(SEE_ABOVE_MSG)
-
-install-deps:
-	ifneq ($(pinned), no)
-		$(call UV_MSG,uv sync --group dev --group test)
-		uv sync --group dev --group test
-		$(SEE_ABOVE_MSG)
-	else
-		@echo "$(DEPRECATED_MSG)"
-		@echo "To upgrade the lockfile, use 'uv lock --upgrade'.
-		@echo "To upgrade ranges, manually upgrade them or use dependabot."
-		@echo "$(SEE_DOCUMENTATION_MSG)"
-	endif
+	$(WARN_DEPRECATED)
 
 install-flexmeasures:
-	$(call UV_MSG,uv sync)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv sync
-	$(SEE_ABOVE_MSG)
-
-install-pip-tools:
-	@echo "$(DEPRECATED_MSG)"
-	@echo "Pip tools has been replaced by uv."
-	@echo "$(SEE_DOCUMENTATION_MSG)"
+	$(WARN_DEPRECATED)
 
 install-docs-dependencies:
-	$(call UV_MSG,uv sync --group docs)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv sync --group docs
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
-freeze-deps:
-	@echo "$(DEPRECATED_MSG)"
-	@echo "Pip tools has been replaced by uv."
-	@echo "$(SEE_DOCUMENTATION_MSG)"
+install-highs-macos:
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group dev --group test
+	$(WARN_DEPRECATED)
 
-upgrade-deps:
-	@echo "$(DEPRECATED_MSG)"
+build-highs-macos:
+	@echo "This command is no longer supported."
+	@echo "See: $(DOCS_URL)"
+
+install-deps:
+ifeq ($(pinned), no)
+	@echo "This command is no longer supported for unpinned installs."
 	@echo "To upgrade the lockfile, use 'uv lock --upgrade'."
 	@echo "To upgrade ranges, manually upgrade them or use dependabot."
-	@echo "$(SEE_DOCUMENTATION_MSG)"
+	@echo "See: $(DOCS_URL)"
+else
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group dev --group test
+	$(WARN_DEPRECATED)
+endif
+
+install-pip-tools:
+	@echo "This command is no longer supported. Pip tools has been replaced by uv."
+	@echo "See: $(DOCS_URL)"
+
+freeze-deps:
+	@echo "This command is no longer supported. Pip tools has been replaced by uv."
+	@echo "See: $(DOCS_URL)"
+
+upgrade-deps:
+	@echo "This command is no longer supported."
+	@echo "To upgrade the lockfile, use 'uv lock --upgrade'."
+	@echo "To upgrade ranges, manually upgrade them or use dependabot."
+	@echo "See: $(DOCS_URL)"
 
 # ---- Data ----
 
 show-file-space:
-	$(call POE_MSG,show-file-space)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv run poe show-file-space
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 upgrade-db:
-	$(call POE_MSG,upgrade-db)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv run poe upgrade-db
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 show-data-model:
-	$(call POE_MSG,show-data-model)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv run poe show-data-model --uml
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 clean-db:
-	$(call POE_MSG,clean-db)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv run poe clean-db
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
 
 cli-autocomplete:
-	$(call POE_MSG,cli-autocomplete)
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
 	uv run poe cli-autocomplete
-	$(SEE_ABOVE_MSG)
+	$(WARN_DEPRECATED)
