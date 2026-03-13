@@ -560,9 +560,7 @@
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
                         item['plots'] = [];
-                        graph['sensors'].forEach(sensor => {
-                            item['plots'].push({ "sensor": sensor });
-                        });
+                        item['plots'].push({ "sensors": graph['sensors'] });
                         newShape.push(item);
                     } else if ("sensor" in graph) {
                         const item = {};
