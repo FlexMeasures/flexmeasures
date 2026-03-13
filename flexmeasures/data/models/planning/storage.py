@@ -198,17 +198,6 @@ class MetaStorageScheduler(Scheduler):
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
 
-        # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
-        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
-        # todo: move to flow or stock commitment per device
-        if any(prefer_charging_sooner):
-            up_deviation_prices = add_tiny_price_slope(
-                up_deviation_prices, "event_value"
-            )
-            down_deviation_prices = add_tiny_price_slope(
-                down_deviation_prices, "event_value"
-            )
-
         # Create Series with EMS capacities
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
@@ -458,6 +447,28 @@ class MetaStorageScheduler(Scheduler):
                     upwards_deviation_price=tiny_price_slope,
                     # Prefer curtailing production later by penalizing later production
                     downwards_deviation_price=-tiny_price_slope,
+                    index=index,
+                    device=d,
+                )
+                commitments.append(commitment)
+
+        # Use a tiny price slope to prefer a fuller SoC sooner rather than later
+        # This corresponds to a preference for charging now rather than later, and discharging later rather than now.
+        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
+        for d, prefer_charging_sooner_d in enumerate(prefer_charging_sooner):
+            if prefer_charging_sooner_d:
+                tiny_price_slope = (
+                    add_tiny_price_slope(up_deviation_prices, "event_value")
+                    - up_deviation_prices
+                )
+                commitment = StockCommitment(
+                    name=f"prefer charging device {d} sooner",
+                    quantity=soc_max[d] - soc_at_start[d],
+                    # Prefer curtailing consumption later by penalizing later consumption
+                    upwards_deviation_price=0,
+                    # Prefer curtailing production later by penalizing later production
+                    downwards_deviation_price=-0.00000001,
+                    # downwards_deviation_price=-tiny_price_slope / 1000000,#0.00000001,
                     index=index,
                     device=d,
                 )
@@ -940,7 +951,7 @@ class MetaStorageScheduler(Scheduler):
     def convert_to_commitments(
         self,
         **timing_kwargs,
-    ) -> list[FlowCommitment]:
+    ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
