@@ -464,11 +464,10 @@ class MetaStorageScheduler(Scheduler):
                     - up_deviation_prices
                 )
                 commitment = StockCommitment(
-                    name=f"prefer charging device {d} sooner",
+                    name=f"prefer a full storage {d} sooner",
                     quantity=soc_max[d] - soc_at_start[d],
-                    # Prefer curtailing consumption later by penalizing later consumption
                     upwards_deviation_price=0,
-                    # Prefer curtailing production later by penalizing later production
+                    # Penalize not being full, with lower penalties later
                     downwards_deviation_price=-tiny_price_slope,
                     # downwards_deviation_price=-tiny_price_slope / 1000000,#0.00000001,
                     index=index,
