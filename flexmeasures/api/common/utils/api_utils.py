@@ -210,58 +210,61 @@ def convert_asset_json_fields(asset_kwargs):
     return asset_kwargs
 
 
-def fetch_and_copy_all_assets_in_account(
-    account_id: int, target_account_id: int
-) -> list[GenericAsset]:
+def copy_asset(
+    asset: GenericAsset,
+    account=None,
+    parent_asset=None,
+) -> GenericAsset:
+    """
+    Copy a single asset to a target account and/or under a target parent asset.
+
+    Resolution rules:
+
+    - If neither ``account`` nor ``parent_asset`` is given, the copy is placed in
+      the same account and under the same parent as the original (i.e. a sibling).
+    - If ``account`` is given but ``parent_asset`` is not, the copy becomes a
+      top-level asset (no parent) in the given account.
+    - If ``parent_asset`` is given but ``account`` is not, the copy is placed under
+      the given parent and inherits that parent's account.
+    - If both are given, the copy belongs to the given account and is placed under
+      the given parent. This allows creating a copy that belongs to a different
+      account than its parent.
+    """
     try:
         asset_schema = AssetSchema()
+        asset_kwargs = asset_schema.dump(asset)
 
-        # order from oldest to newest to help with parent/child dependencies
-        assets = db.session.scalars(
-            select(GenericAsset)
-            .filter(GenericAsset.account_id == account_id)
-            .order_by(GenericAsset.id)
-        ).all()
+        # Remove dump_only and read-only fields
+        for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
+            asset_kwargs.pop(key, None)
 
-        if len(assets) == 0:
-            raise ValueError(f"No assets found for account {account_id}.")
+        # Avoid name collision
+        asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
 
-        asset_mapping = {}
-        parent_mapping = {}
-        new_assets = []
-
-        for old_asset in assets:
-            asset_kwargs = asset_schema.dump(old_asset)
-
-            # Remove dump_only and read-only fields
-            for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
-                asset_kwargs.pop(key, None)
-
-            # Avoid name collisions
-            asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
-            # Assign to the target account
-            asset_kwargs["account_id"] = target_account_id
-            asset_kwargs = convert_asset_json_fields(asset_kwargs)
-
-            # Keep track of parent_asset_id to reconnect later
-            if asset_kwargs.get("parent_asset_id"):
-                parent_mapping[old_asset.id] = asset_kwargs["parent_asset_id"]
+        # Resolve target account and parent
+        if account is None and parent_asset is None:
+            # Neither given: preserve the original asset's placement
+            asset_kwargs["account_id"] = asset.account_id
+            asset_kwargs["parent_asset_id"] = asset.parent_asset_id
+        elif account is not None and parent_asset is None:
+            # Only account given: top-level asset in the target account
+            asset_kwargs["account_id"] = account.id
             asset_kwargs["parent_asset_id"] = None
+        elif account is None and parent_asset is not None:
+            # Only parent given: inherit the parent's account
+            asset_kwargs["account_id"] = parent_asset.account_id
+            asset_kwargs["parent_asset_id"] = parent_asset.id
+        else:
+            # Both given: explicit placement, possibly cross-account
+            asset_kwargs["account_id"] = account.id
+            asset_kwargs["parent_asset_id"] = parent_asset.id
 
-            new_asset = GenericAsset(**asset_kwargs)
-            db.session.add(new_asset)
-            db.session.flush()
+        asset_kwargs = convert_asset_json_fields(asset_kwargs)
 
-            asset_mapping[old_asset.id] = new_asset
-            new_assets.append(new_asset)
-
-        # Second loop to set the proper parent
-        for old_id, old_parent_id in parent_mapping.items():
-            if old_parent_id in asset_mapping:
-                asset_mapping[old_id].parent_asset_id = asset_mapping[old_parent_id].id
-
+        new_asset = GenericAsset(**asset_kwargs)
+        db.session.add(new_asset)
         db.session.commit()
-        return new_assets
+        return new_asset
     except Exception as e:
         db.session.rollback()
         raise e

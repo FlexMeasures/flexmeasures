@@ -9,7 +9,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
-from flexmeasures.api.common.utils.api_utils import fetch_and_copy_all_assets_in_account
+from flexmeasures.api.common.utils.api_utils import copy_asset
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 
@@ -688,43 +688,104 @@ def test_consultant_get_asset(
     assert get_asset_response.json["name"] == "Test ConsultancyClient Asset"
 
 
-def test_fetch_and_copy_all_assets_in_account(setup_api_test_data, setup_accounts, db):
+def test_copy_asset(setup_api_test_data, setup_accounts, db):
+    """
+    Test all four placement use cases for copy_asset:
 
-    base_account = setup_accounts["Prosumer"]
-    target_account = setup_accounts["Empty"]
+    1. Neither account nor parent given  → same account, same parent (sibling copy).
+    2. Only account given                → top-level asset in the given account.
+    3. Only parent given                 → under the parent, inheriting its account.
+    4. Both account and parent given     → under the parent, in the given account
+                                           (cross-account parent relationship allowed).
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    supplier_account = setup_accounts["Supplier"]
 
-    # Get the original assets in the base account
-    original_assets = db.session.scalars(
-        select(GenericAsset).filter_by(account_id=base_account.id)
-    ).all()
-    original_asset_count = len(original_assets)
+    # Source assets created by setup_generic_assets (via setup_api_test_data dependency)
+    battery = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    turbine = db.session.scalars(
+        select(GenericAsset).filter_by(name="Test wind turbine")
+    ).first()
 
-    assert (
-        original_asset_count > 0
-    ), "Base account should have at least one asset to test properly"
+    assert battery is not None, "Battery asset must exist in Prosumer account"
+    assert turbine is not None, "Wind turbine asset must exist in Supplier account"
 
-    # Count assets in the target account before the operation
-    target_assets_before = db.session.scalars(
-        select(GenericAsset).filter_by(account_id=target_account.id)
-    ).all()
-    target_asset_count_before = len(target_assets_before)
-
-    # Call the copy function
-    new_assets = fetch_and_copy_all_assets_in_account(
-        base_account.id, target_account.id
+    # Create a parent asset in the Supplier account for use cases 3 and 4.
+    parent = GenericAsset(
+        name="Test parent for copy",
+        generic_asset_type=battery.generic_asset_type,
+        owner=supplier_account,
     )
+    db.session.add(parent)
+    db.session.flush()
 
-    # 1. Check if the amount of assets copied are complete
-    target_assets_after = db.session.scalars(
-        select(GenericAsset).filter_by(account_id=target_account.id)
-    ).all()
+    # 1. Neither given → sibling copy (same account, same parent)
+    copy1 = copy_asset(battery)
+    assert copy1.name == f"{battery.name} (Copy)"
+    assert copy1.account_id == battery.account_id
+    assert copy1.parent_asset_id == battery.parent_asset_id  # None
 
-    assert len(target_assets_after) == target_asset_count_before + original_asset_count
-    assert len(new_assets) == original_asset_count
+    # 2. Only account given → top-level in target account
+    # Use the turbine so the name doesn't clash with copy1 (parent_asset_id is None for both).
+    copy2 = copy_asset(turbine, account=prosumer_account)
+    assert copy2.name == f"{turbine.name} (Copy)"
+    assert copy2.account_id == prosumer_account.id
+    assert copy2.parent_asset_id is None
 
-    # 2. Using the name of the original asset, search if it exists in the new account
-    new_asset_names = [a.name for a in target_assets_after]
+    # 3. Only parent given → under parent, inherits parent's account
+    copy3 = copy_asset(battery, parent_asset=parent)
+    assert copy3.name == f"{battery.name} (Copy)"
+    assert copy3.account_id == parent.account_id  # Supplier account
+    assert copy3.parent_asset_id == parent.id
 
-    for old_asset in original_assets:
-        expected_new_name = f"{old_asset.name} (Copy)"
-        assert expected_new_name in new_asset_names
+    # 4. Both given → under parent, in explicitly given account (cross-account)
+    copy4 = copy_asset(turbine, account=prosumer_account, parent_asset=parent)
+    assert copy4.name == f"{turbine.name} (Copy)"
+    assert copy4.account_id == prosumer_account.id
+    assert copy4.parent_asset_id == parent.id
+
+
+def test_copy_asset_fails_on_duplicate_name_under_same_parent(
+    setup_api_test_data, setup_accounts, db
+):
+    """
+    Copying the same asset twice under the same parent raises an IntegrityError.
+
+    The DB enforces UNIQUE(name, parent_asset_id). The first copy succeeds
+    producing e.g. 'Battery (Copy)' under the given parent. The second copy
+    tries to insert another row with the exact same (name, parent_asset_id)
+    pair, which violates the constraint.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    prosumer_account = setup_accounts["Prosumer"]
+    battery = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert battery is not None
+
+    # Create a dedicated parent so this test is independent of others.
+    parent = GenericAsset(
+        name="Test parent for duplicate-name failure",
+        generic_asset_type=battery.generic_asset_type,
+        owner=prosumer_account,
+    )
+    db.session.add(parent)
+    db.session.flush()
+
+    # First copy under the parent succeeds.
+    first_copy = copy_asset(battery, parent_asset=parent)
+    assert first_copy.parent_asset_id == parent.id
+
+    # Second copy under the same parent fails: UNIQUE(name, parent_asset_id) is violated
+    # because parent_asset_id is non-NULL (PostgreSQL only treats NULLs as distinct).
+    with pytest.raises(IntegrityError):
+        copy_asset(battery, parent_asset=parent)
