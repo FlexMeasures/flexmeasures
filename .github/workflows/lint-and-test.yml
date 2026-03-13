@@ -8,13 +8,22 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    name: Check (on Python 3.11)
+    name: Check (on Python 3.12)
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v6
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
         with:
-          python-version: 3.11
-      - uses: actions/checkout@v3
-      - uses: pre-commit/action@v3.0.0
+          python-version-file: ".python-version"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: '.pre-commit-config.yaml'
+          version: "0.10.9"
+      - name: Install dev dependencies
+        run: uv sync --only-group dev --frozen
+      - uses: tox-dev/action-pre-commit-uv@v1
 
   test:
     needs: check
@@ -24,28 +33,18 @@ jobs:
       matrix:
         py_version: [ "3.10", "3.11", "3.12" ]
         include:
-          - py_version: "3.11"
+        # Include coverage for Python 3.12
+          - py_version: 3.12
             coverage: yes
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - name: Check out src from Git
-        uses: actions/checkout@v3
-
-      - name: "Caching for dependencies (.txt) - restore existing or ensure new cache will be made"
-        uses: actions/cache@v4
-        id: cache
-        with:
-          path: ~/.cache/pip
-          # manually disable a cache if needed by (re)setting CACHE_DATE
-          key: ${{ runner.os }}-pip-${{ matrix.py_version }}-${{ secrets.CACHE_DATE }}-${{ hashFiles('**/requirements/**/*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+        uses: actions/checkout@v6
 
       - name: Set up test environment
         uses: ./.github/actions/setup-test-env
         with:
           python-version: ${{ matrix.py_version }}
-          install-mode: ${{ github.event_name == 'pull_request' && 'latest' || 'pinned' }}
 
       - name: Run all tests AND record coverage
         # NB the --ignore and -k "not ..." statements are not used to ignore test modules,
@@ -57,7 +56,7 @@ jobs:
             PYTEST_K="not get_object_or_literal and not get_or_create_model"
           fi
           
-          pytest -v \
+          uv run pytest -v \
           --doctest-modules \
           --ignore documentation \
           --ignore wsgi.py \
