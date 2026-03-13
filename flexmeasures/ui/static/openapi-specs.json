@@ -2648,6 +2648,7 @@
         ]
       }
     },
+    "/api/v3_0/assets/copy": {},
     "/api/v3_0/assets/{id}": {
       "delete": {
         "summary": "Delete an asset.",
@@ -3898,14 +3899,7 @@
     "schemas": {
       "Quantity": {
         "type": "string",
-        "description": "Quantity string describing a fixed quantity.",
-        "examples": [
-          "130 EUR/MWh",
-          "12 V",
-          "4.5 m/s",
-          "20 \u00b0C",
-          "3 * 230V * 16A"
-        ]
+        "description": "Quantity string describing a fixed quantity."
       },
       "SensorReference": {
         "type": "object",

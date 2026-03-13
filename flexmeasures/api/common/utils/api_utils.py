@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from typing import Sequence
 from datetime import timedelta
@@ -14,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
@@ -22,6 +24,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     already_received_and_successfully_processed,
 )
+from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.utils.error_utils import error_handling_router
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
@@ -182,3 +185,86 @@ def get_accessible_accounts() -> list[Account]:
             pass
 
     return accounts
+
+
+def convert_asset_json_fields(asset_kwargs):
+    """
+    Convert string fields in asset_kwargs to JSON where needed.
+    """
+    if "attributes" in asset_kwargs and isinstance(asset_kwargs["attributes"], str):
+        asset_kwargs["attributes"] = json.loads(asset_kwargs["attributes"])
+    if "sensors_to_show" in asset_kwargs and isinstance(
+        asset_kwargs["sensors_to_show"], str
+    ):
+        asset_kwargs["sensors_to_show"] = json.loads(asset_kwargs["sensors_to_show"])
+    if "flex_context" in asset_kwargs and isinstance(asset_kwargs["flex_context"], str):
+        asset_kwargs["flex_context"] = json.loads(asset_kwargs["flex_context"])
+    if "flex_model" in asset_kwargs and isinstance(asset_kwargs["flex_model"], str):
+        asset_kwargs["flex_model"] = json.loads(asset_kwargs["flex_model"])
+    if "sensors_to_show_as_kpis" in asset_kwargs and isinstance(
+        asset_kwargs["sensors_to_show_as_kpis"], str
+    ):
+        asset_kwargs["sensors_to_show_as_kpis"] = json.loads(
+            asset_kwargs["sensors_to_show_as_kpis"]
+        )
+    return asset_kwargs
+
+
+def copy_asset(
+    asset: GenericAsset,
+    account=None,
+    parent_asset=None,
+) -> GenericAsset:
+    """
+    Copy a single asset to a target account and/or under a target parent asset.
+
+    Resolution rules:
+
+    - If neither ``account`` nor ``parent_asset`` is given, the copy is placed in
+      the same account and under the same parent as the original (i.e. a sibling).
+    - If ``account`` is given but ``parent_asset`` is not, the copy becomes a
+      top-level asset (no parent) in the given account.
+    - If ``parent_asset`` is given but ``account`` is not, the copy is placed under
+      the given parent and inherits that parent's account.
+    - If both are given, the copy belongs to the given account and is placed under
+      the given parent. This allows creating a copy that belongs to a different
+      account than its parent.
+    """
+    try:
+        asset_schema = AssetSchema()
+        asset_kwargs = asset_schema.dump(asset)
+
+        # Remove dump_only and read-only fields
+        for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
+            asset_kwargs.pop(key, None)
+
+        # Avoid name collision
+        asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
+
+        # Resolve target account and parent
+        if account is None and parent_asset is None:
+            # Neither given: preserve the original asset's placement
+            asset_kwargs["account_id"] = asset.account_id
+            asset_kwargs["parent_asset_id"] = asset.parent_asset_id
+        elif account is not None and parent_asset is None:
+            # Only account given: top-level asset in the target account
+            asset_kwargs["account_id"] = account.id
+            asset_kwargs["parent_asset_id"] = None
+        elif account is None and parent_asset is not None:
+            # Only parent given: inherit the parent's account
+            asset_kwargs["account_id"] = parent_asset.account_id
+            asset_kwargs["parent_asset_id"] = parent_asset.id
+        else:
+            # Both given: explicit placement, possibly cross-account
+            asset_kwargs["account_id"] = account.id
+            asset_kwargs["parent_asset_id"] = parent_asset.id
+
+        asset_kwargs = convert_asset_json_fields(asset_kwargs)
+
+        new_asset = GenericAsset(**asset_kwargs)
+        db.session.add(new_asset)
+        db.session.commit()
+        return new_asset
+    except Exception as e:
+        db.session.rollback()
+        raise e
