@@ -226,11 +226,15 @@
                                     Here you can edit what data is shown in the Dashboard Graphs. Each graph can show
                                     one or more sensors or fixed values.
                                 </p>
-                                <p  class="mb-2">
-                                    Graphs are shown on the left. On the right, you can add settings from  the asset config (sensors or values from its flex-context and flex-model), which will update whenever you make changes there. You can also freely search and add sensors (from within your account, and public ones).
-                                </p> 
-                                    <p>
-                                        Note: it makes sense to show sensors and values together in a graph that share the same unit.
+                                <p class="mb-2">
+                                    Graphs are shown on the left. On the right, you can add settings from the asset
+                                    config (sensors or values from its flex-context and flex-model), which will update
+                                    whenever you make changes there. You can also freely search and add sensors (from
+                                    within your account, and public ones).
+                                </p>
+                                <p>
+                                    Note: it makes sense to show sensors and values together in a graph that share the
+                                    same unit.
                                 </p>
                                 <p class="mb-2">
                                     You can also set the title of each graph and re-order them. Select a graph
@@ -551,27 +555,38 @@
             const newShape = [];
 
             for (const graph of graphs) {
-                if ("sensors" in graph) {
+                if (typeof graph === "object") {
+                    if ("sensors" in graph) {
+                        const item = {};
+                        item['title'] = graph['title'] || "No Title";
+                        item['plots'] = [];
+                        graph['sensors'].forEach(sensor => {
+                            item['plots'].push({ "sensor": sensor });
+                        });
+                        newShape.push(item);
+                    } else if ("sensor" in graph) {
+                        const item = {};
+                        item['title'] = graph['title'] || "No Title";
+                        item['plots'] = [];
+                        item['plots'].push({ "sensor": graph['sensor'] });
+                        newShape.push(item);
+                    } else if ("plots" in graph) {
+                        const item = {};
+                        item['title'] = graph['title'] || "No Title";
+                        item['plots'] = graph['plots'];
+                        newShape.push(item);
+                    } else {
+                        // raise toast error of "unknown format"
+                        showToast(`Unknown graph format: ${JSON.stringify(graph)}`, "danger");
+                    }
+                } else if (typeof graph === "number") {
                     const item = {};
-                    item['title'] = graph['title'] || "No Title";
-                    item['plots'] = [];
-                    graph['sensors'].forEach(sensor => {
-                        item['plots'].push({ "sensor": sensor });
-                    });
-                    newShape.push(item);
-                } else if ("sensor" in graph) {
-                    const item = {};
-                    item['title'] = graph['title'] || "No Title";
-                    item['plots'] = [];
-                    item['plots'].push({ "sensor": graph['sensor'] });
-                    newShape.push(item);
-                } else if ("plots" in graph) {
-                    const item = {};
-                    item['title'] = graph['title'] || "No Title";
-                    item['plots'] = graph['plots'];
+                    item['title'] = "No Title";
+                    item['plots'] = [{ "sensor": graph }];
                     newShape.push(item);
                 } else {
-                    newShape.push(graph)
+                    // raise toast error of "unknown format"
+                    showToast(`Unknown graph format: ${JSON.stringify(graph)}`, "danger");
                 }
             }
 
@@ -839,7 +854,7 @@
             if (!hasInitialized) {
                 hasInitialized = true;
                 return;
-            } 
+            }
 
             const graphList = document.getElementById("graphList");
             graphList.innerHTML = "";

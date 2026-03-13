@@ -121,13 +121,32 @@ export async function renderAssetPlotCard(
 
   const valueToDisplay =
     flexConfigData[assetPlot[IsFlexContext ? "flex-context" : "flex-model"]];
-  if (typeof valueToDisplay === "object") {
-    disabledInput.value = JSON.stringify(valueToDisplay);
-  } else {
-    disabledInput.value = valueToDisplay || "No Flex Context/Model Configured";
-  }
+  const isSensorReference =
+    typeof valueToDisplay === "object" &&
+    valueToDisplay !== null &&
+    Object.keys(valueToDisplay).length === 1 &&
+    Object.prototype.hasOwnProperty.call(valueToDisplay, "sensor") &&
+    Number.isInteger(valueToDisplay.sensor);
 
-  infoDiv.appendChild(disabledInput);
+  if (isSensorReference) {
+    try {
+      const sensorReference = await renderSensorCard(valueToDisplay.sensor, graphIndex);
+      const sensorElement = sensorReference.element;
+      sensorElement.classList.remove("mb-3");
+      infoDiv.appendChild(sensorElement);
+    } catch (e) {
+      console.error("Failed to render sensor reference card:", e);
+      disabledInput.value = JSON.stringify(valueToDisplay);
+      infoDiv.appendChild(disabledInput);
+    }
+  } else {
+    if (typeof valueToDisplay === "object") {
+      disabledInput.value = JSON.stringify(valueToDisplay);
+    } else {
+      disabledInput.value = valueToDisplay || "No Flex Context/Model Configured";
+    }
+    infoDiv.appendChild(disabledInput);
+  }
 
   flexDiv.appendChild(infoDiv);
   flexDiv.appendChild(closeIcon);
