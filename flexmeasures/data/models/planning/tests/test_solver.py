@@ -2235,11 +2235,14 @@ def test_battery_storage_different_units(
         battery_name="Test battery",
         power_sensor_name=power_sensor_name,
     )
-    tz = pytz.timezone("Europe/Amsterdam")
+    tz = pytz.timezone(epex_da.timezone)
 
     # transition from cheap to expensive (90 -> 100)
     start = tz.localize(datetime(2015, 1, 2, 14, 0, 0))
     end = tz.localize(datetime(2015, 1, 2, 16, 0, 0))
+    assert len(epex_da.search_beliefs(start, end)) == 2
+    assert epex_da.search_beliefs(start, end).values[0][0] == 90
+    assert epex_da.search_beliefs(start, end).values[1][0] == 100
     resolution = timedelta(minutes=15)
 
     flex_model = {
