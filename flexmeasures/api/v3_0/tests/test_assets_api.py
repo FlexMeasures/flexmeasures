@@ -1,11 +1,13 @@
 import json
+from datetime import timedelta
 
 from flask import url_for
 import pytest
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.audit_log import AssetAuditLog
-from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
@@ -789,3 +791,107 @@ def test_copy_asset_fails_on_duplicate_name_under_same_parent(
     # because parent_asset_id is non-NULL (PostgreSQL only treats NULLs as distinct).
     with pytest.raises(IntegrityError):
         copy_asset(battery, parent_asset=parent)
+
+
+def test_copy_asset_to_another_account_preserves_config(
+    setup_api_test_data, setup_accounts, setup_markets, setup_generic_asset_types, db
+):
+    """
+    Copy a richly configured asset from one account to another and verify everything
+    is preserved correctly.
+
+    Source asset layout (Prosumer account):
+
+    House  (EMS)
+    ├── flex_context:
+    │     - consumption-price  → sensor on the public epex asset (no account)
+    │     - site-power-capacity → sensor on the House itself (kW capacity)
+    ├── EV charger 1  (child)
+    │     - flex_model: { "power-capacity": "7.4 kW", "soc-unit": "kWh" }
+    │     - sensors: power (kW), energy (kWh)
+    └── EV charger 2  (child)
+          - flex_model: { "power-capacity": "7.4 kW", "soc-unit": "kWh" }
+          - sensors: power (kW), energy (kWh)
+
+    Assertions after copying House to the Supplier account:
+    1. The copy lands in the Supplier account with the expected name.
+    2. The copy is a top-level asset (no parent).
+    3. flex_context is preserved verbatim (sensor IDs are unchanged).
+    4. copy_asset is a *shallow* copy: the original child assets are not duplicated.
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    supplier_account = setup_accounts["Supplier"]
+
+    # The epex_da sensor lives on the public "epex" asset (account_id=None).
+    price_sensor = setup_markets["epex_da"]
+    assert price_sensor.generic_asset.account_id is None, "epex must be a public asset"
+
+    asset_type = setup_generic_asset_types["battery"]
+    charger_type = setup_generic_asset_types["wind"]
+
+    # Build the source house asset.
+    house = GenericAsset(
+        name="Test house for rich copy",
+        generic_asset_type=asset_type,
+        owner=prosumer_account,
+    )
+    db.session.add(house)
+    db.session.flush()  # obtain house.id before adding sensors
+
+    # A kW sensor on the house itself, referenced as the site-power-capacity.
+    site_capacity_sensor = Sensor(
+        name="site capacity",
+        generic_asset=house,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(site_capacity_sensor)
+    db.session.flush()
+
+    house.flex_context = {
+        "consumption-price": {"sensor": price_sensor.id},
+        "site-power-capacity": {"sensor": site_capacity_sensor.id},
+    }
+
+    # Two child assets, each with two sensors and a two-setting flex_model.
+    for i in range(1, 3):
+        charger = GenericAsset(
+            name=f"EV charger {i}",
+            generic_asset_type=charger_type,
+            owner=prosumer_account,
+            parent_asset_id=house.id,
+            flex_model={"power-capacity": "7.4 kW", "soc-unit": "kWh"},
+        )
+        db.session.add(charger)
+        db.session.flush()
+        for j, unit in enumerate(["kW", "kWh"], start=1):
+            db.session.add(
+                Sensor(
+                    name=f"charger {i} sensor {j}",
+                    generic_asset=charger,
+                    event_resolution=timedelta(minutes=15),
+                    unit=unit,
+                )
+            )
+    db.session.flush()
+
+    original_flex_context = house.flex_context.copy()
+
+    # --- Act ---
+    house_copy = copy_asset(house, account=supplier_account)
+
+    # 1. Correct account and name.
+    assert house_copy.account_id == supplier_account.id
+    assert house_copy.name == f"{house.name} (Copy)"
+
+    # 2. Top-level in the target account (no parent given → parent_asset_id = None).
+    assert house_copy.parent_asset_id is None
+
+    # 3. flex_context is preserved verbatim.
+    assert house_copy.flex_context == original_flex_context
+
+    # 4. Shallow copy: the original children have *not* been duplicated.
+    children_of_copy = db.session.scalars(
+        select(GenericAsset).filter_by(parent_asset_id=house_copy.id)
+    ).all()
+    assert len(children_of_copy) == 0, "copy_asset should not recursively copy children"
